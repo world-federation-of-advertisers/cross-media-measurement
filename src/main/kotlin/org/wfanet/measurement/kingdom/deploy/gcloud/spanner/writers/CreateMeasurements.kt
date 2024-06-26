@@ -39,13 +39,13 @@ import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotActiveException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.getEtag
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
 
 /**
@@ -427,20 +427,27 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     val whereClause =
       """
       WHERE MeasurementConsumerId = @${params.MEASUREMENT_CONSUMER_ID}
+        AND CreateRequestId IS NOT NULL
         AND CreateRequestId IN UNNEST(@${params.CREATE_REQUEST_ID})
       """
         .trimIndent()
 
+    val requestIds = createMeasurementRequests.map { it.requestId }
     return buildMap {
-      MeasurementReader(Measurement.View.DEFAULT)
-        .fillStatementBuilder {
-          appendClause(whereClause)
-          bind(params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
-          bind(params.CREATE_REQUEST_ID)
-            .toStringArray(createMeasurementRequests.map { it.requestId })
-        }
-        .execute(transactionContext)
-        .collect { put(it.createRequestId, it.measurement) }
+      if (requestIds.isNotEmpty()) {
+        MeasurementReader(Measurement.View.DEFAULT, MeasurementReader.Index.CREATE_REQUEST_ID)
+          .fillStatementBuilder {
+            appendClause(whereClause)
+            bind(params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
+            bind(params.CREATE_REQUEST_ID).toStringArray(requestIds)
+          }
+          .execute(transactionContext)
+          .collect {
+            if (it.createRequestId != null) {
+              put(it.createRequestId, it.measurement)
+            }
+          }
+      }
     }
   }
 
@@ -454,7 +461,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         it.copy {
           createTime = commitTimestamp.toProto()
           updateTime = commitTimestamp.toProto()
-          etag = getEtag(commitTimestamp)
+          etag = ETags.computeETag(commitTimestamp)
         }
       }
     }

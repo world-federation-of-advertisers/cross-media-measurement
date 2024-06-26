@@ -979,8 +979,8 @@ class EdpSimulatorTest {
       // reach and frequency delta, epsilon, contributorCount: epsilon = 2.0, delta = 2E-12,
       // contributorCount = 1
       for (acdpCharge in acdpBalancesMap.values) {
-        assertThat(acdpCharge.rho).isEqualTo(0.035901274080426)
-        assertThat(acdpCharge.theta).isEqualTo(7.715411332048879E-14)
+        assertThat(acdpCharge.rho).isEqualTo(0.017514783972154814)
+        assertThat(acdpCharge.theta).isEqualTo(1.152890060534907E-13)
       }
 
       // The list of all the charged privacy bucket groups should be correct based on the filter.
@@ -1108,8 +1108,8 @@ class EdpSimulatorTest {
       // reach and frequency delta, epsilon, contributorCount: epsilon = 2.0, delta = 2E-12,
       // contributorCount = 1
       for (acdpCharge in acdpBalancesMap.values) {
-        assertThat(acdpCharge.rho).isEqualTo(0.035901274080426)
-        assertThat(acdpCharge.theta).isEqualTo(7.715411332048879E-14)
+        assertThat(acdpCharge.rho).isEqualTo(0.017514783972154814)
+        assertThat(acdpCharge.theta).isEqualTo(1.152890060534907E-13)
       }
 
       // The list of all the charged privacy bucket groups should be correct based on the filter.
@@ -1256,7 +1256,7 @@ class EdpSimulatorTest {
 
       // reach and frequency delta, epsilon: epsilon = 2.0, delta = 2E-12,
       for (acdpCharge in acdpBalancesMap.values) {
-        assertThat(acdpCharge.rho).isEqualTo(0.04552935394838453)
+        assertThat(acdpCharge.rho).isEqualTo(0.023253185826311272)
         assertThat(acdpCharge.theta).isEqualTo(0.0)
       }
 
@@ -3109,6 +3109,7 @@ class EdpSimulatorTest {
       value = value { duchyCertificate = DUCHY_TWO_CERTIFICATE.name }
     }
 
+    /** TODO(@kungfucraig): Replace this with the object in HmmsRequisitions.kt */
     private val HMSS_REQUISITION = requisition {
       name = "${EDP_NAME}/requisitions/foo"
       measurement = MEASUREMENT_NAME

@@ -70,371 +70,255 @@ fun Status.toExternalStatusRuntimeException(
     return this.asRuntimeException()
   }
   var errorMessage = this.description ?: "Unknown exception."
-  val metadataMap =
-    buildMap<String, String> {
-      when (ErrorCode.valueOf(errorInfo.reason)) {
-        ErrorCode.MEASUREMENT_NOT_FOUND -> {
-          val measurementName =
-            MeasurementKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_measurement_id"]).toLong()
-                ),
-              )
-              .toName()
-          put("measurement", measurementName)
-          errorMessage = "Measurement $measurementName not found"
-        }
-        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND -> {
-          val measurementConsumerName =
-            MeasurementConsumerKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
-                )
-              )
-              .toName()
-          put("measurementConsumer", measurementConsumerName)
-          errorMessage = "MeasurementConsumer $measurementConsumerName not found."
-        }
-        ErrorCode.DATA_PROVIDER_NOT_FOUND -> {
-          val dataProviderName =
-            DataProviderKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
-                )
-              )
-              .toName()
-          put("dataProvider", dataProviderName)
-          errorMessage = "DataProvider $dataProviderName not found."
-        }
-        ErrorCode.DUCHY_NOT_FOUND -> {
-          val duchyName =
-            DuchyKey(checkNotNull(errorInfo.metadataMap["external_duchy_id"]).toString()).toName()
-          put("duchy", duchyName)
-          errorMessage = "Duchy $duchyName not found."
-        }
-        ErrorCode.CERTIFICATE_NOT_FOUND -> {
-          val certificateApiId =
-            externalIdToApiId(
-              checkNotNull(errorInfo.metadataMap["external_certificate_id"]).toLong()
+  val metadataMap = buildMap {
+    when (ErrorCode.valueOf(errorInfo.reason)) {
+      ErrorCode.MEASUREMENT_NOT_FOUND -> {
+        val measurementName =
+          MeasurementKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_measurement_id"]).toLong()
+              ),
             )
-          if (errorInfo.metadataMap.containsKey("external_data_provider_id")) {
-            val dataProviderCertificateName =
-              DataProviderCertificateKey(
-                  externalIdToApiId(
-                    checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
-                  ),
-                  certificateApiId,
-                )
-                .toName()
-            put("dataProviderCertificate", dataProviderCertificateName)
-            errorMessage = "DataProviderCertificate $dataProviderCertificateName not found."
-          } else if (errorInfo.metadataMap.containsKey("external_measurement_consumer_id")) {
-            val measurementConsumerCertificateName =
-              MeasurementConsumerCertificateKey(
-                  externalIdToApiId(
-                    checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
-                  ),
-                  certificateApiId,
-                )
-                .toName()
-            put("measurementConsumerCertificate", measurementConsumerCertificateName)
-            errorMessage =
-              "MeasurementConsumerCertificate $measurementConsumerCertificateName not found."
-          } else if (errorInfo.metadataMap.containsKey("external_duchy_id")) {
-            val duchyCertificateName =
-              DuchyCertificateKey(
-                  checkNotNull(errorInfo.metadataMap["external_duchy_id"]).toString(),
-                  certificateApiId,
-                )
-                .toName()
-            put("duchyCertificate", duchyCertificateName)
-            errorMessage = "DuchyCertificate $duchyCertificateName not found."
-          } else if (errorInfo.metadataMap.containsKey("external_model_provider_id")) {
-            val modelProviderCertificateName =
-              ModelProviderCertificateKey(
-                  externalIdToApiId(
-                    checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
-                  ),
-                  certificateApiId,
-                )
-                .toName()
-            put("modelProviderCertificate", modelProviderCertificateName)
-            errorMessage = "ModelProviderCertificate $modelProviderCertificateName not found."
-          } else {
-            put("externalCertificateId", certificateApiId)
-            errorMessage = "Certificate not found."
-          }
-        }
-        ErrorCode.CERTIFICATE_IS_INVALID -> {
-          errorMessage = "Certificate is invalid."
-        }
-        ErrorCode.DUCHY_NOT_ACTIVE -> {
-          val duchyName =
-            DuchyKey(checkNotNull(errorInfo.metadataMap["external_duchy_id"]).toString()).toName()
-
-          put("duchy", duchyName)
-          errorMessage = "Duchy $duchyName is not active."
-        }
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL -> {
-          val measurementName =
-            MeasurementKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_measurement_id"]).toLong()
-                ),
+            .toName()
+        put("measurement", measurementName)
+        errorMessage = "Measurement $measurementName not found"
+      }
+      ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND -> {
+        val measurementConsumerName =
+          MeasurementConsumerKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
               )
-              .toName()
-          val measurementState =
-            InternalMeasurement.State.valueOf(
-                checkNotNull(errorInfo.metadataMap["measurement_state"])
-              )
-              .toState()
-              .toString()
-          put("measurement", measurementName)
-          put("state", measurementState)
-          errorMessage = "Measurement $measurementName is in illegal state: $measurementState"
-        }
-        ErrorCode.MODEL_PROVIDER_NOT_FOUND -> {
-          val modelProviderName =
-            ModelProviderKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
-                )
-              )
-              .toName()
-          put("modelProvider", modelProviderName)
-          errorMessage = "ModelProvider $modelProviderName not found."
-        }
-        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS -> {
-          errorMessage = "Certificate with the subject key identifier (SKID) already exists."
-        }
-        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL -> {
-          val certificateApiId =
-            externalIdToApiId(
-              checkNotNull(errorInfo.metadataMap["external_certificate_id"]).toLong()
             )
-          val certificateRevocationState =
-            InternalCertificate.RevocationState.valueOf(
-                checkNotNull(errorInfo.metadataMap["certificate_revocation_state"])
-              )
-              .toRevocationState()
-              .toString()
-          put("externalCertificateId", certificateApiId)
-          put("certificationRevocationState", certificateRevocationState)
-          errorMessage = "Certificate is in illegal revocation state: $certificateRevocationState."
-        }
-        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL -> {
-          errorMessage = "ComputationParticipant state illegal."
-        }
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND -> {
-          errorMessage = "ComputationParticipant not found."
-        }
-        ErrorCode.REQUISITION_NOT_FOUND -> {
-          val dataProviderKey =
-            DataProviderKey(
+            .toName()
+        put("measurementConsumer", measurementConsumerName)
+        errorMessage = "MeasurementConsumer $measurementConsumerName not found."
+      }
+      ErrorCode.DATA_PROVIDER_NOT_FOUND -> {
+        val dataProviderName =
+          DataProviderKey(
               externalIdToApiId(
                 checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
               )
             )
-          val requisitionName =
-            CanonicalRequisitionKey(
-                dataProviderKey,
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_requisition_id"]).toLong()
-                ),
-              )
-              .toName()
-          put("requisition", requisitionName)
-          errorMessage = "Requisition $requisitionName not found"
-        }
-        ErrorCode.REQUISITION_STATE_ILLEGAL -> {
-          val requisitionApiId =
-            externalIdToApiId(
-              checkNotNull(errorInfo.metadataMap["external_requisition_id"]).toLong()
-            )
-          val requisitionState =
-            InternalRequisition.State.valueOf(
-                checkNotNull(errorInfo.metadataMap["requisition_state"])
-              )
-              .toRequisitionState()
-              .toString()
-          put("requisitionId", requisitionApiId)
-          put("state", requisitionState)
-          errorMessage =
-            "Requisition with id: $requisitionApiId is in illegal state: $requisitionState"
-        }
-        ErrorCode.ACCOUNT_NOT_FOUND -> {
-          val accountName =
-            AccountKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_account_id"]).toLong()
-                )
-              )
-              .toName()
-          put("account", accountName)
-          errorMessage = "Account $accountName not found."
-        }
-        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY -> {
-          val accountName =
-            AccountKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_account_id"]).toLong()
-                )
-              )
-              .toName()
-          val issuer = checkNotNull(errorInfo.metadataMap["issuer"])
-          val subject = checkNotNull(errorInfo.metadataMap["subject"])
-          put("account", accountName)
-          put("issuer", issuer)
-          put("subject", subject)
-          errorMessage =
-            "Account $accountName with issuer: $issuer and subject: $subject pair already exists."
-        }
-        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL -> {
-          val accountName =
-            AccountKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_account_id"]).toLong()
-                )
-              )
-              .toName()
-          val accountActivationState =
-            InternalAccount.ActivationState.valueOf(
-                checkNotNull(errorInfo.metadataMap["account_activation_state"])
-              )
-              .toActivationState()
-              .toString()
-          put("account", accountName)
-          put("accountActivationState", accountActivationState)
-          errorMessage =
-            "Account $accountName is in illegal activation state: $accountActivationState."
-        }
-        ErrorCode.PERMISSION_DENIED -> {
-          errorMessage = "Permission Denied."
-        }
-        ErrorCode.API_KEY_NOT_FOUND -> {
-          val apiKeyApiId =
-            externalIdToApiId(checkNotNull(errorInfo.metadataMap["external_api_key_id"]).toLong())
-
-          put("externalApiKeyId", apiKeyApiId)
-          errorMessage = "ApiKey not found."
-        }
-        ErrorCode.EVENT_GROUP_NOT_FOUND -> {
-          if (errorInfo.metadataMap.containsKey("external_data_provider_id")) {
-            val eventGroupName =
-              EventGroupKey(
-                  externalIdToApiId(
-                    checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
-                  ),
-                  externalIdToApiId(
-                    checkNotNull(errorInfo.metadataMap["external_event_group_id"]).toLong()
-                  ),
-                )
-                .toName()
-            put("eventGroup", eventGroupName)
-            errorMessage = "EventGroup $eventGroupName not found."
-          } else if (errorInfo.metadataMap.containsKey("external_measurement_consumer_id")) {
-            val eventGroupName =
-              MeasurementConsumerEventGroupKey(
-                  externalIdToApiId(
-                    checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
-                  ),
-                  externalIdToApiId(
-                    checkNotNull(errorInfo.metadataMap["external_event_group_id"]).toLong()
-                  ),
-                )
-                .toName()
-            put("eventGroup", eventGroupName)
-            errorMessage = "EventGroup $eventGroupName not found."
-          } else {
-            errorMessage = "EventGroup not found."
-          }
-        }
-        ErrorCode.EVENT_GROUP_INVALID_ARGS -> {
-          val originalMeasurementConsumerName =
-            MeasurementConsumerKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["original_external_measurement_consumer_id"])
-                    .toLong()
-                )
-              )
-              .toName()
-          val providedMeasurementConsumerName =
-            MeasurementConsumerKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["provided_external_measurement_consumer_id"])
-                    .toLong()
-                )
-              )
-              .toName()
-          put("originalMeasurementConsumer", originalMeasurementConsumerName)
-          put("providedMeasurementConsumer", providedMeasurementConsumerName)
-          errorMessage =
-            "EventGroup argument invalid: expected $originalMeasurementConsumerName but got $providedMeasurementConsumerName"
-        }
-        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND -> {
-          val eventGroupMetadataDescriptorName =
-            EventGroupMetadataDescriptorKey(
+            .toName()
+        put("dataProvider", dataProviderName)
+        errorMessage = "DataProvider $dataProviderName not found."
+      }
+      ErrorCode.DUCHY_NOT_FOUND -> {
+        val duchyName =
+          DuchyKey(checkNotNull(errorInfo.metadataMap["external_duchy_id"]).toString()).toName()
+        put("duchy", duchyName)
+        errorMessage = "Duchy $duchyName not found."
+      }
+      ErrorCode.CERTIFICATE_NOT_FOUND -> {
+        val certificateApiId =
+          externalIdToApiId(checkNotNull(errorInfo.metadataMap["external_certificate_id"]).toLong())
+        if (errorInfo.metadataMap.containsKey("external_data_provider_id")) {
+          val dataProviderCertificateName =
+            DataProviderCertificateKey(
                 externalIdToApiId(
                   checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
                 ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_event_group_metadata_descriptor_id"])
-                    .toLong()
-                ),
+                certificateApiId,
               )
               .toName()
-          put("eventGroupMetadataDescriptor", eventGroupMetadataDescriptorName)
+          put("dataProviderCertificate", dataProviderCertificateName)
+          errorMessage = "DataProviderCertificate $dataProviderCertificateName not found."
+        } else if (errorInfo.metadataMap.containsKey("external_measurement_consumer_id")) {
+          val measurementConsumerCertificateName =
+            MeasurementConsumerCertificateKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
+                ),
+                certificateApiId,
+              )
+              .toName()
+          put("measurementConsumerCertificate", measurementConsumerCertificateName)
           errorMessage =
-            "EventGroup metadata descriptor $eventGroupMetadataDescriptorName not found."
-        }
-        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_ALREADY_EXISTS_WITH_TYPE -> {
-          errorMessage = "EventGroupMetadataDescriptor with same type already exists."
-        }
-        ErrorCode.RECURRING_EXCHANGE_NOT_FOUND -> {
-          val recurringExchangeName =
-            CanonicalRecurringExchangeKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_recurring_exchange_id"]).toLong()
-                )
+            "MeasurementConsumerCertificate $measurementConsumerCertificateName not found."
+        } else if (errorInfo.metadataMap.containsKey("external_duchy_id")) {
+          val duchyCertificateName =
+            DuchyCertificateKey(
+                checkNotNull(errorInfo.metadataMap["external_duchy_id"]).toString(),
+                certificateApiId,
               )
               .toName()
-          put("recurringExchange", recurringExchangeName)
-          errorMessage = "RecurringExchange $recurringExchangeName not found."
-        }
-        ErrorCode.EXCHANGE_STEP_NOT_FOUND -> {
-          val exchangeStepName =
-            CanonicalExchangeStepKey(
+          put("duchyCertificate", duchyCertificateName)
+          errorMessage = "DuchyCertificate $duchyCertificateName not found."
+        } else if (errorInfo.metadataMap.containsKey("external_model_provider_id")) {
+          val modelProviderCertificateName =
+            ModelProviderCertificateKey(
                 externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_recurring_exchange_id"]).toLong()
+                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
                 ),
-                checkNotNull(errorInfo.metadataMap["date"]),
-                checkNotNull(errorInfo.metadataMap["step_index"]),
+                certificateApiId,
               )
               .toName()
-          put("exchangeStep", exchangeStepName)
-          errorMessage = "ExchangeStep $exchangeStepName not found."
+          put("modelProviderCertificate", modelProviderCertificateName)
+          errorMessage = "ModelProviderCertificate $modelProviderCertificateName not found."
+        } else {
+          put("externalCertificateId", certificateApiId)
+          errorMessage = "Certificate not found."
         }
-        ErrorCode.EXCHANGE_STEP_ATTEMPT_NOT_FOUND -> {
-          val exchangeStepAttemptName =
-            CanonicalExchangeStepAttemptKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_recurring_exchange_id"]).toLong()
-                ),
-                checkNotNull(errorInfo.metadataMap["date"]),
-                checkNotNull(errorInfo.metadataMap["step_index"]),
-                checkNotNull(errorInfo.metadataMap["attempt_number"]),
+      }
+      ErrorCode.CERTIFICATE_IS_INVALID -> {
+        errorMessage = "Certificate is invalid."
+      }
+      ErrorCode.DUCHY_NOT_ACTIVE -> {
+        val duchyName =
+          DuchyKey(checkNotNull(errorInfo.metadataMap["external_duchy_id"]).toString()).toName()
+
+        put("duchy", duchyName)
+        errorMessage = "Duchy $duchyName is not active."
+      }
+      ErrorCode.MEASUREMENT_STATE_ILLEGAL -> {
+        val measurementName =
+          MeasurementKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_measurement_id"]).toLong()
+              ),
+            )
+            .toName()
+        val measurementState =
+          InternalMeasurement.State.valueOf(
+              checkNotNull(errorInfo.metadataMap["measurement_state"])
+            )
+            .toState()
+            .toString()
+        put("measurement", measurementName)
+        put("state", measurementState)
+        errorMessage = "Measurement $measurementName is in illegal state: $measurementState"
+      }
+      ErrorCode.MODEL_PROVIDER_NOT_FOUND -> {
+        val modelProviderName =
+          ModelProviderKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
               )
-              .toName()
-          put("exchangeStepAttempt", exchangeStepAttemptName)
-          errorMessage = "ExchangeStepAttempt $exchangeStepAttemptName not found."
-        }
-        ErrorCode.EVENT_GROUP_STATE_ILLEGAL -> {
+            )
+            .toName()
+        put("modelProvider", modelProviderName)
+        errorMessage = "ModelProvider $modelProviderName not found."
+      }
+      ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS -> {
+        errorMessage = "Certificate with the subject key identifier (SKID) already exists."
+      }
+      ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL -> {
+        val certificateApiId =
+          externalIdToApiId(checkNotNull(errorInfo.metadataMap["external_certificate_id"]).toLong())
+        val certificateRevocationState =
+          InternalCertificate.RevocationState.valueOf(
+              checkNotNull(errorInfo.metadataMap["certificate_revocation_state"])
+            )
+            .toRevocationState()
+            .toString()
+        put("externalCertificateId", certificateApiId)
+        put("certificationRevocationState", certificateRevocationState)
+        errorMessage = "Certificate is in illegal revocation state: $certificateRevocationState."
+      }
+      ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL -> {
+        errorMessage = "ComputationParticipant state illegal."
+      }
+      ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND -> {
+        errorMessage = "ComputationParticipant not found."
+      }
+      ErrorCode.COMPUTATION_PARTICIPANT_ETAG_MISMATCH -> {
+        // Just pass through since ETags don't need conversion.
+        put("actual_etag", errorInfo.metadataMap.getValue("actual_etag"))
+        put("request_etag", errorInfo.metadataMap.getValue("request_etag"))
+        Unit
+      }
+      ErrorCode.REQUISITION_NOT_FOUND -> {
+        val dataProviderKey =
+          DataProviderKey(
+            externalIdToApiId(
+              checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
+            )
+          )
+        val requisitionName =
+          CanonicalRequisitionKey(
+              dataProviderKey,
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_requisition_id"]).toLong()
+              ),
+            )
+            .toName()
+        put("requisition", requisitionName)
+        errorMessage = "Requisition $requisitionName not found"
+      }
+      ErrorCode.REQUISITION_STATE_ILLEGAL -> {
+        val requisitionApiId =
+          externalIdToApiId(checkNotNull(errorInfo.metadataMap["external_requisition_id"]).toLong())
+        val requisitionState =
+          InternalRequisition.State.valueOf(
+              checkNotNull(errorInfo.metadataMap["requisition_state"])
+            )
+            .toRequisitionState()
+            .toString()
+        put("requisitionId", requisitionApiId)
+        put("state", requisitionState)
+        errorMessage =
+          "Requisition with id: $requisitionApiId is in illegal state: $requisitionState"
+      }
+      ErrorCode.ACCOUNT_NOT_FOUND -> {
+        val accountName =
+          AccountKey(
+              externalIdToApiId(checkNotNull(errorInfo.metadataMap["external_account_id"]).toLong())
+            )
+            .toName()
+        put("account", accountName)
+        errorMessage = "Account $accountName not found."
+      }
+      ErrorCode.DUPLICATE_ACCOUNT_IDENTITY -> {
+        val accountName =
+          AccountKey(
+              externalIdToApiId(checkNotNull(errorInfo.metadataMap["external_account_id"]).toLong())
+            )
+            .toName()
+        val issuer = checkNotNull(errorInfo.metadataMap["issuer"])
+        val subject = checkNotNull(errorInfo.metadataMap["subject"])
+        put("account", accountName)
+        put("issuer", issuer)
+        put("subject", subject)
+        errorMessage =
+          "Account $accountName with issuer: $issuer and subject: $subject pair already exists."
+      }
+      ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL -> {
+        val accountName =
+          AccountKey(
+              externalIdToApiId(checkNotNull(errorInfo.metadataMap["external_account_id"]).toLong())
+            )
+            .toName()
+        val accountActivationState =
+          InternalAccount.ActivationState.valueOf(
+              checkNotNull(errorInfo.metadataMap["account_activation_state"])
+            )
+            .toActivationState()
+            .toString()
+        put("account", accountName)
+        put("accountActivationState", accountActivationState)
+        errorMessage =
+          "Account $accountName is in illegal activation state: $accountActivationState."
+      }
+      ErrorCode.PERMISSION_DENIED -> {
+        errorMessage = "Permission Denied."
+      }
+      ErrorCode.API_KEY_NOT_FOUND -> {
+        val apiKeyApiId =
+          externalIdToApiId(checkNotNull(errorInfo.metadataMap["external_api_key_id"]).toLong())
+
+        put("externalApiKeyId", apiKeyApiId)
+        errorMessage = "ApiKey not found."
+      }
+      ErrorCode.EVENT_GROUP_NOT_FOUND -> {
+        if (errorInfo.metadataMap.containsKey("external_data_provider_id")) {
           val eventGroupName =
             EventGroupKey(
                 externalIdToApiId(
@@ -447,268 +331,376 @@ fun Status.toExternalStatusRuntimeException(
               .toName()
           put("eventGroup", eventGroupName)
           errorMessage = "EventGroup $eventGroupName not found."
-        }
-        ErrorCode.MEASUREMENT_ETAG_MISMATCH -> {
-          errorMessage = "Measurement is inconsistent with initial state."
-        }
-        ErrorCode.MODEL_SUITE_NOT_FOUND -> {
-          val modelSuiteName =
-            ModelSuiteKey(
+        } else if (errorInfo.metadataMap.containsKey("external_measurement_consumer_id")) {
+          val eventGroupName =
+            MeasurementConsumerEventGroupKey(
                 externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+                  checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
                 ),
                 externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
+                  checkNotNull(errorInfo.metadataMap["external_event_group_id"]).toLong()
                 ),
               )
               .toName()
-          put("modelSuite", modelSuiteName)
-          errorMessage = "ModelSuite $modelSuiteName not found."
-        }
-        ErrorCode.MODEL_LINE_NOT_FOUND -> {
-          val modelLineName =
-            ModelLineKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
-                ),
-              )
-              .toName()
-          put("modelLine", modelLineName)
-          errorMessage = "ModelLine $modelLineName not found."
-        }
-        ErrorCode.MODEL_LINE_TYPE_ILLEGAL -> {
-          val modelLineName =
-            ModelLineKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
-                ),
-              )
-              .toName()
-          val modelLineType =
-            InternalModelLine.Type.valueOf(checkNotNull(errorInfo.metadataMap["model_line_type"]))
-              .toType()
-              .toString()
-          put("modelLine", modelLineName)
-          put("modelLineType", modelLineType)
-          errorMessage = "ModelLine $modelLineName type: $modelLineType is illegal."
-        }
-        ErrorCode.MODEL_LINE_INVALID_ARGS -> {
-          val modelLineName =
-            ModelLineKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
-                ),
-              )
-              .toName()
-          put("modelLine", modelLineName)
-          errorMessage = "ModelLine $modelLineName has invalid active times."
-        }
-        ErrorCode.MODEL_OUTAGE_NOT_FOUND -> {
-          val modelOutageName =
-            ModelOutageKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_outage_id"]).toLong()
-                ),
-              )
-              .toName()
-          put("modelOutage", modelOutageName)
-          errorMessage = "ModelOutage $modelOutageName not found."
-        }
-        ErrorCode.MODEL_OUTAGE_INVALID_ARGS -> {
-          val modelOutageName =
-            ModelOutageKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_outage_id"]).toLong()
-                ),
-              )
-              .toName()
-          put("modelOutage", modelOutageName)
-          errorMessage = "ModelOutage $modelOutageName invalid arguments."
-        }
-        ErrorCode.MODEL_OUTAGE_STATE_ILLEGAL -> {
-          val modelOutageName =
-            ModelOutageKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_outage_id"]).toLong()
-                ),
-              )
-              .toName()
-          put("modelOutage", modelOutageName)
-          errorMessage = "ModelOutage $modelOutageName not found."
-        }
-        ErrorCode.MODEL_SHARD_NOT_FOUND -> {
-          val modelShardName =
-            ModelShardKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_shard_id"]).toLong()
-                ),
-              )
-              .toName()
-          put("modelShard", modelShardName)
-          errorMessage = "ModelShard $modelShardName not found."
-        }
-        ErrorCode.MODEL_RELEASE_NOT_FOUND -> {
-          val modelReleaseName =
-            ModelReleaseKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_release_id"]).toLong()
-                ),
-              )
-              .toName()
-          put("modelRelease", modelReleaseName)
-          errorMessage = "ModelRelease $modelReleaseName not found."
-        }
-        ErrorCode.MODEL_ROLLOUT_INVALID_ARGS -> {
-          val modelRolloutName =
-            ModelRolloutKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_rollout_id"]).toLong()
-                ),
-              )
-              .toName()
-          put("modelRollout", modelRolloutName)
-          errorMessage = "ModelRollout $modelRolloutName invalid rollout period times."
-        }
-        ErrorCode.MODEL_ROLLOUT_NOT_FOUND -> {
-          val modelRolloutName =
-            ModelRolloutKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_rollout_id"]).toLong()
-                ),
-              )
-              .toName()
-          put("modelRollout", modelRolloutName)
-          errorMessage = "ModelRollout $modelRolloutName not found."
-        }
-        ErrorCode.EXCHANGE_NOT_FOUND -> {
-          val exchangeName =
-            CanonicalExchangeKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_recurring_exchange_id"]).toLong()
-                ),
-                checkNotNull(errorInfo.metadataMap["date"]),
-              )
-              .toName()
-          put("exchange", exchangeName)
-          errorMessage = "Exchange $exchangeName not found."
-        }
-        ErrorCode.MODEL_SHARD_INVALID_ARGS -> {
-          val modelShardName =
-            ModelShardKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_shard_id"]).toLong()
-                ),
-              )
-              .toName()
-          val modelProviderName =
-            ModelProviderKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
-                )
-              )
-              .toName()
-          put("modelShard", modelShardName)
-          put("modelProvider", modelProviderName)
-          errorMessage =
-            "Operation on ModelShard $modelShardName with ModelProvider $modelProviderName has invalid arguments."
-        }
-        ErrorCode.POPULATION_NOT_FOUND -> {
-          val populationName =
-            PopulationKey(
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
-                ),
-                externalIdToApiId(
-                  checkNotNull(errorInfo.metadataMap["external_population_id"]).toLong()
-                ),
-              )
-              .toName()
-          put("population", populationName)
-          errorMessage = "Population $populationName not found."
-        }
-        ErrorCode.UNKNOWN_ERROR -> {
-          errorMessage = "Unknown exception."
-        }
-        ErrorCode.UNRECOGNIZED -> {
-          errorMessage = "Unrecognized exception."
+          put("eventGroup", eventGroupName)
+          errorMessage = "EventGroup $eventGroupName not found."
+        } else {
+          errorMessage = "EventGroup not found."
         }
       }
+      ErrorCode.EVENT_GROUP_INVALID_ARGS -> {
+        val originalMeasurementConsumerName =
+          MeasurementConsumerKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["original_external_measurement_consumer_id"])
+                  .toLong()
+              )
+            )
+            .toName()
+        val providedMeasurementConsumerName =
+          MeasurementConsumerKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["provided_external_measurement_consumer_id"])
+                  .toLong()
+              )
+            )
+            .toName()
+        put("originalMeasurementConsumer", originalMeasurementConsumerName)
+        put("providedMeasurementConsumer", providedMeasurementConsumerName)
+        errorMessage =
+          "EventGroup argument invalid: expected $originalMeasurementConsumerName but got $providedMeasurementConsumerName"
+      }
+      ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND -> {
+        val eventGroupMetadataDescriptorName =
+          EventGroupMetadataDescriptorKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_event_group_metadata_descriptor_id"])
+                  .toLong()
+              ),
+            )
+            .toName()
+        put("eventGroupMetadataDescriptor", eventGroupMetadataDescriptorName)
+        errorMessage = "EventGroup metadata descriptor $eventGroupMetadataDescriptorName not found."
+      }
+      ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_ALREADY_EXISTS_WITH_TYPE -> {
+        errorMessage = "EventGroupMetadataDescriptor with same type already exists."
+      }
+      ErrorCode.RECURRING_EXCHANGE_NOT_FOUND -> {
+        val recurringExchangeName =
+          CanonicalRecurringExchangeKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_recurring_exchange_id"]).toLong()
+              )
+            )
+            .toName()
+        put("recurringExchange", recurringExchangeName)
+        errorMessage = "RecurringExchange $recurringExchangeName not found."
+      }
+      ErrorCode.EXCHANGE_STEP_NOT_FOUND -> {
+        val exchangeStepName =
+          CanonicalExchangeStepKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_recurring_exchange_id"]).toLong()
+              ),
+              checkNotNull(errorInfo.metadataMap["date"]),
+              checkNotNull(errorInfo.metadataMap["step_index"]),
+            )
+            .toName()
+        put("exchangeStep", exchangeStepName)
+        errorMessage = "ExchangeStep $exchangeStepName not found."
+      }
+      ErrorCode.EXCHANGE_STEP_ATTEMPT_NOT_FOUND -> {
+        val exchangeStepAttemptName =
+          CanonicalExchangeStepAttemptKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_recurring_exchange_id"]).toLong()
+              ),
+              checkNotNull(errorInfo.metadataMap["date"]),
+              checkNotNull(errorInfo.metadataMap["step_index"]),
+              checkNotNull(errorInfo.metadataMap["attempt_number"]),
+            )
+            .toName()
+        put("exchangeStepAttempt", exchangeStepAttemptName)
+        errorMessage = "ExchangeStepAttempt $exchangeStepAttemptName not found."
+      }
+      ErrorCode.EVENT_GROUP_STATE_ILLEGAL -> {
+        val eventGroupName =
+          EventGroupKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_event_group_id"]).toLong()
+              ),
+            )
+            .toName()
+        put("eventGroup", eventGroupName)
+        errorMessage = "EventGroup $eventGroupName not found."
+      }
+      ErrorCode.MEASUREMENT_ETAG_MISMATCH -> {
+        errorMessage = "Measurement is inconsistent with initial state."
+      }
+      ErrorCode.MODEL_SUITE_NOT_FOUND -> {
+        val modelSuiteName =
+          ModelSuiteKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
+              ),
+            )
+            .toName()
+        put("modelSuite", modelSuiteName)
+        errorMessage = "ModelSuite $modelSuiteName not found."
+      }
+      ErrorCode.MODEL_LINE_NOT_FOUND -> {
+        val modelLineName =
+          ModelLineKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
+              ),
+            )
+            .toName()
+        put("modelLine", modelLineName)
+        errorMessage = "ModelLine $modelLineName not found."
+      }
+      ErrorCode.MODEL_LINE_TYPE_ILLEGAL -> {
+        val modelLineName =
+          ModelLineKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
+              ),
+            )
+            .toName()
+        val modelLineType =
+          InternalModelLine.Type.valueOf(checkNotNull(errorInfo.metadataMap["model_line_type"]))
+            .toType()
+            .toString()
+        put("modelLine", modelLineName)
+        put("modelLineType", modelLineType)
+        errorMessage = "ModelLine $modelLineName type: $modelLineType is illegal."
+      }
+      ErrorCode.MODEL_LINE_INVALID_ARGS -> {
+        val modelLineName =
+          ModelLineKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
+              ),
+            )
+            .toName()
+        put("modelLine", modelLineName)
+        errorMessage = "ModelLine $modelLineName has invalid active times."
+      }
+      ErrorCode.MODEL_OUTAGE_NOT_FOUND -> {
+        val modelOutageName =
+          ModelOutageKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_outage_id"]).toLong()
+              ),
+            )
+            .toName()
+        put("modelOutage", modelOutageName)
+        errorMessage = "ModelOutage $modelOutageName not found."
+      }
+      ErrorCode.MODEL_OUTAGE_INVALID_ARGS -> {
+        val modelOutageName =
+          ModelOutageKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_outage_id"]).toLong()
+              ),
+            )
+            .toName()
+        put("modelOutage", modelOutageName)
+        errorMessage = "ModelOutage $modelOutageName invalid arguments."
+      }
+      ErrorCode.MODEL_OUTAGE_STATE_ILLEGAL -> {
+        val modelOutageName =
+          ModelOutageKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_outage_id"]).toLong()
+              ),
+            )
+            .toName()
+        put("modelOutage", modelOutageName)
+        errorMessage = "ModelOutage $modelOutageName not found."
+      }
+      ErrorCode.MODEL_SHARD_NOT_FOUND -> {
+        val modelShardName =
+          ModelShardKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_shard_id"]).toLong()
+              ),
+            )
+            .toName()
+        put("modelShard", modelShardName)
+        errorMessage = "ModelShard $modelShardName not found."
+      }
+      ErrorCode.MODEL_RELEASE_NOT_FOUND -> {
+        val modelReleaseName =
+          ModelReleaseKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_release_id"]).toLong()
+              ),
+            )
+            .toName()
+        put("modelRelease", modelReleaseName)
+        errorMessage = "ModelRelease $modelReleaseName not found."
+      }
+      ErrorCode.MODEL_ROLLOUT_INVALID_ARGS -> {
+        val modelRolloutName =
+          ModelRolloutKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_rollout_id"]).toLong()
+              ),
+            )
+            .toName()
+        put("modelRollout", modelRolloutName)
+        errorMessage = "ModelRollout $modelRolloutName invalid rollout period times."
+      }
+      ErrorCode.MODEL_ROLLOUT_NOT_FOUND -> {
+        val modelRolloutName =
+          ModelRolloutKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_rollout_id"]).toLong()
+              ),
+            )
+            .toName()
+        put("modelRollout", modelRolloutName)
+        errorMessage = "ModelRollout $modelRolloutName not found."
+      }
+      ErrorCode.EXCHANGE_NOT_FOUND -> {
+        val exchangeName =
+          CanonicalExchangeKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_recurring_exchange_id"]).toLong()
+              ),
+              checkNotNull(errorInfo.metadataMap["date"]),
+            )
+            .toName()
+        put("exchange", exchangeName)
+        errorMessage = "Exchange $exchangeName not found."
+      }
+      ErrorCode.MODEL_SHARD_INVALID_ARGS -> {
+        val modelShardName =
+          ModelShardKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_shard_id"]).toLong()
+              ),
+            )
+            .toName()
+        val modelProviderName =
+          ModelProviderKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
+              )
+            )
+            .toName()
+        put("modelShard", modelShardName)
+        put("modelProvider", modelProviderName)
+        errorMessage =
+          "Operation on ModelShard $modelShardName with ModelProvider $modelProviderName has invalid arguments."
+      }
+      ErrorCode.POPULATION_NOT_FOUND -> {
+        val populationName =
+          PopulationKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
+              ),
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_population_id"]).toLong()
+              ),
+            )
+            .toName()
+        put("population", populationName)
+        errorMessage = "Population $populationName not found."
+      }
+      ErrorCode.UNKNOWN_ERROR -> {
+        errorMessage = "Unknown exception."
+      }
+      ErrorCode.UNRECOGNIZED -> {
+        errorMessage = "Unrecognized exception."
+      }
     }
+  }
 
   val statusProto = status {
     code = this@toExternalStatusRuntimeException.code.value()

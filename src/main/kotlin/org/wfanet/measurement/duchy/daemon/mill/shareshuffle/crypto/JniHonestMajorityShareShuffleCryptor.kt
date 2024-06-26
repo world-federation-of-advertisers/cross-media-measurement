@@ -44,6 +44,22 @@ class JniHonestMajorityShareShuffleCryptor : HonestMajorityShareShuffleCryptor {
     )
   }
 
+  override fun completeReachOnlyShufflePhase(
+    request: CompleteShufflePhaseRequest
+  ): CompleteShufflePhaseResponse {
+    return CompleteShufflePhaseResponse.parseFrom(
+      HonestMajorityShareShuffleUtility.completeReachOnlyShufflePhase(request.toByteArray())
+    )
+  }
+
+  override fun completeReachOnlyAggregationPhase(
+    request: CompleteAggregationPhaseRequest
+  ): CompleteAggregationPhaseResponse {
+    return CompleteAggregationPhaseResponse.parseFrom(
+      HonestMajorityShareShuffleUtility.completeReachOnlyAggregationPhase(request.toByteArray())
+    )
+  }
+
   companion object {
     init {
       System.loadLibrary("honest_majority_share_shuffle_utility")

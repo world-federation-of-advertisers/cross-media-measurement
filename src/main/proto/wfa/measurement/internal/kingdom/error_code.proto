@@ -48,6 +48,8 @@ enum ErrorCode {
   COMPUTATION_PARTICIPANT_STATE_ILLEGAL = 11;
   /** Computation Participant resource queried could not be found. */
   COMPUTATION_PARTICIPANT_NOT_FOUND = 12;
+  /** ComputationParticipant etag from request does not match actual etag. */
+  COMPUTATION_PARTICIPANT_ETAG_MISMATCH = 44;
   /** Requisition entity could not be found. */
   REQUISITION_NOT_FOUND = 13;
   /** Requisition is in an illegal state for the operation. */

@@ -65,7 +65,6 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 #OpenTelemetryReceiverPort:           4317
 #OpenTelemetryPrometheusExporterPort: 8889
-#OpenTelemetryCollectorEndpoint:      "http://default-collector-headless.default.svc:\(#OpenTelemetryReceiverPort)"
 
 // K8s ServiceAccount.
 #ServiceAccount: {
@@ -286,13 +285,15 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #ObjectMeta: {
 	_component?: string
 
-	name: string
+	name?: string
 	labels: [_=string]:      string
 	annotations: [_=string]: string
 
 	labels: {
-		"app.kubernetes.io/name":    name
 		"app.kubernetes.io/part-of": #AppName
+		if (name != _|_) {
+			"app.kubernetes.io/name": name
+		}
 		if (_component != _|_) {
 			"app.kubernetes.io/component": _component
 		}
@@ -529,39 +530,6 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 }
 
-// K8s Job.
-#Job: {
-	_name:        string
-	_secretName?: string
-	_container:   #Container
-
-	apiVersion: "batch/v1"
-	kind:       "Job"
-	metadata: {
-		name: _name + "-job"
-		labels: {
-			"app.kubernetes.io/name":    _name
-			"app.kubernetes.io/part-of": #AppName
-		}
-	}
-	spec: {
-		backoffLimit?: uint
-		template: {
-			metadata: labels: app: _name + "-app"
-			spec: #PodSpec & {
-				if _secretName != _|_ {
-					_mounts: "\(_name)-files": {
-						volume: secret: secretName: _secretName
-					}
-				}
-				_containers: "\(_name)-container": _container
-
-				restartPolicy: restartPolicy | *"OnFailure"
-			}
-		}
-	}
-}
-
 // K8s CronJob
 #CronJob: {
 	_name:        string
@@ -570,12 +538,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 	apiVersion: "batch/v1"
 	kind:       "CronJob"
-	metadata: {
+	metadata:   #ObjectMeta & {
 		name: _name + "-cronjob"
-		labels: {
-			"app.kubernetes.io/name":    _name
-			"app.kubernetes.io/part-of": #AppName
-		}
 	}
 	spec: {
 		schedule: string
@@ -583,9 +547,12 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			spec: {
 				backoffLimit: uint | *0
 				template: {
-					metadata: {
+					metadata: #ObjectMeta & {
 						labels: {
 							app: _name + "-app"
+						}
+						annotations: {
+							"instrumentation.opentelemetry.io/inject-java": _ | *"true"
 						}
 					}
 					spec: #PodSpec & {
@@ -595,7 +562,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 							}
 						}
 						_containers: "\(_name)-container": _container
-						restartPolicy: restartPolicy | *"Never"
+						restartPolicy: _ | *"Never"
 					}
 				}
 			}

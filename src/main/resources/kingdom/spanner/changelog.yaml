@@ -63,3 +63,6 @@ databaseChangeLog:
 - include:
     file: add-event-group-metadata-descriptor-types.sql
     relativeToChangeLogFile: true
+- include:
+    file: reorder-measurements-by-continuation-token.sql
+    relativeToChangeLogFile: true

@@ -130,7 +130,7 @@ private const val METRIC_ID_PREFIX = "a"
 private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
 
 private const val BATCH_CREATE_METRICS_LIMIT = 1000
-private const val BATCH_GET_METRICS_LIMIT = 100
+private const val BATCH_GET_METRICS_LIMIT = 1000
 
 private const val RANDOM_OUTPUT_INT = 0
 private const val RANDOM_OUTPUT_LONG = 0L

@@ -144,10 +144,12 @@ message HonestMajorityShareShuffle {
       int32 maximum_frequency = 1;
       // Parameters for secret sharing sketches.
       ShareShuffleSketchParams sketch_params = 2;
-      // Differential privacy parameters for noise generation.
-      DifferentialPrivacyParams dp_params = 3;
+      // Differential privacy parameters for reach noise generation.
+      DifferentialPrivacyParams reach_dp_params = 3;
+      // Differential privacy parameters for frequency noise generation.
+      DifferentialPrivacyParams frequency_dp_params = 4;
       // Noise mechanism used for generating noise.
-      NoiseMechanism noise_mechanism = 4;
+      NoiseMechanism noise_mechanism = 5;
     }
     Parameters parameters = 2;
 

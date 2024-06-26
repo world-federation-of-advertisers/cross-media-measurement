@@ -37,6 +37,8 @@ import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByMeasurementException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 
 private val BASE_SQL =
   """
@@ -125,6 +127,16 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
     return execute(readContext).singleOrNull()
   }
 
+  suspend fun readByExternalComputationId(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalComputationId: ExternalId,
+    externalDuchyId: String,
+  ): Result? {
+    val duchyId =
+      DuchyIds.getInternalId(externalDuchyId) ?: throw DuchyNotFoundException(externalDuchyId)
+    return readByExternalComputationId(readContext, externalComputationId, InternalId(duchyId))
+  }
+
   override suspend fun translate(struct: Struct) =
     Result(
       buildComputationParticipant(struct),
@@ -163,27 +175,35 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
       externalComputationId: ExternalId,
       measurementDetails: Measurement.Details,
       struct: Struct,
-    ) = computationParticipant {
-      this.externalMeasurementConsumerId = externalMeasurementConsumerId.value
-      this.externalMeasurementId = externalMeasurementId.value
-      this.externalDuchyId = externalDuchyId
-      this.externalComputationId = externalComputationId.value
-      if (!struct.isNull("ExternalDuchyCertificateId")) {
-        duchyCertificate = CertificateReader.buildDuchyCertificate(externalDuchyId, struct)
-      }
-      updateTime = struct.getTimestamp("UpdateTime").toProto()
-      state = struct.getProtoEnum("State", ComputationParticipant.State::forNumber)
-      details =
-        struct.getProtoMessage("ParticipantDetails", ComputationParticipant.Details.parser())
-      apiVersion = measurementDetails.apiVersion
-
-      buildFailureLogEntry(
+    ): ComputationParticipant {
+      val failureLogEntry: DuchyMeasurementLogEntry? =
+        buildFailureLogEntry(
           externalMeasurementConsumerId,
           externalMeasurementId,
           externalDuchyId,
           struct.getStructList("DuchyMeasurementLogEntries"),
         )
-        ?.let { failureLogEntry = it }
+      val updateTime = struct.getTimestamp("UpdateTime")
+      val etag = ETags.computeETag(updateTime)
+      return computationParticipant {
+        this.externalMeasurementConsumerId = externalMeasurementConsumerId.value
+        this.externalMeasurementId = externalMeasurementId.value
+        this.externalDuchyId = externalDuchyId
+        this.externalComputationId = externalComputationId.value
+        if (!struct.isNull("ExternalDuchyCertificateId")) {
+          duchyCertificate = CertificateReader.buildDuchyCertificate(externalDuchyId, struct)
+        }
+        this.updateTime = updateTime.toProto()
+        this.etag = etag
+        state = struct.getProtoEnum("State", ComputationParticipant.State::forNumber)
+        details =
+          struct.getProtoMessage("ParticipantDetails", ComputationParticipant.Details.parser())
+        apiVersion = measurementDetails.apiVersion
+
+        if (failureLogEntry != null) {
+          this.failureLogEntry = failureLogEntry
+        }
+      }
     }
 
     private fun buildFailureLogEntry(

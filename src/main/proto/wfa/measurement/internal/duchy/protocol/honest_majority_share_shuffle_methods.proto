@@ -49,10 +49,16 @@ message CompleteShufflePhaseRequest {
   }
   NonAggregatorOrder order = 3;
 
-  DifferentialPrivacyParams dp_params = 4;
+  // Differential privacy parameters used to generate the reach noise.
+  DifferentialPrivacyParams reach_dp_params = 4;
+
+  // Differential privacy parameters used to generate the 1+ frequency noise.
+  //
+  // This is not needed for the reach only HMSS measurement.
+  DifferentialPrivacyParams frequency_dp_params = 5;
 
   // Noise mechanism used for generating noise.
-  NoiseMechanism noise_mechanism = 5;
+  NoiseMechanism noise_mechanism = 6;
 
   // Sketch shares from EDPs in format of either data or seed.
   //
@@ -68,7 +74,7 @@ message CompleteShufflePhaseRequest {
     }
   }
   // Sketch shares ordered by the external key.
-  repeated SketchShare sketch_shares = 8;
+  repeated SketchShare sketch_shares = 9;
 }
 
 // For non-aggregator.
@@ -99,11 +105,18 @@ message CompleteAggregationPhaseRequest {
   // MeasurementSpec.
   float vid_sampling_interval_width = 4;
 
-  // Differential privacy parameters used to calculate the offset of noise.
-  DifferentialPrivacyParams dp_params = 5;
+  // Differential privacy parameters used to calculate the offset of the reach
+  // noise.
+  DifferentialPrivacyParams reach_dp_params = 5;
+
+  // Differential privacy parameters used to calculate the offset of the 1+
+  // frequency noise.
+  //
+  // This is not needed for the reach only HMSS measurement.
+  DifferentialPrivacyParams frequency_dp_params = 6;
 
   // Noise mechanism used to calculate the offset of noise.
-  NoiseMechanism noise_mechanism = 6;
+  NoiseMechanism noise_mechanism = 7;
 }
 
 // For aggregators.
