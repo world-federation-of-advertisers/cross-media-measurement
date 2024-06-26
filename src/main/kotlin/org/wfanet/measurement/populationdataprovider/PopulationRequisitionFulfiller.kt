@@ -63,6 +63,7 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
  */
 data class PopulationInfo(
   val populationSpec: PopulationSpec,
+  //TODO(jojijac0b): Dynamically generate an Event message type for each EventTemplate by building a DescriptorProto.
   val eventMessageDescriptor: Descriptor,
 )
 /** A requisition fulfiller for PDP businesses. */
@@ -269,6 +270,7 @@ class PopulationRequisitionFulfiller(
    * attribute set to true will be returned.
    */
   private fun getPopulationOperativeFields(eventMessageDescriptor: Descriptor): Set<String> {
+    //TODO(jojijac0b): Pass in specific template descriptor instead of entire event message descriptor.
     return eventMessageDescriptor.fields.flatMap { templateField ->
       templateField.messageType.fields.map { templateFieldDescriptor ->
         if(templateFieldDescriptor.options.getExtension(EventAnnotationsProto.templateField).populationAttribute){
