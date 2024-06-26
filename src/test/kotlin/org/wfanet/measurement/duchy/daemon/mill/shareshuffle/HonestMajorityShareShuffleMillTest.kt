@@ -556,6 +556,32 @@ class HonestMajorityShareShuffleMillTest {
   }
 
   @Test
+  fun `initialized phase has higher priority to be claimed`() = runBlocking {
+    val computationDetails =
+      getReachAndFrequencyHmssComputationDetails(RoleInComputation.FIRST_NON_AGGREGATOR)
+    fakeComputationDb.addComputation(
+      1L,
+      Stage.SETUP_PHASE.toProtocolStage(),
+      computationDetails = computationDetails,
+      requisitions = REACH_AND_FREQUENCY_REQUISITIONS,
+    )
+
+    fakeComputationDb.addComputation(
+      2L,
+      Stage.INITIALIZED.toProtocolStage(),
+      computationDetails = computationDetails,
+      requisitions = REACH_AND_FREQUENCY_REQUISITIONS,
+    )
+    val mill = createHmssMill(DUCHY_ONE_ID)
+    mill.pollAndProcessNextComputation()
+
+    assertThat(fakeComputationDb[2]!!.computationStage)
+      .isEqualTo(Stage.WAIT_TO_START.toProtocolStage())
+    assertThat(fakeComputationDb[1]!!.computationStage)
+      .isEqualTo(Stage.SETUP_PHASE.toProtocolStage())
+  }
+
+  @Test
   fun `initializationPhase sends params to Kingdom and advance stage`() = runBlocking {
     val computationDetails =
       getReachAndFrequencyHmssComputationDetails(RoleInComputation.FIRST_NON_AGGREGATOR)

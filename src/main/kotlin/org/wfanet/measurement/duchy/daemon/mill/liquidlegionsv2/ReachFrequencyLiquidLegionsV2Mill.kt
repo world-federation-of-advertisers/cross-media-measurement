@@ -41,12 +41,12 @@ import org.wfanet.measurement.duchy.service.internal.computations.outputPathList
 import org.wfanet.measurement.duchy.service.system.v1alpha.advanceComputationHeader
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
-import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
+import org.wfanet.measurement.internal.duchy.computationStage
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.NON_AGGREGATOR
@@ -148,10 +148,9 @@ class ReachFrequencyLiquidLegionsV2Mill(
     maximumAttempts,
     clock,
   ) {
-  override val endingStage: ComputationStage =
-    ComputationStage.newBuilder()
-      .apply { liquidLegionsSketchAggregationV2 = Stage.COMPLETE }
-      .build()
+  override val endingStage = Stage.COMPLETE.toProtocolStage()
+
+  override val prioritizedStagesToClaim = listOf(Stage.INITIALIZATION_PHASE.toProtocolStage())
 
   private val actions =
     mapOf(

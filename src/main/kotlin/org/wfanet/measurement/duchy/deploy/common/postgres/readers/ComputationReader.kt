@@ -349,10 +349,10 @@ class ComputationReader(
     readContext: ReadContext,
     protocol: Long,
     timestamp: Instant,
+    prioritizedStages: List<ComputationStage>,
   ): Flow<UnclaimedTaskQueryResult> {
-    val listUnclaimedTasksSql =
-      boundStatement(
-        """
+    val baseSql =
+      """
       SELECT c.ComputationId,  c.GlobalComputationId,
              c.Protocol, c.ComputationStage, c.UpdateTime,
              c.CreationTime, cs.NextAttempt
@@ -360,13 +360,38 @@ class ComputationReader(
         JOIN ComputationStages AS cs
       ON c.ComputationId = cs.ComputationId
         AND c.ComputationStage = cs.ComputationStage
-      WHERE c.Protocol = $1
+      WHERE c.Protocol = ${'$'}1
         AND c.LockExpirationTime IS NOT NULL
-        AND c.LockExpirationTime <= $2
-      ORDER BY c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC
-      LIMIT 50;
+        AND c.LockExpirationTime <= ${'$'}2
       """
-      ) {
+
+    val baseSqlWithOrder =
+      if (prioritizedStages.isEmpty()) {
+        baseSql +
+          """
+          ORDER BY c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC
+          LIMIT 50;
+          """
+      } else {
+        // Binding list of String into the IN clause does not work as expected with r2dbc library.
+        // Hence, manually joining targeting stages into a comma separated string and stub it into
+        // the
+        // query.
+        val stagesString =
+          prioritizedStages
+            .map { computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage }
+            .toList()
+            .joinToString(",")
+        baseSql +
+          """
+          ORDER BY CASE WHEN c.ComputationStage IN ($stagesString) THEN 0 ELSE 1 END ASC,
+          c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC
+          LIMIT 50;
+          """
+      }
+
+    val listUnclaimedTasksSql =
+      boundStatement(baseSqlWithOrder) {
         bind("$1", protocol)
         bind("$2", timestamp)
       }

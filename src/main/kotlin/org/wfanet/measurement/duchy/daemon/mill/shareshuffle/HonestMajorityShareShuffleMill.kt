@@ -138,6 +138,8 @@ class HonestMajorityShareShuffleMill(
 
   override val endingStage = Stage.COMPLETE.toProtocolStage()
 
+  override val prioritizedStagesToClaim = listOf(Stage.INITIALIZED.toProtocolStage())
+
   private val actions =
     mapOf(
       Pair(Stage.INITIALIZED, FIRST_NON_AGGREGATOR) to ::initializationPhase,
