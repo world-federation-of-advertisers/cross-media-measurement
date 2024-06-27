@@ -190,7 +190,7 @@ class PopulationRequisitionFulfillerTest {
         modelRolloutsStub,
         modelReleasesStub,
         POPULATION_INFO_MAP,
-        TYPE_REGISTRY
+        TYPE_REGISTRY,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -240,7 +240,7 @@ class PopulationRequisitionFulfillerTest {
         modelRolloutsStub,
         modelReleasesStub,
         POPULATION_INFO_MAP,
-        TYPE_REGISTRY
+        TYPE_REGISTRY,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -262,7 +262,10 @@ class PopulationRequisitionFulfillerTest {
       REQUISITION_SPEC.copy {
         population =
           RequisitionSpecKt.population {
-            filter = eventFilter { expression = "person.gender == ${Person.Gender.MALE_VALUE} && person.age_group == ${Person.AgeGroup.YEARS_35_TO_54_VALUE}" }
+            filter = eventFilter {
+              expression =
+                "person.gender == ${Person.Gender.MALE_VALUE} && person.age_group == ${Person.AgeGroup.YEARS_35_TO_54_VALUE}"
+            }
           }
       }
 
@@ -290,7 +293,7 @@ class PopulationRequisitionFulfillerTest {
         modelRolloutsStub,
         modelReleasesStub,
         POPULATION_INFO_MAP,
-        TYPE_REGISTRY
+        TYPE_REGISTRY,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -344,7 +347,7 @@ class PopulationRequisitionFulfillerTest {
         modelRolloutsStub,
         modelReleasesStub,
         POPULATION_INFO_MAP,
-        TYPE_REGISTRY
+        TYPE_REGISTRY,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -401,7 +404,7 @@ class PopulationRequisitionFulfillerTest {
         modelRolloutsStub,
         modelReleasesStub,
         POPULATION_INFO_MAP,
-        TYPE_REGISTRY
+        TYPE_REGISTRY,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -414,9 +417,9 @@ class PopulationRequisitionFulfillerTest {
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
     // Population value calculated with requisition spec that contains banner_ad field in the filter
-    // expression should be equal to that which does not contain that field. banner_ad field should just be
-    // ignored. The result of this test should be the same as test `fulfills requisition for females
-    // using different ModelRelease`
+    // expression should be equal to that which does not contain that field. banner_ad field should
+    // just be ignored. The result of this test should be the same as test `fulfills requisition for
+    // females using different ModelRelease`
     assertThat(result.population.value).isEqualTo(VID_RANGE_3.size())
   }
 
@@ -443,10 +446,7 @@ class PopulationRequisitionFulfillerTest {
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
 
-    val invalidPopulationInfoMap =
-      mapOf(
-        POPULATION_ID_1 to INVALID_POPULATION_INFO_1,
-      )
+    val invalidPopulationInfoMap = mapOf(POPULATION_ID_1 to INVALID_POPULATION_INFO_1)
 
     val requisitionFulfiller =
       PopulationRequisitionFulfiller(
@@ -459,7 +459,7 @@ class PopulationRequisitionFulfillerTest {
         modelRolloutsStub,
         modelReleasesStub,
         invalidPopulationInfoMap,
-        TYPE_REGISTRY
+        TYPE_REGISTRY,
       )
 
     val exception =
@@ -496,10 +496,7 @@ class PopulationRequisitionFulfillerTest {
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
 
-    val INVALID_POPULATION_INFO_MAP =
-      mapOf(
-        POPULATION_ID_1 to INVALID_POPULATION_INFO_2,
-      )
+    val INVALID_POPULATION_INFO_MAP = mapOf(POPULATION_ID_1 to INVALID_POPULATION_INFO_2)
 
     val requisitionFulfiller =
       PopulationRequisitionFulfiller(
@@ -512,7 +509,7 @@ class PopulationRequisitionFulfillerTest {
         modelRolloutsStub,
         modelReleasesStub,
         INVALID_POPULATION_INFO_MAP,
-        TYPE_REGISTRY
+        TYPE_REGISTRY,
       )
 
     val exception =
@@ -550,10 +547,7 @@ class PopulationRequisitionFulfillerTest {
     }
 
     val INVALID_POPULATION_ID = PopulationKey.defaultValue
-    val INVALID_POPULATION_INFO_MAP =
-      mapOf(
-        INVALID_POPULATION_ID to POPULATION_INFO_2,
-      )
+    val INVALID_POPULATION_INFO_MAP = mapOf(INVALID_POPULATION_ID to POPULATION_INFO_2)
 
     val requisitionFulfiller =
       PopulationRequisitionFulfiller(
@@ -566,7 +560,7 @@ class PopulationRequisitionFulfillerTest {
         modelRolloutsStub,
         modelReleasesStub,
         INVALID_POPULATION_INFO_MAP,
-        TYPE_REGISTRY
+        TYPE_REGISTRY,
       )
 
     // Result should throw NoSuchElementException
@@ -615,7 +609,7 @@ class PopulationRequisitionFulfillerTest {
         modelRolloutsStub,
         modelReleasesStub,
         POPULATION_INFO_MAP,
-        TYPE_REGISTRY
+        TYPE_REGISTRY,
       )
 
     // Result should throw EventFilterValidationException
@@ -785,29 +779,15 @@ class PopulationRequisitionFulfillerTest {
     private val POPULATION_ID_2: PopulationKey =
       requireNotNull(PopulationKey.fromName(POPULATION_NAME_2))
 
-    private val POPULATION_INFO_1 =
-      PopulationInfo(
-        POPULATION_SPEC_1,
-        TestEvent.getDescriptor(),
-      )
+    private val POPULATION_INFO_1 = PopulationInfo(POPULATION_SPEC_1, TestEvent.getDescriptor())
 
-    private val POPULATION_INFO_2 =
-      PopulationInfo(
-        POPULATION_SPEC_2,
-        TestEvent.getDescriptor(),
-      )
+    private val POPULATION_INFO_2 = PopulationInfo(POPULATION_SPEC_2, TestEvent.getDescriptor())
 
     private val INVALID_POPULATION_INFO_1 =
-      PopulationInfo(
-        INVALID_POPULATION_SPEC_1,
-        TestEvent.getDescriptor(),
-      )
+      PopulationInfo(INVALID_POPULATION_SPEC_1, TestEvent.getDescriptor())
 
     private val INVALID_POPULATION_INFO_2 =
-      PopulationInfo(
-        INVALID_POPULATION_SPEC_2,
-        TestEvent.getDescriptor(),
-      )
+      PopulationInfo(INVALID_POPULATION_SPEC_2, TestEvent.getDescriptor())
 
     private val POPULATION_INFO_MAP =
       mapOf<PopulationKey, PopulationInfo>(

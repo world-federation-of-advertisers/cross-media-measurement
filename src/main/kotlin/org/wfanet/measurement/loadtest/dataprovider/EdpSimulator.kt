@@ -182,7 +182,7 @@ class EdpSimulator(
     requisitionsStub,
     throttler,
     trustedCertificates,
-    measurementConsumerName
+    measurementConsumerName,
   ) {
   val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
 

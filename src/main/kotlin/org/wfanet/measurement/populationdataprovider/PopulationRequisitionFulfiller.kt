@@ -55,15 +55,17 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 /**
  * Data class associated with a population.
  *
- * @param populationSpec The [PopulationSpec] that contains 1) information on the attributes of a population, and  2) vid ranges
- *  that are used to calculate the size of the population.
- * @param eventMessageDescriptor The [Descriptor] of the event message that wraps the event template which is used by the CEL
- *  program to filter out irrelevant populations and calculate the size. The event template should contain the same types
- *  provided in the attributes list of the [PopulationSpec].
+ * @param populationSpec The [PopulationSpec] that contains 1) information on the attributes of a
+ *   population, and 2) vid ranges that are used to calculate the size of the population.
+ * @param eventMessageDescriptor The [Descriptor] of the event message that wraps the event template
+ *   which is used by the CEL program to filter out irrelevant populations and calculate the size.
+ *   The event template should contain the same types provided in the attributes list of the
+ *   [PopulationSpec].
  */
 data class PopulationInfo(
   val populationSpec: PopulationSpec,
-  //TODO(jojijac0b): Dynamically generate an Event message type for each EventTemplate by building a DescriptorProto.
+  // TODO(jojijac0b): Dynamically generate an Event message type for each EventTemplate by building
+  //  a DescriptorProto.
   val eventMessageDescriptor: Descriptor,
 )
 /** A requisition fulfiller for PDP businesses. */
@@ -85,7 +87,7 @@ class PopulationRequisitionFulfiller(
     requisitionsStub,
     throttler,
     trustedCertificates,
-    measurementConsumerName
+    measurementConsumerName,
   ) {
 
   /** A sequence of operations done in the simulator. */
@@ -215,9 +217,7 @@ class PopulationRequisitionFulfiller(
     }
   }
 
-  /**
-   *  Fulfills a population measurement.
-   */
+  /** Fulfills a population measurement. */
   private suspend fun fulfillPopulationMeasurement(
     requisition: Requisition,
     requisitionSpec: RequisitionSpec,
@@ -266,18 +266,26 @@ class PopulationRequisitionFulfiller(
   }
 
   /**
-   * Returns a [Set] of operative fields derived from a [Descriptor]. Only fields that have the population
-   * attribute set to true will be returned.
+   * Returns a [Set] of operative fields derived from a [Descriptor]. Only fields that have the
+   * population attribute set to true will be returned.
    */
   private fun getPopulationOperativeFields(eventMessageDescriptor: Descriptor): Set<String> {
-    //TODO(jojijac0b): Pass in specific template descriptor instead of entire event message descriptor.
-    return eventMessageDescriptor.fields.flatMap { templateField ->
-      templateField.messageType.fields.map { templateFieldDescriptor ->
-        if(templateFieldDescriptor.options.getExtension(EventAnnotationsProto.templateField).populationAttribute){
-          "${templateField.name}.${templateFieldDescriptor.name}"
-        } else null
+    // TODO(jojijac0b): Pass in specific template descriptor instead of entire event message
+    //  descriptor.
+    return eventMessageDescriptor.fields
+      .flatMap { templateField ->
+        templateField.messageType.fields.map { templateFieldDescriptor ->
+          if (
+            templateFieldDescriptor.options
+              .getExtension(EventAnnotationsProto.templateField)
+              .populationAttribute
+          ) {
+            "${templateField.name}.${templateFieldDescriptor.name}"
+          } else null
+        }
       }
-    }.filterNotNull().toSet()
+      .filterNotNull()
+      .toSet()
   }
 
   /**
@@ -288,7 +296,7 @@ class PopulationRequisitionFulfiller(
     attributeList: List<Any>,
     populationInfo: PopulationInfo,
     program: Program,
-    typeRegistry: TypeRegistry
+    typeRegistry: TypeRegistry,
   ): Boolean {
     val eventMessageDescriptor: Descriptor = populationInfo.eventMessageDescriptor
 

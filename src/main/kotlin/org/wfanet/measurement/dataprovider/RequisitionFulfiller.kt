@@ -133,7 +133,7 @@ abstract class RequisitionFulfiller(
       try {
         decryptRequisitionSpec(
           requisition.encryptedRequisitionSpec,
-          dataProviderData.privateEncryptionKey
+          dataProviderData.privateEncryptionKey,
         )
       } catch (e: GeneralSecurityException) {
         throw InvalidConsentSignalException("RequisitionSpec decryption failed", e)
