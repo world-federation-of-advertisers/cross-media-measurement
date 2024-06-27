@@ -12,9 +12,9 @@ Therefore, this configuration does not set any.
 
 You will need:
 
-* A container registry that you can push images to.
-* A running Kubernetes 1.24+ cluster.
-    * Your container registry must be accessible from this cluster.
+*   A container registry that you can push images to.
+*   A running Kubernetes 1.24+ cluster.
+    *   Your container registry must be accessible from this cluster.
 
 See [Local Cluster Creation](#local-cluster-creation) in the Appendix for how to
 create a local cluster with access to a local private registry.
@@ -111,8 +111,8 @@ kubectl port-forward --address=localhost services/v2alpha-public-api-server 8443
 kubectl port-forward --address=localhost services/gcp-kingdom-data-server 9443:8443
 ```
 
-Then run the tool, outputting to some directory (e.g. `/tmp/resource-setup`, make sure 
-this directory has been created):
+Then run the tool, outputting to some directory (e.g. `/tmp/resource-setup`,
+make sure this directory has been created):
 
 ```shell
 src/main/k8s/testing/resource_setup.sh \
@@ -298,14 +298,15 @@ kubectl port-forward prometheus-pod 31111:9090
 Once you have a running CMMS with EDP simulators, you can run the correctness
 test against it.
 
-You'll need access to the public API server. You can do this via port
-forwarding as mentioned before:
+You'll need access to the public API server. You can do this via port forwarding
+as mentioned before:
 
 ```shell
 kubectl port-forward --address=localhost services/v2alpha-public-api-server 8443:8443
 ```
 
-Then you can run the test, substituting your own values(e.g. `mc_name` and `mc_api_key`):
+Then you can run the test, substituting your own values(e.g. `mc_name` and
+`mc_api_key`):
 
 ```shell
 bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
@@ -415,3 +416,7 @@ minikube start --insecure-registry='registry.dev.svc.cluster.local:5001'
 Finally, add the same entry in the `/etc/hosts` file *within* Minikube. You can
 do this using `minikube ssh` or using the
 [file sync](https://minikube.sigs.k8s.io/docs/handbook/filesync/) feature.
+
+Note: If you are using rootless Docker or rootless Podman, you may need to also
+enable IP forwarding on your host machine. See
+https://github.com/kubernetes/minikube/issues/18667

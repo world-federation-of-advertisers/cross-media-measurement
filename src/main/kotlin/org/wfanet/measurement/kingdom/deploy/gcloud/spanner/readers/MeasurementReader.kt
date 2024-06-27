@@ -14,19 +14,15 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
-import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
-import com.google.protobuf.kotlin.toByteString
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-import java.security.MessageDigest
 import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
@@ -41,10 +37,10 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.getEtag
 
-class MeasurementReader(private val view: Measurement.View) :
+class MeasurementReader(private val view: Measurement.View, measurementsIndex: Index = Index.NONE) :
   SpannerReader<MeasurementReader.Result>() {
 
   data class Result(
@@ -54,16 +50,61 @@ class MeasurementReader(private val view: Measurement.View) :
     val measurement: Measurement,
   )
 
-  private fun constructBaseSql(view: Measurement.View): String {
-    return when (view) {
-      Measurement.View.DEFAULT -> defaultViewBaseSql
-      Measurement.View.COMPUTATION -> computationViewBaseSql
-      Measurement.View.UNRECOGNIZED ->
-        throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
-    }
+  enum class Index(internal val sql: String) {
+    NONE(""),
+    CREATE_REQUEST_ID("@{FORCE_INDEX=MeasurementsByCreateRequestId}"),
   }
 
-  override val baseSql: String = constructBaseSql(view)
+  override val baseSql: String
+    get() = BASE_SQL
+
+  private val BASE_SQL =
+    """
+      @{spanner_emulator.disable_query_null_filtered_index_check=true}
+      WITH FilteredMeasurements AS (
+        SELECT *
+        FROM
+          Measurements${measurementsIndex.sql}
+          JOIN MeasurementConsumers USING (MeasurementConsumerId)
+      """
+      .trimIndent()
+
+  private var filled = false
+
+  /** Optional ORDER BY clause that is appended at the end of the overall query. */
+  var orderByClause: String? = null
+    set(value) {
+      check(!filled) { "Statement builder already filled" }
+      field = value
+    }
+
+  /**
+   * Fills the statement builder for the query.
+   *
+   * @param block a function for filling the statement builder for the Measurements table subquery.
+   */
+  override fun fillStatementBuilder(block: Statement.Builder.() -> Unit): SpannerReader<Result> {
+    check(!filled) { "Statement builder already filled" }
+    filled = true
+
+    return super.fillStatementBuilder {
+      block()
+      append(")\n")
+
+      val sql =
+        when (view) {
+          Measurement.View.DEFAULT -> DEFAULT_VIEW_SQL
+          Measurement.View.COMPUTATION -> COMPUTATION_VIEW_SQL
+          Measurement.View.UNRECOGNIZED -> error("Invalid view $view")
+        }
+      appendClause(sql)
+
+      val orderByClause = orderByClause
+      if (orderByClause != null) {
+        appendClause(orderByClause)
+      }
+    }
+  }
 
   override suspend fun translate(struct: Struct): Result =
     Result(
@@ -84,14 +125,13 @@ class MeasurementReader(private val view: Measurement.View) :
           WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId
             AND ExternalMeasurementId = @externalMeasurementId
           """
+            .trimIndent()
         )
         bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
         bind("externalMeasurementId").to(externalMeasurementId.value)
-
-        appendClause("LIMIT 1")
       }
       .execute(readContext)
-      .singleOrNull()
+      .singleOrNullIfEmpty()
   }
 
   suspend fun readByExternalIds(
@@ -105,6 +145,7 @@ class MeasurementReader(private val view: Measurement.View) :
           WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId
             AND ExternalMeasurementId IN UNNEST(@ids)
           """
+            .trimIndent()
         )
         bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
         bind("ids").toInt64Array(externalMeasurementIds.map { it.value })
@@ -138,7 +179,6 @@ class MeasurementReader(private val view: Measurement.View) :
   }
 
   companion object {
-
     suspend fun readMeasurementState(
       readContext: AsyncDatabaseClient.ReadContext,
       measurementConsumerId: InternalId,
@@ -152,7 +192,7 @@ class MeasurementReader(private val view: Measurement.View) :
           listOf(column),
         )
         ?.getProtoEnum(column, Measurement.State::forNumber)
-        ?: throw MeasurementNotFoundException() { "Measurement not found $measurementId" }
+        ?: throw MeasurementNotFoundException { "Measurement not found $measurementId" }
     }
 
     /**
@@ -209,170 +249,153 @@ class MeasurementReader(private val view: Measurement.View) :
       val column = "UpdateTime"
       val updateTime =
         readContext.readRow("Measurements", measurementKey, listOf(column))?.getTimestamp(column)
-          ?: throw MeasurementNotFoundException() { "Measurement not found for $measurementKey" }
-      return getEtag(updateTime)
+          ?: throw MeasurementNotFoundException { "Measurement not found for $measurementKey" }
+      return ETags.computeETag(updateTime)
     }
 
-    fun getEtag(updateTime: Timestamp): String {
-      val buffer =
-        ByteBuffer.allocate(8 + 4)
-          .order(ByteOrder.BIG_ENDIAN)
-          .putLong(updateTime.seconds)
-          .putInt(updateTime.nanos)
-          .asReadOnlyBuffer()
-          .flip()
-      val hash =
-        HexString(
-          MessageDigest.getInstance("SHA-256").apply { update(buffer) }.digest().toByteString()
-        )
-      return "W/\"${hash}\""
-    }
-
-    private val defaultViewBaseSql =
+    private val DEFAULT_VIEW_SQL =
       """
-    SELECT
-      Measurements.MeasurementId,
-      Measurements.MeasurementConsumerId,
-      Measurements.ExternalMeasurementId,
-      Measurements.ExternalComputationId,
-      Measurements.ProvidedMeasurementId,
-      Measurements.CreateRequestId,
-      Measurements.MeasurementDetails,
-      Measurements.CreateTime,
-      Measurements.UpdateTime,
-      Measurements.State AS MeasurementState,
-      MeasurementConsumers.ExternalMeasurementConsumerId,
-      MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
-      ARRAY(
-        SELECT AS STRUCT
-          ExternalDataProviderId,
-          ExternalDataProviderCertificateId,
-          RequisitionDetails
-        FROM
-          Requisitions
-          JOIN DataProviders USING (DataProviderId)
-          JOIN DataProviderCertificates ON (
-            DataProviderCertificates.DataProviderId = Requisitions.DataProviderId
-            AND DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId
-          )
-        WHERE
-          Requisitions.MeasurementConsumerId = Measurements.MeasurementConsumerId
-          AND Requisitions.MeasurementId = Measurements.MeasurementId
-      ) AS Requisitions,
-      ARRAY(
-        SELECT AS STRUCT
-          DuchyMeasurementResults.DuchyId,
-          ExternalDuchyCertificateId,
-          EncryptedResult,
-          PublicApiVersion
-        FROM
-          DuchyMeasurementResults
-          JOIN DuchyCertificates USING (DuchyId, CertificateId)
-        WHERE
-          DuchyMeasurementResults.MeasurementConsumerId = Measurements.MeasurementConsumerId
-          AND DuchyMeasurementResults.MeasurementId = Measurements.MeasurementId
-      ) AS DuchyResults
-    FROM
-      Measurements
-      JOIN MeasurementConsumers USING (MeasurementConsumerId)
-      JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
-    """
+      SELECT
+        Measurements.MeasurementId,
+        Measurements.MeasurementConsumerId,
+        Measurements.ExternalMeasurementId,
+        Measurements.ExternalComputationId,
+        Measurements.ProvidedMeasurementId,
+        Measurements.CreateRequestId,
+        Measurements.MeasurementDetails,
+        Measurements.CreateTime,
+        Measurements.UpdateTime,
+        Measurements.State AS MeasurementState,
+        ExternalMeasurementConsumerId,
+        ExternalMeasurementConsumerCertificateId,
+        ARRAY(
+          SELECT AS STRUCT
+            ExternalDataProviderId,
+            ExternalDataProviderCertificateId,
+            RequisitionDetails
+          FROM
+            Requisitions
+            JOIN DataProviders USING (DataProviderId)
+            JOIN DataProviderCertificates ON (
+              DataProviderCertificates.DataProviderId = Requisitions.DataProviderId
+              AND DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId
+            )
+          WHERE
+            Requisitions.MeasurementConsumerId = Measurements.MeasurementConsumerId
+            AND Requisitions.MeasurementId = Measurements.MeasurementId
+        ) AS Requisitions,
+        ARRAY(
+          SELECT AS STRUCT
+            DuchyMeasurementResults.DuchyId,
+            ExternalDuchyCertificateId,
+            EncryptedResult,
+            PublicApiVersion
+          FROM
+            DuchyMeasurementResults
+            JOIN DuchyCertificates USING (DuchyId, CertificateId)
+          WHERE
+            DuchyMeasurementResults.MeasurementConsumerId = Measurements.MeasurementConsumerId
+            AND DuchyMeasurementResults.MeasurementId = Measurements.MeasurementId
+        ) AS DuchyResults
+      FROM
+        FilteredMeasurements AS Measurements
+        JOIN MeasurementConsumerCertificates USING (MeasurementConsumerId, CertificateId)
+      """
         .trimIndent()
 
-    private val computationViewBaseSql =
+    private val COMPUTATION_VIEW_SQL =
       """
-    SELECT
-      ExternalMeasurementConsumerId,
-      ExternalMeasurementConsumerCertificateId,
-      Measurements.MeasurementId,
-      Measurements.MeasurementConsumerId,
-      Measurements.ExternalMeasurementId,
-      Measurements.ExternalComputationId,
-      Measurements.ProvidedMeasurementId,
-      Measurements.CreateRequestId,
-      Measurements.MeasurementDetails,
-      Measurements.CreateTime,
-      Measurements.UpdateTime,
-      Measurements.State AS MeasurementState,
-      ARRAY(
-        SELECT AS STRUCT
-          ExternalDataProviderId,
-          Requisitions.UpdateTime,
-          Requisitions.ExternalRequisitionId,
-          Requisitions.State AS RequisitionState,
-          Requisitions.FulfillingDuchyId,
-          Requisitions.RequisitionDetails,
-          ExternalDataProviderCertificateId,
-          SubjectKeyIdentifier,
-          NotValidBefore,
-          NotValidAfter,
-          RevocationState,
-          CertificateDetails,
-        FROM
-          Requisitions
-          JOIN DataProviders USING (DataProviderId)
-          JOIN DataProviderCertificates ON (
-            DataProviderCertificates.DataProviderId = Requisitions.DataProviderId
-            AND DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId
-          )
-          JOIN Certificates USING (CertificateId)
-        WHERE
-          Requisitions.MeasurementConsumerId = Measurements.MeasurementConsumerId
-          AND Requisitions.MeasurementId = Measurements.MeasurementId
-      ) AS Requisitions,
-      ARRAY(
-        SELECT AS STRUCT
-          ExternalDuchyCertificateId,
-          ComputationParticipants.DuchyId,
-          ComputationParticipants.UpdateTime,
-          ComputationParticipants.State,
-          ComputationParticipants.ParticipantDetails,
-          Certificates.SubjectKeyIdentifier,
-          Certificates.NotValidBefore,
-          Certificates.NotValidAfter,
-          Certificates.RevocationState,
-          Certificates.CertificateDetails,
-          ARRAY(
-            SELECT AS STRUCT
-              DuchyMeasurementLogEntries.CreateTime,
-              DuchyMeasurementLogEntries.ExternalComputationLogEntryId,
-              DuchyMeasurementLogEntries.DuchyMeasurementLogDetails,
-              MeasurementLogEntries.MeasurementLogDetails
-            FROM
-              DuchyMeasurementLogEntries
-              JOIN MeasurementLogEntries USING (MeasurementConsumerId, MeasurementId, CreateTime)
-            WHERE
-              DuchyMeasurementLogEntries.DuchyId = ComputationParticipants.DuchyId
-              AND DuchyMeasurementLogEntries.MeasurementConsumerId = ComputationParticipants.MeasurementConsumerId
-              AND DuchyMeasurementLogEntries.MeasurementId = ComputationParticipants.MeasurementId
-            ORDER BY MeasurementLogEntries.CreateTime DESC
-          ) AS DuchyMeasurementLogEntries
-        FROM
-          ComputationParticipants
-          LEFT JOIN (DuchyCertificates JOIN Certificates USING (CertificateId))
-            USING (DuchyId, CertificateId)
-        WHERE
-          ComputationParticipants.MeasurementConsumerId = Measurements.MeasurementConsumerId
-          AND ComputationParticipants.MeasurementId = Measurements.MeasurementId
-      ) AS ComputationParticipants,
-      ARRAY(
-        SELECT AS STRUCT
-          DuchyMeasurementResults.DuchyId,
-          ExternalDuchyCertificateId,
-          EncryptedResult,
-          PublicApiVersion
-        FROM
-          DuchyMeasurementResults
-          JOIN DuchyCertificates USING (CertificateId)
-        WHERE
-          Measurements.MeasurementConsumerId = DuchyMeasurementResults.MeasurementConsumerId
-          AND Measurements.MeasurementId = DuchyMeasurementResults.MeasurementId
-      ) AS DuchyResults
-    FROM
-      Measurements@{FORCE_INDEX=MeasurementsByContinuationToken}
-      JOIN MeasurementConsumers USING (MeasurementConsumerId)
-      JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
-    """
+      SELECT
+        ExternalMeasurementConsumerId,
+        ExternalMeasurementConsumerCertificateId,
+        Measurements.MeasurementId,
+        Measurements.MeasurementConsumerId,
+        Measurements.ExternalMeasurementId,
+        Measurements.ExternalComputationId,
+        Measurements.ProvidedMeasurementId,
+        Measurements.CreateRequestId,
+        Measurements.MeasurementDetails,
+        Measurements.CreateTime,
+        Measurements.UpdateTime,
+        Measurements.State AS MeasurementState,
+        ARRAY(
+          SELECT AS STRUCT
+            ExternalDataProviderId,
+            Requisitions.UpdateTime,
+            Requisitions.ExternalRequisitionId,
+            Requisitions.State AS RequisitionState,
+            Requisitions.FulfillingDuchyId,
+            Requisitions.RequisitionDetails,
+            ExternalDataProviderCertificateId,
+            SubjectKeyIdentifier,
+            NotValidBefore,
+            NotValidAfter,
+            RevocationState,
+            CertificateDetails,
+          FROM
+            Requisitions
+            JOIN DataProviders USING (DataProviderId)
+            JOIN DataProviderCertificates ON (
+              DataProviderCertificates.DataProviderId = Requisitions.DataProviderId
+              AND DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId
+            )
+            JOIN Certificates USING (CertificateId)
+          WHERE
+            Requisitions.MeasurementConsumerId = Measurements.MeasurementConsumerId
+            AND Requisitions.MeasurementId = Measurements.MeasurementId
+        ) AS Requisitions,
+        ARRAY(
+          SELECT AS STRUCT
+            ExternalDuchyCertificateId,
+            ComputationParticipants.DuchyId,
+            ComputationParticipants.UpdateTime,
+            ComputationParticipants.State,
+            ComputationParticipants.ParticipantDetails,
+            Certificates.SubjectKeyIdentifier,
+            Certificates.NotValidBefore,
+            Certificates.NotValidAfter,
+            Certificates.RevocationState,
+            Certificates.CertificateDetails,
+            ARRAY(
+              SELECT AS STRUCT
+                DuchyMeasurementLogEntries.CreateTime,
+                DuchyMeasurementLogEntries.ExternalComputationLogEntryId,
+                DuchyMeasurementLogEntries.DuchyMeasurementLogDetails,
+                MeasurementLogEntries.MeasurementLogDetails
+              FROM
+                DuchyMeasurementLogEntries
+                JOIN MeasurementLogEntries USING (MeasurementConsumerId, MeasurementId, CreateTime)
+              WHERE
+                DuchyMeasurementLogEntries.DuchyId = ComputationParticipants.DuchyId
+                AND DuchyMeasurementLogEntries.MeasurementConsumerId = ComputationParticipants.MeasurementConsumerId
+                AND DuchyMeasurementLogEntries.MeasurementId = ComputationParticipants.MeasurementId
+              ORDER BY MeasurementLogEntries.CreateTime DESC
+            ) AS DuchyMeasurementLogEntries
+          FROM
+            ComputationParticipants
+            LEFT JOIN (DuchyCertificates JOIN Certificates USING (CertificateId))
+              USING (DuchyId, CertificateId)
+          WHERE
+            ComputationParticipants.MeasurementConsumerId = Measurements.MeasurementConsumerId
+            AND ComputationParticipants.MeasurementId = Measurements.MeasurementId
+        ) AS ComputationParticipants,
+        ARRAY(
+          SELECT AS STRUCT
+            DuchyMeasurementResults.DuchyId,
+            ExternalDuchyCertificateId,
+            EncryptedResult,
+            PublicApiVersion
+          FROM
+            DuchyMeasurementResults
+            JOIN DuchyCertificates USING (CertificateId)
+          WHERE
+            Measurements.MeasurementConsumerId = DuchyMeasurementResults.MeasurementConsumerId
+            AND Measurements.MeasurementId = DuchyMeasurementResults.MeasurementId
+        ) AS DuchyResults
+      FROM
+        FilteredMeasurements AS Measurements
+        JOIN MeasurementConsumerCertificates USING (MeasurementConsumerId, CertificateId)
+      """
         .trimIndent()
   }
 }
@@ -406,7 +429,7 @@ private fun MeasurementKt.Dsl.fillMeasurementCommon(struct: Struct) {
       }
     }
   }
-  etag = getEtag(struct.getTimestamp("UpdateTime"))
+  etag = ETags.computeETag(struct.getTimestamp("UpdateTime"))
 }
 
 private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {

@@ -24,6 +24,10 @@ option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 service ComputationParticipants {
+  // Retrieves a `ComputationParticipant` by key.
+  rpc GetComputationParticipant(GetComputationParticipantRequest)
+      returns (ComputationParticipant);
+
   // Sets the requisition params of a ComputationParticipant.
   //
   // This transitions the ComputationParticipant from the CREATED state to the
@@ -38,6 +42,11 @@ service ComputationParticipants {
   // Transitions a ComputationParticipant to the READY state.
   rpc ConfirmComputationParticipant(ConfirmComputationParticipantRequest)
       returns (ComputationParticipant);
+}
+
+message GetComputationParticipantRequest {
+  fixed64 external_computation_id = 1;
+  string external_duchy_id = 2;
 }
 
 message SetParticipantRequisitionParamsRequest {
@@ -55,6 +64,12 @@ message SetParticipantRequisitionParamsRequest {
     ComputationParticipant.HonestMajorityShareShuffleDetails
         honest_majority_share_shuffle = 6;
   }
+
+  // `etag` of the `ComputationParticipant`.
+  //
+  // If specified and the value does not match the current `etag`, this method
+  // will result in an ABORTED status.
+  string etag = 7;
 }
 
 message FailComputationParticipantRequest {
@@ -74,9 +89,21 @@ message FailComputationParticipantRequest {
 
   // Details about the computation stage during which the error occurred.
   DuchyMeasurementLogEntry.StageAttempt stage_attempt = 6;
+
+  // `etag` of the `ComputationParticipant`.
+  //
+  // If specified and the value does not match the current `etag`, this method
+  // will result in an ABORTED status.
+  string etag = 7;
 }
 
 message ConfirmComputationParticipantRequest {
   fixed64 external_computation_id = 1;
   string external_duchy_id = 2;
+
+  // `etag` of the `ComputationParticipant`.
+  //
+  // If specified and the value does not match the current `etag`, this method
+  // will result in an ABORTED status.
+  string etag = 3;
 }

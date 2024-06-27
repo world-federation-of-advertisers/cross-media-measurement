@@ -152,6 +152,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":computation_participant_proto",
+        "@com_google_googleapis//google/api:client_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],

@@ -33,6 +33,7 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.StorageException
 import org.wfanet.measurement.storage.Store.Blob
 
 /** Storage clients providing access to the ComputationsService and ComputationStore. */
@@ -127,7 +128,15 @@ private constructor(
     }
 
     val blob =
-      computationStore.write(ComputationBlobContext.fromToken(computationToken, metadata), content)
+      try {
+        computationStore.write(
+          ComputationBlobContext.fromToken(computationToken, metadata),
+          content,
+        )
+      } catch (e: StorageException) {
+        throw PermanentErrorException("Error writing blob to storage.", e)
+      }
+
     val response: RecordOutputBlobPathResponse =
       try {
         computationsClient.recordOutputBlobPath(

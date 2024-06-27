@@ -60,6 +60,9 @@ import ("strings")
 	_llv2_protocol_config_config:            "--llv2-protocol-config-config=/var/run/secrets/files/llv2_protocol_config_config.textproto"
 	_ro_llv2_protocol_config_config:         "--ro-llv2-protocol-config-config=/var/run/secrets/files/ro_llv2_protocol_config_config.textproto"
 	_ro_llv2_enable_flag:                    "--enable-ro-llv2-protocol"
+	_hmssRfEnableFlag:                       "--enable-hmss-for-rf"
+	_hmssReachEnableFlag:                    "--enable-hmss-for-reach"
+	_hmssProtocolConfigConfig:               "--hmss-protocol-config-config=/var/run/secrets/files/hmss_protocol_config_config.textproto"
 	_kingdom_tls_cert_file_flag:             "--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem"
 	_kingdom_tls_key_file_flag:              "--tls-key-file=/var/run/secrets/files/kingdom_tls.key"
 	_kingdom_cert_collection_file_flag:      "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
@@ -87,7 +90,6 @@ import ("strings")
 	_kingdomPendingMeasurementsDryRunRetentionPolicyFlag:   "--dry-run=\(_pendingMeasurementsDryRun)"
 	_kingdomExchangesDaysToLiveFlag:                        "--days-to-live=\(_exchangesDaysToLive)"
 	_kingdomExchangesDryRunRetentionPolicyFlag:             "--dry-run=\(_exchangesDryRun)"
-	_otlpEndpoint:                                          "--otel-exporter-otlp-endpoint=\(#OpenTelemetryCollectorEndpoint)"
 
 	services: [Name=_]: #GrpcService & {
 		metadata: {
@@ -99,10 +101,6 @@ import ("strings")
 		"gcp-kingdom-data-server": {}
 		"system-api-server":         #ExternalService
 		"v2alpha-public-api-server": #ExternalService
-	}
-
-	jobs: [Name=_]: #Job & {
-		_name: Name
 	}
 
 	deployments: [Name=string]: #ServerDeployment & {
@@ -130,6 +128,7 @@ import ("strings")
 					_duchy_id_config_flag,
 					_llv2_protocol_config_config,
 					_ro_llv2_protocol_config_config,
+					_hmssProtocolConfigConfig,
 					_kingdom_tls_cert_file_flag,
 					_kingdom_tls_key_file_flag,
 					// Internal Kingdom API server should only trust Kingdom certs.
@@ -174,6 +173,7 @@ import ("strings")
 					_debug_verbose_grpc_server_logging_flag,
 					_llv2_protocol_config_config,
 					_ro_llv2_protocol_config_config,
+					_hmssProtocolConfigConfig,
 					_ro_llv2_enable_flag,
 					_kingdom_tls_cert_file_flag,
 					_kingdom_tls_key_file_flag,
@@ -202,7 +202,7 @@ import ("strings")
 	}
 
 	cronjobs: {
-		"completed-measurements-deletion": Cronjob={
+		"completed-measurements-deletion": {
 			_container: args: [
 				_internal_api_target_flag,
 				_internal_api_cert_host_flag,
@@ -213,12 +213,10 @@ import ("strings")
 				_kingdomCompletedMeasurementsMaxToDeletePerRpcFlag,
 				_kingdomCompletedMeasurementsDryRunRetentionPolicyFlag,
 				_debug_verbose_grpc_client_logging_flag,
-				_otlpEndpoint,
-				"--otel-service-name=\(Cronjob.metadata.name)",
 			]
 			spec: schedule: "15 * * * *" // Hourly, 15 minutes past the hour
 		}
-		"pending-measurements-cancellation": Cronjob={
+		"pending-measurements-cancellation": {
 			_container: args: [
 				_internal_api_target_flag,
 				_internal_api_cert_host_flag,
@@ -228,12 +226,10 @@ import ("strings")
 				_kingdomPendingMeasurementsTimeToLiveFlag,
 				_kingdomPendingMeasurementsDryRunRetentionPolicyFlag,
 				_debug_verbose_grpc_client_logging_flag,
-				_otlpEndpoint,
-				"--otel-service-name=\(Cronjob.metadata.name)",
 			]
 			spec: schedule: "45 * * * *" // Hourly, 45 minutes past the hour
 		}
-		"exchanges-deletion": Cronjob={
+		"exchanges-deletion": {
 			_container: args: [
 				_internal_api_target_flag,
 				_internal_api_cert_host_flag,
@@ -243,8 +239,6 @@ import ("strings")
 				_kingdomExchangesDaysToLiveFlag,
 				_kingdomExchangesDryRunRetentionPolicyFlag,
 				_debug_verbose_grpc_client_logging_flag,
-				_otlpEndpoint,
-				"--otel-service-name=\(Cronjob.metadata.name)",
 			]
 			spec: schedule: "40 6 * * *" // Daily, 6:40 am
 		}

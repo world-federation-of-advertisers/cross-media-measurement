@@ -217,6 +217,10 @@ files are required in a Duchy:
     -   Set the role (aggregator or non_aggregator) in the config appropriately
     -   [Example](../../src/main/k8s/testing/secretfiles/aggregator_protocols_setup_config.textproto)
 
+1.  `worker2_kek.tink`
+    Key encryption key used in HMSS protocol to encrypt tink key pairs.
+    -   [Example](../../src/main/k8s/testing/secretfiles/worker2_kek.tink)
+
 Place these files into the `src/main/k8s/dev/worker2_duchy_secret/` path within
 the Kustomization directory.
 

@@ -90,4 +90,7 @@ message ComputationParticipant {
   //
   // This is part of the ComputationParticipant's requisition params.
   Certificate duchy_certificate = 10;
+
+  // RFC 7232 entity tag. Output-only.
+  string etag = 11;
 }
