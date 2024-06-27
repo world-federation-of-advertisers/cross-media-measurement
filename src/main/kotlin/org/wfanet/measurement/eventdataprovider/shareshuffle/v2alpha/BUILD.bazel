@@ -1,4 +1,7 @@
+load("@rules_jvm_external//:defs.bzl", "java_export")
+load("@wfa_common_jvm//build:defs.bzl", "java_native_libraries")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -25,4 +28,18 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
     ],
+)
+
+java_native_libraries(
+    name = "shareshuffle_native_deps",
+    java_target = ":shareshuffle",
+    visibility = ["//visibility:private"],
+)
+
+java_export(
+    name = "shareshuffle_maven",
+    maven_coordinates = "org.wfanet.measurement.eventdataprovider:shareshuffle-v2alpha:" + IMAGE_REPOSITORY_SETTINGS.image_tag,
+    resources = [":shareshuffle_native_deps"],
+    tags = ["no-javadocs"],
+    runtime_deps = [":shareshuffle"],
 )

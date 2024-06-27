@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha
 
+import java.nio.file.Path
 import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.frequencycount.SecretShare
 import org.wfanet.frequencycount.SecretShareGeneratorAdapter
@@ -31,6 +32,8 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.randomSeed
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.getJarResourcePath
+import org.wfanet.measurement.common.load
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 import org.wfanet.measurement.consent.client.dataprovider.encryptRandomSeed
 import org.wfanet.measurement.consent.client.dataprovider.signRandomSeed
@@ -153,10 +156,24 @@ class FulfillRequisitionRequestBuilder(
 
   companion object {
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
+    private const val NATIVE_LIB_NAME = "secret_share_generator_adapter"
+    private const val NATIVE_LIB_RESOURCE_NAME =
+      "org/wfanet/frequencycount/libsecret_share_generator_adapter.so"
 
     init {
       // This is required to create secret shares out of the frequency vector
-      System.loadLibrary("secret_share_generator_adapter")
+      loadNativeLibrary()
+    }
+
+    private fun loadNativeLibrary() {
+      val runtime = Runtime.getRuntime()
+      val classLoader = this::class.java.classLoader
+      val resourcePath: Path? = classLoader.getJarResourcePath(NATIVE_LIB_RESOURCE_NAME)
+      if (resourcePath == null) {
+        runtime.loadLibrary(NATIVE_LIB_NAME)
+      } else {
+        runtime.load(resourcePath)
+      }
     }
 
     /** A convenience function for building the Sequence of Requests. */
