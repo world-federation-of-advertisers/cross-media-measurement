@@ -234,7 +234,7 @@ class PopulationRequisitionFulfiller(
       EventFilters.compileProgram(
         populationInfo.eventMessageDescriptor,
         filterExpression,
-        operativeFields
+        operativeFields,
       )
 
     // Filters populationBucketsList through a CEL program and sums the result.
