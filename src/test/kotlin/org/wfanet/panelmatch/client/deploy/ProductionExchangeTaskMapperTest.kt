@@ -21,16 +21,16 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.copyOptions
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.copyToSharedStorageStep
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
-import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.panelmatch.client.common.ExchangeContext
+import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.deploy.testing.TestProductionExchangeTaskMapper
 import org.wfanet.panelmatch.client.exchangetasks.CopyToSharedStorageTask
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.copyOptions
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.copyToSharedStorageStep
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.step
+import org.wfanet.panelmatch.client.internal.exchangeWorkflow
 import org.wfanet.panelmatch.client.launcher.testing.inputStep
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetailsKt.fileStorage
@@ -127,11 +127,12 @@ class ProductionExchangeTaskMapperTest {
 
     private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
     private val ATTEMPT_KEY =
-      CanonicalExchangeStepAttemptKey(
-        RECURRING_EXCHANGE_ID,
-        "some-exchange",
-        "some-step",
-        "some-attempt",
+      ExchangeStepAttemptKey(
+        recurringExchangeId = RECURRING_EXCHANGE_ID,
+        exchangeId = "some-exchange",
+        stepId = "some-step",
+        attemptId = "some-attempt",
+        simpleName = "some-name",
       )
   }
 }

@@ -16,12 +16,8 @@
 
 package org.wfanet.panelmatch.client.tools
 
-import com.google.privatemembership.batch.Shared.Parameters
-import com.google.protobuf.TypeRegistry
 import java.io.File
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.parseTextProto
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 
@@ -52,9 +48,11 @@ class SerializeExchangeWorkflow : Runnable {
   )
   private lateinit var output: File
 
+  @Option(names = ["--format"], description = ["Format of the ExchangeWorkflow."], required = true)
+  private lateinit var format: ExchangeWorkflowFormat
+
   override fun run() {
-    val typeRegistry = TypeRegistry.newBuilder().apply { add(Parameters.getDescriptor()) }.build()
-    val parsed = parseTextProto(input, ExchangeWorkflow.getDefaultInstance(), typeRegistry)
+    val parsed = format.parseTextProto(input)
 
     output.outputStream().use { outputStream -> parsed.writeTo(outputStream) }
   }

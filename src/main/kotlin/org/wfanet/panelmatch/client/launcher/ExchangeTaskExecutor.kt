@@ -24,16 +24,15 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
-import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeStep
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.StorageClient.Blob
 import org.wfanet.panelmatch.client.common.ExchangeContext
+import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskFailedException
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
+import org.wfanet.panelmatch.client.internal.ExchangeStepAttempt
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Step
 import org.wfanet.panelmatch.client.logger.TaskLog
 import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.getAndClearTaskLog
@@ -43,7 +42,7 @@ import org.wfanet.panelmatch.common.Timeout
 private const val DONE_TASKS_PATH: String = "done-tasks"
 
 /**
- * Validates and Executes the work required for [ExchangeStep]s.
+ * Validates and Executes the work required for [ApiClient.ClaimedExchangeStep]s.
  *
  * This involves finding the appropriate [ExchangeTask], reading the inputs, executing the
  * [ExchangeTask], and saving the outputs.
@@ -57,12 +56,10 @@ class ExchangeTaskExecutor(
   private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ExchangeStepExecutor {
 
-  override suspend fun execute(
-    exchangeStep: ExchangeStep,
-    attemptKey: CanonicalExchangeStepAttemptKey,
-  ) {
+  override suspend fun execute(exchangeStep: ApiClient.ClaimedExchangeStep) {
     coroutineScope {
-      launch(dispatcher + CoroutineName(attemptKey.toName()) + TaskLog(attemptKey.toName())) {
+      val attemptKey = exchangeStep.attemptKey
+      launch(dispatcher + CoroutineName(attemptKey.simpleName) + TaskLog(attemptKey.simpleName)) {
         try {
           val validatedStep = validator.validate(exchangeStep)
           val context =
@@ -111,7 +108,7 @@ class ExchangeTaskExecutor(
   }
 
   private suspend fun markAsFinished(
-    attemptKey: CanonicalExchangeStepAttemptKey,
+    attemptKey: ExchangeStepAttemptKey,
     state: ExchangeStepAttempt.State,
   ) {
     logger.addToTaskLog("Marking attempt state: $state")

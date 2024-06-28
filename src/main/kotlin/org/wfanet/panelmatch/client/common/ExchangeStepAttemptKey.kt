@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2024 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.launcher
+package org.wfanet.panelmatch.client.common
 
-/** Executes [ApiClient.ClaimedExchangeStep]s. */
-interface ExchangeStepExecutor {
-  /** Executes [exchangeStep]. */
-  suspend fun execute(exchangeStep: ApiClient.ClaimedExchangeStep)
-}
+/** A key that uniquely identifies a [org.wfanet.panelmatch.client.internal.ExchangeStepAttempt]. */
+data class ExchangeStepAttemptKey(
+  val recurringExchangeId: String,
+  val exchangeId: String,
+  val stepId: String,
+  val attemptId: String,
+  val simpleName: String,
+)

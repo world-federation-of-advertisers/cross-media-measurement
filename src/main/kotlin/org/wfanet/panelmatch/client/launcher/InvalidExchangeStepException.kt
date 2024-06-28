@@ -18,6 +18,6 @@ package org.wfanet.panelmatch.client.launcher
 class InvalidExchangeStepException(val type: FailureType, message: String) : Exception(message) {
   enum class FailureType {
     PERMANENT,
-    TRANSIENT
+    TRANSIENT,
   }
 }

@@ -18,6 +18,7 @@ kt_jvm_library(
     name = "testing",
     srcs = glob(["*.kt"]),
     deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/common",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/certificates/testing",
@@ -26,6 +27,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/panelmatch/common/storage",
         "//src/main/kotlin/org/wfanet/panelmatch/common/storage/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/common/testing",
+        "//src/main/proto/wfa/panelmatch/client/internal:exchange_workflow_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/org/junit",

@@ -15,13 +15,12 @@
 package org.wfanet.panelmatch.client.common
 
 import java.time.LocalDate
-import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
 import org.wfanet.panelmatch.common.ExchangeDateKey
 
 /** Contextual information about an ExchangeStepAttempt. */
 data class ExchangeContext(
-  val attemptKey: CanonicalExchangeStepAttemptKey,
+  val attemptKey: ExchangeStepAttemptKey,
   val date: LocalDate,
   val workflow: ExchangeWorkflow,
   val step: ExchangeWorkflow.Step,
@@ -29,13 +28,12 @@ data class ExchangeContext(
   val recurringExchangeId: String
     get() = attemptKey.recurringExchangeId
 
+  // TODO: Rename to partnerId.
   val partnerName: String by lazy {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (step.party) {
-      ExchangeWorkflow.Party.MODEL_PROVIDER -> workflow.exchangeIdentifiers.dataProvider
-      ExchangeWorkflow.Party.DATA_PROVIDER -> workflow.exchangeIdentifiers.modelProvider
-      ExchangeWorkflow.Party.PARTY_UNSPECIFIED,
-      ExchangeWorkflow.Party.UNRECOGNIZED -> error("Invalid step: $step")
+      ExchangeWorkflow.Party.MODEL_PROVIDER -> workflow.exchangeIdentifiers.dataProviderId
+      ExchangeWorkflow.Party.DATA_PROVIDER -> workflow.exchangeIdentifiers.modelProviderId
+      else -> error("Invalid step: $step")
     }
   }
 
@@ -44,6 +42,6 @@ data class ExchangeContext(
   }
 
   override fun toString(): String {
-    return "ExchangeContext(step=${step.stepId}, attempt=${attemptKey.toName()})"
+    return "ExchangeContext(step=${step.stepId}, attempt=${attemptKey.simpleName})"
   }
 }

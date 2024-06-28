@@ -1,6 +1,6 @@
+load("@bazel_jar_jar//:jar_jar.bzl", "jar_jar")
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
-load("@bazel_jar_jar//:jar_jar.bzl", "jar_jar")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/panelmatch:__subpackages__",
@@ -60,8 +60,7 @@ kt_jvm_library(
     name = "serialize_exchange_workflow",
     srcs = ["SerializeExchangeWorkflow.kt"],
     deps = [
-        "//src/main/proto/private_membership/batch:shared_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
+        ":exchange_workflow_format",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
@@ -78,7 +77,9 @@ kt_jvm_library(
     testonly = True,
     srcs = ["BeamJobsMain.kt"],
     deps = [
+        ":exchange_workflow_format",
         "//imports/java/org/apache/beam/runners/spark",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/common",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy/example",
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
@@ -176,5 +177,19 @@ java_binary(
     tags = ["manual"],
     runtime_deps = [
         ":generate_synthetic_data",
+    ],
+)
+
+kt_jvm_library(
+    name = "exchange_workflow_format",
+    srcs = ["ExchangeWorkflowFormat.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/common",
+        "//src/main/proto/private_membership/batch:shared_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/internal:exchange_workflow_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )

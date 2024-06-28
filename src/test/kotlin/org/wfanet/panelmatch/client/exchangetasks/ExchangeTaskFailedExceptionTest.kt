@@ -18,7 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt.State
+import org.wfanet.panelmatch.client.internal.ExchangeStepAttempt.State
 
 @RunWith(JUnit4::class)
 class ExchangeTaskFailedExceptionTest {

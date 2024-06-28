@@ -28,9 +28,7 @@ class ExchangeStepLauncher(
    */
   suspend fun findAndRunExchangeStep() {
     try {
-      apiClient.claimExchangeStep()?.let {
-        taskLauncher.execute(it.exchangeStep, it.exchangeStepAttempt)
-      }
+      apiClient.claimExchangeStep()?.let { taskLauncher.execute(it) }
     } catch (e: Exception) {
       logger.log(Level.SEVERE, "Exchange Launcher Error:", e)
     }

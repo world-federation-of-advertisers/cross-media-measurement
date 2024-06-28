@@ -15,14 +15,14 @@
 package org.wfanet.panelmatch.client.storage.testing
 
 import java.time.LocalDate
-import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.exchangeIdentifiers
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
-import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.common.ExchangeContext
+import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.exchangeIdentifiers
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.step
+import org.wfanet.panelmatch.client.internal.exchangeWorkflow
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.client.storage.SharedStorageSelector
 import org.wfanet.panelmatch.client.storage.SigningStorageClient
@@ -71,19 +71,20 @@ fun makeTestSharedStorageSelector(
 
 private val WORKFLOW = exchangeWorkflow {
   exchangeIdentifiers = exchangeIdentifiers {
-    modelProvider = "some-model-provider"
-    dataProvider = "some-data-provider"
+    modelProviderId = "some-model-provider"
+    dataProviderId = "some-data-provider"
   }
   steps += step { party = ExchangeWorkflow.Party.DATA_PROVIDER }
 }
 
 private val TEST_CONTEXT =
   ExchangeContext(
-    CanonicalExchangeStepAttemptKey(
-      "some-recurring-exchange-id",
-      "some-exchange-id",
-      "some-step-id",
-      "some-attempt-id",
+    ExchangeStepAttemptKey(
+      recurringExchangeId = "some-recurring-exchange-id",
+      exchangeId = "some-exchange-id",
+      stepId = "some-step-id",
+      attemptId = "some-attempt-id",
+      simpleName = "some-name",
     ),
     LocalDate.of(2020, 10, 6),
     WORKFLOW,
