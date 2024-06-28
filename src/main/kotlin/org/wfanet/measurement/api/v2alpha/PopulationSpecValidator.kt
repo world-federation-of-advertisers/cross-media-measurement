@@ -156,3 +156,11 @@ object PopulationSpecValidator {
     return details
   }
 }
+
+/**
+ * Returns the size of a [VidRange] by calculating the difference between the start and end of the
+ * range.
+ */
+fun VidRange.size(): Long {
+  return this.endVidInclusive - this.startVid + 1
+}
