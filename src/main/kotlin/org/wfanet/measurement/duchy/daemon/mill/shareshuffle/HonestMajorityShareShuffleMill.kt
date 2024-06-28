@@ -15,7 +15,6 @@
 package org.wfanet.measurement.duchy.daemon.mill.shareshuffle
 
 import com.google.protobuf.ByteString
-import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.OpenTelemetry
 import java.security.SignatureException
@@ -84,12 +83,10 @@ import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseReques
 import org.wfanet.measurement.internal.duchy.protocol.copy
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
-import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
 import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffle.Description
-import org.wfanet.measurement.system.v1alpha.setParticipantRequisitionParamsRequest
 
 class HonestMajorityShareShuffleMill(
   millId: String,
@@ -174,49 +171,33 @@ class HonestMajorityShareShuffleMill(
 
   private suspend fun sendParticipantParamsToKingdom(token: ComputationToken) {
     val computationDetails = token.computationDetails.honestMajorityShareShuffle
+    val requisitionParams =
+      ComputationParticipantKt.requisitionParams {
+        duchyCertificate = consentSignalCert.name
+        honestMajorityShareShuffle =
+          ComputationParticipantKt.RequisitionParamsKt.honestMajorityShareShuffle {
+            if (computationDetails.role != AGGREGATOR) {
+              require(computationDetails.encryptionKeyPair.hasPublicKey()) { "Public key not set." }
 
-    val request = setParticipantRequisitionParamsRequest {
-      name = ComputationParticipantKey(token.globalComputationId, duchyId).toName()
-      requisitionParams =
-        ComputationParticipantKt.requisitionParams {
-          duchyCertificate = consentSignalCert.name
-          honestMajorityShareShuffle =
-            ComputationParticipantKt.RequisitionParamsKt.honestMajorityShareShuffle {
-              if (computationDetails.role != AGGREGATOR) {
-                require(computationDetails.encryptionKeyPair.hasPublicKey()) {
-                  "Public key not set."
-                }
-
-                val signedEncryptionPublicKey =
-                  when (
-                    Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)
-                  ) {
-                    Version.V2_ALPHA -> {
-                      signEncryptionPublicKey(
-                        computationDetails.encryptionKeyPair.publicKey
-                          .toV2AlphaEncryptionPublicKey(),
-                        signingKey,
-                        signingKey.defaultAlgorithm,
-                      )
-                    }
+              val signedEncryptionPublicKey =
+                when (
+                  Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)
+                ) {
+                  Version.V2_ALPHA -> {
+                    signEncryptionPublicKey(
+                      computationDetails.encryptionKeyPair.publicKey.toV2AlphaEncryptionPublicKey(),
+                      signingKey,
+                      signingKey.defaultAlgorithm,
+                    )
                   }
-                tinkPublicKey = signedEncryptionPublicKey.message.value
-                tinkPublicKeySignature = signedEncryptionPublicKey.signature
-                tinkPublicKeySignatureAlgorithmOid = signedEncryptionPublicKey.signatureAlgorithmOid
-              }
+                }
+              tinkPublicKey = signedEncryptionPublicKey.message.value
+              tinkPublicKeySignature = signedEncryptionPublicKey.signature
+              tinkPublicKeySignatureAlgorithmOid = signedEncryptionPublicKey.signatureAlgorithmOid
             }
-        }
-    }
-    try {
-      systemComputationParticipantsClient.setParticipantRequisitionParams(request)
-    } catch (e: StatusException) {
-      val message = "Error setting participant requisition params"
-      throw when (e.status.code) {
-        Status.Code.UNAVAILABLE,
-        Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
-        else -> PermanentErrorException(message, e)
+          }
       }
-    }
+    sendRequisitionParamsToKingdom(token, requisitionParams)
   }
 
   private suspend fun initializationPhase(token: ComputationToken): ComputationToken {
