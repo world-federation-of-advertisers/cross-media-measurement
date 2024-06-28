@@ -38,6 +38,7 @@ import java.util.Base64
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -47,6 +48,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.whenever
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
@@ -85,6 +87,7 @@ import org.wfanet.measurement.internal.duchy.ComputationDetailsKt.kingdomComputa
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ElGamalKeyPair
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
@@ -109,7 +112,7 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteInitializationPhas
 import org.wfanet.measurement.internal.duchy.protocol.CompleteInitializationPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseResponse
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant as InternalComputationParticipant
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.COMPLETE
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE
@@ -152,12 +155,12 @@ import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineImplBase as SystemComputationLogEntriesCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
+import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase as SystemComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase as SystemComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
-import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT
@@ -167,6 +170,9 @@ import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.SETUP_P
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.SetComputationResultRequest
 import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequest
+import org.wfanet.measurement.system.v1alpha.computationParticipant
+import org.wfanet.measurement.system.v1alpha.confirmComputationParticipantRequest
+import org.wfanet.measurement.system.v1alpha.copy
 import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
 
 private const val PUBLIC_API_VERSION = "v2alpha"
@@ -295,7 +301,7 @@ private val CONSENT_SIGNALING_EL_GAMAL_PUBLIC_KEY_SINGATURE =
   )
 
 private val COMPUTATION_PARTICIPANT_1 =
-  ComputationParticipant.newBuilder()
+  InternalComputationParticipant.newBuilder()
     .apply {
       duchyId = DUCHY_ONE_NAME
       publicKey = DUCHY_ONE_KEY_PAIR.publicKey
@@ -305,7 +311,7 @@ private val COMPUTATION_PARTICIPANT_1 =
     }
     .build()
 private val COMPUTATION_PARTICIPANT_2 =
-  ComputationParticipant.newBuilder()
+  InternalComputationParticipant.newBuilder()
     .apply {
       duchyId = DUCHY_TWO_NAME
       publicKey = DUCHY_TWO_PUBLIC_KEY
@@ -315,7 +321,7 @@ private val COMPUTATION_PARTICIPANT_2 =
     }
     .build()
 private val COMPUTATION_PARTICIPANT_3 =
-  ComputationParticipant.newBuilder()
+  InternalComputationParticipant.newBuilder()
     .apply {
       duchyId = DUCHY_THREE_NAME
       publicKey = DUCHY_THREE_PUBLIC_KEY
@@ -605,7 +611,6 @@ class ReachFrequencyLiquidLegionsV2MillTest {
           stage = INITIALIZATION_PHASE.toProtocolStage(),
         )
         .build()
-
     val initialComputationDetails =
       NON_AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
         .apply {
@@ -617,120 +622,36 @@ class ReachFrequencyLiquidLegionsV2MillTest {
           }
         }
         .build()
-
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
       computationDetails = initialComputationDetails,
       requisitions = REQUISITIONS,
     )
-
-    whenever(mockCryptoWorker.completeInitializationPhase(any())).thenAnswer {
-      CompleteInitializationPhaseResponse.newBuilder()
-        .apply {
-          elGamalKeyPairBuilder.apply {
-            publicKeyBuilder.apply {
-              generator = ByteString.copyFromUtf8("generator-foo")
-              element = ByteString.copyFromUtf8("element-foo")
-            }
-            secretKey = ByteString.copyFromUtf8("secretKey-foo")
-          }
-        }
-        .build()
+    // Simulate multiple attempts.
+    repeat(2) {
+      fakeComputationDb.claimTask(
+        ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
+        MILL_ID,
+        Duration.ZERO,
+      )
+      fakeComputationDb.claimedComputationIds.clear()
     }
 
-    // This will result in TRANSIENT gRPC failure.
-    whenever(mockComputationParticipants.setParticipantRequisitionParams(any()))
-      .thenThrow(Status.ABORTED.asRuntimeException())
-
-    // First attempt fails, which doesn't change the computation stage.
     nonAggregatorMill.pollAndProcessNextComputation()
 
     assertThat(fakeComputationDb[LOCAL_ID])
       .isEqualTo(
-        ComputationToken.newBuilder()
-          .apply {
-            globalComputationId = GLOBAL_ID
-            localComputationId = LOCAL_ID
-            attempt = 1
-            computationStage = INITIALIZATION_PHASE.toProtocolStage()
-            version = 3 // claimTask + updateComputationDetails + enqueueComputation
-            computationDetails =
-              initialComputationDetails
-                .toBuilder()
-                .apply {
-                  liquidLegionsV2Builder.localElgamalKeyBuilder.apply {
-                    publicKeyBuilder.apply {
-                      generator = ByteString.copyFromUtf8("generator-foo")
-                      element = ByteString.copyFromUtf8("element-foo")
-                    }
-                    secretKey = ByteString.copyFromUtf8("secretKey-foo")
-                  }
-                }
-                .build()
-            addAllRequisitions(REQUISITIONS)
-          }
-          .build()
-      )
-    // Second attempt fails, which doesn't change the computation stage.
-    nonAggregatorMill.pollAndProcessNextComputation()
-
-    assertThat(fakeComputationDb[LOCAL_ID])
-      .isEqualTo(
-        ComputationToken.newBuilder()
-          .apply {
-            globalComputationId = GLOBAL_ID
-            localComputationId = LOCAL_ID
-            attempt = 2
-            computationStage = INITIALIZATION_PHASE.toProtocolStage()
-            version = 5 // claimTask + updateComputationDetails + enqueueComputation
-            computationDetails =
-              initialComputationDetails
-                .toBuilder()
-                .apply {
-                  liquidLegionsV2Builder.localElgamalKeyBuilder.apply {
-                    publicKeyBuilder.apply {
-                      generator = ByteString.copyFromUtf8("generator-foo")
-                      element = ByteString.copyFromUtf8("element-foo")
-                    }
-                    secretKey = ByteString.copyFromUtf8("secretKey-foo")
-                  }
-                }
-                .build()
-            addAllRequisitions(REQUISITIONS)
-          }
-          .build()
-      )
-
-    // Third attempt fails, which will fail the computation.
-    nonAggregatorMill.pollAndProcessNextComputation()
-
-    assertThat(fakeComputationDb[LOCAL_ID])
-      .isEqualTo(
-        ComputationToken.newBuilder()
-          .apply {
-            globalComputationId = GLOBAL_ID
-            localComputationId = LOCAL_ID
-            attempt = 3
-            computationStage = COMPLETE.toProtocolStage()
-            version = 7 // claimTask + updateComputationDetails + claimTask + EndComputation
-            computationDetails =
-              initialComputationDetails
-                .toBuilder()
-                .apply {
-                  endingState = CompletedReason.FAILED
-                  liquidLegionsV2Builder.localElgamalKeyBuilder.apply {
-                    publicKeyBuilder.apply {
-                      generator = ByteString.copyFromUtf8("generator-foo")
-                      element = ByteString.copyFromUtf8("element-foo")
-                    }
-                    secretKey = ByteString.copyFromUtf8("secretKey-foo")
-                  }
-                }
-                .build()
-            addAllRequisitions(REQUISITIONS)
-          }
-          .build()
+        computationToken {
+          globalComputationId = GLOBAL_ID
+          localComputationId = LOCAL_ID
+          attempt = 3
+          computationStage = COMPLETE.toProtocolStage()
+          version = 4
+          computationDetails =
+            initialComputationDetails.copy { endingState = CompletedReason.FAILED }
+          requisitions += REQUISITIONS
+        }
       )
 
     assertThat(fakeComputationDb.claimedComputationIds).isEmpty()
@@ -739,6 +660,14 @@ class ReachFrequencyLiquidLegionsV2MillTest {
   @Test
   fun `initialization phase`() = runBlocking {
     // Stage 0. preparing the database and set up mock
+    val computationParticipant = computationParticipant {
+      name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
+      etag = "entity tag"
+      state = ComputationParticipant.State.CREATED
+    }
+    whenever(mockComputationParticipants.getComputationParticipant(any()))
+      .thenReturn(computationParticipant)
+
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
@@ -820,7 +749,8 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       .isEqualTo(
         SetParticipantRequisitionParamsRequest.newBuilder()
           .apply {
-            name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
+            name = computationParticipant.name
+            etag = computationParticipant.etag
             requisitionParamsBuilder.apply {
               duchyCertificate = CONSENT_SIGNALING_CERT_NAME
               liquidLegionsV2Builder.apply {
@@ -838,8 +768,87 @@ class ReachFrequencyLiquidLegionsV2MillTest {
   }
 
   @Test
+  fun `initializationPhase retries sending requisition params when aborted`(): Unit = runTest {
+    // Stage 0. preparing the database and set up mock
+    val computationParticipant = computationParticipant {
+      name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
+      etag = "entity tag"
+      state = ComputationParticipant.State.CREATED
+    }
+    mockComputationParticipants.stub {
+      onBlocking { getComputationParticipant(any()) }
+        .thenReturn(computationParticipant)
+        .thenReturn(
+          computationParticipant.copy {
+            etag = "entity tag 2"
+            state = ComputationParticipant.State.REQUISITION_PARAMS_SET
+            requisitionParams = ComputationParticipant.RequisitionParams.getDefaultInstance()
+          }
+        )
+      onBlocking { setParticipantRequisitionParams(any()) }
+        .thenThrow(Status.ABORTED.asRuntimeException())
+    }
+
+    val partialToken =
+      FakeComputationsDatabase.newPartialToken(
+          localId = LOCAL_ID,
+          stage = INITIALIZATION_PHASE.toProtocolStage(),
+        )
+        .build()
+
+    val initialComputationDetails =
+      NON_AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
+        .apply {
+          liquidLegionsV2Builder.apply {
+            parametersBuilder.ellipticCurveId = CURVE_ID.toInt()
+            clearPartiallyCombinedPublicKey()
+            clearCombinedPublicKey()
+            clearLocalElgamalKey()
+          }
+        }
+        .build()
+
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = initialComputationDetails,
+      requisitions = REQUISITIONS,
+    )
+
+    whenever(mockCryptoWorker.completeInitializationPhase(any())).thenAnswer {
+      CompleteInitializationPhaseResponse.newBuilder()
+        .apply {
+          elGamalKeyPairBuilder.apply {
+            publicKeyBuilder.apply {
+              generator = ByteString.copyFromUtf8("generator-foo")
+              element = ByteString.copyFromUtf8("element-foo")
+            }
+            secretKey = ByteString.copyFromUtf8("secretKey-foo")
+          }
+        }
+        .build()
+    }
+
+    // Stage 1. Process the above computation
+    nonAggregatorMill.pollAndProcessNextComputation()
+    testScheduler.advanceUntilIdle()
+
+    // Stage 3. Verify stage was advanced successfully.
+    assertThat(fakeComputationDb[LOCAL_ID]?.computationStage)
+      .isEqualTo(WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage())
+  }
+
+  @Test
   fun `confirmation phase, failed due to missing local requisition`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
+    val computationParticipant = computationParticipant {
+      name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
+      etag = "entity tag"
+      state = ComputationParticipant.State.REQUISITION_PARAMS_SET
+      requisitionParams = ComputationParticipant.RequisitionParams.getDefaultInstance()
+    }
+    whenever(mockComputationParticipants.getComputationParticipant(any()))
+      .thenReturn(computationParticipant)
     val requisition1 = REQUISITION_1
     // requisition2 is fulfilled at Duchy One, but doesn't have path set.
     val requisition2 =
@@ -889,7 +898,8 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       .isEqualTo(
         FailComputationParticipantRequest.newBuilder()
           .apply {
-            name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
+            name = computationParticipant.name
+            etag = computationParticipant.etag
             failureBuilder.apply {
               participantChildReferenceId = MILL_ID
               errorMessage =
@@ -927,6 +937,15 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     whenever(mockComputationLogEntries.createComputationLogEntry(any()))
       .thenReturn(ComputationLogEntry.getDefaultInstance())
 
+    val computationParticipant = computationParticipant {
+      name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
+      etag = "entity tag"
+      state = ComputationParticipant.State.REQUISITION_PARAMS_SET
+      requisitionParams = ComputationParticipant.RequisitionParams.getDefaultInstance()
+    }
+    whenever(mockComputationParticipants.getComputationParticipant(any()))
+      .thenReturn(computationParticipant)
+
     // Stage 1. Process the above computation
     aggregatorMill.pollAndProcessNextComputation()
 
@@ -959,15 +978,25 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         SystemComputationParticipantsCoroutineImplBase::confirmComputationParticipant,
       )
       .isEqualTo(
-        ConfirmComputationParticipantRequest.newBuilder()
-          .apply { name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName() }
-          .build()
+        confirmComputationParticipantRequest {
+          name = computationParticipant.name
+          etag = computationParticipant.etag
+        }
       )
   }
 
   @Test
   fun `confirmation phase, passed at aggregator`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
+    val computationParticipant = computationParticipant {
+      name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
+      etag = "entity tag"
+      state = ComputationParticipant.State.REQUISITION_PARAMS_SET
+      requisitionParams = ComputationParticipant.RequisitionParams.getDefaultInstance()
+    }
+    whenever(mockComputationParticipants.getComputationParticipant(any()))
+      .thenReturn(computationParticipant)
+
     val computationDetailsWithoutPublicKey =
       AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
         .apply { liquidLegionsV2Builder.clearCombinedPublicKey().clearPartiallyCombinedPublicKey() }
@@ -1021,15 +1050,25 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         SystemComputationParticipantsCoroutineImplBase::confirmComputationParticipant,
       )
       .isEqualTo(
-        ConfirmComputationParticipantRequest.newBuilder()
-          .apply { name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName() }
-          .build()
+        confirmComputationParticipantRequest {
+          name = computationParticipant.name
+          etag = computationParticipant.etag
+        }
       )
   }
 
   @Test
   fun `confirmation phase, failed due to invalid nonce and ElGamal key signature`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
+    val computationParticipant = computationParticipant {
+      name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
+      etag = "entity tag"
+      state = ComputationParticipant.State.REQUISITION_PARAMS_SET
+      requisitionParams = ComputationParticipant.RequisitionParams.getDefaultInstance()
+    }
+    whenever(mockComputationParticipants.getComputationParticipant(any()))
+      .thenReturn(computationParticipant)
+
     val computationDetailsWithoutInvalidDuchySignature =
       AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
         .apply {
@@ -1082,7 +1121,8 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       .isEqualTo(
         FailComputationParticipantRequest.newBuilder()
           .apply {
-            name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
+            name = computationParticipant.name
+            etag = computationParticipant.etag
             failureBuilder.apply {
               participantChildReferenceId = MILL_ID
               errorMessage =
