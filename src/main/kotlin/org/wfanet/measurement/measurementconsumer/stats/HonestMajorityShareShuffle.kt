@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The Cross-Media Measurement Authors
+ * Copyright 2024 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -193,8 +193,7 @@ object HonestMajorityShareShuffle {
       isReachTooSmallForComputingRelativeFrequencyVariance(totalReach, reachMeasurementVariance)
     ) {
       // When frequency = 1, the multiplier = 0.
-      if (multiplier == 0) return 0.0
-      else return VARIANCE_OF_UNIFORMLY_RANDOM_PROBABILITY
+      if (multiplier == 0) return 0.0 else return VARIANCE_OF_UNIFORMLY_RANDOM_PROBABILITY
     }
 
     val vidSamplingIntervalWidth = frequencyMeasurementParams.vidSamplingInterval.width

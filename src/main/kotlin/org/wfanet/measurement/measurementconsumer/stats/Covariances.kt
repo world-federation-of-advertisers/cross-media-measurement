@@ -120,6 +120,9 @@ object Covariances {
         is HonestMajorityShareShuffleMethodology -> {
           throw IllegalArgumentException("Unsupported methodology.")
         }
+        is ReachOnlyHonestMajorityShareShuffleMethodology -> {
+          throw IllegalArgumentException("Unsupported methodology.")
+        }
       }
 
     when (val otherMethodology = otherWeightedMeasurementVarianceParams.methodology) {
@@ -169,6 +172,9 @@ object Covariances {
         }
       }
       is HonestMajorityShareShuffleMethodology -> {
+        throw IllegalArgumentException("Unsupported methodology.")
+      }
+      is ReachOnlyHonestMajorityShareShuffleMethodology -> {
         throw IllegalArgumentException("Unsupported methodology.")
       }
     }

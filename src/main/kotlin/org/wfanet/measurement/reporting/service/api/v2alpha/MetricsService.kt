@@ -149,6 +149,7 @@ import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementPara
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMetricVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyVariances
+import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.measurementconsumer.stats.ImpressionMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ImpressionMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ImpressionMetricVarianceParams
@@ -159,6 +160,7 @@ import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsN
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.ReachOnlyHonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.measurementconsumer.stats.Variances
 import org.wfanet.measurement.measurementconsumer.stats.WatchDurationMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.WatchDurationMeasurementVarianceParams
@@ -2353,7 +2355,8 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
       weightedMeasurement,
       vidSamplingInterval,
       reachPrivacyParams,
-    ) ?: return null
+    )
+      ?: return null
 
   val reachMeasurementVariance: Double =
     variances.computeMeasurementVariance(
@@ -2469,6 +2472,11 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
         decayRate = frequencyResult.liquidLegionsV2.sketchParams.decayRate,
         sketchSize = frequencyResult.liquidLegionsV2.sketchParams.maxSize,
         samplingIndicatorSize = frequencyResult.liquidLegionsV2.sketchParams.samplingIndicatorSize,
+      )
+    }
+    InternalMeasurement.Result.Frequency.MethodologyCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+      HonestMajorityShareShuffleMethodology(
+        sketchSize = frequencyResult.honestMajorityShareShuffle.sketchParams.registerCount,
       )
     }
     InternalMeasurement.Result.Frequency.MethodologyCase.METHODOLOGY_NOT_SET -> {
@@ -2724,6 +2732,16 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
         decayRate = reachResult.reachOnlyLiquidLegionsV2.sketchParams.decayRate,
         sketchSize = reachResult.reachOnlyLiquidLegionsV2.sketchParams.maxSize,
         samplingIndicatorSize = 0L,
+      )
+    }
+    InternalMeasurement.Result.Reach.MethodologyCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+      HonestMajorityShareShuffleMethodology(
+        sketchSize = reachResult.honestMajorityShareShuffle.sketchParams.registerCount,
+      )
+    }
+    InternalMeasurement.Result.Reach.MethodologyCase.REACH_ONLY_HONEST_MAJORITY_SHARE_SHUFFLE -> {
+      ReachOnlyHonestMajorityShareShuffleMethodology(
+        sketchSize = reachResult.reachOnlyHonestMajorityShareShuffle.sketchParams.registerCount,
       )
     }
     InternalMeasurement.Result.Reach.MethodologyCase.METHODOLOGY_NOT_SET -> {
