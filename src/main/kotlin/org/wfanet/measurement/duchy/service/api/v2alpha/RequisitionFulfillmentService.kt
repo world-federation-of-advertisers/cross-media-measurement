@@ -17,6 +17,8 @@ package org.wfanet.measurement.duchy.service.api.v2alpha
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
+import java.util.logging.Level
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.Version
@@ -26,9 +28,7 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
-import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.consumeFirst
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -83,6 +83,8 @@ class RequisitionFulfillmentService(
           }
         grpcRequire(header.nonce != 0L) { "nonce unspecified" }
 
+        logger.log(Level.INFO, "Receiving fulfillment... requisitionId=${key.requisitionId}")
+
         val authenticatedPrincipal = principalFromCurrentContext
         if (key.parentKey != authenticatedPrincipal.resourceKey) {
           throw Permission.FULFILL.deniedStatus(header.name).asRuntimeException()
@@ -126,21 +128,6 @@ class RequisitionFulfillmentService(
           } else {
             recordLlv2RequisitionLocally(computationToken, externalRequisitionKey, blob.blobKey)
           }
-          val seed =
-            if (computationToken.computationStage.hasHonestMajorityShareShuffle()) {
-              grpcRequire(header.honestMajorityShareShuffle.hasSecretSeed()) {
-                "Secret seed not be specified for HMSS protocol."
-              }
-              grpcRequire(
-                header.honestMajorityShareShuffle.secretSeed.typeUrl ==
-                  ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
-              ) {
-                "ciphertext of secret seed must be of SignedMessage."
-              }
-              header.honestMajorityShareShuffle.secretSeed.ciphertext
-            } else {
-              null
-            }
         }
 
         fulfillRequisitionAtKingdom(
@@ -148,6 +135,8 @@ class RequisitionFulfillmentService(
           externalRequisitionKey.externalRequisitionId,
           header.nonce,
         )
+
+        logger.log(Level.INFO, "Requisition fulfilled. requisitionId=${key.requisitionId}")
 
         return FULFILLED_RESPONSE
       }
@@ -270,6 +259,10 @@ class RequisitionFulfillmentService(
         this.nonce = nonce
       }
     )
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
 
