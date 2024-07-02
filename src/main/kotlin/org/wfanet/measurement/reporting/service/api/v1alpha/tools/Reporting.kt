@@ -18,8 +18,10 @@ import io.grpc.ManagedChannel
 import java.time.Duration
 import java.time.Instant
 import kotlin.properties.Delegates
+import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.DurationFormat
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -29,12 +31,14 @@ import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.reporting.service.api.v1alpha.ReportKey
 import org.wfanet.measurement.reporting.v1alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v1alpha.Metric
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.eventGroupUniverse
 import org.wfanet.measurement.reporting.v1alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.reporting.v1alpha.copy
 import org.wfanet.measurement.reporting.v1alpha.createReportRequest
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v1alpha.getReportRequest
@@ -388,6 +392,43 @@ class GetReportCommand : Runnable {
 }
 
 @CommandLine.Command(
+  name = "create-from-existing",
+  description = ["Create a new Report from an existing Report"],
+)
+class CreateFromExistingCommand : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: ReportsCommand
+
+  @CommandLine.Parameters(description = ["API resource name of the Report"])
+  private lateinit var reportName: String
+
+  override fun run() {
+    val existingReport =
+      runBlocking(Dispatchers.IO) {
+        parent.reportsStub.getReport(getReportRequest { name = reportName })
+      }
+
+    val reportKey = ReportKey.fromName(reportName)!!
+    val reportCopy =
+      runBlocking(Dispatchers.IO) {
+        parent.reportsStub.createReport(
+          createReportRequest {
+            parent = MeasurementConsumerKey(reportKey.measurementConsumerId).toName()
+            report =
+              existingReport.copy {
+                reportIdempotencyKey =
+                  existingReport.reportIdempotencyKey + "-" + Random.nextInt(1000, 10000)
+              }
+          }
+        )
+      }
+
+    println(
+      "Report with name ${reportCopy.name} successfully created as a copy of an existing Report with name ${reportName}"
+    )
+  }
+}
+
+@CommandLine.Command(
   name = "reports",
   sortOptions = false,
   subcommands =
@@ -396,6 +437,7 @@ class GetReportCommand : Runnable {
       CreateReportCommand::class,
       ListReportsCommand::class,
       GetReportCommand::class,
+      CreateFromExistingCommand::class,
     ],
 )
 class ReportsCommand : Runnable {
