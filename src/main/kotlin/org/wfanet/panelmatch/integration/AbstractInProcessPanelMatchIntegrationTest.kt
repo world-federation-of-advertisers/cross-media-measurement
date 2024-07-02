@@ -321,8 +321,22 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
     val modelProviderAddResource = ConfigureResource(modelProviderDefaults)
     val dataProviderAddResource = ConfigureResource(dataProviderDefaults)
 
-    modelProviderAddResource.addWorkflow(workflow.toByteString(), recurringExchangeId)
-    dataProviderAddResource.addWorkflow(workflow.toByteString(), recurringExchangeId)
+    val workflowWithExchangeIdentifiers =
+      workflow.copy {
+        exchangeIdentifiers =
+          exchangeIdentifiers.copy {
+            dataProvider = dataProviderContext.key.toName()
+            modelProvider = modelProviderContext.key.toName()
+          }
+      }
+    modelProviderAddResource.addWorkflow(
+      workflowWithExchangeIdentifiers.toByteString(),
+      recurringExchangeId,
+    )
+    dataProviderAddResource.addWorkflow(
+      workflowWithExchangeIdentifiers.toByteString(),
+      recurringExchangeId,
+    )
 
     modelProviderAddResource.addRootCertificates(
       dataProviderContext.key.toName(),

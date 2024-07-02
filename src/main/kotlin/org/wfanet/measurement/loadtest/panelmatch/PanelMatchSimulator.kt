@@ -26,15 +26,21 @@ import kotlin.test.assertNotNull
 import kotlinx.coroutines.delay
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeKey
 import org.wfanet.measurement.api.v2alpha.CanonicalRecurringExchangeKey
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.Exchange
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.exchangeIdentifiers
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.schedule
 import org.wfanet.measurement.api.v2alpha.ExchangesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsRequestKt
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.getExchangeRequest
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsRequest
+import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
@@ -53,7 +59,16 @@ import org.wfanet.panelmatch.common.parseDelimitedMessages
 import org.wfanet.panelmatch.common.storage.toByteString
 import org.wfanet.panelmatch.integration.testing.parsePlaintextResults
 
-data class EntitiesData(val externalDataProviderId: Long, val externalModelProviderId: Long)
+data class EntitiesData(
+  val dataProviderKey: DataProviderKey,
+  val modelProviderKey: ModelProviderKey,
+) {
+  val externalDataProviderId: Long
+    get() = apiIdToExternalId(dataProviderKey.dataProviderId)
+
+  val externalModelProviderId: Long
+    get() = apiIdToExternalId(modelProviderKey.modelProviderId)
+}
 
 /** Simulator for PanelMatch flows. */
 class PanelMatchSimulator(
@@ -84,6 +99,18 @@ class PanelMatchSimulator(
     )
   private val TERMINAL_EXCHANGE_STATES = setOf(Exchange.State.SUCCEEDED, Exchange.State.FAILED)
   private val logger = Logger.getLogger(this::class.java.name)
+
+  fun populateWorkflow(workflow: ExchangeWorkflow): ExchangeWorkflow {
+    return workflow.copy {
+      exchangeIdentifiers = exchangeIdentifiers {
+        dataProvider = entitiesData.dataProviderKey.toName()
+        modelProvider = entitiesData.modelProviderKey.toName()
+        sharedStorageOwner = ExchangeWorkflow.Party.DATA_PROVIDER
+      }
+      firstExchangeDate = exchangeDate.toProtoDate()
+      repetitionSchedule = schedule { cronExpression = schedule }
+    }
+  }
 
   suspend fun executeDoubleBlindExchangeWorkflow(workflow: ExchangeWorkflow) {
     val initialDataProviderInputs =

@@ -14,8 +14,8 @@
 
 package org.wfanet.panelmatch.client.exchangetasks
 
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.StepCase
 import org.wfanet.panelmatch.client.common.ExchangeContext
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Step.StepCase
 
 /** Maps join key exchange steps to exchange tasks */
 abstract class ExchangeTaskMapper {
@@ -46,7 +46,8 @@ abstract class ExchangeTaskMapper {
         StepCase.GENERATE_HYBRID_ENCRYPTION_KEY_PAIR_STEP -> generateHybridEncryptionKeyPair()
         StepCase.GENERATE_RANDOM_BYTES_STEP -> generateRandomBytes()
         StepCase.ASSIGN_JOIN_KEY_IDS_STEP -> assignJoinKeyIds()
-        else -> throw IllegalArgumentException("Unsupported step type: ${step.stepCase}")
+        StepCase.STEP_NOT_SET ->
+          throw IllegalArgumentException("Unsupported step type: ${step.stepCase}")
       }
     }
   }

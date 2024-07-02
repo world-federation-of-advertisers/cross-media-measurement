@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2024 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,10 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.launcher
+package org.wfanet.panelmatch.common
 
-/** Executes [ApiClient.ClaimedExchangeStep]s. */
-interface ExchangeStepExecutor {
-  /** Executes [exchangeStep]. */
-  suspend fun execute(exchangeStep: ApiClient.ClaimedExchangeStep)
+import com.google.common.hash.Hashing
+import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
+
+/** Helper for fingerprinting data. */
+object Fingerprinters {
+
+  /** Returns the SHA-256 of [bytes]. */
+  fun sha256(bytes: ByteString): ByteString {
+    return Hashing.sha256().hashBytes(bytes.toByteArray()).asBytes().toByteString()
+  }
 }
