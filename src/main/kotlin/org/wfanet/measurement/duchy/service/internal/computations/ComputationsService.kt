@@ -84,7 +84,12 @@ class ComputationsService(
     val lockDuration =
       if (request.hasLockDuration()) request.lockDuration.toDuration() else defaultLockDuration
     val claimed =
-      computationsDatabase.claimTask(request.computationType, request.owner, lockDuration)
+      computationsDatabase.claimTask(
+        request.computationType,
+        request.owner,
+        lockDuration,
+        request.prioritizedStagesList,
+      )
     return if (claimed != null) {
       val token = computationsDatabase.readComputationToken(claimed)!!
       sendStatusUpdateToKingdom(

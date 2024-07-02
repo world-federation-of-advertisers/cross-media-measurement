@@ -230,6 +230,9 @@ message ClaimWorkRequest {
   // How long the work lock is held for as a result of this claim. If not
   // specified, a default value may be chosen by the server.
   google.protobuf.Duration lock_duration = 3;
+
+  // Stages of Computations that have higher priority to claim.
+  repeated ComputationStage prioritized_stages = 4;
 }
 message ClaimWorkResponse {
   // The token of the computation being claimed. The response would be empty if

@@ -19,10 +19,13 @@ import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.common.SqlBasedQuery
+import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.statement
 
 /** Queries for computations which may be claimed at a timestamp. */
 class UnclaimedTasksQuery<StageT>(
-  val protocol: Long,
+  protocol: Long,
+  prioritizedStageLongValues: List<Long>,
   val parseStageEnum: (ComputationStageLongValues) -> StageT,
   timestamp: Timestamp,
 ) : SqlBasedQuery<UnclaimedTaskQueryResult<StageT>> {
@@ -44,18 +47,27 @@ class UnclaimedTasksQuery<StageT>(
         AND c.LockExpirationTime IS NOT NULL
         AND c.UpdateTime IS NOT NULL
         AND c.LockExpirationTime <= @current_time
-      ORDER BY c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC
-      LIMIT 50
       """
   }
 
   override val sql: Statement =
-    Statement.newBuilder(parameterizedQueryString)
-      .bind("current_time")
-      .to(timestamp)
-      .bind("protocol")
-      .to(protocol)
-      .build()
+    statement(parameterizedQueryString) {
+      bind("current_time").to(timestamp)
+      bind("protocol").to(protocol)
+      if (prioritizedStageLongValues.isEmpty()) {
+        appendClause("ORDER BY c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC")
+      } else {
+        appendClause(
+          """
+            ORDER BY CASE WHEN c.ComputationStage IN UNNEST (@prioritized_stages) THEN 0 ELSE 1 END ASC,
+            c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC
+          """
+            .trimIndent()
+        )
+        bind("prioritized_stages").toInt64Array(prioritizedStageLongValues)
+      }
+      appendClause("LIMIT 50")
+    }
 
   override fun asResult(struct: Struct): UnclaimedTaskQueryResult<StageT> =
     UnclaimedTaskQueryResult(

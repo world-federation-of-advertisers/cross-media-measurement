@@ -96,6 +96,8 @@ import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.copy
+import org.wfanet.measurement.internal.duchy.elGamalKeyPair
+import org.wfanet.measurement.internal.duchy.elGamalPublicKey
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneRequest
@@ -137,6 +139,7 @@ import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoA
 import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoResponse
+import org.wfanet.measurement.internal.duchy.protocol.completeInitializationPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.completeSetupPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.copy
 import org.wfanet.measurement.internal.duchy.protocol.flagCountTupleNoiseGenerationParameters
@@ -655,6 +658,45 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       )
 
     assertThat(fakeComputationDb.claimedComputationIds).isEmpty()
+  }
+
+  @Test
+  fun `initialization phase has higher priority to be claimed`() = runBlocking {
+    fakeComputationDb.addComputation(
+      1L,
+      EXECUTION_PHASE_ONE.toProtocolStage(),
+      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
+      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
+      blobs = listOf(newEmptyOutputBlobMetadata(1)),
+    )
+    fakeComputationDb.addComputation(
+      2L,
+      INITIALIZATION_PHASE.toProtocolStage(),
+      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
+      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
+    )
+
+    var cryptoRequest = CompleteInitializationPhaseRequest.getDefaultInstance()
+    whenever(mockCryptoWorker.completeInitializationPhase(any())).thenAnswer {
+      cryptoRequest = it.getArgument(0)
+      completeInitializationPhaseResponse {
+        elGamalKeyPair = elGamalKeyPair {
+          publicKey = elGamalPublicKey {
+            generator = ByteString.copyFromUtf8("generator-foo")
+            element = ByteString.copyFromUtf8("element-foo")
+          }
+          secretKey = ByteString.copyFromUtf8("secretKey-foo")
+        }
+      }
+    }
+
+    // Mill should claim computation1 of INITIALIZATION_PHASE.
+    nonAggregatorMill.pollAndProcessNextComputation()
+
+    assertThat(fakeComputationDb[2]!!.computationStage)
+      .isEqualTo(WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage())
+    assertThat(fakeComputationDb[1]!!.computationStage)
+      .isEqualTo(EXECUTION_PHASE_ONE.toProtocolStage())
   }
 
   @Test

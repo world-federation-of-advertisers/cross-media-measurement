@@ -841,6 +841,62 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   }
 
   @Test
+  fun `claimWork returns computation of prioritized stage`() = runBlocking {
+    var computation1 =
+      service
+        .createComputation(
+          DEFAULT_CREATE_COMPUTATION_REQUEST.copy {
+            globalComputationId = "1"
+            requisitions.clear()
+          }
+        )
+        .token
+
+    computation1 =
+      service
+        .claimWork(
+          DEFAULT_CLAIM_WORK_REQUEST.copy {
+            this.lockDuration = Durations.fromSeconds(1)
+            prioritizedStages += Stage.INITIALIZATION_PHASE.toProtocolStage()
+          }
+        )
+        .token
+
+    computation1 =
+      service
+        .advanceComputationStage(
+          advanceComputationStageRequest {
+            token = computation1
+            nextComputationStage = Stage.WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage()
+            // To simplify the test, assume WAIT_REQUISITIONS_AND_KEY_SET is claimable.
+            afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
+          }
+        )
+        .token
+
+    // create a new computation with prioritized stage.
+    val computation2 =
+      service
+        .createComputation(
+          DEFAULT_CREATE_COMPUTATION_REQUEST.copy {
+            globalComputationId = "2"
+            requisitions.clear()
+          }
+        )
+        .token
+
+    val response =
+      service.claimWork(
+        DEFAULT_CLAIM_WORK_REQUEST.copy {
+          this.lockDuration = Durations.fromSeconds(1)
+          prioritizedStages += Stage.INITIALIZATION_PHASE.toProtocolStage()
+        }
+      )
+
+    assertThat(response.token.globalComputationId).isEqualTo(computation2.globalComputationId)
+  }
+
+  @Test
   fun `getComputationIds returns empty response when no matching computations`() = runBlocking {
     service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
 

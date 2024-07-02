@@ -143,6 +143,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     protocol: ProtocolT,
     ownerId: String,
     lockDuration: Duration,
+    prioritizedStages: List<StageT>,
   ): String? {
     /** Claim a specific task represented by the results of running the above sql. */
     suspend fun claimSpecificTask(result: UnclaimedTaskQueryResult<StageT>): Boolean =
@@ -157,8 +158,11 @@ class GcpSpannerComputationsDatabaseTransactor<
           lockDuration,
         )
       }
+    val prioritizedStageLongValues =
+      prioritizedStages.map(computationMutations::computationStageEnumToLongValues).map { it.stage }
     return UnclaimedTasksQuery(
         computationMutations.protocolEnumToLong(protocol),
+        prioritizedStageLongValues,
         computationMutations::longValuesToComputationStageEnum,
         clock.gcloudTimestamp(),
       )
