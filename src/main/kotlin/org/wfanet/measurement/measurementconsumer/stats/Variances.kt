@@ -538,6 +538,7 @@ object VariancesImpl : Variances {
       (1..maximumFrequency).associateWith { frequency ->
         HonestMajorityShareShuffle.frequencyCountVariance(
           sketchParams,
+          frequency,
           frequencyNoiseVariance,
           RelativeFrequencyMeasurementVarianceParams(
             frequencyParams.totalReach,
@@ -568,6 +569,7 @@ object VariancesImpl : Variances {
       (1..maximumFrequency).associateWith { frequency ->
         HonestMajorityShareShuffle.frequencyRelativeVariance(
           sketchParams,
+          frequency,
           frequencyNoiseVariance,
           RelativeFrequencyMeasurementVarianceParams(
             frequencyParams.totalReach,

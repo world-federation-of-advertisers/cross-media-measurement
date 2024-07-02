@@ -59,6 +59,7 @@ object HonestMajorityShareShuffle {
    */
   fun frequencyCountVariance(
     sketchParams: ShareShuffleSketchParams,
+    frequency: Int,
     frequencyNoiseVariance: Double,
     relativeFrequencyMeasurementVarianceParams: RelativeFrequencyMeasurementVarianceParams,
   ): Double {
@@ -67,7 +68,6 @@ object HonestMajorityShareShuffle {
       reachMeasurementVariance: Double,
       kReachRatio: Double,
       frequencyMeasurementParams: FrequencyMeasurementParams,
-      multiplier: Int,
     ) = relativeFrequencyMeasurementVarianceParams
     val vidSamplingIntervalWidth = frequencyMeasurementParams.vidSamplingInterval.width
     val vidUniverseSize = (sketchParams.sketchSize / vidSamplingIntervalWidth).toLong()
@@ -82,7 +82,7 @@ object HonestMajorityShareShuffle {
           kReach / (vidUniverseSize - 1) + frequencyNoiseVariance) /
           vidSamplingIntervalWidth.pow(2.0)
 
-    if (multiplier == frequencyMeasurementParams.maximumFrequency) {
+    if (frequency == frequencyMeasurementParams.maximumFrequency) {
       val reachNoiseVariance =
         reachMeasurementVariance * vidSamplingIntervalWidth.pow(2.0) -
           vidSamplingIntervalWidth *
@@ -90,7 +90,7 @@ object HonestMajorityShareShuffle {
             (vidUniverseSize - totalReach) *
             totalReach / (vidUniverseSize - 1)
       kReachVariance +=
-        ((reachNoiseVariance + (multiplier - 2) * frequencyNoiseVariance) /
+        ((reachNoiseVariance + (frequency - 2) * frequencyNoiseVariance) /
           vidSamplingIntervalWidth.pow(2.0))
     }
     return max(0.0, kReachVariance)
@@ -140,6 +140,7 @@ object HonestMajorityShareShuffle {
    */
   fun frequencyRelativeVariance(
     sketchParams: ShareShuffleSketchParams,
+    frequency: Int,
     frequencyNoiseVariance: Double,
     relativeFrequencyMeasurementVarianceParams: RelativeFrequencyMeasurementVarianceParams,
   ): Double {
@@ -148,7 +149,6 @@ object HonestMajorityShareShuffle {
       reachMeasurementVariance: Double,
       kReachRatio: Double,
       frequencyMeasurementParams: FrequencyMeasurementParams,
-      multiplier: Int,
     ) = relativeFrequencyMeasurementVarianceParams
 
     // When reach is too small, we have little info to estimate frequency, and thus the estimate of
@@ -166,6 +166,7 @@ object HonestMajorityShareShuffle {
     var kReachVariance =
       frequencyCountVariance(
         sketchParams,
+        frequency,
         frequencyNoiseVariance,
         relativeFrequencyMeasurementVarianceParams,
       )
@@ -178,7 +179,7 @@ object HonestMajorityShareShuffle {
           (vidUniverseSize - totalReach) *
           kReach / (vidUniverseSize - 1) / vidSamplingIntervalWidth.pow(2.0)
 
-    if (multiplier == frequencyMeasurementParams.maximumFrequency) {
+    if (frequency == frequencyMeasurementParams.maximumFrequency) {
       val reachNoiseVariance =
         reachMeasurementVariance * vidSamplingIntervalWidth.pow(2.0) -
           vidSamplingIntervalWidth *
