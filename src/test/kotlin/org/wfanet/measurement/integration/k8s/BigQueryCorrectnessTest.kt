@@ -20,7 +20,6 @@ import com.google.cloud.bigquery.BigQuery
 import com.google.cloud.bigquery.BigQueryOptions
 import io.grpc.ManagedChannel
 import java.nio.file.Paths
-import java.time.Duration
 import java.util.UUID
 import org.junit.ClassRule
 import org.junit.rules.TemporaryFolder
@@ -36,9 +35,9 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.integration.common.DEFAULT_SERVICE_CONFIG_MAP
 import org.wfanet.measurement.loadtest.dataprovider.BigQueryEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
@@ -88,9 +87,9 @@ class BigQueryCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
             TEST_CONFIG.kingdomPublicApiTarget,
             MEASUREMENT_CONSUMER_SIGNING_CERTS,
             TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
+            DEFAULT_SERVICE_CONFIG_MAP,
           )
           .also { channels.add(it) }
-          .withDefaultDeadline(RPC_DEADLINE_DURATION)
 
       val bigQuery: BigQuery =
         BigQueryOptions.newBuilder().apply { setProjectId(BIGQUERY_CONFIG.project) }.build().service
@@ -126,7 +125,6 @@ class BigQueryCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
   companion object {
     private const val FILTER_EXPRESSION = "video.completed_25_percent_plus == true"
-    private val RPC_DEADLINE_DURATION = Duration.ofSeconds(30)
     private val CONFIG_PATH =
       Paths.get("src", "test", "kotlin", "org", "wfanet", "measurement", "integration", "k8s")
     private const val TEST_CONFIG_NAME = "correctness_test_config.textproto"
