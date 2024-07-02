@@ -394,10 +394,7 @@ object VariancesImpl : Variances {
       ) -> Double,
     frequencyCountVarianceFun:
       (
-        totalReach: Long,
-        totalReachVariance: Double,
-        reachRatio: Double,
-        reachRatioVariance: Double,
+        totalReach: Long, totalReachVariance: Double, reachRatio: Double, reachRatioVariance: Double,
       ) -> Double,
   ): FrequencyVariances {
     require(params.totalReach >= 0.0) { "The total reach value cannot be negative." }
@@ -625,10 +622,7 @@ object VariancesImpl : Variances {
     kPlusRelativeVariances: Map<Int, Double>,
     frequencyCountVarianceFun:
       (
-        totalReach: Long,
-        totalReachVariance: Double,
-        reachRatio: Double,
-        reachRatioVariance: Double,
+        totalReach: Long, totalReachVariance: Double, reachRatio: Double, reachRatioVariance: Double,
       ) -> Double,
   ): FrequencyVariances {
     require(params.totalReach >= 0.0) { "The total reach value cannot be negative." }

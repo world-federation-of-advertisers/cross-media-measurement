@@ -2355,8 +2355,7 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
       weightedMeasurement,
       vidSamplingInterval,
       reachPrivacyParams,
-    )
-      ?: return null
+    ) ?: return null
 
   val reachMeasurementVariance: Double =
     variances.computeMeasurementVariance(
@@ -2476,7 +2475,7 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
     }
     InternalMeasurement.Result.Frequency.MethodologyCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
       HonestMajorityShareShuffleMethodology(
-        sketchSize = frequencyResult.honestMajorityShareShuffle.sketchParams.registerCount,
+        sketchSize = frequencyResult.honestMajorityShareShuffle.sketchParams.registerCount
       )
     }
     InternalMeasurement.Result.Frequency.MethodologyCase.METHODOLOGY_NOT_SET -> {
@@ -2736,12 +2735,12 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
     }
     InternalMeasurement.Result.Reach.MethodologyCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
       HonestMajorityShareShuffleMethodology(
-        sketchSize = reachResult.honestMajorityShareShuffle.sketchParams.registerCount,
+        sketchSize = reachResult.honestMajorityShareShuffle.sketchParams.registerCount
       )
     }
     InternalMeasurement.Result.Reach.MethodologyCase.REACH_ONLY_HONEST_MAJORITY_SHARE_SHUFFLE -> {
       ReachOnlyHonestMajorityShareShuffleMethodology(
-        sketchSize = reachResult.reachOnlyHonestMajorityShareShuffle.sketchParams.registerCount,
+        sketchSize = reachResult.reachOnlyHonestMajorityShareShuffle.sketchParams.registerCount
       )
     }
     InternalMeasurement.Result.Reach.MethodologyCase.METHODOLOGY_NOT_SET -> {

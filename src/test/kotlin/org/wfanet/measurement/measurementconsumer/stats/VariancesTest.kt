@@ -4711,16 +4711,16 @@ class VariancesTest {
         binaryRepresentation = 1,
         weight = 1,
         measurementVarianceParams =
-        ImpressionMeasurementVarianceParams(
-          impression = 2L,
-          measurementParams =
-          ImpressionMeasurementParams(
-            vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
-            dpParams = DpParams(0.1, 1e-9),
-            noiseMechanism = NoiseMechanism.GAUSSIAN,
-            maximumFrequencyPerUser = 10,
+          ImpressionMeasurementVarianceParams(
+            impression = 2L,
+            measurementParams =
+              ImpressionMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumFrequencyPerUser = 10,
+              ),
           ),
-        ),
         methodology = ReachOnlyHonestMajorityShareShuffleMethodology(1000_000L),
       )
 
@@ -4920,16 +4920,16 @@ class VariancesTest {
         binaryRepresentation = 1,
         weight = 1,
         measurementVarianceParams =
-        WatchDurationMeasurementVarianceParams(
-          duration = 1.0,
-          measurementParams =
-          WatchDurationMeasurementParams(
-            vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
-            dpParams = DpParams(0.1, 1e-9),
-            noiseMechanism = NoiseMechanism.GAUSSIAN,
-            maximumDurationPerUser = 10.0,
+          WatchDurationMeasurementVarianceParams(
+            duration = 1.0,
+            measurementParams =
+              WatchDurationMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumDurationPerUser = 10.0,
+              ),
           ),
-        ),
         methodology = ReachOnlyHonestMajorityShareShuffleMethodology(1000_000L),
       )
 
