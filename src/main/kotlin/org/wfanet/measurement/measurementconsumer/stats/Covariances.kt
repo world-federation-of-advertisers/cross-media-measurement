@@ -117,6 +117,9 @@ object Covariances {
         is LiquidLegionsV2Methodology -> {
           LiquidLegionsSketchParams(methodology.decayRate, methodology.sketchSize)
         }
+        is HonestMajorityShareShuffleMethodology -> {
+          throw IllegalArgumentException("Unsupported methodology.")
+        }
       }
 
     when (val otherMethodology = otherWeightedMeasurementVarianceParams.methodology) {
@@ -164,6 +167,9 @@ object Covariances {
               "measurements using the same decay rate and sketch size."
           )
         }
+      }
+      is HonestMajorityShareShuffleMethodology -> {
+        throw IllegalArgumentException("Unsupported methodology.")
       }
     }
     return computeLiquidLegionsCovariance(

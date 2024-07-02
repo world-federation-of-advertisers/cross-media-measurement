@@ -78,6 +78,8 @@ message Measurement {
         LiquidLegionsCountDistinct liquid_legions_count_distinct = 5;
         LiquidLegionsV2 liquid_legions_v2 = 6;
         ReachOnlyLiquidLegionsV2 reach_only_liquid_legions_v2 = 7;
+        HonestMajorityShareShuffle honest_majority_share_shuffle = 8;
+        ReachOnlyHonestMajorityShareShuffle reach_only_honest_majority_share_shuffle = 9;
       }
     }
     Reach reach = 1;
@@ -91,6 +93,7 @@ message Measurement {
         DeterministicDistribution deterministic_distribution = 4;
         LiquidLegionsDistribution liquid_legions_distribution = 5;
         LiquidLegionsV2 liquid_legions_v2 = 6;
+        HonestMajorityShareShuffle honest_majority_share_shuffle = 7;
       }
     }
     Frequency frequency = 2;

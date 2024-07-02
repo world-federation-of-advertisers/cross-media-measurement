@@ -36,6 +36,10 @@ data class LiquidLegionsV2Methodology(
   val samplingIndicatorSize: Long,
 ) : Methodology
 
+data class HonestMajorityShareShuffleMethodology(
+  val sketchSize: Long,
+) : Methodology
+
 data class WeightedReachMeasurementVarianceParams(
   val binaryRepresentation: Int,
   val weight: Int,

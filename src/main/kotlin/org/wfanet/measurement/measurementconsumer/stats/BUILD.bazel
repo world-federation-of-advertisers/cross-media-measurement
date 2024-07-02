@@ -22,6 +22,17 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "honest_majority_share_shuffle",
+    srcs = ["HonestMajorityShareShuffle.kt"],
+    deps = [
+        ":measurement_statistics",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:acdp_params_converter",
+        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
+        "@wfa_common_jvm//imports/java/org/apache/commons/numbers/gamma",
+    ],
+)
+
+kt_jvm_library(
     name = "stats_exceptions",
     srcs = ["StatsExceptions.kt"],
 )
@@ -32,6 +43,7 @@ kt_jvm_library(
     deps = [
         ":covariances",
         ":liquid_legions",
+        ":honest_majority_share_shuffle",
         ":measurement_statistics",
         ":metric_statistics",
         ":stats_exceptions",

@@ -32,6 +32,11 @@ message LiquidLegionsSketchParams {
   int64 sampling_indicator_size = 3;
 }
 
+message ShareShuffleSketchParams {
+  // The number of registers in the sketch.
+  int64 register_count = 1;
+}
+
 // Parameters for a Reach-Only Liquid Legions sketch.
 message ReachOnlyLiquidLegionsSketchParams {
   // The decay rate of the Liquid Legions sketch. REQUIRED.
@@ -53,4 +58,17 @@ message LiquidLegionsV2 {
 message ReachOnlyLiquidLegionsV2 {
   // Parameters for sketch. REQUIRED.
   ReachOnlyLiquidLegionsSketchParams sketch_params = 1;
+}
+
+message HonestMajorityShareShuffle {
+  // Parameters for Hmss sketch. REQUIRED.
+  ShareShuffleSketchParams sketch_params = 1;
+
+  // The maximum frequency to reveal in the histogram.
+  int32 maximum_frequency = 2;
+}
+
+message ReachOnlyHonestMajorityShareShuffle {
+  // Parameters for Hmss sketch. REQUIRED.
+  ShareShuffleSketchParams sketch_params = 1;
 }
