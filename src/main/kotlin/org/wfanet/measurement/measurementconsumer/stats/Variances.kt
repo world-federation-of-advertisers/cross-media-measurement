@@ -498,17 +498,6 @@ object VariancesImpl : Variances {
     sketchParams: ShareShuffleSketchParams,
     frequencyParams: FrequencyMeasurementVarianceParams,
   ): FrequencyVariances {
-    return hmssFrequencyVariance(sketchParams, frequencyParams)
-  }
-
-  /**
-   * Common function that computes [FrequencyVariances] for the Honest Majority Share Shuffle
-   * protocol.
-   */
-  private fun hmssFrequencyVariance(
-    sketchParams: ShareShuffleSketchParams,
-    frequencyParams: FrequencyMeasurementVarianceParams,
-  ): FrequencyVariances {
     require(frequencyParams.totalReach >= 0.0) { "The total reach value cannot be negative." }
     require(frequencyParams.reachMeasurementVariance >= 0.0) {
       "The reach variance value cannot be negative."
@@ -540,31 +529,24 @@ object VariancesImpl : Variances {
             frequencyParams.reachMeasurementVariance,
             kPlusRelativeFrequencyDistribution.getValue(frequency),
             frequencyParams.measurementParams,
-            frequency - 1,
+            frequency,
           ),
         )
       }
 
     val countVariances: Map<Int, Double> =
       (1..maximumFrequency).associateWith { frequency ->
-        if (frequency < maximumFrequency) {
-          HonestMajorityShareShuffle.frequencyCountVariance(
-            sketchParams,
-            frequencyNoiseVariance,
-            RelativeFrequencyMeasurementVarianceParams(
-              frequencyParams.totalReach,
-              frequencyParams.reachMeasurementVariance,
-              frequencyParams.relativeFrequencyDistribution.getOrDefault(frequency, 0.0),
-              frequencyParams.measurementParams,
-              0,
-            ),
-          )
-        } else {
-          kPlusCountVariances[frequency]
-            ?: throw IllegalArgumentException(
-              "kPlusCountVariances for the maximumFrequency is missing."
-            )
-        }
+        HonestMajorityShareShuffle.frequencyCountVariance(
+          sketchParams,
+          frequencyNoiseVariance,
+          RelativeFrequencyMeasurementVarianceParams(
+            frequencyParams.totalReach,
+            frequencyParams.reachMeasurementVariance,
+            frequencyParams.relativeFrequencyDistribution.getOrDefault(frequency, 0.0),
+            frequencyParams.measurementParams,
+            frequency,
+          ),
+        )
       }
 
     val kPlusRelativeVariances: Map<Int, Double> =
@@ -577,31 +559,24 @@ object VariancesImpl : Variances {
             frequencyParams.reachMeasurementVariance,
             kPlusRelativeFrequencyDistribution.getValue(frequency),
             frequencyParams.measurementParams,
-            frequency - 1,
+            frequency,
           ),
         )
       }
 
     val relativeVariances: Map<Int, Double> =
       (1..maximumFrequency).associateWith { frequency ->
-        if (frequency < maximumFrequency) {
-          HonestMajorityShareShuffle.frequencyRelativeVariance(
-            sketchParams,
-            frequencyNoiseVariance,
-            RelativeFrequencyMeasurementVarianceParams(
-              frequencyParams.totalReach,
-              frequencyParams.reachMeasurementVariance,
-              frequencyParams.relativeFrequencyDistribution.getOrDefault(frequency, 0.0),
-              frequencyParams.measurementParams,
-              frequency - 1,
-            ),
-          )
-        } else {
-          kPlusRelativeVariances[frequency]
-            ?: throw IllegalArgumentException(
-              "kPlusRelativeVariances for the maximumFrequency is missing."
-            )
-        }
+        HonestMajorityShareShuffle.frequencyRelativeVariance(
+          sketchParams,
+          frequencyNoiseVariance,
+          RelativeFrequencyMeasurementVarianceParams(
+            frequencyParams.totalReach,
+            frequencyParams.reachMeasurementVariance,
+            frequencyParams.relativeFrequencyDistribution.getOrDefault(frequency, 0.0),
+            frequencyParams.measurementParams,
+            frequency,
+          ),
+        )
       }
 
     return FrequencyVariances(
