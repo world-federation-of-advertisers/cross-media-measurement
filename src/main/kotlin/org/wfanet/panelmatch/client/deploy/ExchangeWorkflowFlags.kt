@@ -16,8 +16,8 @@ package org.wfanet.panelmatch.client.deploy
 
 import java.time.Duration
 import kotlin.properties.Delegates
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party
 import org.wfanet.measurement.common.grpc.TlsFlags
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Party
 import picocli.CommandLine
 import picocli.CommandLine.Model.CommandSpec
 import picocli.CommandLine.Option

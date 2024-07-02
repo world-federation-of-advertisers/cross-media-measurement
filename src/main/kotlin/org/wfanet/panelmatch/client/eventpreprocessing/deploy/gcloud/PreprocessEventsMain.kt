@@ -73,6 +73,7 @@ interface Options : DataflowPipelineOptions {
   @get:Default.String("")
   var compressionParametersUri: String
 }
+
 /**
  * Runs relevant DoFns to preprocess events in a condensed main function
  *

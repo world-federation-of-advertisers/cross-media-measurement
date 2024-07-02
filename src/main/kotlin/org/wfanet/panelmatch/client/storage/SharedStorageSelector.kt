@@ -14,10 +14,8 @@
 
 package org.wfanet.panelmatch.client.storage
 
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.StorageType
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.StorageType.AMAZON_S3
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.StorageType.GOOGLE_CLOUD_STORAGE
 import org.wfanet.panelmatch.client.common.ExchangeContext
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.StorageType
 import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.certificates.CertificateManager
@@ -58,11 +56,7 @@ class SharedStorageSelector(
     val storageClient = storageFactory.build()
     val namedSignature = storageClient.getBlobSignature(blobKey)
     val x509 =
-      certificateManager.getCertificate(
-        context.exchangeDateKey,
-        context.partnerName,
-        namedSignature.certificateName,
-      )
+      certificateManager.getCertificate(context.exchangeDateKey, namedSignature.certificateName)
     return VerifyingStorageClient(storageFactory, x509)
   }
 
@@ -100,8 +94,8 @@ class SharedStorageSelector(
     require(storageDetails.visibility == StorageDetails.Visibility.SHARED)
     val platform = storageDetails.platformCase
     when (storageType) {
-      GOOGLE_CLOUD_STORAGE -> require(platform == PlatformCase.GCS)
-      AMAZON_S3 -> require(platform == PlatformCase.AWS)
+      StorageType.GOOGLE_CLOUD_STORAGE -> require(platform == PlatformCase.GCS)
+      StorageType.AMAZON_S3 -> require(platform == PlatformCase.AWS)
       StorageType.STORAGE_TYPE_UNSPECIFIED,
       StorageType.UNRECOGNIZED -> require(platform !in EXPLICITLY_SUPPORTED_STORAGE_TYPES)
     // TODO(world-federation-of-advertisers/cross-media-measurement-api#73): throw

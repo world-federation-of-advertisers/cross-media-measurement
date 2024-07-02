@@ -16,6 +16,7 @@ kt_jvm_library(
         "//imports/java/org/apache/beam/runners/direct",
     ],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_kingdom",
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
