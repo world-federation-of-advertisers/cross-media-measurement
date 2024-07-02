@@ -42,8 +42,8 @@ kt_jvm_library(
     srcs = ["Variances.kt"],
     deps = [
         ":covariances",
-        ":liquid_legions",
         ":honest_majority_share_shuffle",
+        ":liquid_legions",
         ":measurement_statistics",
         ":metric_statistics",
         ":stats_exceptions",
