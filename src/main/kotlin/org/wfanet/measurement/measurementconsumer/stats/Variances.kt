@@ -733,12 +733,6 @@ object VariancesImpl : Variances {
           measurementVarianceParams,
         )
       }
-      is ReachOnlyHonestMajorityShareShuffleMethodology -> {
-        computeHonestMajorityShareShuffleVariance(
-          ShareShuffleSketchParams(methodology.sketchSize),
-          measurementVarianceParams,
-        )
-      }
     }
   }
 
@@ -811,11 +805,6 @@ object VariancesImpl : Variances {
         computeHonestMajorityShareShuffleVariance(
           ShareShuffleSketchParams(methodology.sketchSize),
           measurementVarianceParams,
-        )
-      }
-      is ReachOnlyHonestMajorityShareShuffleMethodology -> {
-        throw UnsupportedMethodologyUsageException(
-          "Reach only honest majority share shuffle cannot be used for frequency."
         )
       }
     }
@@ -899,12 +888,6 @@ object VariancesImpl : Variances {
           IllegalArgumentException("Invalid methodology"),
         )
       }
-      is ReachOnlyHonestMajorityShareShuffleMethodology -> {
-        throw UnsupportedMethodologyUsageException(
-          "Methodology REACH_ONLY_HONEST_MAJORITY_SHARE_SHUFFLE is not supported for impression.",
-          IllegalArgumentException("Invalid methodology"),
-        )
-      }
     }
   }
 
@@ -965,12 +948,6 @@ object VariancesImpl : Variances {
       is HonestMajorityShareShuffleMethodology -> {
         throw UnsupportedMethodologyUsageException(
           "Methodology HONEST_MAJORITY_SHARE_SHUFFLE is not supported for watch duration.",
-          IllegalArgumentException("Invalid methodology"),
-        )
-      }
-      is ReachOnlyHonestMajorityShareShuffleMethodology -> {
-        throw UnsupportedMethodologyUsageException(
-          "Methodology REACH_ONLY_HONEST_MAJORITY_SHARE_SHUFFLE is not supported for watch duration.",
           IllegalArgumentException("Invalid methodology"),
         )
       }

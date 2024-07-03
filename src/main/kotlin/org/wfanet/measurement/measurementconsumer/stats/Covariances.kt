@@ -72,7 +72,11 @@ object Covariances {
     )
   }
 
-  /** Computes the covariance of two reach measurements based on their methodologies. */
+  /**
+   * Computes the covariance of two reach measurements based on their methodologies.
+   *
+   * TODO(@ple13): Add support for Honest Majority Share Shuffle.
+   */
   fun computeMeasurementCovariance(
     weightedMeasurementVarianceParams: WeightedReachMeasurementVarianceParams,
     otherWeightedMeasurementVarianceParams: WeightedReachMeasurementVarianceParams,
@@ -118,9 +122,6 @@ object Covariances {
           LiquidLegionsSketchParams(methodology.decayRate, methodology.sketchSize)
         }
         is HonestMajorityShareShuffleMethodology -> {
-          throw IllegalArgumentException("Unsupported methodology.")
-        }
-        is ReachOnlyHonestMajorityShareShuffleMethodology -> {
           throw IllegalArgumentException("Unsupported methodology.")
         }
       }
@@ -172,9 +173,6 @@ object Covariances {
         }
       }
       is HonestMajorityShareShuffleMethodology -> {
-        throw IllegalArgumentException("Unsupported methodology.")
-      }
-      is ReachOnlyHonestMajorityShareShuffleMethodology -> {
         throw IllegalArgumentException("Unsupported methodology.")
       }
     }

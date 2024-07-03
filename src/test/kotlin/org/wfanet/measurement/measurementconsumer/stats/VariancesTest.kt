@@ -1596,140 +1596,6 @@ class VariancesTest {
   }
 
   @Test
-  fun `computeMeasurementVariance returns a value for ReachOnlyHonestMajorityShareShuffle reach when reach is small, sampling width is small`() {
-    val sketchSize = 10_000_000L
-    val reach = 2L
-    val vidSamplingIntervalWidth = 0.1
-    val dpParams = DpParams(0.1, 1e-9)
-    val reachMeasurementParams =
-      ReachMeasurementParams(
-        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
-        dpParams,
-        NoiseMechanism.GAUSSIAN,
-      )
-    val reachMeasurementVarianceParams =
-      ReachMeasurementVarianceParams(reach, reachMeasurementParams)
-
-    val variance =
-      VariancesImpl.computeMeasurementVariance(
-        ReachOnlyHonestMajorityShareShuffleMethodology(sketchSize),
-        reachMeasurementVarianceParams,
-      )
-    // Expected variance = variance from DP noise + variance from Hmss sketch sampling.
-    val expected = 252102.58106484052 + 17.99999974
-    val tolerance = computeErrorTolerance(variance, expected)
-    assertThat(variance).isWithin(tolerance).of(expected)
-  }
-
-  @Test
-  fun `computeMeasurementVariance returns a value for ReachOnlyHonestMajorityShareShuffle reach when reach is small, sampling width is large`() {
-    val sketchSize = 10_000_000L
-    val reach = 2L
-    val vidSamplingIntervalWidth = 1.0
-    val dpParams = DpParams(0.1, 1e-9)
-    val reachMeasurementParams =
-      ReachMeasurementParams(
-        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
-        dpParams,
-        NoiseMechanism.GAUSSIAN,
-      )
-    val reachMeasurementVarianceParams =
-      ReachMeasurementVarianceParams(reach, reachMeasurementParams)
-
-    val variance =
-      VariancesImpl.computeMeasurementVariance(
-        ReachOnlyHonestMajorityShareShuffleMethodology(sketchSize),
-        reachMeasurementVarianceParams,
-      )
-    // The variance of the measurement comes entirely from the reach DP noise when sampling interval
-    // width is equal to 1.
-    val expected = 2521.0258106484052
-    val tolerance = computeErrorTolerance(variance, expected)
-    assertThat(variance).isWithin(tolerance).of(expected)
-  }
-
-  @Test
-  fun `computeMeasurementVariance returns a value for ReachOnlyHonestMajorityShareShuffle reach when reach is large, sampling width is small`() {
-    val sketchSize = 10_000_000L
-    val reach = 90_000_000L
-    val vidSamplingIntervalWidth = 0.1
-    val dpParams = DpParams(0.1, 1e-9)
-    val reachMeasurementParams =
-      ReachMeasurementParams(
-        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
-        dpParams,
-        NoiseMechanism.GAUSSIAN,
-      )
-    val reachMeasurementVarianceParams =
-      ReachMeasurementVarianceParams(reach, reachMeasurementParams)
-
-    val variance =
-      VariancesImpl.computeMeasurementVariance(
-        ReachOnlyHonestMajorityShareShuffleMethodology(sketchSize),
-        reachMeasurementVarianceParams,
-      )
-
-    // Expected variance = variance from DP noise + variance from Hmss sketch sampling.
-    val expected = 252102.58106484052 + 8.1E7
-    val tolerance = computeErrorTolerance(variance, expected)
-    assertThat(variance).isWithin(tolerance).of(expected)
-  }
-
-  @Test
-  fun `computeMeasurementVariance returns a value for ReachOnlyHonestMajorityShareShuffle reach when reach is large, sampling width is large`() {
-    val sketchSize = 10_000_000L
-    val reach = 9_000_000L
-    val vidSamplingIntervalWidth = 1.0
-    val dpParams = DpParams(0.1, 1e-9)
-    val reachMeasurementParams =
-      ReachMeasurementParams(
-        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
-        dpParams,
-        NoiseMechanism.GAUSSIAN,
-      )
-    val reachMeasurementVarianceParams =
-      ReachMeasurementVarianceParams(reach, reachMeasurementParams)
-
-    val variance =
-      VariancesImpl.computeMeasurementVariance(
-        ReachOnlyHonestMajorityShareShuffleMethodology(sketchSize),
-        reachMeasurementVarianceParams,
-      )
-
-    // The variance of the measurement comes entirely from the reach DP noise when sampling interval
-    // width is equal to 1.
-    val expected = 2521.0258106484052
-    val tolerance = computeErrorTolerance(variance, expected)
-    assertThat(variance).isWithin(tolerance).of(expected)
-  }
-
-  @Test
-  fun `computeMeasurementVariance returns a value for ReachOnlyHonestMajorityShareShuffle reach when reach is half, sampling width is half`() {
-    val sketchSize = 10_000_000L
-    val reach = 10_000_000L
-    val vidSamplingIntervalWidth = 0.5
-    val dpParams = DpParams(0.1, 1e-9)
-    val reachMeasurementParams =
-      ReachMeasurementParams(
-        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
-        dpParams,
-        NoiseMechanism.GAUSSIAN,
-      )
-    val reachMeasurementVarianceParams =
-      ReachMeasurementVarianceParams(reach, reachMeasurementParams)
-
-    val variance =
-      VariancesImpl.computeMeasurementVariance(
-        ReachOnlyHonestMajorityShareShuffleMethodology(sketchSize),
-        reachMeasurementVarianceParams,
-      )
-    // Expected variance = variance from DP noise + variance from Hmss sketch sampling.
-    val expected = 10084.1032426 + 5.0E6
-    val tolerance = computeErrorTolerance(variance, expected)
-    assertThat(variance).isWithin(tolerance).of(expected)
-  }
-
-  @Test
   fun `computeMeasurementVariance returns a value for LiquidLegionsV2 reach when reach is large, sampling width is large, and small decay rate`() {
     val decayRate = 1e-3
     val sketchSize = 100000L
@@ -4788,33 +4654,6 @@ class VariancesTest {
   }
 
   @Test
-  fun `computeMetricVariance for impression throws UnsupportedMethodologyException when using ReachOnlyHonestMajorityShareShuffle methodology`() {
-    val weightedImpressionMeasurementVarianceParams =
-      WeightedImpressionMeasurementVarianceParams(
-        binaryRepresentation = 1,
-        weight = 1,
-        measurementVarianceParams =
-          ImpressionMeasurementVarianceParams(
-            impression = 2L,
-            measurementParams =
-              ImpressionMeasurementParams(
-                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
-                dpParams = DpParams(0.1, 1e-9),
-                noiseMechanism = NoiseMechanism.GAUSSIAN,
-                maximumFrequencyPerUser = 10,
-              ),
-          ),
-        methodology = ReachOnlyHonestMajorityShareShuffleMethodology(1000_000L),
-      )
-
-    assertFailsWith<UnsupportedMethodologyUsageException> {
-      VariancesImpl.computeMetricVariance(
-        ImpressionMetricVarianceParams(listOf(weightedImpressionMeasurementVarianceParams))
-      )
-    }
-  }
-
-  @Test
   fun `computeMetricVariance returns for watch duration`() {
     val watchDuration = 1.0
     val vidSamplingIntervalWidth = 1.0
@@ -4987,33 +4826,6 @@ class VariancesTest {
               ),
           ),
         methodology = HonestMajorityShareShuffleMethodology(1000_000L),
-      )
-
-    assertFailsWith<UnsupportedMethodologyUsageException> {
-      VariancesImpl.computeMetricVariance(
-        WatchDurationMetricVarianceParams(listOf(weightedWatchDurationMeasurementVarianceParams))
-      )
-    }
-  }
-
-  @Test
-  fun `computeMetricVariance for watch duration throws UnsupportedMethodologyException when using ReachOnlyHonestMajorityShareShuffle methodology`() {
-    val weightedWatchDurationMeasurementVarianceParams =
-      WeightedWatchDurationMeasurementVarianceParams(
-        binaryRepresentation = 1,
-        weight = 1,
-        measurementVarianceParams =
-          WatchDurationMeasurementVarianceParams(
-            duration = 1.0,
-            measurementParams =
-              WatchDurationMeasurementParams(
-                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
-                dpParams = DpParams(0.1, 1e-9),
-                noiseMechanism = NoiseMechanism.GAUSSIAN,
-                maximumDurationPerUser = 10.0,
-              ),
-          ),
-        methodology = ReachOnlyHonestMajorityShareShuffleMethodology(1000_000L),
       )
 
     assertFailsWith<UnsupportedMethodologyUsageException> {
