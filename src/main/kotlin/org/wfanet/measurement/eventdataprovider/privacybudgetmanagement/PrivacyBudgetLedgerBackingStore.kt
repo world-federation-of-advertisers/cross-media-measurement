@@ -91,6 +91,21 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
     return AcdpCharge(totalRho, totalTheta)
   }
 
+
+  /**
+   * Returns a set of exceeded balance entries.
+   * For each PrivacyBucketGroup, one PrivacyBudgetAcdpBalanceEntry should be generated.
+   *
+   * Override this method to increase the performance by batching search for PrivacyBucketGroup,
+   * instead of looking for each entry individually.
+   * The default implementation calls the findAcdpBalanceEntry method individually.
+   */
+  suspend fun findAcdpBalanceEntries(
+    privacyBucketGroup: Set<PrivacyBucketGroup>
+  ): Set<PrivacyBudgetAcdpBalanceEntry> = privacyBucketGroup.map {
+    findAcdpBalanceEntry(it)
+  }.toSet()
+
   /**
    * Returns whether this backing store has a ledger entry for [reference].
    *
