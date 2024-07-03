@@ -52,10 +52,7 @@ object HonestMajorityShareShuffle {
     return max(0.0, reachVariance)
   }
 
-  /**
-   * Outputs the variance of the given [kReach] when k < maximumFrequency, and the variance of
-   * [kPlusReach] when k is the maximumFrequency.
-   */
+  /** Outputs the variance of the kReach. */
   fun frequencyCountVariance(
     sketchParams: ShareShuffleSketchParams,
     frequency: Int,
@@ -102,7 +99,7 @@ object HonestMajorityShareShuffle {
     return max(0.0, kReachVariance)
   }
 
-  /** Outputs the variance of the given [kPlusReach]. */
+  /** Outputs the variance of the kPlusReach. */
   fun kPlusFrequencyCountVariance(
     sketchParams: ShareShuffleSketchParams,
     frequency: Int,
@@ -148,10 +145,7 @@ object HonestMajorityShareShuffle {
     return max(0.0, kPlusReachVariance)
   }
 
-  /**
-   * Outputs the variance of the given [kReachRatio] when k < maximumFrequency, and the variance of
-   * [kPlusReachRatio] when k is the maximumFrequency.
-   */
+  /** Outputs the variance of the given [kReachRatio]. */
   fun frequencyRelativeVariance(
     sketchParams: ShareShuffleSketchParams,
     frequency: Int,
