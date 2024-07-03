@@ -83,13 +83,10 @@ object HonestMajorityShareShuffle {
     }
 
     var kReachVariance =
-      if (vidUniverseSize == 1L) 0.0
-      else
-        (vidSamplingIntervalWidth *
-          (1.0 - vidSamplingIntervalWidth) *
-          (vidUniverseSize - kReach) *
-          kReach / (vidUniverseSize - 1) + frequencyNoiseVariance) /
-          vidSamplingIntervalWidth.pow(2.0)
+      (vidSamplingIntervalWidth *
+        (1.0 - vidSamplingIntervalWidth) *
+        (vidUniverseSize - kReach) *
+        kReach / (vidUniverseSize - 1) + frequencyNoiseVariance) / vidSamplingIntervalWidth.pow(2.0)
 
     if (frequency == frequencyMeasurementParams.maximumFrequency) {
       val reachNoiseVariance =
@@ -141,14 +138,12 @@ object HonestMajorityShareShuffle {
           totalReach / (vidUniverseSize - 1)
 
     val kPlusReachVariance =
-      if (vidUniverseSize == 1L) 0.0
-      else
-        (vidSamplingIntervalWidth *
-          (1.0 - vidSamplingIntervalWidth) *
-          (vidUniverseSize - kPlusReach) *
-          kPlusReach / (vidUniverseSize - 1) +
-          (frequency - 1) * frequencyNoiseVariance +
-          reachNoiseVariance) / vidSamplingIntervalWidth.pow(2.0)
+      (vidSamplingIntervalWidth *
+        (1.0 - vidSamplingIntervalWidth) *
+        (vidUniverseSize - kPlusReach) *
+        kPlusReach / (vidUniverseSize - 1) +
+        (frequency - 1) * frequencyNoiseVariance +
+        reachNoiseVariance) / vidSamplingIntervalWidth.pow(2.0)
 
     return max(0.0, kPlusReachVariance)
   }
@@ -200,12 +195,10 @@ object HonestMajorityShareShuffle {
       )
 
     var covarianceBetweenReachAndKReach =
-      if (vidUniverseSize == 1L) 0.0
-      else
-        vidSamplingIntervalWidth *
-          (1.0 - vidSamplingIntervalWidth) *
-          (vidUniverseSize - totalReach) *
-          kReach / (vidUniverseSize - 1) / vidSamplingIntervalWidth.pow(2.0)
+      vidSamplingIntervalWidth *
+        (1.0 - vidSamplingIntervalWidth) *
+        (vidUniverseSize - totalReach) *
+        kReach / (vidUniverseSize - 1) / vidSamplingIntervalWidth.pow(2.0)
 
     if (frequency == frequencyMeasurementParams.maximumFrequency) {
       val reachNoiseVariance =
@@ -278,13 +271,10 @@ object HonestMajorityShareShuffle {
       )
 
     val covarianceBetweenReachAndKPlusReach =
-      if (vidUniverseSize == 1L) 0.0
-      else
-        (vidSamplingIntervalWidth *
-          (1.0 - vidSamplingIntervalWidth) *
-          (vidUniverseSize - totalReach) *
-          kPlusReach / (vidUniverseSize - 1) + reachNoiseVariance) /
-          vidSamplingIntervalWidth.pow(2.0)
+      (vidSamplingIntervalWidth *
+        (1.0 - vidSamplingIntervalWidth) *
+        (vidUniverseSize - totalReach) *
+        kPlusReach / (vidUniverseSize - 1) + reachNoiseVariance) / vidSamplingIntervalWidth.pow(2.0)
 
     val kPlusReachRatioVariance =
       (kPlusReachRatio / totalReach).pow(2.0) * reachMeasurementVariance +
