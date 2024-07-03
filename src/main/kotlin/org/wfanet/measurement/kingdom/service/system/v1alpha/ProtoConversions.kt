@@ -99,54 +99,61 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
         .toName()
     state = source.state.toSystemRequisitionState()
     updateTime = source.updateTime
-    requisitionParams =
-      ComputationParticipantKt.requisitionParams {
-        if (hasDuchyCertificate()) {
-          duchyCertificate =
-            when (Version.fromString(apiVersion)) {
-              Version.V2_ALPHA ->
-                DuchyCertificateKey(
-                    source.externalDuchyId,
-                    externalIdToApiId(source.duchyCertificate.externalCertificateId),
-                  )
-                  .toName()
+    if (
+      source.hasDuchyCertificate() ||
+        source.details.protocolCase !=
+          InternalComputationParticipant.Details.ProtocolCase.PROTOCOL_NOT_SET
+    ) {
+      requisitionParams =
+        ComputationParticipantKt.requisitionParams {
+          if (hasDuchyCertificate()) {
+            duchyCertificate =
+              when (Version.fromString(apiVersion)) {
+                Version.V2_ALPHA ->
+                  DuchyCertificateKey(
+                      source.externalDuchyId,
+                      externalIdToApiId(source.duchyCertificate.externalCertificateId),
+                    )
+                    .toName()
+              }
+            duchyCertificateDer = source.duchyCertificate.details.x509Der
+          }
+          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+          when (source.details.protocolCase) {
+            InternalComputationParticipant.Details.ProtocolCase.LIQUID_LEGIONS_V2 -> {
+              liquidLegionsV2 =
+                ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
+                  elGamalPublicKey = source.details.liquidLegionsV2.elGamalPublicKey
+                  elGamalPublicKeySignature =
+                    source.details.liquidLegionsV2.elGamalPublicKeySignature
+                  elGamalPublicKeySignatureAlgorithmOid =
+                    source.details.liquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
+                }
             }
-          duchyCertificateDer = source.duchyCertificate.details.x509Der
+            InternalComputationParticipant.Details.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+              reachOnlyLiquidLegionsV2 =
+                ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
+                  elGamalPublicKey = source.details.reachOnlyLiquidLegionsV2.elGamalPublicKey
+                  elGamalPublicKeySignature =
+                    source.details.reachOnlyLiquidLegionsV2.elGamalPublicKeySignature
+                  elGamalPublicKeySignatureAlgorithmOid =
+                    source.details.reachOnlyLiquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
+                }
+            }
+            InternalComputationParticipant.Details.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+              honestMajorityShareShuffle =
+                ComputationParticipantKt.RequisitionParamsKt.honestMajorityShareShuffle {
+                  tinkPublicKey = source.details.honestMajorityShareShuffle.tinkPublicKey
+                  tinkPublicKeySignature =
+                    source.details.honestMajorityShareShuffle.tinkPublicKeySignature
+                  tinkPublicKeySignatureAlgorithmOid =
+                    source.details.honestMajorityShareShuffle.tinkPublicKeySignatureAlgorithmOid
+                }
+            }
+            InternalComputationParticipant.Details.ProtocolCase.PROTOCOL_NOT_SET -> Unit
+          }
         }
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-        when (source.details.protocolCase) {
-          InternalComputationParticipant.Details.ProtocolCase.LIQUID_LEGIONS_V2 -> {
-            liquidLegionsV2 =
-              ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
-                elGamalPublicKey = source.details.liquidLegionsV2.elGamalPublicKey
-                elGamalPublicKeySignature = source.details.liquidLegionsV2.elGamalPublicKeySignature
-                elGamalPublicKeySignatureAlgorithmOid =
-                  source.details.liquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
-              }
-          }
-          InternalComputationParticipant.Details.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
-            reachOnlyLiquidLegionsV2 =
-              ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
-                elGamalPublicKey = source.details.reachOnlyLiquidLegionsV2.elGamalPublicKey
-                elGamalPublicKeySignature =
-                  source.details.reachOnlyLiquidLegionsV2.elGamalPublicKeySignature
-                elGamalPublicKeySignatureAlgorithmOid =
-                  source.details.reachOnlyLiquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
-              }
-          }
-          InternalComputationParticipant.Details.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
-            honestMajorityShareShuffle =
-              ComputationParticipantKt.RequisitionParamsKt.honestMajorityShareShuffle {
-                tinkPublicKey = source.details.honestMajorityShareShuffle.tinkPublicKey
-                tinkPublicKeySignature =
-                  source.details.honestMajorityShareShuffle.tinkPublicKeySignature
-                tinkPublicKeySignatureAlgorithmOid =
-                  source.details.honestMajorityShareShuffle.tinkPublicKeySignatureAlgorithmOid
-              }
-          }
-          InternalComputationParticipant.Details.ProtocolCase.PROTOCOL_NOT_SET -> Unit
-        }
-      }
+    }
     if (hasFailureLogEntry()) {
       failure =
         ComputationParticipantKt.failure {

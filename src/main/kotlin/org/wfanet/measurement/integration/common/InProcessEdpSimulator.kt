@@ -45,11 +45,11 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
-import org.wfanet.measurement.loadtest.dataprovider.EdpData
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.dataprovider.VidToIndexMapGenerator
@@ -145,10 +145,12 @@ class InProcessEdpSimulator(
 
   suspend fun ensureEventGroup() = delegate.ensureEventGroup(EVENT_TEMPLATES, syntheticDataSpec)
 
-  /** Builds a [EdpData] object for the Edp with a certain [displayName] and [resourceName]. */
+  /**
+   * Builds a [DataProviderData] object for the Edp with a certain [displayName] and [resourceName].
+   */
   @Blocking
   private fun createEdpData(displayName: String, resourceName: String) =
-    EdpData(
+    DataProviderData(
       name = resourceName,
       displayName = displayName,
       certificateKey = certificateKey,

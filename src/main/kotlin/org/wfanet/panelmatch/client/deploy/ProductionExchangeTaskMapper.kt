@@ -18,9 +18,6 @@ import com.google.protobuf.kotlin.toByteStringUtf8
 import java.time.format.DateTimeFormatter
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.options.PipelineOptions
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.BLOB
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.MANIFEST
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.panelmatch.client.common.ExchangeContext
@@ -53,6 +50,8 @@ import org.wfanet.panelmatch.client.exchangetasks.copyToSharedStorage
 import org.wfanet.panelmatch.client.exchangetasks.decryptPrivateMembershipResults
 import org.wfanet.panelmatch.client.exchangetasks.executePrivateMembershipQueries
 import org.wfanet.panelmatch.client.exchangetasks.preprocessEvents
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Step.CopyOptions
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.JniPrivateMembershipCryptor
@@ -261,7 +260,7 @@ open class ProductionExchangeTaskMapper(
       )
 
     return when (copyOptions.labelType) {
-      BLOB -> {
+      CopyOptions.LabelType.BLOB -> {
         CopyFromSharedStorageTask(
           source = source,
           destination = privateStorageSelector.getStorageClient(exchangeDateKey),
@@ -270,7 +269,7 @@ open class ProductionExchangeTaskMapper(
           destinationBlobKey = destinationBlobKey,
         )
       }
-      MANIFEST -> {
+      CopyOptions.LabelType.MANIFEST -> {
         apacheBeamTaskFor(
           outputManifests = mapOf(),
           outputBlobs = emptyList(),
@@ -300,7 +299,7 @@ open class ProductionExchangeTaskMapper(
     val destinationBlobKey = step.outputLabelsMap.values.single()
 
     return when (copyOptions.labelType) {
-      BLOB -> {
+      CopyOptions.LabelType.BLOB -> {
         CopyToSharedStorageTask(
           source = privateStorageSelector.getStorageClient(exchangeDateKey),
           destination = destination,
@@ -309,7 +308,7 @@ open class ProductionExchangeTaskMapper(
           destinationBlobKey = destinationBlobKey,
         )
       }
-      MANIFEST -> {
+      CopyOptions.LabelType.MANIFEST -> {
         apacheBeamTaskFor(outputManifests = emptyMap(), outputBlobs = emptyList()) {
           copyToSharedStorage(
             sourceFactory = privateStorageSelector.getStorageFactory(exchangeDateKey),
@@ -357,7 +356,7 @@ open class ProductionExchangeTaskMapper(
           exchangeDateKey.recurringExchangeId,
           exchangeDateKey.date.format(DateTimeFormatter.ofPattern("yyyyMMdd")),
           step.stepId,
-          attemptKey.exchangeStepAttemptId,
+          attemptKey.attemptId,
         )
         .joinToString("-")
         .replace('_', '-')
