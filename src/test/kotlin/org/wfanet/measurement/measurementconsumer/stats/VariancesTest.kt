@@ -3638,16 +3638,17 @@ class VariancesTest {
         frequencyMeasurementParams,
       )
 
-    val (rKVars, rKPlusVars, nKVars, nKPlusVars) =
+    val (relativeVariances, kPlusRelativeVariances, countVariances, kPlusCountVariances) =
       VariancesImpl.computeMeasurementVariance(
         HonestMajorityShareShuffleMethodology(sketchSize),
         frequencyMeasurementVarianceParams,
       )
 
-    val expectedRK =
+    val expectedRelativeVariances =
       listOf(0.000371368941, 0.000452982619, 0.000549005415, 0.000659437329, 0.002537113441)
-    val expectedRKPlus = listOf(0.0, 0.000371368941, 0.000853169796, 0.001531857274, 0.002537113441)
-    val expectedNK =
+    val expectedKPlusRelativeVariances =
+      listOf(0.0, 0.000371368941, 0.000853169796, 0.001531857274, 0.002537113441)
+    val expectedCountVariances =
       listOf(
         36416.3981476777,
         42416.2782076765,
@@ -3655,7 +3656,7 @@ class VariancesTest {
         54415.7983276717,
         403767.333715542,
       )
-    val expectedNKPlus =
+    val expectedKPlusCountVariances =
       listOf(
         342093.5819647505,
         366511.1799924403,
@@ -3665,28 +3666,44 @@ class VariancesTest {
       )
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(rKVars.getValue(frequency))
-        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .of(expectedRK[frequency - 1])
-    }
-    for (frequency in 1..maximumFrequency) {
-      assertThat(rKPlusVars.getValue(frequency))
+      assertThat(relativeVariances.getValue(frequency))
         .isWithin(
-          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+          computeErrorTolerance(
+            relativeVariances.getValue(frequency),
+            expectedRelativeVariances[frequency - 1]
+          )
         )
-        .of(expectedRKPlus[frequency - 1])
+        .of(expectedRelativeVariances[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(nKVars.getValue(frequency))
-        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .of(expectedNK[frequency - 1])
-    }
-    for (frequency in 1..maximumFrequency) {
-      assertThat(nKPlusVars.getValue(frequency))
+      assertThat(kPlusRelativeVariances.getValue(frequency))
         .isWithin(
-          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+          computeErrorTolerance(
+            kPlusRelativeVariances.getValue(frequency),
+            expectedKPlusRelativeVariances[frequency - 1]
+          )
         )
-        .of(expectedNKPlus[frequency - 1])
+        .of(expectedKPlusRelativeVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(countVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            countVariances.getValue(frequency),
+            expectedCountVariances[frequency - 1]
+          )
+        )
+        .of(expectedCountVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(kPlusCountVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            kPlusCountVariances.getValue(frequency),
+            expectedKPlusCountVariances[frequency - 1]
+          )
+        )
+        .of(expectedKPlusCountVariances[frequency - 1])
     }
   }
 
@@ -3729,13 +3746,13 @@ class VariancesTest {
         frequencyMeasurementParams,
       )
 
-    val (rKVars, rKPlusVars, nKVars, nKPlusVars) =
+    val (relativeVariances, kPlusRelativeVariances, countVariances, kPlusCountVariances) =
       VariancesImpl.computeMeasurementVariance(
         HonestMajorityShareShuffleMethodology(sketchSize),
         frequencyMeasurementVarianceParams,
       )
 
-    val expectedRK =
+    val expectedRelativeVariances =
       listOf(
         3.1536894004E-06,
         3.4898261751E-06,
@@ -3743,9 +3760,9 @@ class VariancesTest {
         4.8343732741E-06,
         2.3371134394E-05,
       )
-    val expectedRKPlus =
+    val expectedKPlusRelativeVariances =
       listOf(0.0, 3.1536894004E-06, 7.0916979418E-06, 1.3158572723E-05, 2.3371134394E-05)
-    val expectedNK =
+    val expectedCountVariances =
       listOf(
         3.04164380877E+02,
         3.04164380877E+02,
@@ -3753,7 +3770,7 @@ class VariancesTest {
         3.04164380877E+02,
         3.73768333416E+03,
       )
-    val expectedNKPlus =
+    val expectedKPlusCountVariances =
       listOf(
         2.52102581065E+03,
         2.82519019153E+03,
@@ -3763,28 +3780,44 @@ class VariancesTest {
       )
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(rKVars.getValue(frequency))
-        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .of(expectedRK[frequency - 1])
-    }
-    for (frequency in 1..maximumFrequency) {
-      assertThat(rKPlusVars.getValue(frequency))
+      assertThat(relativeVariances.getValue(frequency))
         .isWithin(
-          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+          computeErrorTolerance(
+            relativeVariances.getValue(frequency),
+            expectedRelativeVariances[frequency - 1]
+          )
         )
-        .of(expectedRKPlus[frequency - 1])
+        .of(expectedRelativeVariances[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(nKVars.getValue(frequency))
-        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .of(expectedNK[frequency - 1])
-    }
-    for (frequency in 1..maximumFrequency) {
-      assertThat(nKPlusVars.getValue(frequency))
+      assertThat(kPlusRelativeVariances.getValue(frequency))
         .isWithin(
-          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+          computeErrorTolerance(
+            kPlusRelativeVariances.getValue(frequency),
+            expectedKPlusRelativeVariances[frequency - 1]
+          )
         )
-        .of(expectedNKPlus[frequency - 1])
+        .of(expectedKPlusRelativeVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(countVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            countVariances.getValue(frequency),
+            expectedCountVariances[frequency - 1]
+          )
+        )
+        .of(expectedCountVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(kPlusCountVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            kPlusCountVariances.getValue(frequency),
+            expectedKPlusCountVariances[frequency - 1]
+          )
+        )
+        .of(expectedKPlusCountVariances[frequency - 1])
     }
   }
 
@@ -3827,13 +3860,13 @@ class VariancesTest {
         frequencyMeasurementParams,
       )
 
-    val (rKVars, rKPlusVars, nKVars, nKPlusVars) =
+    val (relativeVariances, kPlusRelativeVariances, countVariances, kPlusCountVariances) =
       VariancesImpl.computeMeasurementVariance(
         HonestMajorityShareShuffleMethodology(sketchSize),
         frequencyMeasurementVarianceParams,
       )
 
-    val expectedRK =
+    val expectedRelativeVariances =
       listOf(
         6.2261157281E-09,
         1.1559864098E-08,
@@ -3841,9 +3874,9 @@ class VariancesTest {
         1.9561524113E-08,
         2.2251075697E-08,
       )
-    val expectedRKPlus =
+    val expectedKPlusRelativeVariances =
       listOf(0.0, 6.2261157281E-09, 1.6008755343E-08, 2.4016245392E-08, 2.2251075697E-08)
-    val expectedNK =
+    val expectedCountVariances =
       listOf(
         5.0790416946E+07,
         9.5070417388E+07,
@@ -3851,7 +3884,7 @@ class VariancesTest {
         1.6419041808E+08,
         1.8937377022E+08,
       )
-    val expectedNKPlus =
+    val expectedKPlusCountVariances =
       listOf(
         8.1252103391E+07,
         1.2124252023E+08,
@@ -3861,28 +3894,44 @@ class VariancesTest {
       )
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(rKVars.getValue(frequency))
-        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .of(expectedRK[frequency - 1])
-    }
-    for (frequency in 1..maximumFrequency) {
-      assertThat(rKPlusVars.getValue(frequency))
+      assertThat(relativeVariances.getValue(frequency))
         .isWithin(
-          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+          computeErrorTolerance(
+            relativeVariances.getValue(frequency),
+            expectedRelativeVariances[frequency - 1]
+          )
         )
-        .of(expectedRKPlus[frequency - 1])
+        .of(expectedRelativeVariances[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(nKVars.getValue(frequency))
-        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .of(expectedNK[frequency - 1])
-    }
-    for (frequency in 1..maximumFrequency) {
-      assertThat(nKPlusVars.getValue(frequency))
+      assertThat(kPlusRelativeVariances.getValue(frequency))
         .isWithin(
-          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+          computeErrorTolerance(
+            kPlusRelativeVariances.getValue(frequency),
+            expectedKPlusRelativeVariances[frequency - 1]
+          )
         )
-        .of(expectedNKPlus[frequency - 1])
+        .of(expectedKPlusRelativeVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(countVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            countVariances.getValue(frequency),
+            expectedCountVariances[frequency - 1]
+          )
+        )
+        .of(expectedCountVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(kPlusCountVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            kPlusCountVariances.getValue(frequency),
+            expectedKPlusCountVariances[frequency - 1]
+          )
+        )
+        .of(expectedKPlusCountVariances[frequency - 1])
     }
   }
 
@@ -3925,13 +3974,13 @@ class VariancesTest {
         frequencyMeasurementParams,
       )
 
-    val (rKVars, rKPlusVars, nKVars, nKPlusVars) =
+    val (relativeVariances, kPlusRelativeVariances, countVariances, kPlusCountVariances) =
       VariancesImpl.computeMeasurementVariance(
         HonestMajorityShareShuffleMethodology(sketchSize),
         frequencyMeasurementVarianceParams,
       )
 
-    val expectedRK =
+    val expectedRelativeVariances =
       listOf(
         3.8934437041E-12,
         4.3084273767E-12,
@@ -3939,9 +3988,9 @@ class VariancesTest {
         5.9683620668E-12,
         2.8853252338E-11,
       )
-    val expectedRKPlus =
+    val expectedKPlusRelativeVariances =
       listOf(0.0, 3.8934437041E-12, 8.7551826442E-12, 1.6245151510E-11, 2.8853252338E-11)
-    val expectedNK =
+    val expectedCountVariances =
       listOf(
         3.0416438088E+02,
         3.0416438088E+02,
@@ -3949,7 +3998,7 @@ class VariancesTest {
         3.0416438088E+02,
         3.7376833342E+03,
       )
-    val expectedNKPlus =
+    val expectedKPlusCountVariances =
       listOf(
         2.5210258106E+03,
         2.8251901915E+03,
@@ -3959,28 +4008,44 @@ class VariancesTest {
       )
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(rKVars.getValue(frequency))
-        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .of(expectedRK[frequency - 1])
-    }
-    for (frequency in 1..maximumFrequency) {
-      assertThat(rKPlusVars.getValue(frequency))
+      assertThat(relativeVariances.getValue(frequency))
         .isWithin(
-          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+          computeErrorTolerance(
+            relativeVariances.getValue(frequency),
+            expectedRelativeVariances[frequency - 1]
+          )
         )
-        .of(expectedRKPlus[frequency - 1])
+        .of(expectedRelativeVariances[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(nKVars.getValue(frequency))
-        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .of(expectedNK[frequency - 1])
-    }
-    for (frequency in 1..maximumFrequency) {
-      assertThat(nKPlusVars.getValue(frequency))
+      assertThat(kPlusRelativeVariances.getValue(frequency))
         .isWithin(
-          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+          computeErrorTolerance(
+            kPlusRelativeVariances.getValue(frequency),
+            expectedKPlusRelativeVariances[frequency - 1]
+          )
         )
-        .of(expectedNKPlus[frequency - 1])
+        .of(expectedKPlusRelativeVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(countVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            countVariances.getValue(frequency),
+            expectedCountVariances[frequency - 1]
+          )
+        )
+        .of(expectedCountVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(kPlusCountVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            kPlusCountVariances.getValue(frequency),
+            expectedKPlusCountVariances[frequency - 1]
+          )
+        )
+        .of(expectedKPlusCountVariances[frequency - 1])
     }
   }
 
@@ -4022,29 +4087,31 @@ class VariancesTest {
         frequencyMeasurementParams,
       )
 
-    val (rKVars, rKPlusVars, nKVars, nKPlusVars) =
+    val (relativeVariances, kPlusRelativeVariances, countVariances, kPlusCountVariances) =
       VariancesImpl.computeMeasurementVariance(
         HonestMajorityShareShuffleMethodology(sketchSize),
         frequencyMeasurementVarianceParams,
       )
 
-    val expectedRK = 0.0
-    val expectedRKPlus = 0.0
-    val expectedNK = 2.2525210483E+08
-    val expectedNKPlus = 2.2525210483E+08
+    val expectedRelativeVariances = 0.0
+    val expectedKPlusRelativeVariances = 0.0
+    val expectedCountVariances = 2.2525210483E+08
+    val expectedKPlusCountVariances = 2.2525210483E+08
 
-    assertThat(rKVars.getValue(1))
-      .isWithin(computeErrorTolerance(rKVars.getValue(1), expectedRK))
-      .of(expectedRK)
-    assertThat(rKPlusVars.getValue(1))
-      .isWithin(computeErrorTolerance(rKPlusVars.getValue(1), expectedRKPlus))
-      .of(expectedRKPlus)
-    assertThat(nKVars.getValue(1))
-      .isWithin(computeErrorTolerance(nKVars.getValue(1), expectedNK))
-      .of(expectedNK)
-    assertThat(nKPlusVars.getValue(1))
-      .isWithin(computeErrorTolerance(nKPlusVars.getValue(1), expectedNKPlus))
-      .of(expectedNKPlus)
+    assertThat(relativeVariances.getValue(1))
+      .isWithin(computeErrorTolerance(relativeVariances.getValue(1), expectedRelativeVariances))
+      .of(expectedRelativeVariances)
+    assertThat(kPlusRelativeVariances.getValue(1))
+      .isWithin(
+        computeErrorTolerance(kPlusRelativeVariances.getValue(1), expectedKPlusRelativeVariances)
+      )
+      .of(expectedKPlusRelativeVariances)
+    assertThat(countVariances.getValue(1))
+      .isWithin(computeErrorTolerance(countVariances.getValue(1), expectedCountVariances))
+      .of(expectedCountVariances)
+    assertThat(kPlusCountVariances.getValue(1))
+      .isWithin(computeErrorTolerance(kPlusCountVariances.getValue(1), expectedKPlusCountVariances))
+      .of(expectedKPlusCountVariances)
   }
 
   @Test
@@ -4086,13 +4153,13 @@ class VariancesTest {
         frequencyMeasurementParams,
       )
 
-    val (rKVars, rKPlusVars, nKVars, nKPlusVars) =
+    val (relativeVariances, kPlusRelativeVariances, countVariances, kPlusCountVariances) =
       VariancesImpl.computeMeasurementVariance(
         HonestMajorityShareShuffleMethodology(sketchSize),
         frequencyMeasurementVarianceParams,
       )
 
-    val expectedRK =
+    val expectedRelativeVariances =
       listOf(
         0.08333333333333336,
         0.08333333333333336,
@@ -4100,7 +4167,7 @@ class VariancesTest {
         0.08333333333333336,
         0.08333333333333336,
       )
-    val expectedRKPlus =
+    val expectedKPlusRelativeVariances =
       listOf(
         0.0,
         0.08333333333333336,
@@ -4108,7 +4175,7 @@ class VariancesTest {
         0.08333333333333336,
         0.08333333333333336,
       )
-    val expectedNK =
+    val expectedCountVariances =
       listOf(
         304.16438087678165,
         304.16438087678165,
@@ -4116,7 +4183,7 @@ class VariancesTest {
         304.16438087678165,
         3737.683334155532,
       )
-    val expectedNKPlus =
+    val expectedKPlusCountVariances =
       listOf(
         2521.0258106484052,
         2825.190191525187,
@@ -4126,28 +4193,44 @@ class VariancesTest {
       )
 
     for (frequency in 1..maximumFrequency) {
-      assertThat(rKVars.getValue(frequency))
-        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
-        .of(expectedRK[frequency - 1])
-    }
-    for (frequency in 1..maximumFrequency) {
-      assertThat(rKPlusVars.getValue(frequency))
+      assertThat(relativeVariances.getValue(frequency))
         .isWithin(
-          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+          computeErrorTolerance(
+            relativeVariances.getValue(frequency),
+            expectedRelativeVariances[frequency - 1]
+          )
         )
-        .of(expectedRKPlus[frequency - 1])
+        .of(expectedRelativeVariances[frequency - 1])
     }
     for (frequency in 1..maximumFrequency) {
-      assertThat(nKVars.getValue(frequency))
-        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
-        .of(expectedNK[frequency - 1])
-    }
-    for (frequency in 1..maximumFrequency) {
-      assertThat(nKPlusVars.getValue(frequency))
+      assertThat(kPlusRelativeVariances.getValue(frequency))
         .isWithin(
-          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+          computeErrorTolerance(
+            kPlusRelativeVariances.getValue(frequency),
+            expectedKPlusRelativeVariances[frequency - 1]
+          )
         )
-        .of(expectedNKPlus[frequency - 1])
+        .of(expectedKPlusRelativeVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(countVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            countVariances.getValue(frequency),
+            expectedCountVariances[frequency - 1]
+          )
+        )
+        .of(expectedCountVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(kPlusCountVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            kPlusCountVariances.getValue(frequency),
+            expectedKPlusCountVariances[frequency - 1]
+          )
+        )
+        .of(expectedKPlusCountVariances[frequency - 1])
     }
   }
 

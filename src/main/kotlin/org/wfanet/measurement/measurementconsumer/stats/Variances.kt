@@ -519,21 +519,6 @@ object VariancesImpl : Variances {
         suffixSum
       }
 
-    val kPlusCountVariances: Map<Int, Double> =
-      (1..maximumFrequency).associateWith { frequency ->
-        HonestMajorityShareShuffle.kPlusFrequencyCountVariance(
-          sketchParams,
-          frequencyNoiseVariance,
-          RelativeFrequencyMeasurementVarianceParams(
-            frequencyParams.totalReach,
-            frequencyParams.reachMeasurementVariance,
-            kPlusRelativeFrequencyDistribution.getValue(frequency),
-            frequencyParams.measurementParams,
-            frequency,
-          ),
-        )
-      }
-
     val countVariances: Map<Int, Double> =
       (1..maximumFrequency).associateWith { frequency ->
         HonestMajorityShareShuffle.frequencyCountVariance(
@@ -545,22 +530,23 @@ object VariancesImpl : Variances {
             frequencyParams.reachMeasurementVariance,
             frequencyParams.relativeFrequencyDistribution.getOrDefault(frequency, 0.0),
             frequencyParams.measurementParams,
-            frequency,
+            0,
           ),
         )
       }
 
-    val kPlusRelativeVariances: Map<Int, Double> =
+    val kPlusCountVariances: Map<Int, Double> =
       (1..maximumFrequency).associateWith { frequency ->
-        HonestMajorityShareShuffle.kPlusFrequencyRelativeVariance(
+        HonestMajorityShareShuffle.kPlusFrequencyCountVariance(
           sketchParams,
+          frequency,
           frequencyNoiseVariance,
           RelativeFrequencyMeasurementVarianceParams(
             frequencyParams.totalReach,
             frequencyParams.reachMeasurementVariance,
             kPlusRelativeFrequencyDistribution.getValue(frequency),
             frequencyParams.measurementParams,
-            frequency,
+            0,
           ),
         )
       }
@@ -576,7 +562,23 @@ object VariancesImpl : Variances {
             frequencyParams.reachMeasurementVariance,
             frequencyParams.relativeFrequencyDistribution.getOrDefault(frequency, 0.0),
             frequencyParams.measurementParams,
-            frequency,
+            0,
+          ),
+        )
+      }
+
+    val kPlusRelativeVariances: Map<Int, Double> =
+      (1..maximumFrequency).associateWith { frequency ->
+        HonestMajorityShareShuffle.kPlusFrequencyRelativeVariance(
+          sketchParams,
+          frequency,
+          frequencyNoiseVariance,
+          RelativeFrequencyMeasurementVarianceParams(
+            frequencyParams.totalReach,
+            frequencyParams.reachMeasurementVariance,
+            kPlusRelativeFrequencyDistribution.getValue(frequency),
+            frequencyParams.measurementParams,
+            0,
           ),
         )
       }
