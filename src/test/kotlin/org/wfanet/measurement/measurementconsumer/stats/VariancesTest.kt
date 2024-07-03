@@ -3670,7 +3670,7 @@ class VariancesTest {
         .isWithin(
           computeErrorTolerance(
             relativeVariances.getValue(frequency),
-            expectedRelativeVariances[frequency - 1]
+            expectedRelativeVariances[frequency - 1],
           )
         )
         .of(expectedRelativeVariances[frequency - 1])
@@ -3680,7 +3680,7 @@ class VariancesTest {
         .isWithin(
           computeErrorTolerance(
             kPlusRelativeVariances.getValue(frequency),
-            expectedKPlusRelativeVariances[frequency - 1]
+            expectedKPlusRelativeVariances[frequency - 1],
           )
         )
         .of(expectedKPlusRelativeVariances[frequency - 1])
@@ -3690,7 +3690,7 @@ class VariancesTest {
         .isWithin(
           computeErrorTolerance(
             countVariances.getValue(frequency),
-            expectedCountVariances[frequency - 1]
+            expectedCountVariances[frequency - 1],
           )
         )
         .of(expectedCountVariances[frequency - 1])
@@ -3700,7 +3700,7 @@ class VariancesTest {
         .isWithin(
           computeErrorTolerance(
             kPlusCountVariances.getValue(frequency),
-            expectedKPlusCountVariances[frequency - 1]
+            expectedKPlusCountVariances[frequency - 1],
           )
         )
         .of(expectedKPlusCountVariances[frequency - 1])
@@ -3784,7 +3784,7 @@ class VariancesTest {
         .isWithin(
           computeErrorTolerance(
             relativeVariances.getValue(frequency),
-            expectedRelativeVariances[frequency - 1]
+            expectedRelativeVariances[frequency - 1],
           )
         )
         .of(expectedRelativeVariances[frequency - 1])
@@ -3794,7 +3794,7 @@ class VariancesTest {
         .isWithin(
           computeErrorTolerance(
             kPlusRelativeVariances.getValue(frequency),
-            expectedKPlusRelativeVariances[frequency - 1]
+            expectedKPlusRelativeVariances[frequency - 1],
           )
         )
         .of(expectedKPlusRelativeVariances[frequency - 1])
@@ -3804,7 +3804,7 @@ class VariancesTest {
         .isWithin(
           computeErrorTolerance(
             countVariances.getValue(frequency),
-            expectedCountVariances[frequency - 1]
+            expectedCountVariances[frequency - 1],
           )
         )
         .of(expectedCountVariances[frequency - 1])
@@ -3814,7 +3814,7 @@ class VariancesTest {
         .isWithin(
           computeErrorTolerance(
             kPlusCountVariances.getValue(frequency),
-            expectedKPlusCountVariances[frequency - 1]
+            expectedKPlusCountVariances[frequency - 1],
           )
         )
         .of(expectedKPlusCountVariances[frequency - 1])
@@ -3898,7 +3898,7 @@ class VariancesTest {
         .isWithin(
           computeErrorTolerance(
             relativeVariances.getValue(frequency),
-            expectedRelativeVariances[frequency - 1]
+            expectedRelativeVariances[frequency - 1],
           )
         )
         .of(expectedRelativeVariances[frequency - 1])
@@ -3908,7 +3908,7 @@ class VariancesTest {
         .isWithin(
           computeErrorTolerance(
             kPlusRelativeVariances.getValue(frequency),
-            expectedKPlusRelativeVariances[frequency - 1]
+            expectedKPlusRelativeVariances[frequency - 1],
           )
         )
         .of(expectedKPlusRelativeVariances[frequency - 1])
@@ -3918,7 +3918,7 @@ class VariancesTest {
         .isWithin(
           computeErrorTolerance(
             countVariances.getValue(frequency),
-            expectedCountVariances[frequency - 1]
+            expectedCountVariances[frequency - 1],
           )
         )
         .of(expectedCountVariances[frequency - 1])
@@ -3928,7 +3928,7 @@ class VariancesTest {
         .isWithin(
           computeErrorTolerance(
             kPlusCountVariances.getValue(frequency),
-            expectedKPlusCountVariances[frequency - 1]
+            expectedKPlusCountVariances[frequency - 1],
           )
         )
         .of(expectedKPlusCountVariances[frequency - 1])
@@ -4012,7 +4012,7 @@ class VariancesTest {
         .isWithin(
           computeErrorTolerance(
             relativeVariances.getValue(frequency),
-            expectedRelativeVariances[frequency - 1]
+            expectedRelativeVariances[frequency - 1],
           )
         )
         .of(expectedRelativeVariances[frequency - 1])
@@ -4022,7 +4022,7 @@ class VariancesTest {
         .isWithin(
           computeErrorTolerance(
             kPlusRelativeVariances.getValue(frequency),
-            expectedKPlusRelativeVariances[frequency - 1]
+            expectedKPlusRelativeVariances[frequency - 1],
           )
         )
         .of(expectedKPlusRelativeVariances[frequency - 1])
@@ -4032,7 +4032,7 @@ class VariancesTest {
         .isWithin(
           computeErrorTolerance(
             countVariances.getValue(frequency),
-            expectedCountVariances[frequency - 1]
+            expectedCountVariances[frequency - 1],
           )
         )
         .of(expectedCountVariances[frequency - 1])
@@ -4042,7 +4042,7 @@ class VariancesTest {
         .isWithin(
           computeErrorTolerance(
             kPlusCountVariances.getValue(frequency),
-            expectedKPlusCountVariances[frequency - 1]
+            expectedKPlusCountVariances[frequency - 1],
           )
         )
         .of(expectedKPlusCountVariances[frequency - 1])
