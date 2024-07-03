@@ -160,7 +160,6 @@ import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsN
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
-import org.wfanet.measurement.measurementconsumer.stats.ReachOnlyHonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.measurementconsumer.stats.Variances
 import org.wfanet.measurement.measurementconsumer.stats.WatchDurationMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.WatchDurationMeasurementVarianceParams
@@ -2739,7 +2738,7 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
       )
     }
     InternalMeasurement.Result.Reach.MethodologyCase.REACH_ONLY_HONEST_MAJORITY_SHARE_SHUFFLE -> {
-      ReachOnlyHonestMajorityShareShuffleMethodology(
+      HonestMajorityShareShuffleMethodology(
         sketchSize = reachResult.reachOnlyHonestMajorityShareShuffle.sketchParams.registerCount
       )
     }
