@@ -37,7 +37,7 @@ module "simulators_spot_node_pool" {
   name            = "spot"
   cluster         = module.simulators_cluster.cluster
   service_account = module.common.cluster_service_account
-  machine_type    = "c2-standard-8"
+  machine_type    = "c2-standard-16"
   max_node_count  = 3
   spot            = true
 }
