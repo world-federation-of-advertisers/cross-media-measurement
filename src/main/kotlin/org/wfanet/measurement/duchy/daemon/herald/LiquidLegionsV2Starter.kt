@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.daemon.herald
 
+import java.util.logging.Level
 import java.util.logging.Logger
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
@@ -25,7 +26,6 @@ import org.wfanet.measurement.duchy.daemon.utils.toDuchyElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toKingdomComputationDetails
 import org.wfanet.measurement.duchy.daemon.utils.toRequisitionEntries
 import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
-import org.wfanet.measurement.duchy.service.internal.computations.outputPathList
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
@@ -33,6 +33,7 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.NoiseMechanism
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.createComputationRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.Parameters
@@ -171,14 +172,32 @@ object LiquidLegionsV2Starter {
         return
       }
 
-      // For past stages, we throw.
+      // For INITIALIZATION_PHASE, it could be caused by an interrupted execution. If the ElGamal
+      // keys have been set, skip the stage to catch up to the Measurement state.
       Stage.INITIALIZATION_PHASE -> {
-        error(
-          "[id=${token.globalComputationId}]: cannot update requisitions and key sets for " +
-            "computation still in state ${stage.name}"
+        if (!isInitialized(token)) {
+          error(
+            "[id=${token.globalComputationId}]:cannot update Requisitions and keySets while " +
+              "Computation details not initialized"
+          )
+        }
+        logger.log(
+          Level.WARNING,
+          "[id=${token.globalComputationId}] skipping " + "INITIALIZATION_PHASE to catch up.",
         )
+        val updatedToken =
+          computationStorageClient.advanceComputationStage(
+            token,
+            stage = Stage.WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage(),
+          )
+        updateRequisitionsAndKeySetsInternal(
+          updatedToken,
+          computationStorageClient,
+          systemComputation,
+          aggregatorId,
+        )
+        return
       }
-
       // For future stages, we log and exit.
       Stage.WAIT_TO_START,
       Stage.CONFIRMATION_PHASE,
@@ -214,6 +233,16 @@ object LiquidLegionsV2Starter {
       "Liquid Legions V2 computation required"
     }
 
+    if (token.computationDetails.liquidLegionsV2.role == RoleInComputation.AGGREGATOR) {
+      // Aggregator is waiting for input from non-aggregator to enter SETUP_PHASE instead of
+      // triggered by the herald.
+      logger.log(
+        Level.INFO,
+        "[id=${token.globalComputationId}] ignore startComputation" + "for aggregator.",
+      )
+      return
+    }
+
     val stage = token.computationStage.liquidLegionsSketchAggregationV2
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (stage) {
@@ -221,23 +250,37 @@ object LiquidLegionsV2Starter {
       Stage.WAIT_TO_START -> {
         computationStorageClient.advanceComputationStage(
           computationToken = token,
-          inputsToNextStage = token.outputPathList(),
           stage = Stage.SETUP_PHASE.toProtocolStage(),
         )
         logger.info("[id=${token.globalComputationId}] Computation is now started")
         return
       }
-
+      // For CONFIRMATION_PHASE, it could be caused by an interrupted execution. Skip the stage to
+      // catch up to the Measurement state.
+      Stage.CONFIRMATION_PHASE -> {
+        logger.log(
+          Level.WARNING,
+          "[id=${token.globalComputationId}] skipping " + "CONFIRMATION_PHASE to catch up.",
+        )
+        val updatedToken =
+          computationStorageClient.advanceComputationStage(
+            token,
+            stage = Stage.WAIT_TO_START.toProtocolStage(),
+          )
+        computationStorageClient.advanceComputationStage(
+          computationToken = updatedToken,
+          stage = Stage.SETUP_PHASE.toProtocolStage(),
+        )
+        return
+      }
       // For past stages, we throw.
       Stage.INITIALIZATION_PHASE,
-      Stage.WAIT_REQUISITIONS_AND_KEY_SET,
-      Stage.CONFIRMATION_PHASE -> {
+      Stage.WAIT_REQUISITIONS_AND_KEY_SET -> {
         error(
           "[id=${token.globalComputationId}]: cannot start a computation still" +
             " in state ${stage.name}"
         )
       }
-
       // For future stages, we log and exit.
       Stage.WAIT_SETUP_PHASE_INPUTS,
       Stage.SETUP_PHASE,
@@ -262,6 +305,21 @@ object LiquidLegionsV2Starter {
       }
     }
   }
+
+  private fun isInitialized(token: ComputationToken): Boolean =
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    when (token.computationDetails.protocolCase) {
+      ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 -> {
+        token.computationDetails.liquidLegionsV2.hasLocalElgamalKey()
+      }
+      ComputationDetails.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+        token.computationDetails.reachOnlyLiquidLegionsV2.hasLocalElgamalKey()
+      }
+      ComputationDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+      ComputationDetails.ProtocolCase.PROTOCOL_NOT_SET -> {
+        error("Invalid Protocol type in ComputationDetails.")
+      }
+    }
 
   private fun SystemComputationParticipant.toDuchyComputationParticipant(
     publicApiVersion: String

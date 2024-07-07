@@ -21,8 +21,8 @@ import org.apache.beam.sdk.transforms.Create
 import org.apache.beam.sdk.transforms.DoFn
 import org.apache.beam.sdk.transforms.ParDo
 import org.apache.beam.sdk.values.PCollection
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Step.CopyOptions
 import org.wfanet.panelmatch.client.storage.VerifyingStorageClient
 import org.wfanet.panelmatch.client.storage.VerifyingStorageClient.VerifiedBlob
 import org.wfanet.panelmatch.client.storage.signatureBlobKeyFor

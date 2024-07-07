@@ -17,7 +17,7 @@ package org.wfanet.panelmatch.client.launcher
 import java.util.logging.Level
 import org.wfanet.panelmatch.common.loggerFor
 
-/** Finds an [ExchangeStep], validates it, and starts executing the work. */
+/** Finds an [ApiClient.ClaimedExchangeStep], validates it, and starts executing the work. */
 class ExchangeStepLauncher(
   private val apiClient: ApiClient,
   private val taskLauncher: ExchangeStepExecutor,
@@ -28,9 +28,7 @@ class ExchangeStepLauncher(
    */
   suspend fun findAndRunExchangeStep() {
     try {
-      apiClient.claimExchangeStep()?.let {
-        taskLauncher.execute(it.exchangeStep, it.exchangeStepAttempt)
-      }
+      apiClient.claimExchangeStep()?.let { taskLauncher.execute(it) }
     } catch (e: Exception) {
       logger.log(Level.SEVERE, "Exchange Launcher Error:", e)
     }

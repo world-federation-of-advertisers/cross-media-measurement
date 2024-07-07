@@ -30,36 +30,38 @@ import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
-import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepKey
-import org.wfanet.measurement.api.v2alpha.ExchangeStep
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt.State
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
-import org.wfanet.measurement.api.v2alpha.exchangeStep
-import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.measurement.common.asBufferedFlow
-import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskFailedException
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.exchangetasks.testing.FakeExchangeTaskMapper
+import org.wfanet.panelmatch.client.internal.ExchangeStepAttempt.State
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.step
+import org.wfanet.panelmatch.client.internal.exchangeWorkflow
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
 import org.wfanet.panelmatch.client.launcher.testing.FakeTimeout
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetailsKt
 import org.wfanet.panelmatch.client.storage.storageDetails
 import org.wfanet.panelmatch.client.storage.testing.TestPrivateStorageSelector
+import org.wfanet.panelmatch.common.Fingerprinters.sha256
 import org.wfanet.panelmatch.common.storage.toStringUtf8
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
 private const val EXCHANGE_ID = "some-exchange-id"
 private const val EXCHANGE_STEP_ID = "some-step-id"
+private const val EXCHANGE_STEP_ATTEMPT_ID = "some-attempt-id"
 private val ATTEMPT_KEY =
-  CanonicalExchangeStepAttemptKey(RECURRING_EXCHANGE_ID, EXCHANGE_ID, EXCHANGE_STEP_ID, "z")
+  ExchangeStepAttemptKey(
+    RECURRING_EXCHANGE_ID,
+    EXCHANGE_ID,
+    EXCHANGE_STEP_ID,
+    EXCHANGE_STEP_ATTEMPT_ID,
+  )
 
 private val DATE = LocalDate.of(2021, 11, 3)
 
@@ -72,20 +74,14 @@ private val WORKFLOW = exchangeWorkflow {
   }
 }
 
-private val EXCHANGE_STEP_KEY =
-  CanonicalExchangeStepKey(
-    recurringExchangeId = RECURRING_EXCHANGE_ID,
-    exchangeId = EXCHANGE_ID,
-    exchangeStepId = EXCHANGE_STEP_ID,
+private val EXCHANGE_STEP =
+  ApiClient.ClaimedExchangeStep(
+    attemptKey = ATTEMPT_KEY,
+    exchangeDate = DATE,
+    stepIndex = 0,
+    workflow = WORKFLOW,
+    workflowFingerprint = sha256(WORKFLOW.toByteString()),
   )
-
-private val EXCHANGE_STEP: ExchangeStep = exchangeStep {
-  name = EXCHANGE_STEP_KEY.toName()
-  state = ExchangeStep.State.READY_FOR_RETRY
-  stepIndex = 0
-  exchangeWorkflow = WORKFLOW.pack()
-  exchangeDate = DATE.toProtoDate()
-}
 
 private val VALIDATED_EXCHANGE_STEP = ValidatedExchangeStep(WORKFLOW, WORKFLOW.getSteps(0), DATE)
 
@@ -114,7 +110,7 @@ class ExchangeTaskExecutorTest {
     prepareBlob("some-blob")
     whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
 
-    exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
+    exchangeTaskExecutor.execute(EXCHANGE_STEP)
     this.coroutineContext.job.children.toList().joinAll()
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")?.toStringUtf8())
@@ -126,7 +122,7 @@ class ExchangeTaskExecutorTest {
     timeout.expired = true
     whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
 
-    exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
+    exchangeTaskExecutor.execute(EXCHANGE_STEP)
     this.coroutineContext.job.children.toList().joinAll()
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")).isNull()
@@ -140,7 +136,7 @@ class ExchangeTaskExecutorTest {
     val exchangeTaskExecutor =
       createExchangeTaskExecutor(FakeExchangeTaskMapper(::TransientThrowingExchangeTask))
 
-    exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
+    exchangeTaskExecutor.execute(EXCHANGE_STEP)
     this.coroutineContext.job.children.toList().joinAll()
 
     verify(apiClient).finishExchangeStepAttempt(eq(ATTEMPT_KEY), eq(State.FAILED), any())
@@ -154,7 +150,7 @@ class ExchangeTaskExecutorTest {
     val exchangeTaskExecutor =
       createExchangeTaskExecutor(FakeExchangeTaskMapper(::PermanentThrowingExchangeTask))
 
-    exchangeTaskExecutor.execute(EXCHANGE_STEP, ATTEMPT_KEY)
+    exchangeTaskExecutor.execute(EXCHANGE_STEP)
     this.coroutineContext.job.children.toList().joinAll()
 
     verify(apiClient).finishExchangeStepAttempt(eq(ATTEMPT_KEY), eq(State.FAILED_STEP), any())

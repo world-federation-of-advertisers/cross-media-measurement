@@ -20,13 +20,13 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
-import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.panelmatch.client.common.ExchangeContext
+import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.exchangetasks.testing.FakeExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.testing.FakeExchangeTaskMapper
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.step
+import org.wfanet.panelmatch.client.internal.exchangeWorkflow
 import org.wfanet.panelmatch.client.launcher.testing.inputStep
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetailsKt.gcsStorage
@@ -45,12 +45,7 @@ private val DATE: LocalDate = LocalDate.of(2021, 11, 1)
 
 private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
 private val ATTEMPT_KEY =
-  CanonicalExchangeStepAttemptKey(
-    RECURRING_EXCHANGE_ID,
-    "some-exchange",
-    "some-step",
-    "some-attempt",
-  )
+  ExchangeStepAttemptKey(RECURRING_EXCHANGE_ID, "some-exchange", "some-step", "some-attempt")
 
 @RunWith(JUnit4::class)
 class ExchangeTaskMapperTest {

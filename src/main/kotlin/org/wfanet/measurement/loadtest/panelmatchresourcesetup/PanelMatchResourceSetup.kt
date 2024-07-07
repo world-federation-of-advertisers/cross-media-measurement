@@ -31,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.RecurringExchangeKey
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
@@ -167,13 +168,22 @@ class PanelMatchResourceSetup(
     val dataProviderKey = DataProviderKey(externalIdToApiId(externalDataProviderId))
     logger.info("Successfully created data provider: ${dataProviderKey.toName()}.")
 
+    val exchangeWorkflowWithIdentifiers =
+      exchangeWorkflow.copy {
+        exchangeIdentifiers =
+          exchangeIdentifiers.copy {
+            dataProvider = dataProviderKey.toName()
+            modelProvider = modelProviderKey.toName()
+          }
+      }
+
     val externalRecurringExchangeId =
       createRecurringExchange(
         externalDataProvider = externalDataProviderId,
         externalModelProvider = externalModelProviderId,
         exchangeDate = exchangeDate,
         exchangeSchedule = exchangeSchedule,
-        exchangeWorkflow = exchangeWorkflow,
+        exchangeWorkflow = exchangeWorkflowWithIdentifiers,
       )
     val recurringExchangeKey =
       CanonicalRecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))

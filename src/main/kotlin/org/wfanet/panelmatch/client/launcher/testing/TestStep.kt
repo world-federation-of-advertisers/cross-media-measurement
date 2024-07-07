@@ -14,24 +14,24 @@
 
 package org.wfanet.panelmatch.client.launcher.testing
 
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.inputStep
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.exchangeIdentifiers
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
-import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Step
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.inputStep
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.exchangeIdentifiers
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.step
+import org.wfanet.panelmatch.client.internal.exchangeWorkflow
 
 fun buildWorkflow(
   testedStep: Step,
-  dataProviderName: String,
-  modelProviderName: String,
+  dataProviderId: String,
+  modelProviderId: String,
 ): ExchangeWorkflow {
   return exchangeWorkflow {
     steps += testedStep
 
     exchangeIdentifiers = exchangeIdentifiers {
-      dataProvider = dataProviderName
-      modelProvider = modelProviderName
+      this.dataProviderId = dataProviderId
+      this.modelProviderId = modelProviderId
     }
   }
 }

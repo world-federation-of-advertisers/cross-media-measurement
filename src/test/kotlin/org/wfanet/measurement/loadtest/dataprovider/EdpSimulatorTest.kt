@@ -161,6 +161,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
+import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup as PrivacyLandscapeAge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyLandscapeGender
@@ -2964,7 +2965,7 @@ class EdpSimulatorTest {
       subjectKeyIdentifier = EDP_RESULT_SIGNING_KEY.certificate.subjectKeyIdentifier!!
     }
     private val EDP_DATA =
-      EdpData(
+      DataProviderData(
         EDP_NAME,
         EDP_DISPLAY_NAME,
         loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),
