@@ -152,6 +152,16 @@ bazel_dep(
     version = "0.9.0",
     repo_name = "any_sketch",
 )
+
+# DO_NOT_SUBMIT: Use version
+archive_override(
+    module_name = "any-sketch",
+    strip_prefix = "any-sketch-0.9.1",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/any-sketch/archive/refs/tags/v0.9.1.tar.gz",
+    ],
+)
+
 bazel_dep(
     name = "any-sketch-java",
     version = "0.7.0",

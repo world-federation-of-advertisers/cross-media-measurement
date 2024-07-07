@@ -23,6 +23,7 @@ import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.flowOf
 import org.wfanet.frequencycount.FrequencyVector
@@ -429,6 +430,7 @@ class HonestMajorityShareShuffleMill(
           val secretSeed =
             secretSeeds.find { it.requisitionId == requisitionId }
               ?: error("Neither blob and seed received for requisition $requisitionId")
+          registerCounts += secretSeed.registerCount
 
           val seed =
             verifySecretSeed(secretSeed, hmss.encryptionKeyPair.privateKeyId, publicApiVersion)
@@ -441,6 +443,8 @@ class HonestMajorityShareShuffleMill(
       }
       sketchParams = hmss.parameters.sketchParams.copy { registerCount = registerCounts.first() }
     }
+
+    logger.log(Level.WARNING, "registerCount=${request.sketchParams.registerCount}")
 
     val result: CompleteShufflePhaseResponse =
       logWallClockDuration(token, CRYPTO_WALL_CLOCK_DURATION, cryptoWallClockDurationHistogram) {
@@ -462,6 +466,7 @@ class HonestMajorityShareShuffleMill(
 
     val aggregationPhaseInput = aggregationPhaseInput {
       combinedSketch += result.combinedSketchList
+      registerCount = request.sketchParams.registerCount
     }
 
     logWallClockDuration(
@@ -493,7 +498,6 @@ class HonestMajorityShareShuffleMill(
 
     val request = completeAggregationPhaseRequest {
       val hmss = token.computationDetails.honestMajorityShareShuffle
-      sketchParams = hmss.parameters.sketchParams
       maximumFrequency = hmss.parameters.maximumFrequency
 
       when (publicApiVersion) {
@@ -513,6 +517,11 @@ class HonestMajorityShareShuffleMill(
         sketchShares +=
           CompleteAggregationPhaseRequestKt.shareData { shareVector += input.combinedSketchList }
       }
+      sketchParams =
+        hmss.parameters.sketchParams.copy {
+          require(aggregationPhaseInputs.map { it.registerCount }.distinct().size == 1)
+          registerCount = aggregationPhaseInputs.first().registerCount
+        }
     }
 
     val result: CompleteAggregationPhaseResponse =
