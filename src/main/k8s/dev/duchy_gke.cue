@@ -78,7 +78,17 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#FulfillmentMaxHeapSize: "350M"
+#FulfillmentMaxHeapSize:             "350M"
+#ControlServiceResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "200m"
+		memory: "512Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+#ControlServiceMaxHeapSize: "350M"
 
 objectSets: [
 	default_deny_ingress_and_egress,
@@ -172,6 +182,10 @@ duchy: #SpannerDuchy & {
 			}
 		}
 		"computation-control-server-deployment": {
+			_container: {
+				_javaOptions: maxHeapSize: #ControlServiceMaxHeapSize
+				resources: #ControlServiceResourceRequirements
+			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #StorageServiceAccount
 			}
