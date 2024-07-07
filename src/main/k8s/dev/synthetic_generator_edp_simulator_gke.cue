@@ -44,7 +44,7 @@ edp_simulators: {
 			]
 			deployment: {
 				_container: {
-					_javaOptions: maxHeapSize: "512M"
+					_javaOptions: maxHeapSize: "7168M"
 					resources: _resourceRequirements
 				}
 				spec: template: spec: {
