@@ -131,7 +131,7 @@ class V2AlphaCertificateManagerTest {
   fun getExchangePrivateKey() = runBlockingTest {
     privateKeys.underlyingMap[EXCHANGE_DATE_KEY.path] =
       signingKeys {
-          certResourceName = RESOURCE_NAME
+          certName = RESOURCE_NAME
           privateKey = PRIVATE_KEY.encoded.toByteString()
         }
         .toByteString()
@@ -184,7 +184,7 @@ class V2AlphaCertificateManagerTest {
   fun createForExchangeCacheHit() {
     privateKeys.underlyingMap[EXCHANGE_DATE_KEY.path] =
       signingKeys {
-          certResourceName = RESOURCE_NAME
+          certName = RESOURCE_NAME
           privateKey = PRIVATE_KEY.encoded.toByteString()
         }
         .toByteString()
