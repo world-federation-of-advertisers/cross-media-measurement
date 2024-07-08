@@ -1,0 +1,105 @@
+# Copyright 2024 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      base-version:
+        description: Base artifact version, which will be suffixed with "-SNAPSHOT"
+        required: true
+  pull_request:
+    types: [opened, synchronize, edited]
+
+jobs:
+  publish-artifacts:
+    name: Publish Maven artifacts
+    runs-on: ubuntu-22.04
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: get-artifact-version
+        env:
+          BASE_VERSION: 0.5.7
+        run: |
+          declare artifact_version
+          if [[ "$GITHUB_EVENT_NAME" == 'release' ]]; then
+            artifact_version="${GITHUB_REF_NAME#v}"
+          else
+            artifact_version="${BASE_VERSION}-SNAPSHOT"
+          fi
+          
+          echo "artifact-version=${artifact_version}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Bazel
+        uses: world-federation-of-advertisers/actions/setup-bazel@v2
+
+      - name: Set up Buildozer
+        uses: world-federation-of-advertisers/actions/setup-buildozer@v2
+        with:
+          version: 7.1.2
+          sha256: 8d5c459ab21b411b8be059a8bdf59f0d3eabf9dff943d5eccb80e36e525cc09d
+
+      # Authenticate to Google Cloud for access to remote cache.
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.BAZEL_BUILD_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.BAZEL_BUILD_SERVICE_ACCOUNT }}
+
+      - name: Write ~/.bazelrc
+        run: |
+          cat << EOF > ~/.bazelrc
+          common --config=ci
+          common --config=remote-cache
+          EOF
+
+      - name: Get Bazel cache params
+        id: get-cache-params
+        run: |
+          repo_cache_path="$(bazelisk info repository_cache)"
+          echo "repo-cache-path=${repo_cache_path}" >> $GITHUB_OUTPUT
+
+      - name: Restore repository cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.get-cache-params.outputs.repo-cache-path }}
+          key: ${{ vars.BAZEL_REPO_CACHE_KEY }}
+
+      # Patch MODULE.bazel and MODULE.bazel.lock to specify version.
+      # TODO(bazelbuild/bazel#22919): Use alternative mechanism when available.
+      - name: Patch module version
+        env:
+          ARTIFACT_VERSION: ${{ steps.get-artifact-version.outputs.artifact-version }}
+        run: |
+          # Make sure lockfile is still valid before changing anything.
+          bazel mod deps --lockfile_mode=error
+
+          # Update MODULE.bazel.
+          buildozer "set version $ARTIFACT_VERSION" //MODULE.bazel:%module
+          
+          # Update lockfile to pick up changes.
+          bazel mod deps --lockfile_mode=update
+
+      - name: Publish artifacts
+        env:
+          MAVEN_REPO: https://maven.pkg.github.com/${{ github.repository }}
+          # TODO(bazelbuild/rules_jvm_external#1186): Use GITHUB_TOKEN instead.
+          MAVEN_USER: ${{ vars.MAVEN_USER }}
+          MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+        run: |
+          bazel query "kind('^maven_publish', //src/main/...)" | xargs bazel run
