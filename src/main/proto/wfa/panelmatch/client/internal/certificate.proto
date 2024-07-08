@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2024 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,15 +14,13 @@
 
 syntax = "proto3";
 
-package wfa.panelmatch;
+package wfa.panelmatch.client.internal;
 
-option java_package = "org.wfanet.panelmatch.common.certificates";
+option java_package = "org.wfanet.panelmatch.client.internal";
 option java_multiple_files = true;
 
-message SigningKeys {
-  // Name of the certificate. For Kingdom-based exchanges, this is a
-  // certificate resource name. For Kingdom-less exchanges, this is the name of
-  // a blob in shared storage containing the serialized certificate.
-  string cert_name = 1;
-  bytes private_key = 2;
+// Wrapper for an X.509 certificate.
+message Certificate {
+  // X.509 certificate in DER format.
+  bytes x509_der = 1;
 }
