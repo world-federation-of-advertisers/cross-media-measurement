@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2024 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,17 +14,18 @@
 
 syntax = "proto3";
 
-package wfa.panelmatch.protocol;
+package wfa.panelmatch.client.internal;
 
-option java_package = "org.wfanet.panelmatch.protocol";
+option java_package = "org.wfanet.panelmatch.client.internal";
 option java_multiple_files = true;
 
-message NamedSignature {
-  bytes signature = 1;
+// Wrapper for an X.509 certificate and the ID of the entity to which it
+// belongs.
+message Certificate {
+  // ID of the entity that created this certificate. This is the ID of either a
+  // data provider or model provider participating in an exchange.
+  string owner_id = 1;
 
-  // Name of the certificate that provided this signature. For Kingdom-based
-  // exchanges, this is a certificate resource name. For Kingdom-less
-  // exchanges, this is a blob key pointing to a blob in shared storage that
-  // contains the serialized certificate.
-  string certificate_name = 2;
+  // X.509 certificate in DER format.
+  bytes x509_der = 2;
 }
