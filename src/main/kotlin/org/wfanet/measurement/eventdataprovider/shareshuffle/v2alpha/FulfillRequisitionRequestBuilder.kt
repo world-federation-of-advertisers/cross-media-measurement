@@ -30,6 +30,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig.HonestMajorityShareShuf
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.randomSeed
+import org.wfanet.measurement.common.NativeLibraryLoader
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 import org.wfanet.measurement.consent.client.dataprovider.encryptRandomSeed
@@ -39,6 +40,8 @@ import org.wfanet.measurement.consent.client.dataprovider.signRandomSeed
  * Builds a Sequence of FulfillRequisitionRequests
  *
  * This class assumes that the client has verified the identities of all Duchies.
+ *
+ * This depends on a native library for secret share generation. See [loadNativeLibrary].
  *
  * @param requisition The requisition being fulfilled
  * @param frequencyVector The payload for the fulfillment
@@ -153,10 +156,29 @@ class FulfillRequisitionRequestBuilder(
 
   companion object {
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
+    private const val NATIVE_LIB_NAME = "secret_share_generator_adapter"
+    private const val NATIVE_LOADER_OBJECT_NAME =
+      "org.wfanet.measurement.eventdataprovider.shareshuffle.Native"
 
     init {
       // This is required to create secret shares out of the frequency vector
-      System.loadLibrary("secret_share_generator_adapter")
+      loadNativeLibrary()
+    }
+
+    /**
+     * Loads the secret share generator native library.
+     *
+     * If [NATIVE_LOADER_OBJECT_NAME] can be found at runtime, it will use that to load the library.
+     * Otherwise, it will load [NATIVE_LIB_NAME] from the library path.
+     */
+    private fun loadNativeLibrary() {
+      val nativeLoader: NativeLibraryLoader? =
+        NativeLibraryLoader.getLoaderByName(NATIVE_LOADER_OBJECT_NAME)
+      if (nativeLoader == null) {
+        System.loadLibrary(NATIVE_LIB_NAME)
+      } else {
+        nativeLoader.loadLibrary()
+      }
     }
 
     /** A convenience function for building the Sequence of Requests. */
