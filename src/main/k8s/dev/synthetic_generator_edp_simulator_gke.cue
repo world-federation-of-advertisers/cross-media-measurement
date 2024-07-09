@@ -25,11 +25,11 @@ _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 }
 _maxHeapSize: "13G"
 
-_populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec_large.textproto"
+_populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec_enormous.textproto"
 _eventGroupSpecs: [
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_large_4.textproto",
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_large_5.textproto",
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_large_6.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_enormous_1.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_enormous_2.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_enormous_3.textproto",
 ]
 
 edp_simulators: {

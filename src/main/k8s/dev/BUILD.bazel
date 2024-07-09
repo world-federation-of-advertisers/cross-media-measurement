@@ -421,6 +421,7 @@ kustomization_dir(
     testonly = True,
     srcs = [
         "synthetic_generator_config_files_kustomization.yaml",
+        "//src/main/k8s/testing/data:synthetic_generation_specs_enormous",
         "//src/main/k8s/testing/data:synthetic_generation_specs_large",
     ],
     renames = {
