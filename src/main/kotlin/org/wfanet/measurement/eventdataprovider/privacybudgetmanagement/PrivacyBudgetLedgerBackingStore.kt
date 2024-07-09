@@ -72,6 +72,19 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
   ): PrivacyBudgetAcdpBalanceEntry
 
   /**
+   * Returns a set of exceeded balance entries. For each PrivacyBucketGroup, one
+   * PrivacyBudgetAcdpBalanceEntry should be generated.
+   *
+   * Override this method to increase the performance by batching search for PrivacyBucketGroup,
+   * instead of looking for each entry individually. The default implementation calls the
+   * findAcdpBalanceEntry method individually.
+   */
+  open suspend fun findAcdpBalanceEntries(
+    privacyBucketGroup: Set<PrivacyBucketGroup>
+  ): Set<PrivacyBudgetAcdpBalanceEntry> =
+    privacyBucketGroup.map { findAcdpBalanceEntry(it) }.toSet()
+
+  /**
    * Adds new entries to the PrivacyBudgetAcdpLedger specifying a AcdpCharge to a privacy budget,
    * adds the [reference] that created these charges
    */
