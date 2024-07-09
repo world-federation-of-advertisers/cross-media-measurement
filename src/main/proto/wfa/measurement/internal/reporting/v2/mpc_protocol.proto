@@ -56,9 +56,6 @@ message ReachOnlyLiquidLegionsV2 {
 }
 
 message HonestMajorityShareShuffle {
-  // The size of the frequency vector. REQUIRED.
+  // The size of the sampled frequency vector. REQUIRED.
   int64 frequency_vector_size = 1;
-
-  // The maximum frequency to reveal in the histogram.
-  int32 maximum_frequency = 2;
 }
