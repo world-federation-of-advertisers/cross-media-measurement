@@ -72,13 +72,13 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "200m"
-		memory: "512Mi"
+		memory: "800Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#FulfillmentMaxHeapSize:             "350M"
+#FulfillmentMaxHeapSize:             "400M"
 #ControlServiceResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "200m"
