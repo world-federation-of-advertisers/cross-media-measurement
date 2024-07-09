@@ -114,12 +114,13 @@ class PrivacyBudgetLedger(
     context: PrivacyBudgetLedgerTransactionContext,
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     acdpCharges: Set<AcdpCharge>,
-  ): List<PrivacyBucketGroup> =
-    privacyBucketGroups.filter { privacyBucketGroup ->
-      val acdpBalanceEntries = setOf(context.findAcdpBalanceEntry(privacyBucketGroup))
-      val balanceAcdpCharges = acdpBalanceEntries.map { it.acdpCharge }
-      exceedsUnderAcdpComposition(balanceAcdpCharges + acdpCharges)
+  ): List<PrivacyBucketGroup> {
+    val acdpBalanceEntries = context.findAcdpBalanceEntries(privacyBucketGroups)
+    val exceededEntries = acdpBalanceEntries.filter {
+      exceedsUnderAcdpComposition(listOf(it.acdpCharge) + acdpCharges)
     }
+    return exceededEntries.map { it.privacyBucketGroup }
+  }
 
   private fun exceedsUnderAcdpComposition(acdpCharges: List<AcdpCharge>) =
     (Composition.totalPrivacyBudgetUsageUnderAcdpComposition(
