@@ -20,19 +20,16 @@ import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.pow
 
-/** The parameters that are used to compute Share Shuffle sketch. */
-data class ShareShuffleSketchParams(val sketchSize: Long)
-
 /** Functions to compute statistics of Share Shuffle sketch based measurements. */
 object HonestMajorityShareShuffle {
   /** Calculates the variance of the reach. */
   fun reachVariance(
-    sketchSize: Long,
+    frequencyVectorSize: Long,
     vidSamplingIntervalWidth: Double,
     reach: Long,
     reachNoiseVariance: Double,
   ): Double {
-    val vidUniverseSize: Long = ceil(sketchSize / vidSamplingIntervalWidth).toLong()
+    val vidUniverseSize: Long = ceil(frequencyVectorSize / vidSamplingIntervalWidth).toLong()
     require(vidUniverseSize > 1) { "Vid universe size is too small." }
 
     require(vidSamplingIntervalWidth > 0.0 && vidSamplingIntervalWidth <= 1.0) {
@@ -54,7 +51,7 @@ object HonestMajorityShareShuffle {
 
   /** Outputs the variance of the kReach. */
   fun frequencyCountVariance(
-    sketchParams: ShareShuffleSketchParams,
+    frequencyVectorSize: Long,
     frequency: Int,
     frequencyNoiseVariance: Double,
     relativeFrequencyMeasurementVarianceParams: RelativeFrequencyMeasurementVarianceParams,
@@ -68,7 +65,7 @@ object HonestMajorityShareShuffle {
 
     val vidSamplingIntervalWidth = frequencyMeasurementParams.vidSamplingInterval.width
 
-    val vidUniverseSize = ceil(sketchParams.sketchSize / vidSamplingIntervalWidth).toLong()
+    val vidUniverseSize = ceil(frequencyVectorSize / vidSamplingIntervalWidth).toLong()
     require(vidUniverseSize > 1) { "Vid universe size is too small." }
     require(totalReach <= vidUniverseSize) {
       "Reach must be less than or equal to the size of the Vid universe."
@@ -101,7 +98,7 @@ object HonestMajorityShareShuffle {
 
   /** Outputs the variance of the kPlusReach. */
   fun kPlusFrequencyCountVariance(
-    sketchParams: ShareShuffleSketchParams,
+    frequencyVectorSize: Long,
     frequency: Int,
     frequencyNoiseVariance: Double,
     relativeFrequencyMeasurementVarianceParams: RelativeFrequencyMeasurementVarianceParams,
@@ -115,7 +112,7 @@ object HonestMajorityShareShuffle {
 
     val vidSamplingIntervalWidth = frequencyMeasurementParams.vidSamplingInterval.width
 
-    val vidUniverseSize = ceil(sketchParams.sketchSize / vidSamplingIntervalWidth).toLong()
+    val vidUniverseSize = ceil(frequencyVectorSize / vidSamplingIntervalWidth).toLong()
     require(vidUniverseSize > 1) { "Vid universe size is too small." }
     require(totalReach <= vidUniverseSize) {
       "Reach must be less than or equal to the size of the Vid universe."
@@ -147,7 +144,7 @@ object HonestMajorityShareShuffle {
 
   /** Outputs the variance of the given [kReachRatio]. */
   fun frequencyRelativeVariance(
-    sketchParams: ShareShuffleSketchParams,
+    frequencyVectorSize: Long,
     frequency: Int,
     frequencyNoiseVariance: Double,
     relativeFrequencyMeasurementVarianceParams: RelativeFrequencyMeasurementVarianceParams,
@@ -169,7 +166,7 @@ object HonestMajorityShareShuffle {
 
     val vidSamplingIntervalWidth = frequencyMeasurementParams.vidSamplingInterval.width
 
-    val vidUniverseSize = ceil(sketchParams.sketchSize / vidSamplingIntervalWidth).toLong()
+    val vidUniverseSize = ceil(frequencyVectorSize / vidSamplingIntervalWidth).toLong()
     require(vidUniverseSize > 1) { "Vid universe size is too small." }
     require(totalReach <= vidUniverseSize) {
       "Reach must be less than or equal to the size of the Vid universe."
@@ -182,7 +179,7 @@ object HonestMajorityShareShuffle {
 
     var kReachVariance =
       frequencyCountVariance(
-        sketchParams,
+        frequencyVectorSize,
         frequency,
         frequencyNoiseVariance,
         relativeFrequencyMeasurementVarianceParams,
@@ -214,7 +211,7 @@ object HonestMajorityShareShuffle {
 
   /** Outputs the variance of the given [kPlusReachRatio]. */
   fun kPlusFrequencyRelativeVariance(
-    sketchParams: ShareShuffleSketchParams,
+    frequencyVectorSize: Long,
     frequency: Int,
     frequencyNoiseVariance: Double,
     relativeFrequencyMeasurementVarianceParams: RelativeFrequencyMeasurementVarianceParams,
@@ -237,7 +234,7 @@ object HonestMajorityShareShuffle {
 
     val vidSamplingIntervalWidth = frequencyMeasurementParams.vidSamplingInterval.width
 
-    val vidUniverseSize = ceil(sketchParams.sketchSize / vidSamplingIntervalWidth).toLong()
+    val vidUniverseSize = ceil(frequencyVectorSize / vidSamplingIntervalWidth).toLong()
     require(vidUniverseSize > 1) { "Vid universe size is too small." }
     require(totalReach <= vidUniverseSize) {
       "Reach must be less than or equal to the size of the Vid universe."
@@ -258,7 +255,7 @@ object HonestMajorityShareShuffle {
 
     val kPlusReachVariance =
       kPlusFrequencyCountVariance(
-        sketchParams,
+        frequencyVectorSize,
         frequency,
         frequencyNoiseVariance,
         relativeFrequencyMeasurementVarianceParams,

@@ -1463,7 +1463,7 @@ class VariancesTest {
 
   @Test
   fun `computeMeasurementVariance returns a value for HonestMajorityShareShuffle reach when reach is small, sampling width is small`() {
-    val sketchSize = 10_000_000L
+    val frequencyVectorSize = 10_000_000L
     val reach = 2L
     val vidSamplingIntervalWidth = 0.1
     val dpParams = DpParams(0.1, 1e-9)
@@ -1478,7 +1478,7 @@ class VariancesTest {
 
     val variance =
       VariancesImpl.computeMeasurementVariance(
-        HonestMajorityShareShuffleMethodology(sketchSize),
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
         reachMeasurementVarianceParams,
       )
     // Expected variance = variance from DP noise + variance from Hmss sketch sampling.
@@ -1489,7 +1489,7 @@ class VariancesTest {
 
   @Test
   fun `computeMeasurementVariance returns a value for HonestMajorityShareShuffle reach when reach is small, sampling width is large`() {
-    val sketchSize = 10_000_000L
+    val frequencyVectorSize = 10_000_000L
     val reach = 2L
     val vidSamplingIntervalWidth = 1.0
     val dpParams = DpParams(0.1, 1e-9)
@@ -1504,7 +1504,7 @@ class VariancesTest {
 
     val variance =
       VariancesImpl.computeMeasurementVariance(
-        HonestMajorityShareShuffleMethodology(sketchSize),
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
         reachMeasurementVarianceParams,
       )
     // The variance of the measurement comes entirely from the reach DP noise when sampling interval
@@ -1516,7 +1516,7 @@ class VariancesTest {
 
   @Test
   fun `computeMeasurementVariance returns a value for HonestMajorityShareShuffle reach when reach is large, sampling width is small`() {
-    val sketchSize = 10_000_000L
+    val frequencyVectorSize = 10_000_000L
     val reach = 90_000_000L
     val vidSamplingIntervalWidth = 0.1
     val dpParams = DpParams(0.1, 1e-9)
@@ -1531,7 +1531,7 @@ class VariancesTest {
 
     val variance =
       VariancesImpl.computeMeasurementVariance(
-        HonestMajorityShareShuffleMethodology(sketchSize),
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
         reachMeasurementVarianceParams,
       )
 
@@ -1543,7 +1543,7 @@ class VariancesTest {
 
   @Test
   fun `computeMeasurementVariance returns a value for HonestMajorityShareShuffle reach when reach is large, sampling width is large`() {
-    val sketchSize = 10_000_000L
+    val frequencyVectorSize = 10_000_000L
     val reach = 9_000_000L
     val vidSamplingIntervalWidth = 1.0
     val dpParams = DpParams(0.1, 1e-9)
@@ -1558,7 +1558,7 @@ class VariancesTest {
 
     val variance =
       VariancesImpl.computeMeasurementVariance(
-        HonestMajorityShareShuffleMethodology(sketchSize),
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
         reachMeasurementVarianceParams,
       )
 
@@ -1571,7 +1571,7 @@ class VariancesTest {
 
   @Test
   fun `computeMeasurementVariance returns a value for HonestMajorityShareShuffle reach when reach is half, sampling width is half`() {
-    val sketchSize = 10_000_000L
+    val frequencyVectorSize = 10_000_000L
     val reach = 10_000_000L
     val vidSamplingIntervalWidth = 0.5
     val dpParams = DpParams(0.1, 1e-9)
@@ -1586,7 +1586,7 @@ class VariancesTest {
 
     val variance =
       VariancesImpl.computeMeasurementVariance(
-        HonestMajorityShareShuffleMethodology(sketchSize),
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
         reachMeasurementVarianceParams,
       )
     // Expected variance = variance from DP noise + variance from Hmss sketch sampling.
@@ -3466,7 +3466,7 @@ class VariancesTest {
 
   @Test
   fun `computeMeasurementVariance returns for HonestMajorityShareShuffle reach-frequency when small total reach, small sampling width`() {
-    val sketchSize = 10_000_000L
+    val frequencyVectorSize = 10_000_000L
     val vidSamplingIntervalWidth = 0.1
     val totalReach = 10_000L
     val reachDpParams = DpParams(0.1, 1e-9)
@@ -3480,7 +3480,7 @@ class VariancesTest {
       ReachMeasurementVarianceParams(totalReach, reachMeasurementParams)
     val reachMeasurementVariance =
       VariancesImpl.computeMeasurementVariance(
-        HonestMajorityShareShuffleMethodology(sketchSize),
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
         reachMeasurementVarianceParams,
       )
 
@@ -3506,7 +3506,7 @@ class VariancesTest {
 
     val (relativeVariances, kPlusRelativeVariances, countVariances, kPlusCountVariances) =
       VariancesImpl.computeMeasurementVariance(
-        HonestMajorityShareShuffleMethodology(sketchSize),
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
         frequencyMeasurementVarianceParams,
       )
 
@@ -3575,7 +3575,7 @@ class VariancesTest {
 
   @Test
   fun `computeMeasurementVariance returns for HonestMajorityShareShuffle reach-frequency when small total reach, large sampling width`() {
-    val sketchSize = 10_000_000L
+    val frequencyVectorSize = 10_000_000L
     val vidSamplingIntervalWidth = 1.0
     val totalReach = 10_000L
     val reachDpParams = DpParams(0.1, 1e-9)
@@ -3589,7 +3589,7 @@ class VariancesTest {
       ReachMeasurementVarianceParams(totalReach, reachMeasurementParams)
     val reachMeasurementVariance =
       VariancesImpl.computeMeasurementVariance(
-        HonestMajorityShareShuffleMethodology(sketchSize),
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
         reachMeasurementVarianceParams,
       )
 
@@ -3614,7 +3614,7 @@ class VariancesTest {
 
     val (relativeVariances, kPlusRelativeVariances, countVariances, kPlusCountVariances) =
       VariancesImpl.computeMeasurementVariance(
-        HonestMajorityShareShuffleMethodology(sketchSize),
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
         frequencyMeasurementVarianceParams,
       )
 
@@ -3689,7 +3689,7 @@ class VariancesTest {
 
   @Test
   fun `computeMeasurementVariance returns for HonestMajorityShareShuffle reach-frequency when large total reach, small sampling width`() {
-    val sketchSize = 10_000_000L
+    val frequencyVectorSize = 10_000_000L
     val vidSamplingIntervalWidth = 0.1
     val totalReach = 90_000_000L
     val reachDpParams = DpParams(0.1, 1e-9)
@@ -3703,7 +3703,7 @@ class VariancesTest {
       ReachMeasurementVarianceParams(totalReach, reachMeasurementParams)
     val reachMeasurementVariance =
       VariancesImpl.computeMeasurementVariance(
-        HonestMajorityShareShuffleMethodology(sketchSize),
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
         reachMeasurementVarianceParams,
       )
 
@@ -3728,7 +3728,7 @@ class VariancesTest {
 
     val (relativeVariances, kPlusRelativeVariances, countVariances, kPlusCountVariances) =
       VariancesImpl.computeMeasurementVariance(
-        HonestMajorityShareShuffleMethodology(sketchSize),
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
         frequencyMeasurementVarianceParams,
       )
 
@@ -3803,7 +3803,7 @@ class VariancesTest {
 
   @Test
   fun `computeMeasurementVariance returns for HonestMajorityShareShuffle reach-frequency when large total reach, large sampling width`() {
-    val sketchSize = 10_000_000L
+    val frequencyVectorSize = 10_000_000L
     val vidSamplingIntervalWidth = 1.0
     val totalReach = 9_000_000L
     val reachDpParams = DpParams(0.1, 1e-9)
@@ -3817,7 +3817,7 @@ class VariancesTest {
       ReachMeasurementVarianceParams(totalReach, reachMeasurementParams)
     val reachMeasurementVariance =
       VariancesImpl.computeMeasurementVariance(
-        HonestMajorityShareShuffleMethodology(sketchSize),
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
         reachMeasurementVarianceParams,
       )
 
@@ -3842,7 +3842,7 @@ class VariancesTest {
 
     val (relativeVariances, kPlusRelativeVariances, countVariances, kPlusCountVariances) =
       VariancesImpl.computeMeasurementVariance(
-        HonestMajorityShareShuffleMethodology(sketchSize),
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
         frequencyMeasurementVarianceParams,
       )
 
@@ -3917,7 +3917,7 @@ class VariancesTest {
 
   @Test
   fun `computeMeasurementVariance returns for HonestMajorityShareShuffle reach-frequency when maximum frequency is 1`() {
-    val sketchSize = 10_000_000L
+    val frequencyVectorSize = 10_000_000L
     val vidSamplingIntervalWidth = 0.1
     val totalReach = 50_000_000L
     val reachDpParams = DpParams(0.1, 1e-9)
@@ -3931,7 +3931,7 @@ class VariancesTest {
       ReachMeasurementVarianceParams(totalReach, reachMeasurementParams)
     val reachMeasurementVariance =
       VariancesImpl.computeMeasurementVariance(
-        HonestMajorityShareShuffleMethodology(sketchSize),
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
         reachMeasurementVarianceParams,
       )
 
@@ -3955,7 +3955,7 @@ class VariancesTest {
 
     val (relativeVariances, kPlusRelativeVariances, countVariances, kPlusCountVariances) =
       VariancesImpl.computeMeasurementVariance(
-        HonestMajorityShareShuffleMethodology(sketchSize),
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
         frequencyMeasurementVarianceParams,
       )
 
@@ -3982,7 +3982,7 @@ class VariancesTest {
 
   @Test
   fun `computeMeasurementVariance returns for HonestMajorityShareShuffle reach-frequency when reach is too small`() {
-    val sketchSize = 10_000_000L
+    val frequencyVectorSize = 10_000_000L
     val vidSamplingIntervalWidth = 1.0
     val totalReach = 10L
     val reachDpParams = DpParams(0.1, 1e-9)
@@ -3996,7 +3996,7 @@ class VariancesTest {
       ReachMeasurementVarianceParams(totalReach, reachMeasurementParams)
     val reachMeasurementVariance =
       VariancesImpl.computeMeasurementVariance(
-        HonestMajorityShareShuffleMethodology(sketchSize),
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
         reachMeasurementVarianceParams,
       )
 
@@ -4021,7 +4021,7 @@ class VariancesTest {
 
     val (relativeVariances, kPlusRelativeVariances, countVariances, kPlusCountVariances) =
       VariancesImpl.computeMeasurementVariance(
-        HonestMajorityShareShuffleMethodology(sketchSize),
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
         frequencyMeasurementVarianceParams,
       )
 

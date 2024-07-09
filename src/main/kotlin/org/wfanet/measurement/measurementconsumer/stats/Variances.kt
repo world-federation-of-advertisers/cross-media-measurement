@@ -471,7 +471,7 @@ object VariancesImpl : Variances {
    * Majority Share Shuffle methodology.
    */
   private fun computeHonestMajorityShareShuffleVariance(
-    sketchParams: ShareShuffleSketchParams,
+    frequencyVectorSize: Long,
     reachParams: ReachMeasurementVarianceParams,
   ): Double {
     val reachNoiseVariance: Double =
@@ -482,7 +482,7 @@ object VariancesImpl : Variances {
 
     val variance =
       HonestMajorityShareShuffle.reachVariance(
-        sketchSize = sketchParams.sketchSize,
+        frequencyVectorSize = frequencyVectorSize,
         vidSamplingIntervalWidth = reachParams.measurementParams.vidSamplingInterval.width,
         reach = reachParams.reach,
         reachNoiseVariance = reachNoiseVariance,
@@ -495,7 +495,7 @@ object VariancesImpl : Variances {
    * Honest Majority Share Shuffle methodology.
    */
   private fun computeHonestMajorityShareShuffleVariance(
-    sketchParams: ShareShuffleSketchParams,
+    frequencyVectorSize: Long,
     frequencyParams: FrequencyMeasurementVarianceParams,
   ): FrequencyVariances {
     require(frequencyParams.totalReach >= 0.0) { "The total reach value cannot be negative." }
@@ -522,7 +522,7 @@ object VariancesImpl : Variances {
     val countVariances: Map<Int, Double> =
       (1..maximumFrequency).associateWith { frequency ->
         HonestMajorityShareShuffle.frequencyCountVariance(
-          sketchParams,
+          frequencyVectorSize,
           frequency,
           frequencyNoiseVariance,
           RelativeFrequencyMeasurementVarianceParams(
@@ -538,7 +538,7 @@ object VariancesImpl : Variances {
     val kPlusCountVariances: Map<Int, Double> =
       (1..maximumFrequency).associateWith { frequency ->
         HonestMajorityShareShuffle.kPlusFrequencyCountVariance(
-          sketchParams,
+          frequencyVectorSize,
           frequency,
           frequencyNoiseVariance,
           RelativeFrequencyMeasurementVarianceParams(
@@ -554,7 +554,7 @@ object VariancesImpl : Variances {
     val relativeVariances: Map<Int, Double> =
       (1..maximumFrequency).associateWith { frequency ->
         HonestMajorityShareShuffle.frequencyRelativeVariance(
-          sketchParams,
+          frequencyVectorSize,
           frequency,
           frequencyNoiseVariance,
           RelativeFrequencyMeasurementVarianceParams(
@@ -570,7 +570,7 @@ object VariancesImpl : Variances {
     val kPlusRelativeVariances: Map<Int, Double> =
       (1..maximumFrequency).associateWith { frequency ->
         HonestMajorityShareShuffle.kPlusFrequencyRelativeVariance(
-          sketchParams,
+          frequencyVectorSize,
           frequency,
           frequencyNoiseVariance,
           RelativeFrequencyMeasurementVarianceParams(
@@ -729,7 +729,7 @@ object VariancesImpl : Variances {
       }
       is HonestMajorityShareShuffleMethodology -> {
         computeHonestMajorityShareShuffleVariance(
-          ShareShuffleSketchParams(methodology.sketchSize),
+          methodology.frequencyVectorSize,
           measurementVarianceParams,
         )
       }
@@ -803,7 +803,7 @@ object VariancesImpl : Variances {
       }
       is HonestMajorityShareShuffleMethodology -> {
         computeHonestMajorityShareShuffleVariance(
-          ShareShuffleSketchParams(methodology.sketchSize),
+          methodology.frequencyVectorSize,
           measurementVarianceParams,
         )
       }

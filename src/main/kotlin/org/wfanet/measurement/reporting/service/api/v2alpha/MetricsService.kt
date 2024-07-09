@@ -2474,7 +2474,7 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
     }
     InternalMeasurement.Result.Frequency.MethodologyCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
       HonestMajorityShareShuffleMethodology(
-        sketchSize = frequencyResult.honestMajorityShareShuffle.sketchParams.registerCount
+        frequencyVectorSize = frequencyResult.honestMajorityShareShuffle.frequencyVectorSize
       )
     }
     InternalMeasurement.Result.Frequency.MethodologyCase.METHODOLOGY_NOT_SET -> {
@@ -2734,7 +2734,7 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
     }
     InternalMeasurement.Result.Reach.MethodologyCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
       HonestMajorityShareShuffleMethodology(
-        sketchSize = reachResult.honestMajorityShareShuffle.sketchParams.registerCount
+        frequencyVectorSize = reachResult.honestMajorityShareShuffle.frequencyVectorSize
       )
     }
     InternalMeasurement.Result.Reach.MethodologyCase.METHODOLOGY_NOT_SET -> {
