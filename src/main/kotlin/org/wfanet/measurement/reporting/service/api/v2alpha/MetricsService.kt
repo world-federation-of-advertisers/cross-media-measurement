@@ -2737,11 +2737,6 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
         sketchSize = reachResult.honestMajorityShareShuffle.sketchParams.registerCount
       )
     }
-    InternalMeasurement.Result.Reach.MethodologyCase.REACH_ONLY_HONEST_MAJORITY_SHARE_SHUFFLE -> {
-      HonestMajorityShareShuffleMethodology(
-        sketchSize = reachResult.reachOnlyHonestMajorityShareShuffle.sketchParams.registerCount
-      )
-    }
     InternalMeasurement.Result.Reach.MethodologyCase.METHODOLOGY_NOT_SET -> {
       throw MeasurementVarianceNotComputableException("Reach methodology is not set.")
     }

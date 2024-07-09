@@ -67,8 +67,3 @@ message HonestMajorityShareShuffle {
   // The maximum frequency to reveal in the histogram.
   int32 maximum_frequency = 2;
 }
-
-message ReachOnlyHonestMajorityShareShuffle {
-  // Parameters for Hmss sketch. REQUIRED.
-  ShareShuffleSketchParams sketch_params = 1;
-}
