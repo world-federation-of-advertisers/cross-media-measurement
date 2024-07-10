@@ -30,13 +30,17 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.reset
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
+import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest.AfterTransition
+import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
@@ -74,9 +78,17 @@ import org.wfanet.measurement.internal.duchy.requisitionDetails
 import org.wfanet.measurement.internal.duchy.requisitionEntry
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
 import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineImplBase
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
+import org.wfanet.measurement.system.v1alpha.computationLogEntry
+import org.wfanet.measurement.system.v1alpha.createComputationLogEntryRequest
+import org.wfanet.measurement.system.v1alpha.stageAttempt
 
 @RunWith(JUnit4::class)
 abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
+  protected val mockComputationLogEntriesService: ComputationLogEntriesCoroutineImplBase =
+    mockService()
+
   /** Instance of the service under test. */
   private lateinit var service: T
 
@@ -94,9 +106,9 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   }
 
   companion object {
-    private const val FAKE_ID = "1234"
-    private const val GLOBAL_COMPUTATION_ID = FAKE_ID
-    private const val REQUISITION_ID = FAKE_ID
+    const val DUCHY_ID = "worker1"
+    private const val GLOBAL_COMPUTATION_ID = "1234"
+    private const val REQUISITION_ID = "1234"
     private const val REQUISITION_FINGERPRINT = "finger_print"
     private const val REQUISITION_NONCE = 1234L
     private val AGGREGATOR_COMPUTATION_DETAILS = computationDetails {
@@ -134,7 +146,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
         details = DEFAULT_REQUISITION_ENTRY.value
       }
     }
-    private const val DEFAULT_OWNER = "Saul Goodman"
+    private const val DEFAULT_OWNER = "$DUCHY_ID-duchy-mill-123"
     private val DEFAULT_CLAIM_WORK_REQUEST = claimWorkRequest {
       computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
       owner = DEFAULT_OWNER
@@ -768,24 +780,27 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
 
   @Test
   fun `claimWork updates computation lock`(): Unit = runBlocking {
-    val createdToken = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST).token
-    val writeTime = clock.last()
+    val token: ComputationToken =
+      service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST).token
+    clock.tickSeconds("claimTime", 1)
+    val claimTime: Instant = clock.last()
     val lockDuration = Duration.ofMinutes(10)
+    reset(mockComputationLogEntriesService)
 
-    val response =
-      service.claimWork(
-        DEFAULT_CLAIM_WORK_REQUEST.copy { this.lockDuration = lockDuration.toProtoDuration() }
-      )
+    val request: ClaimWorkRequest =
+      DEFAULT_CLAIM_WORK_REQUEST.copy { this.lockDuration = lockDuration.toProtoDuration() }
+    val response: ClaimWorkResponse = service.claimWork(request)
 
     assertThat(response.token)
       .ignoringFields(ComputationToken.VERSION_FIELD_NUMBER)
       .isEqualTo(
-        createdToken.copy {
+        token.copy {
           attempt = 1
-          lockOwner = DEFAULT_OWNER
-          lockExpirationTime = writeTime.plus(lockDuration).toProtoTime()
+          lockOwner = request.owner
+          lockExpirationTime = claimTime.plus(lockDuration).toProtoTime()
         }
       )
+    assertThat(response.token.version).isGreaterThan(token.version)
     assertThat(
         service
           .getComputationToken(
@@ -794,6 +809,28 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
           .token
       )
       .isEqualTo(response.token)
+    verifyProtoArgument(
+        mockComputationLogEntriesService,
+        ComputationLogEntriesCoroutineImplBase::createComputationLogEntry,
+      )
+      .ignoringFieldDescriptors(
+        ComputationLogEntry.getDescriptor()
+          .findFieldByNumber(ComputationLogEntry.LOG_MESSAGE_FIELD_NUMBER)
+      )
+      .isEqualTo(
+        createComputationLogEntryRequest {
+          parent = "computations/${token.globalComputationId}/participants/$DUCHY_ID"
+          computationLogEntry = computationLogEntry {
+            participantChildReferenceId = request.owner
+            stageAttempt = stageAttempt {
+              stage = Stage.INITIALIZATION_PHASE_VALUE
+              stageName = Stage.INITIALIZATION_PHASE.name
+              attemptNumber = response.token.attempt.toLong()
+              stageStartTime = claimTime.toProtoTime()
+            }
+          }
+        }
+      )
   }
 
   @Test
