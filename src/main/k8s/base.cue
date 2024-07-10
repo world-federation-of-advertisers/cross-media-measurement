@@ -310,7 +310,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 // K8s LabelSelector.
 #LabelSelector: {
 	matchExpressions?: [...#LabelSelectorRequirement]
-	matchLabels: [string]: string
+	matchLabels?: [string]: string
 }
 
 // K8s ConfigMap.
@@ -542,7 +542,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		name: _name + "-cronjob"
 	}
 	spec: {
-		schedule: string
+		schedule:           string
+		concurrencyPolicy?: "Allow" | "Forbid" | "Replace"
 		jobTemplate: {
 			spec: {
 				backoffLimit: uint | *0
@@ -578,14 +579,22 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 // K8s NetworkPolicyEgressRule.
 #EgressRule: {
-	to: [...]
-	ports: [...#NetworkPolicyPort]
+	to?: [...#NetworkPolicyPeer]
+	ports?: [...#NetworkPolicyPort]
 }
 
 // K8s NetworkPolicyIngressRule.
 #IngressRule: {
-	from: [...]
-	ports: [...#NetworkPolicyPort]
+	from?: [...#NetworkPolicyPeer]
+	ports?: [...#NetworkPolicyPort]
+}
+
+// K8s NetworkPolicyPeer.
+#NetworkPolicyPeer: {
+	ipBlock?: {...}
+	namespaceSelector?: #LabelSelector
+	podSelector?:       #LabelSelector
+	ports?: [...#NetworkPolicyPort]
 }
 
 // K8s NetworkPolicy.
@@ -599,8 +608,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_app_label?: string
 	_sourceMatchLabels: [...string]
 	_destinationMatchLabels: [...string]
-	_ingresses: [Name=_]: #IngressRule
-	_egresses: [Name=_]:  #EgressRule
+	_ingresses: [_]: #IngressRule
+	_egresses: [_]:  #EgressRule
 
 	_ingresses: {
 		if len(_sourceMatchLabels) > 0 {
@@ -640,11 +649,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 	apiVersion: "networking.k8s.io/v1"
 	kind:       "NetworkPolicy"
-	metadata: {
+	metadata:   #ObjectMeta & {
 		name: _name + "-network-policy"
-		labels: {
-			"app.kubernetes.io/part-of": #AppName
-		}
 	}
 	spec: {
 		podSelector: #LabelSelector & {

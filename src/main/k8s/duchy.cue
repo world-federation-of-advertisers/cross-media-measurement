@@ -45,13 +45,13 @@ import ("strings")
 
 	_imageSuffixes: [string]: string
 	_imageSuffixes: {
-		"async-computation-control-server":          string | *"duchy/async-computation-control"
-		"computation-control-server":                string | *"duchy/computation-control"
-		"herald-daemon":                             string | *"duchy/herald"
-		"liquid-legions-v2-mill-daemon":             string | *"duchy/liquid-legions-v2-mill"
-		"honest-majority-share-shuffle-mill-daemon": string | *"duchy/honest-majority-share-shuffle-mill"
-		"requisition-fulfillment-server":            string | *"duchy/requisition-fulfillment"
-		"computations-cleaner":                      string | *"duchy/computations-cleaner"
+		"async-computation-control-server": string | *"duchy/async-computation-control"
+		"computation-control-server":       string | *"duchy/computation-control"
+		"herald-daemon":                    string | *"duchy/herald"
+		"liquid-legions-v2-mill":           string | *"duchy/liquid-legions-v2-mill"
+		"hmss-mill-daemon":                 string | *"duchy/honest-majority-share-shuffle-mill"
+		"requisition-fulfillment-server":   string | *"duchy/requisition-fulfillment"
+		"computations-cleaner":             string | *"duchy/computations-cleaner"
 	}
 	_imageConfigs: [string]: #ImageConfig
 	_imageConfigs: {
@@ -138,30 +138,7 @@ import ("strings")
 				"\(_name)-internal-api-server",
 			]
 		}
-		"liquid-legions-v2-mill-daemon-deployment": {
-			_workLockDuration?: string
-			_container: args: [
-						_duchyInternalApiTargetFlag,
-						_duchyInternalApiCertHostFlag,
-						_duchy_name_flag,
-						_duchy_info_config_flag,
-						_duchy_tls_cert_file_flag,
-						_duchy_tls_key_file_flag,
-						_duchyMillParallelismFlag,
-						_duchy_cert_collection_file_flag,
-						_duchy_cs_cert_file_flag,
-						_duchy_cs_key_file_flag,
-						_duchy_cs_cert_rename_name_flag,
-						_kingdom_system_api_target_flag,
-						_kingdom_system_api_cert_host_flag,
-						if (_millPollingInterval != _|_) {"--polling-interval=\(_millPollingInterval)"},
-						if (_workLockDuration != _|_) {"--work-lock-duration=\(_workLockDuration)"},
-			] + _blob_storage_flags + _computation_control_target_flags
-			spec: template: spec: _dependencies: [
-				"\(_name)-internal-api-server", "\(_name)-computation-control-server",
-			]
-		}
-		"honest-majority-share-shuffle-mill-daemon-deployment": {
+		"hmss-mill-daemon-deployment": {
 			_workLockDuration?: string
 			_container: args: [
 						_duchyInternalApiTargetFlag,
@@ -262,7 +239,7 @@ import ("strings")
 		}
 	}
 
-	cronjobs: [Name=_]: #CronJob & {
+	cronJobs: [Name=_]: #CronJob & {
 		_unprefixed_name: strings.TrimSuffix(Name, "-cronjob")
 		_name:            _object_prefix + _unprefixed_name
 		_secretName:      _duchy_secret_name
@@ -272,7 +249,7 @@ import ("strings")
 		}
 	}
 
-	cronjobs: {
+	cronJobs: {
 		"computations-cleaner": {
 			_container: args: [
 				_duchyInternalApiTargetFlag,
@@ -286,6 +263,28 @@ import ("strings")
 			]
 			spec: schedule: "0 * * * *" // Every hour
 		}
+		"liquid-legions-v2-mill": {
+			_workLockDuration?: string
+			_container: args: [
+						_duchyInternalApiTargetFlag,
+						_duchyInternalApiCertHostFlag,
+						_duchy_name_flag,
+						_duchy_info_config_flag,
+						_duchy_tls_cert_file_flag,
+						_duchy_tls_key_file_flag,
+						_duchyMillParallelismFlag,
+						_duchy_cert_collection_file_flag,
+						_duchy_cs_cert_file_flag,
+						_duchy_cs_key_file_flag,
+						_duchy_cs_cert_rename_name_flag,
+						_kingdom_system_api_target_flag,
+						_kingdom_system_api_cert_host_flag,
+						if (_workLockDuration != _|_) {"--work-lock-duration=\(_workLockDuration)"},
+			] + _blob_storage_flags + _computation_control_target_flags
+			spec: {
+				schedule: "* * * * *" // Every minute.
+			}
+		}
 	}
 
 	networkPolicies: [Name=_]: #NetworkPolicy & {
@@ -297,8 +296,8 @@ import ("strings")
 			_app_label: _object_prefix + "internal-api-server-app"
 			_sourceMatchLabels: [
 				_object_prefix + "herald-daemon-app",
-				_object_prefix + "liquid-legions-v2-mill-daemon-app",
-				_object_prefix + "honest-majority-share-shuffle-mill-daemon-app",
+				_object_prefix + "liquid-legions-v2-mill-app",
+				_object_prefix + "hmss-mill-daemon-app",
 				_object_prefix + "async-computation-control-server-app",
 				_object_prefix + "requisition-fulfillment-server-app",
 				_object_prefix + "computations-cleaner-app",
@@ -348,15 +347,15 @@ import ("strings")
 				any: {}
 			}
 		}
-		"liquid-legions-v2-mill-daemon": {
-			_app_label: _object_prefix + "liquid-legions-v2-mill-daemon-app"
+		"liquid-legions-v2-mill": {
+			_app_label: _object_prefix + "liquid-legions-v2-mill-app"
 			_egresses: {
 				// Need to send external traffic.
 				any: {}
 			}
 		}
-		"honest-majority-share-shuffle-mill-daemon": {
-			_app_label: _object_prefix + "honest-majority-share-shuffle-mill-daemon-app"
+		"hmss-mill-daemon": {
+			_app_label: _object_prefix + "hmss-mill-daemon-app"
 			_egresses: {
 				// Need to send external traffic.
 				any: {}

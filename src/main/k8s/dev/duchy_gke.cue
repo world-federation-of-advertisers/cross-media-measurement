@@ -57,7 +57,6 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 	}
 }
 #Llv2MillMaxHeapSize:          "1G"
-#Llv2MillReplicas:             1
 #HmssMillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "2"
@@ -87,7 +86,7 @@ objectSets: [
 	duchy.deployments,
 	duchy.services,
 	duchy.networkPolicies,
-	duchy.cronjobs,
+	duchy.cronJobs,
 ]
 
 _cloudStorageConfig: #CloudStorageConfig & {
@@ -145,20 +144,7 @@ duchy: #SpannerDuchy & {
 				serviceAccountName: #StorageServiceAccount
 			}
 		}
-		"liquid-legions-v2-mill-daemon-deployment": {
-			_workLockDuration: "10m"
-			_container: {
-				_javaOptions: maxHeapSize: #Llv2MillMaxHeapSize
-				resources: #Llv2MillResourceRequirements
-			}
-			spec: {
-				replicas: #Llv2MillReplicas
-				template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
-					serviceAccountName: #StorageServiceAccount
-				}
-			}
-		}
-		"honest-majority-share-shuffle-mill-daemon-deployment": {
+		"hmss-mill-daemon-deployment": {
 			_workLockDuration: "5m"
 			_container: {
 				_javaOptions: maxHeapSize: #HmssMillMaxHeapSize
@@ -190,5 +176,18 @@ duchy: #SpannerDuchy & {
 	services: {
 		"requisition-fulfillment-server": _ipAddressName: _publicApiAddressName
 		"computation-control-server": _ipAddressName:     _systemApiAddressName
+	}
+
+	cronJobs: {
+		"liquid-legions-v2-mill": {
+			_workLockDuration: "10m"
+			_container: {
+				_javaOptions: maxHeapSize: #Llv2MillMaxHeapSize
+				resources: #Llv2MillResourceRequirements
+			}
+			spec: jobTemplate: spec: template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
+				serviceAccountName: #StorageServiceAccount
+			}
+		}
 	}
 }

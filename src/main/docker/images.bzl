@@ -128,7 +128,7 @@ GKE_IMAGES = [
     ),
     struct(
         name = "duchy_liquid_legions_v2_mill_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/daemon/mill/liquidlegionsv2:gcs_liquid_legions_v2_mill_daemon_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/job/mill/liquidlegionsv2:gcs_liquid_legions_v2_mill_job_image",
         repository = _PREFIX + "/duchy/liquid-legions-v2-mill",
     ),
     struct(
@@ -173,7 +173,7 @@ EKS_IMAGES = [
     ),
     struct(
         name = "duchy_s3_liquid_legions_v2_mill_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/daemon/mill/liquidlegionsv2:s3_liquid_legions_v2_mill_daemon_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/job/mill/liquidlegionsv2:s3_liquid_legions_v2_mill_job_image",
         repository = _PREFIX + "/duchy/aws-liquid-legions-v2-mill",
     ),
     struct(
@@ -196,8 +196,8 @@ LOCAL_IMAGES = [
         repository = _PREFIX + "/duchy/local-herald",
     ),
     struct(
-        name = "forwarded_storage_liquid_legions_v2_mill_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/liquidlegionsv2:forwarded_storage_liquid_legions_v2_mill_daemon_image",
+        name = "forwarded_storage_liquid_legions_v2_mill_job_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/job/mill/liquidlegionsv2:forwarded_storage_liquid_legions_v2_mill_job_image",
         repository = _PREFIX + "/duchy/local-liquid-legions-v2-mill",
     ),
     struct(
