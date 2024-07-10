@@ -78,7 +78,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#FulfillmentMaxHeapSize:             "700M"
+#FulfillmentMaxHeapSize:             "320M"
 #ControlServiceResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "200m"
@@ -88,7 +88,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#ControlServiceMaxHeapSize: "350M"
+#ControlServiceMaxHeapSize: "320M"
 
 objectSets: [
 	default_deny_ingress_and_egress,

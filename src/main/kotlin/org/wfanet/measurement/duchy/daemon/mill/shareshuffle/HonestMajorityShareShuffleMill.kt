@@ -22,7 +22,6 @@ import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
-import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.flowOf
 import org.wfanet.frequencycount.FrequencyVector
@@ -424,8 +423,6 @@ class HonestMajorityShareShuffleMill(
       }
       sketchParams = hmss.parameters.sketchParams.copy { registerCount = registerCounts.first() }
     }
-
-    logger.log(Level.WARNING, "registerCount=${request.sketchParams.registerCount}")
 
     val result: CompleteShufflePhaseResponse =
       logWallClockDuration(token, CRYPTO_WALL_CLOCK_DURATION, cryptoWallClockDurationHistogram) {
