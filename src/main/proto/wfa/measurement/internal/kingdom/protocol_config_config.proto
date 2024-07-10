@@ -41,4 +41,8 @@ message HmssProtocolConfigConfig {
   //
   // HMSS protocol requires 3 duchies.
   repeated string required_external_duchy_ids = 2;
+
+  // List of MeasurementConsumer names who force to enable HMSS protocol
+  // regardless the feature flags.
+  repeated string enabled_measurement_consumers = 3;
 }

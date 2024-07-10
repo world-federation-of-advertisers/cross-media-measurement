@@ -472,6 +472,7 @@ class MeasurementsService(
   private fun buildInternalProtocolConfig(
     measurementSpec: MeasurementSpec,
     dataProviderCapabilities: Collection<InternalDataProvider.Capabilities>,
+    measurementConsumerName: String,
   ): InternalProtocolConfig {
     val dataProvidersCount = dataProviderCapabilities.size
     val internalNoiseMechanisms = noiseMechanisms.map { it.toInternal() }
@@ -493,7 +494,8 @@ class MeasurementsService(
           }
         } else {
           if (
-            reachOnlyHmssEnabled &&
+            (measurementConsumerName in HmssProtocolConfig.enabledMeasurementConsumers ||
+              reachOnlyHmssEnabled) &&
               dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
           ) {
             protocolConfig {
@@ -533,7 +535,8 @@ class MeasurementsService(
           }
         } else {
           if (
-            reachAndFrequencyHmssEnabled &&
+            (measurementConsumerName in HmssProtocolConfig.enabledMeasurementConsumers ||
+              reachAndFrequencyHmssEnabled) &&
               dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
           ) {
             protocolConfig {
@@ -634,7 +637,7 @@ class MeasurementsService(
       measurement.toInternal(
         measurementConsumerCertificateKey,
         dataProviderValues,
-        buildInternalProtocolConfig(measurementSpec, dataProviderCapabilities),
+        buildInternalProtocolConfig(measurementSpec, dataProviderCapabilities, parentKey.toName()),
       )
 
     val requestId = this.requestId
