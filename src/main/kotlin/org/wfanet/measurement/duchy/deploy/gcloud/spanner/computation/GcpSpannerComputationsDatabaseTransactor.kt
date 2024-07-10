@@ -158,12 +158,11 @@ class GcpSpannerComputationsDatabaseTransactor<
           lockDuration,
         )
       }
-    val prioritizedStageLongValues =
-      prioritizedStages.map(computationMutations::computationStageEnumToLongValues).map { it.stage }
     return UnclaimedTasksQuery(
         computationMutations.protocolEnumToLong(protocol),
-        prioritizedStageLongValues,
+        prioritizedStages,
         computationMutations::longValuesToComputationStageEnum,
+        computationMutations::computationStageEnumToLongValues,
         clock.gcloudTimestamp(),
       )
       .execute(databaseClient)

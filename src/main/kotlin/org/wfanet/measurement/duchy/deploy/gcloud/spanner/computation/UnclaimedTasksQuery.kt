@@ -25,8 +25,9 @@ import org.wfanet.measurement.gcloud.spanner.statement
 /** Queries for computations which may be claimed at a timestamp. */
 class UnclaimedTasksQuery<StageT>(
   protocol: Long,
-  prioritizedStageLongValues: List<Long>,
-  val parseStageEnum: (ComputationStageLongValues) -> StageT,
+  prioritizedStages: List<StageT>,
+  val longValuesToComputationStageEnum: (ComputationStageLongValues) -> StageT,
+  computationStageEnumToLongValues: (StageT) -> ComputationStageLongValues,
   timestamp: Timestamp,
 ) : SqlBasedQuery<UnclaimedTaskQueryResult<StageT>> {
   companion object {
@@ -54,16 +55,20 @@ class UnclaimedTasksQuery<StageT>(
     statement(parameterizedQueryString) {
       bind("current_time").to(timestamp)
       bind("protocol").to(protocol)
-      if (prioritizedStageLongValues.isEmpty()) {
+      if (prioritizedStages.isEmpty()) {
         appendClause("ORDER BY c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC")
       } else {
         appendClause(
           """
-            ORDER BY CASE WHEN c.ComputationStage IN UNNEST (@prioritized_stages) THEN 0 ELSE 1 END ASC,
+            ORDER BY
+              CASE WHEN c.ComputationStage IN UNNEST (@prioritized_stages) THEN 0
+              ELSE 1 END ASC,
             c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC
           """
             .trimIndent()
         )
+        val prioritizedStageLongValues =
+          prioritizedStages.map(computationStageEnumToLongValues).map { it.stage }
         bind("prioritized_stages").toInt64Array(prioritizedStageLongValues)
       }
       appendClause("LIMIT 50")
@@ -74,7 +79,7 @@ class UnclaimedTasksQuery<StageT>(
       computationId = struct.getLong("ComputationId"),
       globalId = struct.getString("GlobalComputationId"),
       computationStage =
-        parseStageEnum(
+        longValuesToComputationStageEnum(
           ComputationStageLongValues(struct.getLong("Protocol"), struct.getLong("ComputationStage"))
         ),
       creationTime = struct.getTimestamp("CreationTime"),

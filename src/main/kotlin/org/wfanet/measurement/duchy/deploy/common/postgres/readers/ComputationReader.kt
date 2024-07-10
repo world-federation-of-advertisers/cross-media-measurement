@@ -23,6 +23,8 @@ import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
+import org.wfanet.measurement.common.db.r2dbc.postgres.ValuesListBoundStatement
+import org.wfanet.measurement.common.db.r2dbc.postgres.valuesListBoundStatement
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
@@ -360,43 +362,48 @@ class ComputationReader(
         JOIN ComputationStages AS cs
       ON c.ComputationId = cs.ComputationId
         AND c.ComputationStage = cs.ComputationStage
-      WHERE c.Protocol = ${'$'}1
+      WHERE c.Protocol = $1
         AND c.LockExpirationTime IS NOT NULL
-        AND c.LockExpirationTime <= ${'$'}2
+        AND c.LockExpirationTime <= $2
       """
 
-    val baseSqlWithOrder =
-      if (prioritizedStages.isEmpty()) {
+    if (prioritizedStages.isEmpty()) {
+      val baseSqlWithOrder =
         baseSql +
           """
-          ORDER BY c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC
-          LIMIT 50;
-          """
-      } else {
-        // Binding list of String into the IN clause does not work as expected with r2dbc library.
-        // Hence, manually joining targeting stages into a comma separated string and stub it into
-        // the
-        // query.
-        val stagesString =
-          prioritizedStages
-            .map { computationProtocolStagesEnumHelper.computationStageEnumToLongValues(it).stage }
-            .toList()
-            .joinToString(",")
+        ORDER BY c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC
+        LIMIT 50;
+        """
+      val statement =
+        boundStatement(baseSqlWithOrder) {
+          bind("$1", protocol)
+          bind("$2", timestamp)
+        }
+
+      return readContext.executeQuery(statement).consume(::buildUnclaimedTaskQueryResult)
+    } else {
+      val baseSqlWithOrder =
         baseSql +
           """
-          ORDER BY CASE WHEN c.ComputationStage IN ($stagesString) THEN 0 ELSE 1 END ASC,
-          c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC
-          LIMIT 50;
-          """
-      }
-
-    val listUnclaimedTasksSql =
-      boundStatement(baseSqlWithOrder) {
-        bind("$1", protocol)
-        bind("$2", timestamp)
-      }
-
-    return readContext.executeQuery(listUnclaimedTasksSql).consume(::buildUnclaimedTaskQueryResult)
+        ORDER BY
+          CASE WHEN c.ComputationStage
+            IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}) THEN 0
+          ELSE 1 END ASC,
+        c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC
+        LIMIT 50;
+        """
+      val statement =
+        valuesListBoundStatement(valuesStartIndex = 2, paramCount = 1, baseSqlWithOrder) {
+          bind("$1", protocol)
+          bind("$2", timestamp)
+          for (stage in prioritizedStages) {
+            val longValue =
+              computationProtocolStagesEnumHelper.computationStageEnumToLongValues(stage).stage
+            addValuesBinding { bindValuesParam(0, longValue) }
+          }
+        }
+      return readContext.executeQuery(statement).consume(::buildUnclaimedTaskQueryResult)
+    }
   }
 
   /**

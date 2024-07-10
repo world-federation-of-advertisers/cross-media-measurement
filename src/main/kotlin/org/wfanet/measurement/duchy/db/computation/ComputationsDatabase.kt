@@ -121,6 +121,8 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
    *
    * @param protocol The protocol of the task to claim
    * @param ownerId The identifier of the worker process that will own the lock.
+   * @param lockDuration The time-to-live of the lock ownership.
+   * @param prioritizedStages Stages that have the priority to be claimed.
    * @return global computation id of work that was claimed. When null, no work was claimed.
    */
   suspend fun claimTask(
