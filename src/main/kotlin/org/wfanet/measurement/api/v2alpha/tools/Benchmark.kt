@@ -171,36 +171,38 @@ class BaseFlags {
 
 private fun getPopulationDataProviderEntry(
   dataProviderStub: DataProvidersCoroutineStub,
-  dataProviderInput:
-    CreateMeasurementFlags.MeasurementParams.PopulationMeasurementParams.PopulationDataProviderInput,
   measurementParams: CreateMeasurementFlags.MeasurementParams.PopulationMeasurementParams,
   measurementConsumerSigningKey: SigningKeyHandle,
   packedMeasurementEncryptionPublicKey: ProtoAny,
   secureRandom: SecureRandom,
   apiAuthenticationKey: String,
 ): Measurement.DataProviderEntry {
+  val dataProvider =
+    runBlocking(Dispatchers.IO) {
+      dataProviderStub
+        .withAuthenticationKey(apiAuthenticationKey)
+        .getDataProvider(getDataProviderRequest { name = measurementParams.dataProviderName })
+    }
+
   return dataProviderEntry {
     val requisitionSpec = requisitionSpec {
       population =
         RequisitionSpecKt.population {
           interval = interval {
-            startTime = measurementParams.populationInputs.startTime.toProtoTime()
-            endTime = measurementParams.populationInputs.endTime.toProtoTime()
+            startTime = measurementParams.startTime.toProtoTime()
+            endTime = measurementParams.endTime.toProtoTime()
           }
-          if (measurementParams.populationInputs.filter.isNotEmpty())
-            filter = eventFilter { expression = measurementParams.populationInputs.filter }
+
+          val filterExpression = measurementParams.filter
+          if (filterExpression != null) {
+            filter = eventFilter { expression = filterExpression }
+          }
         }
       this.measurementPublicKey = packedMeasurementEncryptionPublicKey
       nonce = secureRandom.nextLong()
     }
 
-    key = dataProviderInput.name
-    val dataProvider =
-      runBlocking(Dispatchers.IO) {
-        dataProviderStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
-      }
+    key = dataProvider.name
     value = dataProviderEntryValue {
       dataProviderCertificate = dataProvider.certificate
       dataProviderPublicKey = dataProvider.publicKey.message
@@ -217,7 +219,7 @@ private fun getPopulationDataProviderEntry(
 private fun getEventDataProviderEntry(
   dataProviderStub: DataProvidersCoroutineStub,
   dataProviderInput:
-    CreateMeasurementFlags.MeasurementParams.EventMeasurementParams.EventDataProviderInput,
+    CreateMeasurementFlags.MeasurementParams.EventMeasurementParams.DataProviderInput,
   measurementConsumerSigningKey: SigningKeyHandle,
   packedMeasurementEncryptionPublicKey: ProtoAny,
   secureRandom: SecureRandom,
@@ -228,7 +230,7 @@ private fun getEventDataProviderEntry(
       events =
         RequisitionSpecKt.events {
           eventGroups +=
-            dataProviderInput.eventGroupInputs.map {
+            dataProviderInput.eventGroups.map {
               eventGroupEntry {
                 key = it.name
                 value = eventGroupEntryValue {
@@ -284,8 +286,7 @@ class Benchmark(
 
   private val secureRandom = SecureRandom.getInstance("SHA1PRNG")
 
-  private val eventMeasurementParams =
-    createMeasurementFlags.measurementParams.eventMeasurementParams
+  private val eventMeasurementParams = createMeasurementFlags.measurementParams.event
 
   /**
    * The following data structure is used to track the status of each request and to store the
@@ -356,19 +357,19 @@ class Benchmark(
         .map(charPool::get)
         .joinToString("")
 
+    val populationMeasurementParams = createMeasurementFlags.measurementParams.population
+
     for (replica in 1..flags.repetitionCount) {
       val referenceId = "$referenceIdBase-$replica"
 
       val measurement =
-        if (createMeasurementFlags.measurementParams.populationMeasurementParams.selected) {
+        if (populationMeasurementParams != null) {
           measurement {
             this.measurementConsumerCertificate = measurementConsumer.certificate
             dataProviders +=
               getPopulationDataProviderEntry(
                 dataProviderStub,
-                createMeasurementFlags.measurementParams.populationMeasurementParams
-                  .populationDataProviderInput,
-                createMeasurementFlags.measurementParams.populationMeasurementParams,
+                populationMeasurementParams,
                 measurementConsumerSigningKey,
                 packedMeasurementEncryptionPublicKey,
                 secureRandom,
@@ -378,9 +379,12 @@ class Benchmark(
             val unsignedMeasurementSpec = measurementSpec {
               measurementPublicKey = packedMeasurementEncryptionPublicKey
               nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
-              population = createMeasurementFlags.getPopulation()
-              if (createMeasurementFlags.modelLine.isNotEmpty())
-                modelLine = createMeasurementFlags.modelLine
+              population = populationMeasurementParams.spec
+
+              val modelLine = createMeasurementFlags.modelLine
+              if (modelLine != null) {
+                this.modelLine = modelLine
+              }
             }
 
             this.measurementSpec =
@@ -388,6 +392,8 @@ class Benchmark(
             measurementReferenceId = referenceId
           }
         } else {
+          checkNotNull(eventMeasurementParams)
+          val measurementTypeParams = eventMeasurementParams.eventMeasurementTypeParams
           val vidSamplingStartForMeasurement =
             eventMeasurementParams.vidSamplingStart +
               kotlin.random.Random.nextInt(0, flags.vidBucketCount).toFloat() *
@@ -395,7 +401,7 @@ class Benchmark(
           measurement {
             this.measurementConsumerCertificate = measurementConsumer.certificate
             dataProviders +=
-              eventMeasurementParams.eventDataProviderInputs.map {
+              eventMeasurementParams.dataProviders.map {
                 getEventDataProviderEntry(
                   dataProviderStub,
                   it,
@@ -412,19 +418,31 @@ class Benchmark(
                 start = vidSamplingStartForMeasurement
                 width = eventMeasurementParams.vidSamplingWidth
               }
-              if (eventMeasurementParams.eventMeasurementTypeParams.reach.selected) {
-                reach = createMeasurementFlags.getReach()
-              } else if (
-                eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency.selected
-              ) {
-                reachAndFrequency = createMeasurementFlags.getReachAndFrequency()
-              } else if (eventMeasurementParams.eventMeasurementTypeParams.impression.selected) {
-                impression = createMeasurementFlags.getImpression()
-              } else if (eventMeasurementParams.eventMeasurementTypeParams.duration.selected) {
-                duration = createMeasurementFlags.getDuration()
+
+              val reachParams = measurementTypeParams.reach
+              if (reachParams != null) {
+                reach = reachParams.spec
               }
-              if (createMeasurementFlags.modelLine.isNotEmpty())
-                modelLine = createMeasurementFlags.modelLine
+
+              val reachAndFrequencyParams = measurementTypeParams.reachAndFrequency
+              if (reachAndFrequencyParams != null) {
+                reachAndFrequency = reachAndFrequencyParams.spec
+              }
+
+              val impressionParams = measurementTypeParams.impression
+              if (impressionParams != null) {
+                impression = impressionParams.spec
+              }
+
+              val durationParams = measurementTypeParams.duration
+              if (durationParams != null) {
+                duration = durationParams.spec
+              }
+
+              val modelLine = createMeasurementFlags.modelLine
+              if (modelLine != null) {
+                this.modelLine = modelLine
+              }
             }
 
             this.measurementSpec =
@@ -515,16 +533,19 @@ class Benchmark(
   private fun generateOutput(firstInstant: Instant) {
     File(flags.outputFile).printWriter().use { out ->
       out.print("replica,startTime,ackTime,computeTime,endTime,status,msg,")
-      if (createMeasurementFlags.measurementParams.populationMeasurementParams.selected) {
+      if (createMeasurementFlags.measurementParams.population != null) {
         out.println("population")
-      } else if (eventMeasurementParams.eventMeasurementTypeParams.reach.selected) {
-        out.println("reach")
-      } else if (eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency.selected) {
-        out.println("reach,freq1,freq2,freq3,freq4,freq5")
-      } else if (eventMeasurementParams.eventMeasurementTypeParams.impression.selected) {
-        out.println("impressions")
-      } else if (eventMeasurementParams.eventMeasurementTypeParams.duration.selected) {
-        out.println("duration")
+      } else {
+        checkNotNull(eventMeasurementParams)
+        if (eventMeasurementParams.eventMeasurementTypeParams.reach != null) {
+          out.println("reach")
+        } else if (eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency != null) {
+          out.println("reach,freq1,freq2,freq3,freq4,freq5")
+        } else if (eventMeasurementParams.eventMeasurementTypeParams.impression != null) {
+          out.println("impressions")
+        } else if (eventMeasurementParams.eventMeasurementTypeParams.duration != null) {
+          out.println("duration")
+        }
       }
       for (task in completedTasks) {
         out.print("${task.replicaId}")
@@ -539,36 +560,39 @@ class Benchmark(
         }
         out.print(",${task.elapsedTimeMillis / 1000.0},")
         out.print("${task.status},${task.errorMessage},")
-        if (createMeasurementFlags.measurementParams.populationMeasurementParams.selected) {
+        if (createMeasurementFlags.measurementParams.population != null) {
           out.println("${task.result.population.value}")
-        } else if (eventMeasurementParams.eventMeasurementTypeParams.reach.selected) {
-          if (task.status == "success" && task.result.hasReach()) {
-            out.print(task.result.reach.value)
-          } else {
-            out.print(-1)
-          }
-        } else if (eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency.selected) {
-          var reach = 0L
-          if (task.status == "success" && task.result.hasReach()) {
-            reach = task.result.reach.value
-          }
-          out.print(reach)
-          val frequencies = arrayOf(0.0, 0.0, 0.0, 0.0, 0.0)
-          if (task.status == "success" && task.result.hasFrequency()) {
-            task.result.frequency.relativeFrequencyDistributionMap.forEach {
-              if (it.key <= frequencies.size) {
-                frequencies[(it.key - 1).toInt()] = it.value * reach.toDouble()
+        } else {
+          checkNotNull(eventMeasurementParams)
+          if (eventMeasurementParams.eventMeasurementTypeParams.reach != null) {
+            if (task.status == "success" && task.result.hasReach()) {
+              out.print(task.result.reach.value)
+            } else {
+              out.print(-1)
+            }
+          } else if (eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency != null) {
+            var reach = 0L
+            if (task.status == "success" && task.result.hasReach()) {
+              reach = task.result.reach.value
+            }
+            out.print(reach)
+            val frequencies = arrayOf(0.0, 0.0, 0.0, 0.0, 0.0)
+            if (task.status == "success" && task.result.hasFrequency()) {
+              task.result.frequency.relativeFrequencyDistributionMap.forEach {
+                if (it.key <= frequencies.size) {
+                  frequencies[(it.key - 1).toInt()] = it.value * reach.toDouble()
+                }
               }
             }
+            for (i in 1..frequencies.size) {
+              out.print(",${frequencies[i - 1]}")
+            }
+            out.println()
+          } else if (eventMeasurementParams.eventMeasurementTypeParams.impression != null) {
+            out.println("${task.result.impression.value}")
+          } else if (eventMeasurementParams.eventMeasurementTypeParams.duration != null) {
+            out.println("${task.result.watchDuration.value.seconds}")
           }
-          for (i in 1..frequencies.size) {
-            out.print(",${frequencies[i - 1]}")
-          }
-          out.println()
-        } else if (eventMeasurementParams.eventMeasurementTypeParams.impression.selected) {
-          out.println("${task.result.impression.value}")
-        } else if (eventMeasurementParams.eventMeasurementTypeParams.duration.selected) {
-          out.println("${task.result.watchDuration.value.seconds}")
         }
       }
     }

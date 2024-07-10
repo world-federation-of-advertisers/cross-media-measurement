@@ -24,7 +24,6 @@ import com.google.protobuf.duration
 import com.google.protobuf.empty
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Durations
-import com.google.protobuf.value
 import com.google.type.date
 import com.google.type.interval
 import io.grpc.Server

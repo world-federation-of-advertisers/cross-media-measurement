@@ -590,25 +590,33 @@ class CreateMeasurement : Runnable {
   private val secureRandom = SecureRandom.getInstance("SHA1PRNG")
 
   private fun getPopulationDataProviderEntry(
-    populationDataProviderInput:
-      CreateMeasurementFlags.MeasurementParams.PopulationMeasurementParams.PopulationDataProviderInput,
     populationMeasurementParams:
       CreateMeasurementFlags.MeasurementParams.PopulationMeasurementParams,
     measurementConsumerSigningKey: SigningKeyHandle,
     packedMeasurementEncryptionPublicKey: ProtoAny,
   ): Measurement.DataProviderEntry {
+    val dataProvider =
+      runBlocking(parentCommand.parentCommand.rpcDispatcher) {
+        parentCommand.dataProviderStub
+          .withAuthenticationKey(parentCommand.apiAuthenticationKey)
+          .getDataProvider(
+            getDataProviderRequest { name = populationMeasurementParams.dataProviderName }
+          )
+      }
+
     return dataProviderEntry {
       val requisitionSpec = requisitionSpec {
         population =
           RequisitionSpecKt.population {
             interval = interval {
-              startTime = populationMeasurementParams.populationInputs.startTime.toProtoTime()
-              endTime = populationMeasurementParams.populationInputs.endTime.toProtoTime()
+              startTime = populationMeasurementParams.startTime.toProtoTime()
+              endTime = populationMeasurementParams.endTime.toProtoTime()
             }
-            if (populationMeasurementParams.populationInputs.filter.isNotEmpty())
-              filter = eventFilter {
-                expression = populationMeasurementParams.populationInputs.filter
-              }
+
+            val filterExpression = populationMeasurementParams.filter
+            if (filterExpression != null) {
+              filter = eventFilter { expression = filterExpression }
+            }
           }
         measurementPublicKey = packedMeasurementEncryptionPublicKey
         // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
@@ -618,13 +626,7 @@ class CreateMeasurement : Runnable {
         nonce = secureRandom.nextLong()
       }
 
-      key = populationDataProviderInput.name
-      val dataProvider =
-        runBlocking(parentCommand.parentCommand.rpcDispatcher) {
-          parentCommand.dataProviderStub
-            .withAuthenticationKey(parentCommand.apiAuthenticationKey)
-            .getDataProvider(getDataProviderRequest { name = populationDataProviderInput.name })
-        }
+      key = dataProvider.name
       value =
         DataProviderEntries.value {
           dataProviderCertificate = dataProvider.certificate
@@ -641,14 +643,14 @@ class CreateMeasurement : Runnable {
 
   private fun getEventDataProviderEntry(
     eventDataProviderInput:
-      CreateMeasurementFlags.MeasurementParams.EventMeasurementParams.EventDataProviderInput,
+      CreateMeasurementFlags.MeasurementParams.EventMeasurementParams.DataProviderInput,
     measurementConsumerSigningKey: SigningKeyHandle,
     packedMeasurementEncryptionPublicKey: ProtoAny,
   ): Measurement.DataProviderEntry {
     return dataProviderEntry {
       val requisitionSpec = requisitionSpec {
         val eventGroups =
-          eventDataProviderInput.eventGroupInputs.map {
+          eventDataProviderInput.eventGroups.map {
             eventGroupEntry {
               key = it.name
               value =
@@ -693,6 +695,8 @@ class CreateMeasurement : Runnable {
 
   override fun run() {
     val measurementParams = createMeasurementFlags.measurementParams
+    val populationMeasurementParams = measurementParams.population
+    val eventMeasurementParams = measurementParams.event
     val measurementConsumer =
       runBlocking(parentCommand.parentCommand.rpcDispatcher) {
         parentCommand.measurementConsumerStub
@@ -714,17 +718,16 @@ class CreateMeasurement : Runnable {
     val measurement = measurement {
       this.measurementConsumerCertificate = measurementConsumer.certificate
       dataProviders +=
-        if (measurementParams.populationMeasurementParams.selected) {
+        if (populationMeasurementParams != null) {
           listOf(
             getPopulationDataProviderEntry(
-              measurementParams.populationMeasurementParams.populationDataProviderInput,
-              measurementParams.populationMeasurementParams,
+              populationMeasurementParams,
               measurementConsumerSigningKey,
               packedMeasurementEncryptionPublicKey,
             )
           )
         } else {
-          measurementParams.eventMeasurementParams.eventDataProviderInputs.map {
+          checkNotNull(eventMeasurementParams).dataProviders.map {
             getEventDataProviderEntry(
               it,
               measurementConsumerSigningKey,
@@ -738,37 +741,48 @@ class CreateMeasurement : Runnable {
         // field.
         serializedMeasurementPublicKey = packedMeasurementEncryptionPublicKey.value
         nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
-        if (!measurementParams.populationMeasurementParams.selected) {
+        if (eventMeasurementParams != null) {
+          val measurementTypeParams = eventMeasurementParams.eventMeasurementTypeParams
           vidSamplingInterval = vidSamplingInterval {
-            start = measurementParams.eventMeasurementParams.vidSamplingStart
-            width = measurementParams.eventMeasurementParams.vidSamplingWidth
+            start = eventMeasurementParams.vidSamplingStart
+            width = eventMeasurementParams.vidSamplingWidth
           }
-          if (measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reach.selected) {
-            reach = createMeasurementFlags.getReach()
-          } else if (
-            measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
-              .selected
-          ) {
-            reachAndFrequency = createMeasurementFlags.getReachAndFrequency()
-          } else if (
-            measurementParams.eventMeasurementParams.eventMeasurementTypeParams.impression.selected
-          ) {
-            impression = createMeasurementFlags.getImpression()
-          } else if (
-            measurementParams.eventMeasurementParams.eventMeasurementTypeParams.duration.selected
-          ) {
-            duration = createMeasurementFlags.getDuration()
-          }
-        } else if (measurementParams.populationMeasurementParams.selected) {
-          population = createMeasurementFlags.getPopulation()
-        }
-        if (createMeasurementFlags.modelLine.isNotEmpty())
-          this.modelLine = createMeasurementFlags.modelLine
-      }
 
-      this.measurementSpec =
-        signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
-      measurementReferenceId = createMeasurementFlags.measurementReferenceId
+          val reachParams = measurementTypeParams.reach
+          if (reachParams != null) {
+            reach = reachParams.spec
+          }
+
+          val reachAndFrequencyParams = measurementTypeParams.reachAndFrequency
+          if (reachAndFrequencyParams != null) {
+            reachAndFrequency = reachAndFrequencyParams.spec
+          }
+
+          val impressionParams = measurementTypeParams.impression
+          if (impressionParams != null) {
+            impression = impressionParams.spec
+          }
+
+          val durationParams = measurementTypeParams.duration
+          if (durationParams != null) {
+            duration = durationParams.spec
+          }
+        }
+        if (populationMeasurementParams != null) {
+          population = populationMeasurementParams.spec
+        }
+
+        val modelLine = createMeasurementFlags.modelLine
+        if (modelLine != null) {
+          this.modelLine = modelLine
+        }
+      }
+      measurementSpec = signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
+
+      val measurementReferenceId = createMeasurementFlags.measurementReferenceId
+      if (measurementReferenceId != null) {
+        this.measurementReferenceId = measurementReferenceId
+      }
     }
 
     val response =
