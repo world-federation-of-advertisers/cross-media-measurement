@@ -104,8 +104,7 @@ class MeasurementsService(
   private val noiseMechanisms: List<NoiseMechanism>,
   private val reachOnlyLlV2Enabled: Boolean = false,
   // TODO(@renjiez): merge the two options below once implementing reach-only HMSS.
-  private val reachAndFrequencyHmssEnabled: Boolean = false,
-  private val reachOnlyHmssEnabled: Boolean = false,
+  private val hmssEnabled: Boolean = false,
 ) : MeasurementsCoroutineImplBase() {
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
@@ -495,7 +494,7 @@ class MeasurementsService(
         } else {
           if (
             (measurementConsumerName in HmssProtocolConfig.enabledMeasurementConsumers ||
-              reachOnlyHmssEnabled) &&
+              hmssEnabled) &&
               dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
           ) {
             protocolConfig {
@@ -536,7 +535,7 @@ class MeasurementsService(
         } else {
           if (
             (measurementConsumerName in HmssProtocolConfig.enabledMeasurementConsumers ||
-              reachAndFrequencyHmssEnabled) &&
+              hmssEnabled) &&
               dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
           ) {
             protocolConfig {
