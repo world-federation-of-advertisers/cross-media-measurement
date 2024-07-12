@@ -28,7 +28,8 @@ class Solver:
         self.A = []
         self.b = []
 
-    def __add_cover_set_constraint(self, cover_variables: list[int], set_variable: int):
+    def __add_cover_set_constraint(self, cover_variables: list[int],
+                                   set_variable: int):
         variables = np.zeros(self.num_variables)
         variables.put(cover_variables, -1)
         variables[set_variable] = 1
@@ -62,7 +63,8 @@ class Solver:
         problem: Problem
         if len(self.A) > 0:
             problem = Problem(
-                self.P, self.q, np.array(self.G), np.array(self.h), np.array(self.A), np.array(self.b))
+                self.P, self.q, np.array(self.G), np.array(self.h),
+                np.array(self.A), np.array(self.b))
         else:
             problem = Problem(
                 self.P, self.q, np.array(self.G), np.array(self.b))
@@ -79,28 +81,33 @@ class Solver:
 
         solver = Solver(num_vars)
         for measured_set in set_measurement_spec.all_sets():
-            for cover in set_measurement_spec.covers_by_set[measured_set]:
+            for cover in set_measurement_spec.get_covers_of_set(measured_set):
                 solver.__add_cover_set_constraint(
-                    list(variable_index_by_set_id[i] for i in cover), variable_index_by_set_id[measured_set])
+                    list(variable_index_by_set_id[i] for i in cover),
+                    variable_index_by_set_id[measured_set])
 
-            for subset in set(set_measurement_spec.subsets_by_set[measured_set]):
+            for subset in set(set_measurement_spec.get_subsets(measured_set)):
                 solver.__add_parent_gt_child_term(
-                    variable_index_by_set_id[measured_set], variable_index_by_set_id[subset])
+                    variable_index_by_set_id[measured_set],
+                    variable_index_by_set_id[subset])
 
             variables = np.zeros(num_vars)
             variables[variable_index_by_set_id[measured_set]] = 1
 
-            for measurement in set_measurement_spec.measurements_by_set[measured_set]:
+            for measurement in set_measurement_spec.get_measurements(
+                    measured_set):
                 if abs(measurement.sigma) == 0:
                     solver.__add_eq_term(variables, measurement.value)
                 else:
                     solver.__add_loss_term(
-                        np.multiply(variables, 1 / measurement.sigma), -measurement.value / measurement.sigma)
-        # TODO: check if qp-solver is thread safe, and remove this semaphore.
+                        np.multiply(variables, 1 / measurement.sigma),
+                        -measurement.value / measurement.sigma)
+        # TODO: check if qpsolvers is thread safe, and remove this semaphore.
         SEMAPHORE.acquire()
         solution = solver.__solve()
         SEMAPHORE.release()
         result: dict[int, Any] = {}
         for measured_set in set_measurement_spec.all_sets():
-            result[measured_set] = solution[variable_index_by_set_id[measured_set]]
+            result[measured_set] = solution[
+                variable_index_by_set_id[measured_set]]
         return result
