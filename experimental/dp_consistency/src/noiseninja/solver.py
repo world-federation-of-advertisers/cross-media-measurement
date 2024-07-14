@@ -67,7 +67,7 @@ class Solver:
                 np.array(self.A), np.array(self.b))
         else:
             problem = Problem(
-                self.P, self.q, np.array(self.G), np.array(self.b))
+                self.P, self.q, np.array(self.G), np.array(self.h))
         solution = solve_problem(problem, solver=SOLVER, verbose=False)
         return solution.x
 
