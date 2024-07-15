@@ -168,10 +168,9 @@ message Computation {
     message HonestMajorityShareShuffle {
       // The modulus used in the MPC protocol for ReachAndFrequency Measurement.
       int32 reach_and_frequency_ring_modulus = 1
-        [(google.api.field_behavior) = REQUIRED];
+          [(google.api.field_behavior) = REQUIRED];
       // The modulus used in the MPC protocol for Reach Measurement.
-      int32 reach_ring_modulus = 2
-        [(google.api.field_behavior) = REQUIRED];
+      int32 reach_ring_modulus = 2 [(google.api.field_behavior) = REQUIRED];
       // The mechanism to generate noise during computation.
       NoiseMechanism noise_mechanism = 3
           [(google.api.field_behavior) = REQUIRED];
