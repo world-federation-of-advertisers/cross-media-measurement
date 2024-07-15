@@ -22,6 +22,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.common.crypto.SignatureAlgorithm
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
@@ -35,10 +36,12 @@ import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Party
 import org.wfanet.panelmatch.client.launcher.ApiClient
 import org.wfanet.panelmatch.client.launcher.GrpcApiClient
+import org.wfanet.panelmatch.client.launcher.KingdomlessApiClient
 import org.wfanet.panelmatch.common.Timeout
 import org.wfanet.panelmatch.common.asTimeout
 import org.wfanet.panelmatch.common.certificates.CertificateAuthority
 import org.wfanet.panelmatch.common.certificates.CertificateManager
+import org.wfanet.panelmatch.common.certificates.KingdomlessCertificateManager
 import org.wfanet.panelmatch.common.certificates.V2AlphaCertificateManager
 import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
@@ -79,29 +82,21 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
 
   private val channel: Channel by lazy {
     logger.info("Connecting to Kingdom")
-    buildMutualTlsChannel(flags.exchangeApiTarget, clientCerts, flags.exchangeApiCertHost)
-      .withShutdownTimeout(flags.channelShutdownTimeout)
-      .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
+    val kingdomBasedExchangeFlags = checkNotNull(flags.protocolOptions.kingdomBasedExchangeFlags)
+    buildMutualTlsChannel(
+        kingdomBasedExchangeFlags.exchangeApiTarget,
+        clientCerts,
+        kingdomBasedExchangeFlags.exchangeApiCertHost,
+      )
+      .withShutdownTimeout(kingdomBasedExchangeFlags.channelShutdownTimeout)
+      .withVerboseLogging(kingdomBasedExchangeFlags.debugVerboseGrpcClientLogging)
   }
 
   override val certificateManager: CertificateManager by lazy {
-    val certificateService = CertificatesCoroutineStub(channel)
-    val resourceName =
-      when (identity.party) {
-        Party.DATA_PROVIDER -> DataProviderKey(identity.id).toName()
-        Party.MODEL_PROVIDER -> ModelProviderKey(identity.id).toName()
-        else -> error("Invalid Identity: $identity")
-      }
-
-    V2AlphaCertificateManager(
-      certificateService = certificateService,
-      rootCerts = rootCertificates,
-      privateKeys = privateKeys,
-      algorithm = flags.certAlgorithm,
-      certificateAuthority = certificateAuthority,
-      localName = resourceName,
-      fallbackPrivateKeyBlobKey = flags.fallbackPrivateKeyBlobKey,
-    )
+    when (flags.protocolOptions.protocolSpecificFlags) {
+      is KingdomBasedExchangeFlags -> createKingdomBasedCertificateManager()
+      is KingdomlessExchangeFlags -> createKingdomlessCertificateManager()
+    }
   }
 
   override val throttler: Throttler by lazy { createThrottler() }
@@ -130,15 +125,10 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
   }
 
   override val apiClient: ApiClient by lazy {
-    val exchangeStepsClient = ExchangeStepsCoroutineStub(channel)
-    val exchangeStepAttemptsClient = ExchangeStepAttemptsCoroutineStub(channel)
-    GrpcApiClient(
-      identity,
-      exchangeStepsClient,
-      exchangeStepAttemptsClient,
-      Clock.systemUTC(),
-      maxParallelClaimedExchangeSteps,
-    )
+    when (val protocolFlags = flags.protocolOptions.protocolSpecificFlags) {
+      is KingdomBasedExchangeFlags -> createKingdomBasedApiClient()
+      is KingdomlessExchangeFlags -> createKingdomlessApiClient(protocolFlags)
+    }
   }
 
   override val taskTimeout: Timeout by lazy { flags.taskTimeout.asTimeout() }
@@ -146,6 +136,75 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
   override val identity: Identity by lazy { Identity(flags.id, flags.partyType) }
 
   private fun createThrottler(): Throttler = MinimumIntervalThrottler(clock, flags.pollingInterval)
+
+  private fun createKingdomBasedCertificateManager(): CertificateManager {
+    val certificateService = CertificatesCoroutineStub(channel)
+    val resourceName =
+      when (identity.party) {
+        Party.DATA_PROVIDER -> DataProviderKey(identity.id).toName()
+        Party.MODEL_PROVIDER -> ModelProviderKey(identity.id).toName()
+        Party.PARTY_UNSPECIFIED,
+        Party.UNRECOGNIZED -> error("Invalid Identity: $identity")
+      }
+    return V2AlphaCertificateManager(
+      certificateService = certificateService,
+      rootCerts = rootCertificates,
+      privateKeys = privateKeys,
+      algorithm = flags.certAlgorithm,
+      certificateAuthority = certificateAuthority,
+      localName = resourceName,
+      fallbackPrivateKeyBlobKey = flags.fallbackPrivateKeyBlobKey,
+    )
+  }
+
+  private fun createKingdomBasedApiClient(): ApiClient {
+    val exchangeStepsClient = ExchangeStepsCoroutineStub(channel)
+    val exchangeStepAttemptsClient = ExchangeStepAttemptsCoroutineStub(channel)
+    return GrpcApiClient(
+      identity = identity,
+      exchangeStepsClient = exchangeStepsClient,
+      exchangeStepAttemptsClient = exchangeStepAttemptsClient,
+      clock = Clock.systemUTC(),
+      maxClaimedExchangeSteps = maxParallelClaimedExchangeSteps,
+    )
+  }
+
+  private fun createKingdomlessCertificateManager(): CertificateManager {
+    return KingdomlessCertificateManager(
+      identity = identity,
+      validExchangeWorkflows = validExchangeWorkflows,
+      rootCerts = rootCertificates,
+      privateKeys = privateKeys,
+      algorithm = flags.certAlgorithm,
+      certificateAuthority = certificateAuthority,
+      fallbackPrivateKeyBlobKey = flags.fallbackPrivateKeyBlobKey,
+    ) {
+      sharedStorageSelector.getStorageClient(it)
+    }
+  }
+
+  private fun createKingdomlessApiClient(
+    kingdomlessExchangeFlags: KingdomlessExchangeFlags
+  ): ApiClient {
+    val signatureAlgorithm =
+      requireNotNull(
+        SignatureAlgorithm.fromJavaName(kingdomlessExchangeFlags.checkpointSigningAlgorithm)
+      ) {
+        "Invalid signing algorithm: ${kingdomlessExchangeFlags.checkpointSigningAlgorithm}"
+      }
+    return KingdomlessApiClient(
+      identity = identity,
+      recurringExchangeIds = kingdomlessExchangeFlags.kingdomlessRecurringExchangeIds,
+      validExchangeWorkflows = validExchangeWorkflows,
+      certificateManager = certificateManager,
+      algorithm = signatureAlgorithm,
+      lookbackWindow = kingdomlessExchangeFlags.lookbackWindow,
+      stepTimeout = flags.taskTimeout,
+      clock = Clock.systemUTC(),
+    ) {
+      sharedStorageSelector.getStorageClient(it)
+    }
+  }
 
   companion object {
     @JvmStatic protected val logger by loggerFor()
