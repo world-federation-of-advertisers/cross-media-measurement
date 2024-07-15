@@ -412,6 +412,7 @@ class HonestMajorityShareShuffleMill(
           val secretSeed =
             secretSeeds.find { it.requisitionId == requisitionId }
               ?: error("Neither blob and seed received for requisition $requisitionId")
+          registerCounts += secretSeed.registerCount
 
           val seed =
             verifySecretSeed(secretSeed, hmss.encryptionKeyPair.privateKeyId, publicApiVersion)
@@ -445,6 +446,7 @@ class HonestMajorityShareShuffleMill(
 
     val aggregationPhaseInput = aggregationPhaseInput {
       combinedSketch += result.combinedSketchList
+      registerCount = request.sketchParams.registerCount
     }
 
     logWallClockDuration(
@@ -476,7 +478,6 @@ class HonestMajorityShareShuffleMill(
 
     val request = completeAggregationPhaseRequest {
       val hmss = token.computationDetails.honestMajorityShareShuffle
-      sketchParams = hmss.parameters.sketchParams
       maximumFrequency = hmss.parameters.maximumFrequency
 
       when (publicApiVersion) {
@@ -496,6 +497,11 @@ class HonestMajorityShareShuffleMill(
         sketchShares +=
           CompleteAggregationPhaseRequestKt.shareData { shareVector += input.combinedSketchList }
       }
+      sketchParams =
+        hmss.parameters.sketchParams.copy {
+          require(aggregationPhaseInputs.map { it.registerCount }.distinct().size == 1)
+          registerCount = aggregationPhaseInputs.first().registerCount
+        }
     }
 
     val result: CompleteAggregationPhaseResponse =
