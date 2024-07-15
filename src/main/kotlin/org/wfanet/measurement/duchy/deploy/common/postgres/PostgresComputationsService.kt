@@ -170,6 +170,7 @@ class PostgresComputationsService(
       try {
         ClaimWork(
             request.computationType,
+            request.prioritizedStagesList,
             request.owner,
             lockDuration,
             clock,

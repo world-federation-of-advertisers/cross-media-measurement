@@ -43,6 +43,7 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.computationDetails
+import org.wfanet.measurement.internal.duchy.computationStage
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.NON_AGGREGATOR
@@ -133,6 +134,8 @@ class ReachOnlyLiquidLegionsV2Mill(
     clock,
   ) {
   override val endingStage = Stage.COMPLETE.toProtocolStage()
+
+  override val prioritizedStagesToClaim = listOf(Stage.INITIALIZATION_PHASE.toProtocolStage())
 
   private val actions =
     mapOf(

@@ -143,6 +143,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     protocol: ProtocolT,
     ownerId: String,
     lockDuration: Duration,
+    prioritizedStages: List<StageT>,
   ): String? {
     /** Claim a specific task represented by the results of running the above sql. */
     suspend fun claimSpecificTask(result: UnclaimedTaskQueryResult<StageT>): Boolean =
@@ -159,7 +160,9 @@ class GcpSpannerComputationsDatabaseTransactor<
       }
     return UnclaimedTasksQuery(
         computationMutations.protocolEnumToLong(protocol),
+        prioritizedStages,
         computationMutations::longValuesToComputationStageEnum,
+        computationMutations::computationStageEnumToLongValues,
         clock.gcloudTimestamp(),
       )
       .execute(databaseClient)
