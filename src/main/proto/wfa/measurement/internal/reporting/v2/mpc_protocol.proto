@@ -54,3 +54,8 @@ message ReachOnlyLiquidLegionsV2 {
   // Parameters for sketch. REQUIRED.
   ReachOnlyLiquidLegionsSketchParams sketch_params = 1;
 }
+
+message HonestMajorityShareShuffle {
+  // The size of the sampled frequency vector. REQUIRED.
+  int64 frequency_vector_size = 1;
+}
