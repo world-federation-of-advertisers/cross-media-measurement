@@ -329,10 +329,12 @@ private val REACH_ONLY_REQUISITION_3 =
 private val REACH_ONLY_REQUISITIONS =
   listOf(REACH_ONLY_REQUISITION_1, REACH_ONLY_REQUISITION_2, REACH_ONLY_REQUISITION_3)
 
+private const val RING_MODULUS = 127
+
 private val HMSS_PARAMETERS =
   HonestMajorityShareShuffleKt.ComputationDetailsKt.parameters {
     maximumFrequency = 10
-    ringModulus = 127
+    ringModulus = RING_MODULUS
     reachDpParams = differentialPrivacyParams {
       epsilon = 1.1
       delta = 0.1
@@ -347,7 +349,7 @@ private val HMSS_PARAMETERS =
 private val REACH_ONLY_HMSS_PARAMETERS =
   HonestMajorityShareShuffleKt.ComputationDetailsKt.parameters {
     maximumFrequency = 1
-    ringModulus = 127
+    ringModulus = RING_MODULUS
     reachDpParams = differentialPrivacyParams {
       epsilon = 1.1
       delta = 0.1
@@ -957,7 +959,7 @@ class HonestMajorityShareShuffleMillTest {
           sketchParams = shareShuffleSketchParams {
             registerCount = 100
             maximumCombinedFrequency = 30
-            ringModulus = 127
+            ringModulus = RING_MODULUS
           }
           reachDpParams = hmss.parameters.reachDpParams
           frequencyDpParams = hmss.parameters.frequencyDpParams
@@ -1152,7 +1154,7 @@ class HonestMajorityShareShuffleMillTest {
           sketchParams = shareShuffleSketchParams {
             registerCount = 3
             maximumCombinedFrequency = 30
-            ringModulus = 127
+            ringModulus = RING_MODULUS
           }
           maximumFrequency = hmss.parameters.maximumFrequency
           vidSamplingIntervalWidth = REACH_AND_FREQUENCY_MEASUREMENT_SPEC.vidSamplingInterval.width
@@ -1262,7 +1264,7 @@ class HonestMajorityShareShuffleMillTest {
           sketchParams = shareShuffleSketchParams {
             registerCount = 100
             maximumCombinedFrequency = 3
-            ringModulus = 127
+            ringModulus = RING_MODULUS
           }
           reachDpParams = hmss.parameters.reachDpParams
           noiseMechanism = hmss.parameters.noiseMechanism
@@ -1374,7 +1376,7 @@ class HonestMajorityShareShuffleMillTest {
           sketchParams = shareShuffleSketchParams {
             registerCount = 3
             maximumCombinedFrequency = 3
-            ringModulus = 127
+            ringModulus = RING_MODULUS
           }
           maximumFrequency = hmss.parameters.maximumFrequency
           vidSamplingIntervalWidth = REACH_ONLY_MEASUREMENT_SPEC.vidSamplingInterval.width
