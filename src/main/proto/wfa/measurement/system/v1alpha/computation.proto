@@ -166,23 +166,14 @@ message Computation {
 
     // Configuration for the Honest Majority Share Shuffle protocol.
     message HonestMajorityShareShuffle {
-      // Parameters for HonestMajorityShareShuffle sketch.
-      message ShareShuffleSketchParams {
-        // The number of registers in the sketch.
-        int64 register_count = 1 [(google.api.field_behavior) = REQUIRED];
-
-        // Length of each register in bytes.
-        int32 bytes_per_register = 2 [(google.api.field_behavior) = REQUIRED];
-
-        // The modulus used in the MPC protocol.
-        int32 ring_modulus = 3 [(google.api.field_behavior) = REQUIRED];
-      }
-      // Parameters for HonestMajorityShareShuffle sketch.
-      ShareShuffleSketchParams sketch_params = 1
-          [(google.api.field_behavior) = REQUIRED];
-
+      // The modulus used in the MPC protocol for ReachAndFrequency Measurement.
+      int32 reach_and_frequency_ring_modulus = 1
+        [(google.api.field_behavior) = REQUIRED];
+      // The modulus used in the MPC protocol for Reach Measurement.
+      int32 reach_ring_modulus = 2
+        [(google.api.field_behavior) = REQUIRED];
       // The mechanism to generate noise during computation.
-      NoiseMechanism noise_mechanism = 5
+      NoiseMechanism noise_mechanism = 3
           [(google.api.field_behavior) = REQUIRED];
     }
 

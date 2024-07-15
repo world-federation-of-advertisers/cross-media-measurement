@@ -69,7 +69,6 @@ using ::wfa::measurement::internal::duchy::protocol::common::
 
 constexpr int kEdpCount = 5;
 constexpr int kRegisterCount = 100;
-constexpr int kBytesPerRegister = 1;
 constexpr int kMaxFrequencyPerEdp = 2;
 constexpr int kMaxCombinedFrequency = 1 + kEdpCount * kMaxFrequencyPerEdp;
 constexpr int kRingModulus = 127;
@@ -104,8 +103,7 @@ class ShufflePhaseTestData {
     *request_.mutable_common_random_seed() =
         std::string(kBytesPerAes256Key + kBytesPerAes256Iv, 'a');
     request_.set_noise_mechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
-    SetSketchParams(kRegisterCount, kBytesPerRegister, kMaxCombinedFrequency,
-                    kRingModulus);
+    SetSketchParams(kRegisterCount, kMaxCombinedFrequency, kRingModulus);
     SetDifferentialPrivacyParams(kEpsilon, kDelta);
 
     PrngSeed seed = GenerateRandomSeed();
@@ -121,11 +119,9 @@ class ShufflePhaseTestData {
     request_.set_order(order);
   }
 
-  void SetSketchParams(int register_count, int bytes_per_register,
-                       int maximum_combined_frequency, int ring_modulus) {
+  void SetSketchParams(int register_count, int maximum_combined_frequency,
+                       int ring_modulus) {
     request_.mutable_sketch_params()->set_register_count(register_count);
-    request_.mutable_sketch_params()->set_bytes_per_register(
-        bytes_per_register);
     request_.mutable_sketch_params()->set_maximum_combined_frequency(
         maximum_combined_frequency);
     request_.mutable_sketch_params()->set_ring_modulus(ring_modulus);
@@ -194,7 +190,7 @@ class ShufflePhaseTestData {
 
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator, InvalidRegisterCountFails) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(/*register_count=*/0, /*bytes_per_registers=*/1,
+  test_data.SetSketchParams(/*register_count=*/0,
                             /*maximum_combined_frequency=*/10,
                             /*ring_modulus=*/128);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
@@ -204,7 +200,7 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator, InvalidRegisterCountFails) {
 
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator, InvalidRingModulusFails) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
+  test_data.SetSketchParams(/*register_count=*/100,
                             /*maximum_combined_frequency=*/10,
                             /*ring_modulus=*/1);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
@@ -215,7 +211,7 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator, InvalidRingModulusFails) {
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      InvalidRingModulusAndMaxFrequencyPairFails) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
+  test_data.SetSketchParams(/*register_count=*/100,
                             /*maximum_combined_frequency=*/4,
                             /*ring_modulus=*/5);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
@@ -224,21 +220,10 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
 }
 
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
-     RingModulusDoesNotFitTheRegisterFails) {
-  ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
-                            /*maximum_combined_frequency=*/127,
-                            /*ring_modulus=*/257);
-  test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
-  EXPECT_THAT(test_data.RunReachAndFrequencyShufflePhase().status(),
-              StatusIs(absl::StatusCode::kInvalidArgument, "bit length"));
-}
-
-TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      InputSizeDoesNotMatchTheConfigFails) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
-                            kMaxCombinedFrequency, kRingModulus);
+  test_data.SetSketchParams(kRegisterCount, kMaxCombinedFrequency,
+                            kRingModulus);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   std::vector<uint32_t> share_data(kRegisterCount - 1, 1);
   test_data.AddShareToSketchShares(share_data);
@@ -248,8 +233,8 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
 
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator, EmptySketchSharesFails) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
-                            kMaxCombinedFrequency, kRingModulus);
+  test_data.SetSketchParams(kRegisterCount, kMaxCombinedFrequency,
+                            kRingModulus);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   EXPECT_THAT(test_data.RunReachAndFrequencyShufflePhase().status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
@@ -268,8 +253,8 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      NonAggregatorOrderNotSpecifiedAndDpParamsSpecifiedFails) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
-                            kMaxCombinedFrequency, kRingModulus);
+  test_data.SetSketchParams(kRegisterCount, kMaxCombinedFrequency,
+                            kRingModulus);
   test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   std::vector<uint32_t> share_data(kRegisterCount, 1);
   test_data.AddShareToSketchShares(share_data);
@@ -383,8 +368,8 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      ShufflePhaseWithDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
-                            kMaxCombinedFrequency, kRingModulus);
+  test_data.SetSketchParams(kRegisterCount, kMaxCombinedFrequency,
+                            kRingModulus);
   test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
 
@@ -604,7 +589,7 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
 
 TEST(ReachOnlyShufflePhaseAtNonAggregator, InvalidRegisterCountFails) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(/*register_count=*/0, /*bytes_per_registers=*/1,
+  test_data.SetSketchParams(/*register_count=*/0,
                             /*maximum_combined_frequency=*/10,
                             /*ring_modulus=*/128);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
@@ -614,7 +599,7 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator, InvalidRegisterCountFails) {
 
 TEST(ReachOnlyShufflePhaseAtNonAggregator, InvalidRingModulusFails) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
+  test_data.SetSketchParams(/*register_count=*/100,
                             /*maximum_combined_frequency=*/10,
                             /*ring_modulus=*/1);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
@@ -625,7 +610,7 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator, InvalidRingModulusFails) {
 TEST(ReachOnlyShufflePhaseAtNonAggregator,
      InvalidRingModulusAndMaxFrequencyPairFails) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
+  test_data.SetSketchParams(/*register_count=*/100,
                             /*maximum_combined_frequency=*/4,
                             /*ring_modulus=*/5);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
@@ -633,20 +618,9 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator,
               StatusIs(absl::StatusCode::kInvalidArgument, "plus one"));
 }
 
-TEST(ReachOnlyShufflePhaseAtNonAggregator,
-     RingModulusDoesNotFitTheRegisterFails) {
-  ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
-                            /*maximum_combined_frequency=*/127,
-                            /*ring_modulus=*/257);
-  test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
-  EXPECT_THAT(test_data.RunReachOnlyShufflePhase().status(),
-              StatusIs(absl::StatusCode::kInvalidArgument, "bit length"));
-}
-
 TEST(ReachOnlyShufflePhaseAtNonAggregator, NonPrimeRingModulusFails) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
+  test_data.SetSketchParams(/*register_count=*/100,
                             /*maximum_combined_frequency=*/127,
                             /*ring_modulus=*/130);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
@@ -657,8 +631,8 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator, NonPrimeRingModulusFails) {
 TEST(ReachOnlyShufflePhaseAtNonAggregator,
      InputSizeDoesNotMatchTheConfigFails) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
-                            kMaxCombinedFrequency, kRingModulus);
+  test_data.SetSketchParams(kRegisterCount, kMaxCombinedFrequency,
+                            kRingModulus);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   std::vector<uint32_t> share_data(kRegisterCount - 1, 1);
   test_data.AddShareToSketchShares(share_data);
@@ -668,8 +642,8 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator,
 
 TEST(ReachOnlyShufflePhaseAtNonAggregator, EmptySketchSharesFails) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
-                            kMaxCombinedFrequency, kRingModulus);
+  test_data.SetSketchParams(kRegisterCount, kMaxCombinedFrequency,
+                            kRingModulus);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   EXPECT_THAT(test_data.RunReachOnlyShufflePhase().status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
@@ -687,8 +661,8 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator,
 TEST(ReachOnlyShufflePhaseAtNonAggregator,
      NonAggregatorOrderNotSpecifiedAndDpParamsSpecifiedFails) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
-                            kMaxCombinedFrequency, kRingModulus);
+  test_data.SetSketchParams(kRegisterCount, kMaxCombinedFrequency,
+                            kRingModulus);
   test_data.SetReachOnlyDifferentialPrivacyParams(kEpsilon, kDelta);
   std::vector<uint32_t> share_data(kRegisterCount, 1);
   test_data.AddShareToSketchShares(share_data);
@@ -839,8 +813,8 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator,
 
 TEST(ReachOnlyShufflePhaseAtNonAggregator, ShufflePhaseWithDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
-  test_data.SetSketchParams(kRegisterCount, kBytesPerRegister,
-                            kMaxCombinedFrequency, kRingModulus);
+  test_data.SetSketchParams(kRegisterCount, kMaxCombinedFrequency,
+                            kRingModulus);
   test_data.SetReachOnlyDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
 
@@ -1071,8 +1045,7 @@ class AggregationPhaseTestData {
     request_.set_vid_sampling_interval_width(kVidSamplingIntervalWidth);
     request_.set_noise_mechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
     SetDifferentialPrivacyParams(kEpsilon, kDelta);
-    SetSketchParams(kRegisterCount, kBytesPerRegister, kMaxCombinedFrequency,
-                    kRingModulus);
+    SetSketchParams(kRegisterCount, kMaxCombinedFrequency, kRingModulus);
     SetMaximumFrequency(kMaxFrequencyPerEdp);
   }
 
@@ -1080,11 +1053,9 @@ class AggregationPhaseTestData {
     request_.set_maximum_frequency(maximum_frequency);
   }
 
-  void SetSketchParams(int register_count, int bytes_per_register,
-                       int maximum_combined_frequency, int ring_modulus) {
+  void SetSketchParams(int register_count, int maximum_combined_frequency,
+                       int ring_modulus) {
     request_.mutable_sketch_params()->set_register_count(register_count);
-    request_.mutable_sketch_params()->set_bytes_per_register(
-        bytes_per_register);
     request_.mutable_sketch_params()->set_maximum_combined_frequency(
         maximum_combined_frequency);
     request_.mutable_sketch_params()->set_ring_modulus(ring_modulus);
@@ -1145,7 +1116,7 @@ class AggregationPhaseTestData {
 
 TEST(ReachAndFrequencyAggregationPhase, InvalidRegisterCountFails) {
   AggregationPhaseTestData test_data;
-  test_data.SetSketchParams(/*register_count=*/0, /*bytes_per_registers=*/1,
+  test_data.SetSketchParams(/*register_count=*/0,
                             /*maximum_combined_frequency=*/10,
                             /*ring_modulus=*/128);
   EXPECT_THAT(test_data.RunReachAndFrequencyAggregationPhase().status(),
@@ -1154,7 +1125,7 @@ TEST(ReachAndFrequencyAggregationPhase, InvalidRegisterCountFails) {
 
 TEST(ReachAndFrequencyAggregationPhase, InvalidRingModulusFails) {
   AggregationPhaseTestData test_data;
-  test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
+  test_data.SetSketchParams(/*register_count=*/100,
                             /*maximum_combined_frequency=*/10,
                             /*ring_modulus=*/1);
   EXPECT_THAT(test_data.RunReachAndFrequencyAggregationPhase().status(),
@@ -1164,7 +1135,7 @@ TEST(ReachAndFrequencyAggregationPhase, InvalidRingModulusFails) {
 TEST(ReachAndFrequencyAggregationPhase,
      InvalidRingModulusAndMaxFrequencyPairFails) {
   AggregationPhaseTestData test_data;
-  test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
+  test_data.SetSketchParams(/*register_count=*/100,
                             /*maximum_combined_frequency=*/4,
                             /*ring_modulus=*/5);
   EXPECT_THAT(test_data.RunReachAndFrequencyAggregationPhase().status(),
@@ -1214,8 +1185,7 @@ TEST(ReachAndFrequencyAggregationPhase,
      CombinedSketchElementExceedsMaxCombinedFrequencyFails) {
   AggregationPhaseTestData test_data;
   int register_count = 1;
-  test_data.SetSketchParams(register_count, /*bytes_per_register=*/1,
-                            /*max_combined_frequency=*/4,
+  test_data.SetSketchParams(register_count, /*max_combined_frequency=*/4,
                             /*ring_modulus=*/8);
   test_data.SetMaximumFrequency(2);
   test_data.ClearDifferentialPrivacyParams();
@@ -1233,8 +1203,7 @@ TEST(ReachAndFrequencyAggregationPhase,
      AggregationPhaseWithoutDPNoiseSucceeds) {
   AggregationPhaseTestData test_data;
   int register_count = 8;
-  test_data.SetSketchParams(register_count, /*bytes_per_register=*/1,
-                            /*max_combined_frequency=*/4,
+  test_data.SetSketchParams(register_count, /*max_combined_frequency=*/4,
                             /*ring_modulus=*/8);
   test_data.SetMaximumFrequency(2);
   test_data.ClearDifferentialPrivacyParams();
@@ -1259,8 +1228,7 @@ TEST(ReachAndFrequencyAggregationPhase,
 TEST(ReachAndFrequencyAggregationPhase, AggregationPhaseWithDPNoiseSucceeds) {
   AggregationPhaseTestData test_data;
   int register_count = 8;
-  test_data.SetSketchParams(register_count, /*bytes_per_register=*/1,
-                            /*max_combined_frequency=*/4,
+  test_data.SetSketchParams(register_count, /*max_combined_frequency=*/4,
                             /*ring_modulus=*/8);
   test_data.SetMaximumFrequency(2);
   // Frequency offset = 2 and reach offset = 6.
@@ -1289,8 +1257,7 @@ TEST(ReachAndFrequencyAggregationPhase,
      AggregationPhaseNoDataNorEffectiveNoiseFails) {
   AggregationPhaseTestData test_data;
   int register_count = 4;
-  test_data.SetSketchParams(register_count, /*bytes_per_register=*/1,
-                            /*max_combined_frequency=*/4,
+  test_data.SetSketchParams(register_count, /*max_combined_frequency=*/4,
                             /*ring_modulus=*/8);
   test_data.SetMaximumFrequency(2);
   // Frequency offset = 2 and reach offset = 6.
@@ -1312,7 +1279,7 @@ TEST(ReachAndFrequencyAggregationPhase,
 
 TEST(ReachOnlyAggregationPhase, InvalidRegisterCountFails) {
   AggregationPhaseTestData test_data;
-  test_data.SetSketchParams(/*register_count=*/0, /*bytes_per_registers=*/1,
+  test_data.SetSketchParams(/*register_count=*/0,
                             /*maximum_combined_frequency=*/10,
                             /*ring_modulus=*/128);
   EXPECT_THAT(test_data.RunReachOnlyAggregationPhase().status(),
@@ -1321,7 +1288,7 @@ TEST(ReachOnlyAggregationPhase, InvalidRegisterCountFails) {
 
 TEST(ReachOnlyAggregationPhase, InvalidRingModulusFails) {
   AggregationPhaseTestData test_data;
-  test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
+  test_data.SetSketchParams(/*register_count=*/100,
                             /*maximum_combined_frequency=*/10,
                             /*ring_modulus=*/1);
   EXPECT_THAT(test_data.RunReachOnlyAggregationPhase().status(),
@@ -1330,7 +1297,7 @@ TEST(ReachOnlyAggregationPhase, InvalidRingModulusFails) {
 
 TEST(ReachOnlyAggregationPhase, InvalidRingModulusAndMaxFrequencyPairFails) {
   AggregationPhaseTestData test_data;
-  test_data.SetSketchParams(/*register_count=*/100, /*bytes_per_registers=*/1,
+  test_data.SetSketchParams(/*register_count=*/100,
                             /*maximum_combined_frequency=*/4,
                             /*ring_modulus=*/5);
   EXPECT_THAT(test_data.RunReachOnlyAggregationPhase().status(),
@@ -1362,8 +1329,7 @@ TEST(ReachOnlyAggregationPhase, SketchShareVectorsHaveDifferentSizeFails) {
 TEST(ReachOnlyAggregationPhase, AggregationPhaseWithoutDPNoiseSucceeds) {
   AggregationPhaseTestData test_data;
   int register_count = 8;
-  test_data.SetSketchParams(register_count, /*bytes_per_register=*/1,
-                            /*max_combined_frequency=*/4,
+  test_data.SetSketchParams(register_count, /*max_combined_frequency=*/4,
                             /*ring_modulus=*/7);
   test_data.SetMaximumFrequency(2);
   test_data.ClearDifferentialPrivacyParams();
@@ -1384,8 +1350,7 @@ TEST(ReachOnlyAggregationPhase, AggregationPhaseWithoutDPNoiseSucceeds) {
 TEST(ReachOnlyAggregationPhase, AggregationPhaseWithDPNoiseSucceeds) {
   AggregationPhaseTestData test_data;
   int register_count = 8;
-  test_data.SetSketchParams(register_count, /*bytes_per_register=*/1,
-                            /*max_combined_frequency=*/4,
+  test_data.SetSketchParams(register_count, /*max_combined_frequency=*/4,
                             /*ring_modulus=*/7);
   test_data.SetMaximumFrequency(2);
   // Computed offset = 2.
@@ -1410,7 +1375,6 @@ class EndToEndHmssTest {
  public:
   EndToEndHmssTest() {}
   absl::Status GoThroughEntireMpcProtocol(int edp_count, int register_count,
-                                          int bytes_per_register,
                                           int maximum_combined_frequency,
                                           int ring_modulus,
                                           int maximum_frequency, double epsilon,
@@ -1419,12 +1383,12 @@ class EndToEndHmssTest {
     ShufflePhaseTestData worker_2;
     AggregationPhaseTestData aggregator;
 
-    worker_1.SetSketchParams(register_count, bytes_per_register,
-                             maximum_combined_frequency, ring_modulus);
-    worker_2.SetSketchParams(register_count, bytes_per_register,
-                             maximum_combined_frequency, ring_modulus);
-    aggregator.SetSketchParams(register_count, bytes_per_register,
-                               maximum_combined_frequency, ring_modulus);
+    worker_1.SetSketchParams(register_count, maximum_combined_frequency,
+                             ring_modulus);
+    worker_2.SetSketchParams(register_count, maximum_combined_frequency,
+                             ring_modulus);
+    aggregator.SetSketchParams(register_count, maximum_combined_frequency,
+                               ring_modulus);
     worker_1.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
     worker_2.SetNonAggregatorOrder(CompleteShufflePhaseRequest::SECOND);
 
@@ -1567,7 +1531,6 @@ TEST(EndToEndHmss, HmssWithoutDPNoiseSucceeds) {
   EndToEndHmssTest mpc;
   auto mpc_result = mpc.GoThroughEntireMpcProtocol(
       /*edp_count=*/kEdpCount, /*register_count=*/kRegisterCount,
-      /*bytes_per_register=*/kBytesPerRegister,
       /*maximum_combined_frequency=*/kMaxCombinedFrequency,
       /*ring_modulus=*/kRingModulus,
       /*maximum_frequency=*/kMaxFrequencyPerEdp, /*epsilon=*/kEpsilon,
@@ -1579,7 +1542,6 @@ TEST(EndToEndHmss, HmssWithDPNoiseSucceeds) {
   EndToEndHmssTest mpc;
   auto mpc_result = mpc.GoThroughEntireMpcProtocol(
       /*edp_count=*/kEdpCount, /*register_count=*/kRegisterCount,
-      /*bytes_per_register=*/kBytesPerRegister,
       /*maximum_combined_frequency=*/kMaxCombinedFrequency,
       /*ring_modulus=*/kRingModulus,
       /*maximum_frequency=*/kMaxFrequencyPerEdp, /*epsilon=*/kEpsilon,
@@ -1591,21 +1553,17 @@ class EndToEndReachOnlyHmssTest {
  public:
   EndToEndReachOnlyHmssTest() {}
   absl::Status GoThroughEntireMpcProtocol(int edp_count, int register_count,
-                                          int bytes_per_register,
                                           int ring_modulus, double epsilon,
                                           double delta, bool has_dp_noise) {
     ShufflePhaseTestData worker_1;
     ShufflePhaseTestData worker_2;
     AggregationPhaseTestData aggregator;
 
-    worker_1.SetSketchParams(register_count, bytes_per_register, edp_count,
-                             ring_modulus);
+    worker_1.SetSketchParams(register_count, edp_count, ring_modulus);
     worker_1.SetReachOnlyDifferentialPrivacyParams(epsilon, delta);
-    worker_2.SetSketchParams(register_count, bytes_per_register, edp_count,
-                             ring_modulus);
+    worker_2.SetSketchParams(register_count, edp_count, ring_modulus);
     worker_2.SetReachOnlyDifferentialPrivacyParams(epsilon, delta);
-    aggregator.SetSketchParams(register_count, bytes_per_register, edp_count,
-                               ring_modulus);
+    aggregator.SetSketchParams(register_count, edp_count, ring_modulus);
     aggregator.SetReachOnlyDifferentialPrivacyParams(epsilon, delta);
     worker_1.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
     worker_2.SetNonAggregatorOrder(CompleteShufflePhaseRequest::SECOND);
@@ -1717,7 +1675,6 @@ TEST(EndToEndReachOnlyHmss, HmssWithoutDPNoiseSucceeds) {
   EndToEndReachOnlyHmssTest mpc;
   auto mpc_result = mpc.GoThroughEntireMpcProtocol(
       /*edp_count=*/kEdpCount, /*register_count=*/kRegisterCount,
-      /*bytes_per_register=*/kBytesPerRegister,
       /*ring_modulus=*/kRingModulus, /*epsilon=*/kEpsilon,
       /*delta=*/kDelta, /*has_dp_noise=*/false);
   EXPECT_THAT(mpc_result, IsOk());
@@ -1727,7 +1684,6 @@ TEST(EndToEndReachOnlyHmss, HmssWithDPNoiseSucceeds) {
   EndToEndReachOnlyHmssTest mpc;
   auto mpc_result = mpc.GoThroughEntireMpcProtocol(
       /*edp_count=*/kEdpCount, /*register_count=*/kRegisterCount,
-      /*bytes_per_register=*/kBytesPerRegister,
       /*ring_modulus=*/kRingModulus, /*epsilon=*/kEpsilon,
       /*delta=*/kDelta, /*has_dp_noise=*/true);
   EXPECT_THAT(mpc_result, IsOk());

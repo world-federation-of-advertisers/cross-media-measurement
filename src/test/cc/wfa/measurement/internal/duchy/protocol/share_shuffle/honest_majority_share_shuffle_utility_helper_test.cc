@@ -53,7 +53,6 @@ using ::wfa::measurement::internal::duchy::protocol::common::
 
 constexpr int kEdpCount = 5;
 constexpr int kRegisterCount = 10;
-constexpr int kBytesPerRegister = 1;
 constexpr int kMaxFrequencyPerEdp = 10;
 constexpr int kMaxCombinedFrequency = 1 + kEdpCount * kMaxFrequencyPerEdp;
 constexpr int kRingModulus = 128;
@@ -157,7 +156,6 @@ TEST(GenerateReachOnlyNoiseRegisters, ValidSketchParamsSucceeds) {
 TEST(GetShareVectorFromSketchShare, SketchShareTypeNotSetFails) {
   ShareShuffleSketchParams sketch_params;
   sketch_params.set_register_count(kRegisterCount);
-  sketch_params.set_bytes_per_register(kBytesPerRegister);
   sketch_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
   sketch_params.set_ring_modulus(kRingModulus);
 
@@ -170,7 +168,6 @@ TEST(GetShareVectorFromSketchShare, SketchShareTypeNotSetFails) {
 TEST(GetShareVectorFromSketchShare, ShareFromShareDataSucceeds) {
   ShareShuffleSketchParams sketch_params;
   sketch_params.set_register_count(kRegisterCount);
-  sketch_params.set_bytes_per_register(kBytesPerRegister);
   sketch_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
   sketch_params.set_ring_modulus(kRingModulus);
 
@@ -187,7 +184,6 @@ TEST(GetShareVectorFromSketchShare, ShareFromShareDataSucceeds) {
 TEST(GetShareVectorFromSketchShare, ShareFromShareSeedSucceeds) {
   ShareShuffleSketchParams sketch_params;
   sketch_params.set_register_count(kRegisterCount);
-  sketch_params.set_bytes_per_register(kBytesPerRegister);
   sketch_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
   sketch_params.set_ring_modulus(kRingModulus);
 
@@ -228,7 +224,6 @@ TEST(GetPrngSeedFromCharVector, ValidVectorLengthSucceeds) {
 TEST(GenerateShareFromSeed, InvalidSeedFails) {
   ShareShuffleSketchParams sketch_params;
   sketch_params.set_register_count(kRegisterCount);
-  sketch_params.set_bytes_per_register(kBytesPerRegister);
   sketch_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
   sketch_params.set_ring_modulus(kRingModulus);
   PrngSeed seed;
@@ -241,7 +236,6 @@ TEST(GenerateShareFromSeed, InvalidSeedFails) {
 TEST(GenerateShareFromSeed, ValidSeedSucceeds) {
   ShareShuffleSketchParams sketch_params;
   sketch_params.set_register_count(kRegisterCount);
-  sketch_params.set_bytes_per_register(kBytesPerRegister);
   sketch_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
   sketch_params.set_ring_modulus(kRingModulus);
   PrngSeed seed;

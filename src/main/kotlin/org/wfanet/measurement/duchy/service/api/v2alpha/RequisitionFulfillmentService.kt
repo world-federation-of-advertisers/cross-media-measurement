@@ -26,9 +26,7 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
-import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.consumeFirst
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -126,21 +124,6 @@ class RequisitionFulfillmentService(
           } else {
             recordLlv2RequisitionLocally(computationToken, externalRequisitionKey, blob.blobKey)
           }
-          val seed =
-            if (computationToken.computationStage.hasHonestMajorityShareShuffle()) {
-              grpcRequire(header.honestMajorityShareShuffle.hasSecretSeed()) {
-                "Secret seed not be specified for HMSS protocol."
-              }
-              grpcRequire(
-                header.honestMajorityShareShuffle.secretSeed.typeUrl ==
-                  ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
-              ) {
-                "ciphertext of secret seed must be of SignedMessage."
-              }
-              header.honestMajorityShareShuffle.secretSeed.ciphertext
-            } else {
-              null
-            }
         }
 
         fulfillRequisitionAtKingdom(

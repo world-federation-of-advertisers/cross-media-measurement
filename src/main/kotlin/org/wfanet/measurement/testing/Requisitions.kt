@@ -41,7 +41,6 @@ import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.api.v2alpha.shareShuffleSketchParams
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -216,10 +215,6 @@ object Requisitions {
     )
 
   val NOISE_MECHANISM = ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
-  val HONEST_MAJORITY_SHARE_SHUFFLE_SKETCH_PARAMS = shareShuffleSketchParams {
-    bytesPerRegister = 1
-    ringModulus = 127
-  }
 
   val HMSS_REQUISITION = requisition {
     name = "${EDP_NAME}/requisitions/foo"
@@ -234,7 +229,7 @@ object Requisitions {
           honestMajorityShareShuffle =
             ProtocolConfigKt.honestMajorityShareShuffle {
               noiseMechanism = NOISE_MECHANISM
-              sketchParams = HONEST_MAJORITY_SHARE_SHUFFLE_SKETCH_PARAMS
+              ringModulus = 127
             }
         }
     }

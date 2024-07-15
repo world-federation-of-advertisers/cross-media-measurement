@@ -44,7 +44,6 @@ import org.wfanet.measurement.internal.duchy.encryptionPublicKey
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt
-import org.wfanet.measurement.internal.duchy.protocol.shareShuffleSketchParams
 import org.wfanet.measurement.system.v1alpha.Computation
 
 private const val RANDOM_SEED_LENGTH_IN_BYTES = 48
@@ -207,17 +206,11 @@ object HonestMajorityShareShuffleStarter {
         frequencyDpParams =
           measurementSpec.reachAndFrequency.frequencyPrivacyParams
             .toDuchyDifferentialPrivacyParams()
+        ringModulus = hmssConfig.reachAndFrequencyRingModulus
       } else {
         maximumFrequency = 1
         reachDpParams = measurementSpec.reach.privacyParams.toDuchyDifferentialPrivacyParams()
-      }
-
-      sketchParams = shareShuffleSketchParams {
-        registerCount = hmssConfig.sketchParams.registerCount
-        bytesPerRegister = hmssConfig.sketchParams.bytesPerRegister
-        maximumCombinedFrequency =
-          measurementSpec.reachAndFrequency.maximumFrequency * measurementSpec.nonceHashesCount
-        this.ringModulus = hmssConfig.sketchParams.ringModulus
+        ringModulus = hmssConfig.reachRingModulus
       }
       noiseMechanism = hmssConfig.noiseMechanism.toInternalNoiseMechanism()
     }

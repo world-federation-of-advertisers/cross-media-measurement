@@ -331,11 +331,8 @@ private val REACH_ONLY_REQUISITIONS =
 
 private val HMSS_PARAMETERS =
   HonestMajorityShareShuffleKt.ComputationDetailsKt.parameters {
-    sketchParams = shareShuffleSketchParams {
-      bytesPerRegister = 4
-      maximumCombinedFrequency = 11
-      ringModulus = 13
-    }
+    maximumFrequency = 10
+    ringModulus = 127
     reachDpParams = differentialPrivacyParams {
       epsilon = 1.1
       delta = 0.1
@@ -349,11 +346,8 @@ private val HMSS_PARAMETERS =
 
 private val REACH_ONLY_HMSS_PARAMETERS =
   HonestMajorityShareShuffleKt.ComputationDetailsKt.parameters {
-    sketchParams = shareShuffleSketchParams {
-      bytesPerRegister = 4
-      maximumCombinedFrequency = 11
-      ringModulus = 13
-    }
+    maximumFrequency = 1
+    ringModulus = 127
     reachDpParams = differentialPrivacyParams {
       epsilon = 1.1
       delta = 0.1
@@ -960,7 +954,11 @@ class HonestMajorityShareShuffleMillTest {
       .isEqualTo(
         completeShufflePhaseRequest {
           val hmss = computationDetails.honestMajorityShareShuffle
-          sketchParams = hmss.parameters.sketchParams.copy { registerCount = 100 }
+          sketchParams = shareShuffleSketchParams {
+            registerCount = 100
+            maximumCombinedFrequency = 30
+            ringModulus = 127
+          }
           reachDpParams = hmss.parameters.reachDpParams
           frequencyDpParams = hmss.parameters.frequencyDpParams
           noiseMechanism = hmss.parameters.noiseMechanism
@@ -1066,10 +1064,20 @@ class HonestMajorityShareShuffleMillTest {
       getReachAndFrequencyHmssComputationDetails(RoleInComputation.AGGREGATOR)
     val inputBlobPath1 =
       ComputationBlobContext(GLOBAL_ID, Stage.AGGREGATION_PHASE.toProtocolStage(), 0L)
-    val inputBlobData1 = aggregationPhaseInput { combinedSketch += listOf(1, 2, 3) }.toByteString()
+    val inputBlobData1 =
+      aggregationPhaseInput {
+          combinedFrequencyVectors += listOf(1, 2, 3)
+          registerCount = 3
+        }
+        .toByteString()
     val inputBlobPath2 =
       ComputationBlobContext(GLOBAL_ID, Stage.AGGREGATION_PHASE.toProtocolStage(), 1L)
-    val inputBlobData2 = aggregationPhaseInput { combinedSketch += listOf(4, 5, 6) }.toByteString()
+    val inputBlobData2 =
+      aggregationPhaseInput {
+          combinedFrequencyVectors += listOf(4, 5, 6)
+          registerCount = 3
+        }
+        .toByteString()
     val inputBlobs =
       listOf(
         computationStageBlobMetadata {
@@ -1141,7 +1149,11 @@ class HonestMajorityShareShuffleMillTest {
       .isEqualTo(
         completeAggregationPhaseRequest {
           val hmss = computationDetails.honestMajorityShareShuffle
-          sketchParams = hmss.parameters.sketchParams
+          sketchParams = shareShuffleSketchParams {
+            registerCount = 3
+            maximumCombinedFrequency = 30
+            ringModulus = 127
+          }
           maximumFrequency = hmss.parameters.maximumFrequency
           vidSamplingIntervalWidth = REACH_AND_FREQUENCY_MEASUREMENT_SPEC.vidSamplingInterval.width
           reachDpParams = hmss.parameters.reachDpParams
@@ -1247,7 +1259,11 @@ class HonestMajorityShareShuffleMillTest {
       .isEqualTo(
         completeShufflePhaseRequest {
           val hmss = computationDetails.honestMajorityShareShuffle
-          sketchParams = hmss.parameters.sketchParams.copy { registerCount = 100 }
+          sketchParams = shareShuffleSketchParams {
+            registerCount = 100
+            maximumCombinedFrequency = 3
+            ringModulus = 127
+          }
           reachDpParams = hmss.parameters.reachDpParams
           noiseMechanism = hmss.parameters.noiseMechanism
           order = CompleteShufflePhaseRequest.NonAggregatorOrder.FIRST
@@ -1270,10 +1286,20 @@ class HonestMajorityShareShuffleMillTest {
     val computationDetails = getReachOnlyHmssComputationDetails(RoleInComputation.AGGREGATOR)
     val inputBlobPath1 =
       ComputationBlobContext(GLOBAL_ID, Stage.AGGREGATION_PHASE.toProtocolStage(), 0L)
-    val inputBlobData1 = aggregationPhaseInput { combinedSketch += listOf(1, 2, 3) }.toByteString()
+    val inputBlobData1 =
+      aggregationPhaseInput {
+          combinedFrequencyVectors += listOf(1, 2, 3)
+          registerCount = 3
+        }
+        .toByteString()
     val inputBlobPath2 =
       ComputationBlobContext(GLOBAL_ID, Stage.AGGREGATION_PHASE.toProtocolStage(), 1L)
-    val inputBlobData2 = aggregationPhaseInput { combinedSketch += listOf(4, 5, 6) }.toByteString()
+    val inputBlobData2 =
+      aggregationPhaseInput {
+          combinedFrequencyVectors += listOf(4, 5, 6)
+          registerCount = 3
+        }
+        .toByteString()
     val inputBlobs =
       listOf(
         computationStageBlobMetadata {
@@ -1345,7 +1371,11 @@ class HonestMajorityShareShuffleMillTest {
       .isEqualTo(
         completeAggregationPhaseRequest {
           val hmss = computationDetails.honestMajorityShareShuffle
-          sketchParams = hmss.parameters.sketchParams
+          sketchParams = shareShuffleSketchParams {
+            registerCount = 3
+            maximumCombinedFrequency = 3
+            ringModulus = 127
+          }
           maximumFrequency = hmss.parameters.maximumFrequency
           vidSamplingIntervalWidth = REACH_ONLY_MEASUREMENT_SPEC.vidSamplingInterval.width
           reachDpParams = hmss.parameters.reachDpParams

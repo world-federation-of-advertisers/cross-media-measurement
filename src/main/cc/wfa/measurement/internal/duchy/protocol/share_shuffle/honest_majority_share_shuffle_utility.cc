@@ -66,10 +66,6 @@ absl::Status VerifySketchParameters(const ShareShuffleSketchParams& params) {
         "The ring modulus must be greater than maximum combined frequency plus "
         "one.");
   }
-  if (params.ring_modulus() > (1 << (8 * params.bytes_per_register()))) {
-    return absl::InvalidArgumentError(
-        "The bit length of the register is not enough to store the shares.");
-  }
   return absl::OkStatus();
 }
 

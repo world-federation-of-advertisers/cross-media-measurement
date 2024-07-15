@@ -80,7 +80,7 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.shufflePhaseInput
 import org.wfanet.measurement.internal.duchy.protocol.completeAggregationPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseRequest
-import org.wfanet.measurement.internal.duchy.protocol.copy
+import org.wfanet.measurement.internal.duchy.protocol.shareShuffleSketchParams
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
@@ -375,7 +375,6 @@ class HonestMajorityShareShuffleMill(
 
     val request = completeShufflePhaseRequest {
       val hmss = token.computationDetails.honestMajorityShareShuffle
-      sketchParams = hmss.parameters.sketchParams
       commonRandomSeed = hmss.randomSeed xor shufflePhaseInput.peerRandomSeed
       order =
         if (hmss.role == FIRST_NON_AGGREGATOR) {
@@ -420,7 +419,11 @@ class HonestMajorityShareShuffleMill(
       require(registerCounts.distinct().size == 1) {
         "All RegisterCount from requisitions must be the same. $registerCounts"
       }
-      sketchParams = hmss.parameters.sketchParams.copy { registerCount = registerCounts.first() }
+      sketchParams = shareShuffleSketchParams {
+        registerCount = registerCounts.first()
+        maximumCombinedFrequency = hmss.parameters.maximumFrequency * token.requisitionsCount
+        ringModulus = hmss.parameters.ringModulus
+      }
     }
 
     val result: CompleteShufflePhaseResponse =
@@ -442,7 +445,8 @@ class HonestMajorityShareShuffleMill(
     )
 
     val aggregationPhaseInput = aggregationPhaseInput {
-      combinedSketch += result.combinedSketchList
+      combinedFrequencyVectors += result.combinedSketchList
+      registerCount = request.sketchParams.registerCount
     }
 
     logWallClockDuration(
@@ -474,7 +478,6 @@ class HonestMajorityShareShuffleMill(
 
     val request = completeAggregationPhaseRequest {
       val hmss = token.computationDetails.honestMajorityShareShuffle
-      sketchParams = hmss.parameters.sketchParams
       maximumFrequency = hmss.parameters.maximumFrequency
 
       when (publicApiVersion) {
@@ -492,7 +495,15 @@ class HonestMajorityShareShuffleMill(
 
       for (input in aggregationPhaseInputs) {
         sketchShares +=
-          CompleteAggregationPhaseRequestKt.shareData { shareVector += input.combinedSketchList }
+          CompleteAggregationPhaseRequestKt.shareData {
+            shareVector += input.combinedFrequencyVectorsList
+          }
+      }
+      sketchParams = shareShuffleSketchParams {
+        require(aggregationPhaseInputs.map { it.registerCount }.distinct().size == 1)
+        registerCount = aggregationPhaseInputs.first().registerCount
+        maximumCombinedFrequency = hmss.parameters.maximumFrequency * token.requisitionsCount
+        ringModulus = hmss.parameters.ringModulus
       }
     }
 

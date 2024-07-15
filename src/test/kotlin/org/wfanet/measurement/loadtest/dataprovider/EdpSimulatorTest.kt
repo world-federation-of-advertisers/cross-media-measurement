@@ -125,7 +125,6 @@ import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.api.v2alpha.shareShuffleSketchParams
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.HexString
@@ -216,6 +215,8 @@ private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..
 private const val DUCHY_ONE_ID = "worker1"
 private const val DUCHY_TWO_ID = "worker2"
 private const val RANDOM_SEED: Long = 0
+
+private const val RING_MODULUS = 127
 
 // Resource ID for EventGroup that fails Requisitions with CONSENT_SIGNAL_INVALID if used.
 private const val CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID = "consent-signal-invalid"
@@ -826,11 +827,7 @@ class EdpSimulatorTest {
     val header: FulfillRequisitionRequest.Header = requests.first().header
     val shareVector =
       FrequencyVector.parseFrom(requests.drop(1).map { it.bodyChunk.data }.flatten())
-    assert(
-      shareVector.dataList.all {
-        it in 0 until HONEST_MAJORITY_SHARE_SHUFFLE_SKETCH_PARAMS.ringModulus
-      }
-    )
+    assert(shareVector.dataList.all { it in 0 until RING_MODULUS })
     assertThat(header)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -3057,11 +3054,6 @@ class EdpSimulatorTest {
       samplingIndicatorSize = 10_000_000
     }
 
-    private val HONEST_MAJORITY_SHARE_SHUFFLE_SKETCH_PARAMS = shareShuffleSketchParams {
-      bytesPerRegister = 1
-      ringModulus = 127
-    }
-
     private val REQUISITION = requisition {
       name = "${EDP_NAME}/requisitions/foo"
       measurement = MEASUREMENT_NAME
@@ -3122,8 +3114,8 @@ class EdpSimulatorTest {
           ProtocolConfigKt.protocol {
             honestMajorityShareShuffle =
               ProtocolConfigKt.honestMajorityShareShuffle {
+                ringModulus = RING_MODULUS
                 noiseMechanism = NOISE_MECHANISM
-                sketchParams = HONEST_MAJORITY_SHARE_SHUFFLE_SKETCH_PARAMS
               }
           }
       }
