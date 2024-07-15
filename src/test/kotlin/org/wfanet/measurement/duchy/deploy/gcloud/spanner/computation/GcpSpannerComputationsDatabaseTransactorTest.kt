@@ -679,6 +679,117 @@ class GcpSpannerComputationsDatabaseTransactorTest :
   }
 
   @Test
+  fun `claimTask returns prioritized computation`() = runBlocking {
+    testClock.tickSeconds("7_minutes_ago")
+    testClock.tickSeconds("6_minutes_ago", 60)
+    testClock.tickSeconds("5_minutes_ago", 60)
+    testClock.tickSeconds("TimeOfTest", 300)
+    val timestamp1 = testClock["7_minutes_ago"].toGcloudTimestamp()
+    val timestamp2 = testClock["6_minutes_ago"].toGcloudTimestamp()
+    val timestamp3 = testClock["5_minutes_ago"].toGcloudTimestamp()
+
+    val computation1 =
+      computationMutations.insertComputation(
+        localId = 1,
+        creationTime = timestamp1,
+        updateTime = timestamp1,
+        globalId = "1",
+        protocol = FakeProtocol.ZERO,
+        stage = C,
+        lockOwner = WRITE_NULL_STRING,
+        lockExpirationTime = timestamp1,
+        details = FAKE_COMPUTATION_DETAILS,
+      )
+    val computation1Stage =
+      computationMutations.insertComputationStage(
+        localId = 1,
+        stage = C,
+        nextAttempt = 1,
+        creationTime = timestamp1,
+        details = computationMutations.detailsFor(A, FAKE_COMPUTATION_DETAILS),
+      )
+    val computation2 =
+      computationMutations.insertComputation(
+        localId = 2,
+        protocol = FakeProtocol.ZERO,
+        stage = E,
+        creationTime = timestamp2,
+        updateTime = timestamp2,
+        globalId = "2",
+        lockOwner = WRITE_NULL_STRING,
+        lockExpirationTime = timestamp2,
+        details = FAKE_COMPUTATION_DETAILS,
+      )
+    val computation2Stage =
+      computationMutations.insertComputationStage(
+        localId = 2,
+        stage = E,
+        nextAttempt = 1,
+        creationTime = timestamp2,
+        details = computationMutations.detailsFor(A, FAKE_COMPUTATION_DETAILS),
+      )
+    // This is the computation with prioritized stage.
+    val computation3 =
+      computationMutations.insertComputation(
+        localId = 3,
+        creationTime = timestamp3,
+        updateTime = timestamp3,
+        globalId = "3",
+        protocol = FakeProtocol.ZERO,
+        stage = A,
+        lockOwner = WRITE_NULL_STRING,
+        lockExpirationTime = timestamp3,
+        details = FAKE_COMPUTATION_DETAILS,
+      )
+    val computation3Stage =
+      computationMutations.insertComputationStage(
+        localId = 3,
+        stage = A,
+        nextAttempt = 1,
+        creationTime = timestamp3,
+        details = computationMutations.detailsFor(A, FAKE_COMPUTATION_DETAILS),
+      )
+    databaseClient.write(
+      listOf(
+        computation1,
+        computation1Stage,
+        computation2,
+        computation2Stage,
+        computation3,
+        computation3Stage,
+      )
+    )
+
+    assertEquals(
+      "3",
+      database.claimTask(
+        FakeProtocol.ZERO,
+        "the-owner-of-the-lock",
+        DEFAULT_LOCK_DURATION,
+        listOf(A),
+      ),
+    )
+    assertEquals(
+      "1",
+      database.claimTask(
+        FakeProtocol.ZERO,
+        "the-owner-of-the-lock",
+        DEFAULT_LOCK_DURATION,
+        listOf(A),
+      ),
+    )
+    assertEquals(
+      "2",
+      database.claimTask(
+        FakeProtocol.ZERO,
+        "the-owner-of-the-lock",
+        DEFAULT_LOCK_DURATION,
+        listOf(A),
+      ),
+    )
+  }
+
+  @Test
   fun `claim locked tasks`() = runBlocking {
     testClock.tickSeconds("5_minutes_ago", 60)
     testClock.tickSeconds("TimeOfTest", 300)
