@@ -82,9 +82,9 @@ class V2AlphaCertificateManager(
     val keyFromPrimaryPath = getSigningKeys(exchange.path)
     val signingKeys =
       keyFromPrimaryPath ?: checkNotNull(getSigningKeys(fallbackPrivateKeyBlobKey!!))
-    val x509Certificate = getCertificate(exchange, signingKeys.certResourceName)
+    val x509Certificate = getCertificate(exchange, signingKeys.certName)
     val privateKey = parsePrivateKey(signingKeys.privateKey)
-    return KeyPair(x509Certificate, privateKey, signingKeys.certResourceName)
+    return KeyPair(x509Certificate, privateKey, signingKeys.certName)
   }
 
   override suspend fun getPartnerRootCertificate(partnerName: String): X509Certificate {
@@ -94,7 +94,7 @@ class V2AlphaCertificateManager(
   override suspend fun createForExchange(exchange: ExchangeDateKey): String {
     val existingKeys = getSigningKeys(exchange.path)
     if (existingKeys != null) {
-      return existingKeys.certResourceName
+      return existingKeys.certName
     }
 
     val (x509, privateKey) = certificateAuthority.generateX509CertificateAndPrivateKey()
@@ -107,7 +107,7 @@ class V2AlphaCertificateManager(
     val certResourceName = certificate.name
 
     val signingKeys = signingKeys {
-      this.certResourceName = certResourceName
+      this.certName = certResourceName
       this.privateKey = privateKey.encoded.toByteString()
     }
 
