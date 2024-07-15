@@ -20,7 +20,6 @@ import com.google.protobuf.kotlin.toByteStringUtf8
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.job
-import kotlinx.coroutines.joinAll
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -110,8 +109,8 @@ class ExchangeTaskExecutorTest {
     prepareBlob("some-blob")
     whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
 
-    exchangeTaskExecutor.execute(EXCHANGE_STEP)
-    this.coroutineContext.job.children.toList().joinAll()
+    val job = exchangeTaskExecutor.execute(EXCHANGE_STEP)
+    job.join()
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")?.toStringUtf8())
       .isEqualTo("Out:commutative-deterministic-encrypt-some-blob")
@@ -122,8 +121,8 @@ class ExchangeTaskExecutorTest {
     timeout.expired = true
     whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
 
-    exchangeTaskExecutor.execute(EXCHANGE_STEP)
-    this.coroutineContext.job.children.toList().joinAll()
+    val job = exchangeTaskExecutor.execute(EXCHANGE_STEP)
+    job.join()
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")).isNull()
   }
@@ -136,8 +135,8 @@ class ExchangeTaskExecutorTest {
     val exchangeTaskExecutor =
       createExchangeTaskExecutor(FakeExchangeTaskMapper(::TransientThrowingExchangeTask))
 
-    exchangeTaskExecutor.execute(EXCHANGE_STEP)
-    this.coroutineContext.job.children.toList().joinAll()
+    val job = exchangeTaskExecutor.execute(EXCHANGE_STEP)
+    job.join()
 
     verify(apiClient).finishExchangeStepAttempt(eq(ATTEMPT_KEY), eq(State.FAILED), any())
   }
@@ -150,8 +149,8 @@ class ExchangeTaskExecutorTest {
     val exchangeTaskExecutor =
       createExchangeTaskExecutor(FakeExchangeTaskMapper(::PermanentThrowingExchangeTask))
 
-    exchangeTaskExecutor.execute(EXCHANGE_STEP)
-    this.coroutineContext.job.children.toList().joinAll()
+    val job = exchangeTaskExecutor.execute(EXCHANGE_STEP)
+    job.join()
 
     verify(apiClient).finishExchangeStepAttempt(eq(ATTEMPT_KEY), eq(State.FAILED_STEP), any())
   }

@@ -17,7 +17,6 @@ package k8s
 #GCloudProject:           "halo-cmm-dev"
 #ContainerRegistryPrefix: "gcr.io/" + #GCloudProject
 #DefaultResourceConfig: {
-	replicas:  1
 	resources: #ResourceRequirements & {
 		requests: {
 			cpu:    "100m"
@@ -77,18 +76,19 @@ package k8s
 }
 _exchangeDaemonConfig: #ExchangeDaemonConfig
 
-objectSets: [deployments, networkPolicies]
+objectSets: [cronJobs, networkPolicies]
 
-deployments: [Name=_]: #Deployment & {
+cronJobs: [Name=_]: #CronJob & {
 	_name:      Name
 	_component: "workflow-daemon"
 	_podSpec: _container: resources: #DefaultResourceConfig.resources
 
 	spec: {
-		replicas: #DefaultResourceConfig.replicas
+		schedule:          "*/10 * * * *" // Every 10 minutes
+		concurrencyPolicy: "Forbid"
 	}
 }
-deployments: {
+cronJobs: {
 	"example-kingdomless-panel-exchange-daemon": {
 		_jvmFlags: "-Xmx3584m" // 4GiB - 512MiB overhead.
 		_podSpec: {
@@ -99,6 +99,7 @@ deployments: {
 			image:           #ContainerRegistryPrefix + "/panel-exchange/gcloud-example-daemon"
 			imagePullPolicy: "Always"
 			args:            _exchangeDaemonConfig.args + [
+						"--run-mode=CRON_JOB",
 						"--blob-size-limit-bytes=1000000000",
 						"--storage-signing-algorithm=EC",
 						"--checkpoint-signing-algorithm=SHA256withECDSA",
