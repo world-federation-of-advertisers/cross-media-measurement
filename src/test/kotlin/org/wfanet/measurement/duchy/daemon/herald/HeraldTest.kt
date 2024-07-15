@@ -47,7 +47,6 @@ import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyBlocking
-import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
@@ -86,6 +85,7 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
 import org.wfanet.measurement.internal.duchy.DeleteComputationRequest
+import org.wfanet.measurement.internal.duchy.ElGamalKeyPair
 import org.wfanet.measurement.internal.duchy.EncryptionKeyPair
 import org.wfanet.measurement.internal.duchy.FinishComputationResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
@@ -333,6 +333,19 @@ private const val COMPUTATION_GLOBAL_ID = "123"
 
 private val FAIL_COMPUTATION_PARTICIPANT_RESPONSE = computationParticipant {
   state = SystemComputationParticipant.State.FAILED
+}
+
+private val V2ALPHA_API_ELGAMAL_PUBLIC_KEY_1 = elGamalPublicKey {
+  generator = ByteString.copyFromUtf8("generator_1")
+  element = ByteString.copyFromUtf8("element_1")
+}
+private val V2ALPHA_API_ELGAMAL_PUBLIC_KEY_2 = elGamalPublicKey {
+  generator = ByteString.copyFromUtf8("generator_2")
+  element = ByteString.copyFromUtf8("element_2")
+}
+private val V2ALPHA_API_ELGAMAL_PUBLIC_KEY_3 = elGamalPublicKey {
+  generator = ByteString.copyFromUtf8("generator_3")
+  element = ByteString.copyFromUtf8("element_3")
 }
 
 @RunWith(JUnit4::class)
@@ -965,27 +978,6 @@ class HeraldTest {
       REQUISITION_1.toSystemRequisition(globalId, Requisition.State.FULFILLED, DUCHY_ONE)
     val systemApiRequisitions2 =
       REQUISITION_2.toSystemRequisition(globalId, Requisition.State.FULFILLED, DUCHY_TWO)
-    val v2alphaApiElgamalPublicKey1 =
-      ElGamalPublicKey.newBuilder()
-        .apply {
-          generator = ByteString.copyFromUtf8("generator_1")
-          element = ByteString.copyFromUtf8("element_1")
-        }
-        .build()
-    val v2alphaApiElgamalPublicKey2 =
-      ElGamalPublicKey.newBuilder()
-        .apply {
-          generator = ByteString.copyFromUtf8("generator_2")
-          element = ByteString.copyFromUtf8("element_2")
-        }
-        .build()
-    val v2alphaApiElgamalPublicKey3 =
-      ElGamalPublicKey.newBuilder()
-        .apply {
-          generator = ByteString.copyFromUtf8("generator_3")
-          element = ByteString.copyFromUtf8("element_3")
-        }
-        .build()
     val systemComputationParticipant1 =
       SystemComputationParticipant.newBuilder()
         .apply {
@@ -994,7 +986,7 @@ class HeraldTest {
             duchyCertificate = "duchyCertificate_1"
             duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_1")
             liquidLegionsV2Builder.apply {
-              elGamalPublicKey = v2alphaApiElgamalPublicKey1.toByteString()
+              elGamalPublicKey = V2ALPHA_API_ELGAMAL_PUBLIC_KEY_1.toByteString()
               elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_1")
             }
           }
@@ -1008,7 +1000,7 @@ class HeraldTest {
             duchyCertificate = "duchyCertificate_2"
             duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_2")
             liquidLegionsV2Builder.apply {
-              elGamalPublicKey = v2alphaApiElgamalPublicKey2.toByteString()
+              elGamalPublicKey = V2ALPHA_API_ELGAMAL_PUBLIC_KEY_2.toByteString()
               elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_2")
             }
           }
@@ -1022,7 +1014,7 @@ class HeraldTest {
             duchyCertificate = "duchyCertificate_3"
             duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_3")
             liquidLegionsV2Builder.apply {
-              elGamalPublicKey = v2alphaApiElgamalPublicKey3.toByteString()
+              elGamalPublicKey = V2ALPHA_API_ELGAMAL_PUBLIC_KEY_3.toByteString()
               elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_3")
             }
           }
@@ -1079,7 +1071,7 @@ class HeraldTest {
                 generator = ByteString.copyFromUtf8("generator_3")
                 element = ByteString.copyFromUtf8("element_3")
               }
-              elGamalPublicKey = v2alphaApiElgamalPublicKey3.toByteString()
+              elGamalPublicKey = V2ALPHA_API_ELGAMAL_PUBLIC_KEY_3.toByteString()
               elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_3")
               duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_3")
             }
@@ -1091,7 +1083,7 @@ class HeraldTest {
                 generator = ByteString.copyFromUtf8("generator_2")
                 element = ByteString.copyFromUtf8("element_2")
               }
-              elGamalPublicKey = v2alphaApiElgamalPublicKey2.toByteString()
+              elGamalPublicKey = V2ALPHA_API_ELGAMAL_PUBLIC_KEY_2.toByteString()
               elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_2")
               duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_2")
             }
@@ -1103,7 +1095,7 @@ class HeraldTest {
                 generator = ByteString.copyFromUtf8("generator_1")
                 element = ByteString.copyFromUtf8("element_1")
               }
-              elGamalPublicKey = v2alphaApiElgamalPublicKey1.toByteString()
+              elGamalPublicKey = V2ALPHA_API_ELGAMAL_PUBLIC_KEY_1.toByteString()
               elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_1")
               duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_1")
             }
@@ -1116,6 +1108,147 @@ class HeraldTest {
         REQUISITION_2.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_TWO),
       )
   }
+
+  @Test
+  fun `syncStatuses confirms participants for llv2 computations of INITIALIZATION_PHASE`() =
+    runTest {
+      val globalId = "123456"
+      val systemApiRequisitions1 =
+        REQUISITION_1.toSystemRequisition(globalId, Requisition.State.FULFILLED, DUCHY_ONE)
+      val systemApiRequisitions2 =
+        REQUISITION_2.toSystemRequisition(globalId, Requisition.State.FULFILLED, DUCHY_TWO)
+      val systemComputationParticipant1 =
+        SystemComputationParticipant.newBuilder()
+          .apply {
+            name = ComputationParticipantKey(globalId, DUCHY_ONE).toName()
+            requisitionParamsBuilder.apply {
+              duchyCertificate = "duchyCertificate_1"
+              duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_1")
+              liquidLegionsV2Builder.apply {
+                elGamalPublicKey = V2ALPHA_API_ELGAMAL_PUBLIC_KEY_1.toByteString()
+                elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_1")
+              }
+            }
+          }
+          .build()
+      val systemComputationParticipant2 =
+        SystemComputationParticipant.newBuilder()
+          .apply {
+            name = ComputationParticipantKey(globalId, DUCHY_TWO).toName()
+            requisitionParamsBuilder.apply {
+              duchyCertificate = "duchyCertificate_2"
+              duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_2")
+              liquidLegionsV2Builder.apply {
+                elGamalPublicKey = V2ALPHA_API_ELGAMAL_PUBLIC_KEY_2.toByteString()
+                elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_2")
+              }
+            }
+          }
+          .build()
+      val systemComputationParticipant3 =
+        SystemComputationParticipant.newBuilder()
+          .apply {
+            name = ComputationParticipantKey(globalId, DUCHY_THREE).toName()
+            requisitionParamsBuilder.apply {
+              duchyCertificate = "duchyCertificate_3"
+              duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_3")
+              liquidLegionsV2Builder.apply {
+                elGamalPublicKey = V2ALPHA_API_ELGAMAL_PUBLIC_KEY_3.toByteString()
+                elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_3")
+              }
+            }
+          }
+          .build()
+      val computation =
+        buildComputationAtKingdom(
+          globalId,
+          Computation.State.PENDING_PARTICIPANT_CONFIRMATION,
+          listOf(systemApiRequisitions1, systemApiRequisitions2),
+          listOf(
+            systemComputationParticipant1,
+            systemComputationParticipant2,
+            systemComputationParticipant3,
+          ),
+        )
+
+      mockStreamActiveComputationsToReturn(computation)
+
+      val initializedComputationDetails = computationDetails {
+        liquidLegionsV2 =
+          LiquidLegionsSketchAggregationV2Kt.computationDetails {
+            role = RoleInComputation.NON_AGGREGATOR
+            localElgamalKey = ElGamalKeyPair.getDefaultInstance()
+          }
+      }
+      fakeComputationDatabase.addComputation(
+        globalId = globalId,
+        stage = LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage(),
+        computationDetails = initializedComputationDetails,
+        requisitions =
+          listOf(
+            REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+            REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+          ),
+      )
+
+      aggregatorHerald.syncStatuses()
+
+      verifyBlocking(continuationTokensService, atLeastOnce()) {
+        setContinuationToken(
+          eq(setContinuationTokenRequest { this.token = computation.continuationToken() })
+        )
+      }
+
+      val duchyComputationToken = fakeComputationDatabase.readComputationToken(globalId)!!
+      assertThat(duchyComputationToken.computationStage)
+        .isEqualTo(LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE.toProtocolStage())
+      assertThat(duchyComputationToken.computationDetails.liquidLegionsV2.participantList)
+        .isEqualTo(
+          mutableListOf(
+            LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant.newBuilder()
+              .apply {
+                duchyId = DUCHY_THREE
+                publicKeyBuilder.apply {
+                  generator = ByteString.copyFromUtf8("generator_3")
+                  element = ByteString.copyFromUtf8("element_3")
+                }
+                elGamalPublicKey = V2ALPHA_API_ELGAMAL_PUBLIC_KEY_3.toByteString()
+                elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_3")
+                duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_3")
+              }
+              .build(),
+            LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant.newBuilder()
+              .apply {
+                duchyId = DUCHY_TWO
+                publicKeyBuilder.apply {
+                  generator = ByteString.copyFromUtf8("generator_2")
+                  element = ByteString.copyFromUtf8("element_2")
+                }
+                elGamalPublicKey = V2ALPHA_API_ELGAMAL_PUBLIC_KEY_2.toByteString()
+                elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_2")
+                duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_2")
+              }
+              .build(),
+            LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant.newBuilder()
+              .apply {
+                duchyId = DUCHY_ONE
+                publicKeyBuilder.apply {
+                  generator = ByteString.copyFromUtf8("generator_1")
+                  element = ByteString.copyFromUtf8("element_1")
+                }
+                elGamalPublicKey = V2ALPHA_API_ELGAMAL_PUBLIC_KEY_1.toByteString()
+                elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_1")
+                duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_1")
+              }
+              .build(),
+          )
+        )
+      assertThat(duchyComputationToken.requisitionsList)
+        .containsExactly(
+          REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE),
+          REQUISITION_2.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_TWO),
+        )
+    }
 
   @Test
   fun `syncStatuses confirms participants for rollv2 computations`() = runTest {
@@ -1299,6 +1432,35 @@ class HeraldTest {
   }
 
   @Test
+  fun `syncStatuses starts llv2 computations of stage CONFIRMATION_PHASE`() = runTest {
+    val waitingToStart =
+      buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_COMPUTATION)
+    val addingNoise = buildComputationAtKingdom("231313", Computation.State.PENDING_COMPUTATION)
+    mockStreamActiveComputationsToReturn(waitingToStart, addingNoise)
+
+    fakeComputationDatabase.addComputation(
+      globalId = waitingToStart.key.computationId,
+      stage = LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE.toProtocolStage(),
+      computationDetails = LLV2_NON_AGGREGATOR_COMPUTATION_DETAILS,
+    )
+
+    aggregatorHerald.syncStatuses()
+
+    verifyBlocking(continuationTokensService) {
+      setContinuationToken(eq(setContinuationTokenRequest { this.token = "231313" }))
+    }
+    assertThat(
+        fakeComputationDatabase.mapValues { (_, fakeComputation) ->
+          fakeComputation.computationStage
+        }
+      )
+      .containsExactly(
+        waitingToStart.key.computationId.toLong(),
+        LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage(),
+      )
+  }
+
+  @Test
   fun `syncStatuses starts rollv2 computations`() = runTest {
     val waitingToStart =
       buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_COMPUTATION)
@@ -1360,6 +1522,63 @@ class HeraldTest {
       .containsExactly(
         waitingToStart.key.computationId.toLong(),
         HonestMajorityShareShuffle.Stage.SETUP_PHASE.toProtocolStage(),
+      )
+  }
+
+  @Test
+  fun `syncStatuses starts hmss computations of stage INITIALIZED`() = runTest {
+    val waitingToStart =
+      buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_COMPUTATION)
+    mockStreamActiveComputationsToReturn(waitingToStart)
+
+    val computationDetails = computationDetails {
+      honestMajorityShareShuffle =
+        HonestMajorityShareShuffleKt.computationDetails {
+          role = RoleInComputation.FIRST_NON_AGGREGATOR
+          encryptionKeyPair = EncryptionKeyPair.getDefaultInstance()
+        }
+    }
+    fakeComputationDatabase.addComputation(
+      globalId = waitingToStart.key.computationId,
+      stage = HonestMajorityShareShuffle.Stage.INITIALIZED.toProtocolStage(),
+      computationDetails = computationDetails,
+    )
+
+    nonAggregatorHerald.syncStatuses()
+
+    assertThat(
+        fakeComputationDatabase.mapValues { (_, fakeComputation) ->
+          fakeComputation.computationStage
+        }
+      )
+      .containsExactly(
+        waitingToStart.key.computationId.toLong(),
+        HonestMajorityShareShuffle.Stage.SETUP_PHASE.toProtocolStage(),
+      )
+  }
+
+  @Test
+  fun `syncStatuses skips starting hmss computations for aggregator `() = runTest {
+    val computation =
+      buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_COMPUTATION)
+    mockStreamActiveComputationsToReturn(computation)
+
+    fakeComputationDatabase.addComputation(
+      globalId = computation.key.computationId,
+      stage = HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage(),
+      computationDetails = HMSS_AGGREGATOR_COMPUTATION_DETAILS,
+    )
+
+    nonAggregatorHerald.syncStatuses()
+
+    assertThat(
+        fakeComputationDatabase.mapValues { (_, fakeComputation) ->
+          fakeComputation.computationStage
+        }
+      )
+      .containsExactly(
+        computation.key.computationId.toLong(),
+        HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage(),
       )
   }
 

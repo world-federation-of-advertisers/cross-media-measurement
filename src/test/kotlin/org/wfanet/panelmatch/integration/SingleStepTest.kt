@@ -23,6 +23,8 @@ import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.StepCase
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.exchangeIdentifiers
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.schedule
 import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.readByteString
@@ -71,7 +73,11 @@ class SingleStepTest(
 
   override val workflow: ExchangeWorkflow by lazy {
     exchangeWorkflow {
+      exchangeIdentifiers = exchangeIdentifiers {
+        sharedStorageOwner = ExchangeWorkflow.Party.DATA_PROVIDER
+      }
       firstExchangeDate = EXCHANGE_DATE.toProtoDate()
+      repetitionSchedule = schedule { cronExpression = "@daily" }
       steps += filteredStep
     }
   }
@@ -157,6 +163,7 @@ class SingleStepTest(
     }
 
     private val manifestNumberPattern = Pattern.compile("\\d+")
+
     /** Reads in golden data for use as test inputs and to verify test outputs. */
     private fun getData(
       neededData: Map<String, String>,

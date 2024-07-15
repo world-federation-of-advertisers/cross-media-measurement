@@ -47,6 +47,7 @@ filegroup(
     srcs = [
         "aggregator_root.pem",
         "kingdom_root.pem",
+        "pdp1_root.pem",
     ] + glob(["*edp*_root.pem"]),
 )
 
@@ -216,6 +217,10 @@ SECRET_FILES = [
     "exchange_workflow.textproto",
     "reporting_tls.key",
     "reporting_tls.pem",
+    "pdp1_cs_cert.der",
+    "pdp1_cs_private.der",
+    "pdp1_enc_private.tink",
+    "pdp1_enc_public.tink",
 ]
 
 filegroup(

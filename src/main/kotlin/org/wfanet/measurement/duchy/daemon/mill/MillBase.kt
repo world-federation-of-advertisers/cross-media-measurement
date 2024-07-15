@@ -38,7 +38,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.time.delay
+import kotlinx.coroutines.yield
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
@@ -73,12 +76,17 @@ import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.Computatio
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
+import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
-import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
+import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
+import org.wfanet.measurement.system.v1alpha.getComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
+import org.wfanet.measurement.system.v1alpha.setParticipantRequisitionParamsRequest
+import org.wfanet.measurement.system.v1alpha.stageAttempt
 
 /**
  * A [MillBase] wrapping common functionalities of mills.
@@ -99,6 +107,8 @@ import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
  * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
  * @param maximumAttempts The maximum number of attempts on a computation at the same stage.
  * @param clock A clock
+ * @param rpcRetryBackoff backoff for RPC retries
+ * @param rpcMaxAttempts maximum number of attempts for an RPC
  */
 abstract class MillBase(
   protected val millId: String,
@@ -116,6 +126,8 @@ abstract class MillBase(
   private val maximumAttempts: Int,
   private val clock: Clock,
   openTelemetry: OpenTelemetry,
+  private val rpcRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
+  private val rpcMaxAttempts: Int = 3,
 ) {
   abstract val endingStage: ComputationStage
 
@@ -248,37 +260,118 @@ abstract class MillBase(
   }
 
   /**
+   * Updates the [ComputationParticipant] at the Kingdom.
+   *
+   * @param token current [ComputationToken]
+   * @param callKingdom function which calls the Kingdom to update the [ComputationParticipant],
+   *   bubbling up [StatusException]. This function may be called multiple times.
+   * @return the return value from [callKingdom]
+   */
+  protected suspend fun updateComputationParticipant(
+    token: ComputationToken,
+    callKingdom: suspend (participant: ComputationParticipant) -> Unit,
+  ) {
+    val participantKey = ComputationParticipantKey(token.globalComputationId, duchyId)
+
+    var attempt = 1
+    suspend fun prepareRetry(message: String, cause: StatusException) {
+      if (attempt >= rpcMaxAttempts) {
+        throw ComputationDataClients.PermanentErrorException(message, cause)
+      }
+
+      when (cause.status.code) {
+        Status.Code.UNAVAILABLE,
+        Status.Code.DEADLINE_EXCEEDED,
+        Status.Code.ABORTED -> {
+          delay(rpcRetryBackoff.durationForAttempt(attempt))
+          attempt++
+        }
+        else -> throw ComputationDataClients.PermanentErrorException(message, cause)
+      }
+    }
+    while (true) {
+      yield()
+      val participant: ComputationParticipant =
+        try {
+          systemComputationParticipantsClient.getComputationParticipant(
+            getComputationParticipantRequest { name = participantKey.toName() }
+          )
+        } catch (e: StatusException) {
+          prepareRetry("Error getting ComputationParticipant from Kingdom", e)
+          continue
+        }
+
+      try {
+        return callKingdom(participant)
+      } catch (e: StatusException) {
+        prepareRetry("Error updating ComputationParticipant", e)
+        continue
+      }
+    }
+  }
+
+  protected suspend fun sendRequisitionParamsToKingdom(
+    token: ComputationToken,
+    requisitionParams: ComputationParticipant.RequisitionParams,
+  ) {
+    updateComputationParticipant(token) { participant ->
+      if (participant.hasRequisitionParams()) {
+        logger.warning {
+          val globalComputationId = token.globalComputationId
+          "Skipping SetParticipantRequisitionParams for $globalComputationId: params already set"
+        }
+        return@updateComputationParticipant
+      }
+
+      systemComputationParticipantsClient.setParticipantRequisitionParams(
+        setParticipantRequisitionParamsRequest {
+          name = participant.name
+          etag = participant.etag
+          this.requisitionParams = requisitionParams
+        }
+      )
+    }
+  }
+
+  /**
    * Sends request to the kingdom's system ComputationParticipantsService to fail the computation.
    */
   private suspend fun failComputationAtKingdom(token: ComputationToken, errorMessage: String) {
     val timestamp = clock.protoTimestamp()
-    val request =
-      FailComputationParticipantRequest.newBuilder()
-        .apply {
-          name = ComputationParticipantKey(token.globalComputationId, duchyId).toName()
-          failureBuilder.also {
-            it.participantChildReferenceId = millId
-            it.errorMessage = errorMessage
-            it.errorTime = clock.protoTimestamp()
-            it.stageAttemptBuilder.apply {
-              stage = token.computationStage.number
-              stageName = token.computationStage.name
-              stageStartTime = timestamp
-              attemptNumber = token.attempt.toLong()
-            }
+    val failure =
+      ComputationParticipantKt.failure {
+        participantChildReferenceId = millId
+        this.errorMessage = errorMessage
+        errorTime = timestamp
+        stageAttempt = stageAttempt {
+          stage = token.computationStage.number
+          stageName = token.computationStage.name
+          stageStartTime = timestamp
+          attemptNumber = token.attempt.toLong()
+        }
+      }
+
+    updateComputationParticipant(token) { participant ->
+      if (participant.state == ComputationParticipant.State.FAILED) {
+        return@updateComputationParticipant
+      }
+
+      val request = failComputationParticipantRequest {
+        name = participant.name
+        etag = participant.etag
+        this.failure = failure
+      }
+      try {
+        systemComputationParticipantsClient.failComputationParticipant(request)
+      } catch (e: StatusException) {
+        when (e.status.code) {
+          Status.Code.FAILED_PRECONDITION -> {
+            // Assume that the Computation is already failed, so just log an continue.
+            // TODO(@SanjayVas): Use error details once they are plumbed instead.
+            logger.log(Level.WARNING, e) { "Error failing computation at Kingdom" }
           }
+          else -> throw e // Let retry logic handle this.
         }
-        .build()
-    try {
-      systemComputationParticipantsClient.failComputationParticipant(request)
-    } catch (e: StatusException) {
-      when (e.status.code) {
-        Status.Code.FAILED_PRECONDITION -> {
-          // Assume that the Computation is already failed, so just log an continue.
-          // TODO(@SanjayVas): Use error details once they are plumbed instead.
-          logger.log(Level.WARNING, e) { "Error failing computation at Kingdom" }
-        }
-        else -> throw Exception("Error failing computation at Kingdom", e)
       }
     }
   }

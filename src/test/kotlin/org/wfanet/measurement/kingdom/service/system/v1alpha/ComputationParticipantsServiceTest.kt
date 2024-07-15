@@ -97,14 +97,6 @@ private val INTERNAL_COMPUTATION_PARTICIPANT =
         nanos = 456
       }
       apiVersion = PUBLIC_API_VERSION
-      details =
-        InternalComputationParticipantKt.details {
-          liquidLegionsV2 =
-            InternalComputationParticipantKt.liquidLegionsV2Details {
-              elGamalPublicKey = DUCHY_ELGAMAL_KEY
-              elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
-            }
-        }
       etag = "entity tag"
     }
     .build()
@@ -206,7 +198,7 @@ class ComputationParticipantsServiceTest {
 
   @Test
   fun `getComputationParticipant calls internal service`() = runBlocking {
-    val internalComputationParticipant = INTERNAL_COMPUTATION_PARTICIPANT_WITH_PARAMS
+    val internalComputationParticipant = INTERNAL_COMPUTATION_PARTICIPANT
     whenever(internalComputationParticipantsServiceMock.getComputationParticipant(any()))
       .thenReturn(internalComputationParticipant)
 
@@ -223,7 +215,7 @@ class ComputationParticipantsServiceTest {
           externalDuchyId = internalComputationParticipant.externalDuchyId
         }
       )
-    assertThat(response).isEqualTo(COMPUTATION_PARTICIPANT_WITH_PARAMS)
+    assertThat(response).isEqualTo(COMPUTATION_PARTICIPANT)
   }
 
   @Test

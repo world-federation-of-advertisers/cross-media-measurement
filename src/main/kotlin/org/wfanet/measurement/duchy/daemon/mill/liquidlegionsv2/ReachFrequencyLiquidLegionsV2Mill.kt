@@ -15,8 +15,6 @@
 package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2
 
 import com.google.protobuf.ByteString
-import io.grpc.Status
-import io.grpc.StatusException
 import io.opentelemetry.api.OpenTelemetry
 import java.security.cert.X509Certificate
 import java.time.Clock
@@ -78,12 +76,10 @@ import org.wfanet.measurement.internal.duchy.protocol.reachNoiseDifferentialPriv
 import org.wfanet.measurement.internal.duchy.protocol.registerNoiseGenerationParameters
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
-import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
-import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
-import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequest
 
 /**
  * Mill works on computations using the LiquidLegionSketchAggregationProtocol.
@@ -195,31 +191,18 @@ class ReachFrequencyLiquidLegionsV2Mill(
             signingKey,
           )
       }
-
-    val request =
-      SetParticipantRequisitionParamsRequest.newBuilder()
-        .apply {
-          name = ComputationParticipantKey(token.globalComputationId, duchyId).toName()
-          requisitionParamsBuilder.apply {
-            duchyCertificate = consentSignalCert.name
-            liquidLegionsV2Builder.apply {
-              elGamalPublicKey = signedElgamalPublicKey.message.value
-              elGamalPublicKeySignature = signedElgamalPublicKey.signature
-              elGamalPublicKeySignatureAlgorithmOid = signedElgamalPublicKey.signatureAlgorithmOid
-            }
+    val requisitionParams =
+      ComputationParticipantKt.requisitionParams {
+        duchyCertificate = consentSignalCert.name
+        liquidLegionsV2 =
+          ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
+            elGamalPublicKey = signedElgamalPublicKey.message.value
+            elGamalPublicKeySignature = signedElgamalPublicKey.signature
+            elGamalPublicKeySignatureAlgorithmOid = signedElgamalPublicKey.signatureAlgorithmOid
           }
-        }
-        .build()
-    try {
-      systemComputationParticipantsClient.setParticipantRequisitionParams(request)
-    } catch (e: StatusException) {
-      val message = "Error setting participant requisition params"
-      throw when (e.status.code) {
-        Status.Code.UNAVAILABLE,
-        Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
-        else -> ComputationDataClients.PermanentErrorException(message, e)
       }
-    }
+
+    sendRequisitionParamsToKingdom(token, requisitionParams)
   }
 
   /** Processes computation in the initialization phase */
@@ -332,20 +315,8 @@ class ReachFrequencyLiquidLegionsV2Mill(
 
   /** Sends confirmation to the kingdom and transits the local computation to the next stage. */
   private suspend fun passConfirmationPhase(token: ComputationToken): ComputationToken {
-    try {
-      systemComputationParticipantsClient.confirmComputationParticipant(
-        ConfirmComputationParticipantRequest.newBuilder()
-          .apply { name = ComputationParticipantKey(token.globalComputationId, duchyId).toName() }
-          .build()
-      )
-    } catch (e: StatusException) {
-      val message = "Error confirming computation participant"
-      throw when (e.status.code) {
-        Status.Code.UNAVAILABLE,
-        Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
-        else -> ComputationDataClients.PermanentErrorException(message, e)
-      }
-    }
+    confirmComputationParticipant(token)
+
     val latestToken = updatePublicElgamalKey(token)
     return dataClients.transitionComputationToStage(
       latestToken,

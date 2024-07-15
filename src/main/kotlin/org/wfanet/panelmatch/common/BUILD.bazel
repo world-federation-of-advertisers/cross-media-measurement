@@ -11,6 +11,7 @@ kt_jvm_library(
     deps = [
         "@wfa_common_jvm//imports/java/com/google/common:guava",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
