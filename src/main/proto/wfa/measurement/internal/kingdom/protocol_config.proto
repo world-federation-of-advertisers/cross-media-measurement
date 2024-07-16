@@ -142,6 +142,8 @@ message ProtocolConfig {
     int32 reach_and_frequency_ring_modulus = 3;
 
     // The modulus used in the protocol for Reach Measurement.
+    //
+    // This must be a prime number.
     int32 reach_ring_modulus = 4;
   }
 
