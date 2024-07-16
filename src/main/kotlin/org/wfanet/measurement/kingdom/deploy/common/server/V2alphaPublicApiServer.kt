@@ -157,6 +157,7 @@ private fun run(
           v2alphaFlags.directNoiseMechanisms,
           reachOnlyLlV2Enabled = v2alphaFlags.reachOnlyLlV2Enabled,
           hmssEnabled = v2alphaFlags.hmssEnabled,
+          hmssEnabledMeasurementConsumers = v2alphaFlags.hmssEnabledMeasurementConsumers,
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
@@ -253,6 +254,19 @@ private class V2alphaFlags {
     defaultValue = "false",
   )
   var hmssEnabled by Delegates.notNull<Boolean>()
+    private set
+
+  @CommandLine.Option(
+    names = ["--hmss-enabled-measurement-consumers"],
+    description =
+      [
+        "MeasurementConsumer names who force to enable HMSS protocol" +
+          " regardless the --enable-hmss flag."
+      ],
+    required = false,
+    defaultValue = "",
+  )
+  lateinit var hmssEnabledMeasurementConsumers: List<String>
     private set
 
   @CommandLine.Option(

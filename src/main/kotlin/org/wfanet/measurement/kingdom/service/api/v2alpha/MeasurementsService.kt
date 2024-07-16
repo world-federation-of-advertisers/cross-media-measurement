@@ -103,8 +103,8 @@ class MeasurementsService(
   private val internalDataProvidersStub: InternalDataProvidersCoroutineStub,
   private val noiseMechanisms: List<NoiseMechanism>,
   private val reachOnlyLlV2Enabled: Boolean = false,
-  // TODO(@renjiez): merge the two options below once implementing reach-only HMSS.
   private val hmssEnabled: Boolean = false,
+  private val hmssEnabledMeasurementConsumers: List<String> = emptyList(),
 ) : MeasurementsCoroutineImplBase() {
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
@@ -493,8 +493,7 @@ class MeasurementsService(
           }
         } else {
           if (
-            (measurementConsumerName in HmssProtocolConfig.enabledMeasurementConsumers ||
-              hmssEnabled) &&
+            (measurementConsumerName in hmssEnabledMeasurementConsumers || hmssEnabled) &&
               dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
           ) {
             protocolConfig {
@@ -534,8 +533,7 @@ class MeasurementsService(
           }
         } else {
           if (
-            (measurementConsumerName in HmssProtocolConfig.enabledMeasurementConsumers ||
-              hmssEnabled) &&
+            (measurementConsumerName in hmssEnabledMeasurementConsumers || hmssEnabled) &&
               dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
           ) {
             protocolConfig {

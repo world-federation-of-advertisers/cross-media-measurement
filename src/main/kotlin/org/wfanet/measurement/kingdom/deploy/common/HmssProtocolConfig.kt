@@ -29,14 +29,9 @@ object HmssProtocolConfig {
   lateinit var requiredExternalDuchyIds: Set<String>
     private set
 
-  /** Set of MeasurementConsumer names who enable HMSS protocol */
-  lateinit var enabledMeasurementConsumers: Set<String>
-    private set
-
   fun initializeFromFlags(flags: HmssProtocolConfigFlags) {
     require(!HmssProtocolConfig::protocolConfig.isInitialized)
     require(!HmssProtocolConfig::requiredExternalDuchyIds.isInitialized)
-    require(!HmssProtocolConfig::enabledMeasurementConsumers.isInitialized)
     val configMessage =
       flags.config.reader().use {
         parseTextProto(it, HmssProtocolConfigConfig.getDefaultInstance())
@@ -44,19 +39,16 @@ object HmssProtocolConfig {
 
     protocolConfig = configMessage.protocolConfig
     requiredExternalDuchyIds = configMessage.requiredExternalDuchyIdsList.toSet()
-    enabledMeasurementConsumers = configMessage.enabledMeasurementConsumersList.toSet()
   }
 
   fun setForTest(
     protocolConfig: ProtocolConfig.HonestMajorityShareShuffle,
     requiredExternalDuchyIds: Set<String>,
-    enabledMeasurementConsumers: Set<String> = emptySet(),
   ) {
     require(!HmssProtocolConfig::protocolConfig.isInitialized)
 
     HmssProtocolConfig.protocolConfig = protocolConfig
     HmssProtocolConfig.requiredExternalDuchyIds = requiredExternalDuchyIds
-    HmssProtocolConfig.enabledMeasurementConsumers = enabledMeasurementConsumers
   }
 }
 
