@@ -610,6 +610,44 @@ class ReachOnlyLiquidLegionsV2MillTest {
   }
 
   @Test
+  fun `initialization phase has higher priority to be claimed`() = runBlocking {
+    fakeComputationDb.addComputation(
+      1L,
+      EXECUTION_PHASE.toProtocolStage(),
+      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
+      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
+      blobs = listOf(newEmptyOutputBlobMetadata(1)),
+    )
+    fakeComputationDb.addComputation(
+      2L,
+      INITIALIZATION_PHASE.toProtocolStage(),
+      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
+      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
+    )
+
+    var cryptoRequest = CompleteReachOnlyInitializationPhaseRequest.getDefaultInstance()
+    whenever(mockCryptoWorker.completeReachOnlyInitializationPhase(any())).thenAnswer {
+      cryptoRequest = it.getArgument(0)
+      completeReachOnlyInitializationPhaseResponse {
+        elGamalKeyPair = elGamalKeyPair {
+          publicKey = elGamalPublicKey {
+            generator = ByteString.copyFromUtf8("generator-foo")
+            element = ByteString.copyFromUtf8("element-foo")
+          }
+          secretKey = ByteString.copyFromUtf8("secretKey-foo")
+        }
+      }
+    }
+
+    // Mill should claim computation1 of INITIALIZATION_PHASE.
+    nonAggregatorMill.pollAndProcessNextComputation()
+
+    assertThat(fakeComputationDb[2]!!.computationStage)
+      .isEqualTo(WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage())
+    assertThat(fakeComputationDb[1]!!.computationStage).isEqualTo(EXECUTION_PHASE.toProtocolStage())
+  }
+
+  @Test
   fun `initialization phase`() = runBlocking {
     // Stage 0. preparing the database and set up mock
     val computationParticipant = computationParticipant {

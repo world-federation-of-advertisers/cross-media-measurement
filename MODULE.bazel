@@ -129,6 +129,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
+    version = "0.86.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -158,7 +159,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "any-sketch",
-    version = "0.9.0",
+    version = "0.9.1",
     repo_name = "any_sketch",
 )
 bazel_dep(
@@ -320,14 +321,4 @@ http_archive(
 single_version_override(
     module_name = "boringssl",
     version = BORINGSSL_VERSION,
-)
-
-# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#258): Use version
-archive_override(
-    module_name = "common-jvm",
-    integrity = "sha256-H/f0GJL7rLVL2Tpx4a17AXyqvhVqEx8XP/OJ/Dm44hg=",
-    strip_prefix = "common-jvm-6bba2c4ada6b8ea3de3afc6b270347d185dbede5",
-    urls = [
-        "https://github.com/world-federation-of-advertisers/common-jvm/archive/6bba2c4ada6b8ea3de3afc6b270347d185dbede5.tar.gz",
-    ],
 )

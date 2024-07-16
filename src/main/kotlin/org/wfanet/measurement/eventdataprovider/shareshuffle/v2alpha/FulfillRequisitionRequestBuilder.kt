@@ -129,6 +129,7 @@ class FulfillRequisitionRequestBuilder(
           name = requisition.name
           requisitionFingerprint = computeRequisitionFingerprint(requisition)
           nonce = requisition.nonce
+          protocolConfig = requisition.protocolConfig
           this.honestMajorityShareShuffle = honestMajorityShareShuffle {
             secretSeed = encryptedSignedShareSeed
             registerCount = shareVector.dataList.size.toLong()
