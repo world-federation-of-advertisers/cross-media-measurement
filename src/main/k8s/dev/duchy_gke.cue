@@ -168,7 +168,7 @@ duchy: #SpannerDuchy & {
 				}
 			}
 		}
-		"honest-majority-share-shuffle-mill-daemon-deployment": {
+		"hmss-mill-daemon-deployment": {
 			_workLockDuration: "5m"
 			_container: {
 				_javaOptions: maxHeapSize: #HmssMillMaxHeapSize

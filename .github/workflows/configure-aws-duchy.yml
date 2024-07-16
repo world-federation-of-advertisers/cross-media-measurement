@@ -62,6 +62,7 @@ permissions:
 
 env:
   KUSTOMIZATION_PATH: "k8s/cmms"
+  KUBECTL_APPLYSET: true
   DUCHY_NAME: ${{ inputs.duchy-name }}
 
 jobs:
@@ -174,7 +175,7 @@ jobs:
 
     - name: kubectl apply
       if: ${{ inputs.apply }}
-      run: kubectl apply -k "$KUSTOMIZE_PATH"
+      run: kubectl apply -k "$KUSTOMIZE_PATH" --namespace=default --prune --applyset=configmaps/kubectl
 
     - name: Wait for rollout
       if: ${{ inputs.apply }}
