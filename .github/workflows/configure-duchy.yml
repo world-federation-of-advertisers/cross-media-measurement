@@ -96,12 +96,15 @@ jobs:
         AGGREGATOR_SYSTEM_API_TARGET: ${{ vars.AGGREGATOR_SYSTEM_API_TARGET }}
         WORKER1_SYSTEM_API_TARGET: ${{ vars.WORKER1_SYSTEM_API_TARGET }}
         WORKER2_SYSTEM_API_TARGET: ${{ vars.WORKER2_SYSTEM_API_TARGET }}
+        SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
+        STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
         common --config=ghcr
         build --define image_tag=$IMAGE_TAG
         build --define google_cloud_project=$GCLOUD_PROJECT
+        build --define spanner_instance=$SPANNER_INSTANCE
         build --define kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET
         build --define kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET
         build --define aggregator_system_api_target=$AGGREGATOR_SYSTEM_API_TARGET
@@ -110,6 +113,7 @@ jobs:
         build --define duchy_cert_id=$DUCHY_CERT_ID
         build --define duchy_public_api_address_name=${DUCHY_NAME}-duchy-v2alpha
         build --define duchy_system_api_address_name=${DUCHY_NAME}-duchy-system-v1alpha
+        build --define duchy_storage_bucket=$STORAGE_BUCKET
         EOF
 
     - name: Export BAZEL_BIN
@@ -126,22 +130,10 @@ jobs:
       if: ${{ inputs.apply }}
 
     - name: Generate archives
-      env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
-        SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
-        KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
-        STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
       run: >
         bazelisk build 
         "//src/main/k8s/dev:${DUCHY_NAME}_duchy.tar"
         //src/main/k8s/testing/secretfiles:archive
-        --config ghcr
-        --define "image_tag=$IMAGE_TAG"
-        --define "google_cloud_project=$GCLOUD_PROJECT"
-        --define "spanner_instance=$SPANNER_INSTANCE"
-        --define "kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET"
-        --define "duchy_storage_bucket=$STORAGE_BUCKET"
-        --define "duchy_cert_id=$DUCHY_CERT_ID"
 
     - name: Make Kustomization dir
       run: mkdir -p "$KUSTOMIZATION_PATH"
@@ -165,6 +157,13 @@ jobs:
       run: >
         echo "$AKID_TO_PRINCIPAL_MAP" | sed $'s/\r$//'  >
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/config_files/authority_key_identifier_to_principal_map.textproto"
+
+    - name: Upload Kustomization artifact
+      uses: actions/upload-artifact@v4
+      continue-on-error: true
+      with:
+        name: ${{ env.DUCHY_NAME }}-kustomization
+        path: ${{ env.KUSTOMIZATION_PATH }}
 
     - name: Export KUSTOMIZE_PATH
       run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/${DUCHY_NAME}_duchy" >> $GITHUB_ENV

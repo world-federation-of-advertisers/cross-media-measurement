@@ -25,10 +25,17 @@ import io.kubernetes.client.openapi.ApiException
 import io.kubernetes.client.openapi.Configuration
 import io.kubernetes.client.openapi.JSON
 import io.kubernetes.client.openapi.apis.AppsV1Api
+import io.kubernetes.client.openapi.apis.BatchV1Api
 import io.kubernetes.client.openapi.apis.CoreV1Api
+import io.kubernetes.client.openapi.models.V1CronJob
 import io.kubernetes.client.openapi.models.V1Deployment
 import io.kubernetes.client.openapi.models.V1DeploymentList
+import io.kubernetes.client.openapi.models.V1Job
+import io.kubernetes.client.openapi.models.V1JobList
+import io.kubernetes.client.openapi.models.V1JobTemplateSpec
 import io.kubernetes.client.openapi.models.V1LabelSelector
+import io.kubernetes.client.openapi.models.V1ObjectMeta
+import io.kubernetes.client.openapi.models.V1OwnerReference
 import io.kubernetes.client.openapi.models.V1Pod
 import io.kubernetes.client.openapi.models.V1PodList
 import io.kubernetes.client.openapi.models.V1ReplicaSet
@@ -64,6 +71,7 @@ class KubernetesClient(
 ) {
   private val coreApi = CoreV1Api(apiClient)
   private val appsApi = AppsV1Api(apiClient)
+  private val batchApi = BatchV1Api(apiClient)
 
   /** Gets a single [V1Deployment] by [name]. */
   suspend fun getDeployment(
@@ -108,6 +116,72 @@ class KubernetesClient(
         .listNamespacedPod(namespace)
         .labelSelector(labelSelector.matchLabelsSelector)
         .executeAsync(callback)
+    }
+  }
+
+  /** Lists Jobs using the specified [matchLabelsSelector]. */
+  suspend fun listJobs(
+    matchLabelsSelector: String,
+    namespace: String = Namespaces.NAMESPACE_DEFAULT,
+  ): V1JobList {
+    return apiCall { callback ->
+      batchApi
+        .listNamespacedJob(namespace)
+        .labelSelector(matchLabelsSelector)
+        .executeAsync(callback)
+    }
+  }
+
+  /** Returns the CronJob with the specified name, or `null` if not found. */
+  suspend fun getCronJob(
+    name: String,
+    namespace: String = Namespaces.NAMESPACE_DEFAULT,
+  ): V1CronJob? {
+    return apiCall { callback ->
+      batchApi.readNamespacedCronJob(name, namespace).executeAsync(callback)
+    }
+  }
+
+  /**
+   * Creates a new Job from an existing CronJob.
+   *
+   * @param cronJob an existing CronJob
+   *
+   * This provides similar behavior to kubectl.
+   */
+  suspend fun createJobFromCronJob(cronJob: V1CronJob): V1Job {
+    requireNotNull(cronJob.metadata.name) { "name must be specified" }
+
+    val namespace: String = cronJob.metadata.namespace ?: Namespaces.NAMESPACE_DEFAULT
+    val jobTemplate: V1JobTemplateSpec = cronJob.spec.jobTemplate
+    val annotations: Map<String, String> = buildMap {
+      putAll(jobTemplate.metadata.annotations)
+      put(CRON_JOB_INSTANTIATE_ANNOTATION, "manual")
+    }
+    val job =
+      V1Job().apply {
+        apiVersion = cronJob.apiVersion
+        kind = "Job"
+        metadata =
+          V1ObjectMeta().apply {
+            generateName = cronJob.metadata.name + "-manual-"
+            this.annotations = annotations
+            labels = jobTemplate.metadata.labels
+            ownerReferences =
+              listOf(
+                V1OwnerReference().apply {
+                  apiVersion = cronJob.apiVersion
+                  kind = cronJob.kind
+                  name = cronJob.metadata.name
+                  uid = cronJob.metadata.uid
+                  controller = true
+                }
+              )
+          }
+        spec = jobTemplate.spec
+      }
+    return apiCall { callback ->
+      batchApi.createNamespacedJob(namespace, job).executeAsync(callback)
     }
   }
 
@@ -225,8 +299,27 @@ class KubernetesClient(
     }
   }
 
+  @Blocking
+  inline fun <reified T : KubernetesObject> kubectlAnnotate(
+    name: String,
+    annotations: Map<String, String>,
+    namespace: String = Namespaces.NAMESPACE_DEFAULT,
+  ): T {
+    return Kubectl.annotate(T::class.java)
+      .apiClient(apiClient)
+      .namespace(namespace)
+      .name(name)
+      .apply {
+        for ((key, value) in annotations) {
+          addAnnotation(key, value)
+        }
+      }
+      .execute()
+  }
+
   companion object {
     private const val REVISION_ANNOTATION = "deployment.kubernetes.io/revision"
+    private const val CRON_JOB_INSTANTIATE_ANNOTATION = "cronjob.kubernetes.io/instantiate"
   }
 }
 
@@ -253,7 +346,7 @@ private val V1Deployment.complete: Boolean
 private val V1Deployment.labelSelector: String
   get() = checkNotNull(spec?.selector).matchLabelsSelector
 
-private val V1LabelSelector.matchLabelsSelector: String
+val V1LabelSelector.matchLabelsSelector: String
   get() {
     return matchLabels.map { (key, value) -> "$key=$value" }.joinToString(",")
   }

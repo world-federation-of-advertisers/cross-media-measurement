@@ -84,7 +84,7 @@ _baseDuchyConfig: {
 	_imageSuffixes: {
 		"computation-control-server":     "duchy/local-computation-control"
 		"herald-daemon":                  "duchy/local-herald"
-		"liquid-legions-v2-mill-daemon":  "duchy/local-liquid-legions-v2-mill"
+		"liquid-legions-v2-mill":         "duchy/local-liquid-legions-v2-mill"
 		"hmss-mill-daemon":               "duchy/local-honest-majority-share-shuffle-mill"
 		"requisition-fulfillment-server": "duchy/local-requisition-fulfillment"
 	}

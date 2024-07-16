@@ -164,6 +164,12 @@ jobs:
         echo "$AKID_TO_PRINCIPAL_MAP" | sed $'s/\r$//'  >
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/config_files/authority_key_identifier_to_principal_map.textproto"
 
+    - name: Upload Kustomization artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: kustomization
+        path: ${{ env.KUSTOMIZATION_PATH }}
+
     - name: Export KUSTOMIZE_PATH
       run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/${DUCHY_NAME}_duchy_aws" >> $GITHUB_ENV
 
