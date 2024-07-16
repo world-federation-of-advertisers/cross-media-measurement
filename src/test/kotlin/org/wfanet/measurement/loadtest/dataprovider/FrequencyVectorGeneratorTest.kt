@@ -64,7 +64,7 @@ class FrequencyVectorGeneratorTest {
     val eventQueries = InMemoryEventQuery(allEvents)
 
     val salt = ByteString.copyFromUtf8("salt")
-    val vidUniverse = (1L..10L).toList()
+    val vidUniverse = (1L..10L).asSequence()
     val vidToIndexMap = mutableMapOf<Long, IndexedValue>()
     for (i in 1L..10L) {
       vidToIndexMap[i] = IndexedValue((i - 1).toInt(), 0.05 + 0.1 * (i - 1))
@@ -79,13 +79,7 @@ class FrequencyVectorGeneratorTest {
     }
 
     val hmssSketch =
-      FrequencyVectorGenerator(
-          vidUniverse,
-          salt,
-          vidToIndexMap,
-          eventQueries,
-          measurementSpec.vidSamplingInterval,
-        )
+      FrequencyVectorGenerator(vidToIndexMap, eventQueries, measurementSpec.vidSamplingInterval)
         .generate(eventGroupSpecs)
 
     val expectedSketch = intArrayOf(1, 1, 0, 0)
@@ -105,7 +99,7 @@ class FrequencyVectorGeneratorTest {
     val eventQueries = InMemoryEventQuery(allEvents)
 
     val salt = ByteString.copyFromUtf8("salt")
-    val vidUniverse = (1L..10L).toList()
+    val vidUniverse = (1L..10L).asSequence()
     val vidToIndexMap = mutableMapOf<Long, IndexedValue>()
     for (i in 1L..10L) {
       vidToIndexMap[i] = IndexedValue((i - 1).toInt(), 0.05 + 0.1 * (i - 1))
@@ -120,13 +114,7 @@ class FrequencyVectorGeneratorTest {
     }
 
     val hmssSketch =
-      FrequencyVectorGenerator(
-          vidUniverse,
-          salt,
-          vidToIndexMap,
-          eventQueries,
-          measurementSpec.vidSamplingInterval,
-        )
+      FrequencyVectorGenerator(vidToIndexMap, eventQueries, measurementSpec.vidSamplingInterval)
         .generate(eventGroupSpecs)
 
     val expectedSketch = intArrayOf(0, 0, 0, 1, 1)
@@ -149,10 +137,10 @@ class FrequencyVectorGeneratorTest {
       )
 
     val eventQueries = InMemoryEventQuery(allEvents)
-    val vidUniverse = (0L..9L).toList()
+    val vidUniverse = (0L..9L).asSequence()
     val salt = ByteString.copyFromUtf8("salt")
 
-    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
+    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(vidUniverse, salt)
     val sortedNormalizedHashValues = vidToIndexMap.values.toList().map { it.value }.sorted()
 
     // sortedNormalizedHashValues[5] = 0.2478
@@ -166,13 +154,7 @@ class FrequencyVectorGeneratorTest {
 
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        FrequencyVectorGenerator(
-            vidUniverse,
-            salt,
-            vidToIndexMap,
-            eventQueries,
-            measurementSpec.vidSamplingInterval,
-          )
+        FrequencyVectorGenerator(vidToIndexMap, eventQueries, measurementSpec.vidSamplingInterval)
           .generate(eventGroupSpecs)
       }
 
@@ -195,10 +177,10 @@ class FrequencyVectorGeneratorTest {
       )
 
     val eventQueries = InMemoryEventQuery(allEvents)
-    val vidUniverse = (0L..9L).toList()
+    val vidUniverse = (0L..9L).asSequence()
     val salt = ByteString.copyFromUtf8("salt")
 
-    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
+    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(vidUniverse, salt)
     val sortedNormalizedHashValues = vidToIndexMap.values.toList().map { it.value }.sorted()
 
     // sortedNormalizedHashValues[0] = 0.0163
@@ -211,13 +193,7 @@ class FrequencyVectorGeneratorTest {
 
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        FrequencyVectorGenerator(
-            vidUniverse,
-            salt,
-            vidToIndexMap,
-            eventQueries,
-            measurementSpec.vidSamplingInterval,
-          )
+        FrequencyVectorGenerator(vidToIndexMap, eventQueries, measurementSpec.vidSamplingInterval)
           .generate(eventGroupSpecs)
       }
 
@@ -240,10 +216,10 @@ class FrequencyVectorGeneratorTest {
       )
 
     val eventQueries = InMemoryEventQuery(allEvents)
-    val vidUniverse = (0L..9L).toList()
+    val vidUniverse = (0L..9L).asSequence()
     val salt = ByteString.copyFromUtf8("salt")
 
-    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
+    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(vidUniverse, salt)
     val sortedNormalizedHashValues = vidToIndexMap.values.toList().map { it.value }.sorted()
 
     // sortedNormalizedHashValues[9] = 0.7261
@@ -256,13 +232,7 @@ class FrequencyVectorGeneratorTest {
 
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        FrequencyVectorGenerator(
-            vidUniverse,
-            salt,
-            vidToIndexMap,
-            eventQueries,
-            measurementSpec.vidSamplingInterval,
-          )
+        FrequencyVectorGenerator(vidToIndexMap, eventQueries, measurementSpec.vidSamplingInterval)
           .generate(eventGroupSpecs)
       }
 
@@ -285,10 +255,10 @@ class FrequencyVectorGeneratorTest {
       )
 
     val eventQueries = InMemoryEventQuery(allEvents)
-    val vidUniverse = (0L..9L).toList()
+    val vidUniverse = (0L..9L).asSequence()
     val salt = ByteString.copyFromUtf8("salt")
 
-    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
+    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(vidUniverse, salt)
     val sortedNormalizedHashValues = vidToIndexMap.values.toList().map { it.value }.sorted()
 
     // sortedNormalizedHashValues[0] = 0.0163
@@ -303,13 +273,7 @@ class FrequencyVectorGeneratorTest {
 
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        FrequencyVectorGenerator(
-            vidUniverse,
-            salt,
-            vidToIndexMap,
-            eventQueries,
-            measurementSpec.vidSamplingInterval,
-          )
+        FrequencyVectorGenerator(vidToIndexMap, eventQueries, measurementSpec.vidSamplingInterval)
           .generate(eventGroupSpecs)
       }
 
@@ -331,9 +295,9 @@ class FrequencyVectorGeneratorTest {
         Person.Gender.FEMALE,
       )
 
-    val vidUniverse = (0L..30L).toList()
+    val vidUniverse = (0L..30L).asSequence()
     val salt = ByteString.copyFromUtf8("salt")
-    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
+    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(vidUniverse, salt)
     val eventQueries = InMemoryEventQuery(allEvents)
     val measurementSpec = measurementSpec {
       vidSamplingInterval = vidSamplingInterval {
@@ -343,13 +307,7 @@ class FrequencyVectorGeneratorTest {
     }
 
     val hmssSketch =
-      FrequencyVectorGenerator(
-          vidUniverse,
-          salt,
-          vidToIndexMap,
-          eventQueries,
-          measurementSpec.vidSamplingInterval,
-        )
+      FrequencyVectorGenerator(vidToIndexMap, eventQueries, measurementSpec.vidSamplingInterval)
         .generate(eventGroupSpecs)
     assertThat(hmssSketch.size).isEqualTo(31)
     for (x in hmssSketch) {
@@ -372,9 +330,9 @@ class FrequencyVectorGeneratorTest {
         Person.Gender.FEMALE,
       )
 
-    val vidUniverse = (0L..30L).toList()
+    val vidUniverse = (0L..30L).asSequence()
     val salt = ByteString.EMPTY
-    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
+    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(vidUniverse, salt)
     val eventQueries = InMemoryEventQuery(allEvents)
     val measurementSpec = measurementSpec {
       vidSamplingInterval = vidSamplingInterval {
@@ -384,13 +342,7 @@ class FrequencyVectorGeneratorTest {
     }
 
     val hmssSketch =
-      FrequencyVectorGenerator(
-          vidUniverse,
-          salt,
-          vidToIndexMap,
-          eventQueries,
-          measurementSpec.vidSamplingInterval,
-        )
+      FrequencyVectorGenerator(vidToIndexMap, eventQueries, measurementSpec.vidSamplingInterval)
         .generate(eventGroupSpecs)
     assertThat(hmssSketch.size).isEqualTo(31)
     var oneCount: Int = 0
@@ -433,16 +385,16 @@ class FrequencyVectorGeneratorTest {
           Person.Gender.FEMALE,
         )
 
-    val vidUniverse = (0L..30L).toList()
+    val vidUniverse = (0L..30L).asSequence()
     val salt = ByteString.copyFromUtf8("salt")
-    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
+    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(vidUniverse, salt)
 
     // The vids of the group event (FEMALE, YEARS_18_TO_34).
-    val subUniverse = (1L..10L).toList()
+    val subUniverse = (1L..10L).asSequence()
 
     val fullUniverseNormalizedHashValues = vidToIndexMap.values.toList().map { it.value }.sorted()
     val subUniverseNormalizedHashValues =
-      VidToIndexMapGenerator.generateMapping(salt, subUniverse)
+      VidToIndexMapGenerator.generateMapping(subUniverse, salt)
         .values
         .toList()
         .map { it.value }
@@ -459,13 +411,7 @@ class FrequencyVectorGeneratorTest {
     }
 
     val hmssSketch =
-      FrequencyVectorGenerator(
-          vidUniverse,
-          salt,
-          vidToIndexMap,
-          eventQueries,
-          measurementSpec.vidSamplingInterval,
-        )
+      FrequencyVectorGenerator(vidToIndexMap, eventQueries, measurementSpec.vidSamplingInterval)
         .generate(eventGroupSpecs)
 
     // Computes the expected sketch size.
@@ -521,15 +467,15 @@ class FrequencyVectorGeneratorTest {
           Person.Gender.FEMALE,
         )
 
-    val vidUniverse = (0L..30L).toList()
+    val vidUniverse = (0L..30L).asSequence()
     val salt = ByteString.copyFromUtf8("salt")
-    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
+    val vidToIndexMap = VidToIndexMapGenerator.generateMapping(vidUniverse, salt)
 
     // The vids of the group event (FEMALE, YEARS_18_TO_34).
-    val subUniverse = (1L..10L).toList()
+    val subUniverse = (1L..10L).asSequence()
     val fullUniverseNormalizedHashValues = vidToIndexMap.values.toList().map { it.value }.sorted()
     val subUniverseNormalizedHashValues =
-      VidToIndexMapGenerator.generateMapping(salt, subUniverse)
+      VidToIndexMapGenerator.generateMapping(subUniverse, salt)
         .values
         .toList()
         .map { it.value }
@@ -548,13 +494,7 @@ class FrequencyVectorGeneratorTest {
     }
 
     val hmssSketch =
-      FrequencyVectorGenerator(
-          vidUniverse,
-          salt,
-          vidToIndexMap,
-          eventQueries,
-          measurementSpec.vidSamplingInterval,
-        )
+      FrequencyVectorGenerator(vidToIndexMap, eventQueries, measurementSpec.vidSamplingInterval)
         .generate(eventGroupSpecs)
 
     val start = measurementSpec.vidSamplingInterval.start
