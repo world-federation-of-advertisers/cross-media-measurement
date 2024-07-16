@@ -34,7 +34,9 @@ proto_library(
     name = "exchange_step_attempt_proto",
     srcs = ["exchange_step_attempt.proto"],
     strip_import_prefix = "/src/main/proto",
-    deps = [],
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
 )
 
 kt_jvm_proto_library(
