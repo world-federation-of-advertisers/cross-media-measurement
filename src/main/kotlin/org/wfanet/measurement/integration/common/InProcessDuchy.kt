@@ -38,6 +38,7 @@ import kotlinx.coroutines.launch
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.testing.withMetadataPrincipalIdentities
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -58,6 +59,8 @@ import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.ReachFrequencyLi
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.ReachOnlyLiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniReachOnlyLiquidLegionsV2Encryption
+import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.HonestMajorityShareShuffleMill
+import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.crypto.JniHonestMajorityShareShuffleCryptor
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.deploy.common.service.DuchyDataServices
 import org.wfanet.measurement.duchy.service.api.v2alpha.RequisitionFulfillmentService
@@ -101,7 +104,7 @@ class InProcessDuchy(
 
   private val daemonScope = CoroutineScope(daemonContext)
   private lateinit var heraldJob: Job
-  private lateinit var llv2MillJob: Job
+  private lateinit var millJob: Job
 
   private val duchyDependencies by lazy {
     duchyDependenciesRule.value(externalDuchyId, systemComputationLogEntriesClient)
@@ -118,6 +121,9 @@ class InProcessDuchy(
   }
   private val systemRequisitionsClient by lazy {
     SystemRequisitionsCoroutineStub(kingdomSystemApiChannel).withDuchyId(externalDuchyId)
+  }
+  private val certificateStub: CertificatesGrpcKt.CertificatesCoroutineStub by lazy {
+    CertificatesGrpcKt.CertificatesCoroutineStub(kingdomSystemApiChannel)
   }
   private val computationsClient by lazy { ComputationsCoroutineStub(computationsServer.channel) }
   private val computationStatsClient by lazy {
@@ -190,10 +196,12 @@ class InProcessDuchy(
           }
       ) {
         val protocolsSetupConfig =
-          if (externalDuchyId == LLV2_AGGREGATOR_NAME) {
+          if (externalDuchyId == AGGREGATOR_NAME) {
             AGGREGATOR_PROTOCOLS_SETUP_CONFIG
+          } else if (externalDuchyId == WORKER_ONE_NAME){
+            WORKER_ONE_PROTOCOLS_SETUP_CONFIG
           } else {
-            NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG
+            WORKER_TWO_PROTOCOLS_SETUP_CONFIG
           }
         val herald =
           Herald(
@@ -218,7 +226,7 @@ class InProcessDuchy(
     }
   }
 
-  fun startLiquidLegionsV2mill(duchyCertMap: Map<String, String>) {
+  fun startMill(duchyCertMap: Map<String, String>) {
     val consentSignal509Cert =
       readCertificate(loadTestCertDerFile("${externalDuchyId}_cs_cert.der"))
     val signingPrivateKey =
@@ -226,13 +234,21 @@ class InProcessDuchy(
         loadTestCertDerFile("${externalDuchyId}_cs_private.der"),
         consentSignal509Cert.publicKey.algorithm,
       )
-    llv2MillJob =
-      daemonScope.launch(CoroutineName("$externalDuchyId LLv2 Mill")) {
+    millJob =
+      daemonScope.launch(CoroutineName("$externalDuchyId Mill")) {
         val signingKey = SigningKeyHandle(consentSignal509Cert, signingPrivateKey)
         val workerStubs =
           ALL_DUCHY_NAMES.minus(externalDuchyId).associateWith {
             val channel = computationControlChannel(it)
             SystemComputationControlCoroutineStub(channel).withDuchyId(externalDuchyId)
+          }
+        val protocolsSetupConfig =
+          if (externalDuchyId == AGGREGATOR_NAME) {
+            AGGREGATOR_PROTOCOLS_SETUP_CONFIG
+          } else if (externalDuchyId == WORKER_ONE_NAME){
+            WORKER_ONE_PROTOCOLS_SETUP_CONFIG
+          } else {
+            WORKER_TWO_PROTOCOLS_SETUP_CONFIG
           }
         val reachFrequencyLiquidLegionsV2Mill =
           ReachFrequencyLiquidLegionsV2Mill(
@@ -270,19 +286,39 @@ class InProcessDuchy(
             openTelemetry = GlobalOpenTelemetry.get(),
             parallelism = DUCHY_MILL_PARALLELISM,
           )
-
+        val honestMajorityShareShuffleMill =
+          HonestMajorityShareShuffleMill(
+            millId = "$externalDuchyId honestMajorityShareShuffle Mill",
+            duchyId = externalDuchyId,
+            signingKey = signingKey,
+            consentSignalCert = Certificate(duchyCertMap[externalDuchyId]!!, consentSignal509Cert),
+            trustedCertificates = trustedCertificates,
+            dataClients = computationDataClients,
+            systemComputationParticipantsClient = systemComputationParticipantsClient,
+            systemComputationsClient = systemComputationsClient,
+            systemComputationLogEntriesClient = systemComputationLogEntriesClient,
+            computationStatsClient = computationStatsClient,
+            privateKeyStore = privateKeyStore,
+            certificateClient = certificateStub,
+            workerStubs = workerStubs,
+            protocolSetupConfig = protocolsSetupConfig.honestMajorityShareShuffle,
+            cryptoWorker = JniHonestMajorityShareShuffleCryptor(),
+            workLockDuration = Duration.ofSeconds(1),
+            openTelemetry = GlobalOpenTelemetry.get(),
+          )
         val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1))
         throttler.loopOnReady {
           reachFrequencyLiquidLegionsV2Mill.pollAndProcessNextComputation()
           reachOnlyLiquidLegionsV2Mill.pollAndProcessNextComputation()
+          honestMajorityShareShuffleMill.pollAndProcessNextComputation()
         }
       }
   }
 
-  suspend fun stopLiquidLegionsV2Mill() {
-    if (this::llv2MillJob.isInitialized) {
-      llv2MillJob.cancel("Stopping LLv2 Mill")
-      llv2MillJob.join()
+  suspend fun stopMill() {
+    if (this::millJob.isInitialized) {
+      millJob.cancel("Stopping Mill")
+      millJob.join()
     }
   }
 

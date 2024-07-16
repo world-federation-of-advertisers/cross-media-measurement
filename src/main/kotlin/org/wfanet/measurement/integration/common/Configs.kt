@@ -39,6 +39,7 @@ import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
+import org.wfanet.measurement.internal.kingdom.HmssProtocolConfigConfig
 import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
@@ -50,8 +51,6 @@ private val SECRET_FILES_PATH: Path =
     )
   )
 
-val DUCHY_ID_CONFIG: DuchyIdConfig =
-  loadTextProto("duchy_id_config.textproto", DuchyIdConfig.getDefaultInstance())
 val AGGREGATOR_PROTOCOLS_SETUP_CONFIG: ProtocolsSetupConfig =
   loadTextProto(
     "aggregator_protocols_setup_config.textproto",
@@ -62,19 +61,42 @@ val NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG: ProtocolsSetupConfig =
     "non_aggregator_protocols_setup_config.textproto",
     ProtocolsSetupConfig.getDefaultInstance(),
   )
+val WORKER_ONE_PROTOCOLS_SETUP_CONFIG: ProtocolsSetupConfig =
+  loadTextProto(
+    "worker1_protocols_setup_config.textproto",
+    ProtocolsSetupConfig.getDefaultInstance(),
+  )
+val WORKER_TWO_PROTOCOLS_SETUP_CONFIG: ProtocolsSetupConfig =
+  loadTextProto(
+    "worker2_protocols_setup_config.textproto",
+    ProtocolsSetupConfig.getDefaultInstance(),
+  )
+
 val LLV2_PROTOCOL_CONFIG_CONFIG: Llv2ProtocolConfigConfig =
   loadTextProto(
     "llv2_protocol_config_config.textproto",
     Llv2ProtocolConfigConfig.getDefaultInstance(),
   )
-val LLV2_AGGREGATOR_NAME =
-  AGGREGATOR_PROTOCOLS_SETUP_CONFIG.liquidLegionsV2.externalAggregatorDuchyId!!
 val RO_LLV2_PROTOCOL_CONFIG_CONFIG: Llv2ProtocolConfigConfig =
   loadTextProto(
     "ro_llv2_protocol_config_config.textproto",
     Llv2ProtocolConfigConfig.getDefaultInstance(),
   )
+val HMSS_PROTOCOL_CONFIG_CONFIG: HmssProtocolConfigConfig =
+  loadTextProto(
+    "hmss_protocol_config_config.textproto",
+    HmssProtocolConfigConfig.getDefaultInstance(),
+  )
 
+val AGGREGATOR_NAME =
+  AGGREGATOR_PROTOCOLS_SETUP_CONFIG.honestMajorityShareShuffle.aggregatorDuchyId!!
+val WORKER_ONE_NAME =
+  AGGREGATOR_PROTOCOLS_SETUP_CONFIG.honestMajorityShareShuffle.firstNonAggregatorDuchyId!!
+val WORKER_TWO_NAME =
+  AGGREGATOR_PROTOCOLS_SETUP_CONFIG.honestMajorityShareShuffle.secondNonAggregatorDuchyId!!
+
+val DUCHY_ID_CONFIG: DuchyIdConfig =
+  loadTextProto("duchy_id_config.textproto", DuchyIdConfig.getDefaultInstance())
 val ALL_DUCHY_NAMES = DUCHY_ID_CONFIG.duchiesList.map { it.externalDuchyId }
 val ALL_DUCHIES =
   DUCHY_ID_CONFIG.duchiesList.map { duchy ->
@@ -90,6 +112,7 @@ val ALL_DUCHIES =
       duchy.activeStartTime.toInstant()..activeEndTime,
     )
   }
+
 val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3")
 const val DUCHY_MILL_PARALLELISM = 3
 

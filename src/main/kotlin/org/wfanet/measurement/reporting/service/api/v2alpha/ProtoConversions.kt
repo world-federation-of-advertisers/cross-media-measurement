@@ -29,6 +29,7 @@ import java.time.zone.ZoneRulesException
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodology
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
+import org.wfanet.measurement.api.v2alpha.HonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsCountDistinct
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsDistribution
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -45,6 +46,7 @@ import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodologyKt as
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCountDistinct
 import org.wfanet.measurement.internal.reporting.v2.DeterministicDistribution
 import org.wfanet.measurement.internal.reporting.v2.DeterministicSum
+import org.wfanet.measurement.internal.reporting.v2.HonestMajorityShareShuffle as InternalHonestMajorityShareShuffle
 import org.wfanet.measurement.internal.reporting.v2.LiquidLegionsCountDistinct as InternalLiquidLegionsCountDistinct
 import org.wfanet.measurement.internal.reporting.v2.LiquidLegionsDistribution as InternalLiquidLegionsDistribution
 import org.wfanet.measurement.internal.reporting.v2.LiquidLegionsV2
@@ -69,6 +71,7 @@ import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.TimeIntervals as InternalTimeIntervals
 import org.wfanet.measurement.internal.reporting.v2.customDirectMethodology
 import org.wfanet.measurement.internal.reporting.v2.deterministicCount
+import org.wfanet.measurement.internal.reporting.v2.honestMajorityShareShuffle
 import org.wfanet.measurement.internal.reporting.v2.liquidLegionsCountDistinct
 import org.wfanet.measurement.internal.reporting.v2.liquidLegionsDistribution
 import org.wfanet.measurement.internal.reporting.v2.liquidLegionsSketchParams
@@ -689,12 +692,22 @@ private fun Measurement.Result.Frequency.toInternal(
         Measurement.Result.Frequency.MethodologyCase.LIQUID_LEGIONS_DISTRIBUTION -> {
           liquidLegionsDistribution = source.liquidLegionsDistribution.toInternal()
         }
+        else -> {}
       }
     } else if (protocolConfig.protocolsList.any { it.hasLiquidLegionsV2() }) {
       val cmmsProtocol =
         protocolConfig.protocolsList.first { it.hasLiquidLegionsV2() }.liquidLegionsV2
       noiseMechanism = cmmsProtocol.noiseMechanism.toInternal()
       liquidLegionsV2 = cmmsProtocol.toInternal()
+    } else if (protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }) {
+      noiseMechanism = source.noiseMechanism.toInternal()
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+      when (source.methodologyCase) {
+        Measurement.Result.Frequency.MethodologyCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+          honestMajorityShareShuffle = source.honestMajorityShareShuffle.toInternal()
+        }
+        else -> {}
+      }
     } else {
       error("Measurement protocol is not set or not supported.")
     }
@@ -714,7 +727,6 @@ private fun Measurement.Result.Reach.toInternal(
       noiseMechanism = source.noiseMechanism.toInternal()
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (source.methodologyCase) {
-        Measurement.Result.Reach.MethodologyCase.METHODOLOGY_NOT_SET -> {}
         Measurement.Result.Reach.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY -> {
           customDirectMethodology = source.customDirectMethodology.toInternal()
         }
@@ -724,6 +736,7 @@ private fun Measurement.Result.Reach.toInternal(
         Measurement.Result.Reach.MethodologyCase.LIQUID_LEGIONS_COUNT_DISTINCT -> {
           liquidLegionsCountDistinct = source.liquidLegionsCountDistinct.toInternal()
         }
+        else -> {}
       }
     } else if (protocolConfig.protocolsList.any { it.hasLiquidLegionsV2() }) {
       val cmmsProtocol =
@@ -737,6 +750,15 @@ private fun Measurement.Result.Reach.toInternal(
           .reachOnlyLiquidLegionsV2
       noiseMechanism = cmmsProtocol.noiseMechanism.toInternal()
       reachOnlyLiquidLegionsV2 = cmmsProtocol.toInternal()
+    } else if (protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }) {
+      noiseMechanism = source.noiseMechanism.toInternal()
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+      when (source.methodologyCase) {
+        Measurement.Result.Reach.MethodologyCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+          honestMajorityShareShuffle = source.honestMajorityShareShuffle.toInternal()
+        }
+        else -> {}
+      }
     } else {
       error("Measurement protocol is not set or not supported.")
     }
@@ -1106,6 +1128,15 @@ fun LiquidLegionsDistribution.toInternal(): InternalLiquidLegionsDistribution {
     decayRate = source.decayRate
     maxSize = source.maxSize
   }
+}
+
+/**
+ * Converts a CMMS [HonestMajorityShareShuffleMethodology] to an internal
+ * [InternalHonestMajorityShareShuffle].
+ */
+fun HonestMajorityShareShuffleMethodology.toInternal(): InternalHonestMajorityShareShuffle {
+  val source = this
+  return honestMajorityShareShuffle { frequencyVectorSize = source.frequencyVectorSize }
 }
 
 /** Converts an internal [InternalNoiseMechanism] to a [StatsNoiseMechanism]. */

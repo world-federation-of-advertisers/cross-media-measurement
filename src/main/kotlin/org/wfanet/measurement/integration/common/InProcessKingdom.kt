@@ -155,6 +155,8 @@ class InProcessKingdom(
               internalDataProvidersClient,
               MEASUREMENT_NOISE_MECHANISMS,
               reachOnlyLlV2Enabled = true,
+              reachAndFrequencyHmssEnabled = true,
+              reachOnlyHmssEnabled = true,
             )
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),

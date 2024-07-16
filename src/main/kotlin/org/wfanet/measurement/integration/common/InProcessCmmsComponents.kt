@@ -39,6 +39,7 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.DuchyCertConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
@@ -193,7 +194,7 @@ class InProcessCmmsComponents(
     // created.
     duchies.forEach {
       it.startHerald()
-      it.startLiquidLegionsV2mill(duchyCertMap)
+      it.startMill(duchyCertMap)
     }
     edpSimulators.forEach { it.start() }
   }
@@ -203,7 +204,7 @@ class InProcessCmmsComponents(
   fun stopDuchyDaemons() = runBlocking {
     for (duchy in duchies) {
       duchy.stopHerald()
-      duchy.stopLiquidLegionsV2Mill()
+      duchy.stopMill()
     }
   }
 
@@ -236,6 +237,10 @@ class InProcessCmmsComponents(
         RO_LLV2_PROTOCOL_CONFIG_CONFIG.duchyProtocolConfig,
         setOf("aggregator"),
         2,
+      )
+      HmssProtocolConfig.setForTest(
+        HMSS_PROTOCOL_CONFIG_CONFIG.protocolConfig,
+        setOf("worker1", "worker2", "aggregator"),
       )
       DuchyInfo.initializeFromConfig(
         loadTextProto("duchy_cert_config.textproto", DuchyCertConfig.getDefaultInstance())
