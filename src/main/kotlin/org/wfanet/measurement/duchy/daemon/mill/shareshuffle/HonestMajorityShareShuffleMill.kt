@@ -70,7 +70,7 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteAggregationPhaseRe
 import org.wfanet.measurement.internal.duchy.protocol.CompleteAggregationPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequestKt
-import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequestKt.sketchShare
+import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequestKt.frequencyVectorShare
 import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.AggregationPhaseInput
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.ShufflePhaseInput
@@ -80,7 +80,7 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.shufflePhaseInput
 import org.wfanet.measurement.internal.duchy.protocol.completeAggregationPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseRequest
-import org.wfanet.measurement.internal.duchy.protocol.shareShuffleSketchParams
+import org.wfanet.measurement.internal.duchy.protocol.shareShuffleFrequencyVectorParams
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
@@ -400,9 +400,9 @@ class HonestMajorityShareShuffleMill(
         if (blob != null) {
           // Requisition in format of blob.
           registerCounts += requisition.details.protocol.honestMajorityShareShuffle.registerCount
-          sketchShares += sketchShare {
+          frequencyVectorShares += frequencyVectorShare {
             data =
-              CompleteShufflePhaseRequestKt.SketchShareKt.shareData {
+              CompleteShufflePhaseRequestKt.FrequencyVectorShareKt.shareData {
                 values += FrequencyVector.parseFrom(blob).dataList
               }
           }
@@ -416,13 +416,13 @@ class HonestMajorityShareShuffleMill(
           val seed =
             verifySecretSeed(secretSeed, hmss.encryptionKeyPair.privateKeyId, publicApiVersion)
 
-          sketchShares += sketchShare { this.seed = seed.data }
+          frequencyVectorShares += frequencyVectorShare { this.seed = seed.data }
         }
       }
       require(registerCounts.distinct().size == 1) {
         "All RegisterCount from requisitions must be the same. $registerCounts"
       }
-      sketchParams = shareShuffleSketchParams {
+      frequencyVectorParams = shareShuffleFrequencyVectorParams {
         registerCount = registerCounts.first()
         maximumCombinedFrequency = hmss.parameters.maximumFrequency * token.requisitionsCount
         ringModulus = hmss.parameters.ringModulus
@@ -448,8 +448,8 @@ class HonestMajorityShareShuffleMill(
     )
 
     val aggregationPhaseInput = aggregationPhaseInput {
-      combinedFrequencyVectors += result.combinedSketchList
-      registerCount = request.sketchParams.registerCount
+      combinedFrequencyVectors += result.combinedFrequencyVectorList
+      registerCount = request.frequencyVectorParams.registerCount
     }
 
     logWallClockDuration(
@@ -497,12 +497,12 @@ class HonestMajorityShareShuffleMill(
       noiseMechanism = hmss.parameters.noiseMechanism
 
       for (input in aggregationPhaseInputs) {
-        sketchShares +=
+        frequencyVectorShares +=
           CompleteAggregationPhaseRequestKt.shareData {
             shareVector += input.combinedFrequencyVectorsList
           }
       }
-      sketchParams = shareShuffleSketchParams {
+      frequencyVectorParams = shareShuffleFrequencyVectorParams {
         require(aggregationPhaseInputs.map { it.registerCount }.distinct().size == 1)
         registerCount = aggregationPhaseInputs.first().registerCount
         maximumCombinedFrequency = hmss.parameters.maximumFrequency * token.requisitionsCount

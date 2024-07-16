@@ -54,7 +54,8 @@ using ::wfa::measurement::internal::duchy::protocol::common::
 
 constexpr int kWorkerCount = 2;
 
-absl::Status VerifySketchParameters(const ShareShuffleSketchParams& params) {
+absl::Status VerifyFrequencyVectorParameters(
+    const ShareShuffleFrequencyVectorParams& params) {
   if (params.register_count() < 1) {
     return absl::InvalidArgumentError("The register count must be at least 1.");
   }
@@ -92,30 +93,35 @@ CompleteReachAndFrequencyShufflePhase(
   StartedThreadCpuTimer timer;
   CompleteShufflePhaseResponse response;
 
-  RETURN_IF_ERROR(VerifySketchParameters(request.sketch_params()));
+  RETURN_IF_ERROR(
+      VerifyFrequencyVectorParameters(request.frequency_vector_params()));
 
-  if (request.sketch_shares().empty()) {
-    return absl::InvalidArgumentError("Sketch shares must not be empty.");
+  if (request.frequency_vector_shares().empty()) {
+    return absl::InvalidArgumentError(
+        "FrequencyVector shares must not be empty.");
   }
 
-  const int sketch_size = request.sketch_params().register_count();
+  const int frequency_vector_size =
+      request.frequency_vector_params().register_count();
 
   // Combines the input shares.
-  std::vector<uint32_t> combined_sketch(sketch_size, 0);
-  for (int i = 0; i < request.sketch_shares().size(); i++) {
-    ASSIGN_OR_RETURN(
-        std::vector<uint32_t> share_vector,
-        GetShareVectorFromSketchShare(request.sketch_params(),
-                                      request.sketch_shares().Get(i)));
-    if (share_vector.size() != sketch_size) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "The $0-th sketch share has invalid size. Expect $1 but the "
-          "actual is $2.",
-          i, sketch_size, share_vector.size()));
+  std::vector<uint32_t> combined_frequency_vector(frequency_vector_size, 0);
+  for (int i = 0; i < request.frequency_vector_shares().size(); i++) {
+    ASSIGN_OR_RETURN(std::vector<uint32_t> share_vector,
+                     GetShareVectorFromFrequencyVectorShare(
+                         request.frequency_vector_params(),
+                         request.frequency_vector_shares().Get(i)));
+    if (share_vector.size() != frequency_vector_size) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("The $0-th frequency_vector share has invalid size. "
+                           "Expect $1 but the "
+                           "actual is $2.",
+                           i, frequency_vector_size, share_vector.size()));
     }
-    ASSIGN_OR_RETURN(combined_sketch,
-                     VectorAddMod(combined_sketch, share_vector,
-                                  request.sketch_params().ring_modulus()));
+    ASSIGN_OR_RETURN(
+        combined_frequency_vector,
+        VectorAddMod(combined_frequency_vector, share_vector,
+                     request.frequency_vector_params().ring_modulus()));
   }
 
   ASSIGN_OR_RETURN(PrngSeed seed,
@@ -137,21 +143,21 @@ CompleteReachAndFrequencyShufflePhase(
         GetBlindHistogramNoiser(request.frequency_dp_params(), kWorkerCount,
                                 request.noise_mechanism());
     // Generates local noise registers.
-    ASSIGN_OR_RETURN(
-        std::vector<uint32_t> noise_registers,
-        GenerateReachAndFrequencyNoiseRegisters(
-            request.sketch_params(), *reach_noiser, *frequency_noiser));
+    ASSIGN_OR_RETURN(std::vector<uint32_t> noise_registers,
+                     GenerateReachAndFrequencyNoiseRegisters(
+                         request.frequency_vector_params(), *reach_noiser,
+                         *frequency_noiser));
 
     // Both workers generate common random vectors from the common random seed.
     // rand_vec_1 || rand_vec_2 <-- PRNG(seed).
-    ASSIGN_OR_RETURN(
-        std::vector<uint32_t> rand_vec_1,
-        prng->GenerateUniformRandomRange(
-            noise_registers.size(), request.sketch_params().ring_modulus()));
-    ASSIGN_OR_RETURN(
-        std::vector<uint32_t> rand_vec_2,
-        prng->GenerateUniformRandomRange(
-            noise_registers.size(), request.sketch_params().ring_modulus()));
+    ASSIGN_OR_RETURN(std::vector<uint32_t> rand_vec_1,
+                     prng->GenerateUniformRandomRange(
+                         noise_registers.size(),
+                         request.frequency_vector_params().ring_modulus()));
+    ASSIGN_OR_RETURN(std::vector<uint32_t> rand_vec_2,
+                     prng->GenerateUniformRandomRange(
+                         noise_registers.size(),
+                         request.frequency_vector_params().ring_modulus()));
 
     // Generates local noise register shares using the common random vectors.
     // Worker 1 obtains shares:
@@ -163,28 +169,30 @@ CompleteReachAndFrequencyShufflePhase(
     std::vector<uint32_t> first_local_noise_share;
     std::vector<uint32_t> second_local_noise_share;
     if (request.order() == CompleteShufflePhaseRequest::FIRST) {
-      ASSIGN_OR_RETURN(first_local_noise_share,
-                       VectorSubMod(noise_registers, rand_vec_1,
-                                    request.sketch_params().ring_modulus()));
+      ASSIGN_OR_RETURN(
+          first_local_noise_share,
+          VectorSubMod(noise_registers, rand_vec_1,
+                       request.frequency_vector_params().ring_modulus()));
       second_local_noise_share = std::move(rand_vec_2);
     } else if (request.order() == CompleteShufflePhaseRequest::SECOND) {
       first_local_noise_share = std::move(rand_vec_1);
-      ASSIGN_OR_RETURN(second_local_noise_share,
-                       VectorSubMod(noise_registers, rand_vec_2,
-                                    request.sketch_params().ring_modulus()));
+      ASSIGN_OR_RETURN(
+          second_local_noise_share,
+          VectorSubMod(noise_registers, rand_vec_2,
+                       request.frequency_vector_params().ring_modulus()));
     } else {
       return absl::InvalidArgumentError(
           "Non aggregator order must be specified.");
     }
 
-    // Appends the first noise share to the combined sketch share.
-    combined_sketch.insert(combined_sketch.end(),
-                           first_local_noise_share.begin(),
-                           first_local_noise_share.end());
-    // Appends the second noise share to the combined sketch share.
-    combined_sketch.insert(combined_sketch.end(),
-                           second_local_noise_share.begin(),
-                           second_local_noise_share.end());
+    // Appends the first noise share to the combined frequency_vector share.
+    combined_frequency_vector.insert(combined_frequency_vector.end(),
+                                     first_local_noise_share.begin(),
+                                     first_local_noise_share.end());
+    // Appends the second noise share to the combined frequency_vector share.
+    combined_frequency_vector.insert(combined_frequency_vector.end(),
+                                     second_local_noise_share.begin(),
+                                     second_local_noise_share.end());
   }
 
   // Generates shuffle seed from common random seed.
@@ -194,10 +202,11 @@ CompleteReachAndFrequencyShufflePhase(
   ASSIGN_OR_RETURN(PrngSeed shuffle_seed,
                    GetPrngSeedFromCharVector(shuffle_seed_vec));
   // Shuffle the shares.
-  RETURN_IF_ERROR(SecureShuffleWithSeed(combined_sketch, shuffle_seed));
+  RETURN_IF_ERROR(
+      SecureShuffleWithSeed(combined_frequency_vector, shuffle_seed));
 
-  response.mutable_combined_sketch()->Add(combined_sketch.begin(),
-                                          combined_sketch.end());
+  response.mutable_combined_frequency_vector()->Add(
+      combined_frequency_vector.begin(), combined_frequency_vector.end());
   *response.mutable_elapsed_cpu_duration() =
       google::protobuf::util::TimeUtil::MillisecondsToDuration(
           timer.ElapsedMillis());
@@ -209,35 +218,40 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteReachOnlyShufflePhase(
   StartedThreadCpuTimer timer;
   CompleteShufflePhaseResponse response;
 
-  RETURN_IF_ERROR(VerifySketchParameters(request.sketch_params()));
+  RETURN_IF_ERROR(
+      VerifyFrequencyVectorParameters(request.frequency_vector_params()));
 
   // Verify that the ring modulus is a prime.
-  if (!IsPrime(request.sketch_params().ring_modulus())) {
+  if (!IsPrime(request.frequency_vector_params().ring_modulus())) {
     return absl::InvalidArgumentError("The ring modulus must be a prime.");
   }
 
-  if (request.sketch_shares().empty()) {
-    return absl::InvalidArgumentError("Sketch shares must not be empty.");
+  if (request.frequency_vector_shares().empty()) {
+    return absl::InvalidArgumentError(
+        "FrequencyVector shares must not be empty.");
   }
 
-  const int sketch_size = request.sketch_params().register_count();
+  const int frequency_vector_size =
+      request.frequency_vector_params().register_count();
 
   // Combines the input shares.
-  std::vector<uint32_t> combined_sketch(sketch_size, 0);
-  for (int i = 0; i < request.sketch_shares().size(); i++) {
-    ASSIGN_OR_RETURN(
-        std::vector<uint32_t> share_vector,
-        GetShareVectorFromSketchShare(request.sketch_params(),
-                                      request.sketch_shares().Get(i)));
-    if (share_vector.size() != sketch_size) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "The $0-th sketch share has invalid size. Expect $1 but the "
-          "actual is $2.",
-          i, sketch_size, share_vector.size()));
+  std::vector<uint32_t> combined_frequency_vector(frequency_vector_size, 0);
+  for (int i = 0; i < request.frequency_vector_shares().size(); i++) {
+    ASSIGN_OR_RETURN(std::vector<uint32_t> share_vector,
+                     GetShareVectorFromFrequencyVectorShare(
+                         request.frequency_vector_params(),
+                         request.frequency_vector_shares().Get(i)));
+    if (share_vector.size() != frequency_vector_size) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("The $0-th frequency_vector share has invalid size. "
+                           "Expect $1 but the "
+                           "actual is $2.",
+                           i, frequency_vector_size, share_vector.size()));
     }
-    ASSIGN_OR_RETURN(combined_sketch,
-                     VectorAddMod(combined_sketch, share_vector,
-                                  request.sketch_params().ring_modulus()));
+    ASSIGN_OR_RETURN(
+        combined_frequency_vector,
+        VectorAddMod(combined_frequency_vector, share_vector,
+                     request.frequency_vector_params().ring_modulus()));
   }
   ASSIGN_OR_RETURN(PrngSeed seed,
                    GetPrngSeedFromString(request.common_random_seed()));
@@ -250,12 +264,14 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteReachOnlyShufflePhase(
   // Sample a vector r of random values in [1, modulus).
   ASSIGN_OR_RETURN(std::vector<uint32_t> r,
                    prng->GenerateNonZeroUniformRandomRange(
-                       sketch_size, request.sketch_params().ring_modulus()));
+                       frequency_vector_size,
+                       request.frequency_vector_params().ring_modulus()));
 
   // Transform share of non-zero registers to share of a non-zero random value.
-  for (int j = 0; j < sketch_size; j++) {
-    combined_sketch[j] = uint64_t{combined_sketch[j]} * uint64_t{r[j]} %
-                         request.sketch_params().ring_modulus();
+  for (int j = 0; j < frequency_vector_size; j++) {
+    combined_frequency_vector[j] =
+        uint64_t{combined_frequency_vector[j]} * uint64_t{r[j]} %
+        request.frequency_vector_params().ring_modulus();
   }
 
   // Adds noise registers to the combined input share.
@@ -266,19 +282,19 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteReachOnlyShufflePhase(
 
     // Generates local noise registers.
     ASSIGN_OR_RETURN(std::vector<uint32_t> noise_registers,
-                     GenerateReachOnlyNoiseRegisters(request.sketch_params(),
-                                                     *reach_noiser));
+                     GenerateReachOnlyNoiseRegisters(
+                         request.frequency_vector_params(), *reach_noiser));
 
     // Both workers generate common random vectors from the common random seed.
     // rand_vec_1 || rand_vec_2 <-- PRNG(seed).
-    ASSIGN_OR_RETURN(
-        std::vector<uint32_t> rand_vec_1,
-        prng->GenerateUniformRandomRange(
-            noise_registers.size(), request.sketch_params().ring_modulus()));
-    ASSIGN_OR_RETURN(
-        std::vector<uint32_t> rand_vec_2,
-        prng->GenerateUniformRandomRange(
-            noise_registers.size(), request.sketch_params().ring_modulus()));
+    ASSIGN_OR_RETURN(std::vector<uint32_t> rand_vec_1,
+                     prng->GenerateUniformRandomRange(
+                         noise_registers.size(),
+                         request.frequency_vector_params().ring_modulus()));
+    ASSIGN_OR_RETURN(std::vector<uint32_t> rand_vec_2,
+                     prng->GenerateUniformRandomRange(
+                         noise_registers.size(),
+                         request.frequency_vector_params().ring_modulus()));
 
     // Generates local noise register shares using the common random vectors.
     // Worker 1 obtains shares:
@@ -290,28 +306,30 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteReachOnlyShufflePhase(
     std::vector<uint32_t> first_local_noise_share;
     std::vector<uint32_t> second_local_noise_share;
     if (request.order() == CompleteShufflePhaseRequest::FIRST) {
-      ASSIGN_OR_RETURN(first_local_noise_share,
-                       VectorSubMod(noise_registers, rand_vec_1,
-                                    request.sketch_params().ring_modulus()));
+      ASSIGN_OR_RETURN(
+          first_local_noise_share,
+          VectorSubMod(noise_registers, rand_vec_1,
+                       request.frequency_vector_params().ring_modulus()));
       second_local_noise_share = std::move(rand_vec_2);
     } else if (request.order() == CompleteShufflePhaseRequest::SECOND) {
       first_local_noise_share = std::move(rand_vec_1);
-      ASSIGN_OR_RETURN(second_local_noise_share,
-                       VectorSubMod(noise_registers, rand_vec_2,
-                                    request.sketch_params().ring_modulus()));
+      ASSIGN_OR_RETURN(
+          second_local_noise_share,
+          VectorSubMod(noise_registers, rand_vec_2,
+                       request.frequency_vector_params().ring_modulus()));
     } else {
       return absl::InvalidArgumentError(
           "Non aggregator order must be specified.");
     }
 
-    // Appends the first noise share to the combined sketch share.
-    combined_sketch.insert(combined_sketch.end(),
-                           first_local_noise_share.begin(),
-                           first_local_noise_share.end());
-    // Appends the second noise share to the combined sketch share.
-    combined_sketch.insert(combined_sketch.end(),
-                           second_local_noise_share.begin(),
-                           second_local_noise_share.end());
+    // Appends the first noise share to the combined frequency_vector share.
+    combined_frequency_vector.insert(combined_frequency_vector.end(),
+                                     first_local_noise_share.begin(),
+                                     first_local_noise_share.end());
+    // Appends the second noise share to the combined frequency_vector share.
+    combined_frequency_vector.insert(combined_frequency_vector.end(),
+                                     second_local_noise_share.begin(),
+                                     second_local_noise_share.end());
   }
 
   // Generates shuffle seed from common random seed.
@@ -321,10 +339,11 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteReachOnlyShufflePhase(
   ASSIGN_OR_RETURN(PrngSeed shuffle_seed,
                    GetPrngSeedFromCharVector(shuffle_seed_vec));
   // Shuffle the shares.
-  RETURN_IF_ERROR(SecureShuffleWithSeed(combined_sketch, shuffle_seed));
+  RETURN_IF_ERROR(
+      SecureShuffleWithSeed(combined_frequency_vector, shuffle_seed));
 
-  response.mutable_combined_sketch()->Add(combined_sketch.begin(),
-                                          combined_sketch.end());
+  response.mutable_combined_frequency_vector()->Add(
+      combined_frequency_vector.begin(), combined_frequency_vector.end());
   *response.mutable_elapsed_cpu_duration() =
       google::protobuf::util::TimeUtil::MillisecondsToDuration(
           timer.ElapsedMillis());
@@ -337,16 +356,18 @@ CompleteReachAndFrequencyAggregationPhase(
   StartedThreadCpuTimer timer;
   CompleteAggregationPhaseResponse response;
 
-  RETURN_IF_ERROR(VerifySketchParameters(request.sketch_params()));
+  RETURN_IF_ERROR(
+      VerifyFrequencyVectorParameters(request.frequency_vector_params()));
 
-  if (request.sketch_shares().size() != kWorkerCount) {
+  if (request.frequency_vector_shares().size() != kWorkerCount) {
     return absl::InvalidArgumentError(
         "The number of share vectors must be equal to the number of "
         "non-aggregators.");
   }
   ASSIGN_OR_RETURN(
-      std::vector<uint32_t> combined_sketch,
-      CombineSketchShares(request.sketch_params(), request.sketch_shares()));
+      std::vector<uint32_t> combined_frequency_vector,
+      CombineFrequencyVectorShares(request.frequency_vector_params(),
+                                   request.frequency_vector_shares()));
 
   int maximum_frequency = request.maximum_frequency();
   if (maximum_frequency < 1) {
@@ -354,29 +375,29 @@ CompleteReachAndFrequencyAggregationPhase(
         "The maximum frequency should be greater than 0.");
   }
 
-  // Validates the combined sketch and generates the frequency histogram.
-  // frequency_histogram[i] = the number of times value i occurs where
-  // i in {0, ..., maximum_frequency-1}.
+  // Validates the combined frequency_vector and generates the frequency
+  // histogram. frequency_histogram[i] = the number of times value i occurs
+  // where i in {0, ..., maximum_frequency-1}.
   absl::flat_hash_map<int, int64_t> frequency_histogram;
-  for (const auto reg : combined_sketch) {
-    if (reg > request.sketch_params().maximum_combined_frequency() &&
-        reg != (request.sketch_params().ring_modulus() - 1)) {
+  for (const auto reg : combined_frequency_vector) {
+    if (reg > request.frequency_vector_params().maximum_combined_frequency() &&
+        reg != (request.frequency_vector_params().ring_modulus() - 1)) {
       return absl::InternalError(absl::Substitute(
           "The combined register value, which is $0, is not valid. It must be "
           "either the sentinel value, which is $1, or less that or equal to "
           "the combined maximum frequency, which is $2.",
-          reg, request.sketch_params().ring_modulus() - 1,
-          request.sketch_params().maximum_combined_frequency()));
+          reg, request.frequency_vector_params().ring_modulus() - 1,
+          request.frequency_vector_params().maximum_combined_frequency()));
     }
     if (reg < maximum_frequency) {
       frequency_histogram[reg]++;
     }
   }
 
-  int64_t register_count = request.sketch_params().register_count();
+  int64_t register_count = request.frequency_vector_params().register_count();
 
   // Computes the non empty register count by subtracting frequency zero from
-  // the input sketch size. Another way to compute it is to add up all
+  // the input frequency_vector size. Another way to compute it is to add up all
   // frequencies from 1 to the maximum combined frequency. However, the latter
   // approach will have a lot more noise.
   int64_t non_empty_register_count =
@@ -411,7 +432,8 @@ CompleteReachAndFrequencyAggregationPhase(
     // Ensures that non_empty_register_count is at least 0.
     non_empty_register_count = std::max(0L, non_empty_register_count);
 
-    // Ensures that non_empty_register_count is at most the input sketch size.
+    // Ensures that non_empty_register_count is at most the input
+    // frequency_vector size.
     non_empty_register_count =
         std::min(register_count, non_empty_register_count);
   }
@@ -451,7 +473,7 @@ CompleteReachAndFrequencyAggregationPhase(
 
   // Returns error message when the adjusted_total equals to zero. This happens
   // when frequency_histogram[0] = max(register_count, accumulated_count) which
-  // suggests that the sketchs are empty.
+  // suggests that the frequency_vectors are empty.
   if (adjusted_total == 0) {
     return absl::InvalidArgumentError(
         "There is neither actual data nor effective noise in the request.");
@@ -483,19 +505,21 @@ CompleteReachOnlyAggregationPhase(
     const CompleteAggregationPhaseRequest& request) {
   StartedThreadCpuTimer timer;
   CompleteAggregationPhaseResponse response;
-  RETURN_IF_ERROR(VerifySketchParameters(request.sketch_params()));
-  if (request.sketch_shares().size() != kWorkerCount) {
+  RETURN_IF_ERROR(
+      VerifyFrequencyVectorParameters(request.frequency_vector_params()));
+  if (request.frequency_vector_shares().size() != kWorkerCount) {
     return absl::InvalidArgumentError(
         "The number of share vectors must be equal to the number of "
         "non-aggregators.");
   }
   ASSIGN_OR_RETURN(
-      std::vector<uint32_t> combined_sketch,
-      CombineSketchShares(request.sketch_params(), request.sketch_shares()));
+      std::vector<uint32_t> combined_frequency_vector,
+      CombineFrequencyVectorShares(request.frequency_vector_params(),
+                                   request.frequency_vector_shares()));
 
   // Count the non-zero registers.
   int64_t non_empty_register_count = 0;
-  for (const auto reg : combined_sketch) {
+  for (const auto reg : combined_frequency_vector) {
     if (reg != 0) {
       non_empty_register_count++;
     }
@@ -514,9 +538,11 @@ CompleteReachOnlyAggregationPhase(
     // Ensures that non_empty_register_count is at least 0.
     non_empty_register_count = std::max(0L, non_empty_register_count);
 
-    // Ensures that non_empty_register_count is at most the input sketch size.
-    non_empty_register_count = std::min(
-        request.sketch_params().register_count(), non_empty_register_count);
+    // Ensures that non_empty_register_count is at most the input
+    // frequency_vector size.
+    non_empty_register_count =
+        std::min(request.frequency_vector_params().register_count(),
+                 non_empty_register_count);
   }
 
   // Estimates reach using the number of non-empty buckets and the VID sampling

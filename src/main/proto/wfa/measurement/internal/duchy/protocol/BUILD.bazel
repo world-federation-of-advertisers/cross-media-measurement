@@ -124,7 +124,7 @@ kt_jvm_proto_library(
 
 proto_library(
     name = "share_shuffle_sketch_params_proto",
-    srcs = ["share_shuffle_sketch_params.proto"],
+    srcs = ["share_shuffle_frequency_vector_params.proto"],
     strip_import_prefix = IMPORT_PREFIX,
 )
 

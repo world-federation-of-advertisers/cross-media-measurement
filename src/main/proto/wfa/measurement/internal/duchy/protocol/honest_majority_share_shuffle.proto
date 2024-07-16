@@ -194,7 +194,7 @@ message HonestMajorityShareShuffle {
   message AggregationPhaseInput {
     // Combined FrequencyVectors from non-aggregators.
     repeated uint32 combined_frequency_vectors = 1;
-    // The number of registers in the sketch.
+    // The number of registers in FrequencyVectors.
     //
     // It is provided from RequisitionFulfillment.
     int64 register_count = 2;
