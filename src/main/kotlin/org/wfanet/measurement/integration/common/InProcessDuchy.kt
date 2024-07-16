@@ -123,7 +123,7 @@ class InProcessDuchy(
     SystemRequisitionsCoroutineStub(kingdomSystemApiChannel).withDuchyId(externalDuchyId)
   }
   private val certificateStub: CertificatesGrpcKt.CertificatesCoroutineStub by lazy {
-    CertificatesGrpcKt.CertificatesCoroutineStub(kingdomSystemApiChannel)
+    CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel)
   }
   private val computationsClient by lazy { ComputationsCoroutineStub(computationsServer.channel) }
   private val computationStatsClient by lazy {
@@ -198,7 +198,7 @@ class InProcessDuchy(
         val protocolsSetupConfig =
           if (externalDuchyId == AGGREGATOR_NAME) {
             AGGREGATOR_PROTOCOLS_SETUP_CONFIG
-          } else if (externalDuchyId == WORKER_ONE_NAME){
+          } else if (externalDuchyId == WORKER_ONE_NAME) {
             WORKER_ONE_PROTOCOLS_SETUP_CONFIG
           } else {
             WORKER_TWO_PROTOCOLS_SETUP_CONFIG
@@ -245,7 +245,7 @@ class InProcessDuchy(
         val protocolsSetupConfig =
           if (externalDuchyId == AGGREGATOR_NAME) {
             AGGREGATOR_PROTOCOLS_SETUP_CONFIG
-          } else if (externalDuchyId == WORKER_ONE_NAME){
+          } else if (externalDuchyId == WORKER_ONE_NAME) {
             WORKER_ONE_PROTOCOLS_SETUP_CONFIG
           } else {
             WORKER_TWO_PROTOCOLS_SETUP_CONFIG
