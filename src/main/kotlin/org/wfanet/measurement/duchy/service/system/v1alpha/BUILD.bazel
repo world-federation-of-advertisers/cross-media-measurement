@@ -14,7 +14,7 @@ kt_jvm_library(
     srcs = ["AdvanceComputationRequestHeaders.kt"],
     visibility = [
         ":__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill:__subpackages__",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",

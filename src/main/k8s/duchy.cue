@@ -48,10 +48,11 @@ import ("strings")
 		"async-computation-control-server": string | *"duchy/async-computation-control"
 		"computation-control-server":       string | *"duchy/computation-control"
 		"herald-daemon":                    string | *"duchy/herald"
-		"liquid-legions-v2-mill-daemon":    string | *"duchy/liquid-legions-v2-mill"
+		"llv2-mill":                        string | *"duchy/liquid-legions-v2-mill"
 		"hmss-mill-daemon":                 string | *"duchy/honest-majority-share-shuffle-mill"
 		"requisition-fulfillment-server":   string | *"duchy/requisition-fulfillment"
 		"computations-cleaner":             string | *"duchy/computations-cleaner"
+		"cron-job-scheduler":               string | *"cron-job-scheduler"
 	}
 	_imageConfigs: [string]: #ImageConfig
 	_imageConfigs: {
@@ -136,29 +137,6 @@ import ("strings")
 			] + _blob_storage_flags + _duchyDeletableStatesFlag
 			spec: template: spec: _dependencies: [
 				"\(_name)-internal-api-server",
-			]
-		}
-		"liquid-legions-v2-mill-daemon-deployment": {
-			_workLockDuration?: string
-			_container: args: [
-						_duchyInternalApiTargetFlag,
-						_duchyInternalApiCertHostFlag,
-						_duchy_name_flag,
-						_duchy_info_config_flag,
-						_duchy_tls_cert_file_flag,
-						_duchy_tls_key_file_flag,
-						_duchyMillParallelismFlag,
-						_duchy_cert_collection_file_flag,
-						_duchy_cs_cert_file_flag,
-						_duchy_cs_key_file_flag,
-						_duchy_cs_cert_rename_name_flag,
-						_kingdom_system_api_target_flag,
-						_kingdom_system_api_cert_host_flag,
-						if (_millPollingInterval != _|_) {"--polling-interval=\(_millPollingInterval)"},
-						if (_workLockDuration != _|_) {"--work-lock-duration=\(_workLockDuration)"},
-			] + _blob_storage_flags + _computation_control_target_flags
-			spec: template: spec: _dependencies: [
-				"\(_name)-internal-api-server", "\(_name)-computation-control-server",
 			]
 		}
 		"hmss-mill-daemon-deployment": {
@@ -260,9 +238,25 @@ import ("strings")
 				_dependencies: ["\(_name)-internal-api-server"]
 			}
 		}
+		"cron-job-scheduler-deployment": {
+			let LiquidLegionsV2CronJobName = "\(_object_prefix)llv2-mill-cronjob"
+			_liquidLegionsV2MaxConcurrency?: int & >0
+			_container: {
+				_javaOptions: maxHeapSize: "40M"
+				args: [
+					"--cron-job-name=\(LiquidLegionsV2CronJobName)",
+					if (_liquidLegionsV2MaxConcurrency != _|_) {
+						"--maximum-concurrency=\(LiquidLegionsV2CronJobName)=\(_liquidLegionsV2MaxConcurrency)"
+					},
+				]
+			}
+			spec: template: spec: {
+				serviceAccountName: _object_prefix + "cron-job-scheduler"
+			}
+		}
 	}
 
-	cronjobs: [Name=_]: #CronJob & {
+	cronJobs: [Name=_]: #CronJob & {
 		_unprefixed_name: strings.TrimSuffix(Name, "-cronjob")
 		_name:            _object_prefix + _unprefixed_name
 		_secretName:      _duchy_secret_name
@@ -272,7 +266,7 @@ import ("strings")
 		}
 	}
 
-	cronjobs: {
+	cronJobs: {
 		"computations-cleaner": {
 			_container: args: [
 				_duchyInternalApiTargetFlag,
@@ -286,6 +280,29 @@ import ("strings")
 			]
 			spec: schedule: "0 * * * *" // Every hour
 		}
+		"llv2-mill": {
+			_workLockDuration?: string
+			_container: args: [
+						_duchyInternalApiTargetFlag,
+						_duchyInternalApiCertHostFlag,
+						_duchy_name_flag,
+						_duchy_info_config_flag,
+						_duchy_tls_cert_file_flag,
+						_duchy_tls_key_file_flag,
+						_duchyMillParallelismFlag,
+						_duchy_cert_collection_file_flag,
+						_duchy_cs_cert_file_flag,
+						_duchy_cs_key_file_flag,
+						_duchy_cs_cert_rename_name_flag,
+						_kingdom_system_api_target_flag,
+						_kingdom_system_api_cert_host_flag,
+						if (_workLockDuration != _|_) {"--work-lock-duration=\(_workLockDuration)"},
+			] + _blob_storage_flags + _computation_control_target_flags
+			spec: {
+				schedule: "* * * * *" // Every minute.
+				suspend:  true        // Run using alternate scheduler.
+			}
+		}
 	}
 
 	networkPolicies: [Name=_]: #NetworkPolicy & {
@@ -297,7 +314,7 @@ import ("strings")
 			_app_label: _object_prefix + "internal-api-server-app"
 			_sourceMatchLabels: [
 				_object_prefix + "herald-daemon-app",
-				_object_prefix + "liquid-legions-v2-mill-daemon-app",
+				_object_prefix + "llv2-mill-app",
 				_object_prefix + "hmss-mill-daemon-app",
 				_object_prefix + "async-computation-control-server-app",
 				_object_prefix + "requisition-fulfillment-server-app",
@@ -348,8 +365,8 @@ import ("strings")
 				any: {}
 			}
 		}
-		"liquid-legions-v2-mill-daemon": {
-			_app_label: _object_prefix + "liquid-legions-v2-mill-daemon-app"
+		"llv2-mill": {
+			_app_label: _object_prefix + "llv2-mill-app"
 			_egresses: {
 				// Need to send external traffic.
 				any: {}
@@ -383,5 +400,45 @@ import ("strings")
 
 	serviceAccounts: [Name=string]: #ServiceAccount & {
 		metadata: name: Name
+	}
+	serviceAccounts: {
+		"\(_object_prefix)cron-job-scheduler": {}
+	}
+
+	roles: [Name=string]: #Role & {
+		metadata: name: Name
+	}
+	roles: {
+		"\(_object_prefix)cron-job-scheduler": {
+			rules: [
+				{
+					apiGroups: ["batch"]
+					resources: ["jobs"]
+					verbs: ["get", "list", "create"]
+				},
+				{
+					apiGroups: ["batch"]
+					resources: ["cronjobs"]
+					verbs: ["get", "list", "update"]
+				},
+			]
+		}
+	}
+
+	roleBindings: [Name=string]: #RoleBinding & {
+		metadata: name: Name
+	}
+	roleBindings: {
+		"\(_object_prefix)cron-job-scheduler-binding": {
+			roleRef: {
+				apiGroup: "rbac.authorization.k8s.io"
+				kind:     "Role"
+				name:     "\(_object_prefix)cron-job-scheduler"
+			}
+			subjects: [{
+				kind: "ServiceAccount"
+				name: _object_prefix + "cron-job-scheduler"
+			}]
+		}
 	}
 }

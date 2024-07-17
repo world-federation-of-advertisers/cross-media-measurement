@@ -1,0 +1,52 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "HeraldTest",
+    srcs = ["HeraldTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.herald.HeraldTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/herald",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/storage:tink_key_store",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/testing",
+        "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:requisition_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:requisition_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "ContinuationTokenManagerTest",
+    testonly = True,
+    srcs = ["ContinuationTokenManagerTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.herald.ContinuationTokenManagerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/herald:continuation_token_manager",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+    ],
+)

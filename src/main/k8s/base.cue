@@ -73,6 +73,37 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	metadata:   #ObjectMeta
 }
 
+// K8s Role.
+#Role: {
+	apiVersion: "rbac.authorization.k8s.io/v1"
+	kind:       "Role"
+	metadata:   #ObjectMeta
+	rules: [...{
+		apiGroups?: [...string]
+		resources?: [...string]
+		verbs: [...string]
+		resourceNames?: [...string]
+	}]
+}
+
+// K8s RoleBinding.
+#RoleBinding: {
+	apiVersion: "rbac.authorization.k8s.io/v1"
+	kind:       "RoleBinding"
+	metadata:   #ObjectMeta
+	roleRef: {
+		apiGroup: string
+		kind:     string
+		name:     string
+	}
+	subjects: [...{
+		kind:       string
+		name:       string
+		apiGroup?:  string
+		namespace?: string
+	}]
+}
+
 #ResourceQuantity: {
 	cpu?:    string
 	memory?: string
@@ -542,7 +573,13 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		name: _name + "-cronjob"
 	}
 	spec: {
-		schedule: string
+		schedule:                    string
+		concurrencyPolicy?:          "Allow" | "Forbid" | "Replace"
+		startingDeadlineSeconds?:    int64
+		suspend?:                    bool
+		successfulJobsHistoryLimit?: int32 & >0
+		failedJobsHistoryLimit?:     int32 & >0
+
 		jobTemplate: {
 			spec: {
 				backoffLimit: uint | *0

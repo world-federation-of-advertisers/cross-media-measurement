@@ -57,7 +57,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 	}
 }
 #Llv2MillMaxHeapSize:          "1G"
-#Llv2MillReplicas:             1
+#Llv2MillMaxConcurrency:       10
 #HmssMillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "2"
@@ -90,15 +90,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 }
 #ControlServiceMaxHeapSize: "320M"
 
-objectSets: [
-	default_deny_ingress_and_egress,
-	duchy.serviceAccounts,
-	duchy.configMaps,
-	duchy.deployments,
-	duchy.services,
-	duchy.networkPolicies,
-	duchy.cronjobs,
-]
+objectSets: [default_deny_ingress_and_egress] + [ for objectSet in duchy {objectSet}]
 
 _cloudStorageConfig: #CloudStorageConfig & {
 	bucket: _cloudStorageBucket
@@ -125,12 +117,11 @@ duchy: #SpannerDuchy & {
 	_verbose_grpc_logging:      "false"
 	_duchyMillParallelism:      4
 
-	serviceAccounts: [string]: #WorkloadIdentityServiceAccount
 	serviceAccounts: {
-		"\(#InternalServerServiceAccount)": {
+		"\(#InternalServerServiceAccount)": #WorkloadIdentityServiceAccount & {
 			_iamServiceAccountName: "\(_duchy_name)-duchy-internal"
 		}
-		"\(#StorageServiceAccount)": {
+		"\(#StorageServiceAccount)": #WorkloadIdentityServiceAccount & {
 			_iamServiceAccountName: "\(_duchy_name)-duchy-storage"
 		}
 	}
@@ -153,19 +144,6 @@ duchy: #SpannerDuchy & {
 			}
 			spec: template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
 				serviceAccountName: #StorageServiceAccount
-			}
-		}
-		"liquid-legions-v2-mill-daemon-deployment": {
-			_workLockDuration: "10m"
-			_container: {
-				_javaOptions: maxHeapSize: #Llv2MillMaxHeapSize
-				resources: #Llv2MillResourceRequirements
-			}
-			spec: {
-				replicas: #Llv2MillReplicas
-				template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
-					serviceAccountName: #StorageServiceAccount
-				}
 			}
 		}
 		"hmss-mill-daemon-deployment": {
@@ -199,10 +177,26 @@ duchy: #SpannerDuchy & {
 				serviceAccountName: #StorageServiceAccount
 			}
 		}
+		"cron-job-scheduler-deployment": {
+			_liquidLegionsV2MaxConcurrency: #Llv2MillMaxConcurrency
+		}
 	}
 
 	services: {
 		"requisition-fulfillment-server": _ipAddressName: _publicApiAddressName
 		"computation-control-server": _ipAddressName:     _systemApiAddressName
+	}
+
+	cronJobs: {
+		"llv2-mill": {
+			_workLockDuration: "10m"
+			_container: {
+				_javaOptions: maxHeapSize: #Llv2MillMaxHeapSize
+				resources: #Llv2MillResourceRequirements
+			}
+			spec: jobTemplate: spec: template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
+				serviceAccountName: #StorageServiceAccount
+			}
+		}
 	}
 }

@@ -34,6 +34,7 @@ cue_library(
 cue_library(
     name = "config",
     srcs = ["config.cue"],
+    deps = ["//src/main/k8s:config"],
 )
 
 cue_library(

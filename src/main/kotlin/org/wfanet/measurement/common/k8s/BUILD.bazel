@@ -1,16 +1,50 @@
+load("@rules_java//java:defs.bzl", "java_binary")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("//src/main/docker:macros.bzl", "java_image")
 
 package(
     default_visibility = ["//visibility:public"],
 )
 
 kt_jvm_library(
-    name = "k8s",
-    srcs = glob(["*.kt"]),
+    name = "client",
+    srcs = [
+        "JsonPatchOperation.kt",
+        "KubernetesClient.kt",
+    ],
     deps = [
         "//imports/java/io/kubernetes/client",
         "//imports/java/io/kubernetes/client/extended",
         "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
+)
+
+kt_jvm_library(
+    name = "cron_job_scheduler",
+    srcs = ["CronJobScheduler.kt"],
+    deps = [
+        ":client",
+        "//imports/java/io/kubernetes/client",
+        "//imports/java/io/kubernetes/client/extended",
+        "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+java_binary(
+    name = "CronJobScheduler",
+    main_class = "org.wfanet.measurement.common.k8s.CronJobScheduler",
+    runtime_deps = [
+        ":cron_job_scheduler",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
+    ],
+)
+
+java_image(
+    name = "cron_job_scheduler_image",
+    binary = ":CronJobScheduler",
+    main_class = "org.wfanet.measurement.common.k8s.CronJobScheduler",
+    visibility = ["//src:docker_image_deployment"],
 )

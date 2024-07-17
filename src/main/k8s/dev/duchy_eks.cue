@@ -56,7 +56,7 @@ _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 	}
 }
 #Llv2MillMaxHeapSize:          "1G"
-#Llv2MillReplicas:             1
+#Llv2MillMaxConcurrency:       10
 #HmssMillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "2"
@@ -89,19 +89,13 @@ _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 }
 #ControlServiceMaxHeapSize: "320M"
 
-objectSets: [
-	default_deny_ingress_and_egress,
-	duchy.deployments,
-	duchy.services,
-	duchy.networkPolicies,
-	duchy.cronjobs,
-]
+objectSets: [default_deny_ingress_and_egress] + [ for objectSet in duchy {objectSet}]
 
 duchy: #PostgresDuchy & {
 	_imageSuffixes: {
 		"herald-daemon":                  "duchy/aws-herald"
 		"computation-control-server":     "duchy/aws-computation-control"
-		"liquid-legions-v2-mill-daemon":  "duchy/aws-liquid-legions-v2-mill"
+		"llv2-mill":                      "duchy/aws-liquid-legions-v2-mill"
 		"hmss-mill-daemon":               "duchy/aws-honest-majority-share-shuffle-mill"
 		"requisition-fulfillment-server": "duchy/aws-requisition-fulfillment"
 		"internal-api-server":            "duchy/aws-postgres-internal-server"
@@ -136,19 +130,6 @@ duchy: #PostgresDuchy & {
 			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #StorageServiceAccount
-			}
-		}
-		"liquid-legions-v2-mill-daemon-deployment": {
-			_workLockDuration: "10m"
-			_container: {
-				_javaOptions: maxHeapSize: #Llv2MillMaxHeapSize
-				resources: #Llv2MillResourceRequirements
-			}
-			spec: {
-				replicas: #Llv2MillReplicas
-				template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
-					serviceAccountName: #StorageServiceAccount
-				}
 			}
 		}
 		"hmss-mill-daemon-deployment": {
@@ -188,6 +169,21 @@ duchy: #PostgresDuchy & {
 			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalServerServiceAccount
+			}
+		}
+		"cron-job-scheduler-deployment": {
+			_liquidLegionsV2MaxConcurrency: #Llv2MillMaxConcurrency
+		}
+	}
+	cronJobs: {
+		"llv2-mill": {
+			_workLockDuration: "10m"
+			_container: {
+				_javaOptions: maxHeapSize: #Llv2MillMaxHeapSize
+				resources: #Llv2MillResourceRequirements
+			}
+			spec: jobTemplate: spec: template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
+				serviceAccountName: #StorageServiceAccount
 			}
 		}
 	}
