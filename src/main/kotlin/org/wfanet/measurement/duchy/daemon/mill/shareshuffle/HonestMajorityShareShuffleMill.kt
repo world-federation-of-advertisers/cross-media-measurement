@@ -51,6 +51,7 @@ import org.wfanet.measurement.duchy.daemon.mill.DATA_TRANSMISSION_RPC_WALL_CLOCK
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
 import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.crypto.HonestMajorityShareShuffleCryptor
 import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequencyResult
+import org.wfanet.measurement.duchy.daemon.utils.ReachResult
 import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaEncryptionPublicKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
@@ -87,6 +88,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
 import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffle.Description
+import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
 
 class HonestMajorityShareShuffleMill(
   millId: String,
@@ -339,6 +341,7 @@ class HonestMajorityShareShuffleMill(
           getCertificateRequest { name = dataProviderCertificateName }
         )
       } catch (e: StatusException) {
+        println(e)
         throw PermanentErrorException("Fail to get certificate for $dataProviderCertificateName", e)
       }
 
@@ -522,10 +525,30 @@ class HonestMajorityShareShuffleMill(
       cryptoCpuDurationHistogram,
     )
 
-    sendResultToKingdom(
-      token,
-      ReachAndFrequencyResult(result.reach, result.frequencyDistributionMap),
-    )
+    when (val measurementType = measurementSpec.measurementTypeCase) {
+      MeasurementSpec.MeasurementTypeCase.REACH ->
+        sendResultToKingdom(
+          token,
+          ReachResult(
+            result.reach,
+            HonestMajorityShareShuffleMethodology(
+              frequencyVectorSize = aggregationPhaseInputs.first().registerCount
+            ),
+          )
+        )
+      MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
+        sendResultToKingdom(
+          token,
+          ReachAndFrequencyResult(
+            result.reach,
+            result.frequencyDistributionMap,
+            HonestMajorityShareShuffleMethodology(
+              frequencyVectorSize = aggregationPhaseInputs.first().registerCount
+            ),
+          )
+        )
+      else -> error("Unsupported measurement type $measurementType")
+    }
 
     return completeComputation(token, ComputationDetails.CompletedReason.SUCCEEDED)
   }

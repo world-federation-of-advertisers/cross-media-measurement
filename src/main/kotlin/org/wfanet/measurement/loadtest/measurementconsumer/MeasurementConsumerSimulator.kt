@@ -109,6 +109,7 @@ import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementPara
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ImpressionMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ImpressionMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
@@ -513,7 +514,7 @@ class MeasurementConsumerSimulator(
     protocol: ProtocolConfig.Protocol,
   ): Double {
     val measurementComputationInfo: MeasurementComputationInfo =
-      buildMeasurementComputationInfo(protocol, result.impression.noiseMechanism)
+      buildMeasurementComputationInfo(result, protocol, result.impression.noiseMechanism)
 
     val maxFrequencyPerUser =
       if (result.impression.deterministicCount.customMaximumFrequencyPerUser != 0) {
@@ -545,7 +546,7 @@ class MeasurementConsumerSimulator(
     protocol: ProtocolConfig.Protocol,
   ): Map<Long, Double> {
     val measurementComputationInfo: MeasurementComputationInfo =
-      buildMeasurementComputationInfo(protocol, result.frequency.noiseMechanism)
+      buildMeasurementComputationInfo(result, protocol, result.frequency.noiseMechanism)
 
     return VariancesImpl.computeMeasurementVariance(
         measurementComputationInfo.methodology,
@@ -578,7 +579,7 @@ class MeasurementConsumerSimulator(
     protocol: ProtocolConfig.Protocol,
   ): Double {
     val measurementComputationInfo: MeasurementComputationInfo =
-      buildMeasurementComputationInfo(protocol, result.reach.noiseMechanism)
+      buildMeasurementComputationInfo(result, protocol, result.reach.noiseMechanism)
 
     return VariancesImpl.computeMeasurementVariance(
       measurementComputationInfo.methodology,
@@ -601,6 +602,7 @@ class MeasurementConsumerSimulator(
 
   /** Builds a [MeasurementComputationInfo] from a [ProtocolConfig.Protocol]. */
   private fun buildMeasurementComputationInfo(
+    result: Result,
     protocol: ProtocolConfig.Protocol,
     directNoiseMechanism: NoiseMechanism,
   ): MeasurementComputationInfo {
@@ -630,7 +632,12 @@ class MeasurementConsumerSimulator(
         )
       }
       ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
-        error("Protocol is not supported.")
+        MeasurementComputationInfo(
+          HonestMajorityShareShuffleMethodology(
+            frequencyVectorSize = result.reach.honestMajorityShareShuffle.frequencyVectorSize
+          ),
+          protocol.honestMajorityShareShuffle.noiseMechanism,
+        )
       }
       ProtocolConfig.Protocol.ProtocolCase.PROTOCOL_NOT_SET -> {
         error("Protocol is not set.")

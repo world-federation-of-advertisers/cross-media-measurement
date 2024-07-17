@@ -31,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.elGamalPublicKey as v2AlphaElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey as v2alphaEncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.honestMajorityShareShuffleMethodology
 import org.wfanet.measurement.consent.client.duchy.computeRequisitionFingerprint
 import org.wfanet.measurement.internal.duchy.ComputationDetails.KingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationDetailsKt.kingdomComputationDetails
@@ -45,6 +46,8 @@ import org.wfanet.measurement.internal.duchy.encryptionPublicKey
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.requisitionDetails
 import org.wfanet.measurement.internal.duchy.requisitionEntry
+import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
+import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.system.v1alpha.Computation as SystemComputation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
@@ -239,24 +242,62 @@ interface ComputationResult {
 }
 
 /** The result and frequency estimation of a computation. */
-data class ReachAndFrequencyResult(val reach: Long, val frequency: Map<Long, Double>) :
-  ComputationResult {
+data class ReachAndFrequencyResult(
+  val reach: Long,
+  val frequency: Map<Long, Double>,
+  val methodology: Methodology? = null,
+) : ComputationResult {
   /** Converts a ReachAndFrequencyResult object to the v2Alpha measurement result. */
   override fun toV2AlphaMeasurementResult(): Measurement.Result {
     val source = this
     return MeasurementKt.result {
-      reach = reach { value = source.reach }
-      frequency = frequency { relativeFrequencyDistribution.putAll(source.frequency) }
+      reach = reach {
+        value = source.reach
+        when (methodology) {
+          is HonestMajorityShareShuffleMethodology -> {
+            honestMajorityShareShuffle = honestMajorityShareShuffleMethodology {
+              frequencyVectorSize = methodology.frequencyVectorSize
+            }
+          }
+          else -> {}
+        }
+      }
+      frequency = frequency {
+        relativeFrequencyDistribution.putAll(source.frequency)
+        when (methodology) {
+          is HonestMajorityShareShuffleMethodology -> {
+            honestMajorityShareShuffle = honestMajorityShareShuffleMethodology {
+              frequencyVectorSize = methodology.frequencyVectorSize
+            }
+          }
+          else -> {}
+        }
+      }
     }
   }
 }
 
-data class ReachResult(val reach: Long) : ComputationResult {
+data class ReachResult(
+  val reach: Long,
+  val methodology: Methodology? = null,
+) : ComputationResult {
 
   /** Converts a ReachResult object to the v2Alpha measurement result. */
   override fun toV2AlphaMeasurementResult(): Measurement.Result {
     val source = this
-    return MeasurementKt.result { reach = reach { value = source.reach } }
+    return MeasurementKt.result {
+      reach = reach {
+        value = source.reach
+        when (methodology) {
+          is HonestMajorityShareShuffleMethodology -> {
+            honestMajorityShareShuffle = honestMajorityShareShuffleMethodology {
+              frequencyVectorSize = methodology.frequencyVectorSize
+            }
+          }
+          else -> {}
+        }
+      }
+    }
   }
 }
 
