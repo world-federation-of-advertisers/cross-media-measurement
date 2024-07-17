@@ -123,7 +123,7 @@ class InProcessDuchy(
     SystemRequisitionsCoroutineStub(kingdomSystemApiChannel).withDuchyId(externalDuchyId)
   }
   private val certificateStub: CertificatesGrpcKt.CertificatesCoroutineStub by lazy {
-    CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel)
+    CertificatesGrpcKt.CertificatesCoroutineStub(kingdomSystemApiChannel)
   }
   private val computationsClient by lazy { ComputationsCoroutineStub(computationsServer.channel) }
   private val computationStatsClient by lazy {
