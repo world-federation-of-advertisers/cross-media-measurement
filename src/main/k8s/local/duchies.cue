@@ -82,11 +82,11 @@ _computationControlTargets: {
 
 _baseDuchyConfig: {
 	_imageSuffixes: {
-		"computation-control-server":                "duchy/local-computation-control"
-		"herald-daemon":                             "duchy/local-herald"
-		"liquid-legions-v2-mill-daemon":             "duchy/local-liquid-legions-v2-mill"
-		"honest-majority-share-shuffle-mill-daemon": "duchy/local-honest-majority-share-shuffle-mill"
-		"requisition-fulfillment-server":            "duchy/local-requisition-fulfillment"
+		"computation-control-server":     "duchy/local-computation-control"
+		"herald-daemon":                  "duchy/local-herald"
+		"liquid-legions-v2-mill-daemon":  "duchy/local-liquid-legions-v2-mill"
+		"hmss-mill-daemon":               "duchy/local-honest-majority-share-shuffle-mill"
+		"requisition-fulfillment-server": "duchy/local-requisition-fulfillment"
 	}
 	_duchy_secret_name:           _secret_name
 	_computation_control_targets: _computationControlTargets
