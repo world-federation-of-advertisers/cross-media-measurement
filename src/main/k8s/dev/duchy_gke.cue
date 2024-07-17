@@ -34,7 +34,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #StorageServiceAccount:              "storage"
 #InternalServerResourceRequirements: #ResourceRequirements & {
 	requests: {
-		cpu: "75m"
+		cpu: "500m"
 	}
 }
 #HeraldResourceRequirements: ResourceRequirements=#ResourceRequirements & {
@@ -50,14 +50,14 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #Llv2MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "3"
-		memory: "2.5Gi"
+		memory: "5Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#Llv2MillMaxHeapSize:          "1G"
-#Llv2MillReplicas:             1
+#Llv2MillMaxHeapSize:          "4G"
+#Llv2MillReplicas:             15
 #HmssMillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "2"
@@ -69,26 +69,27 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 }
 #HmssMillMaxHeapSize:             "5G"
 #HmssMillReplicas:                1
+#ApiServerReplicas:               2
 #FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "200m"
-		memory: "576Mi"
+		cpu:    "500m"
+		memory: "2000Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#FulfillmentMaxHeapSize:             "320M"
+#FulfillmentMaxHeapSize:             "1500M"
 #ControlServiceResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "200m"
-		memory: "512Mi"
+		cpu:    "500m"
+		memory: "3000Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#ControlServiceMaxHeapSize: "320M"
+#ControlServiceMaxHeapSize: "2500M"
 
 objectSets: [
 	default_deny_ingress_and_egress,
@@ -142,8 +143,11 @@ duchy: #SpannerDuchy & {
 			_container: {
 				resources: #InternalServerResourceRequirements
 			}
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #InternalServerServiceAccount
+			spec: {
+				replicas: #ApiServerReplicas
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #InternalServerServiceAccount
+				}
 			}
 		}
 		"herald-daemon-deployment": {
@@ -186,8 +190,11 @@ duchy: #SpannerDuchy & {
 				_javaOptions: maxHeapSize: #ControlServiceMaxHeapSize
 				resources: #ControlServiceResourceRequirements
 			}
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #StorageServiceAccount
+			spec: {
+				replicas: #ApiServerReplicas
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #StorageServiceAccount
+				}
 			}
 		}
 		"requisition-fulfillment-server-deployment": {
@@ -195,8 +202,11 @@ duchy: #SpannerDuchy & {
 				_javaOptions: maxHeapSize: #FulfillmentMaxHeapSize
 				resources: #FulfillmentResourceRequirements
 			}
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #StorageServiceAccount
+			spec: {
+				replicas: #ApiServerReplicas
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #StorageServiceAccount
+				}
 			}
 		}
 	}
