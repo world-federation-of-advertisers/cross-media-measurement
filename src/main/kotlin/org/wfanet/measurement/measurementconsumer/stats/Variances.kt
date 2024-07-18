@@ -465,6 +465,132 @@ object VariancesImpl : Variances {
       kPlusCountVariances,
     )
   }
+
+  /**
+   * Computes [ReachVariance] of a reach-and-frequency measurement that is computed using the Honest
+   * Majority Share Shuffle methodology.
+   */
+  private fun computeHonestMajorityShareShuffleVariance(
+    frequencyVectorSize: Long,
+    reachParams: ReachMeasurementVarianceParams,
+  ): Double {
+    val reachNoiseVariance: Double =
+      computeNoiseVariance(
+        reachParams.measurementParams.dpParams,
+        reachParams.measurementParams.noiseMechanism,
+      )
+
+    val variance =
+      HonestMajorityShareShuffle.reachVariance(
+        frequencyVectorSize = frequencyVectorSize,
+        vidSamplingIntervalWidth = reachParams.measurementParams.vidSamplingInterval.width,
+        reach = reachParams.reach,
+        reachNoiseVariance = reachNoiseVariance,
+      )
+    return max(0.0, variance)
+  }
+
+  /**
+   * Computes [FrequencyVariances] of a reach-and-frequency measurement that is computed using the
+   * Honest Majority Share Shuffle methodology.
+   */
+  private fun computeHonestMajorityShareShuffleVariance(
+    frequencyVectorSize: Long,
+    frequencyParams: FrequencyMeasurementVarianceParams,
+  ): FrequencyVariances {
+    require(frequencyParams.totalReach >= 0.0) { "The total reach value cannot be negative." }
+    require(frequencyParams.reachMeasurementVariance >= 0.0) {
+      "The reach variance value cannot be negative."
+    }
+
+    val maximumFrequency = frequencyParams.measurementParams.maximumFrequency
+
+    val frequencyNoiseVariance: Double =
+      computeNoiseVariance(
+        frequencyParams.measurementParams.dpParams,
+        frequencyParams.measurementParams.noiseMechanism,
+      )
+
+    var suffixSum = 0.0
+    // There is no estimate of zero-frequency reach
+    val kPlusRelativeFrequencyDistribution: Map<Int, Double> =
+      (maximumFrequency downTo 1).associateWith { frequency ->
+        suffixSum += frequencyParams.relativeFrequencyDistribution.getOrDefault(frequency, 0.0)
+        suffixSum
+      }
+
+    val countVariances: Map<Int, Double> =
+      (1..maximumFrequency).associateWith { frequency ->
+        HonestMajorityShareShuffle.frequencyCountVariance(
+          frequencyVectorSize,
+          frequency,
+          frequencyNoiseVariance,
+          RelativeFrequencyMeasurementVarianceParams(
+            frequencyParams.totalReach,
+            frequencyParams.reachMeasurementVariance,
+            frequencyParams.relativeFrequencyDistribution.getOrDefault(frequency, 0.0),
+            frequencyParams.measurementParams,
+            0,
+          ),
+        )
+      }
+
+    val kPlusCountVariances: Map<Int, Double> =
+      (1..maximumFrequency).associateWith { frequency ->
+        HonestMajorityShareShuffle.kPlusFrequencyCountVariance(
+          frequencyVectorSize,
+          frequency,
+          frequencyNoiseVariance,
+          RelativeFrequencyMeasurementVarianceParams(
+            frequencyParams.totalReach,
+            frequencyParams.reachMeasurementVariance,
+            kPlusRelativeFrequencyDistribution.getValue(frequency),
+            frequencyParams.measurementParams,
+            0,
+          ),
+        )
+      }
+
+    val relativeVariances: Map<Int, Double> =
+      (1..maximumFrequency).associateWith { frequency ->
+        HonestMajorityShareShuffle.frequencyRelativeVariance(
+          frequencyVectorSize,
+          frequency,
+          frequencyNoiseVariance,
+          RelativeFrequencyMeasurementVarianceParams(
+            frequencyParams.totalReach,
+            frequencyParams.reachMeasurementVariance,
+            frequencyParams.relativeFrequencyDistribution.getOrDefault(frequency, 0.0),
+            frequencyParams.measurementParams,
+            0,
+          ),
+        )
+      }
+
+    val kPlusRelativeVariances: Map<Int, Double> =
+      (1..maximumFrequency).associateWith { frequency ->
+        HonestMajorityShareShuffle.kPlusFrequencyRelativeVariance(
+          frequencyVectorSize,
+          frequency,
+          frequencyNoiseVariance,
+          RelativeFrequencyMeasurementVarianceParams(
+            frequencyParams.totalReach,
+            frequencyParams.reachMeasurementVariance,
+            kPlusRelativeFrequencyDistribution.getValue(frequency),
+            frequencyParams.measurementParams,
+            0,
+          ),
+        )
+      }
+
+    return FrequencyVariances(
+      relativeVariances,
+      kPlusRelativeVariances,
+      countVariances,
+      kPlusCountVariances,
+    )
+  }
+
   /**
    * Common function that computes [FrequencyVariances] with known [relativeVariances] and
    * [kPlusRelativeVariances].
@@ -601,6 +727,12 @@ object VariancesImpl : Variances {
           measurementVarianceParams,
         )
       }
+      is HonestMajorityShareShuffleMethodology -> {
+        computeHonestMajorityShareShuffleVariance(
+          methodology.frequencyVectorSize,
+          measurementVarianceParams,
+        )
+      }
     }
   }
 
@@ -666,6 +798,12 @@ object VariancesImpl : Variances {
       is LiquidLegionsV2Methodology -> {
         computeLiquidLegionsV2Variance(
           LiquidLegionsSketchParams(methodology.decayRate, methodology.sketchSize),
+          measurementVarianceParams,
+        )
+      }
+      is HonestMajorityShareShuffleMethodology -> {
+        computeHonestMajorityShareShuffleVariance(
+          methodology.frequencyVectorSize,
           measurementVarianceParams,
         )
       }
@@ -744,6 +882,12 @@ object VariancesImpl : Variances {
           IllegalArgumentException("Invalid methodology"),
         )
       }
+      is HonestMajorityShareShuffleMethodology -> {
+        throw UnsupportedMethodologyUsageException(
+          "Methodology HONEST_MAJORITY_SHARE_SHUFFLE is not supported for impression.",
+          IllegalArgumentException("Invalid methodology"),
+        )
+      }
     }
   }
 
@@ -798,6 +942,12 @@ object VariancesImpl : Variances {
       is LiquidLegionsV2Methodology -> {
         throw UnsupportedMethodologyUsageException(
           "Methodology LIQUID_LEGIONS_V2 is not supported for watch duration.",
+          IllegalArgumentException("Invalid methodology"),
+        )
+      }
+      is HonestMajorityShareShuffleMethodology -> {
+        throw UnsupportedMethodologyUsageException(
+          "Methodology HONEST_MAJORITY_SHARE_SHUFFLE is not supported for watch duration.",
           IllegalArgumentException("Invalid methodology"),
         )
       }

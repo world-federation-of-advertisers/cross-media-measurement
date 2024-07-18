@@ -359,8 +359,9 @@ private constructor(
     protocol: ComputationType,
     ownerId: String,
     lockDuration: Duration,
+    prioritizedStages: List<ComputationStage>,
   ): String? {
-    val claimed =
+    val editTokens =
       tokens.values
         .asSequence()
         .filter { it.globalComputationId !in claimedComputationIds }
@@ -385,7 +386,13 @@ private constructor(
             globalId = it.globalComputationId,
           )
         }
-        .firstOrNull() ?: return null
+    val prioritizedComputations = editTokens.filter { it.stage in prioritizedStages }
+    val claimed =
+      if (!prioritizedComputations.none()) {
+        prioritizedComputations.first()
+      } else {
+        editTokens.firstOrNull() ?: return null
+      }
 
     updateToken(claimed) { existing ->
       claimedComputationIds.add(existing.globalComputationId)

@@ -1,6 +1,20 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
+    name = "ExchangeWorkflowDependencyGraphTest",
+    timeout = "short",
+    srcs = ["ExchangeWorkflowDependencyGraphTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.common.ExchangeWorkflowDependencyGraphTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/common",
+        "//src/main/proto/wfa/panelmatch/client/internal:exchange_workflow_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
     name = "ProtoConversionsTest",
     timeout = "short",
     srcs = ["ProtoConversionsTest.kt"],

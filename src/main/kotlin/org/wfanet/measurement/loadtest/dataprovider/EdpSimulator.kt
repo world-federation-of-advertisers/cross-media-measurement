@@ -151,7 +151,7 @@ class EdpSimulator(
   private val eventGroupsStub: EventGroupsCoroutineStub,
   private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
   requisitionsStub: RequisitionsCoroutineStub,
-  private val requisitionFulfillmentStubsByDuchyName:
+  private val requisitionFulfillmentStubsByDuchyId:
     Map<String, RequisitionFulfillmentCoroutineStub>,
   private val eventQuery: EventQuery<Message>,
   throttler: Throttler,
@@ -972,13 +972,7 @@ class EdpSimulator(
       else 1
 
     val sketch =
-      FrequencyVectorGenerator(
-          vidUniverse = emptyList(),
-          ByteString.EMPTY,
-          vidToIndexMap,
-          eventQuery,
-          measurementSpec.vidSamplingInterval,
-        )
+      FrequencyVectorGenerator(vidToIndexMap, eventQuery, measurementSpec.vidSamplingInterval)
         .generate(eventGroupSpecs)
         .map { if (it > maximumFrequency) maximumFrequency else it }
         .toIntArray()
@@ -1153,7 +1147,7 @@ class EdpSimulator(
       )
     }
     try {
-      requisitionFulfillmentStubsByDuchyName.values.first().fulfillRequisition(requests)
+      requisitionFulfillmentStubsByDuchyId.values.first().fulfillRequisition(requests)
     } catch (e: StatusException) {
       throw Exception("Error fulfilling requisition ${requisition.name}", e)
     }
@@ -1190,9 +1184,10 @@ class EdpSimulator(
       )
     }
     try {
+      val duchyId = getDuchyWithoutPublicKey(requisition)
       val requisitionFulfillmentStub =
-        requisitionFulfillmentStubsByDuchyName[getDuchyWithoutPublicKey(requisition)]
-          ?: throw Exception("Requisition fulfillment stub not found.")
+        requisitionFulfillmentStubsByDuchyId[duchyId]
+          ?: throw Exception("Requisition fulfillment stub not found for $duchyId.")
       requisitionFulfillmentStub.fulfillRequisition(requests)
     } catch (e: StatusException) {
       throw Exception("Error fulfilling requisition ${requisition.name}", e)
@@ -1209,7 +1204,7 @@ class EdpSimulator(
       )
   }
 
-  private suspend fun getDuchyWithoutPublicKey(requisition: Requisition): String {
+  private fun getDuchyWithoutPublicKey(requisition: Requisition): String {
     return requisition.duchiesList
       .singleOrNull { !it.value.honestMajorityShareShuffle.hasPublicKey() }
       ?.key

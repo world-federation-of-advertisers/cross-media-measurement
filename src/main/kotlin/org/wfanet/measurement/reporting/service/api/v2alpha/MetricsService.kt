@@ -149,6 +149,7 @@ import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementPara
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMetricVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyVariances
+import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.measurementconsumer.stats.ImpressionMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ImpressionMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ImpressionMetricVarianceParams
@@ -2471,6 +2472,11 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
         samplingIndicatorSize = frequencyResult.liquidLegionsV2.sketchParams.samplingIndicatorSize,
       )
     }
+    InternalMeasurement.Result.Frequency.MethodologyCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+      HonestMajorityShareShuffleMethodology(
+        frequencyVectorSize = frequencyResult.honestMajorityShareShuffle.frequencyVectorSize
+      )
+    }
     InternalMeasurement.Result.Frequency.MethodologyCase.METHODOLOGY_NOT_SET -> {
       throw MeasurementVarianceNotComputableException("Frequency methodology is not set.")
     }
@@ -2724,6 +2730,11 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
         decayRate = reachResult.reachOnlyLiquidLegionsV2.sketchParams.decayRate,
         sketchSize = reachResult.reachOnlyLiquidLegionsV2.sketchParams.maxSize,
         samplingIndicatorSize = 0L,
+      )
+    }
+    InternalMeasurement.Result.Reach.MethodologyCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+      HonestMajorityShareShuffleMethodology(
+        frequencyVectorSize = reachResult.honestMajorityShareShuffle.frequencyVectorSize
       )
     }
     InternalMeasurement.Result.Reach.MethodologyCase.METHODOLOGY_NOT_SET -> {

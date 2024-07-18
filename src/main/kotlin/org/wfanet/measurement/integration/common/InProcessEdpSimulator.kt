@@ -63,7 +63,7 @@ class InProcessEdpSimulator(
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannelMap: Map<String, Channel>,
   trustedCertificates: Map<ByteString, X509Certificate>,
-  private val syntheticPopulationSpec: SyntheticPopulationSpec,
+  syntheticPopulationSpec: SyntheticPopulationSpec,
   private val syntheticDataSpec: SyntheticEventGroupSpec,
   coroutineContext: CoroutineContext = Dispatchers.Default,
 ) {
@@ -84,8 +84,7 @@ class InProcessEdpSimulator(
     val vidRangeEndExclusive = syntheticPopulationSpec.vidRange.endExclusive
     val vidIndexMap =
       VidToIndexMapGenerator.generateMapping(
-        salt = ByteString.EMPTY,
-        vidUniverse = (vidRangeStart until vidRangeEndExclusive).toList(),
+        (vidRangeStart until vidRangeEndExclusive).asSequence()
       )
 
     delegate =
@@ -106,7 +105,7 @@ class InProcessEdpSimulator(
             .withPrincipalName(resourceName),
         requisitionsStub =
           RequisitionsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
-        requisitionFulfillmentStubsByDuchyName =
+        requisitionFulfillmentStubsByDuchyId =
           duchyPublicApiChannelMap.mapValues {
             RequisitionFulfillmentCoroutineStub(it.value).withPrincipalName(resourceName)
           },

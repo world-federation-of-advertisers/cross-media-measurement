@@ -170,6 +170,7 @@ class PostgresComputationsService(
       try {
         ClaimWork(
             request.computationType,
+            request.prioritizedStagesList,
             request.owner,
             lockDuration,
             clock,
@@ -189,7 +190,8 @@ class PostgresComputationsService(
         newCreateComputationLogEntryRequest(
           claimedToken.globalComputationId,
           claimedToken.computationStage,
-          claimedToken.attempt.toLong(),
+          attempt = claimedToken.attempt,
+          callerInstanceId = request.owner,
         )
       )
       return claimedToken.toClaimWorkResponse()
@@ -455,20 +457,18 @@ class PostgresComputationsService(
   private fun newCreateComputationLogEntryRequest(
     globalId: String,
     computationStage: ComputationStage,
-    attempt: Long = 0L,
-  ): CreateComputationLogEntryRequest {
-    return createComputationLogEntryRequest {
-      parent = ComputationParticipantKey(globalId, duchyName).toName()
-      computationLogEntry = computationLogEntry {
-        // TODO: maybe set participantChildReferenceId
-        logMessage =
-          "Computation $globalId at stage ${computationStage.name}, " + "attempt $attempt"
-        stageAttempt = stageAttempt {
-          stage = computationStage.number
-          stageName = computationStage.name
-          stageStartTime = clock.protoTimestamp()
-          attemptNumber = attempt
-        }
+    attempt: Int = 0,
+    callerInstanceId: String = "",
+  ): CreateComputationLogEntryRequest = createComputationLogEntryRequest {
+    parent = ComputationParticipantKey(globalId, duchyName).toName()
+    computationLogEntry = computationLogEntry {
+      participantChildReferenceId = callerInstanceId
+      logMessage = "Computation $globalId at stage ${computationStage.name}, attempt $attempt"
+      stageAttempt = stageAttempt {
+        stage = computationStage.number
+        stageName = computationStage.name
+        stageStartTime = clock.protoTimestamp()
+        attemptNumber = attempt.toLong()
       }
     }
   }

@@ -20,7 +20,6 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
-import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
@@ -40,17 +39,12 @@ import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
-import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
-
-private const val ALSACE = "Alsace"
 
 @RunWith(JUnit4::class)
 class SpannerComputationsServiceTest : ComputationsServiceTest<ComputationsService>() {
   @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.DUCHY_CHANGELOG_PATH)
 
-  private val mockComputationLogEntriesService: ComputationLogEntriesCoroutineImplBase =
-    mockService()
   private val tempDirectory = TemporaryFolder()
   private lateinit var storageClient: FileSystemStorageClient
   private lateinit var computationStore: ComputationStore
@@ -103,7 +97,7 @@ class SpannerComputationsServiceTest : ComputationsServiceTest<ComputationsServi
       systemComputationLogEntriesClient,
       ComputationStore(storageClient),
       RequisitionStore(storageClient),
-      ALSACE,
+      DUCHY_ID,
       clock,
     )
   }

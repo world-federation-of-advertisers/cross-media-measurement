@@ -38,8 +38,11 @@ object VidToIndexMapGenerator {
    * vid's are sorted based on its hash value. The bucket index of a vid is its location in the
    * sorted array.
    */
-  fun generateMapping(salt: ByteString, vidUniverse: List<Long>): Map<Long, IndexedValue> {
-    require(vidUniverse.isNotEmpty()) { "The vid universe must not be empty." }
+  fun generateMapping(
+    vidUniverse: Sequence<Long>,
+    salt: ByteString = ByteString.EMPTY,
+  ): Map<Long, IndexedValue> {
+    require(!vidUniverse.none()) { "The vid universe must not be empty." }
 
     val hashes = mutableListOf<Pair<Long, Double>>()
 
