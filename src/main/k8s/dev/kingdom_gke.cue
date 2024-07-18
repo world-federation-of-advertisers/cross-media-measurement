@@ -21,6 +21,9 @@ _systemApiAddressName: string @tag("system_api_address_name")
 // Name of K8s service account for the internal API server.
 #InternalServerServiceAccount: "internal-server"
 
+// Name of K8s service account for the operational metrics job.
+#OperationalMetricsServiceAccount: "operational-metrics"
+
 // Number of gRPC threads for the internal API server.
 #InternalServerGrpcThreads: 7
 
@@ -60,6 +63,9 @@ kingdom: #Kingdom & {
 		"\(#InternalServerServiceAccount)": #WorkloadIdentityServiceAccount & {
 			_iamServiceAccountName: "kingdom-internal"
 		}
+    "\(#OperationalMetricsServiceAccount)": #WorkloadIdentityServiceAccount & {
+      _iamServiceAccountName: "operational-metrics"
+    }
 	}
 
 	configMaps: "java": #JavaConfigMap
@@ -81,8 +87,37 @@ kingdom: #Kingdom & {
 		}
 	}
 
-	services: {
-		"system-api-server": _ipAddressName:         _systemApiAddressName
-		"v2alpha-public-api-server": _ipAddressName: _publicApiAddressName
-	}
+	cronjobs: {
+    "operational-metrics": {
+      _container: args: [
+       	"--bigquery-project-id=\(#GCloudProject)",
+      	"--bigquery-dataset=operational-metrics",
+			  "--measurements-table=measurements",
+			  "--requisitions-table=requisitions",
+			  "--computation-participants-table=computation_participants",
+			  "--latest-measurement-read=latest_measurement_read",
+      ] + #SpannerConfig.flags
+      spec: {
+        schedule: "15 * * * *" // Hourly, 15 minutes past the hour
+        template: spec: #ServiceAccountPodSpec & {
+          serviceAccountName: #OperationalMetricsServiceAccount
+        }
+      }
+    }
+  }
+
+  networkPolicies: {
+    "operational-metrics": {
+      _app_label: "operational-metrics-app"
+      _egresses: {
+        // Need to send external traffic to Spanner and BigQuery.
+        any: {}
+      }
+    }
+  }
+
+  services: {
+    "system-api-server": _ipAddressName:         _systemApiAddressName
+    "v2alpha-public-api-server": _ipAddressName: _publicApiAddressName
+  }
 }

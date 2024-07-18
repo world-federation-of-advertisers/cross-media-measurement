@@ -36,3 +36,32 @@ module "kingdom" {
 
   spanner_instance = google_spanner_instance.spanner_instance
 }
+
+module "kingdom_operational_metrics" {
+  source = "../modules/workload-identity-user"
+
+  k8s_service_account_name        = "operational-metrics"
+  iam_service_account_name        = "operational-metrics"
+  iam_service_account_description = "Operational Metrics Cron Job"
+}
+
+resource "google_project_iam_custom_role" "spanner-to-bigquery-role" {
+  role_id     = "spanner_to_bigquery"
+  title       = "Spanner to BigQuery"
+  description = "Grants reading from Spanner and writing to BigQuery"
+  permissions = [
+    "spanner.databases.select",
+    "spanner.sessions.create",
+    "spanner.sessions.delete",
+    "bigquery.jobs.create",
+    "bigquery.tables.get",
+    "bigquery.tables.getData",
+    "bigquery.tables.updateData"
+  ]
+}
+
+resource "google_project_iam_member" "spanner_to_bigquery_member" {
+  project = "halo-cmm-dev"
+  role    = "roles/spanner_to_bigquery"
+  member  = module.kingdom_operational_metrics.iam_service_account.member
+}
