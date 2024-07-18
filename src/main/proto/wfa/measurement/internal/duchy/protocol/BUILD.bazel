@@ -123,14 +123,14 @@ kt_jvm_proto_library(
 )
 
 proto_library(
-    name = "share_shuffle_sketch_params_proto",
+    name = "share_shuffle_frequency_vector_params_proto",
     srcs = ["share_shuffle_frequency_vector_params.proto"],
     strip_import_prefix = IMPORT_PREFIX,
 )
 
 kt_jvm_proto_library(
-    name = "share_shuffle_sketch_params_kt_jvm_proto",
-    deps = [":share_shuffle_sketch_params_proto"],
+    name = "share_shuffle_frequency_vector_params_kt_jvm_proto",
+    deps = [":share_shuffle_frequency_vector_params_proto"],
 )
 
 proto_library(
@@ -138,7 +138,7 @@ proto_library(
     srcs = ["honest_majority_share_shuffle.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":share_shuffle_sketch_params_proto",
+        ":share_shuffle_frequency_vector_params_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:crypto_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_proto",
@@ -156,7 +156,7 @@ proto_library(
     srcs = ["honest_majority_share_shuffle_methods.proto"],
     strip_import_prefix = "/src/main/proto",
     deps = [
-        ":share_shuffle_sketch_params_proto",
+        ":share_shuffle_frequency_vector_params_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_proto",
         "@com_google_protobuf//:duration_proto",
