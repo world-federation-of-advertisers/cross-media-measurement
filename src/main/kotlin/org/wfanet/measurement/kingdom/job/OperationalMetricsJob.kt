@@ -31,7 +31,6 @@ import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings
 import com.google.cloud.bigquery.storage.v1.JsonStreamWriter
 import com.google.cloud.bigquery.storage.v1.TableName
 import com.google.protobuf.Timestamp
-import org.json.JSONArray
 import com.google.protobuf.any
 import com.google.protobuf.util.Timestamps
 import com.google.rpc.Code
@@ -42,6 +41,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import org.json.JSONArray
 import org.json.JSONObject
 import org.threeten.bp.Duration
 import org.wfanet.measurement.api.Version
@@ -74,13 +74,17 @@ class OperationalMetricsJob(
   suspend fun execute() {
     val measurementsTable: TableName = TableName.of(projectName, datasetName, measurementsTableName)
     val requisitionsTable: TableName = TableName.of(projectName, datasetName, requisitionsTableName)
-    val computationParticipantsTable: TableName = TableName.of(projectName, datasetName, computationParticipantsTableName)
-    val latestMeasurementReadTable: TableName = TableName.of(projectName, datasetName, latestMeasurementReadTableName)
+    val computationParticipantsTable: TableName =
+      TableName.of(projectName, datasetName, computationParticipantsTableName)
+    val latestMeasurementReadTable: TableName =
+      TableName.of(projectName, datasetName, latestMeasurementReadTableName)
 
     val measurementsDataWriter = JsonDataWriter(measurementsTable, bigQueryWriteClient)
     val requisitionsDataWriter = JsonDataWriter(requisitionsTable, bigQueryWriteClient)
-    val computationParticipantsDataWriter = JsonDataWriter(computationParticipantsTable, bigQueryWriteClient)
-    val latestMeasurementReadDataWriter = JsonDataWriter(latestMeasurementReadTable, bigQueryWriteClient)
+    val computationParticipantsDataWriter =
+      JsonDataWriter(computationParticipantsTable, bigQueryWriteClient)
+    val latestMeasurementReadDataWriter =
+      JsonDataWriter(latestMeasurementReadTable, bigQueryWriteClient)
 
     var measurementsQueryResponseSize: Int
 
@@ -94,10 +98,12 @@ class OperationalMetricsJob(
       """
           .trimIndent()
 
-      val queryJobConfiguration: QueryJobConfiguration = QueryJobConfiguration.newBuilder(query).build()
+      val queryJobConfiguration: QueryJobConfiguration =
+        QueryJobConfiguration.newBuilder(query).build()
       bigQuery.query(queryJobConfiguration)
       val jobId: JobId = JobId.of(UUID.randomUUID().toString())
-      val queryJob: Job = bigQuery.create(JobInfo.newBuilder(queryJobConfiguration).setJobId(jobId).build())
+      val queryJob: Job =
+        bigQuery.create(JobInfo.newBuilder(queryJobConfiguration).setJobId(jobId).build())
       logger.info("Connected to BigQuery Successfully.")
 
       val resultJob: Job = queryJob.waitFor() ?: error("Query job no longer exists")
@@ -107,18 +113,21 @@ class OperationalMetricsJob(
       }
 
       val lastMeasurementRead: FieldValueList = resultJob.getQueryResults().iterateAll().first()
-      var filter = StreamMeasurementsRequestKt.filter {
-        states += Measurement.State.SUCCEEDED
-        states += Measurement.State.FAILED
-        states += Measurement.State.CANCELLED
-        after = StreamMeasurementsRequestKt.FilterKt.after {
-          updateTime = lastMeasurementRead.get("update_time").timestampInstant.toProtoTime()
-          measurement = measurementKey {
-            externalMeasurementConsumerId = lastMeasurementRead.get("external_measurement_consumer_id").longValue
-            externalMeasurementId = lastMeasurementRead.get("external_measurement_id").longValue
-          }
+      var filter =
+        StreamMeasurementsRequestKt.filter {
+          states += Measurement.State.SUCCEEDED
+          states += Measurement.State.FAILED
+          states += Measurement.State.CANCELLED
+          after =
+            StreamMeasurementsRequestKt.FilterKt.after {
+              updateTime = lastMeasurementRead.get("update_time").timestampInstant.toProtoTime()
+              measurement = measurementKey {
+                externalMeasurementConsumerId =
+                  lastMeasurementRead.get("external_measurement_consumer_id").longValue
+                externalMeasurementId = lastMeasurementRead.get("external_measurement_id").longValue
+              }
+            }
         }
-      }
 
       do {
         measurementsQueryResponseSize = 0
@@ -129,125 +138,146 @@ class OperationalMetricsJob(
 
         try {
           StreamMeasurements(
-            Measurement.View.COMPUTATION,
-            filter,
-            BATCH_SIZE,
-            Measurement.View.DEFAULT
-          ).execute(spannerClient.singleUse()).collect { result ->
-            measurementsQueryResponseSize++
-            val measurement = result.measurement
+              Measurement.View.COMPUTATION,
+              filter,
+              BATCH_SIZE,
+              Measurement.View.DEFAULT,
+            )
+            .execute(spannerClient.singleUse())
+            .collect { result ->
+              measurementsQueryResponseSize++
+              val measurement = result.measurement
 
-            val measurementSpec = signedMessage {
-              setMessage(
-                any {
-                  value = measurement.details.measurementSpec
-                  typeUrl =
-                    when (measurement.details.apiVersion) {
-                      Version.V2_ALPHA.toString() -> ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
-                      else -> ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
-                    }
-                }
+              val measurementSpec = signedMessage {
+                setMessage(
+                  any {
+                    value = measurement.details.measurementSpec
+                    typeUrl =
+                      when (measurement.details.apiVersion) {
+                        Version.V2_ALPHA.toString() ->
+                          ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
+                        else -> ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
+                      }
+                  }
+                )
+                signature = measurement.details.measurementSpecSignature
+                signatureAlgorithmOid = measurement.details.measurementSpecSignatureAlgorithmOid
+              }
+              val measurementTypeCase =
+                measurementSpec.unpack<MeasurementSpec>().measurementTypeCase
+
+              val measurementUpdateTimeMinusCreateTime =
+                Timestamps.between(measurement.createTime, measurement.updateTime).seconds
+
+              val measurementJSONObject = JSONObject()
+              measurementJSONObject.put(
+                "external_measurement_consumer_id",
+                measurement.externalMeasurementConsumerId,
               )
-              signature = measurement.details.measurementSpecSignature
-              signatureAlgorithmOid = measurement.details.measurementSpecSignatureAlgorithmOid
-            }
-            val measurementTypeCase =
-              measurementSpec.unpack<MeasurementSpec>().measurementTypeCase
-
-            val measurementUpdateTimeMinusCreateTime =
-              Timestamps.between(measurement.createTime, measurement.updateTime).seconds
-
-            val measurementJSONObject = JSONObject()
-            measurementJSONObject.put(
-              "external_measurement_consumer_id",
-              measurement.externalMeasurementConsumerId
-            )
-            measurementJSONObject.put("external_measurement_id", measurement.externalMeasurementId)
-            measurementJSONObject.put("is_direct", measurement.details.protocolConfig.hasDirect())
-            measurementJSONObject.put("measurement_type", measurementTypeCase.name)
-            measurementJSONObject.put("state", measurement.state.name)
-            measurementJSONObject.put("create_time", measurement.createTime.toJson())
-            measurementJSONObject.put("update_time", measurement.updateTime.toJson())
-            measurementJSONObject.put(
-              "update_time_minus_create_time",
-              measurementUpdateTimeMinusCreateTime
-            )
-            measurementJSONObject.put(
-              "update_time_minus_create_time_squared",
-              measurementUpdateTimeMinusCreateTime * measurementUpdateTimeMinusCreateTime
-            )
-
-            measurementsJSONArray.put(measurementJSONObject)
-
-            for (requisition in measurement.requisitionsList) {
-              val requisitionUpdateTimeMinusCreateTime =
-                Timestamps.between(measurement.createTime, requisition.updateTime).seconds
-
-              val requisitionJSONObject = JSONObject()
-              requisitionJSONObject.put("external_measurement_id", measurement.externalMeasurementId)
-              requisitionJSONObject.put("external_requisition_id", requisition.externalRequisitionId)
-              requisitionJSONObject.put(
-                "external_data_provider_id",
-                requisition.externalDataProviderId
+              measurementJSONObject.put(
+                "external_measurement_id",
+                measurement.externalMeasurementId,
               )
-              requisitionJSONObject.put("is_direct", measurement.details.protocolConfig.hasDirect())
-              requisitionJSONObject.put("measurement_type", measurementTypeCase.name)
-              requisitionJSONObject.put("state", requisition.state.name)
-              requisitionJSONObject.put("create_time", measurement.createTime.toJson())
-              requisitionJSONObject.put("update_time", requisition.updateTime.toJson())
-              requisitionJSONObject.put(
+              measurementJSONObject.put("is_direct", measurement.details.protocolConfig.hasDirect())
+              measurementJSONObject.put("measurement_type", measurementTypeCase.name)
+              measurementJSONObject.put("state", measurement.state.name)
+              measurementJSONObject.put("create_time", measurement.createTime.toJson())
+              measurementJSONObject.put("update_time", measurement.updateTime.toJson())
+              measurementJSONObject.put(
                 "update_time_minus_create_time",
-                requisitionUpdateTimeMinusCreateTime
+                measurementUpdateTimeMinusCreateTime,
               )
-              requisitionJSONObject.put(
+              measurementJSONObject.put(
                 "update_time_minus_create_time_squared",
-                requisitionUpdateTimeMinusCreateTime * requisitionUpdateTimeMinusCreateTime
+                measurementUpdateTimeMinusCreateTime * measurementUpdateTimeMinusCreateTime,
               )
 
-              requisitionsJSONArray.put(requisitionJSONObject)
-            }
+              measurementsJSONArray.put(measurementJSONObject)
 
-            if (measurement.externalComputationId != 0L) {
-              for (computationParticipant in measurement.computationParticipantsList) {
-                val computationParticipantUpdateTimeMinusCreateTime = Timestamps.between(
-                  measurement.createTime,
-                  computationParticipant.updateTime
-                ).seconds
+              for (requisition in measurement.requisitionsList) {
+                val requisitionUpdateTimeMinusCreateTime =
+                  Timestamps.between(measurement.createTime, requisition.updateTime).seconds
 
-                val computationParticipantJSONObject = JSONObject()
-                computationParticipantJSONObject.put(
+                val requisitionJSONObject = JSONObject()
+                requisitionJSONObject.put(
                   "external_measurement_id",
-                  measurement.externalMeasurementId
+                  measurement.externalMeasurementId,
                 )
-                computationParticipantJSONObject.put(
-                  "external_computation_id",
-                  measurement.externalComputationId
+                requisitionJSONObject.put(
+                  "external_requisition_id",
+                  requisition.externalRequisitionId,
                 )
-                computationParticipantJSONObject.put(
-                  "external_duchy_id",
-                  computationParticipant.externalDuchyId
+                requisitionJSONObject.put(
+                  "external_data_provider_id",
+                  requisition.externalDataProviderId,
                 )
-                computationParticipantJSONObject.put(
-                  "protocol_config",
-                  measurement.details.duchyProtocolConfig.protocolCase.name
+                requisitionJSONObject.put(
+                  "is_direct",
+                  measurement.details.protocolConfig.hasDirect(),
                 )
-                computationParticipantJSONObject.put("measurement_type", measurementTypeCase.name)
-                computationParticipantJSONObject.put("state", computationParticipant.state.name)
-                computationParticipantJSONObject.put("create_time", measurement.createTime.toJson())
-                computationParticipantJSONObject.put("update_time", computationParticipant.updateTime.toJson())
-                computationParticipantJSONObject.put(
+                requisitionJSONObject.put("measurement_type", measurementTypeCase.name)
+                requisitionJSONObject.put("state", requisition.state.name)
+                requisitionJSONObject.put("create_time", measurement.createTime.toJson())
+                requisitionJSONObject.put("update_time", requisition.updateTime.toJson())
+                requisitionJSONObject.put(
                   "update_time_minus_create_time",
-                  computationParticipantUpdateTimeMinusCreateTime
+                  requisitionUpdateTimeMinusCreateTime,
                 )
-                computationParticipantJSONObject.put(
+                requisitionJSONObject.put(
                   "update_time_minus_create_time_squared",
-                  computationParticipantUpdateTimeMinusCreateTime * computationParticipantUpdateTimeMinusCreateTime
+                  requisitionUpdateTimeMinusCreateTime * requisitionUpdateTimeMinusCreateTime,
                 )
 
-                computationParticipantsJSONArray.put(computationParticipantJSONObject)
+                requisitionsJSONArray.put(requisitionJSONObject)
+              }
+
+              if (measurement.externalComputationId != 0L) {
+                for (computationParticipant in measurement.computationParticipantsList) {
+                  val computationParticipantUpdateTimeMinusCreateTime =
+                    Timestamps.between(measurement.createTime, computationParticipant.updateTime)
+                      .seconds
+
+                  val computationParticipantJSONObject = JSONObject()
+                  computationParticipantJSONObject.put(
+                    "external_measurement_id",
+                    measurement.externalMeasurementId,
+                  )
+                  computationParticipantJSONObject.put(
+                    "external_computation_id",
+                    measurement.externalComputationId,
+                  )
+                  computationParticipantJSONObject.put(
+                    "external_duchy_id",
+                    computationParticipant.externalDuchyId,
+                  )
+                  computationParticipantJSONObject.put(
+                    "protocol_config",
+                    measurement.details.duchyProtocolConfig.protocolCase.name,
+                  )
+                  computationParticipantJSONObject.put("measurement_type", measurementTypeCase.name)
+                  computationParticipantJSONObject.put("state", computationParticipant.state.name)
+                  computationParticipantJSONObject.put(
+                    "create_time",
+                    measurement.createTime.toJson(),
+                  )
+                  computationParticipantJSONObject.put(
+                    "update_time",
+                    computationParticipant.updateTime.toJson(),
+                  )
+                  computationParticipantJSONObject.put(
+                    "update_time_minus_create_time",
+                    computationParticipantUpdateTimeMinusCreateTime,
+                  )
+                  computationParticipantJSONObject.put(
+                    "update_time_minus_create_time_squared",
+                    computationParticipantUpdateTimeMinusCreateTime *
+                      computationParticipantUpdateTimeMinusCreateTime,
+                  )
+
+                  computationParticipantsJSONArray.put(computationParticipantJSONObject)
+                }
               }
             }
-          }
         } catch (e: Exception) {
           logger.warning("Reading or processing Measurements failed.")
           logger.warning(e.message)
@@ -258,22 +288,32 @@ class OperationalMetricsJob(
         deferredResults.add(measurementsDataWriter.appendRows(measurementsJSONArray))
         deferredResults.add(requisitionsDataWriter.appendRows(requisitionsJSONArray))
         if (!computationParticipantsJSONArray.isEmpty) {
-          deferredResults.add(computationParticipantsDataWriter.appendRows(computationParticipantsJSONArray))
+          deferredResults.add(
+            computationParticipantsDataWriter.appendRows(computationParticipantsJSONArray)
+          )
         }
         deferredResults.awaitAll()
 
-        val lastMeasurement: JSONObject = measurementsJSONArray.getJSONObject(measurementsJSONArray.length() - 1)
+        val lastMeasurement: JSONObject =
+          measurementsJSONArray.getJSONObject(measurementsJSONArray.length() - 1)
         latestMeasurementReadDataWriter.appendRows(JSONArray().put(lastMeasurement)).await()
 
-        filter = filter.copy {
-          after = after.copy {
-            updateTime = Timestamp.parseFrom(lastMeasurement.get("update_time").toString().encodeToByteArray())
-            measurement = measurementKey {
-              externalMeasurementConsumerId = lastMeasurement.get("external_measurement_consumer_id").toString().toLong()
-              externalMeasurementId = lastMeasurement.get("external_measurement_id").toString().toLong()
-            }
+        filter =
+          filter.copy {
+            after =
+              after.copy {
+                updateTime =
+                  Timestamp.parseFrom(
+                    lastMeasurement.get("update_time").toString().encodeToByteArray()
+                  )
+                measurement = measurementKey {
+                  externalMeasurementConsumerId =
+                    lastMeasurement.get("external_measurement_consumer_id").toString().toLong()
+                  externalMeasurementId =
+                    lastMeasurement.get("external_measurement_id").toString().toLong()
+                }
+              }
           }
-        }
       } while (measurementsQueryResponseSize == BATCH_SIZE)
     } finally {
       measurementsDataWriter.close()
@@ -307,17 +347,21 @@ class OperationalMetricsJob(
             .setKeepAliveTime(Duration.ofMinutes(1))
             .setKeepAliveTimeout(Duration.ofMinutes(1))
             .setKeepAliveWithoutCalls(true)
-            .build())
+            .build()
+        )
         .setEnableConnectionPool(true)
         .setDefaultMissingValueInterpretation(
-          AppendRowsRequest.MissingValueInterpretation.DEFAULT_VALUE)
+          AppendRowsRequest.MissingValueInterpretation.DEFAULT_VALUE
+        )
         .setIgnoreUnknownFields(true)
-        .setRetrySettings(RetrySettings.newBuilder()
-                            .setInitialRetryDelay(Duration.ofMillis(500))
-                            .setRetryDelayMultiplier(1.1)
-                            .setMaxAttempts(5)
-                            .setMaxRetryDelay(Duration.ofMinutes(1))
-                            .build())
+        .setRetrySettings(
+          RetrySettings.newBuilder()
+            .setInitialRetryDelay(Duration.ofMillis(500))
+            .setRetryDelayMultiplier(1.1)
+            .setMaxAttempts(5)
+            .setMaxRetryDelay(Duration.ofMinutes(1))
+            .build()
+        )
         .build()
     }
 
@@ -332,7 +376,11 @@ class OperationalMetricsJob(
       return coroutineScope {
         async {
           for (i in 1..RETRY_COUNT) {
-            if (!streamWriter.isUserClosed && streamWriter.isClosed && recreateCount < MAX_RECREATE_COUNT) {
+            if (
+              !streamWriter.isUserClosed &&
+                streamWriter.isClosed &&
+                recreateCount < MAX_RECREATE_COUNT
+            ) {
               streamWriter = createStreamWriter()
               recreateCount++
             } else {

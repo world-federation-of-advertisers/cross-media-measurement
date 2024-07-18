@@ -16,11 +16,11 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.job
 
-import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.commandLineMain
 import com.google.cloud.bigquery.BigQuery
 import com.google.cloud.bigquery.BigQueryOptions
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient
+import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import org.wfanet.measurement.kingdom.job.OperationalMetricsJob
@@ -28,7 +28,10 @@ import picocli.CommandLine
 
 @CommandLine.Command(
   name = "OperationalMetricsJobExecutor",
-  description = ["Process for reading data for Metrics from the Kingdom Spanner Database and writing it to BigQuery."],
+  description =
+    [
+      "Process for reading data for Metrics from the Kingdom Spanner Database and writing it to BigQuery."
+    ],
   mixinStandardHelpOptions = true,
   showDefaultValues = true,
 )
@@ -37,7 +40,10 @@ private fun run(
   @CommandLine.Mixin operationalMetricsFlags: OperationalMetricsFlags,
 ) {
   val bigQuery: BigQuery =
-  BigQueryOptions.newBuilder().apply { setProjectId(operationalMetricsFlags.bigQueryProjectId) }.build().service
+    BigQueryOptions.newBuilder()
+      .apply { setProjectId(operationalMetricsFlags.bigQueryProjectId) }
+      .build()
+      .service
 
   runBlocking {
     spannerFlags.usingSpanner { spanner ->

@@ -63,9 +63,9 @@ kingdom: #Kingdom & {
 		"\(#InternalServerServiceAccount)": #WorkloadIdentityServiceAccount & {
 			_iamServiceAccountName: "kingdom-internal"
 		}
-    "\(#OperationalMetricsServiceAccount)": #WorkloadIdentityServiceAccount & {
-      _iamServiceAccountName: "operational-metrics"
-    }
+		"\(#OperationalMetricsServiceAccount)": #WorkloadIdentityServiceAccount & {
+			_iamServiceAccountName: "operational-metrics"
+		}
 	}
 
 	configMaps: "java": #JavaConfigMap
@@ -88,36 +88,36 @@ kingdom: #Kingdom & {
 	}
 
 	cronjobs: {
-    "operational-metrics": {
-      _container: args: [
-       	"--bigquery-project-id=\(#GCloudProject)",
-      	"--bigquery-dataset=operational-metrics",
-			  "--measurements-table=measurements",
-			  "--requisitions-table=requisitions",
-			  "--computation-participants-table=computation_participants",
-			  "--latest-measurement-read=latest_measurement_read",
-      ] + #SpannerConfig.flags
-      spec: {
-        schedule: "15 * * * *" // Hourly, 15 minutes past the hour
-        template: spec: #ServiceAccountPodSpec & {
-          serviceAccountName: #OperationalMetricsServiceAccount
-        }
-      }
-    }
-  }
+		"operational-metrics": {
+			_container: args: [
+						"--bigquery-project-id=\(#GCloudProject)",
+						"--bigquery-dataset=operational-metrics",
+						"--measurements-table=measurements",
+						"--requisitions-table=requisitions",
+						"--computation-participants-table=computation_participants",
+						"--latest-measurement-read=latest_measurement_read",
+			] + #SpannerConfig.flags
+			spec: {
+				schedule: "15 * * * *" // Hourly, 15 minutes past the hour
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #OperationalMetricsServiceAccount
+				}
+			}
+		}
+	}
 
-  networkPolicies: {
-    "operational-metrics": {
-      _app_label: "operational-metrics-app"
-      _egresses: {
-        // Need to send external traffic to Spanner and BigQuery.
-        any: {}
-      }
-    }
-  }
+	networkPolicies: {
+		"operational-metrics": {
+			_app_label: "operational-metrics-app"
+			_egresses: {
+				// Need to send external traffic to Spanner and BigQuery.
+				any: {}
+			}
+		}
+	}
 
-  services: {
-    "system-api-server": _ipAddressName:         _systemApiAddressName
-    "v2alpha-public-api-server": _ipAddressName: _publicApiAddressName
-  }
+	services: {
+		"system-api-server": _ipAddressName:         _systemApiAddressName
+		"v2alpha-public-api-server": _ipAddressName: _publicApiAddressName
+	}
 }

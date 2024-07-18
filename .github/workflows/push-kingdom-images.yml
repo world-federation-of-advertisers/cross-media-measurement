@@ -20,8 +20,6 @@ on:
 jobs:
   push-images:
     runs-on: ubuntu-22.04
-    outputs:
-      image-tag: ${{ steps.get-image-tag.outputs.image-tag }}
     permissions:
       id-token: write
       packages: write
@@ -38,17 +36,6 @@ jobs:
         with:
           workload_identity_provider: ${{ vars.BAZEL_BUILD_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.BAZEL_BUILD_SERVICE_ACCOUNT }}
-
-      - id: get-image-tag
-        name: Get image tag
-        run: |
-          declare image_tag
-          if [[ "$GITHUB_REF_TYPE" == 'tag' ]]; then
-            image_tag="${GITHUB_REF_NAME#v}"
-          else
-            image_tag="$GITHUB_SHA"
-          fi
-          echo "image-tag=${image_tag}" >> "$GITHUB_OUTPUT"
 
       - name: Write ~/.bazelrc
         env:

@@ -61,9 +61,12 @@ class OperationalMetricsJobTest {
   @Before
   fun init() {
     spannerAccountsService = SpannerAccountsService(idGenerator, spannerDatabase.databaseClient)
-    spannerDataProvidersService = SpannerDataProvidersService(idGenerator, spannerDatabase.databaseClient)
-    spannerMeasurementConsumersService = SpannerMeasurementConsumersService(idGenerator, spannerDatabase.databaseClient)
-    spannerMeasurementsService = SpannerMeasurementsService(idGenerator, spannerDatabase.databaseClient)
+    spannerDataProvidersService =
+      SpannerDataProvidersService(idGenerator, spannerDatabase.databaseClient)
+    spannerMeasurementConsumersService =
+      SpannerMeasurementConsumersService(idGenerator, spannerDatabase.databaseClient)
+    spannerMeasurementsService =
+      SpannerMeasurementsService(idGenerator, spannerDatabase.databaseClient)
   }
 
   @Ignore
@@ -71,11 +74,14 @@ class OperationalMetricsJobTest {
   fun `job successfully creates json for appending from measurements`() = runBlocking {
     val dataProvider = population.createDataProvider(spannerDataProvidersService)
     val measurementConsumer =
-      population.createMeasurementConsumer(spannerMeasurementConsumersService, spannerAccountsService)
+      population.createMeasurementConsumer(
+        spannerMeasurementConsumersService,
+        spannerAccountsService,
+      )
 
-    val computationParticipantMeasurementRequest =
-      createMeasurementRequest {
-        measurement = MEASUREMENT.copy {
+    val computationParticipantMeasurementRequest = createMeasurementRequest {
+      measurement =
+        MEASUREMENT.copy {
           externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
           externalMeasurementConsumerCertificateId =
             measurementConsumer.certificate.externalCertificateId
@@ -91,11 +97,11 @@ class OperationalMetricsJobTest {
               }
             }
         }
-      }
+    }
 
-    val directMeasurementRequest =
-      createMeasurementRequest {
-        measurement = MEASUREMENT.copy {
+    val directMeasurementRequest = createMeasurementRequest {
+      measurement =
+        MEASUREMENT.copy {
           externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
           externalMeasurementConsumerCertificateId =
             measurementConsumer.certificate.externalCertificateId
@@ -104,16 +110,21 @@ class OperationalMetricsJobTest {
           details =
             details.copy {
               clearDuchyProtocolConfig()
-              protocolConfig = protocolConfig { direct = ProtocolConfig.Direct.getDefaultInstance() }
+              protocolConfig = protocolConfig {
+                direct = ProtocolConfig.Direct.getDefaultInstance()
+              }
             }
         }
-      }
+    }
 
-    val createdMeasurements = spannerMeasurementsService.batchCreateMeasurements(batchCreateMeasurementsRequest {
-      externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-      requests += computationParticipantMeasurementRequest
-      requests += directMeasurementRequest
-    })
+    val createdMeasurements =
+      spannerMeasurementsService.batchCreateMeasurements(
+        batchCreateMeasurementsRequest {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          requests += computationParticipantMeasurementRequest
+          requests += directMeasurementRequest
+        }
+      )
 
     val computationParticipantMeasurement: Measurement =
       if (createdMeasurements.measurementsList[0].details.hasDuchyProtocolConfig()) {
@@ -128,7 +139,6 @@ class OperationalMetricsJobTest {
       } else {
         createdMeasurements.measurementsList[0]
       }
-
 
   }
 
