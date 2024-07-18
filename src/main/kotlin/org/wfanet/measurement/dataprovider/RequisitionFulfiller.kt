@@ -167,6 +167,8 @@ abstract class RequisitionFulfiller(
   }
 
   protected suspend fun getCertificate(resourceName: String): Certificate {
+    println("EDP Get certificate *******")
+    println(resourceName)
     return try {
       certificatesStub.getCertificate(getCertificateRequest { name = resourceName })
     } catch (e: StatusException) {

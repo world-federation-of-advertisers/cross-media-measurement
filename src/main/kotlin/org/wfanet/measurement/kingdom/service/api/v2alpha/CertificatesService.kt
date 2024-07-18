@@ -78,11 +78,13 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
   }
 
   override suspend fun getCertificate(request: GetCertificateRequest): Certificate {
+    println("Kingdom certificate request: " + request)
     val key: CertificateKey =
       grpcRequireNotNull(parseCertificateKey(request.name)) {
         "Resource name unspecified or invalid"
       }
 
+    println("Kingdom certificate key: " + key)
     val principal: MeasurementPrincipal = principalFromCurrentContext
     if (!principal.isAuthorizedToGet(key)) {
       throw permissionDeniedStatus(Permission.GET, request.name).asRuntimeException()
@@ -110,6 +112,7 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
       try {
         internalCertificatesStub.getCertificate(internalGetCertificateRequest)
       } catch (e: StatusException) {
+        println("Kingdom certificate exception: " + e)
         throw when (e.status.code) {
           Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
           else -> Status.UNKNOWN
@@ -366,6 +369,7 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
       for (parse in CERTIFICATE_KEY_PARSERS) {
         return parse(name) ?: continue
       }
+      println(name + " not found")
       return null
     }
 

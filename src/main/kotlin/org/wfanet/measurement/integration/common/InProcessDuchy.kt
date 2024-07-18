@@ -91,6 +91,7 @@ import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoro
 class InProcessDuchy(
   val externalDuchyId: String,
   val kingdomSystemApiChannel: Channel,
+  val kingdomPublicApiChannel: Channel,
   val duchyDependenciesRule:
     ProviderRule<(String, SystemComputationLogEntriesCoroutineStub) -> DuchyDependencies>,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
@@ -123,7 +124,7 @@ class InProcessDuchy(
     SystemRequisitionsCoroutineStub(kingdomSystemApiChannel).withDuchyId(externalDuchyId)
   }
   private val certificateStub: CertificatesGrpcKt.CertificatesCoroutineStub by lazy {
-    CertificatesGrpcKt.CertificatesCoroutineStub(kingdomSystemApiChannel)
+    CertificatesGrpcKt.CertificatesCoroutineStub(kingdomPublicApiChannel).withDuchyId(externalDuchyId)
   }
   private val computationsClient by lazy { ComputationsCoroutineStub(computationsServer.channel) }
   private val computationStatsClient by lazy {

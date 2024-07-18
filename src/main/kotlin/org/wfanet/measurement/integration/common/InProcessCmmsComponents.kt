@@ -75,6 +75,7 @@ class InProcessCmmsComponents(
       InProcessDuchy(
         externalDuchyId = it,
         kingdomSystemApiChannel = kingdom.systemApiChannel,
+        kingdomPublicApiChannel = kingdom.publicApiChannel,
         duchyDependenciesRule = duchyDependenciesRule,
         trustedCertificates = TRUSTED_CERTIFICATES,
         verboseGrpcLogging = false,
@@ -86,6 +87,7 @@ class InProcessCmmsComponents(
     edpDisplayNameToResourceMap.entries.mapIndexed { index, (displayName, resource) ->
       val specIndex = index % syntheticEventGroupSpecs.size
       val certificateKey = DataProviderCertificateKey.fromName(resource.dataProvider.certificate)!!
+      println("edpSimulator: " + certificateKey)
       InProcessEdpSimulator(
         displayName = displayName,
         resourceName = resource.name,

@@ -335,13 +335,13 @@ class HonestMajorityShareShuffleMill(
     val signedSeed = decryptRandomSeed(encryptedAndSignedSeed, privateKey)
 
     val dataProviderCertificateName = secretSeed.dataProviderCertificate
+    println("Duchy request edp certificate: " + dataProviderCertificateName)
     val dataProviderCertificate =
       try {
         certificateClient.getCertificate(
           getCertificateRequest { name = dataProviderCertificateName }
         )
       } catch (e: StatusException) {
-        println(e)
         throw PermanentErrorException("Fail to get certificate for $dataProviderCertificateName", e)
       }
 
