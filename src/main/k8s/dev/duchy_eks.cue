@@ -99,13 +99,13 @@ objectSets: [
 
 duchy: #PostgresDuchy & {
 	_imageSuffixes: {
-		"herald-daemon":                             "duchy/aws-herald"
-		"computation-control-server":                "duchy/aws-computation-control"
-		"liquid-legions-v2-mill-daemon":             "duchy/aws-liquid-legions-v2-mill"
-		"honest-majority-share-shuffle-mill-daemon": "duchy/aws-honest-majority-share-shuffle-mill"
-		"requisition-fulfillment-server":            "duchy/aws-requisition-fulfillment"
-		"internal-api-server":                       "duchy/aws-postgres-internal-server"
-		"update-duchy-schema":                       "duchy/aws-postgres-update-schema"
+		"herald-daemon":                  "duchy/aws-herald"
+		"computation-control-server":     "duchy/aws-computation-control"
+		"liquid-legions-v2-mill-daemon":  "duchy/aws-liquid-legions-v2-mill"
+		"hmss-mill-daemon":               "duchy/aws-honest-majority-share-shuffle-mill"
+		"requisition-fulfillment-server": "duchy/aws-requisition-fulfillment"
+		"internal-api-server":            "duchy/aws-postgres-internal-server"
+		"update-duchy-schema":            "duchy/aws-postgres-update-schema"
 	}
 	_duchy: {
 		name:                      _duchyName
@@ -151,7 +151,7 @@ duchy: #PostgresDuchy & {
 				}
 			}
 		}
-		"honest-majority-share-shuffle-mill-daemon-deployment": {
+		"hmss-mill-daemon-deployment": {
 			_workLockDuration: "5m"
 			_container: {
 				_javaOptions: maxHeapSize: #HmssMillMaxHeapSize

@@ -45,13 +45,13 @@ import ("strings")
 
 	_imageSuffixes: [string]: string
 	_imageSuffixes: {
-		"async-computation-control-server":          string | *"duchy/async-computation-control"
-		"computation-control-server":                string | *"duchy/computation-control"
-		"herald-daemon":                             string | *"duchy/herald"
-		"liquid-legions-v2-mill-daemon":             string | *"duchy/liquid-legions-v2-mill"
-		"honest-majority-share-shuffle-mill-daemon": string | *"duchy/honest-majority-share-shuffle-mill"
-		"requisition-fulfillment-server":            string | *"duchy/requisition-fulfillment"
-		"computations-cleaner":                      string | *"duchy/computations-cleaner"
+		"async-computation-control-server": string | *"duchy/async-computation-control"
+		"computation-control-server":       string | *"duchy/computation-control"
+		"herald-daemon":                    string | *"duchy/herald"
+		"liquid-legions-v2-mill-daemon":    string | *"duchy/liquid-legions-v2-mill"
+		"hmss-mill-daemon":                 string | *"duchy/honest-majority-share-shuffle-mill"
+		"requisition-fulfillment-server":   string | *"duchy/requisition-fulfillment"
+		"computations-cleaner":             string | *"duchy/computations-cleaner"
 	}
 	_imageConfigs: [string]: #ImageConfig
 	_imageConfigs: {
@@ -161,7 +161,7 @@ import ("strings")
 				"\(_name)-internal-api-server", "\(_name)-computation-control-server",
 			]
 		}
-		"honest-majority-share-shuffle-mill-daemon-deployment": {
+		"hmss-mill-daemon-deployment": {
 			_workLockDuration?: string
 			_container: args: [
 						_duchyInternalApiTargetFlag,
@@ -298,7 +298,7 @@ import ("strings")
 			_sourceMatchLabels: [
 				_object_prefix + "herald-daemon-app",
 				_object_prefix + "liquid-legions-v2-mill-daemon-app",
-				_object_prefix + "honest-majority-share-shuffle-mill-daemon-app",
+				_object_prefix + "hmss-mill-daemon-app",
 				_object_prefix + "async-computation-control-server-app",
 				_object_prefix + "requisition-fulfillment-server-app",
 				_object_prefix + "computations-cleaner-app",
@@ -355,8 +355,8 @@ import ("strings")
 				any: {}
 			}
 		}
-		"honest-majority-share-shuffle-mill-daemon": {
-			_app_label: _object_prefix + "honest-majority-share-shuffle-mill-daemon-app"
+		"hmss-mill-daemon": {
+			_app_label: _object_prefix + "hmss-mill-daemon-app"
 			_egresses: {
 				// Need to send external traffic.
 				any: {}
