@@ -103,9 +103,8 @@ class MeasurementsService(
   private val internalDataProvidersStub: InternalDataProvidersCoroutineStub,
   private val noiseMechanisms: List<NoiseMechanism>,
   private val reachOnlyLlV2Enabled: Boolean = false,
-  // TODO(@renjiez): merge the two options below once implementing reach-only HMSS.
-  private val reachAndFrequencyHmssEnabled: Boolean = false,
-  private val reachOnlyHmssEnabled: Boolean = false,
+  private val hmssEnabled: Boolean = false,
+  private val hmssEnabledMeasurementConsumers: List<String> = emptyList(),
 ) : MeasurementsCoroutineImplBase() {
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
@@ -472,6 +471,7 @@ class MeasurementsService(
   private fun buildInternalProtocolConfig(
     measurementSpec: MeasurementSpec,
     dataProviderCapabilities: Collection<InternalDataProvider.Capabilities>,
+    measurementConsumerName: String,
   ): InternalProtocolConfig {
     val dataProvidersCount = dataProviderCapabilities.size
     val internalNoiseMechanisms = noiseMechanisms.map { it.toInternal() }
@@ -493,7 +493,7 @@ class MeasurementsService(
           }
         } else {
           if (
-            reachOnlyHmssEnabled &&
+            (measurementConsumerName in hmssEnabledMeasurementConsumers || hmssEnabled) &&
               dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
           ) {
             protocolConfig {
@@ -533,7 +533,7 @@ class MeasurementsService(
           }
         } else {
           if (
-            reachAndFrequencyHmssEnabled &&
+            (measurementConsumerName in hmssEnabledMeasurementConsumers || hmssEnabled) &&
               dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
           ) {
             protocolConfig {
@@ -634,7 +634,7 @@ class MeasurementsService(
       measurement.toInternal(
         measurementConsumerCertificateKey,
         dataProviderValues,
-        buildInternalProtocolConfig(measurementSpec, dataProviderCapabilities),
+        buildInternalProtocolConfig(measurementSpec, dataProviderCapabilities, parentKey.toName()),
       )
 
     val requestId = this.requestId

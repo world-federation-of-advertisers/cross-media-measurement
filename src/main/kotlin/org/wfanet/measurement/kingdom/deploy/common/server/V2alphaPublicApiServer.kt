@@ -156,8 +156,8 @@ private fun run(
           internalDataProvidersStub,
           v2alphaFlags.directNoiseMechanisms,
           reachOnlyLlV2Enabled = v2alphaFlags.reachOnlyLlV2Enabled,
-          reachOnlyHmssEnabled = v2alphaFlags.hmssForReachEnabled,
-          reachAndFrequencyHmssEnabled = v2alphaFlags.hmssForRfEnabled,
+          hmssEnabled = v2alphaFlags.hmssEnabled,
+          hmssEnabledMeasurementConsumers = v2alphaFlags.hmssEnabledMeasurementConsumers,
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
@@ -247,27 +247,26 @@ private class V2alphaFlags {
     private set
 
   @set:CommandLine.Option(
-    names = ["--enable-hmss-for-rf"],
-    description =
-      [
-        "whether to enable to Honest Majority Share Shuffle protocol for ReachAndFrequency Measurement"
-      ],
+    names = ["--enable-hmss"],
+    description = ["whether to enable the Honest Majority Share Shuffle protocol"],
     negatable = true,
     required = false,
     defaultValue = "false",
   )
-  var hmssForRfEnabled by Delegates.notNull<Boolean>()
+  var hmssEnabled by Delegates.notNull<Boolean>()
     private set
 
-  @set:CommandLine.Option(
-    names = ["--enable-hmss-for-reach"],
+  @CommandLine.Option(
+    names = ["--hmss-enabled-measurement-consumers"],
     description =
-      ["whether to enable to Honest Majority Share Shuffle protocol for Reach Measurement"],
-    negatable = true,
+      [
+        "MeasurementConsumer names who force to enable HMSS protocol" +
+          " regardless the --enable-hmss flag."
+      ],
     required = false,
-    defaultValue = "false",
+    defaultValue = "",
   )
-  var hmssForReachEnabled by Delegates.notNull<Boolean>()
+  lateinit var hmssEnabledMeasurementConsumers: List<String>
     private set
 
   @CommandLine.Option(
