@@ -85,11 +85,17 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
         }
       }
 
+    val vidToIndexMap =
+      VidToIndexMapGenerator.generateMapping(
+        (populationSpec.vidRange.start until populationSpec.vidRange.endExclusive).asSequence()
+      )
+
     run(
       eventQuery,
       EdpSimulator.buildEventTemplates(eventMessageDescriptor),
       eventGroupSpecByReferenceIdSuffix,
       listOf(SyntheticEventGroupSpec.getDescriptor().file),
+      vidToIndexMap,
     )
   }
 

@@ -67,6 +67,9 @@ import org.wfanet.measurement.internal.duchy.purgeComputationsResponse
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
+import org.wfanet.measurement.system.v1alpha.computationLogEntry
+import org.wfanet.measurement.system.v1alpha.createComputationLogEntryRequest
+import org.wfanet.measurement.system.v1alpha.stageAttempt
 
 /** Implementation of the Computations service. */
 class ComputationsService(
@@ -84,14 +87,20 @@ class ComputationsService(
     val lockDuration =
       if (request.hasLockDuration()) request.lockDuration.toDuration() else defaultLockDuration
     val claimed =
-      computationsDatabase.claimTask(request.computationType, request.owner, lockDuration)
+      computationsDatabase.claimTask(
+        request.computationType,
+        request.owner,
+        lockDuration,
+        request.prioritizedStagesList,
+      )
     return if (claimed != null) {
       val token = computationsDatabase.readComputationToken(claimed)!!
       sendStatusUpdateToKingdom(
         newCreateComputationLogEntryRequest(
           token.globalComputationId,
           token.computationStage,
-          token.attempt.toLong(),
+          attempt = token.attempt,
+          callerInstanceId = request.owner,
         )
       )
       token.toClaimWorkResponse()
@@ -358,26 +367,29 @@ class ComputationsService(
   private fun newCreateComputationLogEntryRequest(
     globalId: String,
     computationStage: ComputationStage,
-    attempt: Long = 0L,
-  ): CreateComputationLogEntryRequest {
-    return CreateComputationLogEntryRequest.newBuilder()
-      .apply {
-        parent = ComputationParticipantKey(globalId, duchyName).toName()
-        computationLogEntryBuilder.apply {
-          // TODO: maybe set participantChildReferenceId
-          logMessage =
-            "Computation $globalId at stage ${computationStage.name}, " + "attempt $attempt"
-          stageAttemptBuilder.apply {
-            stage = computationStage.number
-            stageName = computationStage.name
-            stageStartTime = clock.protoTimestamp()
-            attemptNumber = attempt
-          }
-        }
+    attempt: Int = 0,
+    callerInstanceId: String = "",
+  ): CreateComputationLogEntryRequest = createComputationLogEntryRequest {
+    parent = ComputationParticipantKey(globalId, duchyName).toName()
+    computationLogEntry = computationLogEntry {
+      participantChildReferenceId = callerInstanceId
+      logMessage = "Computation $globalId at stage ${computationStage.name}, attempt $attempt"
+      stageAttempt = stageAttempt {
+        stage = computationStage.number
+        stageName = computationStage.name
+        stageStartTime = clock.protoTimestamp()
+        attemptNumber = attempt.toLong()
       }
-      .build()
+    }
   }
 
+  /**
+   * Sends a status update to the Kingdom (creates a Measurement log entry).
+   *
+   * TODO(world-federation-of-advertisers/cross-media-measurement#1682): Handle this in the calling
+   *   component instead of having a connection from the Duchy internal API to the Kingdom system
+   *   API.
+   */
   private suspend fun sendStatusUpdateToKingdom(request: CreateComputationLogEntryRequest) {
     try {
       computationLogEntriesClient.createComputationLogEntry(request)

@@ -131,6 +131,8 @@ abstract class MillBase(
 ) {
   abstract val endingStage: ComputationStage
 
+  abstract val prioritizedStagesToClaim: List<ComputationStage>
+
   private val meter: Meter = openTelemetry.getMeter(this::class.qualifiedName!!)
 
   protected val cryptoWallClockDurationHistogram: DoubleHistogram =
@@ -170,6 +172,7 @@ abstract class MillBase(
       computationType = this@MillBase.computationType
       owner = millId
       lockDuration = workLockDuration.toProtoDuration()
+      prioritizedStages += prioritizedStagesToClaim
     }
     val claimWorkResponse =
       try {
