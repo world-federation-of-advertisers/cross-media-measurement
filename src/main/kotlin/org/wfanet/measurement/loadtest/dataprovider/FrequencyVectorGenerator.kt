@@ -16,26 +16,19 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.lowerBound
 import org.wfanet.measurement.common.upperBound
 
 class FrequencyVectorGenerator(
-  private val vidUniverse: List<Long>,
-  private val salt: ByteString,
-  inputVidToIndexMap: Map<Long, IndexedValue>,
+  private val vidToIndexMap: Map<Long, IndexedValue>,
   private val eventQuery: EventQuery<Message>,
   private val vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
 ) {
   private val sortedNormalizedHashValues: List<Double>
-  private val vidToIndexMap: Map<Long, IndexedValue>
 
   init {
-    vidToIndexMap =
-      if (inputVidToIndexMap.isNotEmpty()) inputVidToIndexMap
-      else VidToIndexMapGenerator.generateMapping(salt, vidUniverse)
     sortedNormalizedHashValues = vidToIndexMap.values.toList().map { it.value }.sorted()
   }
   /** Generates a frequency vector for the specified [eventGroupSpecs]. */
@@ -50,29 +43,31 @@ class FrequencyVectorGenerator(
     val startIndex = lowerBound(sortedNormalizedHashValues, vidSamplingInterval.start.toDouble())
     val endIndexExclusive = upperBound(sortedNormalizedHashValues, samplingIntervalEnd)
 
-    var sketchSize: Int = 0
+    var sketchSize = 0
     val validIntervals = mutableListOf<IntRange>()
 
     if (!isWrappedAround) {
       if (startIndex < endIndexExclusive) {
-        validIntervals.add(startIndex..(endIndexExclusive - 1))
+        validIntervals.add(startIndex until endIndexExclusive)
         sketchSize = endIndexExclusive - startIndex
       } else {
         sketchSize = 0
       }
     } else {
       if (startIndex < vidToIndexMap.size) {
-        validIntervals.add(startIndex..(vidToIndexMap.size - 1))
+        validIntervals.add(startIndex until vidToIndexMap.size)
       }
       sketchSize += (vidToIndexMap.size - startIndex)
 
       if (endIndexExclusive > 0) {
-        validIntervals.add(0..(endIndexExclusive - 1))
+        validIntervals.add(0 until endIndexExclusive)
       }
       sketchSize += endIndexExclusive
     }
 
-    require(sketchSize > 0) { "The sampling interval is too small." }
+    require(sketchSize > 0) {
+      "The sampling interval is too small to yield sketch size larger than 0."
+    }
 
     val sketch = IntArray(sketchSize) { 0 }
 
@@ -85,7 +80,7 @@ class FrequencyVectorGenerator(
           if (bucketIndex >= 0) {
             sketch[bucketIndex] += 1
           } else {
-            sketch[bucketIndex + vidUniverse.size] += 1
+            sketch[bucketIndex + vidToIndexMap.size] += 1
           }
         }
     }

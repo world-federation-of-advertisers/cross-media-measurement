@@ -25,6 +25,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationReader
 import org.wfanet.measurement.duchy.deploy.common.postgres.readers.ComputationStageAttemptReader
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
+import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.copy
@@ -48,6 +49,7 @@ import org.wfanet.measurement.internal.duchy.copy
  */
 class ClaimWork<ProtocolT, StageT>(
   private val protocol: ProtocolT,
+  private val prioritizedStages: List<ComputationStage>,
   private val ownerId: String,
   private val lockDuration: Duration,
   private val clock: Clock,
@@ -63,6 +65,7 @@ class ClaimWork<ProtocolT, StageT>(
         transactionContext,
         protocolEnum,
         clock.instant().truncatedTo(ChronoUnit.MICROS),
+        prioritizedStages,
       )
       // First the possible tasks to claim are selected from the computations table, then for each
       // item in the list we try to claim the lock in a transaction which will only succeed if the

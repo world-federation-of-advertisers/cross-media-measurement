@@ -3208,7 +3208,7 @@ class EdpSimulatorTest {
     private const val IMPRESSION_TOLERANCE = 1.0
 
     private val inputVidToIndexMap =
-      VidToIndexMapGenerator.generateMapping(ByteString.EMPTY, (0L..1000000L).toList())
+      VidToIndexMapGenerator.generateMapping((0L..1000000L).asSequence())
 
     private fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
       return loadPrivateKey(SECRET_FILES_PATH.resolve(fileName).toFile())
