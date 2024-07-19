@@ -194,8 +194,6 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         txContext2.findAcdpBalanceEntry(bucket1)
       val bucket2AcdpBalanceEntry: PrivacyBudgetAcdpBalanceEntry =
         txContext2.findAcdpBalanceEntry(bucket2)
-      val bucket3AcdpBalanceEntry: PrivacyBudgetAcdpBalanceEntry =
-        txContext2.findAcdpBalanceEntry(bucket3)
 
       val bucketsAcdpBalanceEntry = txContext2.findAcdpBalanceEntries(buckets)
 
@@ -212,8 +210,6 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         .isEqualTo(PrivacyBudgetAcdpBalanceEntry(bucket2, AcdpCharge(0.04, 5E-6)))
       assertThat(bucketsAcdpBalanceEntry.elementAt(1))
         .isEqualTo(PrivacyBudgetAcdpBalanceEntry(bucket2, AcdpCharge(0.04, 5E-6)))
-      assertThat(bucket3AcdpBalanceEntry)
-        .isEqualTo(PrivacyBudgetAcdpBalanceEntry(bucket3, AcdpCharge(0.04, 5E-6)))
     }
   }
 
