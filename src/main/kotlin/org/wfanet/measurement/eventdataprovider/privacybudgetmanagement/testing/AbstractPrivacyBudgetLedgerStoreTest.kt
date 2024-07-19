@@ -147,14 +147,14 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     }
 
   @Test
-  fun `findBalanceEntries is the same as calling findBalanceEntries multiple times`() {
+  fun `findBalanceEntries is the same as calling findBalanceEntry for every bucket`() {
     runBlocking {
       val bucket1 =
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
-          LocalDate.parse("2021-07-01"),
-          LocalDate.parse("2021-07-01"),
-          AgeGroup.RANGE_35_54,
+          LocalDate.parse("2024-07-01"),
+          LocalDate.parse("2024-07-01"),
+          AgeGroup.RANGE_18_34,
           Gender.MALE,
           0.3f,
           PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
@@ -163,9 +163,9 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       val bucket2 =
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
-          LocalDate.parse("2021-07-01"),
-          LocalDate.parse("2021-07-01"),
-          AgeGroup.RANGE_35_54,
+          LocalDate.parse("2024-07-01"),
+          LocalDate.parse("2024-07-01"),
+          AgeGroup.RANGE_18_34,
           Gender.MALE,
           0.5f,
           PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
@@ -174,9 +174,9 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       val bucket3 =
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
-          LocalDate.parse("2021-07-01"),
-          LocalDate.parse("2021-07-01"),
-          AgeGroup.RANGE_35_54,
+          LocalDate.parse("2024-07-01"),
+          LocalDate.parse("2024-07-01"),
+          AgeGroup.RANGE_18_54,
           Gender.FEMALE,
           0.3f,
           PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,

@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.panelmatch.client.internal;
 
+import "google/protobuf/timestamp.proto";
+
 option java_package = "org.wfanet.panelmatch.client.internal";
 option java_multiple_files = true;
 
@@ -50,4 +52,12 @@ message ExchangeStepAttempt {
     // should be made. Terminal state.
     FAILED_STEP = 4;
   }
+  State state = 4;
+
+  // Debug message logged during exchange step execution.
+  message DebugMessageEntry {
+    string message = 1;
+    google.protobuf.Timestamp time = 2;
+  }
+  repeated DebugMessageEntry debug_message_entries = 5;
 }
