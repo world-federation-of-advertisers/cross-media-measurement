@@ -20,7 +20,6 @@ import "wfa/measurement/internal/duchy/config/protocols_setup_config.proto";
 import "wfa/measurement/internal/duchy/crypto.proto";
 import "wfa/measurement/internal/duchy/differential_privacy.proto";
 import "wfa/measurement/internal/duchy/noise_mechanism.proto";
-import "wfa/measurement/internal/duchy/protocol/share_shuffle_sketch_params.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy.protocol";
 option java_multiple_files = true;
@@ -110,7 +109,7 @@ message HonestMajorityShareShuffle {
 
     // Non-aggregators execute following actions:
     //
-    // 1. Combine sketch shares from EDPs: Expand all requisition seeds
+    // 1. Combine FrequencyVector shares from EDPs: Expand all requisition seeds
     // into shares. Combine all requisition shares.
     //
     // 2. Add noise: Generate own noise share N_0 from common random seed.
@@ -140,10 +139,9 @@ message HonestMajorityShareShuffle {
 
     // Parameters used in this computation.
     message Parameters {
-      // The maximum frequency to reveal in the histogram.
       int32 maximum_frequency = 1;
-      // Parameters for secret sharing sketches.
-      ShareShuffleSketchParams sketch_params = 2;
+      // The modulus used in the protocol.
+      int32 ring_modulus = 2;
       // Differential privacy parameters for reach noise generation.
       DifferentialPrivacyParams reach_dp_params = 3;
       // Differential privacy parameters for frequency noise generation.
@@ -181,7 +179,7 @@ message HonestMajorityShareShuffle {
       // CMMS public API.
       bytes secret_seed_ciphertext = 2;
 
-      // The number of registers in the sketch.
+      // The number of registers in the FrequencyVector.
       int64 register_count = 3;
 
       // Resource name of the `Certificate` from the public api belonging to the
@@ -194,9 +192,9 @@ message HonestMajorityShareShuffle {
 
   // The input message of aggregation phase.
   message AggregationPhaseInput {
-    // Combined sketches from non-aggregators.
-    repeated uint32 combined_sketch = 1;
-    // The number of registers in the sketch.
+    // Combined FrequencyVectors from non-aggregators.
+    repeated uint32 combined_frequency_vectors = 1;
+    // The number of registers in FrequencyVectors.
     //
     // It is provided from RequisitionFulfillment.
     int64 register_count = 2;
@@ -219,9 +217,9 @@ message HonestMajorityShareShuffle {
     // A mapping of the name of a duchy to the BlobId corresponding to the
     // ComputationBlobDependency.OUTPUT BLOB where it will be written.
     //
-    // Upon receiving a sketch from a duchy the OUTPUT reference with the id
-    // found in this map is updated with the local copy of the blob. When all
-    // the output references have a path the worker can move onto the next
+    // Upon receiving a FrequencyVector from a duchy the OUTPUT reference with
+    // the id found in this map is updated with the local copy of the blob. When
+    // all the output references have a path the worker can move onto the next
     // stage.
     map<string, int64> external_duchy_local_blob_id = 1;
   }

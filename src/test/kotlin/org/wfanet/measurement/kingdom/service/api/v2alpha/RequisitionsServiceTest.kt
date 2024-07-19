@@ -62,7 +62,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegio
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
-import org.wfanet.measurement.api.v2alpha.ShareShuffleSketchParams
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
@@ -1361,6 +1360,8 @@ class RequisitionsServiceTest {
               externalProtocolConfigId = "hmss"
               honestMajorityShareShuffle =
                 InternalProtocolConfigKt.honestMajorityShareShuffle {
+                  reachRingModulus = 127
+                  reachAndFrequencyRingModulus = 127
                   noiseMechanism = InternalProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
                 }
             }
@@ -1439,7 +1440,7 @@ class RequisitionsServiceTest {
               ProtocolConfigKt.protocol {
                 honestMajorityShareShuffle =
                   ProtocolConfigKt.honestMajorityShareShuffle {
-                    sketchParams = ShareShuffleSketchParams.getDefaultInstance()
+                    ringModulus = 127
                     noiseMechanism = ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
                   }
               }

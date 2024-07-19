@@ -70,8 +70,8 @@ class FulfillRequisitionRequestBuilder(
           "Expected to find exactly one config for HonestMajorityShareShuffle. Found: ${hmssProtocolList.size}"
         )
 
-    require(protocolConfig.sketchParams.ringModulus > 1) {
-      "HMSS ring modulus must be greater than one. Found: ${protocolConfig.sketchParams.ringModulus}"
+    require(protocolConfig.ringModulus > 1) {
+      "HMSS ring modulus must be greater than one. Found: ${protocolConfig.ringModulus}"
     }
   }
 
@@ -105,7 +105,7 @@ class FulfillRequisitionRequestBuilder(
 
     val secretShareGeneratorRequest = secretShareGeneratorRequest {
       data += frequencyVector.dataList
-      ringModulus = protocolConfig.sketchParams.ringModulus
+      ringModulus = protocolConfig.ringModulus
     }
 
     val secretShare =
