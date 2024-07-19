@@ -43,7 +43,6 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.computationDetails
-import org.wfanet.measurement.internal.duchy.computationStage
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation.NON_AGGREGATOR
@@ -107,7 +106,6 @@ class ReachOnlyLiquidLegionsV2Mill(
   computationStatsClient: ComputationStatsCoroutineStub,
   private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   private val cryptoWorker: ReachOnlyLiquidLegionsV2Encryption,
-  workLockDuration: Duration,
   openTelemetry: OpenTelemetry,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
@@ -127,7 +125,6 @@ class ReachOnlyLiquidLegionsV2Mill(
     computationStatsClient,
     ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
     workerStubs,
-    workLockDuration,
     openTelemetry,
     requestChunkSizeBytes,
     maximumAttempts,

@@ -25,12 +25,16 @@ import io.kubernetes.client.openapi.ApiException
 import io.kubernetes.client.openapi.Configuration
 import io.kubernetes.client.openapi.JSON
 import io.kubernetes.client.openapi.apis.AppsV1Api
+import io.kubernetes.client.openapi.apis.BatchV1Api
 import io.kubernetes.client.openapi.apis.CoreV1Api
 import io.kubernetes.client.openapi.models.V1Deployment
-import io.kubernetes.client.openapi.models.V1DeploymentList
+import io.kubernetes.client.openapi.models.V1Job
+import io.kubernetes.client.openapi.models.V1JobList
 import io.kubernetes.client.openapi.models.V1LabelSelector
 import io.kubernetes.client.openapi.models.V1Pod
 import io.kubernetes.client.openapi.models.V1PodList
+import io.kubernetes.client.openapi.models.V1PodTemplate
+import io.kubernetes.client.openapi.models.V1PodTemplateSpec
 import io.kubernetes.client.openapi.models.V1ReplicaSet
 import io.kubernetes.client.openapi.models.V1ServiceAccount
 import io.kubernetes.client.openapi.models.V1Status
@@ -41,6 +45,7 @@ import java.io.File
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
+import kotlin.random.Random
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -64,22 +69,25 @@ class KubernetesClient(
 ) {
   private val coreApi = CoreV1Api(apiClient)
   private val appsApi = AppsV1Api(apiClient)
+  private val batchApi = BatchV1Api(apiClient)
 
   /** Gets a single [V1Deployment] by [name]. */
   suspend fun getDeployment(
     name: String,
     namespace: String = Namespaces.NAMESPACE_DEFAULT,
   ): V1Deployment? {
-    val deployments: List<V1Deployment> =
-      apiCall<V1DeploymentList> { callback ->
-          appsApi
-            .listNamespacedDeployment(namespace)
-            .fieldSelector("metadata.name=$name")
-            .executeAsync(callback)
-        }
-        .items
-    check(deployments.size <= 1)
-    return deployments.singleOrNull()
+    return apiCall { callback ->
+      appsApi.readNamespacedDeployment(name, namespace).executeAsync(callback)
+    }
+  }
+
+  suspend fun getPodTemplate(
+    name: String,
+    namespace: String = Namespaces.NAMESPACE_DEFAULT,
+  ): V1PodTemplate? {
+    return apiCall { callback ->
+      coreApi.readNamespacedPodTemplate(name, namespace).executeAsync(callback)
+    }
   }
 
   /** Gets the [V1ReplicaSet] for the current revision of [deployment]. */
@@ -108,6 +116,26 @@ class KubernetesClient(
         .listNamespacedPod(namespace)
         .labelSelector(labelSelector.matchLabelsSelector)
         .executeAsync(callback)
+    }
+  }
+
+  /** Lists Jobs using the specified [matchLabelsSelector]. */
+  suspend fun listJobs(
+    matchLabelsSelector: String,
+    namespace: String = Namespaces.NAMESPACE_DEFAULT,
+  ): V1JobList {
+    return apiCall { callback ->
+      batchApi
+        .listNamespacedJob(namespace)
+        .labelSelector(matchLabelsSelector)
+        .executeAsync(callback)
+    }
+  }
+
+  suspend fun createJob(job: V1Job): V1Job {
+    val namespace: String = job.metadata.namespace ?: Namespaces.NAMESPACE_DEFAULT
+    return apiCall { callback ->
+      batchApi.createNamespacedJob(namespace, job).executeAsync(callback)
     }
   }
 
@@ -227,6 +255,9 @@ class KubernetesClient(
 
   companion object {
     private const val REVISION_ANNOTATION = "deployment.kubernetes.io/revision"
+
+    /** Generates a random suffix for a Kubernetes object name. */
+    fun generateNameSuffix(random: Random) = Names.generateNameSuffix(random)
   }
 }
 
@@ -253,10 +284,14 @@ private val V1Deployment.complete: Boolean
 private val V1Deployment.labelSelector: String
   get() = checkNotNull(spec?.selector).matchLabelsSelector
 
-private val V1LabelSelector.matchLabelsSelector: String
+val V1LabelSelector.matchLabelsSelector: String
   get() {
     return matchLabels.map { (key, value) -> "$key=$value" }.joinToString(",")
   }
+
+fun V1PodTemplateSpec.clone(): V1PodTemplateSpec {
+  return V1PodTemplateSpec.fromJson(toJson())
+}
 
 private class DeferredApiCallback<T>
 private constructor(private val delegate: CompletableDeferred<T>) :

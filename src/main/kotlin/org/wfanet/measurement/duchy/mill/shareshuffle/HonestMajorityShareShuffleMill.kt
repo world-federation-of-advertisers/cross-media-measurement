@@ -103,7 +103,7 @@ class HonestMajorityShareShuffleMill(
   private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   private val cryptoWorker: HonestMajorityShareShuffleCryptor,
   private val protocolSetupConfig: HonestMajorityShareShuffleSetupConfig,
-  workLockDuration: Duration,
+  private val workLockDuration: Duration,
   openTelemetry: OpenTelemetry,
   private val privateKeyStore: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>? = null,
   requestChunkSizeBytes: Int = 1024 * 32,
@@ -121,7 +121,6 @@ class HonestMajorityShareShuffleMill(
     systemComputationLogEntriesClient = systemComputationLogEntriesClient,
     computationStatsClient = computationStatsClient,
     computationType = ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE,
-    workLockDuration = workLockDuration,
     requestChunkSizeBytes = requestChunkSizeBytes,
     maximumAttempts = maximumAttempts,
     clock = clock,
@@ -155,6 +154,10 @@ class HonestMajorityShareShuffleMill(
 
     return STAGE_TRANSITIONS[Pair(stage, role)]
       ?: error("Unexpected stage or role: ($stage, $role)")
+  }
+
+  suspend fun claimAndProcessWork() {
+    claimAndProcessWork(workLockDuration)
   }
 
   override suspend fun processComputationImpl(token: ComputationToken) {
