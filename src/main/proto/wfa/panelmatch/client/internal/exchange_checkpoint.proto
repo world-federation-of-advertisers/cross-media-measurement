@@ -24,6 +24,23 @@ import "wfa/panelmatch/client/internal/exchange_workflow.proto";
 option java_package = "org.wfanet.panelmatch.client.internal";
 option java_multiple_files = true;
 
+// A signed `ExchangeCheckpoint`.
+message SignedExchangeCheckpoint {
+  // Serialized `ExchangeCheckpoint`.
+  bytes serialized_checkpoint = 1;
+
+  // Signature of `serialized_checkpoint`.
+  bytes signature = 2;
+
+  // Object identifier (OID) of the signature algorithm in dot notation.
+  string signature_algorithm_oid = 3;
+
+  // Name of the certificate used to generate `signature`. This is a blob key
+  // that points to a blob in shared storage containing a serialized
+  // certificate.
+  string cert_name = 4;
+}
+
 // Tracks the progress of an exchange for a single party. For a Kingdom-less
 // exchange, both parties keep a single checkpoint for each exchange date.
 // Together, the two checkpoints for a given exchange date can be used to
