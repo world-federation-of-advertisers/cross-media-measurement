@@ -178,7 +178,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
 
       val txContext1 = backingStore.startTransaction()
       txContext1.addAcdpLedgerEntries(
-        setOf(bucket1, bucket2, bucket3),
+        setOf(bucket1, bucket2),
         setOf(acdpCharge),
         Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false),
       )
