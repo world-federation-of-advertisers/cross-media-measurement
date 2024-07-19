@@ -171,18 +171,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
         )
 
-      val bucket3 =
-        PrivacyBucketGroup(
-          MEASUREMENT_CONSUMER_ID,
-          LocalDate.parse("2024-07-01"),
-          LocalDate.parse("2024-07-01"),
-          AgeGroup.RANGE_18_34,
-          Gender.FEMALE,
-          0.3f,
-          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-        )
-
-      val buckets = setOf(bucket1, bucket2, bucket3)
+      val buckets = setOf(bucket1, bucket2)
 
       val backingStore = createBackingStore()
       val acdpCharge = AcdpCharge(0.04, 5.0E-6)
@@ -212,6 +201,9 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
 
       backingStore.close()
 
+      assertThat(bucketsAcdpBalanceEntry.elementAt(0)).isEqualTo(bucket1AcdpBalanceEntry)
+      assertThat(bucketsAcdpBalanceEntry.elementAt(1)).isEqualTo(bucket2AcdpBalanceEntry)
+
       assertThat(bucket1AcdpBalanceEntry)
         .isEqualTo(PrivacyBudgetAcdpBalanceEntry(bucket1, AcdpCharge(0.04 * 2, 5.0E-6 * 2)))
       assertThat(bucketsAcdpBalanceEntry.elementAt(0))
@@ -221,8 +213,6 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       assertThat(bucketsAcdpBalanceEntry.elementAt(1))
         .isEqualTo(PrivacyBudgetAcdpBalanceEntry(bucket2, AcdpCharge(0.04, 5E-6)))
       assertThat(bucket3AcdpBalanceEntry)
-        .isEqualTo(PrivacyBudgetAcdpBalanceEntry(bucket3, AcdpCharge(0.04, 5E-6)))
-      assertThat(bucketsAcdpBalanceEntry.elementAt(2))
         .isEqualTo(PrivacyBudgetAcdpBalanceEntry(bucket3, AcdpCharge(0.04, 5E-6)))
     }
   }
