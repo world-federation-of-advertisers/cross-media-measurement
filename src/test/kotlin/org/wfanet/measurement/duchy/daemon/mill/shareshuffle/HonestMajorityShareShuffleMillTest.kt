@@ -116,7 +116,7 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteAggregationPhaseRe
 import org.wfanet.measurement.internal.duchy.protocol.CompleteAggregationPhaseRequestKt
 import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequestKt
-import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequestKt.sketchShare
+import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequestKt.frequencyVectorShare
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.ShufflePhaseInput
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt
@@ -128,7 +128,7 @@ import org.wfanet.measurement.internal.duchy.protocol.completeAggregationPhaseRe
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.copy
-import org.wfanet.measurement.internal.duchy.protocol.shareShuffleSketchParams
+import org.wfanet.measurement.internal.duchy.protocol.shareShuffleFrequencyVectorParams
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequestKt
@@ -329,13 +329,12 @@ private val REACH_ONLY_REQUISITION_3 =
 private val REACH_ONLY_REQUISITIONS =
   listOf(REACH_ONLY_REQUISITION_1, REACH_ONLY_REQUISITION_2, REACH_ONLY_REQUISITION_3)
 
+private const val RING_MODULUS = 127
+
 private val HMSS_PARAMETERS =
   HonestMajorityShareShuffleKt.ComputationDetailsKt.parameters {
-    sketchParams = shareShuffleSketchParams {
-      bytesPerRegister = 4
-      maximumCombinedFrequency = 11
-      ringModulus = 13
-    }
+    maximumFrequency = 10
+    ringModulus = RING_MODULUS
     reachDpParams = differentialPrivacyParams {
       epsilon = 1.1
       delta = 0.1
@@ -349,11 +348,8 @@ private val HMSS_PARAMETERS =
 
 private val REACH_ONLY_HMSS_PARAMETERS =
   HonestMajorityShareShuffleKt.ComputationDetailsKt.parameters {
-    sketchParams = shareShuffleSketchParams {
-      bytesPerRegister = 4
-      maximumCombinedFrequency = 11
-      ringModulus = 13
-    }
+    maximumFrequency = 1
+    ringModulus = RING_MODULUS
     reachDpParams = differentialPrivacyParams {
       epsilon = 1.1
       delta = 0.1
@@ -952,7 +948,7 @@ class HonestMajorityShareShuffleMillTest {
     var cryptoRequest = CompleteShufflePhaseRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeReachAndFrequencyShufflePhase(any())).thenAnswer {
       cryptoRequest = it.getArgument(0)
-      completeShufflePhaseResponse { combinedSketch += listOf(1, 2, 3) }
+      completeShufflePhaseResponse { combinedFrequencyVector += listOf(1, 2, 3) }
     }
     whenever(mockCertificates.getCertificate(any())).thenAnswer {
       certificate {
@@ -986,20 +982,28 @@ class HonestMajorityShareShuffleMillTest {
       .isEqualTo(
         completeShufflePhaseRequest {
           val hmss = computationDetails.honestMajorityShareShuffle
-          sketchParams = hmss.parameters.sketchParams.copy { registerCount = 100 }
+          frequencyVectorParams = shareShuffleFrequencyVectorParams {
+            registerCount = 100
+            maximumCombinedFrequency = 30
+            ringModulus = RING_MODULUS
+          }
           reachDpParams = hmss.parameters.reachDpParams
           frequencyDpParams = hmss.parameters.frequencyDpParams
           noiseMechanism = hmss.parameters.noiseMechanism
           order = CompleteShufflePhaseRequest.NonAggregatorOrder.FIRST
 
-          sketchShares += sketchShare {
+          frequencyVectorShares += frequencyVectorShare {
             data =
-              CompleteShufflePhaseRequestKt.SketchShareKt.shareData { values += listOf(1, 2, 3) }
+              CompleteShufflePhaseRequestKt.FrequencyVectorShareKt.shareData {
+                values += listOf(1, 2, 3)
+              }
           }
-          sketchShares += sketchShare { seed = requisitionSeed.data }
-          sketchShares += sketchShare {
+          frequencyVectorShares += frequencyVectorShare { seed = requisitionSeed.data }
+          frequencyVectorShares += frequencyVectorShare {
             data =
-              CompleteShufflePhaseRequestKt.SketchShareKt.shareData { values += listOf(4, 5, 6) }
+              CompleteShufflePhaseRequestKt.FrequencyVectorShareKt.shareData {
+                values += listOf(4, 5, 6)
+              }
           }
         }
       )
@@ -1092,10 +1096,20 @@ class HonestMajorityShareShuffleMillTest {
       getReachAndFrequencyHmssComputationDetails(RoleInComputation.AGGREGATOR)
     val inputBlobPath1 =
       ComputationBlobContext(GLOBAL_ID, Stage.AGGREGATION_PHASE.toProtocolStage(), 0L)
-    val inputBlobData1 = aggregationPhaseInput { combinedSketch += listOf(1, 2, 3) }.toByteString()
+    val inputBlobData1 =
+      aggregationPhaseInput {
+          combinedFrequencyVectors += listOf(1, 2, 3)
+          registerCount = 3
+        }
+        .toByteString()
     val inputBlobPath2 =
       ComputationBlobContext(GLOBAL_ID, Stage.AGGREGATION_PHASE.toProtocolStage(), 1L)
-    val inputBlobData2 = aggregationPhaseInput { combinedSketch += listOf(4, 5, 6) }.toByteString()
+    val inputBlobData2 =
+      aggregationPhaseInput {
+          combinedFrequencyVectors += listOf(4, 5, 6)
+          registerCount = 3
+        }
+        .toByteString()
     val inputBlobs =
       listOf(
         computationStageBlobMetadata {
@@ -1167,16 +1181,20 @@ class HonestMajorityShareShuffleMillTest {
       .isEqualTo(
         completeAggregationPhaseRequest {
           val hmss = computationDetails.honestMajorityShareShuffle
-          sketchParams = hmss.parameters.sketchParams
+          frequencyVectorParams = shareShuffleFrequencyVectorParams {
+            registerCount = 3
+            maximumCombinedFrequency = 30
+            ringModulus = RING_MODULUS
+          }
           maximumFrequency = hmss.parameters.maximumFrequency
           vidSamplingIntervalWidth = REACH_AND_FREQUENCY_MEASUREMENT_SPEC.vidSamplingInterval.width
           reachDpParams = hmss.parameters.reachDpParams
           frequencyDpParams = hmss.parameters.frequencyDpParams
           noiseMechanism = hmss.parameters.noiseMechanism
 
-          sketchShares +=
+          frequencyVectorShares +=
             CompleteAggregationPhaseRequestKt.shareData { shareVector += listOf(1, 2, 3) }
-          sketchShares +=
+          frequencyVectorShares +=
             CompleteAggregationPhaseRequestKt.shareData { shareVector += listOf(4, 5, 6) }
         }
       )
@@ -1239,7 +1257,7 @@ class HonestMajorityShareShuffleMillTest {
     var cryptoRequest = CompleteShufflePhaseRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeReachOnlyShufflePhase(any())).thenAnswer {
       cryptoRequest = it.getArgument(0)
-      completeShufflePhaseResponse { combinedSketch += listOf(1, 2, 3) }
+      completeShufflePhaseResponse { combinedFrequencyVector += listOf(1, 2, 3) }
     }
     whenever(mockCertificates.getCertificate(any())).thenAnswer {
       certificate {
@@ -1273,19 +1291,27 @@ class HonestMajorityShareShuffleMillTest {
       .isEqualTo(
         completeShufflePhaseRequest {
           val hmss = computationDetails.honestMajorityShareShuffle
-          sketchParams = hmss.parameters.sketchParams.copy { registerCount = 100 }
+          frequencyVectorParams = shareShuffleFrequencyVectorParams {
+            registerCount = 100
+            maximumCombinedFrequency = 3
+            ringModulus = RING_MODULUS
+          }
           reachDpParams = hmss.parameters.reachDpParams
           noiseMechanism = hmss.parameters.noiseMechanism
           order = CompleteShufflePhaseRequest.NonAggregatorOrder.FIRST
 
-          sketchShares += sketchShare {
+          frequencyVectorShares += frequencyVectorShare {
             data =
-              CompleteShufflePhaseRequestKt.SketchShareKt.shareData { values += listOf(1, 2, 3) }
+              CompleteShufflePhaseRequestKt.FrequencyVectorShareKt.shareData {
+                values += listOf(1, 2, 3)
+              }
           }
-          sketchShares += sketchShare { seed = requisitionSeed.data }
-          sketchShares += sketchShare {
+          frequencyVectorShares += frequencyVectorShare { seed = requisitionSeed.data }
+          frequencyVectorShares += frequencyVectorShare {
             data =
-              CompleteShufflePhaseRequestKt.SketchShareKt.shareData { values += listOf(4, 5, 6) }
+              CompleteShufflePhaseRequestKt.FrequencyVectorShareKt.shareData {
+                values += listOf(4, 5, 6)
+              }
           }
         }
       )
@@ -1296,10 +1322,20 @@ class HonestMajorityShareShuffleMillTest {
     val computationDetails = getReachOnlyHmssComputationDetails(RoleInComputation.AGGREGATOR)
     val inputBlobPath1 =
       ComputationBlobContext(GLOBAL_ID, Stage.AGGREGATION_PHASE.toProtocolStage(), 0L)
-    val inputBlobData1 = aggregationPhaseInput { combinedSketch += listOf(1, 2, 3) }.toByteString()
+    val inputBlobData1 =
+      aggregationPhaseInput {
+          combinedFrequencyVectors += listOf(1, 2, 3)
+          registerCount = 3
+        }
+        .toByteString()
     val inputBlobPath2 =
       ComputationBlobContext(GLOBAL_ID, Stage.AGGREGATION_PHASE.toProtocolStage(), 1L)
-    val inputBlobData2 = aggregationPhaseInput { combinedSketch += listOf(4, 5, 6) }.toByteString()
+    val inputBlobData2 =
+      aggregationPhaseInput {
+          combinedFrequencyVectors += listOf(4, 5, 6)
+          registerCount = 3
+        }
+        .toByteString()
     val inputBlobs =
       listOf(
         computationStageBlobMetadata {
@@ -1371,15 +1407,19 @@ class HonestMajorityShareShuffleMillTest {
       .isEqualTo(
         completeAggregationPhaseRequest {
           val hmss = computationDetails.honestMajorityShareShuffle
-          sketchParams = hmss.parameters.sketchParams
+          frequencyVectorParams = shareShuffleFrequencyVectorParams {
+            registerCount = 3
+            maximumCombinedFrequency = 3
+            ringModulus = RING_MODULUS
+          }
           maximumFrequency = hmss.parameters.maximumFrequency
           vidSamplingIntervalWidth = REACH_ONLY_MEASUREMENT_SPEC.vidSamplingInterval.width
           reachDpParams = hmss.parameters.reachDpParams
           noiseMechanism = hmss.parameters.noiseMechanism
 
-          sketchShares +=
+          frequencyVectorShares +=
             CompleteAggregationPhaseRequestKt.shareData { shareVector += listOf(1, 2, 3) }
-          sketchShares +=
+          frequencyVectorShares +=
             CompleteAggregationPhaseRequestKt.shareData { shareVector += listOf(4, 5, 6) }
         }
       )

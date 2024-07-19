@@ -689,6 +689,8 @@ private fun Measurement.Result.Frequency.toInternal(
         Measurement.Result.Frequency.MethodologyCase.LIQUID_LEGIONS_DISTRIBUTION -> {
           liquidLegionsDistribution = source.liquidLegionsDistribution.toInternal()
         }
+        Measurement.Result.Frequency.MethodologyCase.LIQUID_LEGIONS_V2,
+        Measurement.Result.Frequency.MethodologyCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {}
       }
     } else if (protocolConfig.protocolsList.any { it.hasLiquidLegionsV2() }) {
       val cmmsProtocol =
@@ -724,6 +726,11 @@ private fun Measurement.Result.Reach.toInternal(
         Measurement.Result.Reach.MethodologyCase.LIQUID_LEGIONS_COUNT_DISTINCT -> {
           liquidLegionsCountDistinct = source.liquidLegionsCountDistinct.toInternal()
         }
+        Measurement.Result.Reach.MethodologyCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+          // TODO(@ple13): Add HMSS register count.
+        }
+        Measurement.Result.Reach.MethodologyCase.LIQUID_LEGIONS_V2,
+        Measurement.Result.Reach.MethodologyCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {}
       }
     } else if (protocolConfig.protocolsList.any { it.hasLiquidLegionsV2() }) {
       val cmmsProtocol =

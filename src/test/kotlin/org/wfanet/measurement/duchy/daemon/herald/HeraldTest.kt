@@ -111,7 +111,6 @@ import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSket
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2Kt
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsV2NoiseConfig
-import org.wfanet.measurement.internal.duchy.protocol.shareShuffleSketchParams as protocolShareShuffleSketchParams
 import org.wfanet.measurement.internal.duchy.setContinuationTokenRequest
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
@@ -119,7 +118,6 @@ import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism as SystemNoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationKey
-import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.HonestMajorityShareShuffleKt.shareShuffleSketchParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.liquidLegionsSketchParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.honestMajorityShareShuffle
@@ -243,11 +241,8 @@ private val RO_LLV2_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
 
 private val HMSS_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
   honestMajorityShareShuffle = honestMajorityShareShuffle {
-    sketchParams = shareShuffleSketchParams {
-      registerCount = 1000000
-      bytesPerRegister = 2
-      ringModulus = 65535
-    }
+    reachAndFrequencyRingModulus = 127
+    reachRingModulus = 127
     noiseMechanism = SystemNoiseMechanism.DISCRETE_GAUSSIAN
   }
 }
@@ -843,12 +838,7 @@ class HeraldTest {
           parameters =
             HonestMajorityShareShuffleKt.ComputationDetailsKt.parameters {
               maximumFrequency = 10
-              sketchParams = protocolShareShuffleSketchParams {
-                registerCount = 1000000
-                bytesPerRegister = 2
-                maximumCombinedFrequency = 20
-                ringModulus = 65535
-              }
+              ringModulus = 127
               reachDpParams = differentialPrivacyParams {
                 epsilon = 1.1
                 delta = 1.2
@@ -950,12 +940,7 @@ class HeraldTest {
           parameters =
             HonestMajorityShareShuffleKt.ComputationDetailsKt.parameters {
               maximumFrequency = 10
-              sketchParams = protocolShareShuffleSketchParams {
-                registerCount = 1000000
-                bytesPerRegister = 2
-                maximumCombinedFrequency = 20
-                ringModulus = 65535
-              }
+              ringModulus = 127
               reachDpParams = differentialPrivacyParams {
                 epsilon = 1.1
                 delta = 1.2

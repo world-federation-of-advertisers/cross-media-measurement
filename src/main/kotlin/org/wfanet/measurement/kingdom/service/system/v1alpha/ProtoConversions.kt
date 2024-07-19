@@ -31,7 +31,6 @@ import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisitio
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationKey
-import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.HonestMajorityShareShuffleKt.shareShuffleSketchParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.liquidLegionsSketchParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.honestMajorityShareShuffle
@@ -243,7 +242,7 @@ fun InternalMeasurement.toSystemComputation(): Computation {
  * Builds a [Computation.MpcProtocolConfig] using the [InternalDuchyProtocolConfig] and
  * [InternalProtocolConfig].
  */
-fun buildMpcProtocolConfig(
+private fun buildMpcProtocolConfig(
   duchyProtocolConfig: InternalDuchyProtocolConfig,
   protocolConfig: InternalProtocolConfig,
 ): Computation.MpcProtocolConfig {
@@ -318,11 +317,9 @@ fun buildMpcProtocolConfig(
     InternalProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
       mpcProtocolConfig {
         honestMajorityShareShuffle = honestMajorityShareShuffle {
-          sketchParams = shareShuffleSketchParams {
-            bytesPerRegister =
-              protocolConfig.honestMajorityShareShuffle.sketchParams.bytesPerRegister
-            ringModulus = protocolConfig.honestMajorityShareShuffle.sketchParams.ringModulus
-          }
+          reachAndFrequencyRingModulus =
+            protocolConfig.honestMajorityShareShuffle.reachAndFrequencyRingModulus
+          reachRingModulus = protocolConfig.honestMajorityShareShuffle.reachRingModulus
           noiseMechanism =
             protocolConfig.honestMajorityShareShuffle.noiseMechanism.toSystemNoiseMechanism()
         }
