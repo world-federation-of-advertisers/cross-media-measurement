@@ -14,10 +14,10 @@ kt_jvm_library(
     visibility = ["//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2:reach_frequency_liquid_legions_v2_mill",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2:reach_only_liquid_legions_v2_mill",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/liquidlegionsv2:reach_frequency_liquid_legions_v2_mill",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/liquidlegionsv2:reach_only_liquid_legions_v2_mill",
         "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_control_service_kt_jvm_grpc_proto",
