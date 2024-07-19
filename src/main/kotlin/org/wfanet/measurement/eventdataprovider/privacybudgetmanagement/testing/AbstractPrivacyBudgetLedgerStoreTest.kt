@@ -212,10 +212,6 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
 
       backingStore.close()
 
-      assertThat(bucketsAcdpBalanceEntry.elementAt(0)).isEqualTo(bucket1AcdpBalanceEntry)
-      assertThat(bucketsAcdpBalanceEntry.elementAt(1)).isEqualTo(bucket2AcdpBalanceEntry)
-      assertThat(bucketsAcdpBalanceEntry.elementAt(2)).isEqualTo(bucket3AcdpBalanceEntry)
-
       assertThat(bucket1AcdpBalanceEntry)
         .isEqualTo(PrivacyBudgetAcdpBalanceEntry(bucket1, AcdpCharge(0.04 * 2, 5.0E-6 * 2)))
       assertThat(bucketsAcdpBalanceEntry.elementAt(0))
