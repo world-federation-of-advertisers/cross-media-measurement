@@ -36,3 +36,9 @@ variable "release_channel" {
   type        = string
   nullable    = false
 }
+
+variable "autoscaling_profile" {
+  description = "Autoscaling profile"
+  type        = string
+  default     = null
+}
