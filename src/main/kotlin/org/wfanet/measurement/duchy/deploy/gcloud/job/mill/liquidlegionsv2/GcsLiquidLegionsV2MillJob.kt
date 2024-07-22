@@ -1,4 +1,4 @@
-// Copyright 2023 The Cross-Media Measurement Authors
+// Copyright 2020 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,27 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.aws.daemon.mill.liquidlegionsv2
+package org.wfanet.measurement.duchy.deploy.gcloud.job.mill.liquidlegionsv2
 
-import org.wfanet.measurement.aws.s3.S3Flags
-import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv2.LiquidLegionsV2MillDaemon
+import org.wfanet.measurement.duchy.deploy.common.job.mill.liquidlegionsv2.LiquidLegionsV2MillJob
+import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
+import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import picocli.CommandLine
 
 @CommandLine.Command(
-  name = "S3LiquidLegionsV2MillDaemon",
-  description = ["Liquid Legions V2 Mill daemon."],
+  name = "GcsLiquidLegionsV2MillJob",
+  description = ["Liquid Legions V2 Mill job."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true,
 )
-class S3LiquidLegionsV2MillDaemon : LiquidLegionsV2MillDaemon() {
-  @CommandLine.Mixin private lateinit var s3Flags: S3Flags
+class GcsLiquidLegionsV2MillJob : LiquidLegionsV2MillJob() {
+  @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
 
   override fun run() {
-    val storageClient = S3StorageClient.fromFlags(s3Flags)
-    run(storageClient)
+    val gcs = GcsFromFlags(gcsFlags)
+    run(GcsStorageClient.fromFlags(gcs))
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(S3LiquidLegionsV2MillDaemon(), args)
+fun main(args: Array<String>) = commandLineMain(GcsLiquidLegionsV2MillJob(), args)

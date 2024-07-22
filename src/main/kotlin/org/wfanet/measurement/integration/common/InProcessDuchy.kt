@@ -248,7 +248,6 @@ class InProcessDuchy(
             computationStatsClient = computationStatsClient,
             workerStubs = workerStubs,
             cryptoWorker = JniLiquidLegionsV2Encryption(),
-            workLockDuration = Duration.ofSeconds(1),
             openTelemetry = GlobalOpenTelemetry.get(),
             parallelism = DUCHY_MILL_PARALLELISM,
           )
@@ -266,15 +265,15 @@ class InProcessDuchy(
             computationStatsClient = computationStatsClient,
             workerStubs = workerStubs,
             cryptoWorker = JniReachOnlyLiquidLegionsV2Encryption(),
-            workLockDuration = Duration.ofSeconds(1),
             openTelemetry = GlobalOpenTelemetry.get(),
             parallelism = DUCHY_MILL_PARALLELISM,
           )
+        val workLockDuration = Duration.ofSeconds(1)
 
         val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1))
         throttler.loopOnReady {
-          reachFrequencyLiquidLegionsV2Mill.claimAndProcessWork()
-          reachOnlyLiquidLegionsV2Mill.claimAndProcessWork()
+          reachFrequencyLiquidLegionsV2Mill.claimAndProcessWork(workLockDuration)
+          reachOnlyLiquidLegionsV2Mill.claimAndProcessWork(workLockDuration)
         }
       }
   }

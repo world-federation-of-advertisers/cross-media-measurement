@@ -20,7 +20,6 @@ import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Clock
-import java.time.Duration
 import java.util.logging.Logger
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -82,7 +81,6 @@ abstract class LiquidLegionsV2Mill(
   computationStatsClient: ComputationStatsCoroutineStub,
   computationType: ComputationType,
   private val workerStubs: Map<String, ComputationControlCoroutineStub>,
-  workLockDuration: Duration,
   openTelemetry: OpenTelemetry,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
@@ -99,12 +97,17 @@ abstract class LiquidLegionsV2Mill(
     systemComputationLogEntriesClient,
     computationStatsClient,
     computationType,
-    workLockDuration,
     requestChunkSizeBytes,
     maximumAttempts,
     clock,
     openTelemetry,
   ) {
+
+  suspend fun processClaimedWork(globalComputationId: String) {
+    val token: ComputationToken = getLatestComputationToken(globalComputationId)
+    processComputation(token)
+  }
+
   /**
    * Verifies that all EDPs have participated.
    *

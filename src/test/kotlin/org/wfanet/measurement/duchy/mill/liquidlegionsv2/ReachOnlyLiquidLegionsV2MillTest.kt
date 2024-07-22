@@ -517,7 +517,6 @@ class ReachOnlyLiquidLegionsV2MillTest {
         computationStatsClient = computationStatsStub,
         workerStubs = workerStubs,
         cryptoWorker = mockCryptoWorker,
-        workLockDuration = Duration.ofMinutes(5),
         openTelemetry = GlobalOpenTelemetry.get(),
         requestChunkSizeBytes = 20,
         maximumAttempts = 2,
@@ -537,7 +536,6 @@ class ReachOnlyLiquidLegionsV2MillTest {
         computationStatsClient = computationStatsStub,
         workerStubs = workerStubs,
         cryptoWorker = mockCryptoWorker,
-        workLockDuration = Duration.ofMinutes(5),
         openTelemetry = GlobalOpenTelemetry.get(),
         requestChunkSizeBytes = 20,
         maximumAttempts = 2,
@@ -640,7 +638,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     }
 
     // Mill should claim computation1 of INITIALIZATION_PHASE.
-    nonAggregatorMill.pollAndProcessNextComputation()
+    nonAggregatorMill.claimAndProcessWork()
 
     assertThat(fakeComputationDb[2]!!.computationStage)
       .isEqualTo(WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage())
@@ -2070,3 +2068,7 @@ private suspend fun RequisitionStore.writeString(
   context: RequisitionBlobContext,
   content: String,
 ): Blob = write(context, ByteString.copyFromUtf8(content))
+
+private suspend fun ReachOnlyLiquidLegionsV2Mill.claimAndProcessWork() {
+  claimAndProcessWork(Duration.ofMinutes(5))
+}

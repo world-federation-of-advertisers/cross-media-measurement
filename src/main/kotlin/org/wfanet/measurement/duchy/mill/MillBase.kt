@@ -80,7 +80,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
-import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
 import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.getComputationParticipantRequest
@@ -117,11 +117,10 @@ abstract class MillBase(
   protected val consentSignalCert: Certificate,
   protected val dataClients: ComputationDataClients,
   protected val systemComputationParticipantsClient: ComputationParticipantsCoroutineStub,
-  private val systemComputationsClient: SystemComputationsCoroutineStub,
+  private val systemComputationsClient: ComputationsGrpcKt.ComputationsCoroutineStub,
   private val systemComputationLogEntriesClient: ComputationLogEntriesCoroutineStub,
   private val computationStatsClient: ComputationStatsCoroutineStub,
-  private val computationType: ComputationType,
-  private val workLockDuration: Duration,
+  protected val computationType: ComputationType,
   private val requestChunkSizeBytes: Int,
   private val maximumAttempts: Int,
   private val clock: Clock,
@@ -164,12 +163,8 @@ abstract class MillBase(
       .build()
 
   private var computationsServerReady = false
-  /**
-   * Claim the next available work item and process it.
-   *
-   * @return whether any work was claimed/processed
-   */
-  suspend fun claimAndProcessWork(): Boolean {
+  /** Claim the next available work item and process it. */
+  suspend fun claimAndProcessWork(workLockDuration: Duration) {
     logger.fine("@Mill $millId: Polling available work...")
 
     val claimWorkRequest = claimWorkRequest {
@@ -184,7 +179,7 @@ abstract class MillBase(
       } catch (e: StatusException) {
         if (!computationsServerReady && e.status.code == Status.Code.UNAVAILABLE) {
           logger.info("Computations server not ready")
-          return false
+          return
         }
         throw Exception("Error claiming work", e)
       }
@@ -192,31 +187,19 @@ abstract class MillBase(
 
     if (claimWorkResponse.hasToken()) {
       val token = claimWorkResponse.token
-      if (token.attempt > maximumAttempts) {
-        failComputation(
-          token,
-          "Failing computation due to too many failed ComputationStageAttempts.",
-        )
-        return true
-      }
-
-      val wallDurationLogger = wallDurationLogger()
-
       processComputation(token)
-      wallDurationLogger.logStageDurationMetric(
-        token,
-        STAGE_WALL_CLOCK_DURATION,
-        stageWallClockDurationHistogram,
-      )
-      return true
-    } else {
-      logger.fine("@Mill $millId: No work available, waiting for the next poll...")
-      return false
     }
   }
 
   /** Process the computation according to its protocol and status. */
-  private suspend fun processComputation(token: ComputationToken) {
+  protected suspend fun processComputation(token: ComputationToken) {
+    if (token.attempt > maximumAttempts) {
+      failComputation(token, "Failing computation due to too many failed ComputationStageAttempts.")
+      return
+    }
+
+    val wallDurationLogger = wallDurationLogger()
+
     // Log the current mill memory usage before processing.
     logStageMetric(token, CURRENT_RUNTIME_MEMORY_MAXIMUM, Runtime.getRuntime().maxMemory())
     logStageMetric(token, CURRENT_RUNTIME_MEMORY_TOTAL, Runtime.getRuntime().totalMemory())
@@ -238,6 +221,12 @@ abstract class MillBase(
       }
     }
     logger.info("$globalId@$millId: Processed computation ")
+
+    wallDurationLogger.logStageDurationMetric(
+      token,
+      STAGE_WALL_CLOCK_DURATION,
+      stageWallClockDurationHistogram,
+    )
   }
 
   private suspend fun handleExceptions(token: ComputationToken, e: Exception) {
@@ -686,7 +675,7 @@ abstract class MillBase(
   }
 
   /** Gets the latest [ComputationToken] for computation with [globalId]. */
-  private suspend fun getLatestComputationToken(globalId: String): ComputationToken {
+  protected suspend fun getLatestComputationToken(globalId: String): ComputationToken {
     val response: GetComputationTokenResponse =
       try {
         dataClients.computationsClient.getComputationToken(

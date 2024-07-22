@@ -1,40 +1,42 @@
-// Copyright 2020 The Cross-Media Measurement Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Copyright 2024 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
-package org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv2
+package org.wfanet.measurement.duchy.mill
 
 import java.io.File
 import java.time.Duration
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
-import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
-import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
-import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
 import picocli.CommandLine
 
-class LiquidLegionsV2MillFlags {
-  @CommandLine.Mixin
-  lateinit var duchy: CommonDuchyFlags
-    private set
-
+abstract class MillFlags {
   @CommandLine.Mixin
   lateinit var tlsFlags: TlsFlags
     private set
 
   @CommandLine.Mixin
   lateinit var duchyInfoFlags: DuchyInfoFlags
+    private set
+
+  @CommandLine.Option(
+    names = ["--mill-id"],
+    description = ["ID of this Mill instance. Defaults to HOSTNAME."],
+  )
+  var millId: String = System.getenv("HOSTNAME")
     private set
 
   @CommandLine.Option(
@@ -51,30 +53,6 @@ class LiquidLegionsV2MillFlags {
     description = ["How long to allow for the gRPC channel to shutdown."],
   )
   lateinit var channelShutdownTimeout: Duration
-    private set
-
-  @CommandLine.Option(
-    names = ["--polling-interval"],
-    defaultValue = "2s",
-    description = ["How long to sleep before polling the computation queue again if it is empty."],
-  )
-  lateinit var pollingInterval: Duration
-    private set
-
-  @CommandLine.Option(
-    names = ["--work-lock-duration"],
-    defaultValue = "5m",
-    description = ["How long to hold work locks."],
-  )
-  lateinit var workLockDuration: Duration
-    private set
-
-  @CommandLine.Mixin
-  lateinit var systemApiFlags: SystemApiFlags
-    private set
-
-  @CommandLine.Mixin
-  lateinit var computationsServiceFlags: ComputationsServiceFlags
     private set
 
   @set:CommandLine.Option(
@@ -107,13 +85,5 @@ class LiquidLegionsV2MillFlags {
     required = true,
   )
   lateinit var csCertificateDerFile: File
-    private set
-
-  @set:CommandLine.Option(
-    names = ["--parallelism"],
-    description = ["Maximum number of threads used in crypto actions"],
-    defaultValue = "1",
-  )
-  var parallelism by Delegates.notNull<Int>()
     private set
 }

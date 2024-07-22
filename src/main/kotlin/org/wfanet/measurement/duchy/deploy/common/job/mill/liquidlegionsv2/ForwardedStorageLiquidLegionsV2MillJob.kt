@@ -12,19 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv2
+package org.wfanet.measurement.duchy.deploy.common.job.mill.liquidlegionsv2
 
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
 import picocli.CommandLine
 
 @CommandLine.Command(
-  name = "ForwardedStorageLiquidLegionsV2MillDaemon",
-  description = ["LiquidLegionsV2 Mill daemon."],
+  name = "ForwardedStorageLiquidLegionsV2MillJob",
+  description = ["LiquidLegionsV2 Mill job."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true,
 )
-class ForwardedStorageLiquidLegionsV2MillDaemon : LiquidLegionsV2MillDaemon() {
+class ForwardedStorageLiquidLegionsV2MillJob : LiquidLegionsV2MillJob() {
   @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
   override fun run() {
@@ -32,4 +32,4 @@ class ForwardedStorageLiquidLegionsV2MillDaemon : LiquidLegionsV2MillDaemon() {
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(ForwardedStorageLiquidLegionsV2MillDaemon(), args)
+fun main(args: Array<String>) = commandLineMain(ForwardedStorageLiquidLegionsV2MillJob(), args)

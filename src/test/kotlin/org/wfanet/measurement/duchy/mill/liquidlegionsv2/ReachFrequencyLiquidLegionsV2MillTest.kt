@@ -577,7 +577,6 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         computationStatsClient = computationStatsStub,
         workerStubs = workerStubs,
         cryptoWorker = mockCryptoWorker,
-        workLockDuration = Duration.ofMinutes(5),
         openTelemetry = GlobalOpenTelemetry.get(),
         requestChunkSizeBytes = 20,
         maximumAttempts = 2,
@@ -597,7 +596,6 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         computationStatsClient = computationStatsStub,
         workerStubs = workerStubs,
         cryptoWorker = mockCryptoWorker,
-        workLockDuration = Duration.ofMinutes(5),
         openTelemetry = GlobalOpenTelemetry.get(),
         requestChunkSizeBytes = 20,
         maximumAttempts = 2,
@@ -2731,3 +2729,7 @@ private suspend fun RequisitionStore.writeString(
   context: RequisitionBlobContext,
   content: String,
 ): Blob = write(context, ByteString.copyFromUtf8(content))
+
+private suspend fun ReachFrequencyLiquidLegionsV2Mill.claimAndProcessWork() {
+  claimAndProcessWork(Duration.ofMinutes(5))
+}
