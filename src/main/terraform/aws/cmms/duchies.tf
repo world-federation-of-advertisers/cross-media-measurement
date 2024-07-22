@@ -30,7 +30,7 @@ module "clusters" {
   default_instance_types   = ["m5.large"]
   default_max_node_count   = 2
   high_perf_instance_types = ["c5.xlarge"]
-  high_perf_max_node_count = 3
+  high_perf_max_node_count = 20
 }
 
 # IAM role to be used by aws_load_balancer_controller addons across all clusters

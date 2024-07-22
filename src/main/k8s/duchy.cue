@@ -262,7 +262,7 @@ import ("strings")
 		}
 	}
 
-	cronjobs: [Name=_]: #CronJob & {
+	cronJobs: [Name=_]: #CronJob & {
 		_unprefixed_name: strings.TrimSuffix(Name, "-cronjob")
 		_name:            _object_prefix + _unprefixed_name
 		_secretName:      _duchy_secret_name
@@ -272,7 +272,7 @@ import ("strings")
 		}
 	}
 
-	cronjobs: {
+	cronJobs: {
 		"computations-cleaner": {
 			_container: args: [
 				_duchyInternalApiTargetFlag,

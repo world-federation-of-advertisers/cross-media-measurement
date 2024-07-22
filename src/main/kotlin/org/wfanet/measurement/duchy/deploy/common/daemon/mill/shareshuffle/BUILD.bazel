@@ -14,9 +14,9 @@ kt_jvm_library(
     visibility = ["//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/shareshuffle:honest_majority_share_shuffle_mill",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/shareshuffle:honest_majority_share_shuffle_mill",
         "//src/main/kotlin/org/wfanet/measurement/duchy/storage:tink_key_store",
         "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:honest_majority_share_shuffle_kt_jvm_proto",

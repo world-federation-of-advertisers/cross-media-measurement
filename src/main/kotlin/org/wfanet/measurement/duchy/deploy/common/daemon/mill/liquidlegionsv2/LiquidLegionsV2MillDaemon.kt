@@ -33,12 +33,12 @@ import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.duchy.daemon.mill.Certificate
-import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.ReachFrequencyLiquidLegionsV2Mill
-import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.ReachOnlyLiquidLegionsV2Mill
-import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
-import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniReachOnlyLiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
+import org.wfanet.measurement.duchy.mill.Certificate
+import org.wfanet.measurement.duchy.mill.liquidlegionsv2.ReachFrequencyLiquidLegionsV2Mill
+import org.wfanet.measurement.duchy.mill.liquidlegionsv2.ReachOnlyLiquidLegionsV2Mill
+import org.wfanet.measurement.duchy.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
+import org.wfanet.measurement.duchy.mill.liquidlegionsv2.crypto.JniReachOnlyLiquidLegionsV2Encryption
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
@@ -170,12 +170,8 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
       withContext(CoroutineName("Mill $millId")) {
         val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
         throttler.loopOnReady {
-          logAndSuppressExceptionSuspend {
-            reachFrequencyliquidLegionsV2Mill.pollAndProcessNextComputation()
-          }
-          logAndSuppressExceptionSuspend {
-            reachOnlyLiquidLegionsV2Mill.pollAndProcessNextComputation()
-          }
+          logAndSuppressExceptionSuspend { reachFrequencyliquidLegionsV2Mill.claimAndProcessWork() }
+          logAndSuppressExceptionSuspend { reachOnlyLiquidLegionsV2Mill.claimAndProcessWork() }
         }
       }
     }

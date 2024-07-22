@@ -90,15 +90,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 }
 #ControlServiceMaxHeapSize: "320M"
 
-objectSets: [
-	default_deny_ingress_and_egress,
-	duchy.serviceAccounts,
-	duchy.configMaps,
-	duchy.deployments,
-	duchy.services,
-	duchy.networkPolicies,
-	duchy.cronjobs,
-]
+objectSets: [default_deny_ingress_and_egress] + [ for objectSet in duchy {objectSet}]
 
 _cloudStorageConfig: #CloudStorageConfig & {
 	bucket: _cloudStorageBucket
