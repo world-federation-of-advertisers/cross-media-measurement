@@ -73,6 +73,37 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	metadata:   #ObjectMeta
 }
 
+// K8s Role.
+#Role: {
+	apiVersion: "rbac.authorization.k8s.io/v1"
+	kind:       "Role"
+	metadata:   #ObjectMeta
+	rules: [...{
+		apiGroups?: [...string]
+		resources?: [...string]
+		verbs: [...string]
+		resourceNames?: [...string]
+	}]
+}
+
+// K8s RoleBinding.
+#RoleBinding: {
+	apiVersion: "rbac.authorization.k8s.io/v1"
+	kind:       "RoleBinding"
+	metadata:   #ObjectMeta
+	roleRef: {
+		apiGroup: string
+		kind:     string
+		name:     string
+	}
+	subjects: [...{
+		kind:       string
+		name:       string
+		apiGroup?:  string
+		namespace?: string
+	}]
+}
+
 #ResourceQuantity: {
 	cpu?:    string
 	memory?: string
@@ -400,6 +431,49 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	tolerations: [ for _, toleration in _tolerations {toleration}]
 }
 
+// K8s PodTemplateSpec.
+#PodTemplateSpec: {
+	metadata: #ObjectMeta & {
+		annotations: {
+			"instrumentation.opentelemetry.io/inject-java": string | *"true"
+		}
+	}
+	spec: #PodSpec
+}
+
+// K8s PodTemplate.
+#PodTemplate: {
+	let Name = metadata.name
+
+	_secretName?: string
+	_container:   #Container & {
+		_javaOptions: {
+			heapDumpOnOutOfMemory: true
+			heapDumpPath:          "/run/heap-dumps"
+		}
+	}
+
+	apiVersion: "v1"
+	kind:       "PodTemplate"
+	metadata:   #ObjectMeta
+	template:   #PodTemplateSpec & {
+		metadata: labels: {
+			app: "\(Name)-app"
+		}
+		spec: {
+			_mounts: {
+				if _secretName != _|_ {
+					"\(Name)-files": {
+						volume: secret: secretName: _secretName
+					}
+				}
+				"heap-dumps": volume: emptyDir: {}
+			}
+			_containers: "\(Name)-container": _container
+		}
+	}
+}
+
 // K8s Pod.
 #Pod: {
 	apiVersion: "v1"
@@ -491,16 +565,13 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		selector:  #LabelSelector & {
 			matchLabels: app: _name + "-app"
 		}
-		template: {
+		template: #PodTemplateSpec & {
 			metadata: {
 				labels: {
 					app: _name + "-app"
 				}
-				annotations: {
-					"instrumentation.opentelemetry.io/inject-java": string | *"true"
-				}
 			}
-			spec: #PodSpec & {
+			spec: {
 				_mounts: {
 					if _secretName != _|_ {
 						"\(_name)-files": {
@@ -542,20 +613,23 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		name: _name + "-cronjob"
 	}
 	spec: {
-		schedule: string
+		schedule:                    string
+		concurrencyPolicy?:          "Allow" | "Forbid" | "Replace"
+		startingDeadlineSeconds?:    int64
+		suspend?:                    bool
+		successfulJobsHistoryLimit?: int32 & >0
+		failedJobsHistoryLimit?:     int32 & >0
+
 		jobTemplate: {
 			spec: {
 				backoffLimit: uint | *0
-				template: {
-					metadata: #ObjectMeta & {
+				template:     #PodTemplateSpec & {
+					metadata: {
 						labels: {
 							app: _name + "-app"
 						}
-						annotations: {
-							"instrumentation.opentelemetry.io/inject-java": _ | *"true"
-						}
 					}
-					spec: #PodSpec & {
+					spec: {
 						if _secretName != _|_ {
 							_mounts: "\(_name)-files": {
 								volume: secret: secretName: _secretName

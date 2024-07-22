@@ -15,60 +15,16 @@
 package org.wfanet.measurement.duchy.deploy.common.daemon.mill.shareshuffle
 
 import java.io.File
-import java.time.Duration
-import kotlin.properties.Delegates
-import org.wfanet.measurement.common.grpc.TlsFlags
-import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
 import org.wfanet.measurement.duchy.deploy.common.KingdomPublicApiFlags
 import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
+import org.wfanet.measurement.duchy.mill.MillFlags
 import picocli.CommandLine
 
-class HonestMajorityShareShuffleMillFlags {
-  // TODO(@renjie): Extract common mill flags.
+class HonestMajorityShareShuffleMillFlags : MillFlags() {
   @CommandLine.Mixin
   lateinit var duchy: CommonDuchyFlags
-    private set
-
-  @CommandLine.Mixin
-  lateinit var tlsFlags: TlsFlags
-    private set
-
-  @CommandLine.Mixin
-  lateinit var duchyInfoFlags: DuchyInfoFlags
-    private set
-
-  @CommandLine.Option(
-    names = ["--duchy-computation-control-target"],
-    description = ["Key-value pair of Duchy ID to ComputationControl service target."],
-    required = true,
-  )
-  lateinit var computationControlServiceTargets: Map<String, String>
-    private set
-
-  @CommandLine.Option(
-    names = ["--channel-shutdown-timeout"],
-    defaultValue = "3s",
-    description = ["How long to allow for the gRPC channel to shutdown."],
-  )
-  lateinit var channelShutdownTimeout: Duration
-    private set
-
-  @CommandLine.Option(
-    names = ["--polling-interval"],
-    defaultValue = "2s",
-    description = ["How long to sleep before polling the computation queue again if it is empty."],
-  )
-  lateinit var pollingInterval: Duration
-    private set
-
-  @CommandLine.Option(
-    names = ["--work-lock-duration"],
-    defaultValue = "5m",
-    description = ["How long to hold work locks."],
-  )
-  lateinit var workLockDuration: Duration
     private set
 
   @CommandLine.Mixin
@@ -76,43 +32,11 @@ class HonestMajorityShareShuffleMillFlags {
     private set
 
   @CommandLine.Mixin
-  lateinit var publicApiFlags: KingdomPublicApiFlags
-    private set
-
-  @CommandLine.Mixin
   lateinit var computationsServiceFlags: ComputationsServiceFlags
     private set
 
-  @set:CommandLine.Option(
-    names = ["--bytes-per-chunk"],
-    description = ["The number of bytes in a chunk when sending rpc result to other duchy."],
-    defaultValue = "32768", // 32 KiB. See https://github.com/grpc/grpc.github.io/issues/371.
-  )
-  var requestChunkSizeBytes by Delegates.notNull<Int>()
-    private set
-
-  @CommandLine.Option(
-    names = ["--consent-signaling-certificate-resource-name"],
-    description = ["The resource name of the duchy's consent signaling certificate."],
-    required = true,
-  )
-  lateinit var csCertificateName: String
-    private set
-
-  @CommandLine.Option(
-    names = ["--consent-signaling-private-key-der-file"],
-    description = ["The duchy's consent signaling private key (DER format) file."],
-    required = true,
-  )
-  lateinit var csPrivateKeyDerFile: File
-    private set
-
-  @CommandLine.Option(
-    names = ["--consent-signaling-certificate-der-file"],
-    description = ["The duchy's consent signaling certificate (DER format) file."],
-    required = true,
-  )
-  lateinit var csCertificateDerFile: File
+  @CommandLine.Mixin
+  lateinit var publicApiFlags: KingdomPublicApiFlags
     private set
 
   @CommandLine.Option(

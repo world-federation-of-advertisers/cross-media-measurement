@@ -16,7 +16,7 @@ kt_jvm_library(
     deps = [
         "//imports/java/io/kubernetes/client",
         "//imports/java/io/kubernetes/client/extended",
-        "//src/main/kotlin/org/wfanet/measurement/common/k8s",
+        "//src/main/kotlin/org/wfanet/measurement/common/k8s:client",
         "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:port_forwarder",
         "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:processes",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
