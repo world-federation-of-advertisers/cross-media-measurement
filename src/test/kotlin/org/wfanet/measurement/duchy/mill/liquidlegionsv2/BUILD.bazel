@@ -1,0 +1,77 @@
+load("@rules_java//java:defs.bzl", "java_test")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_testonly = True)
+
+kt_jvm_library(
+    name = "reach_frequency_liquid_legions_v2_mill_test",
+    srcs = ["ReachFrequencyLiquidLegionsV2MillTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/liquidlegionsv2:reach_frequency_liquid_legions_v2_mill",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/storage:computation_store",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/storage:requisition_store",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/testing",
+        "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
+        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_encryption_methods_kt_jvm_proto",
+        "//src/main/swig/protocol/liquidlegionsv2:liquid_legions_v2_encryption_utility",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:hashing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/common:key_handles",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "ReachFrequencyLiquidLegionsV2MillTest",
+    test_class = "org.wfanet.measurement.duchy.mill.liquidlegionsv2.ReachFrequencyLiquidLegionsV2MillTest",
+    runtime_deps = [":reach_frequency_liquid_legions_v2_mill_test"],
+)
+
+kt_jvm_library(
+    name = "reach_only_liquid_legions_v2_mill_test",
+    srcs = ["ReachOnlyLiquidLegionsV2MillTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/liquidlegionsv2:reach_only_liquid_legions_v2_mill",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/storage:computation_store",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/storage:requisition_store",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/testing",
+        "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
+        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:reach_only_liquid_legions_v2_encryption_methods_kt_jvm_proto",
+        "//src/main/swig/protocol/reachonlyliquidlegionsv2:reach_only_liquid_legions_v2_encryption_utility",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:hashing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/common:key_handles",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "ReachOnlyLiquidLegionsV2MillTest",
+    test_class = "org.wfanet.measurement.duchy.mill.liquidlegionsv2.ReachOnlyLiquidLegionsV2MillTest",
+    runtime_deps = [":reach_only_liquid_legions_v2_mill_test"],
+)
