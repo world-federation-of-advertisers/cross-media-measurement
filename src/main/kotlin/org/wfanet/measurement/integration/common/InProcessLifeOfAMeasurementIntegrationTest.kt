@@ -179,6 +179,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
       // its error info.
       mcSimulator.testInvalidReachAndFrequency("1234", useEdpsWithHmssCabapilityOnly = false)
     }
+
   @Test
   fun `create a Hmss RF measurement of invalid params and check the result contains error info`() =
     runBlocking {

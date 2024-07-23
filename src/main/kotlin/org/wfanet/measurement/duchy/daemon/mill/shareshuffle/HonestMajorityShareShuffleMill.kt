@@ -81,9 +81,8 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.shufflePhaseInput
 import org.wfanet.measurement.internal.duchy.protocol.completeAggregationPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseRequest
-import org.wfanet.measurement.internal.duchy.protocol.copy
-import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.internal.duchy.protocol.shareShuffleFrequencyVectorParams
+import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
@@ -540,7 +539,7 @@ class HonestMajorityShareShuffleMill(
             HonestMajorityShareShuffleMethodology(
               frequencyVectorSize = aggregationPhaseInputs.first().registerCount
             ),
-          )
+          ),
         )
       MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
         sendResultToKingdom(
@@ -551,7 +550,7 @@ class HonestMajorityShareShuffleMill(
             HonestMajorityShareShuffleMethodology(
               frequencyVectorSize = aggregationPhaseInputs.first().registerCount
             ),
-          )
+          ),
         )
       else -> error("Unsupported measurement type $measurementType")
     }

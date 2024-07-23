@@ -231,7 +231,7 @@ class MeasurementConsumerSimulator(
         measurementConsumer,
         runId,
         ::newReachAndFrequencyMeasurementSpec,
-        useEdpsWithHmssCabapilityOnly
+        useEdpsWithHmssCabapilityOnly,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info { "Created reach and frequency Measurement $measurementName" }
@@ -288,7 +288,7 @@ class MeasurementConsumerSimulator(
           measurementConsumer,
           runId,
           ::newInvalidReachAndFrequencyMeasurementSpec,
-          useEdpsWithHmssCabapilityOnly
+          useEdpsWithHmssCabapilityOnly,
         )
         .measurement
     logger.info(
@@ -402,7 +402,7 @@ class MeasurementConsumerSimulator(
 
   suspend fun executeReachOnly(
     runId: String,
-    useEdpsWithHmssCabapilityOnly: Boolean = false
+    useEdpsWithHmssCabapilityOnly: Boolean = false,
   ): ExecutionResult {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -411,7 +411,7 @@ class MeasurementConsumerSimulator(
         measurementConsumer,
         runId,
         ::newReachOnlyMeasurementSpec,
-        useEdpsWithHmssCabapilityOnly
+        useEdpsWithHmssCabapilityOnly,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created reach-only measurement $measurementName.")

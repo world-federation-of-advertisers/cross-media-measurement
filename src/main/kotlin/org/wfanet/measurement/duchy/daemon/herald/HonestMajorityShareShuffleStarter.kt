@@ -216,9 +216,7 @@ object HonestMajorityShareShuffleStarter {
         frequencyDpParams =
           measurementSpec.reachAndFrequency.frequencyPrivacyParams
             .toDuchyDifferentialPrivacyParams()
-        require(frequencyDpParams.delta > 0) {
-          "Frequency privacy delta must be be greater than 0"
-        }
+        require(frequencyDpParams.delta > 0) { "Frequency privacy delta must be be greater than 0" }
         require(frequencyDpParams.epsilon > MIN_FREQUENCY_EPSILON) {
           "Frequency privacy epsilon must be greater than $MIN_FREQUENCY_EPSILON"
         }

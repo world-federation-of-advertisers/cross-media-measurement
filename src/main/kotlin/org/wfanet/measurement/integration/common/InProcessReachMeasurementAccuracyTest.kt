@@ -42,7 +42,6 @@ import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerDa
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator.MeasurementInfo
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
-import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
@@ -63,8 +62,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
   duchyDependenciesRule:
     ProviderRule<
       (
-        String,
-        ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
+        String, ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
       ) -> InProcessDuchy.DuchyDependencies
     >,
 ) {
@@ -147,7 +145,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
   private fun getReachVariance(
     methodology: Methodology,
     measurementInfo: MeasurementInfo,
-    reach: Long
+    reach: Long,
   ): Double {
     val reachMeasurementParams =
       ReachMeasurementParams(
@@ -196,8 +194,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
       if (expectedReach == -1L) {
         expectedReach = executionResult.expectedResult.reach.value
         val expectedVariance =
-          getReachVariance(liquidLegionsMethodology, executionResult.measurementInfo,
-  expectedReach)
+          getReachVariance(liquidLegionsMethodology, executionResult.measurementInfo, expectedReach)
         expectedStandardDeviation = sqrt(expectedVariance)
       } else if (expectedReach != executionResult.expectedResult.reach.value) {
         logger.log(
