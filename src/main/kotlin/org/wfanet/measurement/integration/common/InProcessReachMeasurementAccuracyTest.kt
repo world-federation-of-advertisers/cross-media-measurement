@@ -42,7 +42,9 @@ import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerDa
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator.MeasurementInfo
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
+import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
+import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
@@ -61,7 +63,8 @@ abstract class InProcessReachMeasurementAccuracyTest(
   duchyDependenciesRule:
     ProviderRule<
       (
-        String, ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
+        String,
+        ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
       ) -> InProcessDuchy.DuchyDependencies
     >,
 ) {
@@ -141,13 +144,11 @@ abstract class InProcessReachMeasurementAccuracyTest(
     inProcessCmmsComponents.stopDuchyDaemons()
   }
 
-  private fun getReachVariance(measurementInfo: MeasurementInfo, reach: Long): Double {
-    val liquidLegionsMethodology =
-      LiquidLegionsV2Methodology(
-        RoLlv2ProtocolConfig.protocolConfig.sketchParams.decayRate,
-        RoLlv2ProtocolConfig.protocolConfig.sketchParams.maxSize,
-        RoLlv2ProtocolConfig.protocolConfig.sketchParams.samplingIndicatorSize,
-      )
+  private fun getReachVariance(
+    methodology: Methodology,
+    measurementInfo: MeasurementInfo,
+    reach: Long
+  ): Double {
     val reachMeasurementParams =
       ReachMeasurementParams(
         StatsVidSamplingInterval(
@@ -159,7 +160,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
       )
     val reachMeasurementVarianceParams =
       ReachMeasurementVarianceParams(reach, reachMeasurementParams)
-    return computeMeasurementVariance(liquidLegionsMethodology, reachMeasurementVarianceParams)
+    return computeMeasurementVariance(methodology, reachMeasurementVarianceParams)
   }
 
   private fun getStandardDeviation(nums: List<Double>): Double {
@@ -182,14 +183,21 @@ abstract class InProcessReachMeasurementAccuracyTest(
     val reachResults = mutableListOf<ReachResult>()
     var expectedReach = -1L
     var expectedStandardDeviation = 0.0
-
+    val liquidLegionsMethodology =
+      LiquidLegionsV2Methodology(
+        RoLlv2ProtocolConfig.protocolConfig.sketchParams.decayRate,
+        RoLlv2ProtocolConfig.protocolConfig.sketchParams.maxSize,
+        RoLlv2ProtocolConfig.protocolConfig.sketchParams.samplingIndicatorSize,
+      )
     var summary = ""
     for (round in 1..DEFAULT_TEST_ROUND_NUMBER) {
-      val executionResult = mcSimulator.executeReachOnly(round.toString())
+      val executionResult = mcSimulator.executeReachOnly(round.toString(), false)
 
       if (expectedReach == -1L) {
         expectedReach = executionResult.expectedResult.reach.value
-        val expectedVariance = getReachVariance(executionResult.measurementInfo, expectedReach)
+        val expectedVariance =
+          getReachVariance(liquidLegionsMethodology, executionResult.measurementInfo,
+  expectedReach)
         expectedStandardDeviation = sqrt(expectedVariance)
       } else if (expectedReach != executionResult.expectedResult.reach.value) {
         logger.log(
@@ -202,7 +210,8 @@ abstract class InProcessReachMeasurementAccuracyTest(
       // The general formula for confidence interval is result +/- multiplier * sqrt(variance).
       // The multiplier for 95% confidence interval is 1.96.
       val reach = executionResult.actualResult.reach.value
-      val reachVariance = getReachVariance(executionResult.measurementInfo, reach)
+      val reachVariance =
+        getReachVariance(liquidLegionsMethodology, executionResult.measurementInfo, reach)
       val intervalLowerBound = reach - sqrt(reachVariance) * MULTIPLIER
       val intervalUpperBound = reach + sqrt(reachVariance) * MULTIPLIER
       val withinInterval = reach >= intervalLowerBound && reach <= intervalUpperBound

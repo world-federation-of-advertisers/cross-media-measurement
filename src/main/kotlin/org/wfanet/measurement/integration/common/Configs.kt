@@ -113,7 +113,10 @@ val ALL_DUCHIES =
     )
   }
 
-val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3")
+val ALL_HMSS_EDP_DISPLAY_NAMES = listOf("edp1", "edp2")
+val ALL_LLV2_EDP_DISPLAY_NAMES = listOf("edp3")
+val ALL_EDP_DISPLAY_NAMES = ALL_HMSS_EDP_DISPLAY_NAMES + ALL_LLV2_EDP_DISPLAY_NAMES
+
 const val DUCHY_MILL_PARALLELISM = 3
 
 const val MC_DISPLAY_NAME = "mc"

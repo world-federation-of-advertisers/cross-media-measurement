@@ -1163,9 +1163,6 @@ class EdpSimulator(
     logger.info("Fulfilling requisition ${requisition.name}...")
     val requests: Flow<FulfillRequisitionRequest> = flow {
       logger.info { "Emitting FulfillRequisitionRequests..." }
-      println("*************************************")
-      println("dataProviderCertificate: " + edpData.certificateKey.toName())
-      println("*************************************")
       emit(
         fulfillRequisitionRequest {
           header = header {

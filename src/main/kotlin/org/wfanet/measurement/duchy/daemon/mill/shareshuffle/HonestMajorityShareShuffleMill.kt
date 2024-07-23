@@ -82,13 +82,13 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.completeAggregationPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.copy
+import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
 import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffle.Description
-import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
 
 class HonestMajorityShareShuffleMill(
   millId: String,
@@ -335,7 +335,6 @@ class HonestMajorityShareShuffleMill(
     val signedSeed = decryptRandomSeed(encryptedAndSignedSeed, privateKey)
 
     val dataProviderCertificateName = secretSeed.dataProviderCertificate
-    println("Duchy request edp certificate: " + dataProviderCertificateName)
     val dataProviderCertificate =
       try {
         certificateClient.getCertificate(

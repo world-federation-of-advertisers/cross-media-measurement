@@ -87,7 +87,6 @@ class InProcessCmmsComponents(
     edpDisplayNameToResourceMap.entries.mapIndexed { index, (displayName, resource) ->
       val specIndex = index % syntheticEventGroupSpecs.size
       val certificateKey = DataProviderCertificateKey.fromName(resource.dataProvider.certificate)!!
-      println("edpSimulator: " + certificateKey)
       InProcessEdpSimulator(
         displayName = displayName,
         resourceName = resource.name,
@@ -102,6 +101,7 @@ class InProcessCmmsComponents(
         trustedCertificates = TRUSTED_CERTIFICATES,
         syntheticPopulationSpec = syntheticPopulationSpec,
         syntheticDataSpec = syntheticEventGroupSpecs[specIndex],
+        honestMajorityShareShuffleSupported = (displayName in ALL_HMSS_EDP_DISPLAY_NAMES),
       )
     }
   }

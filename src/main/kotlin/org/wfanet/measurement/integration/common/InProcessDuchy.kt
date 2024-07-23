@@ -39,6 +39,7 @@ import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
+import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.testing.withMetadataPrincipalIdentities
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -49,6 +50,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
 import org.wfanet.measurement.common.identity.withDuchyId
+import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -124,7 +126,8 @@ class InProcessDuchy(
     SystemRequisitionsCoroutineStub(kingdomSystemApiChannel).withDuchyId(externalDuchyId)
   }
   private val certificateStub: CertificatesGrpcKt.CertificatesCoroutineStub by lazy {
-    CertificatesGrpcKt.CertificatesCoroutineStub(kingdomPublicApiChannel).withDuchyId(externalDuchyId)
+    CertificatesGrpcKt.CertificatesCoroutineStub(kingdomPublicApiChannel)
+      .withPrincipalName(DuchyKey(externalDuchyId).toName())
   }
   private val computationsClient by lazy { ComputationsCoroutineStub(computationsServer.channel) }
   private val computationStatsClient by lazy {

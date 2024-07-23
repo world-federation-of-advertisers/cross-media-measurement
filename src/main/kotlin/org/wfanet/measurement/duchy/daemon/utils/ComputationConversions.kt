@@ -46,7 +46,12 @@ import org.wfanet.measurement.internal.duchy.encryptionPublicKey
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.requisitionDetails
 import org.wfanet.measurement.internal.duchy.requisitionEntry
+import org.wfanet.measurement.measurementconsumer.stats.CustomDirectFrequencyMethodology
+import org.wfanet.measurement.measurementconsumer.stats.CustomDirectScalarMethodology
+import org.wfanet.measurement.measurementconsumer.stats.DeterministicMethodology
 import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
+import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMethodology
+import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.system.v1alpha.Computation as SystemComputation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
@@ -259,7 +264,12 @@ data class ReachAndFrequencyResult(
               frequencyVectorSize = methodology.frequencyVectorSize
             }
           }
-          else -> {}
+          is CustomDirectScalarMethodology,
+          is CustomDirectFrequencyMethodology,
+          is DeterministicMethodology,
+          is LiquidLegionsSketchMethodology,
+          is LiquidLegionsV2Methodology,
+          null -> {}
         }
       }
       frequency = frequency {
@@ -270,7 +280,12 @@ data class ReachAndFrequencyResult(
               frequencyVectorSize = methodology.frequencyVectorSize
             }
           }
-          else -> {}
+          is CustomDirectScalarMethodology,
+          is CustomDirectFrequencyMethodology,
+          is DeterministicMethodology,
+          is LiquidLegionsSketchMethodology,
+          is LiquidLegionsV2Methodology,
+          null -> {}
         }
       }
     }
