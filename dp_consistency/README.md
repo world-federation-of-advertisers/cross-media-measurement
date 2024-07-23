@@ -33,6 +33,21 @@ This project implements a quadratic programming (QP) approach for noise removal 
    - The objective function is the variance-adjusted L2 norm, which acts as a maximum likelihood estimate under the assumption of Gaussian noise.
    - The `qpsolvers` library is used to solve the QP problem, finding the optimal solution that minimizes inconsistencies while respecting the constraints.
 
+
+
+## Prepare the environment, install dependencies and run correction on an Origin Report
+
+```
+git clone https://github.com/world-federation-of-advertisers/experimental.git
+cd experimental
+python3 -m venv ../noisecorrectionenv
+source ../noisecorrectionenv/bin/activate
+cd dp_consistency
+pip3 install -r requirements.txt
+python3 -m src.tools.correctoriginreport --path_to_report=/path/to/Origin_Report.xlsx --unnoised_edps "Linear TV"
+```
+This will correct the report and create a corrected a file called `Origin_Report_corrected.xlsx` in this folder. 
+
 ## Usage Example
 
 ```python
