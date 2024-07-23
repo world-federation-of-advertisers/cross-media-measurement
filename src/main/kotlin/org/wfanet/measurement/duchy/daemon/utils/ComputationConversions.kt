@@ -306,7 +306,12 @@ data class ReachResult(val reach: Long, val methodology: Methodology? = null) : 
               frequencyVectorSize = methodology.frequencyVectorSize
             }
           }
-          else -> {}
+          is CustomDirectScalarMethodology,
+          is CustomDirectFrequencyMethodology,
+          is DeterministicMethodology,
+          is LiquidLegionsSketchMethodology,
+          is LiquidLegionsV2Methodology,
+          null -> {}
         }
       }
     }
