@@ -1,0 +1,6 @@
+pandas
+qpsolvers
+qpsolvers[open_source_solvers]
+pytest
+openpyxl
+black
