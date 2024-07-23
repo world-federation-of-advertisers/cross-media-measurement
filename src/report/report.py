@@ -104,6 +104,7 @@ class Report:
 
     def get_metric_report(self, metric: str) -> MetricReport:
         return self.__metric_reports[metric]
+    
 
     def get_metrics(self) -> set[str]:
         return set(self.__metric_reports.keys())
@@ -156,22 +157,21 @@ class Report:
 
     def __add_set_relations_to_spec(self, spec):
         # sum of subsets >= union for each period
+        union_index = self.__num_edps
         for period in range(0, self.__num_periods):
             for metric in range(0, len(self.__metric_index.keys())):
                 spec.add_cover(
                     children=list(
                         self.__get_var_index(period, metric, edp) for edp in
                         range(0, self.__num_edps)),
-                    parent=self.__get_var_index(period, metric,
-                                                self.__num_edps))
+                    parent=self.__get_var_index(period, metric, union_index))
 
             # subset <= union
             for metric in range(0, len(self.__metric_index.keys())):
                 for edp in range(0, self.__num_edps):
                     spec.add_subset_relation(
                         child_set_id=self.__get_var_index(period, metric, edp),
-                        parent_set_id=self.__get_var_index(period, metric,
-                                                           self.__num_edps))
+                        parent_set_id=self.__get_var_index(period, metric, union_index))
 
             # metric1>=metric#2
             for parent_metric in self.__metric_subsets_by_parent:

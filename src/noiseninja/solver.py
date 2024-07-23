@@ -11,6 +11,8 @@ SOLVER = "clarabel"
 SEMAPHORE = Semaphore()
 
 
+BIG_M = 100_000_000
+
 class Solver:
 
     def __init__(self, num_variables):
