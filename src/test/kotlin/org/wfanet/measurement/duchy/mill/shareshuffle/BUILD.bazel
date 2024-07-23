@@ -1,0 +1,44 @@
+load("@rules_java//java:defs.bzl", "java_test")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_testonly = True)
+
+kt_jvm_library(
+    name = "honest_majority_share_shuffle_mill_test",
+    srcs = ["HonestMajorityShareShuffleMillTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/shareshuffle:honest_majority_share_shuffle_mill",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/storage:computation_store",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/storage:requisition_store",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/storage:tink_key_store",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/testing",
+        "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
+        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:honest_majority_share_shuffle_methods_kt_jvm_proto",
+        "//src/main/swig/protocol/shareshuffle:honest_majority_share_shuffle_utility",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:hashing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/common:key_handles",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "HonestMajorityShareShuffleMillTest",
+    test_class = "org.wfanet.measurement.duchy.mill.shareshuffle.HonestMajorityShareShuffleMillTest",
+    runtime_deps = [":honest_majority_share_shuffle_mill_test"],
+)
