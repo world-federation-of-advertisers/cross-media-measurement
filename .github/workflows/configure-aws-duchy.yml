@@ -62,6 +62,7 @@ permissions:
 
 env:
   KUSTOMIZATION_PATH: "k8s/cmms"
+  KUBECTL_APPLYSET: true
   DUCHY_NAME: ${{ inputs.duchy-name }}
 
 jobs:
@@ -163,6 +164,12 @@ jobs:
         echo "$AKID_TO_PRINCIPAL_MAP" | sed $'s/\r$//'  >
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/config_files/authority_key_identifier_to_principal_map.textproto"
 
+    - name: Upload Kustomization artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: kustomization
+        path: ${{ env.KUSTOMIZATION_PATH }}
+
     - name: Export KUSTOMIZE_PATH
       run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/${DUCHY_NAME}_duchy_aws" >> $GITHUB_ENV
 
@@ -174,7 +181,7 @@ jobs:
 
     - name: kubectl apply
       if: ${{ inputs.apply }}
-      run: kubectl apply -k "$KUSTOMIZE_PATH"
+      run: kubectl apply -k "$KUSTOMIZE_PATH" --namespace=default --prune --applyset=configmaps/kubectl
 
     - name: Wait for rollout
       if: ${{ inputs.apply }}

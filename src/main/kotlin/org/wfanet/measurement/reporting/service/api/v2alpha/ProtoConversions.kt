@@ -692,7 +692,8 @@ private fun Measurement.Result.Frequency.toInternal(
         Measurement.Result.Frequency.MethodologyCase.LIQUID_LEGIONS_DISTRIBUTION -> {
           liquidLegionsDistribution = source.liquidLegionsDistribution.toInternal()
         }
-        else -> {}
+        Measurement.Result.Frequency.MethodologyCase.LIQUID_LEGIONS_V2,
+        Measurement.Result.Frequency.MethodologyCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {}
       }
     } else if (protocolConfig.protocolsList.any { it.hasLiquidLegionsV2() }) {
       val cmmsProtocol =
@@ -736,7 +737,10 @@ private fun Measurement.Result.Reach.toInternal(
         Measurement.Result.Reach.MethodologyCase.LIQUID_LEGIONS_COUNT_DISTINCT -> {
           liquidLegionsCountDistinct = source.liquidLegionsCountDistinct.toInternal()
         }
-        else -> {}
+        Measurement.Result.Reach.MethodologyCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+        Measurement.Result.Reach.MethodologyCase.LIQUID_LEGIONS_V2,
+        Measurement.Result.Reach.MethodologyCase.REACH_ONLY_LIQUID_LEGIONS_V2,
+        Measurement.Result.Reach.MethodologyCase.METHODOLOGY_NOT_SET -> {}
       }
     } else if (protocolConfig.protocolsList.any { it.hasLiquidLegionsV2() }) {
       val cmmsProtocol =
@@ -754,10 +758,13 @@ private fun Measurement.Result.Reach.toInternal(
       noiseMechanism = source.noiseMechanism.toInternal()
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (source.methodologyCase) {
-        Measurement.Result.Reach.MethodologyCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
-          honestMajorityShareShuffle = source.honestMajorityShareShuffle.toInternal()
-        }
-        else -> {}
+        Measurement.Result.Reach.MethodologyCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+        Measurement.Result.Reach.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY,
+        Measurement.Result.Reach.MethodologyCase.DETERMINISTIC_COUNT_DISTINCT,
+        Measurement.Result.Reach.MethodologyCase.LIQUID_LEGIONS_COUNT_DISTINCT,
+        Measurement.Result.Reach.MethodologyCase.LIQUID_LEGIONS_V2,
+        Measurement.Result.Reach.MethodologyCase.REACH_ONLY_LIQUID_LEGIONS_V2,
+        Measurement.Result.Reach.MethodologyCase.METHODOLOGY_NOT_SET -> {}
       }
     } else {
       error("Measurement protocol is not set or not supported.")
