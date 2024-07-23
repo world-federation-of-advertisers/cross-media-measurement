@@ -292,7 +292,7 @@ data class ReachAndFrequencyResult(
   }
 }
 
-data class ReachResult(val reach: Long,val methodology: Methodology? = null) : ComputationResult {
+data class ReachResult(val reach: Long, val methodology: Methodology? = null) : ComputationResult {
 
   /** Converts a ReachResult object to the v2Alpha measurement result. */
   override fun toV2AlphaMeasurementResult(): Measurement.Result {
