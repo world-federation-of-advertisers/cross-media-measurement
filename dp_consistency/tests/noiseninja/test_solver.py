@@ -13,7 +13,7 @@ class Test(TestCase):
         spec.add_measurement(1, Measurement(50, 1))
         spec.add_measurement(2, Measurement(48, 0))
         spec.add_measurement(3, Measurement(1, 1))
-        solution = Solver.solve(spec)
+        solution = Solver(spec).solve_and_translate()
         self.assertAlmostEqual(solution[1], 49.5, places=4, msg=solution)
         self.assertAlmostEqual(solution[2], 48, msg=solution)
         self.assertAlmostEqual(solution[3], 1.5, places=4, msg=solution)
@@ -26,7 +26,7 @@ class Test(TestCase):
         spec.add_measurement(1, Measurement(50, 1))
         spec.add_measurement(2, Measurement(48, 0))
         spec.add_measurement(3, Measurement(1, 1e-6))
-        solution = Solver.solve(spec)
+        solution = Solver(spec).solve_and_translate()
         self.assertAlmostEqual(solution[2], 48, msg=solution)
         # set 3 has very small sigma, therefore should not change much.
         self.assertAlmostEqual(solution[3], 1, places=4, msg=solution)

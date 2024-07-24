@@ -27,7 +27,7 @@ class MetricReport:
             total_campaign_reach_time_series)
         self.__reach_time_series_by_edp = reach_time_series_by_edp
 
-    def sample_with_noise(self):
+    def sample_with_noise(self) -> 'MetricReport':
         """
         :return: a new MetricReport where measurements have been resampled
         according to their mean and variance.
@@ -113,8 +113,11 @@ class Report:
         """Returns a corrected, consistent report.
         Note all measurements in the corrected report are set to have 0 variance
         """
-        spec = self.__to_set_measurement_spec()
-        solution = Solver.solve(spec)
+        spec = self.to_set_measurement_spec()
+        solution = Solver(spec).solve_and_translate()
+        return self.report_from_solution(solution)
+
+    def report_from_solution(self, solution):
         return Report(
             {metric: self.__metric_report_from_solution(metric, solution)
              for
@@ -125,9 +128,9 @@ class Report:
         all metrics in this report. Useful to bootstrap sample reports.
         """
         return Report(
-            {i: self.__metric_reports[i].sample_with_noise()
-             for i in self.__metric_reports},
-            self.__metric_subsets_by_parent)
+            metric_reports={i: self.__metric_reports[i].sample_with_noise()
+                            for i in self.__metric_reports},
+            metric_subsets_by_parent=self.__metric_subsets_by_parent)
 
     def to_array(self) -> np.array:
         """Returns an array representation of all the mean measurement values
@@ -149,7 +152,7 @@ class Report:
                         metric].get_total_reach_measurement(period).value)
         return array
 
-    def __to_set_measurement_spec(self):
+    def to_set_measurement_spec(self):
         spec = SetMeasurementsSpec()
         self.__add_measurements_to_spec(spec)
         self.__add_set_relations_to_spec(spec)
