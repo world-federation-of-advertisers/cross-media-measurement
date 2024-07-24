@@ -40,15 +40,7 @@ _systemApiAddressName: string @tag("system_api_address_name")
 	}
 }
 
-objectSets: [
-	default_deny_ingress_and_egress,
-	kingdom.serviceAccounts,
-	kingdom.configMaps,
-	kingdom.deployments,
-	kingdom.services,
-	kingdom.networkPolicies,
-	kingdom.cronjobs,
-]
+objectSets: [default_deny_ingress_and_egress] + [ for objectSet in kingdom {objectSet}]
 
 kingdom: #Kingdom & {
 	_kingdom_secret_name: _secret_name
