@@ -101,7 +101,8 @@ class InProcessCmmsComponents(
         trustedCertificates = TRUSTED_CERTIFICATES,
         syntheticPopulationSpec = syntheticPopulationSpec,
         syntheticDataSpec = syntheticEventGroupSpecs[specIndex],
-        honestMajorityShareShuffleSupported = (displayName in ALL_HMSS_EDP_DISPLAY_NAMES),
+        honestMajorityShareShuffleSupported =
+          (displayName in ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES),
       )
     }
   }

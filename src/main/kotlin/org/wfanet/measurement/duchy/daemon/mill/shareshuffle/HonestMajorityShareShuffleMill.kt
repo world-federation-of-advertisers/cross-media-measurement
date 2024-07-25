@@ -438,7 +438,11 @@ class HonestMajorityShareShuffleMill(
             cryptoWorker.completeReachOnlyShufflePhase(request)
           MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
             cryptoWorker.completeReachAndFrequencyShufflePhase(request)
-          else -> error("Unsupported measurement type $measurementType")
+          MeasurementSpec.MeasurementTypeCase.IMPRESSION,
+          MeasurementSpec.MeasurementTypeCase.DURATION,
+          MeasurementSpec.MeasurementTypeCase.POPULATION,
+          MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
+            error("Unsupported measurement type $measurementType")
         }
       }
 
@@ -519,7 +523,11 @@ class HonestMajorityShareShuffleMill(
             cryptoWorker.completeReachOnlyAggregationPhase(request)
           MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
             cryptoWorker.completeReachAndFrequencyAggregationPhase(request)
-          else -> error("Unsupported measurement type $measurementType")
+          MeasurementSpec.MeasurementTypeCase.IMPRESSION,
+          MeasurementSpec.MeasurementTypeCase.DURATION,
+          MeasurementSpec.MeasurementTypeCase.POPULATION,
+          MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
+            error("Unsupported measurement type $measurementType")
         }
       }
 
@@ -552,7 +560,11 @@ class HonestMajorityShareShuffleMill(
             ),
           ),
         )
-      else -> error("Unsupported measurement type $measurementType")
+      MeasurementSpec.MeasurementTypeCase.IMPRESSION,
+      MeasurementSpec.MeasurementTypeCase.DURATION,
+      MeasurementSpec.MeasurementTypeCase.POPULATION,
+      MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
+        error("Unsupported measurement type $measurementType")
     }
 
     return completeComputation(token, ComputationDetails.CompletedReason.SUCCEEDED)

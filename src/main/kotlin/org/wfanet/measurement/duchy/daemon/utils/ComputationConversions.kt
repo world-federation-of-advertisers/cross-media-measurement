@@ -250,7 +250,7 @@ interface ComputationResult {
 data class ReachAndFrequencyResult(
   val reach: Long,
   val frequency: Map<Long, Double>,
-  val methodology: Methodology? = null,
+  val methodology: Methodology,
 ) : ComputationResult {
   /** Converts a ReachAndFrequencyResult object to the v2Alpha measurement result. */
   override fun toV2AlphaMeasurementResult(): Measurement.Result {
@@ -268,8 +268,7 @@ data class ReachAndFrequencyResult(
           is CustomDirectFrequencyMethodology,
           is DeterministicMethodology,
           is LiquidLegionsSketchMethodology,
-          is LiquidLegionsV2Methodology,
-          null -> {}
+          is LiquidLegionsV2Methodology -> {}
         }
       }
       frequency = frequency {
@@ -284,16 +283,14 @@ data class ReachAndFrequencyResult(
           is CustomDirectFrequencyMethodology,
           is DeterministicMethodology,
           is LiquidLegionsSketchMethodology,
-          is LiquidLegionsV2Methodology,
-          null -> {}
+          is LiquidLegionsV2Methodology -> {}
         }
       }
     }
   }
 }
 
-data class ReachResult(val reach: Long, val methodology: Methodology? = null) : ComputationResult {
-
+data class ReachResult(val reach: Long, val methodology: Methodology) : ComputationResult {
   /** Converts a ReachResult object to the v2Alpha measurement result. */
   override fun toV2AlphaMeasurementResult(): Measurement.Result {
     val source = this
@@ -310,8 +307,7 @@ data class ReachResult(val reach: Long, val methodology: Methodology? = null) : 
           is CustomDirectFrequencyMethodology,
           is DeterministicMethodology,
           is LiquidLegionsSketchMethodology,
-          is LiquidLegionsV2Methodology,
-          null -> {}
+          is LiquidLegionsV2Methodology -> {}
         }
       }
     }

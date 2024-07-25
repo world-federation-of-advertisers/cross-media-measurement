@@ -56,17 +56,12 @@ val AGGREGATOR_PROTOCOLS_SETUP_CONFIG: ProtocolsSetupConfig =
     "aggregator_protocols_setup_config.textproto",
     ProtocolsSetupConfig.getDefaultInstance(),
   )
-val NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG: ProtocolsSetupConfig =
-  loadTextProto(
-    "non_aggregator_protocols_setup_config.textproto",
-    ProtocolsSetupConfig.getDefaultInstance(),
-  )
-val WORKER_ONE_PROTOCOLS_SETUP_CONFIG: ProtocolsSetupConfig =
+val WORKER1_PROTOCOLS_SETUP_CONFIG: ProtocolsSetupConfig =
   loadTextProto(
     "worker1_protocols_setup_config.textproto",
     ProtocolsSetupConfig.getDefaultInstance(),
   )
-val WORKER_TWO_PROTOCOLS_SETUP_CONFIG: ProtocolsSetupConfig =
+val WORKER2_PROTOCOLS_SETUP_CONFIG: ProtocolsSetupConfig =
   loadTextProto(
     "worker2_protocols_setup_config.textproto",
     ProtocolsSetupConfig.getDefaultInstance(),
@@ -90,14 +85,17 @@ val HMSS_PROTOCOL_CONFIG_CONFIG: HmssProtocolConfigConfig =
 
 val AGGREGATOR_NAME =
   AGGREGATOR_PROTOCOLS_SETUP_CONFIG.honestMajorityShareShuffle.aggregatorDuchyId!!
-val WORKER_ONE_NAME =
+val WORKER1_NAME =
   AGGREGATOR_PROTOCOLS_SETUP_CONFIG.honestMajorityShareShuffle.firstNonAggregatorDuchyId!!
-val WORKER_TWO_NAME =
+val WORKER2_NAME =
   AGGREGATOR_PROTOCOLS_SETUP_CONFIG.honestMajorityShareShuffle.secondNonAggregatorDuchyId!!
 
 val DUCHY_ID_CONFIG: DuchyIdConfig =
   loadTextProto("duchy_id_config.textproto", DuchyIdConfig.getDefaultInstance())
-val ALL_DUCHY_NAMES = DUCHY_ID_CONFIG.duchiesList.map { it.externalDuchyId }
+val ALL_DUCHY_NAMES =
+  DUCHY_ID_CONFIG.duchiesList
+    .map { it.externalDuchyId }
+    .also { check(it.containsAll(listOf(AGGREGATOR_NAME, WORKER1_NAME, WORKER2_NAME))) }
 val ALL_DUCHIES =
   DUCHY_ID_CONFIG.duchiesList.map { duchy ->
     val activeEndTime =
@@ -113,9 +111,10 @@ val ALL_DUCHIES =
     )
   }
 
-val ALL_HMSS_EDP_DISPLAY_NAMES = listOf("edp1", "edp2")
-val ALL_LLV2_EDP_DISPLAY_NAMES = listOf("edp3")
-val ALL_EDP_DISPLAY_NAMES = ALL_HMSS_EDP_DISPLAY_NAMES + ALL_LLV2_EDP_DISPLAY_NAMES
+val ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES = listOf("edp1", "edp2")
+val ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES = listOf("edp3")
+val ALL_EDP_DISPLAY_NAMES =
+  ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES + ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES
 
 const val DUCHY_MILL_PARALLELISM = 3
 

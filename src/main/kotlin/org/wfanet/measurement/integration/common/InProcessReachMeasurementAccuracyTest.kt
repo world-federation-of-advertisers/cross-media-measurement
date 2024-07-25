@@ -27,6 +27,7 @@ import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
+import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
@@ -189,7 +190,11 @@ abstract class InProcessReachMeasurementAccuracyTest(
       )
     var summary = ""
     for (round in 1..DEFAULT_TEST_ROUND_NUMBER) {
-      val executionResult = mcSimulator.executeReachOnly(round.toString(), false)
+      val executionResult =
+        mcSimulator.executeReachOnly(
+          round.toString(),
+          DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false }
+        )
 
       if (expectedReach == -1L) {
         expectedReach = executionResult.expectedResult.reach.value

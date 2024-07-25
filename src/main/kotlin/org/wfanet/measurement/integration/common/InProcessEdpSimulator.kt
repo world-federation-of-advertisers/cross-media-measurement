@@ -88,7 +88,9 @@ class InProcessEdpSimulator(
         VidToIndexMapGenerator.generateMapping(
           (vidRangeStart until vidRangeEndExclusive).asSequence()
         )
-      } else emptyMap()
+      } else {
+        emptyMap()
+      }
 
     delegate =
       EdpSimulator(

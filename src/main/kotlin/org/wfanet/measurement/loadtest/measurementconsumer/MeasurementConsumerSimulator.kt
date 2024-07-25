@@ -37,6 +37,7 @@ import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EventGroup
@@ -222,7 +223,7 @@ class MeasurementConsumerSimulator(
   )
 
   /** A sequence of operations done in the simulator involving a reach and frequency measurement. */
-  suspend fun testReachAndFrequency(runId: String, useEdpsWithHmssCabapilityOnly: Boolean = false) {
+  suspend fun testReachAndFrequency(runId: String, capabilities: DataProvider.Capabilities) {
     logger.info { "Creating reach and frequency Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -231,7 +232,7 @@ class MeasurementConsumerSimulator(
         measurementConsumer,
         runId,
         ::newReachAndFrequencyMeasurementSpec,
-        useEdpsWithHmssCabapilityOnly,
+        capabilities,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info { "Created reach and frequency Measurement $measurementName" }
@@ -255,6 +256,13 @@ class MeasurementConsumerSimulator(
         protocol,
       )
     val reachTolerance = computeErrorMargin(reachVariance)
+    if (capabilities.honestMajorityShareShuffleSupported) {
+      assertThat(protocol.protocolCase)
+        .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
+    } else {
+      assertThat(protocol.protocolCase)
+        .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
+    }
     assertThat(reachAndFrequencyResult)
       .reachValue()
       .isWithin(reachTolerance)
@@ -279,7 +287,7 @@ class MeasurementConsumerSimulator(
    * A sequence of operations done in the simulator involving a reach and frequency measurement with
    * invalid params.
    */
-  suspend fun testInvalidReachAndFrequency(runId: String, useEdpsWithHmssCabapilityOnly: Boolean) {
+  suspend fun testInvalidReachAndFrequency(runId: String, capabilities: DataProvider.Capabilities) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
 
@@ -288,7 +296,7 @@ class MeasurementConsumerSimulator(
           measurementConsumer,
           runId,
           ::newInvalidReachAndFrequencyMeasurementSpec,
-          useEdpsWithHmssCabapilityOnly,
+          capabilities,
         )
         .measurement
     logger.info(
@@ -316,7 +324,13 @@ class MeasurementConsumerSimulator(
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val measurementInfo =
-      createMeasurement(measurementConsumer, runId, ::newReachAndFrequencyMeasurementSpec, false, 1)
+      createMeasurement(
+        measurementConsumer,
+        runId,
+        ::newReachAndFrequencyMeasurementSpec,
+        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+        1,
+      )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created direct reach and frequency measurement $measurementName.")
 
@@ -369,7 +383,13 @@ class MeasurementConsumerSimulator(
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val measurementInfo =
-      createMeasurement(measurementConsumer, runId, ::newReachMeasurementSpec, false, 1)
+      createMeasurement(
+        measurementConsumer,
+        runId,
+        ::newReachMeasurementSpec,
+        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+        1,
+      )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created direct reach measurement $measurementName.")
 
@@ -402,7 +422,7 @@ class MeasurementConsumerSimulator(
 
   suspend fun executeReachOnly(
     runId: String,
-    useEdpsWithHmssCabapilityOnly: Boolean = false,
+    capabilities: DataProvider.Capabilities,
   ): ExecutionResult {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -411,7 +431,7 @@ class MeasurementConsumerSimulator(
         measurementConsumer,
         runId,
         ::newReachOnlyMeasurementSpec,
-        useEdpsWithHmssCabapilityOnly,
+        capabilities,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created reach-only measurement $measurementName.")
@@ -432,8 +452,8 @@ class MeasurementConsumerSimulator(
   }
 
   /** A sequence of operations done in the simulator involving a reach-only measurement. */
-  suspend fun testReachOnly(runId: String, useEdpsWithHmssCabapilityOnly: Boolean = false) {
-    val result = executeReachOnly(runId, useEdpsWithHmssCabapilityOnly)
+  suspend fun testReachOnly(runId: String, capabilities: DataProvider.Capabilities) {
+    val result = executeReachOnly(runId, capabilities)
 
     val protocol = result.measurementInfo.measurement.protocolConfig.protocolsList.first()
 
@@ -446,6 +466,13 @@ class MeasurementConsumerSimulator(
       )
     val reachTolerance = computeErrorMargin(reachVariance)
 
+    if (capabilities.honestMajorityShareShuffleSupported) {
+      assertThat(protocol.protocolCase)
+        .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
+    } else {
+      assertThat(protocol.protocolCase)
+        .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2)
+    }
     assertThat(result.actualResult)
       .reachValue()
       .isWithin(reachTolerance)
@@ -467,7 +494,12 @@ class MeasurementConsumerSimulator(
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val measurementInfo =
-      createMeasurement(measurementConsumer, runId, ::newImpressionMeasurementSpec, false)
+      createMeasurement(
+        measurementConsumer,
+        runId,
+        ::newImpressionMeasurementSpec,
+        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+      )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created impression Measurement $measurementName.")
 
@@ -500,7 +532,12 @@ class MeasurementConsumerSimulator(
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val measurementInfo =
-      createMeasurement(measurementConsumer, runId, ::newDurationMeasurementSpec, false)
+      createMeasurement(
+        measurementConsumer,
+        runId,
+        ::newDurationMeasurementSpec,
+        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+      )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created duration Measurement $measurementName.")
 
@@ -669,7 +706,7 @@ class MeasurementConsumerSimulator(
     runId: String,
     newMeasurementSpec:
       (packedMeasurementPublicKey: ProtoAny, nonceHashes: List<ByteString>) -> MeasurementSpec,
-    useEdpsWithHmssCabapilityOnly: Boolean,
+    capabilities: DataProvider.Capabilities,
     maxDataProviders: Int = 20,
   ): MeasurementInfo {
     val eventGroups: List<EventGroup> =
@@ -680,18 +717,25 @@ class MeasurementConsumerSimulator(
       }
     check(eventGroups.isNotEmpty()) { "No event groups found for ${measurementConsumer.name}" }
     val nonceHashes = mutableListOf<ByteString>()
-    val keyToDataProviderMap = mutableMapOf<DataProviderKey, DataProvider>()
+    val keyToDataProviderMap: Map<DataProviderKey, DataProvider> =
+      eventGroups
+        .groupBy { extractDataProviderKey(it.name) }
+        .entries
+        .associate { it.key to getDataProvider(it.key) }
 
     val requisitions: List<RequisitionInfo> =
       eventGroups
         .groupBy { extractDataProviderKey(it.name) }
         .entries
         .filter {
-          val dataProvider = getDataProvider(it.key)
-          keyToDataProviderMap.put(it.key, dataProvider)
-          if (useEdpsWithHmssCabapilityOnly)
+          val dataProvider =
+            keyToDataProviderMap[it.key]
+              ?: throw NoSuchElementException("Data provider key not found: ${it.key}")
+          if (capabilities.honestMajorityShareShuffleSupported) {
             dataProvider.capabilities.honestMajorityShareShuffleSupported
-          else true
+          } else {
+            true
+          }
         }
         .take(maxDataProviders)
         .map { (dataProviderKey, eventGroups) ->

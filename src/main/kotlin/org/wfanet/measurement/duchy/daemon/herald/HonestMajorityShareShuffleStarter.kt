@@ -48,10 +48,14 @@ import org.wfanet.measurement.system.v1alpha.Computation
 
 private const val RANDOM_SEED_LENGTH_IN_BYTES = 48
 
-// Restricts the amount of reach noise due to memory constraint.
+// Minimum epsilon value for reach noise.
+//
+// This value is chosen due to memory constraints.
 private const val MIN_REACH_EPSILON = 0.000001
 
-// Restricts the amount of frequency noise due to memory constraint.
+// Minimum epsilon value for frequency noise.
+//
+// This value is chosen due to memory constraints.
 private const val MIN_FREQUENCY_EPSILON = 0.000001
 
 object HonestMajorityShareShuffleStarter {
@@ -210,15 +214,15 @@ object HonestMajorityShareShuffleStarter {
         reachDpParams =
           measurementSpec.reachAndFrequency.reachPrivacyParams.toDuchyDifferentialPrivacyParams()
         require(reachDpParams.delta > 0) { "Reach privacy delta must be greater than 0" }
-        require(reachDpParams.epsilon > MIN_REACH_EPSILON) {
-          "Reach privacy epsilon must be greater than $MIN_REACH_EPSILON"
+        require(reachDpParams.epsilon >= MIN_REACH_EPSILON) {
+          "Reach privacy epsilon must be greater than or equal to $MIN_REACH_EPSILON"
         }
         frequencyDpParams =
           measurementSpec.reachAndFrequency.frequencyPrivacyParams
             .toDuchyDifferentialPrivacyParams()
         require(frequencyDpParams.delta > 0) { "Frequency privacy delta must be be greater than 0" }
-        require(frequencyDpParams.epsilon > MIN_FREQUENCY_EPSILON) {
-          "Frequency privacy epsilon must be greater than $MIN_FREQUENCY_EPSILON"
+        require(frequencyDpParams.epsilon >= MIN_FREQUENCY_EPSILON) {
+          "Frequency privacy epsilon must be greater than or equal to $MIN_FREQUENCY_EPSILON"
         }
         ringModulus = hmssConfig.reachAndFrequencyRingModulus
       } else {
