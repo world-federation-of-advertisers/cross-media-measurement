@@ -193,7 +193,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
       val executionResult =
         mcSimulator.executeReachOnly(
           round.toString(),
-          DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false }
+          DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
         )
 
       if (expectedReach == -1L) {

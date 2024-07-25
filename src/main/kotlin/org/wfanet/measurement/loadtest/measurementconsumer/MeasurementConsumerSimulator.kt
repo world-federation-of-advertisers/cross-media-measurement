@@ -427,12 +427,7 @@ class MeasurementConsumerSimulator(
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val measurementInfo =
-      createMeasurement(
-        measurementConsumer,
-        runId,
-        ::newReachOnlyMeasurementSpec,
-        capabilities,
-      )
+      createMeasurement(measurementConsumer, runId, ::newReachOnlyMeasurementSpec, capabilities)
     val measurementName = measurementInfo.measurement.name
     logger.info("Created reach-only measurement $measurementName.")
 

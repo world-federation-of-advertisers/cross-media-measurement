@@ -20,8 +20,8 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
-import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
+import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle

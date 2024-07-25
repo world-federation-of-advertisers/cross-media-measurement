@@ -122,7 +122,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
       mcSimulator.testReachAndFrequency(
         "1234",
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false }
+        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
       )
     }
 
@@ -132,7 +132,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
       mcSimulator.testReachAndFrequency(
         "1234",
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true }
+        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
       )
     }
 
@@ -157,7 +157,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
       mcSimulator.testReachOnly(
         "1234",
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false }
+        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
       )
     }
 
@@ -167,7 +167,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
       mcSimulator.testReachOnly(
         "1234",
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true }
+        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
       )
     }
 
@@ -192,7 +192,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
       // its error info.
       mcSimulator.testInvalidReachAndFrequency(
         "1234",
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false }
+        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
       )
     }
 
@@ -203,7 +203,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
       // its error info.
       mcSimulator.testInvalidReachAndFrequency(
         "1234",
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true }
+        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
       )
     }
 
