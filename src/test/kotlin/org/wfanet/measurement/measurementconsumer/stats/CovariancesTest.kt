@@ -496,6 +496,138 @@ class CovariancesTest {
     }
   }
 
+  @Test
+  fun `computeMeasurementCovariance returns a value for reach when one is LiquidLegionsSketch and one is HonestMajorityShareShuffle`() {
+    val weightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+        ReachMeasurementVarianceParams(
+          reach = 34_678_000L,
+          measurementParams =
+          ReachMeasurementParams(
+            vidSamplingInterval = VidSamplingInterval(0.0, 81.0/300.0),
+            dpParams = DpParams(0.1, 1e-9),
+            noiseMechanism = NoiseMechanism.GAUSSIAN,
+          ),
+        ),
+        methodology = LiquidLegionsSketchMethodology(5.6, 100_000L),
+      )
+
+    val otherWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 2,
+        weight = 1,
+        measurementVarianceParams =
+        ReachMeasurementVarianceParams(
+          reach = 33_123_456L,
+          measurementParams =
+          ReachMeasurementParams(
+            vidSamplingInterval = VidSamplingInterval(0.0, 81.0/300.0),
+            dpParams = DpParams(0.1, 1e-9),
+            noiseMechanism = NoiseMechanism.GAUSSIAN,
+          ),
+        ),
+        methodology = HonestMajorityShareShuffleMethodology(55_000_000L),
+      )
+
+    val unionWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 3,
+        weight = -1,
+        measurementVarianceParams =
+        ReachMeasurementVarianceParams(
+          reach = 37_123_456L,
+          measurementParams =
+          ReachMeasurementParams(
+            vidSamplingInterval = VidSamplingInterval(0.0, 81.0/300.0),
+            dpParams = DpParams(0.1, 1e-9),
+            noiseMechanism = NoiseMechanism.GAUSSIAN,
+          ),
+        ),
+        methodology = HonestMajorityShareShuffleMethodology(55_000_000L),
+      )
+
+    val covariance =
+      Covariances.computeMeasurementCovariance(
+        weightedReachMeasurementVarianceParams,
+        otherWeightedReachMeasurementVarianceParams,
+        unionWeightedReachMeasurementVarianceParams,
+      )
+
+    val expected = 8.2944E7
+
+    val tolerance = computeErrorTolerance(covariance, expected)
+    assertThat(covariance).isWithin(tolerance).of(expected)
+  }
+
+  @Test
+  fun `computeMeasurementCovariance returns a value for reach when one is HonestMajorityShareShuffle and one is deterministic`() {
+    val weightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+        ReachMeasurementVarianceParams(
+          reach = 34_678_000L,
+          measurementParams =
+          ReachMeasurementParams(
+            vidSamplingInterval = VidSamplingInterval(0.0, 81.0/300.0),
+            dpParams = DpParams(0.1, 1e-9),
+            noiseMechanism = NoiseMechanism.GAUSSIAN,
+          ),
+        ),
+        methodology = DeterministicMethodology,
+      )
+
+    val otherWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 2,
+        weight = 1,
+        measurementVarianceParams =
+        ReachMeasurementVarianceParams(
+          reach = 33_123_456L,
+          measurementParams =
+          ReachMeasurementParams(
+            vidSamplingInterval = VidSamplingInterval(0.0, 81.0/300.0),
+            dpParams = DpParams(0.1, 1e-9),
+            noiseMechanism = NoiseMechanism.GAUSSIAN,
+          ),
+        ),
+        methodology = HonestMajorityShareShuffleMethodology(55_000_000L),
+      )
+
+    val unionWeightedReachMeasurementVarianceParams =
+      WeightedReachMeasurementVarianceParams(
+        binaryRepresentation = 3,
+        weight = -1,
+        measurementVarianceParams =
+        ReachMeasurementVarianceParams(
+          reach = 37_123_456L,
+          measurementParams =
+          ReachMeasurementParams(
+            vidSamplingInterval = VidSamplingInterval(0.0, 81.0/300.0),
+            dpParams = DpParams(0.1, 1e-9),
+            noiseMechanism = NoiseMechanism.GAUSSIAN,
+          ),
+        ),
+        methodology = HonestMajorityShareShuffleMethodology(55_000_000L),
+      )
+
+    val covariance =
+      Covariances.computeMeasurementCovariance(
+        weightedReachMeasurementVarianceParams,
+        otherWeightedReachMeasurementVarianceParams,
+        unionWeightedReachMeasurementVarianceParams,
+      )
+
+    val expected = 8.2944E7
+
+    val tolerance = computeErrorTolerance(covariance, expected)
+    assertThat(covariance).isWithin(tolerance).of(expected)
+  }
+  
   companion object {
     fun computeErrorTolerance(actual: Double, expected: Double): Double {
       return if (expected == 0.0 || actual == 0.0) {
