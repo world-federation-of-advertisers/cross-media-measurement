@@ -503,15 +503,15 @@ class CovariancesTest {
         binaryRepresentation = 1,
         weight = 1,
         measurementVarianceParams =
-        ReachMeasurementVarianceParams(
-          reach = 34_678_000L,
-          measurementParams =
-          ReachMeasurementParams(
-            vidSamplingInterval = VidSamplingInterval(0.0, 81.0/300.0),
-            dpParams = DpParams(0.1, 1e-9),
-            noiseMechanism = NoiseMechanism.GAUSSIAN,
+          ReachMeasurementVarianceParams(
+            reach = 34_678_000L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 81.0 / 300.0),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+              ),
           ),
-        ),
         methodology = LiquidLegionsSketchMethodology(5.6, 100_000L),
       )
 
@@ -520,15 +520,15 @@ class CovariancesTest {
         binaryRepresentation = 2,
         weight = 1,
         measurementVarianceParams =
-        ReachMeasurementVarianceParams(
-          reach = 33_123_456L,
-          measurementParams =
-          ReachMeasurementParams(
-            vidSamplingInterval = VidSamplingInterval(0.0, 81.0/300.0),
-            dpParams = DpParams(0.1, 1e-9),
-            noiseMechanism = NoiseMechanism.GAUSSIAN,
+          ReachMeasurementVarianceParams(
+            reach = 33_123_456L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 81.0 / 300.0),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+              ),
           ),
-        ),
         methodology = HonestMajorityShareShuffleMethodology(55_000_000L),
       )
 
@@ -537,15 +537,15 @@ class CovariancesTest {
         binaryRepresentation = 3,
         weight = -1,
         measurementVarianceParams =
-        ReachMeasurementVarianceParams(
-          reach = 37_123_456L,
-          measurementParams =
-          ReachMeasurementParams(
-            vidSamplingInterval = VidSamplingInterval(0.0, 81.0/300.0),
-            dpParams = DpParams(0.1, 1e-9),
-            noiseMechanism = NoiseMechanism.GAUSSIAN,
+          ReachMeasurementVarianceParams(
+            reach = 37_123_456L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 81.0 / 300.0),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+              ),
           ),
-        ),
         methodology = HonestMajorityShareShuffleMethodology(55_000_000L),
       )
 
@@ -569,15 +569,15 @@ class CovariancesTest {
         binaryRepresentation = 1,
         weight = 1,
         measurementVarianceParams =
-        ReachMeasurementVarianceParams(
-          reach = 34_678_000L,
-          measurementParams =
-          ReachMeasurementParams(
-            vidSamplingInterval = VidSamplingInterval(0.0, 81.0/300.0),
-            dpParams = DpParams(0.1, 1e-9),
-            noiseMechanism = NoiseMechanism.GAUSSIAN,
+          ReachMeasurementVarianceParams(
+            reach = 34_678_000L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 81.0 / 300.0),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+              ),
           ),
-        ),
         methodology = DeterministicMethodology,
       )
 
@@ -586,15 +586,15 @@ class CovariancesTest {
         binaryRepresentation = 2,
         weight = 1,
         measurementVarianceParams =
-        ReachMeasurementVarianceParams(
-          reach = 33_123_456L,
-          measurementParams =
-          ReachMeasurementParams(
-            vidSamplingInterval = VidSamplingInterval(0.0, 81.0/300.0),
-            dpParams = DpParams(0.1, 1e-9),
-            noiseMechanism = NoiseMechanism.GAUSSIAN,
+          ReachMeasurementVarianceParams(
+            reach = 33_123_456L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 81.0 / 300.0),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+              ),
           ),
-        ),
         methodology = HonestMajorityShareShuffleMethodology(55_000_000L),
       )
 
@@ -603,15 +603,15 @@ class CovariancesTest {
         binaryRepresentation = 3,
         weight = -1,
         measurementVarianceParams =
-        ReachMeasurementVarianceParams(
-          reach = 37_123_456L,
-          measurementParams =
-          ReachMeasurementParams(
-            vidSamplingInterval = VidSamplingInterval(0.0, 81.0/300.0),
-            dpParams = DpParams(0.1, 1e-9),
-            noiseMechanism = NoiseMechanism.GAUSSIAN,
+          ReachMeasurementVarianceParams(
+            reach = 37_123_456L,
+            measurementParams =
+              ReachMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 81.0 / 300.0),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+              ),
           ),
-        ),
         methodology = HonestMajorityShareShuffleMethodology(55_000_000L),
       )
 
@@ -627,7 +627,7 @@ class CovariancesTest {
     val tolerance = computeErrorTolerance(covariance, expected)
     assertThat(covariance).isWithin(tolerance).of(expected)
   }
-  
+
   companion object {
     fun computeErrorTolerance(actual: Double, expected: Double): Double {
       return if (expected == 0.0 || actual == 0.0) {
