@@ -225,8 +225,7 @@ class MeasurementConsumerSimulator(
   /** A sequence of operations done in the simulator involving a reach and frequency measurement. */
   suspend fun testReachAndFrequency(
     runId: String,
-    requiredCapabilities: DataProvider.Capabilities =
-      DataProvider.Capabilities.getDefaultInstance(),
+    requiredCapabilities: DataProvider.Capabilities = DataProvider.Capabilities.getDefaultInstance(),
   ) {
     logger.info { "Creating reach and frequency Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
@@ -293,8 +292,7 @@ class MeasurementConsumerSimulator(
    */
   suspend fun testInvalidReachAndFrequency(
     runId: String,
-    requiredCapabilities: DataProvider.Capabilities =
-      DataProvider.Capabilities.getDefaultInstance(),
+    requiredCapabilities: DataProvider.Capabilities = DataProvider.Capabilities.getDefaultInstance(),
   ) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -430,8 +428,7 @@ class MeasurementConsumerSimulator(
 
   suspend fun executeReachOnly(
     runId: String,
-    requiredCapabilities: DataProvider.Capabilities =
-      DataProvider.Capabilities.getDefaultInstance(),
+    requiredCapabilities: DataProvider.Capabilities = DataProvider.Capabilities.getDefaultInstance(),
   ): ExecutionResult {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -463,8 +460,7 @@ class MeasurementConsumerSimulator(
   /** A sequence of operations done in the simulator involving a reach-only measurement. */
   suspend fun testReachOnly(
     runId: String,
-    requiredCapabilities: DataProvider.Capabilities =
-      DataProvider.Capabilities.getDefaultInstance(),
+    requiredCapabilities: DataProvider.Capabilities = DataProvider.Capabilities.getDefaultInstance(),
   ) {
     val result = executeReachOnly(runId, requiredCapabilities)
 
