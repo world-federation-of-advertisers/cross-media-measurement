@@ -42,10 +42,10 @@ import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.duchy.daemon.mill.Certificate
-import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.HonestMajorityShareShuffleMill
-import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.crypto.JniHonestMajorityShareShuffleCryptor
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
+import org.wfanet.measurement.duchy.mill.Certificate
+import org.wfanet.measurement.duchy.mill.shareshuffle.HonestMajorityShareShuffleMill
+import org.wfanet.measurement.duchy.mill.shareshuffle.crypto.JniHonestMajorityShareShuffleCryptor
 import org.wfanet.measurement.duchy.storage.TinkKeyStore
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
@@ -136,8 +136,7 @@ abstract class HonestMajorityShareShuffleMillDaemon : Runnable {
 
     // This will be the name of the pod when deployed to Kubernetes. Note that the millId is
     // included in mill logs to help debugging.
-    // TODO(@renjiez): add the parameter to override the millId.
-    val millId = System.getenv("HOSTNAME")
+    val millId = flags.millId
 
     val privateKeyStore =
       flags.keyEncryptionKeyTinkFile?.let { file ->
@@ -186,9 +185,7 @@ abstract class HonestMajorityShareShuffleMillDaemon : Runnable {
     runBlocking {
       withContext(CoroutineName("Mill $millId")) {
         val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
-        throttler.loopOnReady {
-          logAndSuppressExceptionSuspend { mill.pollAndProcessNextComputation() }
-        }
+        throttler.loopOnReady { logAndSuppressExceptionSuspend { mill.claimAndProcessWork() } }
       }
     }
   }

@@ -25,12 +25,16 @@ import io.kubernetes.client.openapi.ApiException
 import io.kubernetes.client.openapi.Configuration
 import io.kubernetes.client.openapi.JSON
 import io.kubernetes.client.openapi.apis.AppsV1Api
+import io.kubernetes.client.openapi.apis.BatchV1Api
 import io.kubernetes.client.openapi.apis.CoreV1Api
 import io.kubernetes.client.openapi.models.V1Deployment
-import io.kubernetes.client.openapi.models.V1DeploymentList
+import io.kubernetes.client.openapi.models.V1Job
+import io.kubernetes.client.openapi.models.V1JobList
 import io.kubernetes.client.openapi.models.V1LabelSelector
 import io.kubernetes.client.openapi.models.V1Pod
 import io.kubernetes.client.openapi.models.V1PodList
+import io.kubernetes.client.openapi.models.V1PodTemplate
+import io.kubernetes.client.openapi.models.V1PodTemplateSpec
 import io.kubernetes.client.openapi.models.V1ReplicaSet
 import io.kubernetes.client.openapi.models.V1ServiceAccount
 import io.kubernetes.client.openapi.models.V1Status
@@ -41,6 +45,7 @@ import java.io.File
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
+import kotlin.random.Random
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -58,32 +63,89 @@ import kotlinx.coroutines.launch
 import org.jetbrains.annotations.Blocking
 import org.jetbrains.annotations.BlockingExecutor
 
-class KubernetesClient(
-  val apiClient: ApiClient = Configuration.getDefaultApiClient(),
-  private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
-) {
-  private val coreApi = CoreV1Api(apiClient)
-  private val appsApi = AppsV1Api(apiClient)
+/** Client interface for the Kubernetes API. */
+interface KubernetesClient {
+  val apiClient: ApiClient
 
   /** Gets a single [V1Deployment] by [name]. */
   suspend fun getDeployment(
     name: String,
     namespace: String = Namespaces.NAMESPACE_DEFAULT,
-  ): V1Deployment? {
-    val deployments: List<V1Deployment> =
-      apiCall<V1DeploymentList> { callback ->
-          appsApi
-            .listNamespacedDeployment(namespace)
-            .fieldSelector("metadata.name=$name")
-            .executeAsync(callback)
-        }
-        .items
-    check(deployments.size <= 1)
-    return deployments.singleOrNull()
-  }
+  ): V1Deployment?
+
+  suspend fun getPodTemplate(
+    name: String,
+    namespace: String = Namespaces.NAMESPACE_DEFAULT,
+  ): V1PodTemplate?
 
   /** Gets the [V1ReplicaSet] for the current revision of [deployment]. */
-  suspend fun getNewReplicaSet(deployment: V1Deployment): V1ReplicaSet? {
+  suspend fun getNewReplicaSet(deployment: V1Deployment): V1ReplicaSet?
+
+  /** Lists Pods for the specified [replicaSet]. */
+  suspend fun listPods(replicaSet: V1ReplicaSet): V1PodList
+
+  /** Lists Jobs using the specified [matchLabelsSelector]. */
+  suspend fun listJobs(
+    matchLabelsSelector: String,
+    namespace: String = Namespaces.NAMESPACE_DEFAULT,
+  ): V1JobList
+
+  suspend fun createJob(job: V1Job): V1Job
+
+  suspend fun deleteJob(
+    name: String,
+    namespace: String = Namespaces.NAMESPACE_DEFAULT,
+    propagationPolicy: PropagationPolicy = PropagationPolicy.BACKGROUND,
+  ): V1Status
+
+  /** Suspends until the [V1Deployment] is complete. */
+  suspend fun waitUntilDeploymentComplete(
+    name: String,
+    namespace: String = Namespaces.NAMESPACE_DEFAULT,
+    timeout: Duration,
+  ): V1Deployment
+
+  /** Suspends until the [V1ServiceAccount] exists. */
+  suspend fun waitForServiceAccount(
+    name: String,
+    namespace: String = Namespaces.NAMESPACE_DEFAULT,
+    timeout: Duration,
+  ): V1ServiceAccount
+
+  @Blocking fun kubectlApply(config: File): Sequence<KubernetesObject>
+
+  @Blocking fun kubectlApply(config: String): Sequence<KubernetesObject>
+
+  @Blocking fun kubectlApply(k8sObjects: Iterable<KubernetesObject>): Sequence<KubernetesObject>
+
+  companion object {
+    /** Generates a random suffix for a Kubernetes object name. */
+    fun generateNameSuffix(random: Random) = Names.generateNameSuffix(random)
+  }
+}
+
+/** Default implementation of [KubernetesClient]. */
+class KubernetesClientImpl(
+  override val apiClient: ApiClient = Configuration.getDefaultApiClient(),
+  private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
+) : KubernetesClient {
+  private val coreApi = CoreV1Api(apiClient)
+  private val appsApi = AppsV1Api(apiClient)
+  private val batchApi = BatchV1Api(apiClient)
+
+  override suspend fun getDeployment(name: String, namespace: String): V1Deployment? {
+    return apiCall { callback ->
+      appsApi.readNamespacedDeployment(name, namespace).executeAsync(callback)
+    }
+  }
+
+  override suspend fun getPodTemplate(name: String, namespace: String): V1PodTemplate? {
+    return apiCall { callback ->
+      coreApi.readNamespacedPodTemplate(name, namespace).executeAsync(callback)
+    }
+  }
+
+  override suspend fun getNewReplicaSet(deployment: V1Deployment): V1ReplicaSet? {
     val namespace: String = deployment.metadata?.namespace ?: Namespaces.NAMESPACE_DEFAULT
     val labelSelector = deployment.labelSelector
     val revision = deployment.metadata?.annotations?.get(REVISION_ANNOTATION) ?: return null
@@ -98,8 +160,7 @@ class KubernetesClient(
       .find { it.metadata?.annotations?.get(REVISION_ANNOTATION) == revision }
   }
 
-  /** Lists Pods for the specified [replicaSet]. */
-  suspend fun listPods(replicaSet: V1ReplicaSet): V1PodList {
+  override suspend fun listPods(replicaSet: V1ReplicaSet): V1PodList {
     val namespace: String = replicaSet.metadata?.namespace ?: Namespaces.NAMESPACE_DEFAULT
     val labelSelector: V1LabelSelector = checkNotNull(replicaSet.spec).selector
 
@@ -107,6 +168,35 @@ class KubernetesClient(
       coreApi
         .listNamespacedPod(namespace)
         .labelSelector(labelSelector.matchLabelsSelector)
+        .executeAsync(callback)
+    }
+  }
+
+  override suspend fun listJobs(matchLabelsSelector: String, namespace: String): V1JobList {
+    return apiCall { callback ->
+      batchApi
+        .listNamespacedJob(namespace)
+        .labelSelector(matchLabelsSelector)
+        .executeAsync(callback)
+    }
+  }
+
+  override suspend fun createJob(job: V1Job): V1Job {
+    val namespace: String = job.metadata.namespace ?: Namespaces.NAMESPACE_DEFAULT
+    return apiCall { callback ->
+      batchApi.createNamespacedJob(namespace, job).executeAsync(callback)
+    }
+  }
+
+  override suspend fun deleteJob(
+    name: String,
+    namespace: String,
+    propagationPolicy: PropagationPolicy,
+  ): V1Status {
+    return apiCall { callback ->
+      batchApi
+        .deleteNamespacedJob(name, namespace)
+        .propagationPolicy(propagationPolicy.value)
         .executeAsync(callback)
     }
   }
@@ -146,10 +236,9 @@ class KubernetesClient(
       .flowOn(coroutineContext)
   }
 
-  /** Suspends until the [V1Deployment] is complete. */
-  suspend fun waitUntilDeploymentComplete(
+  override suspend fun waitUntilDeploymentComplete(
     name: String,
-    namespace: String = Namespaces.NAMESPACE_DEFAULT,
+    namespace: String,
     timeout: Duration,
   ): V1Deployment {
     return watch<V1Deployment>(
@@ -173,10 +262,9 @@ class KubernetesClient(
       .first { it.complete }
   }
 
-  /** Suspends until the [V1ServiceAccount] exists. */
-  suspend fun waitForServiceAccount(
+  override suspend fun waitForServiceAccount(
     name: String,
-    namespace: String = Namespaces.NAMESPACE_DEFAULT,
+    namespace: String,
     timeout: Duration,
   ): V1ServiceAccount {
     return watch<V1ServiceAccount>(
@@ -201,29 +289,30 @@ class KubernetesClient(
   }
 
   @Blocking
-  fun kubectlApply(config: File): Sequence<KubernetesObject> {
+  override fun kubectlApply(config: File): Sequence<KubernetesObject> {
     @Suppress("UNCHECKED_CAST") val k8sObjects = Yaml.loadAll(config) as List<KubernetesObject>
     return kubectlApply(k8sObjects)
   }
 
   @Blocking
-  fun kubectlApply(config: String): Sequence<KubernetesObject> {
+  override fun kubectlApply(config: String): Sequence<KubernetesObject> {
     @Suppress("UNCHECKED_CAST") val k8sObjects = Yaml.loadAll(config) as List<KubernetesObject>
     return kubectlApply(k8sObjects)
   }
 
   @Blocking
-  fun kubectlApply(k8sObjects: Iterable<KubernetesObject>): Sequence<KubernetesObject> = sequence {
-    k8sObjects.map { k8sObject ->
-      // TODO(kubernetes-client/java#3076): Remove when fixed.
-      if (k8sObject is V1Pod) {
-        val podSpec = k8sObject.spec
-        if (podSpec.overhead != null && podSpec.overhead.isEmpty()) podSpec.overhead(null)
+  override fun kubectlApply(k8sObjects: Iterable<KubernetesObject>): Sequence<KubernetesObject> =
+    sequence {
+      k8sObjects.map { k8sObject ->
+        // TODO(kubernetes-client/java#3076): Remove when fixed.
+        if (k8sObject is V1Pod) {
+          val podSpec = k8sObject.spec
+          if (podSpec.overhead != null && podSpec.overhead.isEmpty()) podSpec.overhead(null)
+        }
+
+        yield(Kubectl.apply(k8sObject.javaClass).apiClient(apiClient).resource(k8sObject).execute())
       }
-
-      yield(Kubectl.apply(k8sObject.javaClass).apiClient(apiClient).resource(k8sObject).execute())
     }
-  }
 
   companion object {
     private const val REVISION_ANNOTATION = "deployment.kubernetes.io/revision"
@@ -253,9 +342,25 @@ private val V1Deployment.complete: Boolean
 private val V1Deployment.labelSelector: String
   get() = checkNotNull(spec?.selector).matchLabelsSelector
 
-private val V1LabelSelector.matchLabelsSelector: String
+val V1LabelSelector.matchLabelsSelector: String
   get() {
     return matchLabels.map { (key, value) -> "$key=$value" }.joinToString(",")
+  }
+
+fun V1PodTemplateSpec.clone(): V1PodTemplateSpec {
+  return V1PodTemplateSpec.fromJson(toJson())
+}
+
+val V1Job.failed: Boolean
+  get() {
+    val conditions = status.conditions ?: emptyList()
+    return conditions.any { it.type == "Failed" && it.status == "True" }
+  }
+
+val V1Job.complete: Boolean
+  get() {
+    val conditions = status.conditions ?: emptyList()
+    return conditions.any { it.type == "Complete" && it.status == "True" }
   }
 
 private class DeferredApiCallback<T>
@@ -267,7 +372,7 @@ private constructor(private val delegate: CompletableDeferred<T>) :
   override fun onFailure(
     e: ApiException,
     statusCode: Int,
-    responseHeaders: Map<String, List<String>>,
+    responseHeaders: Map<String, List<String>>?,
   ) {
     delegate.completeExceptionally(e)
   }
@@ -290,6 +395,18 @@ private inline fun <T> apiCallAsync(
 private suspend inline fun <T> apiCall(
   executeAsync: (callback: ApiCallback<T>) -> okhttp3.Call
 ): T = apiCallAsync(executeAsync).await()
+
+/**
+ * Policy for whether and how garbage collection will be performed.
+ *
+ * See
+ * https://kubernetes.io/docs/reference/kubernetes-api/common-parameters/common-parameters/#propagationPolicy
+ */
+enum class PropagationPolicy(val value: String) {
+  ORPHAN("Orphan"),
+  BACKGROUND("Background"),
+  FOREGROUND("Foreground")
+}
 
 /**
  * Type of Watch event.

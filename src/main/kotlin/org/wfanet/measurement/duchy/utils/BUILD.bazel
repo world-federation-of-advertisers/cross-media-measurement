@@ -1,0 +1,37 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/duchy:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/duchy:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "duchy_order",
+    srcs = ["DuchyOrder.kt"],
+    deps = [],
+)
+
+kt_jvm_library(
+    name = "computation_conversions",
+    srcs = ["ComputationConversions.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:metric_statistics",
+        "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
+        "//src/main/proto/wfa/any_sketch/crypto:el_gamal_key_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:crypto_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:requisition_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computations_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:differential_privacy_kt_jvm_proto",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
+    ],
+)
