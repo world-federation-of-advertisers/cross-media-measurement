@@ -192,7 +192,7 @@ import ("strings")
 		}
 	}
 
-	cronjobs: [Name=_]: #CronJob & {
+	cronJobs: [Name=_]: #CronJob & {
 		_name:       strings.TrimSuffix(Name, "-cronjob")
 		_secretName: _kingdom_secret_name
 		_system:     "kingdom"
@@ -201,7 +201,7 @@ import ("strings")
 		}
 	}
 
-	cronjobs: {
+	cronJobs: {
 		"completed-measurements-deletion": {
 			_container: args: [
 				_internal_api_target_flag,

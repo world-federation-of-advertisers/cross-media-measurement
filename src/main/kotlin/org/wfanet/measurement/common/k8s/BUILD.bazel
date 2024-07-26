@@ -5,8 +5,12 @@ package(
 )
 
 kt_jvm_library(
-    name = "k8s",
-    srcs = glob(["*.kt"]),
+    name = "client",
+    srcs = [
+        "JsonPatchOperation.kt",
+        "KubernetesClient.kt",
+        "Names.kt",
+    ],
     deps = [
         "//imports/java/io/kubernetes/client",
         "//imports/java/io/kubernetes/client/extended",

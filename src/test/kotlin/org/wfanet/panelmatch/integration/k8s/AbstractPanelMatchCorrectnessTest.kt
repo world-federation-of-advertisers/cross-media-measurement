@@ -32,7 +32,7 @@ import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.jceProvider
-import org.wfanet.measurement.common.k8s.KubernetesClient
+import org.wfanet.measurement.common.k8s.KubernetesClientImpl
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.loadtest.panelmatch.PanelMatchSimulator
 
@@ -91,7 +91,7 @@ abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelM
       Security.removeProvider(jceProvider.name)
     }
 
-    val k8sClient = KubernetesClient(ClientBuilder.defaultClient())
+    val k8sClient = KubernetesClientImpl(ClientBuilder.defaultClient())
     @JvmStatic protected val READY_TIMEOUT = Duration.ofMinutes(2L)
     private val TEST_DATA_PATH =
       Paths.get("wfa_measurement_system", "src", "main", "k8s", "panelmatch", "testing", "data")
