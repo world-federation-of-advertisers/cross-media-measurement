@@ -63,6 +63,7 @@ import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParamet
 import org.wfanet.measurement.internal.duchy.protocol.reachNoiseDifferentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.protocol.registerNoiseGenerationParameters
 import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
+import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
@@ -483,7 +484,17 @@ class ReachOnlyLiquidLegionsV2Mill(
           Duration.ofMillis(cryptoResult.elapsedCpuTimeMillis),
           cryptoCpuDurationHistogram,
         )
-        sendResultToKingdom(token, ReachResult(cryptoResult.reach))
+        sendResultToKingdom(
+          token,
+          ReachResult(
+            cryptoResult.reach,
+            LiquidLegionsV2Methodology(
+              rollv2Parameters.sketchParameters.decayRate,
+              rollv2Parameters.sketchParameters.size,
+              0,
+            ),
+          ),
+        )
         ByteString.EMPTY
       }
 

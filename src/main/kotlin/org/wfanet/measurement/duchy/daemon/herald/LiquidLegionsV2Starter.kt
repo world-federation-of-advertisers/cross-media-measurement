@@ -49,7 +49,18 @@ import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism as SystemNoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant as SystemComputationParticipant
 
+/**
+ * Minimum epsilon value for reach noise.
+ *
+ * This value is chosen due to memory constraints.
+ */
 private const val MIN_REACH_EPSILON = 0.00001
+
+/**
+ * Minimum epsilon value for frequency noise.
+ *
+ * This value is chosen due to memory constraints.
+ */
 private const val MIN_FREQUENCY_EPSILON = 0.00001
 
 object LiquidLegionsV2Starter {
@@ -407,8 +418,8 @@ object LiquidLegionsV2Starter {
             measurementSpec.reach.privacyParams
           }
         require(reachPrivacyParams.delta > 0) { "Reach privacy delta must be greater than 0" }
-        require(reachPrivacyParams.epsilon > MIN_REACH_EPSILON) {
-          "Reach privacy epsilon must be greater than $MIN_REACH_EPSILON"
+        require(reachPrivacyParams.epsilon >= MIN_REACH_EPSILON) {
+          "Reach privacy epsilon must be greater than or equal to $MIN_REACH_EPSILON"
         }
         globalReachDpNoise = reachPrivacyParams.toDuchyDifferentialPrivacyParams()
       }
@@ -418,8 +429,8 @@ object LiquidLegionsV2Starter {
         require(frequencyPrivacyParams.delta > 0) {
           "Frequency privacy delta must be be greater than 0"
         }
-        require(frequencyPrivacyParams.epsilon > MIN_FREQUENCY_EPSILON) {
-          "Frequency privacy epsilon must be greater than $MIN_FREQUENCY_EPSILON"
+        require(frequencyPrivacyParams.epsilon >= MIN_FREQUENCY_EPSILON) {
+          "Frequency privacy epsilon must be greater than or equal to $MIN_FREQUENCY_EPSILON"
         }
         frequencyNoiseConfig = frequencyPrivacyParams.toDuchyDifferentialPrivacyParams()
       }

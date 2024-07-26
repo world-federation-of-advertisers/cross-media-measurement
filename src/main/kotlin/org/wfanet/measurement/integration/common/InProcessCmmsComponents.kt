@@ -75,6 +75,7 @@ class InProcessCmmsComponents(
       InProcessDuchy(
         externalDuchyId = it,
         kingdomSystemApiChannel = kingdom.systemApiChannel,
+        kingdomPublicApiChannel = kingdom.publicApiChannel,
         duchyDependenciesRule = duchyDependenciesRule,
         trustedCertificates = TRUSTED_CERTIFICATES,
         verboseGrpcLogging = false,
@@ -100,6 +101,8 @@ class InProcessCmmsComponents(
         trustedCertificates = TRUSTED_CERTIFICATES,
         syntheticPopulationSpec = syntheticPopulationSpec,
         syntheticDataSpec = syntheticEventGroupSpecs[specIndex],
+        honestMajorityShareShuffleSupported =
+          (displayName in ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES),
       )
     }
   }
@@ -193,7 +196,7 @@ class InProcessCmmsComponents(
     // created.
     duchies.forEach {
       it.startHerald()
-      it.startLiquidLegionsV2mill(duchyCertMap)
+      it.startMill(duchyCertMap)
     }
     edpSimulators.forEach { it.start() }
   }
@@ -203,7 +206,7 @@ class InProcessCmmsComponents(
   fun stopDuchyDaemons() = runBlocking {
     for (duchy in duchies) {
       duchy.stopHerald()
-      duchy.stopLiquidLegionsV2Mill()
+      duchy.stopMill()
     }
   }
 
