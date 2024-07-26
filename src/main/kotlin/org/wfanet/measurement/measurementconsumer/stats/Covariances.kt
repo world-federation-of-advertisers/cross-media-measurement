@@ -193,14 +193,14 @@ object Covariances {
   }
 
   /** Returns a list of non-wrapping interval represented by pairs of <start, end> */
-  private fun VidSamplingInterval.toNonWrappingIntervals(): List<Pair<Double, Double>> {
+  private fun VidSamplingInterval.toNonWrappingIntervals(): List<ClosedRange<Double>> {
     val start = this.start
     val end = this.start + this.width
 
     return if (end > 1.0) {
-      listOf(Pair(0.0, start), Pair(end, 1.0))
+      listOf(0.0..start, end..1.0)
     } else {
-      listOf(Pair(start, end))
+      listOf(start..end)
     }
   }
 
@@ -209,27 +209,27 @@ object Covariances {
     vidSamplingInterval: VidSamplingInterval,
     otherVidSamplingInterval: VidSamplingInterval,
   ): Double {
-    val intervals = mutableListOf<Pair<Double, Double>>()
+    val intervals = mutableListOf<ClosedRange<Double>>()
 
     intervals += vidSamplingInterval.toNonWrappingIntervals()
     intervals += otherVidSamplingInterval.toNonWrappingIntervals()
 
-    intervals.sortWith(compareBy { it.first })
+    intervals.sortWith(compareBy { it.start })
 
-    var currentStart = intervals[0].first
-    var currentEnd = intervals[0].second
+    var currentStart = intervals[0].start
+    var currentEnd = intervals[0].endInclusive
     var totalWidth = 0.0
 
     for (i in 1 until intervals.size) {
       val interval = intervals[i]
-      if (interval.first <= currentEnd) {
+      if (interval.start <= currentEnd) {
         // Overlap
-        currentEnd = maxOf(currentEnd, interval.second)
+        currentEnd = maxOf(currentEnd, interval.endInclusive)
       } else {
         // No overlap
         totalWidth += currentEnd - currentStart
-        currentStart = interval.first
-        currentEnd = interval.second
+        currentStart = interval.start
+        currentEnd = interval.endInclusive
       }
     }
     totalWidth += currentEnd - currentStart
