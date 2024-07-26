@@ -46,9 +46,11 @@ import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 
-// Minimum epsilon value for reach noise.
-//
-// This value is chosen due to memory constraints.
+/**
+ * Minimum epsilon value for reach noise.
+ *
+ * This value is chosen due to memory constraints.
+ */
 private const val MIN_REACH_EPSILON = 0.00001
 
 object ReachOnlyLiquidLegionsV2Starter {

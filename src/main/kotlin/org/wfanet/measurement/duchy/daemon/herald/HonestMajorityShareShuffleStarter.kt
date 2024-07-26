@@ -48,14 +48,18 @@ import org.wfanet.measurement.system.v1alpha.Computation
 
 private const val RANDOM_SEED_LENGTH_IN_BYTES = 48
 
-// Minimum epsilon value for reach noise.
-//
-// This value is chosen due to memory constraints.
+/**
+ * Minimum epsilon value for reach noise.
+ *
+ * This value is chosen due to memory constraints.
+ */
 private const val MIN_REACH_EPSILON = 0.000001
 
-// Minimum epsilon value for frequency noise.
-//
-// This value is chosen due to memory constraints.
+/**
+ * Minimum epsilon value for frequency noise.
+ *
+ * This value is chosen due to memory constraints.
+ */
 private const val MIN_FREQUENCY_EPSILON = 0.000001
 
 object HonestMajorityShareShuffleStarter {

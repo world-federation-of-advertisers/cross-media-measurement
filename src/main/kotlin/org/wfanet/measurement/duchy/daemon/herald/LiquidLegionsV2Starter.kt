@@ -49,14 +49,18 @@ import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism as SystemNoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant as SystemComputationParticipant
 
-// Minimum epsilon value for reach noise.
-//
-// This value is chosen due to memory constraints.
+/**
+ * Minimum epsilon value for reach noise.
+ *
+ * This value is chosen due to memory constraints.
+ */
 private const val MIN_REACH_EPSILON = 0.00001
 
-// Minimum epsilon value for frequency noise.
-//
-// This value is chosen due to memory constraints.
+/**
+ * Minimum epsilon value for frequency noise.
+ *
+ * This value is chosen due to memory constraints.
+ */
 private const val MIN_FREQUENCY_EPSILON = 0.00001
 
 object LiquidLegionsV2Starter {

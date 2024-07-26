@@ -204,11 +204,7 @@ class InProcessDuchy(
             AGGREGATOR_NAME -> AGGREGATOR_PROTOCOLS_SETUP_CONFIG
             WORKER1_NAME -> WORKER1_PROTOCOLS_SETUP_CONFIG
             WORKER2_NAME -> WORKER2_PROTOCOLS_SETUP_CONFIG
-            else -> {
-              throw IllegalArgumentException(
-                "Protocol setup config for duchy $externalDuchyId not found."
-              )
-            }
+            else -> error("Protocol setup config for duchy $externalDuchyId not found.")
           }
         val herald =
           Herald(
@@ -254,11 +250,7 @@ class InProcessDuchy(
             AGGREGATOR_NAME -> AGGREGATOR_PROTOCOLS_SETUP_CONFIG
             WORKER1_NAME -> WORKER1_PROTOCOLS_SETUP_CONFIG
             WORKER2_NAME -> WORKER2_PROTOCOLS_SETUP_CONFIG
-            else -> {
-              throw IllegalArgumentException(
-                "Protocol setup config for duchy $externalDuchyId not found."
-              )
-            }
+            else -> error("Protocol setup config for duchy $externalDuchyId not found.")
           }
         val reachFrequencyLiquidLegionsV2Mill =
           ReachFrequencyLiquidLegionsV2Mill(
