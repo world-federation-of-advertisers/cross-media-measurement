@@ -21,6 +21,9 @@ _systemApiAddressName: string @tag("system_api_address_name")
 // Name of K8s service account for the internal API server.
 #InternalServerServiceAccount: "internal-server"
 
+// Name of K8s service account for the operational metrics job.
+#OperationalMetricsServiceAccount: "operational-metrics"
+
 // Number of gRPC threads for the internal API server.
 #InternalServerGrpcThreads: 7
 
@@ -40,6 +43,16 @@ _systemApiAddressName: string @tag("system_api_address_name")
 	}
 }
 
+#OperationalMetricsJobResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "20m"
+		memory: "256Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+
 objectSets: [default_deny_ingress_and_egress] + [ for objectSet in kingdom {objectSet}]
 
 kingdom: #Kingdom & {
@@ -51,6 +64,9 @@ kingdom: #Kingdom & {
 	serviceAccounts: {
 		"\(#InternalServerServiceAccount)": #WorkloadIdentityServiceAccount & {
 			_iamServiceAccountName: "kingdom-internal"
+		}
+		"\(#OperationalMetricsServiceAccount)": #WorkloadIdentityServiceAccount & {
+			_iamServiceAccountName: "operational-metrics"
 		}
 	}
 
@@ -69,6 +85,40 @@ kingdom: #Kingdom & {
 		"system-api-server": {
 			_container: {
 				_grpcThreadPoolSize: #SystemServerGrpcThreads
+			}
+		}
+	}
+
+	cronjobs: {
+		"operational-metrics": {
+			_container: {
+				resources: #OperationalMetricsJobResourceRequirements
+				args:      [
+						"--bigquery-project=\(#GCloudProject)",
+						"--bigquery-dataset=operational_metrics",
+						"--measurements-table=measurements",
+						"--requisitions-table=requisitions",
+						"--computation-participants-table=computation_participants",
+						"--latest-measurement-read-table=latest_measurement_read",
+						"--duchy-id-config=/var/run/secrets/files/duchy_id_config.textproto",
+				] + _spannerConfig.flags
+			}
+			spec: {
+				concurrencyPolicy: "Forbid"
+			  schedule: "30 * * * *" // Hourly, 30 minutes past the hour
+				jobTemplate: spec: template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #OperationalMetricsServiceAccount
+				}
+			}
+		}
+	}
+
+	networkPolicies: {
+		"operational-metrics": {
+			_app_label: "operational-metrics-app"
+			_egresses: {
+				// Need to send external traffic to Spanner and BigQuery.
+				any: {}
 			}
 		}
 	}

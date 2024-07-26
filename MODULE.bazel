@@ -293,6 +293,12 @@ http_archive(
     url = "https://github.com/google/shell-encryption/archive/507781e129a03f8178c9716d79163fae23d34b6a.tar.gz",
 )
 
+archive_override(
+    module_name = "common-jvm",
+    strip_prefix = "common-jvm-dd3b1091aa6eab26660fe9e3d22f1fd0dfe2ed9e",
+    urls = ["https://github.com/world-federation-of-advertisers/common-jvm/archive/dd3b1091aa6eab26660fe9e3d22f1fd0dfe2ed9e.tar.gz"],
+)
+
 http_archive(
     name = "tink_cc",
     sha256 = "c2c252b09969576965fd4610d933682a71890d90f01a96c418fcbcf808edf513",
