@@ -46,8 +46,12 @@ import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 
+/**
+ * Minimum epsilon value for reach noise.
+ *
+ * This value is chosen due to memory constraints.
+ */
 private const val MIN_REACH_EPSILON = 0.00001
-private const val MIN_FREQUENCY_EPSILON = 0.00001
 
 object ReachOnlyLiquidLegionsV2Starter {
 
@@ -316,8 +320,8 @@ object ReachOnlyLiquidLegionsV2Starter {
                     require(reach.privacyParams.delta > 0) {
                       "RoLLv2 requires that privacy_params.delta be greater than 0"
                     }
-                    require(reach.privacyParams.epsilon > MIN_REACH_EPSILON) {
-                      "RoLLv2 requires that privacy_params.epsilon be greater than $MIN_REACH_EPSILON"
+                    require(reach.privacyParams.epsilon >= MIN_REACH_EPSILON) {
+                      "RoLLv2 requires that privacy_params.epsilon be greater than or equal to $MIN_REACH_EPSILON"
                     }
                     globalReachDpNoise = reach.privacyParams.toDuchyDifferentialPrivacyParams()
                   }

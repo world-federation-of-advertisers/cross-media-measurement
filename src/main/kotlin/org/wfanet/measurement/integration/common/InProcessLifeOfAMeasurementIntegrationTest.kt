@@ -21,6 +21,7 @@ import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -116,10 +117,23 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
   }
 
   @Test
-  fun `create a RF measurement and check the result is equal to the expected result`() =
+  fun `create a Llv2 RF measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
-      mcSimulator.testReachAndFrequency("1234")
+      mcSimulator.testReachAndFrequency(
+        "1234",
+        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+      )
+    }
+
+  @Test
+  fun `create a Hmss RF measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create a reach and frequency measurement and verify its result.
+      mcSimulator.testReachAndFrequency(
+        "1234",
+        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+      )
     }
 
   @Test
@@ -138,10 +152,23 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
     }
 
   @Test
-  fun `create a reach-only measurement and check the result is equal to the expected result`() =
+  fun `create a Llv2 reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
-      mcSimulator.testReachOnly("1234")
+      mcSimulator.testReachOnly(
+        "1234",
+        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+      )
+    }
+
+  @Test
+  fun `create a Hmss reach-only measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create a reach and frequency measurement and verify its result.
+      mcSimulator.testReachOnly(
+        "1234",
+        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+      )
     }
 
   @Test
@@ -159,11 +186,25 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
     }
 
   @Test
-  fun `create a RF measurement of invalid params and check the result contains error info`() =
+  fun `create a Llv2 RF measurement of invalid params and check the result contains error info`() =
     runBlocking {
       // Use frontend simulator to create an invalid reach and frequency measurement and verify
       // its error info.
-      mcSimulator.testInvalidReachAndFrequency("1234")
+      mcSimulator.testInvalidReachAndFrequency(
+        "1234",
+        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+      )
+    }
+
+  @Test
+  fun `create a Hmss RF measurement of invalid params and check the result contains error info`() =
+    runBlocking {
+      // Use frontend simulator to create an invalid reach and frequency measurement and verify
+      // its error info.
+      mcSimulator.testInvalidReachAndFrequency(
+        "1234",
+        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+      )
     }
 
   // TODO(@renjiez): Add Multi-round test given the same input to verify correctness.

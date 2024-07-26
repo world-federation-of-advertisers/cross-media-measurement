@@ -74,6 +74,7 @@ import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParamet
 import org.wfanet.measurement.internal.duchy.protocol.perBucketFrequencyDpNoiseBaseline
 import org.wfanet.measurement.internal.duchy.protocol.reachNoiseDifferentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.protocol.registerNoiseGenerationParameters
+import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
@@ -611,7 +612,17 @@ class ReachFrequencyLiquidLegionsV2Mill(
 
     // If this is a reach-only computation, then our job is done.
     if (maximumRequestedFrequency == 1) {
-      sendResultToKingdom(token, ReachResult(reach))
+      sendResultToKingdom(
+        token,
+        ReachResult(
+          reach,
+          LiquidLegionsV2Methodology(
+            llv2Parameters.sketchParameters.decayRate,
+            llv2Parameters.sketchParameters.size,
+            0,
+          ),
+        ),
+      )
       return completeComputation(nextToken, CompletedReason.SUCCEEDED)
     }
 
@@ -731,7 +742,15 @@ class ReachFrequencyLiquidLegionsV2Mill(
 
     sendResultToKingdom(
       token,
-      ReachAndFrequencyResult(llv2Details.reachEstimate.reach, frequencyDistributionMap),
+      ReachAndFrequencyResult(
+        llv2Details.reachEstimate.reach,
+        frequencyDistributionMap,
+        LiquidLegionsV2Methodology(
+          llv2Parameters.sketchParameters.decayRate,
+          llv2Parameters.sketchParameters.size,
+          0,
+        ),
+      ),
     )
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
   }

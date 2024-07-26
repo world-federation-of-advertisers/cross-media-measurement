@@ -66,6 +66,7 @@ class InProcessEdpSimulator(
   syntheticPopulationSpec: SyntheticPopulationSpec,
   private val syntheticDataSpec: SyntheticEventGroupSpec,
   coroutineContext: CoroutineContext = Dispatchers.Default,
+  honestMajorityShareShuffleSupported: Boolean = true,
 ) {
   private val loggingName = "${javaClass.simpleName} $displayName"
   private val backgroundScope =
@@ -83,9 +84,13 @@ class InProcessEdpSimulator(
     val vidRangeStart = syntheticPopulationSpec.vidRange.start
     val vidRangeEndExclusive = syntheticPopulationSpec.vidRange.endExclusive
     val vidIndexMap =
-      VidToIndexMapGenerator.generateMapping(
-        (vidRangeStart until vidRangeEndExclusive).asSequence()
-      )
+      if (honestMajorityShareShuffleSupported) {
+        VidToIndexMapGenerator.generateMapping(
+          (vidRangeStart until vidRangeEndExclusive).asSequence()
+        )
+      } else {
+        emptyMap()
+      }
 
     delegate =
       EdpSimulator(
