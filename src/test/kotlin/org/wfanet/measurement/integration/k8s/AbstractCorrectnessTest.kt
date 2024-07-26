@@ -20,6 +20,7 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -48,7 +49,10 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
 
   @Test
   fun `reach and frequency measurement completes with expected result`() = runBlocking {
-    testHarness.testReachAndFrequency("$runId-reach-and-freq")
+    testHarness.testReachAndFrequency(
+      "$runId-reach-and-freq",
+      DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+    )
   }
 
   interface MeasurementSystem {

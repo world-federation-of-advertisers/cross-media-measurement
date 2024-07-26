@@ -29,6 +29,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/utils:duchy_order",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha:advance_computation_request_headers",
+        "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:metric_statistics",
         "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
         "//src/main/proto/wfa/any_sketch:frequency_vector_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc",

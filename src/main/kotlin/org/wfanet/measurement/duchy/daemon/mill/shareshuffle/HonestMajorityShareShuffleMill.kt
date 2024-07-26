@@ -51,6 +51,7 @@ import org.wfanet.measurement.duchy.daemon.mill.DATA_TRANSMISSION_RPC_WALL_CLOCK
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
 import org.wfanet.measurement.duchy.daemon.mill.shareshuffle.crypto.HonestMajorityShareShuffleCryptor
 import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequencyResult
+import org.wfanet.measurement.duchy.daemon.utils.ReachResult
 import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaEncryptionPublicKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
@@ -81,6 +82,7 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.completeAggregationPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.shareShuffleFrequencyVectorParams
+import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
@@ -436,7 +438,11 @@ class HonestMajorityShareShuffleMill(
             cryptoWorker.completeReachOnlyShufflePhase(request)
           MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
             cryptoWorker.completeReachAndFrequencyShufflePhase(request)
-          else -> error("Unsupported measurement type $measurementType")
+          MeasurementSpec.MeasurementTypeCase.IMPRESSION,
+          MeasurementSpec.MeasurementTypeCase.DURATION,
+          MeasurementSpec.MeasurementTypeCase.POPULATION,
+          MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
+            error("Unsupported measurement type $measurementType")
         }
       }
 
@@ -517,7 +523,11 @@ class HonestMajorityShareShuffleMill(
             cryptoWorker.completeReachOnlyAggregationPhase(request)
           MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
             cryptoWorker.completeReachAndFrequencyAggregationPhase(request)
-          else -> error("Unsupported measurement type $measurementType")
+          MeasurementSpec.MeasurementTypeCase.IMPRESSION,
+          MeasurementSpec.MeasurementTypeCase.DURATION,
+          MeasurementSpec.MeasurementTypeCase.POPULATION,
+          MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
+            error("Unsupported measurement type $measurementType")
         }
       }
 
@@ -528,10 +538,34 @@ class HonestMajorityShareShuffleMill(
       cryptoCpuDurationHistogram,
     )
 
-    sendResultToKingdom(
-      token,
-      ReachAndFrequencyResult(result.reach, result.frequencyDistributionMap),
-    )
+    when (val measurementType = measurementSpec.measurementTypeCase) {
+      MeasurementSpec.MeasurementTypeCase.REACH ->
+        sendResultToKingdom(
+          token,
+          ReachResult(
+            result.reach,
+            HonestMajorityShareShuffleMethodology(
+              frequencyVectorSize = aggregationPhaseInputs.first().registerCount
+            ),
+          ),
+        )
+      MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
+        sendResultToKingdom(
+          token,
+          ReachAndFrequencyResult(
+            result.reach,
+            result.frequencyDistributionMap,
+            HonestMajorityShareShuffleMethodology(
+              frequencyVectorSize = aggregationPhaseInputs.first().registerCount
+            ),
+          ),
+        )
+      MeasurementSpec.MeasurementTypeCase.IMPRESSION,
+      MeasurementSpec.MeasurementTypeCase.DURATION,
+      MeasurementSpec.MeasurementTypeCase.POPULATION,
+      MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
+        error("Unsupported measurement type $measurementType")
+    }
 
     return completeComputation(token, ComputationDetails.CompletedReason.SUCCEEDED)
   }
