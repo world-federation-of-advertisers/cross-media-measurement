@@ -16,10 +16,11 @@ module "clusters" {
   source   = "../modules/cluster"
   for_each = local.duchy_names
 
-  name            = "${each.key}-duchy"
-  location        = local.cluster_location
-  release_channel = var.cluster_release_channel
-  secret_key      = module.common.cluster_secret_key
+  name                = "${each.key}-duchy"
+  location            = local.cluster_location
+  release_channel     = var.cluster_release_channel
+  secret_key          = module.common.cluster_secret_key
+  autoscaling_profile = "OPTIMIZE_UTILIZATION"
 }
 
 module "default_node_pools" {
@@ -41,7 +42,7 @@ module "highmem_node_pools" {
   name            = "highmem"
   service_account = module.common.cluster_service_account
   machine_type    = "c2-standard-4"
-  max_node_count  = 3
+  max_node_count  = 20
   spot            = true
 }
 

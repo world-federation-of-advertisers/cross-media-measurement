@@ -16,18 +16,22 @@ package k8s
 
 #NetworkPolicy: {
 	_egresses: {
+		// See https://cloud.google.com/kubernetes-engine/docs/how-to/network-policy#network-policy-and-workload-identity
 		gkeMetadataServer: {
 			to: [{ipBlock: cidr: "169.254.169.252/32"}]
-			ports: [
-				{
-					protocol: "TCP"
-					port:     988
-				},
-				{
-					protocol: "TCP"
-					port:     80
-				}]
+			ports: [{
+				protocol: "TCP"
+				port:     988
+			}]
 		}
+		gkeDataplaneV2: {
+			to: [{ipBlock: cidr: "169.254.169.254/32"}]
+			ports: [{
+				protocol: "TCP"
+				port:     80
+			}]
+		}
+
 		openTelemetryCollector: {
 			to: [{podSelector: matchLabels: app: "opentelemetry-collector-app"}]
 			ports: [{

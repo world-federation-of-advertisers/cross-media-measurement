@@ -55,23 +55,6 @@ _duchyConfigs: {
 	}
 }
 
-let EnvVars = #EnvVarMap & {
-	"POSTGRES_USER": {
-		valueFrom:
-			secretKeyRef: {
-				name: _duchyDbSecretName
-				key:  "username"
-			}
-	}
-	"POSTGRES_PASSWORD": {
-		valueFrom:
-			secretKeyRef: {
-				name: _duchyDbSecretName
-				key:  "password"
-			}
-	}
-}
-
 objectSets: [ for duchy in duchies for objectSet in duchy {objectSet}]
 
 _computationControlTargets: {
@@ -80,11 +63,11 @@ _computationControlTargets: {
 	}
 }
 
-_baseDuchyConfig: {
+#Duchy: {
 	_imageSuffixes: {
 		"computation-control-server":     "duchy/local-computation-control"
 		"herald-daemon":                  "duchy/local-herald"
-		"liquid-legions-v2-mill-daemon":  "duchy/local-liquid-legions-v2-mill"
+		"llv2-mill":                      "duchy/local-liquid-legions-v2-mill"
 		"hmss-mill-daemon":               "duchy/local-honest-majority-share-shuffle-mill"
 		"requisition-fulfillment-server": "duchy/local-requisition-fulfillment"
 	}
@@ -99,43 +82,61 @@ _baseDuchyConfig: {
 	_verbose_grpc_logging: "true"
 }
 
-duchies: [
-	for duchyConfig in _duchyConfigs {
-		if (duchyConfig.databaseType == "spanner") {
-			#SpannerDuchy & _baseDuchyConfig & {
-				_imageSuffixes: {
-					"internal-api-server": "duchy/local-spanner-computations"
+#SpannerDuchy: {
+	_imageSuffixes: {
+		"internal-api-server": "duchy/local-spanner-computations"
+	}
+}
+
+#PostgresDuchy: {
+	_imageSuffixes: {
+		"internal-api-server": "duchy/local-postgres-internal-server"
+	}
+	_postgresConfig: {
+		serviceName: "postgres"
+		password:    "$(POSTGRES_PASSWORD)"
+		user:        "$(POSTGRES_USER)"
+	}
+	deployments: {
+		"internal-api-server-deployment": {
+			let EnvVars = #EnvVarMap & {
+				"POSTGRES_USER": {
+					valueFrom:
+						secretKeyRef: {
+							name: _duchyDbSecretName
+							key:  "username"
+						}
 				}
-				_duchy: {
-					name:                      duchyConfig.name
-					protocols_setup_config:    duchyConfig.protocolsSetupConfig
-					cs_cert_resource_name:     duchyConfig.certificateResourceName
-					duchyKeyEncryptionKeyFile: duchyConfig.duchyKeyEncryptionKeyFile
+				"POSTGRES_PASSWORD": {
+					valueFrom:
+						secretKeyRef: {
+							name: _duchyDbSecretName
+							key:  "password"
+						}
 				}
 			}
+
+			_container: _envVars:             EnvVars
+			_updateSchemaContainer: _envVars: EnvVars
 		}
-		if (duchyConfig.databaseType == "postgres") {
-			#PostgresDuchy & _baseDuchyConfig & {
-				_imageSuffixes: {
-					"internal-api-server": "duchy/local-postgres-internal-server"
-				}
-				_duchy: {
-					name:                      duchyConfig.name
-					protocols_setup_config:    duchyConfig.protocolsSetupConfig
-					cs_cert_resource_name:     duchyConfig.certificateResourceName
-					duchyKeyEncryptionKeyFile: duchyConfig.duchyKeyEncryptionKeyFile
-				}
-				_postgresConfig: {
-					serviceName: "postgres"
-					password:    "$(POSTGRES_PASSWORD)"
-					user:        "$(POSTGRES_USER)"
-				}
-				deployments: {
-					"internal-api-server-deployment": {
-						_container: _envVars:             EnvVars
-						_updateSchemaContainer: _envVars: EnvVars
-					}
-				}
+	}
+}
+
+duchies: [
+	for duchyConfig in _duchyConfigs {
+		{
+			_duchy: {
+				name:                      duchyConfig.name
+				protocols_setup_config:    duchyConfig.protocolsSetupConfig
+				cs_cert_resource_name:     duchyConfig.certificateResourceName
+				duchyKeyEncryptionKeyFile: duchyConfig.duchyKeyEncryptionKeyFile
+			}
+
+			if (duchyConfig.databaseType == "spanner") {
+				#SpannerDuchy
+			}
+			if (duchyConfig.databaseType == "postgres") {
+				#PostgresDuchy
 			}
 		}
 	},

@@ -62,6 +62,7 @@ import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.k8s.KubernetesClient
+import org.wfanet.measurement.common.k8s.KubernetesClientImpl
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -484,7 +485,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
     private val measurementSystem =
       LocalMeasurementSystem(
-        lazy { KubernetesClient(ClientBuilder.defaultClient()) },
+        lazy { KubernetesClientImpl(ClientBuilder.defaultClient()) },
         lazy { tempDir },
         lazy { UUID.randomUUID().toString() },
       )
