@@ -1788,6 +1788,106 @@ class MetricSpecDefaultsTest {
   }
 
   @Test
+  fun `buildMetricSpec builds reach spec when allowSamplingIntervalWrapping enabled`() {
+    val initial = metricSpec {
+      reach = reachParams {
+        privacyParams =
+          MetricSpecKt.differentialPrivacyParams {
+            epsilon =
+              METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.privacyParams.epsilon * 2
+            delta =
+              METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.privacyParams.delta * 2
+          }
+      }
+      vidSamplingInterval =
+        MetricSpecKt.vidSamplingInterval {
+          start = 0.5f
+          width = 0.8f
+        }
+    }
+    val result =
+      initial.withDefaults(METRIC_SPEC_CONFIG, randomMock, allowSamplingIntervalWrapping = true)
+    assertThat(result.reach.multipleDataProviderParams.vidSamplingInterval)
+      .isEqualTo(
+        MetricSpecKt.vidSamplingInterval {
+          start = 0.5f
+          width = 0.8f
+        }
+      )
+  }
+
+  @Test
+  fun `buildMetricSpec builds rf spec when allowSamplingIntervalWrapping enabled`() {
+    val initial = metricSpec {
+      reachAndFrequency = reachAndFrequencyParams {
+        reachPrivacyParams =
+          MetricSpecKt.differentialPrivacyParams {
+            epsilon =
+              METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
+                .reachPrivacyParams
+                .epsilon * 2
+            delta =
+              METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
+                .reachPrivacyParams
+                .delta * 2
+          }
+        frequencyPrivacyParams =
+          MetricSpecKt.differentialPrivacyParams {
+            epsilon =
+              METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
+                .frequencyPrivacyParams
+                .epsilon * 2
+            delta =
+              METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams
+                .frequencyPrivacyParams
+                .delta * 2
+          }
+        maximumFrequency = METRIC_SPEC_CONFIG.reachAndFrequencyParams.maximumFrequency * 2
+      }
+      vidSamplingInterval =
+        MetricSpecKt.vidSamplingInterval {
+          start = 0.2f
+          width = 0.9f
+        }
+    }
+    val result =
+      initial.withDefaults(METRIC_SPEC_CONFIG, randomMock, allowSamplingIntervalWrapping = true)
+    assertThat(result.reachAndFrequency.multipleDataProviderParams.vidSamplingInterval)
+      .isEqualTo(
+        MetricSpecKt.vidSamplingInterval {
+          start = 0.2f
+          width = 0.9f
+        }
+      )
+  }
+
+  @Test
+  fun `buildMetricSpec throws MetricSpecBuildingException when allowSamplingIntervalWrapping disabled`() {
+    val initial = metricSpec {
+      reach = reachParams {
+        privacyParams =
+          MetricSpecKt.differentialPrivacyParams {
+            epsilon =
+              METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.privacyParams.epsilon * 2
+            delta =
+              METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.privacyParams.delta * 2
+          }
+      }
+      vidSamplingInterval =
+        MetricSpecKt.vidSamplingInterval {
+          start = 0.5f
+          width = 0.8f
+        }
+    }
+    val exception =
+      assertThrows(MetricSpecDefaultsException::class.java) {
+        initial.withDefaults(METRIC_SPEC_CONFIG, randomMock, allowSamplingIntervalWrapping = false)
+      }
+    assertThat(exception.message).contains("vidSamplingInterval")
+    assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
+  }
+
+  @Test
   fun `buildMetricSpec throw MetricSpecBuildingException when vidSamplingInterval width is 0`() {
     val metricSpec =
       LEGACY_EMPTY_REACH_METRIC_SPEC.copy {

@@ -83,11 +83,7 @@ private fun MeasurementSpecConfig.VidSamplingInterval.FixedStart.isValid(): Bool
     return false
   }
 
-  if (this.width <= 0.0) {
-    return false
-  }
-
-  if (this.start + this.width > 1.0) {
+  if (this.width <= 0.0 || this.width > 1.0) {
     return false
   }
 

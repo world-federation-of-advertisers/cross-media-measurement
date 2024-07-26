@@ -247,6 +247,7 @@ private fun run(
           MetricsCoroutineStub(inProcessChannel),
           metricSpecConfig,
           SecureRandom().asKotlinRandom(),
+          reportingApiServerFlags.allowSamplingIntervalWrapping,
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ReportSchedulesService(
