@@ -577,6 +577,7 @@ abstract class MillBase(
       val message = "Error advancing computation at other Duchy"
       throw when (e.status.code) {
         Status.Code.UNAVAILABLE,
+        Status.Code.DEADLINE_EXCEEDED,
         Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
         else -> ComputationDataClients.PermanentErrorException(message, e)
       }
