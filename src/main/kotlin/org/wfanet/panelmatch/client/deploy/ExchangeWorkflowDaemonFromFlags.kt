@@ -35,6 +35,7 @@ import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Party
 import org.wfanet.panelmatch.client.launcher.ApiClient
 import org.wfanet.panelmatch.client.launcher.GrpcApiClient
+import org.wfanet.panelmatch.client.launcher.withMaxParallelClaimedExchangeSteps
 import org.wfanet.panelmatch.common.Timeout
 import org.wfanet.panelmatch.common.asTimeout
 import org.wfanet.panelmatch.common.certificates.CertificateAuthority
@@ -132,13 +133,13 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
   override val apiClient: ApiClient by lazy {
     val exchangeStepsClient = ExchangeStepsCoroutineStub(channel)
     val exchangeStepAttemptsClient = ExchangeStepAttemptsCoroutineStub(channel)
-    GrpcApiClient(
-      identity,
-      exchangeStepsClient,
-      exchangeStepAttemptsClient,
-      Clock.systemUTC(),
-      maxParallelClaimedExchangeSteps,
-    )
+    val client =
+      GrpcApiClient(identity, exchangeStepsClient, exchangeStepAttemptsClient, Clock.systemUTC())
+    if (maxParallelClaimedExchangeSteps != null) {
+      client.withMaxParallelClaimedExchangeSteps(maxParallelClaimedExchangeSteps!!)
+    } else {
+      client
+    }
   }
 
   override val taskTimeout: Timeout by lazy { flags.taskTimeout.asTimeout() }

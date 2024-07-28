@@ -62,6 +62,7 @@ import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.k8s.KubernetesClient
+import org.wfanet.measurement.common.k8s.KubernetesClientImpl
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -459,13 +460,14 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
   }
 
   companion object {
-    init {
-      // Remove Conscrypt provider so underlying OkHttp client won't use it and fail on unsupported
-      // certificate algorithms when connecting to cluster (ECFieldF2m).
-      Security.removeProvider(jceProvider.name)
-    }
-
     private val logger = Logger.getLogger(this::class.java.name)
+
+    init {
+      // Ensure that JCE provider is installed before Kubernetes API client is instantiated.
+      checkNotNull(Security.getProvider(jceProvider.name)) {
+        "JCE provider ${jceProvider.name} is not installed"
+      }
+    }
 
     private const val SERVER_PORT: Int = 8443
     private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
@@ -484,7 +486,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
     private val measurementSystem =
       LocalMeasurementSystem(
-        lazy { KubernetesClient(ClientBuilder.defaultClient()) },
+        lazy { KubernetesClientImpl(ClientBuilder.defaultClient()) },
         lazy { tempDir },
         lazy { UUID.randomUUID().toString() },
       )

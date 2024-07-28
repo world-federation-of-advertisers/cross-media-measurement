@@ -185,8 +185,9 @@ class GrpcApiClientTest {
     return GrpcApiClient(identity, exchangeStepsStub, exchangeStepAttemptsStub, clock)
   }
 
-  private fun makeLimitedClient(identity: Identity = DATA_PROVIDER_IDENTITY): GrpcApiClient {
-    return GrpcApiClient(identity, exchangeStepsStub, exchangeStepAttemptsStub, clock, 1)
+  private fun makeLimitedClient(identity: Identity = DATA_PROVIDER_IDENTITY): ApiClient {
+    return GrpcApiClient(identity, exchangeStepsStub, exchangeStepAttemptsStub, clock)
+      .withMaxParallelClaimedExchangeSteps(1)
   }
 
   private fun makeLogEntry(message: String): V2AlphaExchangeStepAttempt.DebugLogEntry {
