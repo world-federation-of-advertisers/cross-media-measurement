@@ -103,18 +103,20 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 }
 
 #Deployment: Deployment={
-	_name:       string
-	_secretName: string
-	_ports:      [{containerPort: #GrpcServicePort}] | *[]
-	_component:  string
-	_jvmFlags:   string | *""
+	_name:        string
+	_secretName?: string
+	_ports:       [{containerPort: #GrpcServicePort}] | *[]
+	_component:   string
+	_jvmFlags:    string | *""
 	_dependencies: [...string]
 	_configMapMounts: [...#ConfigMapMount]
 	_podSpec: #PodSpec & {
-		_secretMounts: [{
-			name:       _name + "-files"
-			secretName: _secretName
-		}]
+		if _secretName != _|_ {
+			_secretMounts: [{
+				name:       _name + "-files"
+				secretName: _secretName
+			}]
+		}
 		_configMapMounts: Deployment._configMapMounts
 
 		restartPolicy?: string | "Always"

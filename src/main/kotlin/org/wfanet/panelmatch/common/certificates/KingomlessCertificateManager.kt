@@ -44,7 +44,7 @@ class KingdomlessCertificateManager(
   private val algorithm: String,
   private val certificateAuthority: CertificateAuthority,
   private val fallbackPrivateKeyBlobKey: String? = null,
-  private val getSharedStorage: (ExchangeDateKey) -> StorageClient,
+  private val getSharedStorage: suspend (ExchangeDateKey) -> StorageClient,
 ) : CertificateManager {
 
   private val x509CertCache = ConcurrentHashMap<String, X509Certificate>()

@@ -1,7 +1,7 @@
-load("//build:variables.bzl", "EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG")
 load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
-load("//src/main/k8s:macros.bzl", "cue_dump")
+load("//build:variables.bzl", "EXAMPLE_KINGDOMLESS_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG", "EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG")
 load("//build/k8s:defs.bzl", "kustomization_dir")
+load("//src/main/k8s:macros.bzl", "cue_dump")
 
 SECRET_NAME = "certs-and-configs"
 
@@ -130,4 +130,58 @@ kustomization_dir(
     generate_kustomization = True,
     tags = ["manual"],
     deps = [":mp_daemon_secret"],
+)
+
+cue_library(
+    name = "example_kingdomless_daemon_gke",
+    srcs = ["example_kingdomless_daemon_gke.cue"],
+    deps = [":base_gke"],
+)
+
+cue_dump(
+    name = "example_kingdomless_edp_daemon_gke",
+    srcs = ["example_kingdomless_edp_daemon_gke.cue"],
+    cue_tags = {
+        "party_id": EXAMPLE_KINGDOMLESS_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_id,
+        "recurring_exchange_ids": EXAMPLE_KINGDOMLESS_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.recurring_exchange_ids,
+    },
+    tags = ["manual"],
+    deps = [
+        ":example_kingdomless_daemon_gke",
+        "//src/main/k8s:config",
+    ],
+)
+
+kustomization_dir(
+    name = "edp_kingdomless_daemon_gke",
+    srcs = [
+        "resource_requirements.yaml",
+        ":example_kingdomless_edp_daemon_gke",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+)
+
+cue_dump(
+    name = "example_kingdomless_mp_daemon_gke",
+    srcs = ["example_kingdomless_mp_daemon_gke.cue"],
+    cue_tags = {
+        "party_id": EXAMPLE_KINGDOMLESS_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_id,
+        "recurring_exchange_ids": EXAMPLE_KINGDOMLESS_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.recurring_exchange_ids,
+    },
+    tags = ["manual"],
+    deps = [
+        ":example_kingdomless_daemon_gke",
+        "//src/main/k8s:config",
+    ],
+)
+
+kustomization_dir(
+    name = "mp_kingdomless_daemon_gke",
+    srcs = [
+        "resource_requirements.yaml",
+        ":example_kingdomless_mp_daemon_gke",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
 )
