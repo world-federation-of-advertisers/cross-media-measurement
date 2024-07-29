@@ -1,0 +1,36 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.duchy.protocol;
+
+option java_package = "org.wfanet.measurement.internal.duchy.protocol";
+option java_multiple_files = true;
+
+// Parameters used for the FrequencyVector of HonestMajorityShareShuffle
+// protocol creation and estimation.
+message ShareShuffleFrequencyVectorParams {
+  // The number of registers in the FrequencyVector.
+  int64 register_count = 1;
+
+  // The maximum frequency of the combined FrequencyVector. Let N be the max
+  // frequency, and p the number of EDPs, the maximum frequency of the combined
+  // FrequencyVector is (1 + pN).
+  int32 maximum_combined_frequency = 2;
+
+  // The modulus used in the MPC protocol. It is required to be greater than
+  // (1 + maximum_frequency).
+  int32 ring_modulus = 3;
+}

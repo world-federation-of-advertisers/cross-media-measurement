@@ -53,17 +53,17 @@ using ::wfa::measurement::internal::duchy::protocol::common::
 
 constexpr int kEdpCount = 5;
 constexpr int kRegisterCount = 10;
-constexpr int kBytesPerRegister = 1;
 constexpr int kMaxFrequencyPerEdp = 10;
 constexpr int kMaxCombinedFrequency = 1 + kEdpCount * kMaxFrequencyPerEdp;
 constexpr int kRingModulus = 128;
 constexpr double kEpsilon = 1.0;
 constexpr double kDelta = 0.000001;
 
-TEST(GenerateReachAndFrequencyNoiseRegisters, InvalidSketchParamsFails) {
-  ShareShuffleSketchParams sketch_params;
-  sketch_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
-  sketch_params.set_ring_modulus(kMaxCombinedFrequency + 1);
+TEST(GenerateReachAndFrequencyNoiseRegisters,
+     InvalidFrequencyVectorParamsFails) {
+  ShareShuffleFrequencyVectorParams frequency_vector_params;
+  frequency_vector_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
+  frequency_vector_params.set_ring_modulus(kMaxCombinedFrequency + 1);
   DifferentialPrivacyParams dp_params;
   dp_params.set_epsilon(kEpsilon);
   dp_params.set_delta(kDelta);
@@ -74,17 +74,18 @@ TEST(GenerateReachAndFrequencyNoiseRegisters, InvalidSketchParamsFails) {
       dp_params,
       /*contributors_count=*/2, NoiseMechanism::DISCRETE_GAUSSIAN);
   EXPECT_THAT(
-      GenerateReachAndFrequencyNoiseRegisters(sketch_params, *reach_noiser,
-                                              *frequency_noiser)
+      GenerateReachAndFrequencyNoiseRegisters(frequency_vector_params,
+                                              *reach_noiser, *frequency_noiser)
           .status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
                "must be greater than maximum combined frequency plus 1"));
 }
 
-TEST(GenerateReachAndFrequencyNoiseRegisters, ValidSketchParamsSucceeds) {
-  ShareShuffleSketchParams sketch_params;
-  sketch_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
-  sketch_params.set_ring_modulus(kRingModulus);
+TEST(GenerateReachAndFrequencyNoiseRegisters,
+     ValidFrequencyVectorParamsSucceeds) {
+  ShareShuffleFrequencyVectorParams frequency_vector_params;
+  frequency_vector_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
+  frequency_vector_params.set_ring_modulus(kRingModulus);
   DifferentialPrivacyParams reach_dp_params;
   reach_dp_params.set_epsilon(kEpsilon / 10.0);
   reach_dp_params.set_delta(kDelta);
@@ -99,32 +100,36 @@ TEST(GenerateReachAndFrequencyNoiseRegisters, ValidSketchParamsSucceeds) {
       /*contributors_count=*/2, NoiseMechanism::DISCRETE_GAUSSIAN);
   int total_noise_for_reach = reach_noiser->options().shift_offset * 2;
   int total_noise_per_frequency = frequency_noiser->options().shift_offset * 2;
-  int total_noise =
-      total_noise_for_reach +
-      sketch_params.maximum_combined_frequency() * total_noise_per_frequency;
-  ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> noise_registers,
-                       GenerateReachAndFrequencyNoiseRegisters(
-                           sketch_params, *reach_noiser, *frequency_noiser));
+  int total_noise = total_noise_for_reach +
+                    frequency_vector_params.maximum_combined_frequency() *
+                        total_noise_per_frequency;
+  ASSERT_OK_AND_ASSIGN(
+      std::vector<uint32_t> noise_registers,
+      GenerateReachAndFrequencyNoiseRegisters(
+          frequency_vector_params, *reach_noiser, *frequency_noiser));
   std::unordered_map<int, int> noise_frequency;
   for (auto x : noise_registers) {
     noise_frequency[x]++;
   }
   EXPECT_THAT(noise_registers, SizeIs(total_noise));
   EXPECT_LE(noise_frequency[0], total_noise_for_reach);
-  for (int i = 1; i <= sketch_params.maximum_combined_frequency(); i++) {
+  for (int i = 1; i <= frequency_vector_params.maximum_combined_frequency();
+       i++) {
     EXPECT_LE(noise_frequency[i], total_noise_per_frequency);
   }
   int sentinel_count = total_noise;
-  for (int i = 0; i <= sketch_params.maximum_combined_frequency(); i++) {
+  for (int i = 0; i <= frequency_vector_params.maximum_combined_frequency();
+       i++) {
     sentinel_count -= noise_frequency[i];
   }
-  EXPECT_EQ(noise_frequency[sketch_params.ring_modulus() - 1], sentinel_count);
+  EXPECT_EQ(noise_frequency[frequency_vector_params.ring_modulus() - 1],
+            sentinel_count);
 }
 
-TEST(GenerateReachOnlyNoiseRegisters, InvalidSketchParamsFails) {
-  ShareShuffleSketchParams sketch_params;
-  sketch_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
-  sketch_params.set_ring_modulus(kMaxCombinedFrequency + 1);
+TEST(GenerateReachOnlyNoiseRegisters, InvalidFrequencyVectorParamsFails) {
+  ShareShuffleFrequencyVectorParams frequency_vector_params;
+  frequency_vector_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
+  frequency_vector_params.set_ring_modulus(kMaxCombinedFrequency + 1);
   DifferentialPrivacyParams dp_params;
   dp_params.set_epsilon(kEpsilon);
   dp_params.set_delta(kDelta);
@@ -132,15 +137,16 @@ TEST(GenerateReachOnlyNoiseRegisters, InvalidSketchParamsFails) {
                                         /*contributors_count=*/2,
                                         NoiseMechanism::DISCRETE_GAUSSIAN);
   EXPECT_THAT(
-      GenerateReachOnlyNoiseRegisters(sketch_params, *noiser).status(),
+      GenerateReachOnlyNoiseRegisters(frequency_vector_params, *noiser)
+          .status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
                "must be greater than maximum combined frequency plus 1"));
 }
 
-TEST(GenerateReachOnlyNoiseRegisters, ValidSketchParamsSucceeds) {
-  ShareShuffleSketchParams sketch_params;
-  sketch_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
-  sketch_params.set_ring_modulus(kRingModulus);
+TEST(GenerateReachOnlyNoiseRegisters, ValidFrequencyVectorParamsSucceeds) {
+  ShareShuffleFrequencyVectorParams frequency_vector_params;
+  frequency_vector_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
+  frequency_vector_params.set_ring_modulus(kRingModulus);
   DifferentialPrivacyParams dp_params;
   dp_params.set_epsilon(kEpsilon);
   dp_params.set_delta(kDelta);
@@ -148,57 +154,57 @@ TEST(GenerateReachOnlyNoiseRegisters, ValidSketchParamsSucceeds) {
                                         /*contributors_count=*/2,
                                         NoiseMechanism::DISCRETE_GAUSSIAN);
   int total_noise = noiser->options().shift_offset * 2;
-  ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> noise_registers,
-                       GenerateReachOnlyNoiseRegisters(sketch_params, *noiser));
+  ASSERT_OK_AND_ASSIGN(
+      std::vector<uint32_t> noise_registers,
+      GenerateReachOnlyNoiseRegisters(frequency_vector_params, *noiser));
 
   EXPECT_THAT(noise_registers, SizeIs(total_noise));
 }
 
-TEST(GetShareVectorFromSketchShare, SketchShareTypeNotSetFails) {
-  ShareShuffleSketchParams sketch_params;
-  sketch_params.set_register_count(kRegisterCount);
-  sketch_params.set_bytes_per_register(kBytesPerRegister);
-  sketch_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
-  sketch_params.set_ring_modulus(kRingModulus);
+TEST(GetShareVectorFromFrequencyVectorShare,
+     FrequencyVectorShareTypeNotSetFails) {
+  ShareShuffleFrequencyVectorParams frequency_vector_params;
+  frequency_vector_params.set_register_count(kRegisterCount);
+  frequency_vector_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
+  frequency_vector_params.set_ring_modulus(kRingModulus);
 
-  CompleteShufflePhaseRequest::SketchShare sketch_share;
-  EXPECT_THAT(
-      GetShareVectorFromSketchShare(sketch_params, sketch_share).status(),
-      StatusIs(absl::StatusCode::kInvalidArgument, "Share type"));
+  CompleteShufflePhaseRequest::FrequencyVectorShare frequency_vector_share;
+  EXPECT_THAT(GetShareVectorFromFrequencyVectorShare(frequency_vector_params,
+                                                     frequency_vector_share)
+                  .status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "Share type"));
 }
 
-TEST(GetShareVectorFromSketchShare, ShareFromShareDataSucceeds) {
-  ShareShuffleSketchParams sketch_params;
-  sketch_params.set_register_count(kRegisterCount);
-  sketch_params.set_bytes_per_register(kBytesPerRegister);
-  sketch_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
-  sketch_params.set_ring_modulus(kRingModulus);
+TEST(GetShareVectorFromFrequencyVectorShare, ShareFromShareDataSucceeds) {
+  ShareShuffleFrequencyVectorParams frequency_vector_params;
+  frequency_vector_params.set_register_count(kRegisterCount);
+  frequency_vector_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
+  frequency_vector_params.set_ring_modulus(kRingModulus);
 
-  CompleteShufflePhaseRequest::SketchShare sketch_share;
-  std::vector<uint32_t> share_data(0, sketch_params.register_count());
-  sketch_share.mutable_data()->mutable_values()->Add(share_data.begin(),
-                                                     share_data.end());
-  ASSERT_OK_AND_ASSIGN(
-      std::vector<uint32_t> share_vector,
-      GetShareVectorFromSketchShare(sketch_params, sketch_share));
+  CompleteShufflePhaseRequest::FrequencyVectorShare frequency_vector_share;
+  std::vector<uint32_t> share_data(0, frequency_vector_params.register_count());
+  frequency_vector_share.mutable_data()->mutable_values()->Add(
+      share_data.begin(), share_data.end());
+  ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> share_vector,
+                       GetShareVectorFromFrequencyVectorShare(
+                           frequency_vector_params, frequency_vector_share));
   EXPECT_EQ(share_vector, share_data);
 }
 
-TEST(GetShareVectorFromSketchShare, ShareFromShareSeedSucceeds) {
-  ShareShuffleSketchParams sketch_params;
-  sketch_params.set_register_count(kRegisterCount);
-  sketch_params.set_bytes_per_register(kBytesPerRegister);
-  sketch_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
-  sketch_params.set_ring_modulus(kRingModulus);
+TEST(GetShareVectorFromFrequencyVectorShare, ShareFromShareSeedSucceeds) {
+  ShareShuffleFrequencyVectorParams frequency_vector_params;
+  frequency_vector_params.set_register_count(kRegisterCount);
+  frequency_vector_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
+  frequency_vector_params.set_ring_modulus(kRingModulus);
 
-  CompleteShufflePhaseRequest::SketchShare sketch_share;
-  std::vector<uint32_t> share_data(0, sketch_params.register_count());
-  *sketch_share.mutable_seed() =
+  CompleteShufflePhaseRequest::FrequencyVectorShare frequency_vector_share;
+  std::vector<uint32_t> share_data(0, frequency_vector_params.register_count());
+  *frequency_vector_share.mutable_seed() =
       std::string(kBytesPerAes256Key + kBytesPerAes256Iv, 'a');
-  ASSERT_OK_AND_ASSIGN(
-      std::vector<uint32_t> share_vector,
-      GetShareVectorFromSketchShare(sketch_params, sketch_share));
-  EXPECT_THAT(share_vector, SizeIs(sketch_params.register_count()));
+  ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> share_vector,
+                       GetShareVectorFromFrequencyVectorShare(
+                           frequency_vector_params, frequency_vector_share));
+  EXPECT_THAT(share_vector, SizeIs(frequency_vector_params.register_count()));
 }
 
 TEST(GetPrngSeedFromString, InvalidStringLengthFails) {
@@ -226,32 +232,32 @@ TEST(GetPrngSeedFromCharVector, ValidVectorLengthSucceeds) {
 }
 
 TEST(GenerateShareFromSeed, InvalidSeedFails) {
-  ShareShuffleSketchParams sketch_params;
-  sketch_params.set_register_count(kRegisterCount);
-  sketch_params.set_bytes_per_register(kBytesPerRegister);
-  sketch_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
-  sketch_params.set_ring_modulus(kRingModulus);
+  ShareShuffleFrequencyVectorParams frequency_vector_params;
+  frequency_vector_params.set_register_count(kRegisterCount);
+  frequency_vector_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
+  frequency_vector_params.set_ring_modulus(kRingModulus);
   PrngSeed seed;
   *seed.mutable_key() = std::string(kBytesPerAes256Key - 1, 'a');
   *seed.mutable_iv() = std::string(kBytesPerAes256Iv, 'b');
-  EXPECT_THAT(GenerateShareFromSeed(sketch_params, seed).status(),
+  EXPECT_THAT(GenerateShareFromSeed(frequency_vector_params, seed).status(),
               StatusIs(absl::StatusCode::kInvalidArgument, ""));
 }
 
 TEST(GenerateShareFromSeed, ValidSeedSucceeds) {
-  ShareShuffleSketchParams sketch_params;
-  sketch_params.set_register_count(kRegisterCount);
-  sketch_params.set_bytes_per_register(kBytesPerRegister);
-  sketch_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
-  sketch_params.set_ring_modulus(kRingModulus);
+  ShareShuffleFrequencyVectorParams frequency_vector_params;
+  frequency_vector_params.set_register_count(kRegisterCount);
+  frequency_vector_params.set_maximum_combined_frequency(kMaxCombinedFrequency);
+  frequency_vector_params.set_ring_modulus(kRingModulus);
   PrngSeed seed;
   *seed.mutable_key() = std::string(kBytesPerAes256Key, 'a');
   *seed.mutable_iv() = std::string(kBytesPerAes256Iv, 'b');
   ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> share_vector_from_seed,
-                       GenerateShareFromSeed(sketch_params, seed));
-  ASSERT_EQ(share_vector_from_seed.size(), sketch_params.register_count());
+                       GenerateShareFromSeed(frequency_vector_params, seed));
+  ASSERT_EQ(share_vector_from_seed.size(),
+            frequency_vector_params.register_count());
   for (int i = 0; i < share_vector_from_seed.size(); i++) {
-    EXPECT_LE(share_vector_from_seed[i], sketch_params.ring_modulus());
+    EXPECT_LE(share_vector_from_seed[i],
+              frequency_vector_params.ring_modulus());
   }
 }
 
@@ -358,69 +364,74 @@ TEST(EstimateReach, ValidInputSucceeds) {
   EXPECT_EQ(reach_2, 10);
 }
 
-TEST(CombineSketchShares, EmptySketchSharesFails) {
-  ShareShuffleSketchParams sketch_params;
-  sketch_params.set_ring_modulus(kRingModulus);
+TEST(CombineFrequencyVectorShares, EmptyFrequencyVectorSharesFails) {
+  ShareShuffleFrequencyVectorParams frequency_vector_params;
+  frequency_vector_params.set_ring_modulus(kRingModulus);
   CompleteAggregationPhaseRequest request;
-  EXPECT_THAT(
-      CombineSketchShares(sketch_params, request.sketch_shares()).status(),
-      StatusIs(absl::StatusCode::kInvalidArgument, "at least one"));
+  EXPECT_THAT(CombineFrequencyVectorShares(frequency_vector_params,
+                                           request.frequency_vector_shares())
+                  .status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "at least one"));
 }
 
-TEST(CombineSketchShares, InvalidRingModulusFails) {
-  ShareShuffleSketchParams sketch_params;
-  sketch_params.set_ring_modulus(1);
+TEST(CombineFrequencyVectorShares, InvalidRingModulusFails) {
+  ShareShuffleFrequencyVectorParams frequency_vector_params;
+  frequency_vector_params.set_ring_modulus(1);
   CompleteAggregationPhaseRequest request;
-  request.add_sketch_shares()->mutable_share_vector()->Add(1);
-  EXPECT_THAT(
-      CombineSketchShares(sketch_params, request.sketch_shares()).status(),
-      StatusIs(absl::StatusCode::kInvalidArgument, "modulus"));
+  request.add_frequency_vector_shares()->mutable_share_vector()->Add(1);
+  EXPECT_THAT(CombineFrequencyVectorShares(frequency_vector_params,
+                                           request.frequency_vector_shares())
+                  .status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "modulus"));
 }
 
-TEST(CombineSketchShares, InvalidInputShareFails) {
-  ShareShuffleSketchParams sketch_params;
-  sketch_params.set_ring_modulus(kRingModulus);
+TEST(CombineFrequencyVectorShares, InvalidInputShareFails) {
+  ShareShuffleFrequencyVectorParams frequency_vector_params;
+  frequency_vector_params.set_ring_modulus(kRingModulus);
   CompleteAggregationPhaseRequest request;
   std::vector<uint32_t> share_vector_1 = {1, 0, 1, 0, 1};
   std::vector<uint32_t> share_vector_2 = {kRingModulus, 1, 0, 1, 0};
-  request.add_sketch_shares()->mutable_share_vector()->Add(
+  request.add_frequency_vector_shares()->mutable_share_vector()->Add(
       share_vector_1.begin(), share_vector_1.end());
-  request.add_sketch_shares()->mutable_share_vector()->Add(
+  request.add_frequency_vector_shares()->mutable_share_vector()->Add(
       share_vector_2.begin(), share_vector_2.end());
-  EXPECT_THAT(
-      CombineSketchShares(sketch_params, request.sketch_shares()).status(),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               "must be less than the modulus"));
+  EXPECT_THAT(CombineFrequencyVectorShares(frequency_vector_params,
+                                           request.frequency_vector_shares())
+                  .status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       "must be less than the modulus"));
 }
 
-TEST(CombineSketchShares, InputSharesHaveDifferentLengthFails) {
-  ShareShuffleSketchParams sketch_params;
-  sketch_params.set_ring_modulus(kRingModulus);
+TEST(CombineFrequencyVectorShares, InputSharesHaveDifferentLengthFails) {
+  ShareShuffleFrequencyVectorParams frequency_vector_params;
+  frequency_vector_params.set_ring_modulus(kRingModulus);
   CompleteAggregationPhaseRequest request;
   std::vector<uint32_t> share_vector_1 = {0, 1, 0, 1, 3};
   std::vector<uint32_t> share_vector_2 = {2, 1, 0, 1, 0, 5};
-  request.add_sketch_shares()->mutable_share_vector()->Add(
+  request.add_frequency_vector_shares()->mutable_share_vector()->Add(
       share_vector_1.begin(), share_vector_1.end());
-  request.add_sketch_shares()->mutable_share_vector()->Add(
+  request.add_frequency_vector_shares()->mutable_share_vector()->Add(
       share_vector_2.begin(), share_vector_2.end());
-  EXPECT_THAT(
-      CombineSketchShares(sketch_params, request.sketch_shares()).status(),
-      StatusIs(absl::StatusCode::kInvalidArgument, "length"));
+  EXPECT_THAT(CombineFrequencyVectorShares(frequency_vector_params,
+                                           request.frequency_vector_shares())
+                  .status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "length"));
 }
 
-TEST(CombineSketchShares, ValidInputSharesAndParamsSucceeds) {
-  ShareShuffleSketchParams sketch_params;
-  sketch_params.set_ring_modulus(10);
+TEST(CombineFrequencyVectorShares, ValidInputSharesAndParamsSucceeds) {
+  ShareShuffleFrequencyVectorParams frequency_vector_params;
+  frequency_vector_params.set_ring_modulus(10);
   CompleteAggregationPhaseRequest request;
   std::vector<uint32_t> share_vector_1 = {1, 0, 1, 0, 1};
   std::vector<uint32_t> share_vector_2 = {5, 1, 0, 1, 0};
-  request.add_sketch_shares()->mutable_share_vector()->Add(
+  request.add_frequency_vector_shares()->mutable_share_vector()->Add(
       share_vector_1.begin(), share_vector_1.end());
-  request.add_sketch_shares()->mutable_share_vector()->Add(
+  request.add_frequency_vector_shares()->mutable_share_vector()->Add(
       share_vector_2.begin(), share_vector_2.end());
   ASSERT_OK_AND_ASSIGN(
       auto combined_share,
-      CombineSketchShares(sketch_params, request.sketch_shares()));
+      CombineFrequencyVectorShares(frequency_vector_params,
+                                   request.frequency_vector_shares()));
 }
 
 }  // namespace

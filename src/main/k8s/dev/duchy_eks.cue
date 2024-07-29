@@ -56,7 +56,7 @@ _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 	}
 }
 #Llv2MillMaxHeapSize:          "1G"
-#Llv2MillReplicas:             1
+#Llv2MillMaxConcurrency:       10
 #HmssMillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "2"
@@ -89,23 +89,17 @@ _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 }
 #ControlServiceMaxHeapSize: "320M"
 
-objectSets: [
-	default_deny_ingress_and_egress,
-	duchy.deployments,
-	duchy.services,
-	duchy.networkPolicies,
-	duchy.cronjobs,
-]
+objectSets: [default_deny_ingress_and_egress] + [ for objectSet in duchy {objectSet}]
 
 duchy: #PostgresDuchy & {
 	_imageSuffixes: {
-		"herald-daemon":                             "duchy/aws-herald"
-		"computation-control-server":                "duchy/aws-computation-control"
-		"liquid-legions-v2-mill-daemon":             "duchy/aws-liquid-legions-v2-mill"
-		"honest-majority-share-shuffle-mill-daemon": "duchy/aws-honest-majority-share-shuffle-mill"
-		"requisition-fulfillment-server":            "duchy/aws-requisition-fulfillment"
-		"internal-api-server":                       "duchy/aws-postgres-internal-server"
-		"update-duchy-schema":                       "duchy/aws-postgres-update-schema"
+		"herald-daemon":                  "duchy/aws-herald"
+		"computation-control-server":     "duchy/aws-computation-control"
+		"llv2-mill":                      "duchy/aws-liquid-legions-v2-mill"
+		"hmss-mill-daemon":               "duchy/aws-honest-majority-share-shuffle-mill"
+		"requisition-fulfillment-server": "duchy/aws-requisition-fulfillment"
+		"internal-api-server":            "duchy/aws-postgres-internal-server"
+		"update-duchy-schema":            "duchy/aws-postgres-update-schema"
 	}
 	_duchy: {
 		name:                      _duchyName
@@ -119,11 +113,14 @@ duchy: #PostgresDuchy & {
 		"worker1":    _worker1SystemApiTarget
 		"worker2":    _worker2SystemApiTarget
 	}
-	_kingdom_system_api_target: #KingdomSystemApiTarget
-	_kingdom_public_api_target: #KingdomPublicApiTarget
-	_blob_storage_flags:        #AwsS3Config.flags
-	_verbose_grpc_logging:      "false"
-	_postgresConfig:            #AwsPostgresConfig
+	_kingdom_system_api_target:       #KingdomSystemApiTarget
+	_kingdom_public_api_target:       #KingdomPublicApiTarget
+	_blob_storage_flags:              #AwsS3Config.flags
+	_verbose_grpc_logging:            "false"
+	_duchyMillParallelism:            4
+	_liquidLegionsV2WorkLockDuration: "10m"
+	_postgresConfig:                  #AwsPostgresConfig
+
 	services: {
 		"requisition-fulfillment-server": _eipAllocations: _publicApiEipAllocs
 		"computation-control-server": _eipAllocations:     _systemApiEipAllocs
@@ -138,20 +135,10 @@ duchy: #PostgresDuchy & {
 				serviceAccountName: #StorageServiceAccount
 			}
 		}
-		"liquid-legions-v2-mill-daemon-deployment": {
-			_workLockDuration: "10m"
-			_container: {
-				_javaOptions: maxHeapSize: #Llv2MillMaxHeapSize
-				resources: #Llv2MillResourceRequirements
-			}
-			spec: {
-				replicas: #Llv2MillReplicas
-				template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
-					serviceAccountName: #StorageServiceAccount
-				}
-			}
+		"mill-job-scheduler-deployment": {
+			_liquidLegionsV2MaxConcurrency: #Llv2MillMaxConcurrency
 		}
-		"honest-majority-share-shuffle-mill-daemon-deployment": {
+		"hmss-mill-daemon-deployment": {
 			_workLockDuration: "5m"
 			_container: {
 				_javaOptions: maxHeapSize: #HmssMillMaxHeapSize
@@ -188,6 +175,17 @@ duchy: #PostgresDuchy & {
 			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalServerServiceAccount
+			}
+		}
+	}
+	podTemplates: {
+		"llv2-mill": {
+			_container: {
+				_javaOptions: maxHeapSize: #Llv2MillMaxHeapSize
+				resources: #Llv2MillResourceRequirements
+			}
+			template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
+				serviceAccountName: #StorageServiceAccount
 			}
 		}
 	}

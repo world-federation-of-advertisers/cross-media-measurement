@@ -20,7 +20,7 @@ import "google/protobuf/duration.proto";
 
 import "wfa/measurement/internal/duchy/differential_privacy.proto";
 import "wfa/measurement/internal/duchy/noise_mechanism.proto";
-import "wfa/measurement/internal/duchy/protocol/share_shuffle_sketch_params.proto";
+import "wfa/measurement/internal/duchy/protocol/share_shuffle_frequency_vector_params.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy.protocol";
 option java_multiple_files = true;
@@ -31,8 +31,8 @@ option java_multiple_files = true;
 
 // Request to complete shuffle phase by a non-aggregator.
 message CompleteShufflePhaseRequest {
-  // The sketch params for the Computation.
-  ShareShuffleSketchParams sketch_params = 1;
+  // The frequency_vector params for the Computation.
+  ShareShuffleFrequencyVectorParams frequency_vector_params = 1;
 
   // Common random seed between the workers.
   bytes common_random_seed = 2;
@@ -60,11 +60,11 @@ message CompleteShufflePhaseRequest {
   // Noise mechanism used for generating noise.
   NoiseMechanism noise_mechanism = 6;
 
-  // Sketch shares from EDPs in format of either data or seed.
+  // FrequencyVector shares from EDPs in format of either data or seed.
   //
   // Sorted by ExternalRequisitionId so that non-aggregators follow the same
   // order.
-  message SketchShare {
+  message FrequencyVectorShare {
     message ShareData {
       repeated uint32 values = 1;
     }
@@ -73,32 +73,32 @@ message CompleteShufflePhaseRequest {
       bytes seed = 2;
     }
   }
-  // Sketch shares ordered by the external key.
-  repeated SketchShare sketch_shares = 9;
+  // FrequencyVector shares ordered by the external key.
+  repeated FrequencyVectorShare frequency_vector_shares = 9;
 }
 
 // For non-aggregator.
 // The content will be sent to the aggregator.
 message CompleteShufflePhaseResponse {
-  // Combination of sketches. It is combined, noisy, and shuffled.
-  repeated uint32 combined_sketch = 1;
+  // Combination of frequency_vectors. It is combined, noisy, and shuffled.
+  repeated uint32 combined_frequency_vector = 1;
   // The CPU time of processing the request.
   google.protobuf.Duration elapsed_cpu_duration = 2;
 }
 
 // For aggregators.
 message CompleteAggregationPhaseRequest {
-  // The sketch params for the Computation.
-  ShareShuffleSketchParams sketch_params = 1;
+  // The frequency_vector params for the Computation.
+  ShareShuffleFrequencyVectorParams frequency_vector_params = 1;
 
   // The maximum frequency to reveal in the histogram.
   int32 maximum_frequency = 2;
 
-  // Combined sketches from non-aggregators.
+  // Combined frequency_vectors from non-aggregators.
   message ShareData {
     repeated uint32 share_vector = 1;
   }
-  repeated ShareData sketch_shares = 3;
+  repeated ShareData frequency_vector_shares = 3;
 
   // The sampling rate to be used by the HMSS protocol.
   // This is taken from the VidSamplingInterval.width parameter in the

@@ -1256,7 +1256,7 @@ class EdpSimulator(
 
     val secretShareGeneratorRequest = secretShareGeneratorRequest {
       data += frequencyVector.toList()
-      ringModulus = protocolConfig.sketchParams.ringModulus
+      ringModulus = protocolConfig.ringModulus
     }
 
     val secretShare =

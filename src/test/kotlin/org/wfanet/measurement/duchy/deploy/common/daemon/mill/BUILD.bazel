@@ -1,0 +1,16 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "MillJobSchedulerTest",
+    srcs = ["MillJobSchedulerTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.deploy.common.daemon.mill.MillJobSchedulerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill:job_scheduler",
+        "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
