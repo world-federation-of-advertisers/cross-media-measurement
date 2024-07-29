@@ -16,7 +16,6 @@ package org.wfanet.panelmatch.client.launcher
 
 import com.google.protobuf.kotlin.unpack
 import java.time.Clock
-import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -45,9 +44,7 @@ class GrpcApiClient(
   private val exchangeStepsClient: ExchangeStepsCoroutineStub,
   private val exchangeStepAttemptsClient: ExchangeStepAttemptsCoroutineStub,
   private val clock: Clock = Clock.systemUTC(),
-  maxClaimedExchangeSteps: Int? = null,
 ) : ApiClient {
-  private val semaphore = maxClaimedExchangeSteps?.let { maxSteps -> Semaphore(maxSteps) }
 
   private val recurringExchangeParentKey: RecurringExchangeParentKey =
     when (identity.party) {
@@ -58,16 +55,11 @@ class GrpcApiClient(
     }
 
   override suspend fun claimExchangeStep(): ClaimedExchangeStep? {
-    if (semaphore != null) {
-      val semaphoreAcquired = semaphore.tryAcquire()
-      if (!semaphoreAcquired) return null
-    }
     val response: ClaimReadyExchangeStepResponse =
       exchangeStepsClient.claimReadyExchangeStep(
         claimReadyExchangeStepRequest { parent = recurringExchangeParentKey.toName() }
       )
     if (!response.hasExchangeStep()) {
-      semaphore?.release()
       return null
     }
 
@@ -99,7 +91,6 @@ class GrpcApiClient(
     finalState: ExchangeStepAttempt.State,
     logEntryMessages: Iterable<String>,
   ) {
-    semaphore?.release()
     val request = finishExchangeStepAttemptRequest {
       name = key.toResourceName()
       this.finalState = finalState.toV2Alpha()
