@@ -170,6 +170,8 @@ object Covariances {
         }
       }
       is HonestMajorityShareShuffleMethodology -> {
+        // TODO(@ple13): When implement HMSS covariances, also add test case for wrapping
+        // sampling interval.
         throw IllegalArgumentException("Unsupported methodology.")
       }
     }
