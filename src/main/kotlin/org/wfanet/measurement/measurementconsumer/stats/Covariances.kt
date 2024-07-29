@@ -198,7 +198,7 @@ object Covariances {
     val end = this.start + this.width
 
     return if (end > 1.0) {
-      listOf(0.0..start, end..1.0)
+      listOf(0.0..(end - 1.0), start..1.0)
     } else {
       listOf(start..end)
     }
