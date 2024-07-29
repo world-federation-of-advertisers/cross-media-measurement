@@ -68,7 +68,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 	}
 }
 #HmssMillMaxHeapSize:             "5G"
-#HmssMillReplicas:                1
+#HmssMillMaxConcurrency:          5
 #FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "200m"
@@ -150,19 +150,6 @@ duchy: #SpannerDuchy & {
 		"mill-job-scheduler-deployment": {
 			_liquidLegionsV2MaxConcurrency: #Llv2MillMaxConcurrency
 		}
-		"hmss-mill-daemon-deployment": {
-			_workLockDuration: "5m"
-			_container: {
-				_javaOptions: maxHeapSize: #HmssMillMaxHeapSize
-				resources: #HmssMillResourceRequirements
-			}
-			spec: {
-				replicas: #HmssMillReplicas
-				template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
-					serviceAccountName: #StorageServiceAccount
-				}
-			}
-		}
 		"computation-control-server-deployment": {
 			_container: {
 				_javaOptions: maxHeapSize: #ControlServiceMaxHeapSize
@@ -196,6 +183,17 @@ duchy: #SpannerDuchy & {
 			}
 			template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
 				serviceAccountName: #StorageServiceAccount
+			}
+		}
+		"hmss-mill": {
+			_container: {
+				_javaOptions: maxHeapSize: #HmssMillMaxHeapSize
+				resources: #HmssMillResourceRequirements
+			}
+			spec: {
+				template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
+					serviceAccountName: #StorageServiceAccount
+				}
 			}
 		}
 	}

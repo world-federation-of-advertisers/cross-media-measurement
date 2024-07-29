@@ -12,26 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.common.daemon.mill.shareshuffle
+package org.wfanet.measurement.duchy.deploy.gcloud.job.mill.shareshuffle
 
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
+import org.wfanet.measurement.duchy.deploy.common.job.mill.shareshuffle.HonestMajorityShareShuffleMillJob
+import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
+import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import picocli.CommandLine
 
 @CommandLine.Command(
-  name = "ForwardedStorageHonestMajorityShareShuffleMillDaemon",
-  description = ["HonestMajorityShareShuffle Mill daemon."],
+  name = "GcsHonestMajorityShareShuffleMillJob",
+  description = ["Honest Majority Share Shuffle Mill"],
   mixinStandardHelpOptions = true,
   showDefaultValues = true,
 )
-class ForwardedStorageHonestMajorityShareShuffleMillDaemon :
-  HonestMajorityShareShuffleMillDaemon() {
-  @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
+class GcsHonestMajorityShareShuffleMillJob : HonestMajorityShareShuffleMillJob() {
+  @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
 
   override fun run() {
-    run(ForwardedStorageFromFlags(forwardedStorageFlags, flags.tlsFlags).storageClient)
+    val gcs = GcsFromFlags(gcsFlags)
+    run(GcsStorageClient.fromFlags(gcs))
   }
 }
 
-fun main(args: Array<String>) =
-  commandLineMain(ForwardedStorageHonestMajorityShareShuffleMillDaemon(), args)
+fun main(args: Array<String>) = commandLineMain(GcsHonestMajorityShareShuffleMillJob(), args)

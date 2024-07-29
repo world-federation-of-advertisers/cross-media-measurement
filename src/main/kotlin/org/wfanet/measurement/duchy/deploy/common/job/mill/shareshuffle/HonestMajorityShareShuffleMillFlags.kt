@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.common.daemon.mill.shareshuffle
+package org.wfanet.measurement.duchy.deploy.common.job.mill.shareshuffle
 
 import java.io.File
 import java.time.Duration

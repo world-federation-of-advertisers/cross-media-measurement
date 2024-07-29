@@ -11,6 +11,7 @@ kt_jvm_library(
     name = "mill_base",
     srcs = ["MillBase.kt"],
     deps = [
+        ":mill_type",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
@@ -34,8 +35,18 @@ kt_jvm_library(
     srcs = ["MillFlags.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_protocols_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+kt_jvm_library(
+    name = "mill_type",
+    srcs = ["MillType.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_protocols_kt_jvm_proto",
     ],
 )
