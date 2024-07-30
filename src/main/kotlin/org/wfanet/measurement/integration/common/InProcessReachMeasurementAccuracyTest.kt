@@ -289,7 +289,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
           getReachVariance(
             honestMajorityShareShuffleMethodology,
             executionResult.measurementInfo,
-            expectedReach
+            expectedReach,
           )
         expectedStandardDeviation = sqrt(expectedVariance)
       } else if (expectedReach != executionResult.expectedResult.reach.value) {
@@ -307,7 +307,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
         getReachVariance(
           honestMajorityShareShuffleMethodology,
           executionResult.measurementInfo,
-          reach
+          reach,
         )
       val intervalLowerBound = reach - sqrt(reachVariance) * MULTIPLIER
       val intervalUpperBound = reach + sqrt(reachVariance) * MULTIPLIER

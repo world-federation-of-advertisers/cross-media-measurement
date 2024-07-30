@@ -353,7 +353,7 @@ object VariancesImpl : Variances {
   /** Computes the noise variance based on the [DpParams] and the [NoiseMechanism]. */
   private fun computeDirectNoiseVariance(
     dpParams: DpParams,
-    noiseMechanism: NoiseMechanism
+    noiseMechanism: NoiseMechanism,
   ): Double {
     return when (noiseMechanism) {
       NoiseMechanism.NONE -> 0.0
