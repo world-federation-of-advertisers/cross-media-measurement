@@ -31,7 +31,7 @@ module "default_node_pools" {
   name            = "default"
   service_account = module.common.cluster_service_account
   machine_type    = "e2-standard-2"
-  max_node_count  = 2
+  max_node_count  = 5
 }
 
 module "highmem_node_pools" {
