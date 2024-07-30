@@ -22,6 +22,8 @@ import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.copy
 
+private const val SCALING_FACTOR = 10000
+
 class MetricSpecDefaultsException(message: String? = null, cause: Throwable? = null) :
   Exception(message, cause)
 
@@ -710,16 +712,16 @@ private fun MetricSpecConfig.VidSamplingInterval.toVidSamplingInterval(
       width = source.fixedStart.width
     }
   } else {
-    // The 10000 is to help turn the float into an int without losing too much data.
+    // The SCALING_FACTOR is to help turn the float into an int without losing too much data.
     val maxStart =
       if (allowSamplingIntervalWrapping) {
-        10000
+        SCALING_FACTOR
       } else {
-        10000 - (source.randomStart.width * 10000).toInt()
+        SCALING_FACTOR - (source.randomStart.width * SCALING_FACTOR).toInt()
       }
     val randomStart = secureRandom.nextInt(maxStart) % maxStart
     return MetricSpecKt.vidSamplingInterval {
-      start = randomStart.toFloat() / 10000
+      start = randomStart.toFloat() / SCALING_FACTOR
       width = source.randomStart.width
     }
   }
