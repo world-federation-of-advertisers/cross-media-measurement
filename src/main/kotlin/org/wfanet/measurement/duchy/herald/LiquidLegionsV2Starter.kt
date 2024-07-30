@@ -32,6 +32,7 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.NoiseMechanism
+import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.createComputationRequest
@@ -41,6 +42,7 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.ParametersKt
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.computationParticipant
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt.computationDetails as llv2Details
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfigKt.reachNoiseConfig
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsV2NoiseConfig
@@ -77,17 +79,16 @@ object LiquidLegionsV2Starter {
   ) {
     require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = systemComputation.key.computationId
-    val initialComputationDetails =
-      ComputationDetails.newBuilder()
-        .apply {
-          blobsStoragePrefix = "$blobStorageBucket/$globalId"
-          kingdomComputation = systemComputation.toKingdomComputationDetails()
-          liquidLegionsV2Builder.apply {
-            role = liquidLegionsV2SetupConfig.role
-            parameters = systemComputation.toLiquidLegionsV2Parameters()
-          }
-        }
-        .build()
+    val role = liquidLegionsV2SetupConfig.role
+
+    val initialComputationDetails = computationDetails {
+      blobsStoragePrefix = "$blobStorageBucket/$role-$globalId"
+      kingdomComputation = systemComputation.toKingdomComputationDetails()
+      liquidLegionsV2 = llv2Details {
+        this.role = role
+        parameters = systemComputation.toLiquidLegionsV2Parameters()
+      }
+    }
     val requisitions =
       systemComputation.requisitionsList.toRequisitionEntries(systemComputation.measurementSpec)
 

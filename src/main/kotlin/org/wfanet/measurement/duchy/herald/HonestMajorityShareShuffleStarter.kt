@@ -83,7 +83,7 @@ object HonestMajorityShareShuffleStarter {
     val role = protocolSetupConfig.role
 
     val initialComputationDetails = computationDetails {
-      blobsStoragePrefix = "$blobStorageBucket/$globalId"
+      blobsStoragePrefix = "$blobStorageBucket/$role-$globalId"
       kingdomComputation = systemComputation.toKingdomComputationDetails()
       honestMajorityShareShuffle =
         HonestMajorityShareShuffleKt.computationDetails {

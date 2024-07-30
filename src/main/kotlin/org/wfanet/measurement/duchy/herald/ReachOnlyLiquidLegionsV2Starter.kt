@@ -67,12 +67,14 @@ object ReachOnlyLiquidLegionsV2Starter {
   ) {
     require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = systemComputation.key.computationId
+    val role = reachOnlyLiquidLegionsV2SetupConfig.role
+
     val initialComputationDetails = computationDetails {
-      blobsStoragePrefix = "$blobStorageBucket/$globalId"
+      blobsStoragePrefix = "$blobStorageBucket/$role-$globalId"
       kingdomComputation = systemComputation.toKingdomComputationDetails()
       reachOnlyLiquidLegionsV2 =
         ReachOnlyLiquidLegionsSketchAggregationV2Kt.computationDetails {
-          role = reachOnlyLiquidLegionsV2SetupConfig.role
+          this.role = role
           parameters = systemComputation.toReachOnlyLiquidLegionsV2Parameters()
         }
     }
