@@ -1482,7 +1482,7 @@ class VariancesTest {
         reachMeasurementVarianceParams,
       )
     // Expected variance = variance from DP noise + variance from Hmss sketch sampling.
-    val expected = 252102.58106484052 + 17.99999974
+    val expected = 432791.13137641125 + 17.99999974
     val tolerance = computeErrorTolerance(variance, expected)
     assertThat(variance).isWithin(tolerance).of(expected)
   }
@@ -1509,7 +1509,7 @@ class VariancesTest {
       )
     // The variance of the measurement comes entirely from the reach DP noise when sampling interval
     // width is equal to 1.
-    val expected = 2521.0258106484052
+    val expected = 4327.9113137641125
     val tolerance = computeErrorTolerance(variance, expected)
     assertThat(variance).isWithin(tolerance).of(expected)
   }
@@ -1564,7 +1564,7 @@ class VariancesTest {
 
     // The variance of the measurement comes entirely from the reach DP noise when sampling interval
     // width is equal to 1.
-    val expected = 2521.0258106484052
+    val expected = 4327.91131376411
     val tolerance = computeErrorTolerance(variance, expected)
     assertThat(variance).isWithin(tolerance).of(expected)
   }
@@ -1590,7 +1590,7 @@ class VariancesTest {
         reachMeasurementVarianceParams,
       )
     // Expected variance = variance from DP noise + variance from Hmss sketch sampling.
-    val expected = 10084.1032426 + 5.0E6
+    val expected = 17311.6452550564 + 5.0E6
     val tolerance = computeErrorTolerance(variance, expected)
     assertThat(variance).isWithin(tolerance).of(expected)
   }
@@ -3511,24 +3511,30 @@ class VariancesTest {
       )
 
     val expectedRelativeVariances =
-      listOf(0.000371368941, 0.000452982619, 0.000549005415, 0.000659437329, 0.002537113441)
+      listOf(
+        5.5611419682E-04,
+        6.6181968148E-04,
+        7.9799548885E-04,
+        9.6464161893E-04,
+        4.0470322809E-03,
+      )
     val expectedKPlusRelativeVariances =
-      listOf(0.0, 0.000371368941, 0.000853169796, 0.001531857274, 0.002537113441)
+      listOf(0.0, 5.5611419682E-04, 1.2788745237E-03, 2.3511029170E-03, 4.0470322809E-03)
     val expectedCountVariances =
       listOf(
-        36416.3981476777,
-        42416.2782076765,
-        48416.0782676745,
-        54415.7983276717,
-        403767.333715542,
+        5.4087863546E+04,
+        6.0087743606E+04,
+        6.6087543666E+04,
+        7.2087263726E+04,
+        6.5514174562E+05,
       )
     val expectedKPlusCountVariances =
       listOf(
-        342093.5819647505,
-        366511.1799924403,
-        384929.6979601392,
-        397348.6558678426,
-        403767.3337155431,
+        5.2278213228E+05,
+        5.6487119570E+05,
+        6.0096117907E+05,
+        6.3105160238E+05,
+        6.5514174562E+05,
       )
 
     for (frequency in 1..maximumFrequency) {
@@ -3620,29 +3626,29 @@ class VariancesTest {
 
     val expectedRelativeVariances =
       listOf(
-        3.1536894004E-06,
-        3.4898261751E-06,
-        4.0500541330E-06,
-        4.8343732741E-06,
-        2.3371134394E-05,
+        5.0011419626E-06,
+        5.5781968044E-06,
+        6.5399548741E-06,
+        7.8864161717E-06,
+        3.8470322789E-05,
       )
     val expectedKPlusRelativeVariances =
-      listOf(0.0, 3.1536894004E-06, 7.0916979418E-06, 1.3158572723E-05, 2.3371134394E-05)
+      listOf(0.0, 5.0011419626E-06, 1.1348745223E-05, 2.1351029148E-05, 3.8470322789E-05)
     val expectedCountVariances =
       listOf(
-        3.04164380877E+02,
-        3.04164380877E+02,
-        3.04164380877E+02,
-        3.04164380877E+02,
-        3.73768333416E+03,
+        4.8087903486E+02,
+        4.8087903486E+02,
+        4.8087903486E+02,
+        4.8087903486E+02,
+        6.2514274532E+03,
       )
     val expectedKPlusCountVariances =
       listOf(
-        2.52102581065E+03,
-        2.82519019153E+03,
-        3.12935457240E+03,
-        3.43351895328E+03,
-        3.73768333416E+03,
+        4.3279113138E+03,
+        4.8087903486E+03,
+        5.2896693835E+03,
+        5.7705484184E+03,
+        6.2514274532E+03,
       )
 
     for (frequency in 1..maximumFrequency) {
@@ -3734,29 +3740,35 @@ class VariancesTest {
 
     val expectedRelativeVariances =
       listOf(
-        6.2261157281E-09,
-        1.1559864098E-08,
-        1.6005000227E-08,
-        1.9561524113E-08,
-        2.2251075697E-08,
+        6.2283965338E-09,
+        1.1562442334E-08,
+        1.6008074178E-08,
+        1.9565292067E-08,
+        2.2269716670E-08,
       )
     val expectedKPlusRelativeVariances =
-      listOf(0.0, 6.2261157281E-09, 1.6008755343E-08, 2.4016245392E-08, 2.2251075697E-08)
+      listOf(
+        0.0,
+        6.2283965338E-09,
+        1.6014010957E-08,
+        2.4026359535E-08,
+        2.2269716670E-08,
+      )
     val expectedCountVariances =
       listOf(
-        5.0790416946E+07,
-        9.5070417388E+07,
-        1.3287041777E+08,
-        1.6419041808E+08,
-        1.8937377022E+08,
+        5.0808088411E+07,
+        9.5088088854E+07,
+        1.3288808923E+08,
+        1.6420808955E+08,
+        1.8962514464E+08,
       )
     val expectedKPlusCountVariances =
       listOf(
-        8.1252103391E+07,
-        1.2124252023E+08,
-        1.8175293727E+08,
-        2.2390335413E+08,
-        1.8937377022E+08,
+        8.1432791941E+07,
+        1.2144088024E+08,
+        1.8196896875E+08,
+        2.2413705708E+08,
+        1.8962514464E+08,
       )
 
     for (frequency in 1..maximumFrequency) {
@@ -3848,29 +3860,29 @@ class VariancesTest {
 
     val expectedRelativeVariances =
       listOf(
-        3.8934437041E-12,
-        4.3084273767E-12,
-        5.0000668309E-12,
-        5.9683620668E-12,
-        2.8853252338E-11,
+        6.1742493365E-12,
+        6.8866627215E-12,
+        8.0740183631E-12,
+        9.7363162614E-12,
+        4.7494225665E-11,
       )
     val expectedKPlusRelativeVariances =
-      listOf(0.0, 3.8934437041E-12, 8.7551826442E-12, 1.6245151510E-11, 2.8853252338E-11)
+      listOf(0.0, 6.1742493365E-12, 1.4010796571E-11, 2.6359295244E-11, 4.7494225665E-11)
     val expectedCountVariances =
       listOf(
-        3.0416438088E+02,
-        3.0416438088E+02,
-        3.0416438088E+02,
-        3.0416438088E+02,
-        3.7376833342E+03,
+        4.8087903486E+02,
+        4.8087903486E+02,
+        4.8087903486E+02,
+        4.8087903486E+02,
+        6.2514274532E+03,
       )
     val expectedKPlusCountVariances =
       listOf(
-        2.5210258106E+03,
-        2.8251901915E+03,
-        3.1293545724E+03,
-        3.4335189533E+03,
-        3.7376833342E+03,
+        4.3279113138E+03,
+        4.8087903486E+03,
+        5.2896693835E+03,
+        5.7705484184E+03,
+        6.2514274532E+03,
       )
 
     for (frequency in 1..maximumFrequency) {
@@ -3961,8 +3973,8 @@ class VariancesTest {
 
     val expectedRelativeVariances = 0.0
     val expectedKPlusRelativeVariances = 0.0
-    val expectedCountVariances = 2.2525210483E+08
-    val expectedKPlusCountVariances = 2.2525210483E+08
+    val expectedCountVariances = 2.2543279338E+08
+    val expectedKPlusCountVariances = 2.2543279338E+08
 
     assertThat(relativeVariances.getValue(1))
       .isWithin(computeErrorTolerance(relativeVariances.getValue(1), expectedRelativeVariances))
@@ -4043,19 +4055,19 @@ class VariancesTest {
       )
     val expectedCountVariances =
       listOf(
-        304.16438087678165,
-        304.16438087678165,
-        304.16438087678165,
-        304.16438087678165,
-        3737.683334155532,
+        4.8087903486E+02,
+        4.8087903486E+02,
+        4.8087903486E+02,
+        4.8087903486E+02,
+        6.2514274532E+03,
       )
     val expectedKPlusCountVariances =
       listOf(
-        2521.0258106484052,
-        2825.190191525187,
-        3129.3545724019687,
-        3433.51895327875,
-        3737.683334155532,
+        4.3279113138E+03,
+        4.8087903486E+03,
+        5.2896693835E+03,
+        5.7705484184E+03,
+        6.2514274532E+03,
       )
 
     for (frequency in 1..maximumFrequency) {

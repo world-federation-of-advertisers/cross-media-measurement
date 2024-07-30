@@ -167,7 +167,7 @@ object VariancesImpl : Variances {
     }
 
     val frequencyNoiseVariance: Double =
-      computeNoiseVariance(measurementParams.dpParams, measurementParams.noiseMechanism)
+      computeDirectNoiseVariance(measurementParams.dpParams, measurementParams.noiseMechanism)
     val varPart1 =
       reachRatio * (1.0 - reachRatio) * (1.0 - measurementParams.vidSamplingInterval.width) /
         (totalReach * measurementParams.vidSamplingInterval.width)
@@ -207,7 +207,7 @@ object VariancesImpl : Variances {
     noiseMechanism: NoiseMechanism,
   ): Double {
     require(measurementValue >= 0.0) { "The scalar measurement value cannot be negative." }
-    val noiseVariance: Double = computeNoiseVariance(dpParams, noiseMechanism)
+    val noiseVariance: Double = computeDirectNoiseVariance(dpParams, noiseMechanism)
     val variance =
       (maximumFrequencyPerUser *
         measurementValue *
@@ -227,7 +227,7 @@ object VariancesImpl : Variances {
     varianceParams: ReachMeasurementVarianceParams,
   ): Double {
     val noiseVariance: Double =
-      computeNoiseVariance(
+      computeDirectNoiseVariance(
         varianceParams.measurementParams.dpParams,
         varianceParams.measurementParams.noiseMechanism,
       )
@@ -275,7 +275,7 @@ object VariancesImpl : Variances {
     relativeFrequencyMeasurementVarianceParams: RelativeFrequencyMeasurementVarianceParams
   ) -> Double {
     val frequencyNoiseVariance: Double =
-      computeNoiseVariance(measurementParams.dpParams, measurementParams.noiseMechanism)
+      computeDirectNoiseVariance(measurementParams.dpParams, measurementParams.noiseMechanism)
     return { relativeFrequencyMeasurementVarianceParams ->
       LiquidLegions.liquidLegionsFrequencyRelativeVariance(
         sketchParams = sketchParams,
@@ -351,7 +351,7 @@ object VariancesImpl : Variances {
   }
 
   /** Computes the noise variance based on the [DpParams] and the [NoiseMechanism]. */
-  private fun computeNoiseVariance(dpParams: DpParams, noiseMechanism: NoiseMechanism): Double {
+  private fun computeDirectNoiseVariance(dpParams: DpParams, noiseMechanism: NoiseMechanism): Double {
     return when (noiseMechanism) {
       NoiseMechanism.NONE -> 0.0
       NoiseMechanism.LAPLACE -> {
@@ -475,7 +475,7 @@ object VariancesImpl : Variances {
     reachParams: ReachMeasurementVarianceParams,
   ): Double {
     val reachNoiseVariance: Double =
-      computeNoiseVariance(
+      computeDistributedNoiseVariance(
         reachParams.measurementParams.dpParams,
         reachParams.measurementParams.noiseMechanism,
       )
@@ -506,7 +506,7 @@ object VariancesImpl : Variances {
     val maximumFrequency = frequencyParams.measurementParams.maximumFrequency
 
     val frequencyNoiseVariance: Double =
-      computeNoiseVariance(
+      computeDistributedNoiseVariance(
         frequencyParams.measurementParams.dpParams,
         frequencyParams.measurementParams.noiseMechanism,
       )
