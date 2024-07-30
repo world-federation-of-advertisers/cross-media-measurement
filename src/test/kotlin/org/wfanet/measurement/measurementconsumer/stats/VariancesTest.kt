@@ -3747,13 +3747,7 @@ class VariancesTest {
         2.2269716670E-08,
       )
     val expectedKPlusRelativeVariances =
-      listOf(
-        0.0,
-        6.2283965338E-09,
-        1.6014010957E-08,
-        2.4026359535E-08,
-        2.2269716670E-08,
-      )
+      listOf(0.0, 6.2283965338E-09, 1.6014010957E-08, 2.4026359535E-08, 2.2269716670E-08)
     val expectedCountVariances =
       listOf(
         5.0808088411E+07,

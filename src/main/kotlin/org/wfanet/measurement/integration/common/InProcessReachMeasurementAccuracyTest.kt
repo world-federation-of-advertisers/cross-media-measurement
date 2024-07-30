@@ -277,14 +277,20 @@ abstract class InProcessReachMeasurementAccuracyTest(
           round.toString(),
           DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
         )
-      val honestMajorityShareShuffleMethodology = HonestMajorityShareShuffleMethodology(
-        frequencyVectorSize = executionResult.actualResult.reach.honestMajorityShareShuffle.frequencyVectorSize
-      )
+      val honestMajorityShareShuffleMethodology =
+        HonestMajorityShareShuffleMethodology(
+          frequencyVectorSize =
+            executionResult.actualResult.reach.honestMajorityShareShuffle.frequencyVectorSize
+        )
 
       if (expectedReach == -1L) {
         expectedReach = executionResult.expectedResult.reach.value
         val expectedVariance =
-          getReachVariance(honestMajorityShareShuffleMethodology, executionResult.measurementInfo, expectedReach)
+          getReachVariance(
+            honestMajorityShareShuffleMethodology,
+            executionResult.measurementInfo,
+            expectedReach
+          )
         expectedStandardDeviation = sqrt(expectedVariance)
       } else if (expectedReach != executionResult.expectedResult.reach.value) {
         logger.log(
@@ -298,7 +304,11 @@ abstract class InProcessReachMeasurementAccuracyTest(
       // The multiplier for 95% confidence interval is 1.96.
       val reach = executionResult.actualResult.reach.value
       val reachVariance =
-        getReachVariance(honestMajorityShareShuffleMethodology, executionResult.measurementInfo, reach)
+        getReachVariance(
+          honestMajorityShareShuffleMethodology,
+          executionResult.measurementInfo,
+          reach
+        )
       val intervalLowerBound = reach - sqrt(reachVariance) * MULTIPLIER
       val intervalUpperBound = reach + sqrt(reachVariance) * MULTIPLIER
       val withinInterval = reach >= intervalLowerBound && reach <= intervalUpperBound
