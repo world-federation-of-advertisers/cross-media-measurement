@@ -58,13 +58,13 @@ resource "google_bigquery_table" "measurements" {
   schema = <<EOF
 [
   {
-    "name": "external_measurement_consumer_id",
-    "type": "INTEGER",
+    "name": "measurement_consumer_id",
+    "type": "STRING",
     "mode": "REQUIRED"
   },
   {
-    "name": "external_measurement_id",
-    "type": "INTEGER",
+    "name": "measurement_id",
+    "type": "STRING",
     "mode": "REQUIRED"
   },
   {
@@ -83,7 +83,7 @@ resource "google_bigquery_table" "measurements" {
     "name": "state",
     "type": "STRING",
     "mode": "REQUIRED",
-    "description": "SUCCEEDED, FAILED, or CANCELLED"
+    "description": "SUCCEEDED or FAILED"
   },
   {
     "name": "create_time",
@@ -127,23 +127,23 @@ resource "google_bigquery_table" "requisitions" {
   schema = <<EOF
 [
   {
-    "name": "external_measurement_consumer_id",
-    "type": "INTEGER",
+    "name": "measurement_consumer_id",
+    "type": "STRING",
     "mode": "REQUIRED"
   },
   {
-    "name": "external_measurement_id",
-    "type": "INTEGER",
+    "name": "measurement_id",
+    "type": "STRING",
     "mode": "REQUIRED"
   },
   {
-    "name": "external_requisition_id",
-    "type": "INTEGER",
+    "name": "requisition_id",
+    "type": "STRING",
     "mode": "REQUIRED"
   },
   {
-    "name": "external_data_provider_id",
-    "type": "INTEGER",
+    "name": "data_provider_id",
+    "type": "STRING",
     "mode": "REQUIRED"
   },
   {
@@ -162,7 +162,7 @@ resource "google_bigquery_table" "requisitions" {
     "name": "state",
     "type": "STRING",
     "mode": "REQUIRED",
-    "description": "PENDING_PARAMS, UNFULFILLED, FULFILLED, or REFUSED"
+    "description": "UNFULFILLED, FULFILLED, or REFUSED"
   },
   {
     "name": "create_time",
@@ -206,30 +206,30 @@ resource "google_bigquery_table" "computation_participants" {
   schema = <<EOF
 [
   {
-    "name": "external_measurement_consumer_id",
-    "type": "INTEGER",
-    "mode": "REQUIRED"
-  },
-  {
-    "name": "external_measurement_id",
-    "type": "INTEGER",
-    "mode": "REQUIRED"
-  },
-  {
-    "name": "external_computation_id",
-    "type": "INTEGER",
-    "mode": "REQUIRED"
-  },
-  {
-    "name": "external_duchy_id",
+    "name": "measurement_consumer_id",
     "type": "STRING",
     "mode": "REQUIRED"
   },
   {
-    "name": "duchy_protocol_config",
+    "name": "measurement_id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "computation_id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "duchy_id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "protocol",
     "type": "STRING",
     "mode": "REQUIRED",
-    "description": "LIQUID_LEGIONS_V2, LIQUID_LEGIONS_V2_REACH_ONLY, DIRECT, or HONEST_MAJORITY_SHARE_SHUFFLE"
+    "description": "LIQUID_LEGIONS_V2, REACH_ONLY_LIQUID_LEGIONS_V2, HONEST_MAJORITY_SHARE_SHUFFLE, OR PROTOCOL_NOT_SET"
   },
   {
     "name": "measurement_type",

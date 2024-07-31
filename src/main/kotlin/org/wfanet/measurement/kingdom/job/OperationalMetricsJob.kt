@@ -45,10 +45,13 @@ import org.wfanet.measurement.api.v2alpha.setMessage
 import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.ProtoReflection
+import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.gcloud.common.await
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementData
+import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.computationParticipantData
 import org.wfanet.measurement.internal.kingdom.copy
@@ -91,7 +94,6 @@ class OperationalMetricsJob(
       StreamMeasurementsRequestKt.filter {
         states += Measurement.State.SUCCEEDED
         states += Measurement.State.FAILED
-        states += Measurement.State.CANCELLED
         if (latestMeasurementReadFromPreviousJob != null) {
           after =
             StreamMeasurementsRequestKt.FilterKt.after {
@@ -153,10 +155,13 @@ class OperationalMetricsJob(
             val measurementUpdateTimeMinusCreateTime =
               Durations.toMillis(Timestamps.between(measurement.createTime, measurement.updateTime))
 
+            val measurementConsumerId = externalIdToApiId(measurement.externalMeasurementConsumerId)
+            val measurementId = externalIdToApiId(measurement.externalMeasurementId)
+
             measurementsProtoRowsBuilder.addSerializedRows(
               measurementData {
-                  externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
-                  externalMeasurementId = measurement.externalMeasurementId
+                  this.measurementConsumerId = measurementConsumerId
+                  this.measurementId = measurementId
                   isDirect = measurement.details.protocolConfig.hasDirect()
                   measurementType = measurementTypeCase.name
                   state = measurement.state.name
@@ -175,15 +180,21 @@ class OperationalMetricsJob(
                   Timestamps.between(measurement.createTime, requisition.updateTime)
                 )
 
+              val state =
+                when (requisition.state) {
+                  Requisition.State.PENDING_PARAMS -> Requisition.State.UNFULFILLED.name
+                  else -> requisition.state.name
+                }
+
               requisitionsProtoRowsBuilder.addSerializedRows(
                 requisitionData {
-                    externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
-                    externalMeasurementId = measurement.externalMeasurementId
-                    externalRequisitionId = requisition.externalRequisitionId
-                    externalDataProviderId = requisition.externalDataProviderId
+                    this.measurementConsumerId = measurementConsumerId
+                    this.measurementId = measurementId
+                    requisitionId = externalIdToApiId(requisition.externalRequisitionId)
+                    dataProviderId = externalIdToApiId(requisition.externalDataProviderId)
                     isDirect = measurement.details.protocolConfig.hasDirect()
                     measurementType = measurementTypeCase.name
-                    state = requisition.state.name
+                    this.state = state
                     createTime = Timestamps.toMicros(measurement.createTime)
                     updateTime = Timestamps.toMicros(requisition.updateTime)
                     updateTimeMinusCreateTime = requisitionUpdateTimeMinusCreateTime
@@ -203,12 +214,11 @@ class OperationalMetricsJob(
 
                 computationParticipantsProtoRowsBuilder.addSerializedRows(
                   computationParticipantData {
-                      externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
-                      externalMeasurementId = measurement.externalMeasurementId
-                      externalComputationId = computationParticipant.externalComputationId
-                      externalDuchyId = computationParticipant.externalDuchyId
-                      duchyProtocolConfig =
-                        measurement.details.duchyProtocolConfig.protocolCase.name
+                      this.measurementConsumerId = measurementConsumerId
+                      this.measurementId = measurementId
+                      computationId = externalIdToApiId(computationParticipant.externalComputationId)
+                      duchyId = computationParticipant.externalDuchyId
+                      protocol = computationParticipant.details.protocolCase.name
                       measurementType = measurementTypeCase.name
                       state = computationParticipant.state.name
                       createTime = Timestamps.toMicros(measurement.createTime)
@@ -253,8 +263,8 @@ class OperationalMetricsJob(
         MeasurementData.parseFrom(measurementsProtoRowsBuilder.serializedRowsList.last())
       val latestMeasurementRead = latestMeasurementRead {
         updateTime = Timestamps.toNanos(latestUpdateTime)
-        externalMeasurementConsumerId = lastMeasurement.externalMeasurementConsumerId
-        externalMeasurementId = lastMeasurement.externalMeasurementId
+        externalMeasurementConsumerId = apiIdToExternalId(lastMeasurement.measurementConsumerId)
+        externalMeasurementId = apiIdToExternalId(lastMeasurement.measurementId)
       }
       latestMeasurementReadDataWriter
         .appendRows(
