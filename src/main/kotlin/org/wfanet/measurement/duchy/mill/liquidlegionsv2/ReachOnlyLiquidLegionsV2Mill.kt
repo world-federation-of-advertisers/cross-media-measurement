@@ -135,8 +135,6 @@ class ReachOnlyLiquidLegionsV2Mill(
   ) {
   override val endingStage = Stage.COMPLETE.toProtocolStage()
 
-  override val prioritizedStagesToClaim = listOf(Stage.INITIALIZATION_PHASE.toProtocolStage())
-
   private val actions =
     mapOf(
       Pair(Stage.INITIALIZATION_PHASE, AGGREGATOR) to ::initializationPhase,
