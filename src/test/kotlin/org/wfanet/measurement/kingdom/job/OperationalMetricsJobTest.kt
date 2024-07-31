@@ -68,7 +68,6 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
-import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
@@ -147,7 +146,9 @@ class OperationalMetricsJobTest {
         val computationParticipantMeasurementData =
           MeasurementData.parseFrom(protoRows.serializedRowsList[1])
         assertThat(computationParticipantMeasurementData.measurementConsumerId)
-          .isEqualTo(externalIdToApiId(computationParticipantMeasurement.externalMeasurementConsumerId))
+          .isEqualTo(
+            externalIdToApiId(computationParticipantMeasurement.externalMeasurementConsumerId)
+          )
         assertThat(computationParticipantMeasurementData.measurementId)
           .isEqualTo(externalIdToApiId(computationParticipantMeasurement.externalMeasurementId))
         assertThat(computationParticipantMeasurementData.isDirect).isFalse()
@@ -208,13 +209,23 @@ class OperationalMetricsJobTest {
         val computationParticipantRequisitionData =
           RequisitionData.parseFrom(protoRows.serializedRowsList[1])
         assertThat(computationParticipantRequisitionData.measurementConsumerId)
-          .isEqualTo(externalIdToApiId(computationParticipantMeasurement.externalMeasurementConsumerId))
+          .isEqualTo(
+            externalIdToApiId(computationParticipantMeasurement.externalMeasurementConsumerId)
+          )
         assertThat(computationParticipantRequisitionData.measurementId)
           .isEqualTo(externalIdToApiId(computationParticipantMeasurement.externalMeasurementId))
         assertThat(computationParticipantRequisitionData.requisitionId)
-          .isEqualTo(externalIdToApiId(computationParticipantMeasurement.requisitionsList[0].externalRequisitionId))
+          .isEqualTo(
+            externalIdToApiId(
+              computationParticipantMeasurement.requisitionsList[0].externalRequisitionId
+            )
+          )
         assertThat(computationParticipantRequisitionData.dataProviderId)
-          .isEqualTo(externalIdToApiId(computationParticipantMeasurement.requisitionsList[0].externalDataProviderId))
+          .isEqualTo(
+            externalIdToApiId(
+              computationParticipantMeasurement.requisitionsList[0].externalDataProviderId
+            )
+          )
         assertThat(computationParticipantRequisitionData.isDirect).isFalse()
         assertThat(computationParticipantRequisitionData.measurementType)
           .isEqualTo("REACH_AND_FREQUENCY")
@@ -248,7 +259,9 @@ class OperationalMetricsJobTest {
         assertThat(directRequisitionData.requisitionId)
           .isEqualTo(externalIdToApiId(directMeasurement.requisitionsList[0].externalRequisitionId))
         assertThat(directRequisitionData.dataProviderId)
-          .isEqualTo(externalIdToApiId(directMeasurement.requisitionsList[0].externalDataProviderId))
+          .isEqualTo(
+            externalIdToApiId(directMeasurement.requisitionsList[0].externalDataProviderId)
+          )
         assertThat(directRequisitionData.isDirect).isTrue()
         assertThat(directRequisitionData.measurementType).isEqualTo("REACH_AND_FREQUENCY")
         assertThat(directRequisitionData.state).isEqualTo("FULFILLED")
@@ -285,17 +298,20 @@ class OperationalMetricsJobTest {
               ComputationParticipantData.parseFrom(serializedProtoRow)
             for (computationParticipant in
               computationParticipantMeasurement.computationParticipantsList) {
-              if (
-                computationParticipant.externalDuchyId == computationParticipantData.duchyId
-              ) {
+              if (computationParticipant.externalDuchyId == computationParticipantData.duchyId) {
                 assertThat(computationParticipantData.measurementConsumerId)
-                  .isEqualTo(externalIdToApiId(computationParticipantMeasurement.externalMeasurementConsumerId))
+                  .isEqualTo(
+                    externalIdToApiId(
+                      computationParticipantMeasurement.externalMeasurementConsumerId
+                    )
+                  )
                 assertThat(computationParticipantData.measurementId)
-                  .isEqualTo(externalIdToApiId(computationParticipantMeasurement.externalMeasurementId))
+                  .isEqualTo(
+                    externalIdToApiId(computationParticipantMeasurement.externalMeasurementId)
+                  )
                 assertThat(computationParticipantData.computationId)
                   .isEqualTo(externalIdToApiId(computationParticipant.externalComputationId))
-                assertThat(computationParticipantData.protocol)
-                  .isEqualTo("PROTOCOL_NOT_SET")
+                assertThat(computationParticipantData.protocol).isEqualTo("PROTOCOL_NOT_SET")
                 assertThat(computationParticipantData.measurementType)
                   .isEqualTo("REACH_AND_FREQUENCY")
                 assertThat(computationParticipantData.state).isEqualTo("CREATED")
@@ -585,25 +601,26 @@ class OperationalMetricsJobTest {
         spannerMeasurementsService.createMeasurement(computationParticipantMeasurementRequest)
       var directMeasurement = spannerMeasurementsService.createMeasurement(directMeasurementRequest)
 
-
-      directMeasurement =  spannerMeasurementsService
+      directMeasurement =
+        spannerMeasurementsService
           .streamMeasurements(
             streamMeasurementsRequest { measurementView = Measurement.View.COMPUTATION }
           )
           .filter { it.providedMeasurementId == directMeasurement.providedMeasurementId }
-        .first()
-
+          .first()
 
       spannerRequisitionsService.fulfillRequisition(
         fulfillRequisitionRequest {
           externalRequisitionId = directMeasurement.requisitionsList[0].externalRequisitionId
           nonce = 123L
-          directParams = FulfillRequisitionRequestKt.directRequisitionParams {
-            externalDataProviderId = directMeasurement.requisitionsList[0].externalDataProviderId
-            encryptedData = ByteString.copyFromUtf8("encryptedData")
-            externalCertificateId = directMeasurement.requisitionsList[0].details.externalCertificateId
-            apiVersion = PUBLIC_API_VERSION
-          }
+          directParams =
+            FulfillRequisitionRequestKt.directRequisitionParams {
+              externalDataProviderId = directMeasurement.requisitionsList[0].externalDataProviderId
+              encryptedData = ByteString.copyFromUtf8("encryptedData")
+              externalCertificateId =
+                directMeasurement.requisitionsList[0].details.externalCertificateId
+              apiVersion = PUBLIC_API_VERSION
+            }
         }
       )
 
