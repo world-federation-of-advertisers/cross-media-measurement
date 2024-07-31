@@ -146,6 +146,73 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         .isEqualTo(PrivacyBudgetAcdpBalanceEntry(bucket3, AcdpCharge(0.04, 5E-6)))
     }
 
+  @Test
+  fun `findBalanceEntries is the same as calling findBalanceEntry for every bucket`() {
+    runBlocking {
+      val bucket1 =
+        PrivacyBucketGroup(
+          MEASUREMENT_CONSUMER_ID,
+          LocalDate.parse("2024-07-01"),
+          LocalDate.parse("2024-07-01"),
+          AgeGroup.RANGE_18_34,
+          Gender.MALE,
+          0.3f,
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+        )
+
+      val bucket2 =
+        PrivacyBucketGroup(
+          MEASUREMENT_CONSUMER_ID,
+          LocalDate.parse("2024-07-01"),
+          LocalDate.parse("2024-07-01"),
+          AgeGroup.RANGE_18_34,
+          Gender.MALE,
+          0.5f,
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+        )
+
+      val buckets = setOf(bucket1, bucket2)
+
+      val backingStore = createBackingStore()
+      val acdpCharge = AcdpCharge(0.04, 5.0E-6)
+
+      val txContext1 = backingStore.startTransaction()
+      txContext1.addAcdpLedgerEntries(
+        setOf(bucket1, bucket2),
+        setOf(acdpCharge),
+        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId1", false),
+      )
+      txContext1.addAcdpLedgerEntries(
+        setOf(bucket1),
+        setOf(acdpCharge),
+        Reference(MEASUREMENT_CONSUMER_ID, "RequisitionId2", false),
+      )
+      txContext1.commit()
+
+      val txContext2 = backingStore.startTransaction()
+      val bucket1AcdpBalanceEntry: PrivacyBudgetAcdpBalanceEntry =
+        txContext2.findAcdpBalanceEntry(bucket1)
+      val bucket2AcdpBalanceEntry: PrivacyBudgetAcdpBalanceEntry =
+        txContext2.findAcdpBalanceEntry(bucket2)
+
+      val bucketsAcdpBalanceEntry = txContext2.findAcdpBalanceEntries(buckets)
+
+      backingStore.close()
+
+      assertThat(bucketsAcdpBalanceEntry.elementAt(0)).isEqualTo(bucket1AcdpBalanceEntry)
+      assertThat(bucketsAcdpBalanceEntry.elementAt(1)).isEqualTo(bucket2AcdpBalanceEntry)
+
+      assertThat(bucket1AcdpBalanceEntry)
+        .isEqualTo(PrivacyBudgetAcdpBalanceEntry(bucket1, AcdpCharge(0.04 * 2, 5.0E-6 * 2)))
+      assertThat(bucketsAcdpBalanceEntry.elementAt(0))
+        .isEqualTo(PrivacyBudgetAcdpBalanceEntry(bucket1, AcdpCharge(0.04 * 2, 5.0E-6 * 2)))
+      assertThat(bucket2AcdpBalanceEntry)
+        .isEqualTo(PrivacyBudgetAcdpBalanceEntry(bucket2, AcdpCharge(0.04, 5E-6)))
+      assertThat(bucketsAcdpBalanceEntry.elementAt(1))
+        .isEqualTo(PrivacyBudgetAcdpBalanceEntry(bucket2, AcdpCharge(0.04, 5E-6)))
+    }
+  }
+
   @Test(timeout = 15000)
   fun `addLedgerEntries for different MCs and same requisitionId don't point to same acdp balances`() =
     runBlocking {
