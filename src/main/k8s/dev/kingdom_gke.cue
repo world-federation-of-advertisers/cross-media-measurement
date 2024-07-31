@@ -61,6 +61,23 @@ kingdom: #Kingdom & {
 
 	_verboseGrpcServerLogging: true
 
+	_imageSuffixes: [string]: string
+	_imageSuffixes: {
+		"operational-metrics": string | *"kingdom/operational-metrics"
+	}
+	_imageConfigs: [string]: #ImageConfig
+	_imageConfigs: {
+		for name, suffix in _imageSuffixes {
+			"\(name)": {repoSuffix: suffix}
+		}
+	}
+	_images: [string]: string
+	_images: {
+		for name, config in _imageConfigs {
+			"\(name)": config.image
+		}
+	}
+
 	serviceAccounts: {
 		"\(#InternalServerServiceAccount)": #WorkloadIdentityServiceAccount & {
 			_iamServiceAccountName: "kingdom-internal"
@@ -89,9 +106,10 @@ kingdom: #Kingdom & {
 		}
 	}
 
-	cronjobs: {
+	cronJobs: {
 		"operational-metrics": {
 			_container: {
+				image:     _images["operational-metrics"]
 				resources: #OperationalMetricsJobResourceRequirements
 				args:      [
 						"--bigquery-project=\(#GCloudProject)",
@@ -105,7 +123,7 @@ kingdom: #Kingdom & {
 			}
 			spec: {
 				concurrencyPolicy: "Forbid"
-			  schedule: "30 * * * *" // Hourly, 30 minutes past the hour
+				schedule:          "30 * * * *" // Hourly, 30 minutes past the hour
 				jobTemplate: spec: template: spec: #ServiceAccountPodSpec & {
 					serviceAccountName: #OperationalMetricsServiceAccount
 				}
