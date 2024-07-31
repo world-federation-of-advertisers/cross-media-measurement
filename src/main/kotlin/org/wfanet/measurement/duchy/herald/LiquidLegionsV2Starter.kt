@@ -72,6 +72,7 @@ object LiquidLegionsV2Starter {
   val TERMINAL_STAGE = Stage.COMPLETE.toProtocolStage()
 
   suspend fun createComputation(
+    duchyId: String,
     computationStorageClient: ComputationsCoroutineStub,
     systemComputation: Computation,
     liquidLegionsV2SetupConfig: LiquidLegionsV2SetupConfig,
@@ -79,13 +80,12 @@ object LiquidLegionsV2Starter {
   ) {
     require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = systemComputation.key.computationId
-    val role = liquidLegionsV2SetupConfig.role
 
     val initialComputationDetails = computationDetails {
-      blobsStoragePrefix = "$blobStorageBucket/$role-$globalId"
+      blobsStoragePrefix = "$blobStorageBucket/$duchyId-$globalId"
       kingdomComputation = systemComputation.toKingdomComputationDetails()
       liquidLegionsV2 = llv2Details {
-        this.role = role
+        role = liquidLegionsV2SetupConfig.role
         parameters = systemComputation.toLiquidLegionsV2Parameters()
       }
     }

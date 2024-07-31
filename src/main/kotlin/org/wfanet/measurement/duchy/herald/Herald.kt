@@ -245,6 +245,7 @@ class Herald(
       when (systemComputation.mpcProtocolConfig.protocolCase) {
         Computation.MpcProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 ->
           LiquidLegionsV2Starter.createComputation(
+            duchyId,
             internalComputationsClient,
             systemComputation,
             protocolsSetupConfig.liquidLegionsV2,
@@ -252,6 +253,7 @@ class Herald(
           )
         Computation.MpcProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
           ReachOnlyLiquidLegionsV2Starter.createComputation(
+            duchyId,
             internalComputationsClient,
             systemComputation,
             protocolsSetupConfig.reachOnlyLiquidLegionsV2,
@@ -259,6 +261,7 @@ class Herald(
           )
         Computation.MpcProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
           HonestMajorityShareShuffleStarter.createComputation(
+            duchyId,
             internalComputationsClient,
             systemComputation,
             protocolsSetupConfig.honestMajorityShareShuffle,
