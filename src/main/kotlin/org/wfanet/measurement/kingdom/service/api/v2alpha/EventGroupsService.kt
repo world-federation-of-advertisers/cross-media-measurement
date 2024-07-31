@@ -48,6 +48,7 @@ import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.packedValue
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.unpack
@@ -234,7 +235,12 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
    */
   private fun validateRequestEventGroup(requestEventGroup: EventGroup) {
     if (requestEventGroup.hasEncryptedMetadata()) {
-      grpcRequire(requestEventGroup.hasMeasurementConsumerPublicKey()) {
+      grpcRequire(
+        requestEventGroup.hasMeasurementConsumerPublicKey() ||
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop reading this
+          // field.
+          requestEventGroup.hasSignedMeasurementConsumerPublicKey()
+      ) {
         "event_group.measurement_consumer_public_key must be specified if " +
           "event_group.encrypted_metadata is specified"
       }
@@ -476,6 +482,7 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
         // field.
         signedMeasurementConsumerPublicKey = signedMessage {
           message = this@eventGroup.measurementConsumerPublicKey
+          data = message.value
           signature = details.measurementConsumerPublicKeySignature
           signatureAlgorithmOid = details.measurementConsumerPublicKeySignatureAlgorithmOid
         }
@@ -537,7 +544,7 @@ private fun EventGroup.toInternal(
       if (source.hasMeasurementConsumerPublicKey()) {
         measurementConsumerPublicKey = source.measurementConsumerPublicKey.value
       } else if (source.hasSignedMeasurementConsumerPublicKey()) {
-        measurementConsumerPublicKey = source.signedMeasurementConsumerPublicKey.unpack()
+        measurementConsumerPublicKey = source.signedMeasurementConsumerPublicKey.packedValue
       }
 
       vidModelLines += source.vidModelLinesList
