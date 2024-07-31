@@ -18,7 +18,6 @@ package wfa.measurement.reporting.bff.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
-import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
 
 option java_package = "org.wfanet.measurement.reporting.bff.v1alpha";

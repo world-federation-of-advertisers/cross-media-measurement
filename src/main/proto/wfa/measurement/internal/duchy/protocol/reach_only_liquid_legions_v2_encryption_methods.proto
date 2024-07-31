@@ -20,7 +20,6 @@ import "wfa/measurement/internal/duchy/crypto.proto";
 import "wfa/measurement/internal/duchy/noise_mechanism.proto";
 import "wfa/measurement/internal/duchy/protocol/liquid_legions_sketch_parameter.proto";
 import "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_encryption_methods.proto";
-import "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_noise_config.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy.protocol";
 option java_multiple_files = true;
