@@ -22,6 +22,8 @@ import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.copy
 
+private const val SCALING_FACTOR = 10000
+
 class MetricSpecDefaultsException(message: String? = null, cause: Throwable? = null) :
   Exception(message, cause)
 
@@ -233,7 +235,11 @@ fun MetricSpecConfig.VidSamplingInterval.validate() {
  * Specifies default values using [MetricSpecConfig] when optional fields in the [MetricSpec] are
  * not set.
  */
-fun MetricSpec.withDefaults(metricSpecConfig: MetricSpecConfig, secureRandom: Random): MetricSpec {
+fun MetricSpec.withDefaults(
+  metricSpecConfig: MetricSpecConfig,
+  secureRandom: Random,
+  allowSamplingIntervalWrapping: Boolean = false,
+): MetricSpec {
   val deprecatedVidSamplingInterval: MetricSpec.VidSamplingInterval? =
     if (this.hasVidSamplingInterval()) {
       this.vidSamplingInterval
@@ -244,7 +250,13 @@ fun MetricSpec.withDefaults(metricSpecConfig: MetricSpecConfig, secureRandom: Ra
   return copy {
     when (typeCase) {
       MetricSpec.TypeCase.REACH -> {
-        reach = reach.withDefaults(deprecatedVidSamplingInterval, metricSpecConfig, secureRandom)
+        reach =
+          reach.withDefaults(
+            deprecatedVidSamplingInterval,
+            metricSpecConfig,
+            secureRandom,
+            allowSamplingIntervalWrapping,
+          )
       }
       MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
         reachAndFrequency =
@@ -252,6 +264,7 @@ fun MetricSpec.withDefaults(metricSpecConfig: MetricSpecConfig, secureRandom: Ra
             deprecatedVidSamplingInterval,
             metricSpecConfig,
             secureRandom,
+            allowSamplingIntervalWrapping,
           )
       }
       MetricSpec.TypeCase.IMPRESSION_COUNT -> {
@@ -287,6 +300,7 @@ private fun MetricSpec.ReachParams.withDefaults(
   deprecatedVidSamplingInterval: MetricSpec.VidSamplingInterval?,
   metricSpecConfig: MetricSpecConfig,
   secureRandom: Random,
+  allowSamplingIntervalWrapping: Boolean,
 ): MetricSpec.ReachParams {
   if (this.hasMultipleDataProviderParams() || this.hasSingleDataProviderParams()) {
     if (this.hasMultipleDataProviderParams() != this.hasSingleDataProviderParams()) {
@@ -334,9 +348,9 @@ private fun MetricSpec.ReachParams.withDefaults(
           if (!hasVidSamplingInterval()) {
             vidSamplingInterval =
               metricSpecConfig.reachParams.multipleDataProviderParams.vidSamplingInterval
-                .toVidSamplingInterval(secureRandom)
+                .toVidSamplingInterval(secureRandom, allowSamplingIntervalWrapping)
           }
-          vidSamplingInterval.validate()
+          vidSamplingInterval.validate(allowSamplingIntervalWrapping)
         }
 
       singleDataProviderParams =
@@ -368,8 +382,8 @@ private fun MetricSpec.ReachParams.withDefaults(
           vidSamplingInterval =
             deprecatedVidSamplingInterval
               ?: metricSpecConfig.reachParams.multipleDataProviderParams.vidSamplingInterval
-                .toVidSamplingInterval(secureRandom)
-          vidSamplingInterval.validate()
+                .toVidSamplingInterval(secureRandom, allowSamplingIntervalWrapping)
+          vidSamplingInterval.validate(allowSamplingIntervalWrapping)
         }
       clearPrivacyParams()
     }
@@ -384,6 +398,7 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
   deprecatedVidSamplingInterval: MetricSpec.VidSamplingInterval?,
   metricSpecConfig: MetricSpecConfig,
   secureRandom: Random,
+  allowSamplingIntervalWrapping: Boolean,
 ): MetricSpec.ReachAndFrequencyParams {
   if (this.hasMultipleDataProviderParams() || this.hasSingleDataProviderParams()) {
     if (this.hasMultipleDataProviderParams() != this.hasSingleDataProviderParams()) {
@@ -464,9 +479,9 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
             vidSamplingInterval =
               metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
                 .vidSamplingInterval
-                .toVidSamplingInterval(secureRandom)
+                .toVidSamplingInterval(secureRandom, allowSamplingIntervalWrapping)
           }
-          vidSamplingInterval.validate()
+          vidSamplingInterval.validate(allowSamplingIntervalWrapping)
         }
 
       singleDataProviderParams =
@@ -527,8 +542,8 @@ private fun MetricSpec.ReachAndFrequencyParams.withDefaults(
             deprecatedVidSamplingInterval
               ?: metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
                 .vidSamplingInterval
-                .toVidSamplingInterval(secureRandom)
-          vidSamplingInterval.validate()
+                .toVidSamplingInterval(secureRandom, allowSamplingIntervalWrapping)
+          vidSamplingInterval.validate(allowSamplingIntervalWrapping)
         }
       clearReachPrivacyParams()
       clearFrequencyPrivacyParams()
@@ -687,7 +702,8 @@ private fun MetricSpec.DifferentialPrivacyParams.withDefaults(
 
 /** Converts an [MetricSpecConfig.VidSamplingInterval] to a [MetricSpec.VidSamplingInterval]. */
 private fun MetricSpecConfig.VidSamplingInterval.toVidSamplingInterval(
-  secureRandom: Random
+  secureRandom: Random,
+  allowSamplingIntervalWrapping: Boolean = false,
 ): MetricSpec.VidSamplingInterval {
   val source = this
   if (source.hasFixedStart()) {
@@ -696,11 +712,16 @@ private fun MetricSpecConfig.VidSamplingInterval.toVidSamplingInterval(
       width = source.fixedStart.width
     }
   } else {
-    // The 10000 is to help turn the float into an int without losing too much data.
-    val maxStart = 10000 - (source.randomStart.width * 10000).toInt()
+    // The SCALING_FACTOR is to help turn the float into an int without losing too much data.
+    val maxStart =
+      if (allowSamplingIntervalWrapping) {
+        SCALING_FACTOR
+      } else {
+        SCALING_FACTOR - (source.randomStart.width * SCALING_FACTOR).toInt()
+      }
     val randomStart = secureRandom.nextInt(maxStart) % maxStart
     return MetricSpecKt.vidSamplingInterval {
-      start = randomStart.toFloat() / 10000
+      start = randomStart.toFloat() / SCALING_FACTOR
       width = source.randomStart.width
     }
   }
@@ -711,7 +732,9 @@ private fun MetricSpecConfig.VidSamplingInterval.toVidSamplingInterval(
  *
  * @throws [IllegalArgumentException] if validation fails.
  */
-private fun MetricSpec.VidSamplingInterval.validate() {
+private fun MetricSpec.VidSamplingInterval.validate(
+  allowSamplingIntervalWrapping: Boolean = false
+) {
   if (this.start < 0) {
     throw MetricSpecDefaultsException(
       "Invalid vidSamplingInterval",
@@ -730,10 +753,16 @@ private fun MetricSpec.VidSamplingInterval.validate() {
       IllegalArgumentException("vidSamplingInterval.width must be greater than 0."),
     )
   }
-  if (this.start + this.width > 1) {
+  if (!allowSamplingIntervalWrapping && this.start + this.width > 1) {
     throw MetricSpecDefaultsException(
       "Invalid vidSamplingInterval",
       IllegalArgumentException("vidSamplingInterval start + width cannot be greater than 1."),
+    )
+  }
+  if (allowSamplingIntervalWrapping && this.width > 1) {
+    throw MetricSpecDefaultsException(
+      "Invalid vidSamplingInterval",
+      IllegalArgumentException("vidSamplingInterval width cannot be greater than 1."),
     )
   }
 }

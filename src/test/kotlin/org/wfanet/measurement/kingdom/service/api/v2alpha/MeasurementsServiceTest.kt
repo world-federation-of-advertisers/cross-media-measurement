@@ -839,6 +839,72 @@ class MeasurementsServiceTest {
   }
 
   @Test
+  fun `createMeasurement with HMSS enabled using wrapping VidSamplingInterval`() {
+    internalDataProvidersMock.stub {
+      onBlocking { batchGetDataProviders(any()) }
+        .thenReturn(
+          internalBatchGetDataProvidersResponse {
+            for (externalDataProviderId in EXTERNAL_DATA_PROVIDER_IDS) {
+              dataProviders += internalDataProvider {
+                this.externalDataProviderId = externalDataProviderId.value
+                details =
+                  details.copy {
+                    capabilities =
+                      InternalDataProviderKt.capabilities {
+                        honestMajorityShareShuffleSupported = true
+                      }
+                  }
+              }
+            }
+          }
+        )
+    }
+    val measurement =
+      MEASUREMENT.copy {
+        clearFailure()
+        results.clear()
+        clearProtocolConfig()
+        measurementSpec = signedMessage {
+          setMessage(WRAPPING_INTERVAL_MEASUREMENT_SPEC.pack())
+          signature = UPDATE_TIME.toByteString()
+          signatureAlgorithmOid = "2.9999"
+        }
+      }
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      this.measurement = measurement
+      requestId = "foo"
+    }
+
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      runBlocking { hmssEnabledService.createMeasurement(request) }
+    }
+
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
+      )
+      .isEqualTo(
+        internalCreateMeasurementRequest {
+          this.measurement =
+            INTERNAL_MEASUREMENT.copy {
+              clearExternalMeasurementId()
+              clearUpdateTime()
+              results.clear()
+              details =
+                details.copy {
+                  clearFailure()
+                  protocolConfig = HMSS_INTERNAL_PROTOCOL_CONFIG
+                  clearDuchyProtocolConfig()
+                  measurementSpec = WRAPPING_INTERVAL_MEASUREMENT_SPEC.pack().value
+                }
+            }
+          requestId = request.requestId
+        }
+      )
+  }
+
+  @Test
   fun `createMeasurement throws INVALID_ARGUMENT when model line is missing for POPULATION measurement`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -1535,6 +1601,32 @@ class MeasurementsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception).hasMessageThat().ignoringCase().contains("nonce")
   }
+
+  @Test
+  fun `createMeasurement throws error when LLv2 VidSamplingInterval is wrapping around 1`() =
+    runBlocking {
+      val request = createMeasurementRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        measurement =
+          MEASUREMENT.copy {
+            measurementSpec = signedMessage {
+              setMessage(WRAPPING_INTERVAL_MEASUREMENT_SPEC.pack())
+              signature = UPDATE_TIME.toByteString()
+              signatureAlgorithmOid = "2.9999"
+            }
+          }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+            runBlocking { service.createMeasurement(request) }
+          }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().ignoringCase().contains("VidSamplingInterval")
+    }
 
   @Test
   fun `listMeasurements with no page token returns response`() {
@@ -2859,6 +2951,14 @@ class MeasurementsServiceTest {
             delta = 0.0
           }
           maximumWatchDurationPerUser = Durations.fromMinutes(5)
+        }
+      }
+
+    private val WRAPPING_INTERVAL_MEASUREMENT_SPEC =
+      MEASUREMENT_SPEC.copy {
+        vidSamplingInterval = vidSamplingInterval {
+          start = 0.5f
+          width = 0.8f
         }
       }
 
