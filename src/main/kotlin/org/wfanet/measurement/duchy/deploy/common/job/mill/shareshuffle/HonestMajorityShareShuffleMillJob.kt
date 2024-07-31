@@ -180,7 +180,7 @@ abstract class HonestMajorityShareShuffleMillJob : Runnable {
       )
 
     runBlocking(CoroutineName("Mill $millId")) {
-      mill.processClaimedWork(flags.claimedGlobalComputationId)
+      mill.processClaimedWork(flags.claimedGlobalComputationId, flags.claimedComputationVersion)
 
       // Continue processing until work is exhausted.
       do {

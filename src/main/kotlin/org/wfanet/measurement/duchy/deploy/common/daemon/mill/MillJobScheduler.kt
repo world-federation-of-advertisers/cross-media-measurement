@@ -143,8 +143,9 @@ class MillJobScheduler(
       millType.podTemplate.template.clone().apply {
         val container: V1Container = spec.containers.first()
         container.addArgsItem("--mill-id=$jobName")
-        container.addArgsItem("--computation-type=$computationType")
+        container.addArgsItem("--claimed-computation-type=$computationType")
         container.addArgsItem("--claimed-computation-id=$claimedComputationId")
+        container.addArgsItem("--claimed-computation-version=${claimedToken.version}")
       }
     createJob(jobName, millType, template)
     logger.info { "Scheduled Job $jobName for Computation $claimedComputationId" }
