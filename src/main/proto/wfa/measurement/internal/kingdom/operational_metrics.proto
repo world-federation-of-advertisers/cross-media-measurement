@@ -20,14 +20,14 @@ option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 message MeasurementData {
-  int64 external_measurement_consumer_id = 1;
-  int64 external_measurement_id = 2;
+  string measurement_consumer_id = 1;
+  string measurement_id = 2;
 
   bool is_direct = 3;
   // `REACH_AND_FREQUENCY`, `REACH`, `IMPRESSION`, `DURATION`, or `POPULATION`
   string measurement_type = 4;
 
-  // `SUCCEEDED`, `FAILED`, or `CANCELLED`
+  // `SUCCEEDED` or `FAILED`
   string state = 5;
 
   // in microseconds
@@ -40,16 +40,16 @@ message MeasurementData {
 }
 
 message RequisitionData {
-  int64 external_measurement_consumer_id = 1;
-  int64 external_measurement_id = 2;
-  int64 external_requisition_id = 3;
-  int64 external_data_provider_id = 4;
+  string measurement_consumer_id = 1;
+  string measurement_id = 2;
+  string requisition_id = 3;
+  string data_provider_id = 4;
 
   bool is_direct = 5;
   // `REACH_AND_FREQUENCY`, `REACH`, `IMPRESSION`, `DURATION`, or `POPULATION`
   string measurement_type = 6;
 
-  // `PENDING_PARAMS`, `UNFULFILLED`, `FULFILLED`, or `REFUSED`
+  // `UNFULFILLED`, `FULFILLED`, or `REFUSED`
   string state = 7;
 
   // in microseconds
@@ -62,14 +62,14 @@ message RequisitionData {
 }
 
 message ComputationParticipantData {
-  int64 external_measurement_consumer_id = 1;
-  int64 external_measurement_id = 2;
-  int64 external_computation_id = 3;
-  string external_duchy_id = 4;
+  string measurement_consumer_id = 1;
+  string measurement_id = 2;
+  string computation_id = 3;
+  string duchy_id = 4;
 
-  // `LIQUID_LEGIONS_V2`, `LIQUID_LEGIONS_V2_REACH_ONLY`, `DIRECT`, or
-  // `HONEST_MAJORITY_SHARE_SHUFFLE`
-  string duchy_protocol_config = 5;
+  // `LIQUID_LEGIONS_V2`, `REACH_ONLY_LIQUID_LEGIONS_V2`,
+  // `HONEST_MAJORITY_SHARE_SHUFFLE`, or `PROTOCOL_NOT_SET`
+  string protocol = 5;
   // `REACH_AND_FREQUENCY`, `REACH`, `IMPRESSION`, `DURATION`, or `POPULATION`
   string measurement_type = 6;
 
