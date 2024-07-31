@@ -17,10 +17,22 @@
 package org.wfanet.measurement.api.v2alpha
 
 import com.google.protobuf.Any as ProtoAny
+import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import com.google.protobuf.kotlin.unpack
 import org.wfanet.measurement.common.ProtoReflection
+
+/** The packed value contained in this [SignedMessage]. */
+val SignedMessage.packedValue: ByteString
+  get() {
+    return if (hasMessage()) {
+      message.value
+    } else {
+      @Suppress("DEPRECATION") // Handle legacy resources.
+      data
+    }
+  }
 
 /**
  * Unpacks the protobuf message in this [SignedMessage].
