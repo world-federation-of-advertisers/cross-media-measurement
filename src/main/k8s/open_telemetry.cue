@@ -123,7 +123,7 @@ package k8s
 				_envVars: [string]: string
 				_envVars: {
 					OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT: "256"
-					OTEL_TRACES_EXPORTER:                   "otlp"
+					OTEL_TRACES_EXPORTER:                   _ | *"none"
 					OTEL_EXPORTER_OTLP_TRACES_PROTOCOL:     "grpc"
 					OTEL_EXPORTER_OTLP_ENDPOINT:            "http://default-collector-headless.default.svc:\(#OpenTelemetryReceiverPort)"
 					OTEL_EXPORTER_OTLP_TIMEOUT:             "20000"
