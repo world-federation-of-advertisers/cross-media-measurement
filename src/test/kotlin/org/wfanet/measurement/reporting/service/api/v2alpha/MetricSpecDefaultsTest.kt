@@ -1888,6 +1888,32 @@ class MetricSpecDefaultsTest {
   }
 
   @Test
+  fun `buildMetricSpec throws MetricSpecBuildingException with sampling width larger than 1`() {
+    val initial = metricSpec {
+      reach = reachParams {
+        privacyParams =
+          MetricSpecKt.differentialPrivacyParams {
+            epsilon =
+              METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.privacyParams.epsilon * 2
+            delta =
+              METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.privacyParams.delta * 2
+          }
+      }
+      vidSamplingInterval =
+        MetricSpecKt.vidSamplingInterval {
+          start = 0.5f
+          width = 1.3f
+        }
+    }
+    val exception =
+      assertThrows(MetricSpecDefaultsException::class.java) {
+        initial.withDefaults(METRIC_SPEC_CONFIG, randomMock, allowSamplingIntervalWrapping = true)
+      }
+    assertThat(exception.message).contains("vidSamplingInterval")
+    assertThat(exception).hasCauseThat().isInstanceOf(IllegalArgumentException::class.java)
+  }
+
+  @Test
   fun `buildMetricSpec throw MetricSpecBuildingException when vidSamplingInterval width is 0`() {
     val metricSpec =
       LEGACY_EMPTY_REACH_METRIC_SPEC.copy {
