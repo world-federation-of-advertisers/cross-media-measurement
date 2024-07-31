@@ -25,19 +25,16 @@ import com.google.cloud.bigquery.LegacySQLTypeName
 import com.google.cloud.bigquery.TableResult
 import com.google.cloud.bigquery.storage.v1.ProtoRows
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.timestamp
 import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
-import java.time.Clock
-import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
-import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,90 +42,64 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
-import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.measurementSpec
-import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
+import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantData
-import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
-import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt
 import org.wfanet.measurement.internal.kingdom.LatestMeasurementRead
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementData
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
+import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
+import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionData
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
+import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.internal.kingdom.createMeasurementRequest
-import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
-import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.measurement
+import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig
-import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
+import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
-import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
-import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerAccountsService
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerCertificatesService
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDataProvidersService
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerMeasurementConsumersService
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerMeasurementsService
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerRequisitionsService
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata
-import org.wfanet.measurement.kingdom.service.internal.testing.Population
-import org.wfanet.measurement.kingdom.service.internal.testing.toDataProviderValue
 
 @RunWith(JUnit4::class)
-class OperationalMetricsJobTest {
-  private val clock: Clock = Clock.systemUTC()
-  private val idGenerator = RandomIdGenerator(clock, Random(1))
-  private val population = Population(clock, idGenerator)
+class OperationalMetricsExportTest {
+  private val measurementsMock: MeasurementsGrpcKt.MeasurementsCoroutineImplBase =
+    mockService {
+      onBlocking { streamMeasurements(any()) }
+        .thenReturn(
+          flowOf(
+            DIRECT_MEASUREMENT,
+            COMPUTATION_MEASUREMENT
+          )
+        )
+    }
 
-  @get:Rule val duchyIdSetter = DuchyIdSetter(Population.DUCHIES)
-  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.KINGDOM_CHANGELOG_PATH)
-  private lateinit var spannerAccountsService: SpannerAccountsService
-  private lateinit var spannerDataProvidersService: SpannerDataProvidersService
-  private lateinit var spannerMeasurementConsumersService: SpannerMeasurementConsumersService
-  private lateinit var spannerMeasurementsService: SpannerMeasurementsService
-  private lateinit var spannerCertificatesService: SpannerCertificatesService
-  private lateinit var spannerRequisitionsService: SpannerRequisitionsService
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(measurementsMock)
+  }
+
+  private lateinit var measurementsClient: MeasurementsGrpcKt.MeasurementsCoroutineStub
 
   @Before
   fun init() {
-    spannerAccountsService = SpannerAccountsService(idGenerator, spannerDatabase.databaseClient)
-    spannerDataProvidersService =
-      SpannerDataProvidersService(idGenerator, spannerDatabase.databaseClient)
-    spannerMeasurementConsumersService =
-      SpannerMeasurementConsumersService(idGenerator, spannerDatabase.databaseClient)
-    spannerMeasurementsService =
-      SpannerMeasurementsService(idGenerator, spannerDatabase.databaseClient)
-    spannerCertificatesService =
-      SpannerCertificatesService(idGenerator, spannerDatabase.databaseClient)
-    spannerRequisitionsService =
-      SpannerRequisitionsService(idGenerator, spannerDatabase.databaseClient)
+    measurementsClient = MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel)
   }
 
   @Test
   fun `job successfully creates protos for appending to streams`() = runBlocking {
-    val createdMeasurements =
-      createSucceededMeasurements(
-        population,
-        spannerDataProvidersService,
-        spannerMeasurementsService,
-        spannerAccountsService,
-        spannerMeasurementConsumersService,
-        spannerRequisitionsService,
-        spannerCertificatesService,
-      )
-
-    val computationParticipantMeasurement = createdMeasurements.computationParticipantMeasurement
-    val directMeasurement = createdMeasurements.directMeasurement
+    val computationMeasurement = COMPUTATION_MEASUREMENT
+    val directMeasurement = DIRECT_MEASUREMENT
 
     val tableResultMock: TableResult = mock { tableResult ->
       whenever(tableResult.iterateAll()).thenReturn(emptyList())
@@ -138,40 +109,40 @@ class OperationalMetricsJobTest {
       whenever(bigQuery.query(any())).thenReturn(tableResultMock)
     }
 
-    val measurementsDataWriterMock: OperationalMetricsJob.DataWriter = mock { dataWriter ->
+    val measurementsDataWriterMock: OperationalMetricsExport.DataWriter = mock { dataWriter ->
       whenever(dataWriter.appendRows(any())).thenAnswer {
         val protoRows: ProtoRows = it.getArgument(0)
         assertThat(protoRows.serializedRowsList).hasSize(2)
 
-        val computationParticipantMeasurementData =
+        val computationMeasurementData =
           MeasurementData.parseFrom(protoRows.serializedRowsList[1])
-        assertThat(computationParticipantMeasurementData.measurementConsumerId)
+        assertThat(computationMeasurementData.measurementConsumerId)
           .isEqualTo(
-            externalIdToApiId(computationParticipantMeasurement.externalMeasurementConsumerId)
+            externalIdToApiId(computationMeasurement.externalMeasurementConsumerId)
           )
-        assertThat(computationParticipantMeasurementData.measurementId)
-          .isEqualTo(externalIdToApiId(computationParticipantMeasurement.externalMeasurementId))
-        assertThat(computationParticipantMeasurementData.isDirect).isFalse()
-        assertThat(computationParticipantMeasurementData.measurementType)
+        assertThat(computationMeasurementData.measurementId)
+          .isEqualTo(externalIdToApiId(computationMeasurement.externalMeasurementId))
+        assertThat(computationMeasurementData.isDirect).isFalse()
+        assertThat(computationMeasurementData.measurementType)
           .isEqualTo("REACH_AND_FREQUENCY")
-        assertThat(computationParticipantMeasurementData.state).isEqualTo("SUCCEEDED")
-        assertThat(computationParticipantMeasurementData.createTime)
-          .isEqualTo(Timestamps.toMicros(computationParticipantMeasurement.createTime))
-        assertThat(computationParticipantMeasurementData.updateTime)
-          .isEqualTo(Timestamps.toMicros(computationParticipantMeasurement.updateTime))
-        assertThat(computationParticipantMeasurementData.updateTimeMinusCreateTime)
+        assertThat(computationMeasurementData.state).isEqualTo("SUCCEEDED")
+        assertThat(computationMeasurementData.createTime)
+          .isEqualTo(Timestamps.toMicros(computationMeasurement.createTime))
+        assertThat(computationMeasurementData.updateTime)
+          .isEqualTo(Timestamps.toMicros(computationMeasurement.updateTime))
+        assertThat(computationMeasurementData.updateTimeMinusCreateTime)
           .isEqualTo(
             Durations.toMillis(
               Timestamps.between(
-                computationParticipantMeasurement.createTime,
-                computationParticipantMeasurement.updateTime,
+                computationMeasurement.createTime,
+                computationMeasurement.updateTime,
               )
             )
           )
-        assertThat(computationParticipantMeasurementData.updateTimeMinusCreateTimeSquared)
+        assertThat(computationMeasurementData.updateTimeMinusCreateTimeSquared)
           .isEqualTo(
-            computationParticipantMeasurementData.updateTimeMinusCreateTime *
-              computationParticipantMeasurementData.updateTimeMinusCreateTime
+            computationMeasurementData.updateTimeMinusCreateTime *
+              computationMeasurementData.updateTimeMinusCreateTime
           )
 
         val directMeasurementData = MeasurementData.parseFrom(protoRows.serializedRowsList[0])
@@ -201,7 +172,7 @@ class OperationalMetricsJobTest {
       }
     }
 
-    val requisitionsDataWriterMock: OperationalMetricsJob.DataWriter = mock { dataWriter ->
+    val requisitionsDataWriterMock: OperationalMetricsExport.DataWriter = mock { dataWriter ->
       whenever(dataWriter.appendRows(any())).thenAnswer {
         val protoRows: ProtoRows = it.getArgument(0)
         assertThat(protoRows.serializedRowsList).hasSize(2)
@@ -210,20 +181,20 @@ class OperationalMetricsJobTest {
           RequisitionData.parseFrom(protoRows.serializedRowsList[1])
         assertThat(computationParticipantRequisitionData.measurementConsumerId)
           .isEqualTo(
-            externalIdToApiId(computationParticipantMeasurement.externalMeasurementConsumerId)
+            externalIdToApiId(computationMeasurement.externalMeasurementConsumerId)
           )
         assertThat(computationParticipantRequisitionData.measurementId)
-          .isEqualTo(externalIdToApiId(computationParticipantMeasurement.externalMeasurementId))
+          .isEqualTo(externalIdToApiId(computationMeasurement.externalMeasurementId))
         assertThat(computationParticipantRequisitionData.requisitionId)
           .isEqualTo(
             externalIdToApiId(
-              computationParticipantMeasurement.requisitionsList[0].externalRequisitionId
+              computationMeasurement.requisitionsList[0].externalRequisitionId
             )
           )
         assertThat(computationParticipantRequisitionData.dataProviderId)
           .isEqualTo(
             externalIdToApiId(
-              computationParticipantMeasurement.requisitionsList[0].externalDataProviderId
+              computationMeasurement.requisitionsList[0].externalDataProviderId
             )
           )
         assertThat(computationParticipantRequisitionData.isDirect).isFalse()
@@ -231,17 +202,17 @@ class OperationalMetricsJobTest {
           .isEqualTo("REACH_AND_FREQUENCY")
         assertThat(computationParticipantRequisitionData.state).isEqualTo("UNFULFILLED")
         assertThat(computationParticipantRequisitionData.createTime)
-          .isEqualTo(Timestamps.toMicros(computationParticipantMeasurement.createTime))
+          .isEqualTo(Timestamps.toMicros(computationMeasurement.createTime))
         assertThat(computationParticipantRequisitionData.updateTime)
           .isEqualTo(
-            Timestamps.toMicros(computationParticipantMeasurement.requisitionsList[0].updateTime)
+            Timestamps.toMicros(computationMeasurement.requisitionsList[0].updateTime)
           )
         assertThat(computationParticipantRequisitionData.updateTimeMinusCreateTime)
           .isEqualTo(
             Durations.toMillis(
               Timestamps.between(
-                computationParticipantMeasurement.createTime,
-                computationParticipantMeasurement.requisitionsList[0].updateTime,
+                computationMeasurement.createTime,
+                computationMeasurement.requisitionsList[0].updateTime,
               )
             )
           )
@@ -264,7 +235,7 @@ class OperationalMetricsJobTest {
           )
         assertThat(directRequisitionData.isDirect).isTrue()
         assertThat(directRequisitionData.measurementType).isEqualTo("REACH_AND_FREQUENCY")
-        assertThat(directRequisitionData.state).isEqualTo("FULFILLED")
+        assertThat(directRequisitionData.state).isEqualTo("UNFULFILLED")
         assertThat(directRequisitionData.createTime)
           .isEqualTo(Timestamps.toMicros(directMeasurement.createTime))
         assertThat(directRequisitionData.updateTime)
@@ -287,7 +258,7 @@ class OperationalMetricsJobTest {
       }
     }
 
-    val computationParticipantsDataWriterMock: OperationalMetricsJob.DataWriter =
+    val computationParticipantsDataWriterMock: OperationalMetricsExport.DataWriter =
       mock { dataWriter ->
         whenever(dataWriter.appendRows(any())).thenAnswer {
           val protoRows: ProtoRows = it.getArgument(0)
@@ -297,33 +268,33 @@ class OperationalMetricsJobTest {
             val computationParticipantData =
               ComputationParticipantData.parseFrom(serializedProtoRow)
             for (computationParticipant in
-              computationParticipantMeasurement.computationParticipantsList) {
+              computationMeasurement.computationParticipantsList) {
               if (computationParticipant.externalDuchyId == computationParticipantData.duchyId) {
                 assertThat(computationParticipantData.measurementConsumerId)
                   .isEqualTo(
                     externalIdToApiId(
-                      computationParticipantMeasurement.externalMeasurementConsumerId
+                      computationMeasurement.externalMeasurementConsumerId
                     )
                   )
                 assertThat(computationParticipantData.measurementId)
                   .isEqualTo(
-                    externalIdToApiId(computationParticipantMeasurement.externalMeasurementId)
+                    externalIdToApiId(computationMeasurement.externalMeasurementId)
                   )
                 assertThat(computationParticipantData.computationId)
-                  .isEqualTo(externalIdToApiId(computationParticipant.externalComputationId))
+                  .isEqualTo(externalIdToApiId(computationMeasurement.externalComputationId))
                 assertThat(computationParticipantData.protocol).isEqualTo("PROTOCOL_NOT_SET")
                 assertThat(computationParticipantData.measurementType)
                   .isEqualTo("REACH_AND_FREQUENCY")
                 assertThat(computationParticipantData.state).isEqualTo("CREATED")
                 assertThat(computationParticipantData.createTime)
-                  .isEqualTo(Timestamps.toMicros(computationParticipantMeasurement.createTime))
+                  .isEqualTo(Timestamps.toMicros(computationMeasurement.createTime))
                 assertThat(computationParticipantData.updateTime)
                   .isEqualTo(Timestamps.toMicros(computationParticipant.updateTime))
                 assertThat(computationParticipantData.updateTimeMinusCreateTime)
                   .isEqualTo(
                     Durations.toMillis(
                       Timestamps.between(
-                        computationParticipantMeasurement.createTime,
+                        computationMeasurement.createTime,
                         computationParticipant.updateTime,
                       )
                     )
@@ -340,25 +311,25 @@ class OperationalMetricsJobTest {
         }
       }
 
-    val latestMeasurementReadDataWriterMock: OperationalMetricsJob.DataWriter = mock { dataWriter ->
+    val latestMeasurementReadDataWriterMock: OperationalMetricsExport.DataWriter = mock { dataWriter ->
       whenever(dataWriter.appendRows(any())).thenAnswer {
         val protoRows: ProtoRows = it.getArgument(0)
         assertThat(protoRows.serializedRowsList).hasSize(1)
 
         val latestMeasurementRead = LatestMeasurementRead.parseFrom(protoRows.serializedRowsList[0])
         assertThat(latestMeasurementRead.updateTime)
-          .isEqualTo(Timestamps.toNanos(computationParticipantMeasurement.updateTime))
+          .isEqualTo(Timestamps.toNanos(computationMeasurement.updateTime))
         assertThat(latestMeasurementRead.externalMeasurementConsumerId)
-          .isEqualTo(computationParticipantMeasurement.externalMeasurementConsumerId)
+          .isEqualTo(computationMeasurement.externalMeasurementConsumerId)
         assertThat(latestMeasurementRead.externalMeasurementId)
-          .isEqualTo(computationParticipantMeasurement.externalMeasurementId)
+          .isEqualTo(computationMeasurement.externalMeasurementId)
         async {}
       }
     }
 
-    val operationalMetricsJob =
-      OperationalMetricsJob(
-        spannerClient = spannerDatabase.databaseClient,
+    val operationalMetricsExport =
+      OperationalMetricsExport(
+        measurementsClient = measurementsClient,
         bigQuery = bigQueryMock,
         datasetId = "dataset",
         latestMeasurementReadTableId = "table",
@@ -368,24 +339,13 @@ class OperationalMetricsJobTest {
         latestMeasurementReadDataWriter = latestMeasurementReadDataWriterMock,
       )
 
-    operationalMetricsJob.execute()
+    operationalMetricsExport.execute()
   }
 
   @Test
   fun `job can process the next batch of measurements without starting at the beginning`() =
     runBlocking {
-      val createdMeasurements =
-        createSucceededMeasurements(
-          population,
-          spannerDataProvidersService,
-          spannerMeasurementsService,
-          spannerAccountsService,
-          spannerMeasurementConsumersService,
-          spannerRequisitionsService,
-          spannerCertificatesService,
-        )
-
-      val directMeasurement = createdMeasurements.directMeasurement
+      val directMeasurement = DIRECT_MEASUREMENT
 
       val updateTimeFieldValue: FieldValue =
         FieldValue.of(
@@ -415,47 +375,57 @@ class OperationalMetricsJobTest {
           )
       }
 
+      whenever(measurementsMock.streamMeasurements(any())).thenAnswer {
+        val streamMeasurementsRequest: StreamMeasurementsRequest = it.getArgument(0)
+        assertThat(streamMeasurementsRequest)
+          .ignoringRepeatedFieldOrder()
+          .isEqualTo(
+            streamMeasurementsRequest {
+              measurementView = Measurement.View.COMPUTATION
+              filter = StreamMeasurementsRequestKt.filter {
+                states += Measurement.State.SUCCEEDED
+                states += Measurement.State.FAILED
+                after = StreamMeasurementsRequestKt.FilterKt.after {
+                  updateTime = directMeasurement.updateTime
+                  measurement = measurementKey {
+                    externalMeasurementConsumerId = directMeasurement.externalMeasurementConsumerId
+                    externalMeasurementId = directMeasurement.externalMeasurementId
+                  }
+                }
+              }
+              limit = 1000
+            }
+          )
+        flowOf(
+          COMPUTATION_MEASUREMENT
+        )
+      }
+
       val bigQueryMock: BigQuery = mock { bigQuery ->
         whenever(bigQuery.query(any())).thenReturn(tableResultMock)
       }
 
-      val measurementsDataWriterMock: OperationalMetricsJob.DataWriter = mock { dataWriter ->
-        whenever(dataWriter.appendRows(any())).thenAnswer {
-          val protoRows: ProtoRows = it.getArgument(0)
-          assertThat(protoRows.serializedRowsList).hasSize(1)
-          async {}
-        }
+      val measurementsDataWriterMock: OperationalMetricsExport.DataWriter = mock { dataWriter ->
+        whenever(dataWriter.appendRows(any())).thenReturn(async {})
       }
 
-      val requisitionsDataWriterMock: OperationalMetricsJob.DataWriter = mock { dataWriter ->
-        whenever(dataWriter.appendRows(any())).thenAnswer {
-          val protoRows: ProtoRows = it.getArgument(0)
-          assertThat(protoRows.serializedRowsList).hasSize(1)
-          async {}
-        }
+      val requisitionsDataWriterMock: OperationalMetricsExport.DataWriter = mock { dataWriter ->
+        whenever(dataWriter.appendRows(any())).thenReturn(async {})
       }
 
-      val computationParticipantsDataWriterMock: OperationalMetricsJob.DataWriter =
+      val computationParticipantsDataWriterMock: OperationalMetricsExport.DataWriter =
         mock { dataWriter ->
-          whenever(dataWriter.appendRows(any())).thenAnswer {
-            val protoRows: ProtoRows = it.getArgument(0)
-            assertThat(protoRows.serializedRowsList).hasSize(3)
-            async {}
-          }
+          whenever(dataWriter.appendRows(any())).thenReturn(async {})
         }
 
-      val latestMeasurementReadDataWriterMock: OperationalMetricsJob.DataWriter =
+      val latestMeasurementReadDataWriterMock: OperationalMetricsExport.DataWriter =
         mock { dataWriter ->
-          whenever(dataWriter.appendRows(any())).thenAnswer {
-            val protoRows: ProtoRows = it.getArgument(0)
-            assertThat(protoRows.serializedRowsList).hasSize(1)
-            async {}
-          }
+          whenever(dataWriter.appendRows(any())).thenReturn(async {})
         }
 
-      val operationalMetricsJob =
-        OperationalMetricsJob(
-          spannerClient = spannerDatabase.databaseClient,
+      val operationalMetricsExport =
+        OperationalMetricsExport(
+          measurementsClient = measurementsClient,
           bigQuery = bigQueryMock,
           datasetId = "dataset",
           latestMeasurementReadTableId = "table",
@@ -465,22 +435,12 @@ class OperationalMetricsJobTest {
           latestMeasurementReadDataWriter = latestMeasurementReadDataWriterMock,
         )
 
-      operationalMetricsJob.execute()
+      operationalMetricsExport.execute()
     }
 
   @Test
   fun `job fails when bigquery append fails`() {
     runBlocking {
-      createSucceededMeasurements(
-        population,
-        spannerDataProvidersService,
-        spannerMeasurementsService,
-        spannerAccountsService,
-        spannerMeasurementConsumersService,
-        spannerRequisitionsService,
-        spannerCertificatesService,
-      )
-
       val tableResultMock: TableResult = mock { tableResult ->
         whenever(tableResult.iterateAll()).thenReturn(emptyList())
       }
@@ -489,27 +449,27 @@ class OperationalMetricsJobTest {
         whenever(bigQuery.query(any())).thenReturn(tableResultMock)
       }
 
-      val measurementsDataWriterMock: OperationalMetricsJob.DataWriter = mock { dataWriter ->
+      val measurementsDataWriterMock: OperationalMetricsExport.DataWriter = mock { dataWriter ->
         whenever(dataWriter.appendRows(any())).thenThrow(IllegalStateException(""))
       }
 
-      val requisitionsDataWriterMock: OperationalMetricsJob.DataWriter = mock { dataWriter ->
+      val requisitionsDataWriterMock: OperationalMetricsExport.DataWriter = mock { dataWriter ->
         whenever(dataWriter.appendRows(any())).thenReturn(async {})
       }
 
-      val computationParticipantsDataWriterMock: OperationalMetricsJob.DataWriter =
+      val computationParticipantsDataWriterMock: OperationalMetricsExport.DataWriter =
         mock { dataWriter ->
           whenever(dataWriter.appendRows(any())).thenReturn(async {})
         }
 
-      val latestMeasurementReadDataWriterMock: OperationalMetricsJob.DataWriter =
+      val latestMeasurementReadDataWriterMock: OperationalMetricsExport.DataWriter =
         mock { dataWriter ->
           whenever(dataWriter.appendRows(any())).thenReturn(async {})
         }
 
-      val operationalMetricsJob =
-        OperationalMetricsJob(
-          spannerClient = spannerDatabase.databaseClient,
+      val operationalMetricsExport =
+        OperationalMetricsExport(
+          measurementsClient = measurementsClient,
           bigQuery = bigQueryMock,
           datasetId = "dataset",
           latestMeasurementReadTableId = "table",
@@ -519,140 +479,12 @@ class OperationalMetricsJobTest {
           latestMeasurementReadDataWriter = latestMeasurementReadDataWriterMock,
         )
 
-      assertFailsWith<IllegalStateException> { operationalMetricsJob.execute() }
+      assertFailsWith<IllegalStateException> { operationalMetricsExport.execute() }
     }
   }
 
   companion object {
-    @BeforeClass
-    @JvmStatic
-    fun initConfig() {
-      Llv2ProtocolConfig.setForTest(
-        ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
-        DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
-        setOf(
-          Population.AGGREGATOR_DUCHY.externalDuchyId,
-          Population.WORKER1_DUCHY.externalDuchyId,
-        ),
-        2,
-      )
-    }
-
-    private data class CreatedMeasurements(
-      val computationParticipantMeasurement: Measurement,
-      val directMeasurement: Measurement,
-    )
-
-    private suspend fun createSucceededMeasurements(
-      population: Population,
-      spannerDataProvidersService: SpannerDataProvidersService,
-      spannerMeasurementsService: SpannerMeasurementsService,
-      spannerAccountsService: SpannerAccountsService,
-      spannerMeasurementConsumersService: SpannerMeasurementConsumersService,
-      spannerRequisitionsService: SpannerRequisitionsService,
-      spannerCertificatesService: SpannerCertificatesService,
-    ): CreatedMeasurements {
-      val dataProvider = population.createDataProvider(spannerDataProvidersService)
-      val measurementConsumer =
-        population.createMeasurementConsumer(
-          spannerMeasurementConsumersService,
-          spannerAccountsService,
-        )
-
-      val computationParticipantMeasurementRequest = createMeasurementRequest {
-        measurement =
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-            providedMeasurementId = "computation-participant"
-            dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
-            details =
-              details.copy {
-                duchyProtocolConfig = duchyProtocolConfig {
-                  liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-                }
-                protocolConfig = protocolConfig {
-                  liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-                }
-              }
-          }
-      }
-
-      val directMeasurementRequest = createMeasurementRequest {
-        measurement =
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-            providedMeasurementId = "direct"
-            dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
-            details =
-              details.copy {
-                clearDuchyProtocolConfig()
-                protocolConfig = protocolConfig {
-                  direct = ProtocolConfig.Direct.getDefaultInstance()
-                }
-              }
-          }
-      }
-
-      val computationParticipantMeasurement =
-        spannerMeasurementsService.createMeasurement(computationParticipantMeasurementRequest)
-      var directMeasurement = spannerMeasurementsService.createMeasurement(directMeasurementRequest)
-
-      directMeasurement =
-        spannerMeasurementsService
-          .streamMeasurements(
-            streamMeasurementsRequest { measurementView = Measurement.View.COMPUTATION }
-          )
-          .filter { it.providedMeasurementId == directMeasurement.providedMeasurementId }
-          .first()
-
-      spannerRequisitionsService.fulfillRequisition(
-        fulfillRequisitionRequest {
-          externalRequisitionId = directMeasurement.requisitionsList[0].externalRequisitionId
-          nonce = 123L
-          directParams =
-            FulfillRequisitionRequestKt.directRequisitionParams {
-              externalDataProviderId = directMeasurement.requisitionsList[0].externalDataProviderId
-              encryptedData = ByteString.copyFromUtf8("encryptedData")
-              externalCertificateId =
-                directMeasurement.requisitionsList[0].details.externalCertificateId
-              apiVersion = PUBLIC_API_VERSION
-            }
-        }
-      )
-
-      val aggregatorDuchyId = Population.AGGREGATOR_DUCHY.externalDuchyId
-      val aggregatorCertificate =
-        population.createDuchyCertificate(spannerCertificatesService, aggregatorDuchyId)
-      spannerMeasurementsService.setMeasurementResult(
-        setMeasurementResultRequest {
-          externalComputationId = computationParticipantMeasurement.externalComputationId
-          externalAggregatorDuchyId = aggregatorDuchyId
-          externalAggregatorCertificateId = aggregatorCertificate.externalCertificateId
-          resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
-          encryptedResult = ByteString.copyFromUtf8("encryptedResult")
-          publicApiVersion = Version.V2_ALPHA.string
-        }
-      )
-
-      val measurements =
-        spannerMeasurementsService
-          .streamMeasurements(
-            streamMeasurementsRequest { measurementView = Measurement.View.COMPUTATION }
-          )
-          .toList()
-
-      return CreatedMeasurements(
-        computationParticipantMeasurement = measurements[1],
-        directMeasurement = measurements[0],
-      )
-    }
-
     private const val API_VERSION = "v2alpha"
-    private val PUBLIC_API_VERSION = Version.V2_ALPHA.string
 
     private val PUBLIC_API_ENCRYPTION_PUBLIC_KEY = encryptionPublicKey {
       format = EncryptionPublicKey.Format.TINK_KEYSET
@@ -676,6 +508,8 @@ class OperationalMetricsJobTest {
     }
 
     private val MEASUREMENT = measurement {
+      externalMeasurementConsumerId = 1234
+      externalMeasurementConsumerCertificateId = 1234
       details =
         MeasurementKt.details {
           apiVersion = API_VERSION
@@ -684,6 +518,89 @@ class OperationalMetricsJobTest {
           measurementSpecSignatureAlgorithmOid = "2.9999"
         }
     }
+
+    private val COMPUTATION_MEASUREMENT =
+      MEASUREMENT.copy {
+        externalMeasurementId = 123
+        externalComputationId = 124
+        providedMeasurementId = "computation-participant"
+        state = Measurement.State.SUCCEEDED
+        createTime = timestamp {
+          seconds = 200
+        }
+        updateTime = timestamp {
+          seconds = 300
+          nanos = 100
+        }
+        details = details.copy {
+          protocolConfig = protocolConfig {
+            liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+          }
+        }
+
+        requisitions += requisition {
+          externalDataProviderId = 432
+          externalRequisitionId = 433
+          state = Requisition.State.UNFULFILLED
+          updateTime = timestamp {
+            seconds = 500
+            nanos = 100
+          }
+        }
+
+        computationParticipants += computationParticipant {
+          externalDuchyId = "0"
+          state = ComputationParticipant.State.CREATED
+          updateTime = timestamp {
+            seconds = 300
+          }
+        }
+        computationParticipants += computationParticipant {
+          externalDuchyId = "1"
+          state = ComputationParticipant.State.CREATED
+          updateTime = timestamp {
+            seconds = 400
+          }
+        }
+        computationParticipants += computationParticipant {
+          externalDuchyId = "2"
+          state = ComputationParticipant.State.CREATED
+          updateTime = timestamp {
+            seconds = 500
+          }
+        }
+      }
+
+    private val DIRECT_MEASUREMENT =
+      MEASUREMENT.copy {
+        externalMeasurementId = 321
+        externalComputationId = 0
+        providedMeasurementId = "direct"
+        state = Measurement.State.SUCCEEDED
+        createTime = timestamp {
+          seconds = 200
+        }
+        updateTime = timestamp {
+          seconds = 220
+          nanos = 200
+        }
+        details = details.copy {
+          protocolConfig = protocolConfig {
+            direct = ProtocolConfig.Direct.getDefaultInstance()
+          }
+        }
+
+        requisitions += requisition {
+          externalDataProviderId = 432
+          externalRequisitionId = 437
+          state = Requisition.State.UNFULFILLED
+          updateTime = timestamp {
+            seconds = 600
+            nanos = 100
+          }
+        }
+      }
+
     private val LATEST_MEASUREMENT_FIELD_LIST: FieldList =
       FieldList.of(
         listOf(

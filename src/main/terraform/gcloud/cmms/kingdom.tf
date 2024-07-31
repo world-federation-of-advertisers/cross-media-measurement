@@ -323,9 +323,3 @@ resource "google_project_iam_member" "bigquery_job_user" {
   role    = "roles/bigquery.jobUser"
   member  = module.kingdom_operational_metrics.iam_service_account.member
 }
-
-resource "google_project_iam_member" "spanner_reader" {
-  project = "halo-cmm-dev"
-  role    = "roles/spanner.databaseReader"
-  member  = module.kingdom_operational_metrics.iam_service_account.member
-}

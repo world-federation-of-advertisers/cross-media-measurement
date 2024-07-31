@@ -118,8 +118,9 @@ kingdom: #Kingdom & {
 						"--requisitions-table=requisitions",
 						"--computation-participants-table=computation_participants",
 						"--latest-measurement-read-table=latest_measurement_read",
-						"--duchy-id-config=/var/run/secrets/files/duchy_id_config.textproto",
-				] + _spannerConfig.flags
+						"--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
+            "--internal-api-cert-host=localhost"
+				] + Container._commonServerFlags
 			}
 			spec: {
 				concurrencyPolicy: "Forbid"
