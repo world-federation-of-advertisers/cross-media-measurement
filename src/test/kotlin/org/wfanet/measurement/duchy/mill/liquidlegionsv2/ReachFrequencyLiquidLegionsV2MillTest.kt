@@ -676,9 +676,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
     )
 
-    var cryptoRequest = CompleteInitializationPhaseRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeInitializationPhase(any())).thenAnswer {
-      cryptoRequest = it.getArgument(0)
       completeInitializationPhaseResponse {
         elGamalKeyPair = elGamalKeyPair {
           publicKey = elGamalPublicKey {
