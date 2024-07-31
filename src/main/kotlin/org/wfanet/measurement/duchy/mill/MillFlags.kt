@@ -48,12 +48,20 @@ abstract class MillFlags {
   lateinit var claimedGlobalComputationId: String
     private set
 
-  @CommandLine.Option(
-    names = ["--computation-type"],
-    description = ["Type (protocol) of the computation"],
+  @set:CommandLine.Option(
+    names = ["--claimed-computation-version"],
+    description = ["Token version of the the claimed work item"],
     required = true,
   )
-  lateinit var computationType: ComputationType
+  var claimedComputationVersion by Delegates.notNull<Long>()
+    private set
+
+  @CommandLine.Option(
+    names = ["--claimed-computation-type"],
+    description = ["Computation type (protocol) of the claimed work item"],
+    required = true,
+  )
+  lateinit var claimedComputationType: ComputationType
     private set
 
   @CommandLine.Option(
