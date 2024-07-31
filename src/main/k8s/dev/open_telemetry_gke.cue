@@ -45,6 +45,7 @@ openTelemetry: #OpenTelemetry & {
 	instrumentations: "java-instrumentation": {
 		spec: {
 			_envVars: {
+				OTEL_TRACES_EXPORTER:                                     "otlp"
 				OTEL_EXPORTER_OTLP_METRICS_DEFAULT_HISTOGRAM_AGGREGATION: "base2_exponential_bucket_histogram"
 			}
 		}
