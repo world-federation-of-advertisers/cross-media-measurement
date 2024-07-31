@@ -457,6 +457,39 @@ class MeasurementConsumerSimulator(
     return ExecutionResult(reachOnlyResult, expectedResult, measurementInfo)
   }
 
+  suspend fun executeReachAndFrequency(
+    runId: String,
+    requiredCapabilities: DataProvider.Capabilities = DataProvider.Capabilities.getDefaultInstance(),
+  ): ExecutionResult {
+    // Create a new measurement on behalf of the measurement consumer.
+    val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
+    val measurementInfo =
+      createMeasurement(
+        measurementConsumer,
+        runId,
+        ::newReachAndFrequencyMeasurementSpec,
+        requiredCapabilities,
+      )
+    val measurementName = measurementInfo.measurement.name
+    logger.info("Created reach-and-frequency measurement $measurementName.")
+
+    // Get the CMMS computed result and compare it with the expected result.
+    var reachAndFrequencyResult = getReachAndFrequencyResult(measurementName)
+    var nAttempts = 0
+    while (reachAndFrequencyResult == null && (nAttempts < 4)) {
+      nAttempts++
+      logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $nAttempts")
+      delay(Duration.ofSeconds(30))
+      reachAndFrequencyResult = getReachAndFrequencyResult(measurementName)
+    }
+    checkNotNull(reachAndFrequencyResult) {
+      "Timed out waiting for response to reach-and-frequency request"
+    }
+
+    val expectedResult: Result = getExpectedResult(measurementInfo)
+    return ExecutionResult(reachAndFrequencyResult, expectedResult, measurementInfo)
+  }
+
   /** A sequence of operations done in the simulator involving a reach-only measurement. */
   suspend fun testReachOnly(
     runId: String,

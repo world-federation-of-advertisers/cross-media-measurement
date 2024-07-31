@@ -359,6 +359,101 @@ abstract class InProcessReachMeasurementAccuracyTest(
       .isLessThan(expectedStandardDeviation * STANDARD_DEVIATION_TEST_UPPER_THRESHOLD)
   }
 
+  @Test
+  fun `reach from reach-and-frequency hmss results should be accurate with respect to the variance`() =
+    runBlocking {
+      val reachResults = mutableListOf<ReachResult>()
+      var expectedReach = -1L
+      var expectedStandardDeviation = 0.0
+      var summary = ""
+      for (round in 1..DEFAULT_TEST_ROUND_NUMBER) {
+        val executionResult =
+          mcSimulator.executeReachAndFrequency(
+            round.toString(),
+            DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+          )
+        val honestMajorityShareShuffleMethodology =
+          HonestMajorityShareShuffleMethodology(
+            frequencyVectorSize =
+              executionResult.actualResult.reach.honestMajorityShareShuffle.frequencyVectorSize
+          )
+
+        if (expectedReach == -1L) {
+          expectedReach = executionResult.expectedResult.reach.value
+          val expectedVariance =
+            getReachVariance(
+              honestMajorityShareShuffleMethodology,
+              executionResult.measurementInfo,
+              expectedReach,
+            )
+          expectedStandardDeviation = sqrt(expectedVariance)
+        } else if (expectedReach != executionResult.expectedResult.reach.value) {
+          logger.log(
+            Level.WARNING,
+            "expected result not consistent. round=$round, prev_expected_result=$expectedReach, " +
+              "current_expected_result=${executionResult.expectedResult.reach.value}",
+          )
+        }
+
+        // The general formula for confidence interval is result +/- multiplier * sqrt(variance).
+        // The multiplier for 95% confidence interval is 1.96.
+        val reach = executionResult.actualResult.reach.value
+        val reachVariance =
+          getReachVariance(
+            honestMajorityShareShuffleMethodology,
+            executionResult.measurementInfo,
+            reach,
+          )
+        val intervalLowerBound = reach - sqrt(reachVariance) * MULTIPLIER
+        val intervalUpperBound = reach + sqrt(reachVariance) * MULTIPLIER
+        val withinInterval = reach >= intervalLowerBound && reach <= intervalUpperBound
+
+        val reachResult =
+          ReachResult(reach, expectedReach, intervalLowerBound, intervalUpperBound, withinInterval)
+        reachResults += reachResult
+
+        val message =
+          "round=$round, actual_result=${reachResult.actualReach}, " +
+            "expected_result=${reachResult.expectedReach}, " +
+            "interval=(${"%.2f".format(reachResult.lowerBound)}, " +
+            "${"%.2f".format(reachResult.upperBound)}), accurate=${reachResult.withinInterval}"
+        summary += message + "\n"
+        logger.log(Level.INFO, message)
+      }
+
+      logger.log(Level.INFO, "Accuracy Test Complete.\n$summary")
+
+      val averageReach = reachResults.map { it.actualReach }.average()
+      val withinIntervalNumber = reachResults.map { if (it.withinInterval) 1 else 0 }.sum()
+      val withinIntervalPercentage = withinIntervalNumber.toDouble() / reachResults.size * 100
+      val offsetPercentage = (averageReach - expectedReach) / expectedReach * 100
+      val averageDispersionRatio =
+        abs(averageReach - expectedReach) * sqrt(DEFAULT_TEST_ROUND_NUMBER.toDouble()) /
+          expectedStandardDeviation
+
+      logger.log(
+        Level.INFO,
+        "average_reach=$averageReach, offset_percentage=${"%.2f".format(offsetPercentage)}%, " +
+          "number_of_rounds_within_interval=$withinIntervalNumber out of $DEFAULT_TEST_ROUND_NUMBER " +
+          "(${"%.2f".format(withinIntervalPercentage)}%) ",
+      )
+
+      val standardDeviation = getStandardDeviation(reachResults.map { it.actualReach.toDouble() })
+      logger.log(
+        Level.INFO,
+        "std=${"%.2f".format(standardDeviation)}, " +
+          "expected_std=${"%.2f".format(expectedStandardDeviation)}, " +
+          "ratio=${"%.2f".format(standardDeviation / expectedStandardDeviation)}",
+      )
+
+      assertThat(withinIntervalPercentage).isAtLeast(COVERAGE_TEST_THRESHOLD)
+      assertThat(averageDispersionRatio).isLessThan(AVERAGE_TEST_THRESHOLD)
+      assertThat(standardDeviation)
+        .isGreaterThan(expectedStandardDeviation * STANDARD_DEVIATION_TEST_LOWER_THRESHOLD)
+      assertThat(standardDeviation)
+        .isLessThan(expectedStandardDeviation * STANDARD_DEVIATION_TEST_UPPER_THRESHOLD)
+    }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
