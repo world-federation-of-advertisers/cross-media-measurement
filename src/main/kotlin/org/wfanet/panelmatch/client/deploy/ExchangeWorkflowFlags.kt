@@ -122,6 +122,18 @@ class ExchangeWorkflowFlags {
   )
   lateinit var fallbackPrivateKeyBlobKey: String
     private set
+
+  @Option(
+    names = ["--run-mode"],
+    description =
+      [
+        "The manner in which the job is being run, determining the structure of the job's main loop"
+      ],
+    defaultValue = "DAEMON", // For backwards compatibility
+    required = true,
+  )
+  lateinit var runMode: ExchangeWorkflowDaemon.RunMode
+    private set
 }
 
 class ProtocolOptions {

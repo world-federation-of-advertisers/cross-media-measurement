@@ -50,16 +50,15 @@ import org.wfanet.measurement.common.k8s.matchLabelsSelector
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
-import org.wfanet.measurement.duchy.toProtocolStage
+import org.wfanet.measurement.duchy.mill.MillType
+import org.wfanet.measurement.duchy.mill.millType
+import org.wfanet.measurement.duchy.mill.prioritizedStages
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
-import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt
 import org.wfanet.measurement.internal.duchy.claimWorkRequest
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
-import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 import picocli.CommandLine
 
 /**
@@ -77,11 +76,15 @@ class MillJobScheduler(
   private val liquidLegionsV2PodTemplateName: String,
   private val liquidLegionsV2MaximumConcurrency: Int,
   private val liquidLegionsV2WorkLockDuration: Duration,
+  private val shareShufflePodTemplateName: String,
+  private val shareShuffleMaximumConcurrency: Int,
+  private val shareShuffleWorkLockDuration: Duration,
   private val random: Random = Random.Default,
   private val k8sClient: KubernetesClient = KubernetesClientImpl(),
 ) {
   private lateinit var deployment: V1Deployment
   private lateinit var liquidLegionsV2PodTemplate: V1PodTemplate
+  private lateinit var shareShufflePodTemplate: V1PodTemplate
 
   suspend fun run() {
     deployment =
@@ -89,24 +92,23 @@ class MillJobScheduler(
     liquidLegionsV2PodTemplate =
       k8sClient.getPodTemplate(liquidLegionsV2PodTemplateName)
         ?: error("PodTemplate $liquidLegionsV2PodTemplateName not found")
+    shareShufflePodTemplate =
+      k8sClient.getPodTemplate(shareShufflePodTemplateName)
+        ?: error("PodTemplate $shareShufflePodTemplateName not found")
 
     while (currentCoroutineContext().isActive) {
-      for (computationTypeConfig in COMPUTATION_TYPE_CONFIGS) {
-        val ownedJobs: List<V1Job> = getOwnedJobs(computationTypeConfig.millType)
-        process(computationTypeConfig, ownedJobs)
+      for (computationType in SUPPORTED_COMPUTATION_TYPES) {
+        val ownedJobs: List<V1Job> = getOwnedJobs(computationType.millType)
+        process(computationType, ownedJobs)
         ownedJobs.cleanUp()
       }
       delay(pollingDelay)
     }
   }
 
-  private suspend fun process(
-    computationTypeConfig: ComputationTypeConfig,
-    ownedJobs: List<V1Job>,
-  ) {
-    val millType: MillType = computationTypeConfig.millType
+  private suspend fun process(computationType: ComputationType, ownedJobs: List<V1Job>) {
+    val millType: MillType = computationType.millType
     val maximumConcurrency = millType.maximumConcurrency
-    val computationType: ComputationType = computationTypeConfig.computationType
 
     val activeJobCount: Int = ownedJobs.count { (it.status.active ?: 0) > 0 }
     if (activeJobCount >= maximumConcurrency) {
@@ -127,7 +129,7 @@ class MillJobScheduler(
           this.computationType = computationType
           owner = jobName
           lockDuration = millType.workLockDuration.toProtoDuration()
-          prioritizedStages += computationTypeConfig.prioritizedStages
+          prioritizedStages += computationType.prioritizedStages
         }
       )
     if (claimedToken == null) {
@@ -141,8 +143,9 @@ class MillJobScheduler(
       millType.podTemplate.template.clone().apply {
         val container: V1Container = spec.containers.first()
         container.addArgsItem("--mill-id=$jobName")
-        container.addArgsItem("--computation-type=$computationType")
+        container.addArgsItem("--claimed-computation-type=$computationType")
         container.addArgsItem("--claimed-computation-id=$claimedComputationId")
+        container.addArgsItem("--claimed-computation-version=${claimedToken.version}")
       }
     createJob(jobName, millType, template)
     logger.info { "Scheduled Job $jobName for Computation $claimedComputationId" }
@@ -225,32 +228,25 @@ class MillJobScheduler(
     return k8sClient.createJob(job)
   }
 
-  private enum class MillType(val jobNamePrefix: String) {
-    LIQUID_LEGIONS_V2("llv2-mill-job"),
-  }
-
-  private data class ComputationTypeConfig(
-    val computationType: ComputationType,
-    val millType: MillType,
-    val prioritizedStages: List<ComputationStage>,
-  )
-
   private val MillType.workLockDuration: Duration
     get() =
       when (this) {
         MillType.LIQUID_LEGIONS_V2 -> liquidLegionsV2WorkLockDuration
+        MillType.HONEST_MAJORITY_SHARE_SHUFFLE -> shareShuffleWorkLockDuration
       }
 
   private val MillType.maximumConcurrency: Int
     get() =
       when (this) {
         MillType.LIQUID_LEGIONS_V2 -> liquidLegionsV2MaximumConcurrency
+        MillType.HONEST_MAJORITY_SHARE_SHUFFLE -> shareShuffleMaximumConcurrency
       }
 
   private val MillType.podTemplate: V1PodTemplate
     get() =
       when (this) {
         MillType.LIQUID_LEGIONS_V2 -> liquidLegionsV2PodTemplate
+        MillType.HONEST_MAJORITY_SHARE_SHUFFLE -> shareShufflePodTemplate
       }
 
   private class Flags {
@@ -329,27 +325,49 @@ class MillJobScheduler(
     )
     lateinit var liquidLegionsV2WorkLockDuration: Duration
       private set
+
+    @CommandLine.Option(
+      names = ["--hmss-pod-template-name"],
+      description = ["Name of the K8s PodTemplate for Honest Majority Share Shuffle Jobs"],
+      required = true,
+    )
+    lateinit var shareShufflePodTemplateName: String
+      private set
+
+    @set:CommandLine.Option(
+      names = ["--hmss-maximum-concurrency"],
+      description = ["Maximum number of concurrent Honest Majority Share Shuffle Jobs"],
+      defaultValue = "1",
+    )
+    var shareShuffleMaximumConcurrency by Delegates.notNull<Int>()
+      private set
+
+    @CommandLine.Option(
+      names = ["--hmss-work-lock-duration"],
+      defaultValue = "5m",
+      description = ["How long to hold work locks for Honest Majority Share Shuffle"],
+    )
+    lateinit var shareShuffleWorkLockDuration: Duration
+      private set
   }
 
   companion object {
     private const val MILL_TYPE_LABEL = "mill-type"
-    private val COMPUTATION_TYPE_CONFIGS =
+    private val SUPPORTED_COMPUTATION_TYPES =
       listOf(
-        ComputationTypeConfig(
-          ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
-          MillType.LIQUID_LEGIONS_V2,
-          listOf(LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage()),
-        ),
-        ComputationTypeConfig(
-          ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
-          MillType.LIQUID_LEGIONS_V2,
-          listOf(
-            ReachOnlyLiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE.toProtocolStage()
-          ),
-        ),
+        ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
+        ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
+        ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE,
       )
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private val MillType.jobNamePrefix: String
+      get() =
+        when (this) {
+          MillType.LIQUID_LEGIONS_V2 -> "llv2-mill-job"
+          MillType.HONEST_MAJORITY_SHARE_SHUFFLE -> "hmss-mill-job"
+        }
 
     @CommandLine.Command(
       name = "MillJobScheduler",
@@ -380,6 +398,9 @@ class MillJobScheduler(
           flags.liquidLegionsV2PodTemplateName,
           flags.liquidLegionsV2MaximumConcurrency,
           flags.liquidLegionsV2WorkLockDuration,
+          flags.shareShufflePodTemplateName,
+          flags.shareShuffleMaximumConcurrency,
+          flags.shareShuffleWorkLockDuration,
         )
       runBlocking { app.run() }
     }
