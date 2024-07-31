@@ -48,9 +48,9 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.gcloud.common.await
-import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementData
+import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.computationParticipantData
@@ -59,10 +59,10 @@ import org.wfanet.measurement.internal.kingdom.latestMeasurementRead
 import org.wfanet.measurement.internal.kingdom.measurementData
 import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.requisitionData
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurements
+import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 
-class OperationalMetricsJob(
-  private val spannerClient: AsyncDatabaseClient,
+class OperationalMetricsExport(
+  private val measurementsClient: MeasurementsGrpcKt.MeasurementsCoroutineStub,
   private val bigQuery: BigQuery,
   private val datasetId: String,
   private val latestMeasurementReadTableId: String,
@@ -90,27 +90,33 @@ class OperationalMetricsJob(
     logger.info("Retrieved latest measurement read info from BigQuery")
 
     val latestMeasurementReadFromPreviousJob: FieldValueList? = results.firstOrNull()
-    var filter =
-      StreamMeasurementsRequestKt.filter {
-        states += Measurement.State.SUCCEEDED
-        states += Measurement.State.FAILED
-        if (latestMeasurementReadFromPreviousJob != null) {
-          after =
-            StreamMeasurementsRequestKt.FilterKt.after {
-              updateTime =
-                Timestamps.fromNanos(
-                  latestMeasurementReadFromPreviousJob.get("update_time").longValue
-                )
-              measurement = measurementKey {
-                externalMeasurementConsumerId =
-                  latestMeasurementReadFromPreviousJob
-                    .get("external_measurement_consumer_id")
-                    .longValue
-                externalMeasurementId =
-                  latestMeasurementReadFromPreviousJob.get("external_measurement_id").longValue
-              }
+
+    var streamMeasurementsRequest =
+      streamMeasurementsRequest {
+        measurementView = Measurement.View.COMPUTATION
+        limit = BATCH_SIZE
+        filter =
+          StreamMeasurementsRequestKt.filter {
+            states += Measurement.State.SUCCEEDED
+            states += Measurement.State.FAILED
+            if (latestMeasurementReadFromPreviousJob != null) {
+              after =
+                StreamMeasurementsRequestKt.FilterKt.after {
+                  updateTime =
+                    Timestamps.fromNanos(
+                      latestMeasurementReadFromPreviousJob.get("update_time").longValue
+                    )
+                  measurement = measurementKey {
+                    externalMeasurementConsumerId =
+                      latestMeasurementReadFromPreviousJob
+                        .get("external_measurement_consumer_id")
+                        .longValue
+                    externalMeasurementId =
+                      latestMeasurementReadFromPreviousJob.get("external_measurement_id").longValue
+                  }
+                }
             }
-        }
+          }
       }
 
     do {
@@ -122,17 +128,11 @@ class OperationalMetricsJob(
       var latestUpdateTime: Timestamp = Timestamp.getDefaultInstance()
 
       try {
-        StreamMeasurements(
-            Measurement.View.COMPUTATION,
-            filter,
-            BATCH_SIZE,
-            Measurement.View.DEFAULT,
-          )
-          .execute(spannerClient.singleUse())
-          .collect { result ->
+        measurementsClient.streamMeasurements(
+          streamMeasurementsRequest
+        )
+          .collect { measurement ->
             measurementsQueryResponseSize++
-            val measurement = result.measurement
-
             latestUpdateTime = measurement.updateTime
 
             val measurementSpec = signedMessage {
@@ -217,7 +217,7 @@ class OperationalMetricsJob(
                       this.measurementConsumerId = measurementConsumerId
                       this.measurementId = measurementId
                       computationId =
-                        externalIdToApiId(computationParticipant.externalComputationId)
+                        externalIdToApiId(measurement.externalComputationId)
                       duchyId = computationParticipant.externalDuchyId
                       protocol = computationParticipant.details.protocolCase.name
                       measurementType = measurementTypeCase.name
@@ -273,16 +273,18 @@ class OperationalMetricsJob(
         )
         .await()
 
-      filter =
-        filter.copy {
-          after =
-            StreamMeasurementsRequestKt.FilterKt.after {
-              updateTime = latestUpdateTime
-              measurement = measurementKey {
-                externalMeasurementConsumerId = latestMeasurementRead.externalMeasurementConsumerId
-                externalMeasurementId = latestMeasurementRead.externalMeasurementId
+      streamMeasurementsRequest =
+        streamMeasurementsRequest.copy {
+          filter = filter.copy {
+            after =
+              StreamMeasurementsRequestKt.FilterKt.after {
+                updateTime = latestUpdateTime
+                measurement = measurementKey {
+                  externalMeasurementConsumerId = latestMeasurementRead.externalMeasurementConsumerId
+                  externalMeasurementId = latestMeasurementRead.externalMeasurementId
+                }
               }
-            }
+          }
         }
     } while (measurementsQueryResponseSize == BATCH_SIZE)
   }

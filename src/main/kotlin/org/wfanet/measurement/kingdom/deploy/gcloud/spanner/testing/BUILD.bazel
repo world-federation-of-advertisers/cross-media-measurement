@@ -6,7 +6,6 @@ package(
         "//src/main/kotlin/org/wfanet/measurement/gcloud:deployment",
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/integration/deploy/gcloud:__pkg__",
-        "//src/test/kotlin/org/wfanet/measurement/kingdom/job:__pkg__",
     ],
 )
 
