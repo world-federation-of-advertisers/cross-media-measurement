@@ -72,11 +72,6 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/kingdom/system-api",
     ),
     struct(
-        name = "kingdom_operational_metrics_executor_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/job:operational_metrics_job_executor_image",
-        repository = _PREFIX + "/kingdom/operational-metrics",
-    ),
-    struct(
         name = "kingdom_v2alpha_public_api_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:v2alpha_public_api_server_image",
         repository = _PREFIX + "/kingdom/v2alpha-public-api",
@@ -155,6 +150,11 @@ GKE_IMAGES = [
         name = "duchy_gcloud_postgres_update_schema_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/postgres/tools:update_schema_image",
         repository = _PREFIX + "/duchy/gcloud-postgres-update-schema",
+    ),
+    struct(
+        name = "kingdom_operational_metrics_export_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/job:operational_metrics_export_job_image",
+        repository = _PREFIX + "/kingdom/operational-metrics",
     ),
 ]
 
