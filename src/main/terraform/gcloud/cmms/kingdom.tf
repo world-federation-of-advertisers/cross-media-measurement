@@ -162,7 +162,7 @@ resource "google_bigquery_table" "requisitions" {
     "name": "state",
     "type": "STRING",
     "mode": "REQUIRED",
-    "description": "FULFILLED or REFUSED"
+    "description": "PENDING_PARAMS, UNFULFILLED, FULFILLED, or REFUSED"
   },
   {
     "name": "create_time",
@@ -241,7 +241,7 @@ resource "google_bigquery_table" "computation_participants" {
     "name": "state",
     "type": "STRING",
     "mode": "REQUIRED",
-    "description": "READY or FAILED"
+    "description": "CREATED, REQUISITION_PARAMS_SET, READY, or FAILED"
   },
   {
     "name": "create_time",
@@ -278,8 +278,7 @@ resource "google_bigquery_table" "latest_measurement_read" {
   deletion_protection = true
 
   time_partitioning {
-    expiration_ms = 2592000000 // 30 days
-    field         = "update_time"
+    expiration_ms = 3888000000 // 45 days
     type          = "MONTH"
   }
 

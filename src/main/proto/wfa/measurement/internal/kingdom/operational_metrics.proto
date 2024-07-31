@@ -34,6 +34,7 @@ message MeasurementData {
   int64 create_time = 6;
   // in microseconds
   int64 update_time = 7;
+  // in milliseconds
   int64 update_time_minus_create_time = 8;
   int64 update_time_minus_create_time_squared = 9;
 }
@@ -48,13 +49,14 @@ message RequisitionData {
   // `REACH_AND_FREQUENCY`, `REACH`, `IMPRESSION`, `DURATION`, or `POPULATION`
   string measurement_type = 6;
 
-  // `FULFILLED` or `REFUSED`
+  // `PENDING_PARAMS`, `UNFULFILLED`, `FULFILLED`, or `REFUSED`
   string state = 7;
 
   // in microseconds
   int64 create_time = 8;
   // in microseconds
   int64 update_time = 9;
+  // in milliseconds
   int64 update_time_minus_create_time = 10;
   int64 update_time_minus_create_time_squared = 11;
 }
@@ -71,19 +73,21 @@ message ComputationParticipantData {
   // `REACH_AND_FREQUENCY`, `REACH`, `IMPRESSION`, `DURATION`, or `POPULATION`
   string measurement_type = 6;
 
-  // `READY` or `FAILED`
+  // `CREATED`, `REQUISITION_PARAMS_SET`, `READY`, or `FAILED`
   string state = 7;
 
   // in microseconds
   int64 create_time = 8;
   // in microseconds
   int64 update_time = 9;
+  // in milliseconds
   int64 update_time_minus_create_time = 10;
   int64 update_time_minus_create_time_squared = 11;
 }
 
 message LatestMeasurementRead {
-  // in microseconds
+  // Since BigQuery timestamp is microsecond precision, this is in nanoseconds
+  // and is stored as an integer.
   int64 update_time = 1;
   int64 external_measurement_consumer_id = 2;
   int64 external_measurement_id = 3;

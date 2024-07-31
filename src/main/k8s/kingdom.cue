@@ -41,7 +41,6 @@ import ("strings")
 		"completed-measurements-deletion":   string | *"kingdom/completed-measurements-deletion"
 		"pending-measurements-cancellation": string | *"kingdom/pending-measurements-cancellation"
 		"exchanges-deletion":                string | *"kingdom/exchanges-deletion"
-		"operational-metrics":               string | *"kingdom/operational-metrics"
 	}
 	_imageConfigs: [string]: #ImageConfig
 	_imageConfigs: {
