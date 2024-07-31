@@ -6,11 +6,11 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "operational_metrics_job",
-    srcs = ["OperationalMetricsJob.kt"],
+    name = "operational_metrics_export",
+    srcs = ["OperationalMetricsExport.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/queries",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:measurements_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:operational_metrics_kt_jvm_proto",
@@ -19,6 +19,6 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/common",
     ],
 )
