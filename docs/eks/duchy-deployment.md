@@ -219,6 +219,11 @@ files are required in a Duchy:
 
 1.  `worker2_kek.tink`
     Key encryption key used in HMSS protocol to encrypt tink key pairs.
+
+    -   One way to create the key is by the command line:
+    ```shell
+    tinkey create-keyset --key-template AES128_GCM --out-format binary --out worker1_kek.tink
+    ```
     -   [Example](../../src/main/k8s/testing/secretfiles/worker2_kek.tink)
 
 Place these files into the `src/main/k8s/dev/worker2_duchy_secret/` path within
