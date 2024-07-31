@@ -18,6 +18,7 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/cloud/bigquerystorage",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )
