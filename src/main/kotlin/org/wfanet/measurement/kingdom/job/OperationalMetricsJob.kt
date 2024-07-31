@@ -216,7 +216,8 @@ class OperationalMetricsJob(
                   computationParticipantData {
                       this.measurementConsumerId = measurementConsumerId
                       this.measurementId = measurementId
-                      computationId = externalIdToApiId(computationParticipant.externalComputationId)
+                      computationId =
+                        externalIdToApiId(computationParticipant.externalComputationId)
                       duchyId = computationParticipant.externalDuchyId
                       protocol = computationParticipant.details.protocolCase.name
                       measurementType = measurementTypeCase.name
