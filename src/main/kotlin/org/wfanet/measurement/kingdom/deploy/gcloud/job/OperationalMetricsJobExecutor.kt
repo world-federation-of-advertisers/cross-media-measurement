@@ -20,7 +20,6 @@ import com.google.cloud.bigquery.BigQuery
 import com.google.cloud.bigquery.BigQueryOptions
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient
 import com.google.cloud.bigquery.storage.v1.ProtoSchema
-import com.google.cloud.bigquery.storage.v1.TableName
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
@@ -68,51 +67,56 @@ private fun run(
       val latestMeasurementReadTableId = operationalMetricsFlags.latestMeasurementReadTable
 
       BigQueryWriteClient.create().use { bigQueryWriteClient ->
-        val measurementsTableName: TableName = TableName.of(projectId, datasetId, measurementsTableId)
-        val requisitionsTableName: TableName = TableName.of(projectId, datasetId, requisitionsTableId)
-        val computationParticipantsTableName: TableName =
-          TableName.of(projectId, datasetId, computationParticipantsTableId)
-        val latestMeasurementReadTableName: TableName =
-          TableName.of(projectId, datasetId, latestMeasurementReadTableId)
-
         val measurementsDataWriter =
           OperationalMetricsJob.DataWriterImplementation(
-            measurementsTableName,
-            bigQueryWriteClient,
-            ProtoSchema.newBuilder()
-              .setProtoDescriptor(MeasurementData.getDescriptor().toProto())
-              .build(),
+            projectId = projectId,
+            datasetId = datasetId,
+            tableId = measurementsTableId,
+            client = bigQueryWriteClient,
+            protoSchema =
+              ProtoSchema.newBuilder()
+                .setProtoDescriptor(MeasurementData.getDescriptor().toProto())
+                .build(),
           )
         val requisitionsDataWriter =
           OperationalMetricsJob.DataWriterImplementation(
-            requisitionsTableName,
-            bigQueryWriteClient,
-            ProtoSchema.newBuilder()
-              .setProtoDescriptor(RequisitionData.getDescriptor().toProto())
-              .build(),
+            projectId = projectId,
+            datasetId = datasetId,
+            tableId = requisitionsTableId,
+            client = bigQueryWriteClient,
+            protoSchema =
+              ProtoSchema.newBuilder()
+                .setProtoDescriptor(RequisitionData.getDescriptor().toProto())
+                .build(),
           )
         val computationParticipantsDataWriter =
           OperationalMetricsJob.DataWriterImplementation(
-            computationParticipantsTableName,
-            bigQueryWriteClient,
-            ProtoSchema.newBuilder()
-              .setProtoDescriptor(ComputationParticipantData.getDescriptor().toProto())
-              .build(),
+            projectId = projectId,
+            datasetId = datasetId,
+            tableId = computationParticipantsTableId,
+            client = bigQueryWriteClient,
+            protoSchema =
+              ProtoSchema.newBuilder()
+                .setProtoDescriptor(ComputationParticipantData.getDescriptor().toProto())
+                .build(),
           )
         val latestMeasurementReadDataWriter =
           OperationalMetricsJob.DataWriterImplementation(
-            latestMeasurementReadTableName,
-            bigQueryWriteClient,
-            ProtoSchema.newBuilder()
-              .setProtoDescriptor(LatestMeasurementRead.getDescriptor().toProto())
-              .build(),
+            projectId = projectId,
+            datasetId = datasetId,
+            tableId = latestMeasurementReadTableId,
+            client = bigQueryWriteClient,
+            protoSchema =
+              ProtoSchema.newBuilder()
+                .setProtoDescriptor(LatestMeasurementRead.getDescriptor().toProto())
+                .build(),
           )
 
         val operationalMetricsJob =
           OperationalMetricsJob(
             spannerClient = spannerClient,
             bigQuery = bigQuery,
-            datasetId= datasetId,
+            datasetId = datasetId,
             latestMeasurementReadTableId = latestMeasurementReadTableId,
             measurementsDataWriter = measurementsDataWriter,
             requisitionsDataWriter = requisitionsDataWriter,
