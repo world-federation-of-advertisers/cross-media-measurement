@@ -12,27 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.aws.daemon.mill.shareshuffle
+package org.wfanet.measurement.duchy.deploy.common.job.mill.shareshuffle
 
-import org.wfanet.measurement.aws.s3.S3Flags
-import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.duchy.deploy.common.daemon.mill.shareshuffle.HonestMajorityShareShuffleMillDaemon
+import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
 import picocli.CommandLine
 
 @CommandLine.Command(
-  name = "S3HonestMajorityShareShuffleMillDaemon",
-  description = ["Honest Majority Share Shuffle Mill daemon."],
+  name = "ForwardedStorageHonestMajorityShareShuffleMillJob",
+  description = ["HonestMajorityShareShuffle Mill daemon."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true,
 )
-class S3HonestMajorityShareShuffleMillDaemon : HonestMajorityShareShuffleMillDaemon() {
-  @CommandLine.Mixin private lateinit var s3Flags: S3Flags
+class ForwardedStorageHonestMajorityShareShuffleMillJob : HonestMajorityShareShuffleMillJob() {
+  @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
   override fun run() {
-    val storageClient = S3StorageClient.fromFlags(s3Flags)
-    run(storageClient)
+    run(ForwardedStorageFromFlags(forwardedStorageFlags, flags.tlsFlags).storageClient)
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(S3HonestMajorityShareShuffleMillDaemon(), args)
+fun main(args: Array<String>) =
+  commandLineMain(ForwardedStorageHonestMajorityShareShuffleMillJob(), args)

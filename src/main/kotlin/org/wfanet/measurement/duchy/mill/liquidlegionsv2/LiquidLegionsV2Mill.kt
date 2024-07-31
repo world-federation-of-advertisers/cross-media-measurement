@@ -106,11 +106,6 @@ abstract class LiquidLegionsV2Mill(
     openTelemetry,
   ) {
 
-  suspend fun processClaimedWork(globalComputationId: String) {
-    val token: ComputationToken = getLatestComputationToken(globalComputationId)
-    processComputation(token)
-  }
-
   /**
    * Verifies that all EDPs have participated.
    *

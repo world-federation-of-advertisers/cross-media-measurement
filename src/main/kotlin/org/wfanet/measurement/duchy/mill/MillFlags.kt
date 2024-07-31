@@ -21,6 +21,7 @@ import java.time.Duration
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import picocli.CommandLine
 
 abstract class MillFlags {
@@ -37,6 +38,22 @@ abstract class MillFlags {
     description = ["ID of this Mill instance. Defaults to HOSTNAME."],
   )
   var millId: String = System.getenv("HOSTNAME")
+    private set
+
+  @CommandLine.Option(
+    names = ["--claimed-computation-id"],
+    description = ["Global Computation ID of the claimed work item"],
+    required = true,
+  )
+  lateinit var claimedGlobalComputationId: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--computation-type"],
+    description = ["Type (protocol) of the computation"],
+    required = true,
+  )
+  lateinit var computationType: ComputationType
     private set
 
   @CommandLine.Option(
