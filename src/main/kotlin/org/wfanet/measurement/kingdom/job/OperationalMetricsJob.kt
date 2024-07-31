@@ -97,9 +97,7 @@ class OperationalMetricsJob(
             StreamMeasurementsRequestKt.FilterKt.after {
               updateTime =
                 Timestamps.fromNanos(
-                latestMeasurementReadFromPreviousJob
-                  .get("update_time")
-                  .longValue
+                  latestMeasurementReadFromPreviousJob.get("update_time").longValue
                 )
               measurement = measurementKey {
                 externalMeasurementConsumerId =
@@ -150,13 +148,10 @@ class OperationalMetricsJob(
               signature = measurement.details.measurementSpecSignature
               signatureAlgorithmOid = measurement.details.measurementSpecSignatureAlgorithmOid
             }
-            val measurementTypeCase =
-              measurementSpec.unpack<MeasurementSpec>().measurementTypeCase
+            val measurementTypeCase = measurementSpec.unpack<MeasurementSpec>().measurementTypeCase
 
             val measurementUpdateTimeMinusCreateTime =
-              Durations.toMillis(
-                Timestamps.between(measurement.createTime, measurement.updateTime)
-              )
+              Durations.toMillis(Timestamps.between(measurement.createTime, measurement.updateTime))
 
             measurementsProtoRowsBuilder.addSerializedRows(
               measurementData {
@@ -237,12 +232,8 @@ class OperationalMetricsJob(
 
       val deferredResults: MutableList<Deferred<Unit>> = mutableListOf()
       if (measurementsProtoRowsBuilder.serializedRowsCount > 0) {
-        deferredResults.add(
-          measurementsDataWriter.appendRows(measurementsProtoRowsBuilder.build())
-        )
-        deferredResults.add(
-          requisitionsDataWriter.appendRows(requisitionsProtoRowsBuilder.build())
-        )
+        deferredResults.add(measurementsDataWriter.appendRows(measurementsProtoRowsBuilder.build()))
+        deferredResults.add(requisitionsDataWriter.appendRows(requisitionsProtoRowsBuilder.build()))
         if (computationParticipantsProtoRowsBuilder.serializedRowsCount > 0) {
           deferredResults.add(
             computationParticipantsDataWriter.appendRows(
@@ -274,11 +265,10 @@ class OperationalMetricsJob(
       filter =
         filter.copy {
           after =
-            after.copy {
-              updateTime = Timestamps.fromNanos(latestMeasurementRead.updateTime)
+            StreamMeasurementsRequestKt.FilterKt.after {
+              updateTime = latestUpdateTime
               measurement = measurementKey {
-                externalMeasurementConsumerId =
-                  latestMeasurementRead.externalMeasurementConsumerId
+                externalMeasurementConsumerId = latestMeasurementRead.externalMeasurementConsumerId
                 externalMeasurementId = latestMeasurementRead.externalMeasurementId
               }
             }
@@ -297,10 +287,12 @@ class OperationalMetricsJob(
   }
 
   class DataWriterImplementation(
-    private val parent: TableName,
+    private val projectId: String,
+    private val datasetId: String,
+    private val tableId: String,
     private val client: BigQueryWriteClient,
     private val protoSchema: ProtoSchema,
-  ): DataWriter() {
+  ) : DataWriter() {
     private lateinit var streamWriter: StreamWriter
     private var recreateCount: Int = 0
 
@@ -315,7 +307,8 @@ class OperationalMetricsJob(
     }
 
     private fun createStreamWriter(): StreamWriter {
-      return StreamWriter.newBuilder(parent.toString() + DEFAULT_STREAM_PATH, client)
+      val tableName = TableName.of(projectId, datasetId, tableId)
+      return StreamWriter.newBuilder(tableName.toString() + DEFAULT_STREAM_PATH, client)
         .setExecutorProvider(FixedExecutorProvider.create(Executors.newScheduledThreadPool(1)))
         .setChannelProvider(BigQueryWriteSettings.defaultGrpcTransportProviderBuilder().build())
         .setEnableConnectionPool(true)
