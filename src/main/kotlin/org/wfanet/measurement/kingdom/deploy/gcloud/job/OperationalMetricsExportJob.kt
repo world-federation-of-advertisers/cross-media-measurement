@@ -64,10 +64,10 @@ private fun run(
 
   val channel =
     buildMutualTlsChannel(
-      kingdomApiServerFlags.internalApiFlags.target,
-      clientCerts,
-      kingdomApiServerFlags.internalApiFlags.certHost,
-    )
+        kingdomApiServerFlags.internalApiFlags.target,
+        clientCerts,
+        kingdomApiServerFlags.internalApiFlags.certHost,
+      )
       .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
       .withDefaultDeadline(kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
 
