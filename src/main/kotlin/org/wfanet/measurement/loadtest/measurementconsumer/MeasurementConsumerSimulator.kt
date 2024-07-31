@@ -444,10 +444,10 @@ class MeasurementConsumerSimulator(
 
     // Get the CMMS computed result and compare it with the expected result.
     var reachOnlyResult = getReachResult(measurementName)
-    var nAttempts = 0
-    while (reachOnlyResult == null && (nAttempts < 4)) {
-      nAttempts++
-      logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $nAttempts")
+    var attemptCount = 0
+    while (reachOnlyResult == null && (attemptCount < 4)) {
+      attemptCount++
+      logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $attemptCount")
       delay(Duration.ofSeconds(30))
       reachOnlyResult = getReachResult(measurementName)
     }
@@ -475,10 +475,10 @@ class MeasurementConsumerSimulator(
 
     // Get the CMMS computed result and compare it with the expected result.
     var reachAndFrequencyResult = getReachAndFrequencyResult(measurementName)
-    var nAttempts = 0
-    while (reachAndFrequencyResult == null && (nAttempts < 4)) {
-      nAttempts++
-      logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $nAttempts")
+    var attemptCount = 0
+    while (reachAndFrequencyResult == null && (attemptCount < 4)) {
+      attemptCount++
+      logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $attemptCount")
       delay(Duration.ofSeconds(30))
       reachAndFrequencyResult = getReachAndFrequencyResult(measurementName)
     }
