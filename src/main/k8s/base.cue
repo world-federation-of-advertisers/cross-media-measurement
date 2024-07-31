@@ -486,6 +486,19 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	spec: #PodSpec
 }
 
+// K8s PodDisruptionBudget
+#PodDisruptionBudget: {
+	apiVersion: "policy/v1"
+	kind:       "PodDisruptionBudget"
+	metadata:   #ObjectMeta
+	spec: {
+		maxUnavailable?:             int32 | string
+		minUnavailable?:             int32 | string
+		selector?:                   #LabelSelector
+		unhealthyPodEvictionPolicy?: "IfHealthyBudget" | "AlwaysAllow"
+	}
+}
+
 // K8s Probe.
 #Probe: {
 	grpc: {

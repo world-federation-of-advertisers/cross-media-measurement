@@ -335,6 +335,25 @@ import ("strings")
 		}
 	}
 
+	podDisruptionBudgets: [Name=string]: #PodDisruptionBudget & {
+		metadata: name: _object_prefix + Name
+	}
+	podDisruptionBudgets: {
+		"mill-job": {
+			spec: {
+				selector: {
+					matchExpressions: [{
+						key:      "app"
+						operator: "In"
+						values: ["\(_object_prefix)llv2-mill-app", "\(_object_prefix)hmss-mill-app"]
+					}]
+				}
+				maxUnavailable:             0
+				unhealthyPodEvictionPolicy: "AlwaysAllow"
+			}
+		}
+	}
+
 	networkPolicies: [Name=_]: #NetworkPolicy & {
 		_name: _object_prefix + Name
 	}
@@ -437,10 +456,10 @@ import ("strings")
 	}
 
 	roles: [Name=string]: #Role & {
-		metadata: name: Name
+		metadata: name: _object_prefix + Name
 	}
 	roles: {
-		"\(_object_prefix)mill-job-scheduler": {
+		"mill-job-scheduler": {
 			rules: [
 				{
 					apiGroups: ["batch"]
@@ -462,10 +481,10 @@ import ("strings")
 	}
 
 	roleBindings: [Name=string]: #RoleBinding & {
-		metadata: name: Name
+		metadata: name: _object_prefix + Name
 	}
 	roleBindings: {
-		"\(_object_prefix)mill-job-scheduler-binding": {
+		"mill-job-scheduler-binding": {
 			roleRef: {
 				apiGroup: "rbac.authorization.k8s.io"
 				kind:     "Role"
