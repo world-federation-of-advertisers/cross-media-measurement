@@ -119,7 +119,7 @@ kingdom: #Kingdom & {
 						"--computation-participants-table=computation_participants",
 						"--latest-measurement-read-table=latest_measurement_read",
 						"--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
-            "--internal-api-cert-host=localhost"
+						"--internal-api-cert-host=localhost",
 				] + Container._commonServerFlags
 			}
 			spec: {

@@ -91,33 +91,32 @@ class OperationalMetricsExport(
 
     val latestMeasurementReadFromPreviousJob: FieldValueList? = results.firstOrNull()
 
-    var streamMeasurementsRequest =
-      streamMeasurementsRequest {
-        measurementView = Measurement.View.COMPUTATION
-        limit = BATCH_SIZE
-        filter =
-          StreamMeasurementsRequestKt.filter {
-            states += Measurement.State.SUCCEEDED
-            states += Measurement.State.FAILED
-            if (latestMeasurementReadFromPreviousJob != null) {
-              after =
-                StreamMeasurementsRequestKt.FilterKt.after {
-                  updateTime =
-                    Timestamps.fromNanos(
-                      latestMeasurementReadFromPreviousJob.get("update_time").longValue
-                    )
-                  measurement = measurementKey {
-                    externalMeasurementConsumerId =
-                      latestMeasurementReadFromPreviousJob
-                        .get("external_measurement_consumer_id")
-                        .longValue
-                    externalMeasurementId =
-                      latestMeasurementReadFromPreviousJob.get("external_measurement_id").longValue
-                  }
+    var streamMeasurementsRequest = streamMeasurementsRequest {
+      measurementView = Measurement.View.COMPUTATION
+      limit = BATCH_SIZE
+      filter =
+        StreamMeasurementsRequestKt.filter {
+          states += Measurement.State.SUCCEEDED
+          states += Measurement.State.FAILED
+          if (latestMeasurementReadFromPreviousJob != null) {
+            after =
+              StreamMeasurementsRequestKt.FilterKt.after {
+                updateTime =
+                  Timestamps.fromNanos(
+                    latestMeasurementReadFromPreviousJob.get("update_time").longValue
+                  )
+                measurement = measurementKey {
+                  externalMeasurementConsumerId =
+                    latestMeasurementReadFromPreviousJob
+                      .get("external_measurement_consumer_id")
+                      .longValue
+                  externalMeasurementId =
+                    latestMeasurementReadFromPreviousJob.get("external_measurement_id").longValue
                 }
-            }
+              }
           }
-      }
+        }
+    }
 
     do {
       measurementsQueryResponseSize = 0
@@ -128,112 +127,106 @@ class OperationalMetricsExport(
       var latestUpdateTime: Timestamp = Timestamp.getDefaultInstance()
 
       try {
-        measurementsClient.streamMeasurements(
-          streamMeasurementsRequest
-        )
-          .collect { measurement ->
-            measurementsQueryResponseSize++
-            latestUpdateTime = measurement.updateTime
+        measurementsClient.streamMeasurements(streamMeasurementsRequest).collect { measurement ->
+          measurementsQueryResponseSize++
+          latestUpdateTime = measurement.updateTime
 
-            val measurementSpec = signedMessage {
-              setMessage(
-                any {
-                  value = measurement.details.measurementSpec
-                  typeUrl =
-                    when (measurement.details.apiVersion) {
-                      Version.V2_ALPHA.toString() ->
-                        ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
-                      else -> ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
-                    }
-                }
-              )
-              signature = measurement.details.measurementSpecSignature
-              signatureAlgorithmOid = measurement.details.measurementSpecSignatureAlgorithmOid
-            }
-            val measurementTypeCase = measurementSpec.unpack<MeasurementSpec>().measurementTypeCase
+          val measurementSpec = signedMessage {
+            setMessage(
+              any {
+                value = measurement.details.measurementSpec
+                typeUrl =
+                  when (measurement.details.apiVersion) {
+                    Version.V2_ALPHA.toString() ->
+                      ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
+                    else -> ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
+                  }
+              }
+            )
+            signature = measurement.details.measurementSpecSignature
+            signatureAlgorithmOid = measurement.details.measurementSpecSignatureAlgorithmOid
+          }
+          val measurementTypeCase = measurementSpec.unpack<MeasurementSpec>().measurementTypeCase
 
-            val measurementUpdateTimeMinusCreateTime =
-              Durations.toMillis(Timestamps.between(measurement.createTime, measurement.updateTime))
+          val measurementUpdateTimeMinusCreateTime =
+            Durations.toMillis(Timestamps.between(measurement.createTime, measurement.updateTime))
 
-            val measurementConsumerId = externalIdToApiId(measurement.externalMeasurementConsumerId)
-            val measurementId = externalIdToApiId(measurement.externalMeasurementId)
+          val measurementConsumerId = externalIdToApiId(measurement.externalMeasurementConsumerId)
+          val measurementId = externalIdToApiId(measurement.externalMeasurementId)
 
-            measurementsProtoRowsBuilder.addSerializedRows(
-              measurementData {
+          measurementsProtoRowsBuilder.addSerializedRows(
+            measurementData {
+                this.measurementConsumerId = measurementConsumerId
+                this.measurementId = measurementId
+                isDirect = measurement.details.protocolConfig.hasDirect()
+                measurementType = measurementTypeCase.name
+                state = measurement.state.name
+                createTime = Timestamps.toMicros(measurement.createTime)
+                updateTime = Timestamps.toMicros(measurement.updateTime)
+                updateTimeMinusCreateTime = measurementUpdateTimeMinusCreateTime
+                updateTimeMinusCreateTimeSquared =
+                  measurementUpdateTimeMinusCreateTime * measurementUpdateTimeMinusCreateTime
+              }
+              .toByteString()
+          )
+
+          for (requisition in measurement.requisitionsList) {
+            val requisitionUpdateTimeMinusCreateTime =
+              Durations.toMillis(Timestamps.between(measurement.createTime, requisition.updateTime))
+
+            val state =
+              when (requisition.state) {
+                Requisition.State.PENDING_PARAMS -> Requisition.State.UNFULFILLED.name
+                else -> requisition.state.name
+              }
+
+            requisitionsProtoRowsBuilder.addSerializedRows(
+              requisitionData {
                   this.measurementConsumerId = measurementConsumerId
                   this.measurementId = measurementId
+                  requisitionId = externalIdToApiId(requisition.externalRequisitionId)
+                  dataProviderId = externalIdToApiId(requisition.externalDataProviderId)
                   isDirect = measurement.details.protocolConfig.hasDirect()
                   measurementType = measurementTypeCase.name
-                  state = measurement.state.name
+                  this.state = state
                   createTime = Timestamps.toMicros(measurement.createTime)
-                  updateTime = Timestamps.toMicros(measurement.updateTime)
-                  updateTimeMinusCreateTime = measurementUpdateTimeMinusCreateTime
+                  updateTime = Timestamps.toMicros(requisition.updateTime)
+                  updateTimeMinusCreateTime = requisitionUpdateTimeMinusCreateTime
                   updateTimeMinusCreateTimeSquared =
-                    measurementUpdateTimeMinusCreateTime * measurementUpdateTimeMinusCreateTime
+                    requisitionUpdateTimeMinusCreateTime * requisitionUpdateTimeMinusCreateTime
                 }
                 .toByteString()
             )
+          }
 
-            for (requisition in measurement.requisitionsList) {
-              val requisitionUpdateTimeMinusCreateTime =
+          if (measurement.externalComputationId != 0L) {
+            for (computationParticipant in measurement.computationParticipantsList) {
+              val computationParticipantUpdateTimeMinusCreateTime =
                 Durations.toMillis(
-                  Timestamps.between(measurement.createTime, requisition.updateTime)
+                  Timestamps.between(measurement.createTime, computationParticipant.updateTime)
                 )
 
-              val state =
-                when (requisition.state) {
-                  Requisition.State.PENDING_PARAMS -> Requisition.State.UNFULFILLED.name
-                  else -> requisition.state.name
-                }
-
-              requisitionsProtoRowsBuilder.addSerializedRows(
-                requisitionData {
+              computationParticipantsProtoRowsBuilder.addSerializedRows(
+                computationParticipantData {
                     this.measurementConsumerId = measurementConsumerId
                     this.measurementId = measurementId
-                    requisitionId = externalIdToApiId(requisition.externalRequisitionId)
-                    dataProviderId = externalIdToApiId(requisition.externalDataProviderId)
-                    isDirect = measurement.details.protocolConfig.hasDirect()
+                    computationId = externalIdToApiId(measurement.externalComputationId)
+                    duchyId = computationParticipant.externalDuchyId
+                    protocol = computationParticipant.details.protocolCase.name
                     measurementType = measurementTypeCase.name
-                    this.state = state
+                    state = computationParticipant.state.name
                     createTime = Timestamps.toMicros(measurement.createTime)
-                    updateTime = Timestamps.toMicros(requisition.updateTime)
-                    updateTimeMinusCreateTime = requisitionUpdateTimeMinusCreateTime
+                    updateTime = Timestamps.toMicros(computationParticipant.updateTime)
+                    updateTimeMinusCreateTime = computationParticipantUpdateTimeMinusCreateTime
                     updateTimeMinusCreateTimeSquared =
-                      requisitionUpdateTimeMinusCreateTime * requisitionUpdateTimeMinusCreateTime
+                      computationParticipantUpdateTimeMinusCreateTime *
+                        computationParticipantUpdateTimeMinusCreateTime
                   }
                   .toByteString()
               )
             }
-
-            if (measurement.externalComputationId != 0L) {
-              for (computationParticipant in measurement.computationParticipantsList) {
-                val computationParticipantUpdateTimeMinusCreateTime =
-                  Durations.toMillis(
-                    Timestamps.between(measurement.createTime, computationParticipant.updateTime)
-                  )
-
-                computationParticipantsProtoRowsBuilder.addSerializedRows(
-                  computationParticipantData {
-                      this.measurementConsumerId = measurementConsumerId
-                      this.measurementId = measurementId
-                      computationId =
-                        externalIdToApiId(measurement.externalComputationId)
-                      duchyId = computationParticipant.externalDuchyId
-                      protocol = computationParticipant.details.protocolCase.name
-                      measurementType = measurementTypeCase.name
-                      state = computationParticipant.state.name
-                      createTime = Timestamps.toMicros(measurement.createTime)
-                      updateTime = Timestamps.toMicros(computationParticipant.updateTime)
-                      updateTimeMinusCreateTime = computationParticipantUpdateTimeMinusCreateTime
-                      updateTimeMinusCreateTimeSquared =
-                        computationParticipantUpdateTimeMinusCreateTime *
-                          computationParticipantUpdateTimeMinusCreateTime
-                    }
-                    .toByteString()
-                )
-              }
-            }
           }
+        }
       } catch (e: Exception) {
         logger.warning("Reading or processing Measurements failed.")
         throw e
@@ -275,16 +268,18 @@ class OperationalMetricsExport(
 
       streamMeasurementsRequest =
         streamMeasurementsRequest.copy {
-          filter = filter.copy {
-            after =
-              StreamMeasurementsRequestKt.FilterKt.after {
-                updateTime = latestUpdateTime
-                measurement = measurementKey {
-                  externalMeasurementConsumerId = latestMeasurementRead.externalMeasurementConsumerId
-                  externalMeasurementId = latestMeasurementRead.externalMeasurementId
+          filter =
+            filter.copy {
+              after =
+                StreamMeasurementsRequestKt.FilterKt.after {
+                  updateTime = latestUpdateTime
+                  measurement = measurementKey {
+                    externalMeasurementConsumerId =
+                      latestMeasurementRead.externalMeasurementConsumerId
+                    externalMeasurementId = latestMeasurementRead.externalMeasurementId
+                  }
                 }
-              }
-          }
+            }
         }
     } while (measurementsQueryResponseSize == BATCH_SIZE)
   }
