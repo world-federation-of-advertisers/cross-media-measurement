@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.common.daemon.mill.shareshuffle
+package org.wfanet.measurement.duchy.deploy.common.job.mill.shareshuffle
 
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.BinaryKeysetReader
@@ -23,10 +23,9 @@ import com.google.protobuf.ByteString
 import io.grpc.Channel
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.OpenTelemetry
-import java.time.Clock
 import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -39,9 +38,7 @@ import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.withDuchyId
-import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.mill.Certificate
 import org.wfanet.measurement.duchy.mill.shareshuffle.HonestMajorityShareShuffleMill
@@ -57,7 +54,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.Compu
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import picocli.CommandLine
 
-abstract class HonestMajorityShareShuffleMillDaemon : Runnable {
+abstract class HonestMajorityShareShuffleMillJob : Runnable {
   @CommandLine.Mixin
   protected lateinit var flags: HonestMajorityShareShuffleMillFlags
     private set
@@ -182,11 +179,13 @@ abstract class HonestMajorityShareShuffleMillDaemon : Runnable {
         requestChunkSizeBytes = flags.requestChunkSizeBytes,
       )
 
-    runBlocking {
-      withContext(CoroutineName("Mill $millId")) {
-        val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
-        throttler.loopOnReady { logAndSuppressExceptionSuspend { mill.claimAndProcessWork() } }
-      }
+    runBlocking(CoroutineName("Mill $millId")) {
+      mill.processClaimedWork(flags.claimedGlobalComputationId)
+
+      // Continue processing until work is exhausted.
+      do {
+        val workExhausted = !mill.claimAndProcessWork()
+      } while (isActive && !workExhausted)
     }
   }
 }

@@ -12,27 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.gcloud.daemon.mill.shareshuffle
+package org.wfanet.measurement.duchy.deploy.aws.job.mill.shareshuffle
 
+import org.wfanet.measurement.aws.s3.S3Flags
+import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.duchy.deploy.common.daemon.mill.shareshuffle.HonestMajorityShareShuffleMillDaemon
-import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
-import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.duchy.deploy.common.job.mill.shareshuffle.HonestMajorityShareShuffleMillJob
 import picocli.CommandLine
 
 @CommandLine.Command(
-  name = "GcsHonestMajorityShareShuffleMillDaemon",
-  description = ["Honest Majority Share Shuffle Mill daemon."],
+  name = "S3HonestMajorityShareShuffleMillJob",
+  description = ["Honest Majority Share Shuffle Mill"],
   mixinStandardHelpOptions = true,
   showDefaultValues = true,
 )
-class GcsHonestMajorityShareShuffleMillDaemon : HonestMajorityShareShuffleMillDaemon() {
-  @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
+class S3HonestMajorityShareShuffleMillJob : HonestMajorityShareShuffleMillJob() {
+  @CommandLine.Mixin private lateinit var s3Flags: S3Flags
 
   override fun run() {
-    val gcs = GcsFromFlags(gcsFlags)
-    run(GcsStorageClient.fromFlags(gcs))
+    val storageClient = S3StorageClient.fromFlags(s3Flags)
+    run(storageClient)
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(GcsHonestMajorityShareShuffleMillDaemon(), args)
+fun main(args: Array<String>) = commandLineMain(S3HonestMajorityShareShuffleMillJob(), args)
