@@ -25,6 +25,7 @@ import io.opentelemetry.api.metrics.Meter
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.pow
@@ -47,7 +48,9 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDuration
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signResult
 import org.wfanet.measurement.duchy.db.computation.BlobRef
@@ -76,12 +79,14 @@ import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.Computatio
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntryKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
-import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
+import org.wfanet.measurement.system.v1alpha.computationLogEntry
+import org.wfanet.measurement.system.v1alpha.createComputationLogEntryRequest
 import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.getComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
@@ -131,8 +136,6 @@ abstract class MillBase(
 ) {
   abstract val endingStage: ComputationStage
 
-  abstract val prioritizedStagesToClaim: List<ComputationStage>
-
   private val meter: Meter = openTelemetry.getMeter(this::class.qualifiedName!!)
 
   protected val cryptoWallClockDurationHistogram: DoubleHistogram =
@@ -163,6 +166,32 @@ abstract class MillBase(
       .setUnit("s")
       .build()
 
+  /** Returns whether this Mill currently holds the lock on [token]. */
+  private fun holdsLock(token: ComputationToken, now: Instant): Boolean {
+    return token.lockOwner == millId && token.lockExpirationTime.toInstant() > now
+  }
+
+  /** Process a work item that has already been claimed. */
+  suspend fun processClaimedWork(globalComputationId: String, version: Long) {
+    val token: ComputationToken = getLatestComputationToken(globalComputationId)
+    val now = clock.instant()
+
+    if (token.version != version) {
+      val message = "Computation version has changed since claimed"
+      logger.warning(message)
+      sendStatusUpdateToKingdom(globalComputationId, buildErrorLogEntry(token, message, now))
+      return
+    }
+    if (!holdsLock(token, now)) {
+      val message = "Mill does not hold lock for Computation $globalComputationId"
+      logger.warning(message)
+      sendStatusUpdateToKingdom(globalComputationId, buildErrorLogEntry(token, message, now))
+      return
+    }
+
+    processComputation(token)
+  }
+
   private var computationsServerReady = false
   /**
    * Claim the next available work item and process it.
@@ -176,7 +205,7 @@ abstract class MillBase(
       computationType = this@MillBase.computationType
       owner = millId
       lockDuration = workLockDuration.toProtoDuration()
-      prioritizedStages += prioritizedStagesToClaim
+      prioritizedStages += this@MillBase.computationType.prioritizedStages
     }
     val claimWorkResponse =
       try {
@@ -194,12 +223,18 @@ abstract class MillBase(
       return false
     }
 
-    processComputation(claimWorkResponse.token)
+    val token: ComputationToken = claimWorkResponse.token
+    logger.info {
+      val globalComputationId = token.globalComputationId
+      val stage = token.computationStage
+      "Claimed work item for Computation $globalComputationId at stage $stage"
+    }
+    processComputation(token)
     return true
   }
 
   /** Process the computation according to its protocol and status. */
-  protected suspend fun processComputation(token: ComputationToken) {
+  private suspend fun processComputation(token: ComputationToken) {
     if (token.attempt > maximumAttempts) {
       failComputation(token, "Failing computation due to too many failed ComputationStageAttempts.")
       return
@@ -248,7 +283,14 @@ abstract class MillBase(
           )
         } else {
           logger.log(Level.WARNING, e) { "$globalId@$millId: TRANSIENT error" }
-          sendStatusUpdateToKingdom(newErrorUpdateRequest(token, e.localizedMessage))
+          sendStatusUpdateToKingdom(
+            globalId,
+            buildErrorLogEntry(
+              token,
+              "Transient error processing Computation $globalId at attempt ${token.attempt} of " +
+                "stage ${token.computationStage}: ${e.message}",
+            ),
+          )
           // Enqueue the computation again for future retry
           enqueueComputation(token)
         }
@@ -402,9 +444,17 @@ abstract class MillBase(
   protected abstract suspend fun processComputationImpl(token: ComputationToken)
 
   /** Sends status update to the Kingdom's ComputationLogEntriesService. */
-  private suspend fun sendStatusUpdateToKingdom(request: CreateComputationLogEntryRequest) {
+  private suspend fun sendStatusUpdateToKingdom(
+    globalComputationId: String,
+    logEntry: ComputationLogEntry,
+  ) {
     try {
-      systemComputationLogEntriesClient.createComputationLogEntry(request)
+      systemComputationLogEntriesClient.createComputationLogEntry(
+        createComputationLogEntryRequest {
+          parent = ComputationParticipantKey(globalComputationId, duchyId).toName()
+          computationLogEntry = logEntry
+        }
+      )
     } catch (e: StatusException) {
       logger.log(Level.WARNING, e) { "Failed to update status change to the kingdom." }
     }
@@ -523,33 +573,24 @@ abstract class MillBase(
     }
   }
 
-  /** Builds a [CreateComputationLogEntryRequest] to update the new error. */
-  private fun newErrorUpdateRequest(
+  private fun buildErrorLogEntry(
     token: ComputationToken,
     message: String,
-  ): CreateComputationLogEntryRequest {
-    val timestamp = clock.protoTimestamp()
-    return CreateComputationLogEntryRequest.newBuilder()
-      .apply {
-        parent = ComputationParticipantKey(token.globalComputationId, duchyId).toName()
-        computationLogEntryBuilder.apply {
-          participantChildReferenceId = millId
-          logMessage =
-            "Computation ${token.globalComputationId} at stage " +
-              "${token.computationStage.name}, attempt ${token.attempt} failed, $message"
-          stageAttemptBuilder.apply {
-            stage = token.computationStage.number
-            stageName = token.computationStage.name
-            stageStartTime = timestamp
-            attemptNumber = token.attempt.toLong()
-          }
-          errorDetailsBuilder.also {
-            it.errorTime = timestamp
-            it.type = ComputationLogEntry.ErrorDetails.Type.TRANSIENT
-          }
-        }
+    now: Instant = clock.instant(),
+  ) = computationLogEntry {
+    participantChildReferenceId = millId
+    logMessage = message
+    stageAttempt = stageAttempt {
+      stage = token.computationStage.number
+      stageName = token.computationStage.name
+      stageStartTime = now.toProtoTime()
+      attemptNumber = token.attempt.toLong()
+    }
+    errorDetails =
+      ComputationLogEntryKt.errorDetails {
+        type = ComputationLogEntry.ErrorDetails.Type.TRANSIENT
+        errorTime = now.toProtoTime()
       }
-      .build()
   }
 
   /** Adds a logging hook to the flow to log the total number of bytes sent out in the rpc. */
@@ -682,7 +723,7 @@ abstract class MillBase(
   }
 
   /** Gets the latest [ComputationToken] for computation with [globalId]. */
-  protected suspend fun getLatestComputationToken(globalId: String): ComputationToken {
+  private suspend fun getLatestComputationToken(globalId: String): ComputationToken {
     val response: GetComputationTokenResponse =
       try {
         dataClients.computationsClient.getComputationToken(

@@ -15,6 +15,10 @@
 package org.wfanet.panelmatch.client.deploy
 
 import java.time.Clock
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.Throttler
@@ -83,6 +87,9 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   /** Maximum allowable number of tasks claimed concurrently. */
   protected abstract val maxParallelClaimedExchangeSteps: Int?
 
+  /** [RunMode] that determines the structure of the job's main loop. */
+  protected abstract val runMode: RunMode
+
   /** [PrivateStorageSelector] for writing to local (non-shared) storage. */
   protected val privateStorageSelector: PrivateStorageSelector by lazy {
     PrivateStorageSelector(privateStorageFactories, privateStorageInfo)
@@ -107,7 +114,10 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   suspend fun runSuspending() {
     val exchangeStepLauncher =
       ExchangeStepLauncher(apiClient = apiClient, taskLauncher = stepExecutor)
-    runDaemon(exchangeStepLauncher)
+    when (runMode) {
+      RunMode.DAEMON -> runDaemon(exchangeStepLauncher)
+      RunMode.CRON_JOB -> runCronJob(exchangeStepLauncher)
+    }
   }
 
   /** Runs [exchangeStepLauncher] in an infinite loop. */
@@ -116,5 +126,31 @@ abstract class ExchangeWorkflowDaemon : Runnable {
       // All errors thrown inside the loop should be suppressed such that the daemon doesn't crash.
       logAndSuppressExceptionSuspend { exchangeStepLauncher.findAndRunExchangeStep() }
     }
+  }
+
+  /**
+   * Runs [exchangeStepLauncher] in a loop until there are no remaining tasks and all launched tasks
+   * have completed.
+   */
+  protected open suspend fun runCronJob(exchangeStepLauncher: ExchangeStepLauncher) {
+    val activeJobs = mutableListOf<Job>()
+    do {
+      activeJobs.removeIf { !it.isActive }
+      val job = logAndSuppressExceptionSuspend { exchangeStepLauncher.findAndRunExchangeStep() }
+      if (job != null) {
+        activeJobs += job
+      }
+    } while (currentCoroutineContext().isActive && activeJobs.isNotEmpty())
+  }
+
+  enum class RunMode {
+    /** When running as a daemon, the job will poll for tasks in an infinite loop. */
+    DAEMON,
+
+    /**
+     * When running as a cron, the job will poll for tasks until there are no outstanding tasks
+     * available, as well as no currently active tasks, and then shut down.
+     */
+    CRON_JOB,
   }
 }

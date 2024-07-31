@@ -1,0 +1,42 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@wfa_common_jvm//build:defs.bzl", "test_target")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("//build/platforms:constraints.bzl", "DISTROLESS_JAVA")
+load("//src/main/docker:macros.bzl", "java_image")
+
+package(
+    default_testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
+    default_visibility = [
+        test_target(":__pkg__"),
+        "//src/main/kotlin/org/wfanet/measurement/duchy/testing:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "s3_honest_majority_share_shuffle_mill_job",
+    srcs = ["S3HonestMajorityShareShuffleMillJob.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/job/mill/shareshuffle:honest_majority_share_shuffle_mill_job",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/aws/s3",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+java_binary(
+    name = "S3HonestMajorityShareShuffleMillJob",
+    main_class = "org.wfanet.measurement.duchy.deploy.aws.job.mill.shareshuffle.S3HonestMajorityShareShuffleMillJobKt",
+    runtime_deps = [
+        ":s3_honest_majority_share_shuffle_mill_job",
+        "//imports/java/software/amazon/awssdk/sts",
+    ],
+)
+
+java_image(
+    name = "s3_honest_majority_share_shuffle_mill_job_image",
+    binary = ":S3HonestMajorityShareShuffleMillJob",
+    main_class = "org.wfanet.measurement.duchy.deploy.aws.job.mill.shareshuffle.S3HonestMajorityShareShuffleMillJobKt",
+    target_compatible_with = DISTROLESS_JAVA,
+    visibility = ["//src:docker_image_deployment"],
+)
