@@ -127,7 +127,7 @@ abstract class LiquidLegionsV2MillJob : Runnable {
     val openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get()
 
     val mill: LiquidLegionsV2Mill =
-      when (flags.computationType) {
+      when (flags.claimedComputationType) {
         ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
           ReachFrequencyLiquidLegionsV2Mill(
             millId = millId,
@@ -169,11 +169,11 @@ abstract class LiquidLegionsV2MillJob : Runnable {
         ComputationTypeEnum.ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE,
         ComputationTypeEnum.ComputationType.UNSPECIFIED,
         ComputationTypeEnum.ComputationType.UNRECOGNIZED ->
-          error("Unsupported ComputationType ${flags.computationType}")
+          error("Unsupported ComputationType ${flags.claimedComputationType}")
       }
 
     runBlocking(CoroutineName("Mill $millId")) {
-      mill.processClaimedWork(flags.claimedGlobalComputationId)
+      mill.processClaimedWork(flags.claimedGlobalComputationId, flags.claimedComputationVersion)
 
       // Continue processing until work is exhausted.
       do {
