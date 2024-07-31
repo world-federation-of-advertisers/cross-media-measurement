@@ -19,7 +19,6 @@ import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
 import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
 import org.wfanet.measurement.duchy.mill.MillFlags
-import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import picocli.CommandLine
 
 class LiquidLegionsV2MillFlags : MillFlags() {
@@ -41,21 +40,5 @@ class LiquidLegionsV2MillFlags : MillFlags() {
     defaultValue = "1",
   )
   var parallelism by Delegates.notNull<Int>()
-    private set
-
-  @CommandLine.Option(
-    names = ["--claimed-computation-id"],
-    description = ["Global Computation ID of the claimed work item"],
-    required = true,
-  )
-  lateinit var claimedGlobalComputationId: String
-    private set
-
-  @CommandLine.Option(
-    names = ["--computation-type"],
-    description = ["Type (protocol) of the computation"],
-    required = true,
-  )
-  lateinit var computationType: ComputationType
     private set
 }

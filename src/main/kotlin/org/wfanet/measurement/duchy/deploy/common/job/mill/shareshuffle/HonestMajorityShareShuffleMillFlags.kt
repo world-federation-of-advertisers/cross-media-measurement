@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.common.daemon.mill.shareshuffle
+package org.wfanet.measurement.duchy.deploy.common.job.mill.shareshuffle
 
 import java.io.File
-import java.time.Duration
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
 import org.wfanet.measurement.duchy.deploy.common.KingdomPublicApiFlags
@@ -38,14 +37,6 @@ class HonestMajorityShareShuffleMillFlags : MillFlags() {
 
   @CommandLine.Mixin
   lateinit var publicApiFlags: KingdomPublicApiFlags
-    private set
-
-  @CommandLine.Option(
-    names = ["--polling-interval"],
-    defaultValue = "2s",
-    description = ["How long to sleep before polling the computation queue again if it is empty."],
-  )
-  lateinit var pollingInterval: Duration
     private set
 
   @CommandLine.Option(

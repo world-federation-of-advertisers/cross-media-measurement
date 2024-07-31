@@ -131,8 +131,6 @@ abstract class MillBase(
 ) {
   abstract val endingStage: ComputationStage
 
-  abstract val prioritizedStagesToClaim: List<ComputationStage>
-
   private val meter: Meter = openTelemetry.getMeter(this::class.qualifiedName!!)
 
   protected val cryptoWallClockDurationHistogram: DoubleHistogram =
@@ -163,6 +161,12 @@ abstract class MillBase(
       .setUnit("s")
       .build()
 
+  /** Process a work item that has already been claimed. */
+  suspend fun processClaimedWork(globalComputationId: String) {
+    val token: ComputationToken = getLatestComputationToken(globalComputationId)
+    processComputation(token)
+  }
+
   private var computationsServerReady = false
   /**
    * Claim the next available work item and process it.
@@ -176,7 +180,7 @@ abstract class MillBase(
       computationType = this@MillBase.computationType
       owner = millId
       lockDuration = workLockDuration.toProtoDuration()
-      prioritizedStages += prioritizedStagesToClaim
+      prioritizedStages += this@MillBase.computationType.prioritizedStages
     }
     val claimWorkResponse =
       try {
@@ -199,7 +203,7 @@ abstract class MillBase(
   }
 
   /** Process the computation according to its protocol and status. */
-  protected suspend fun processComputation(token: ComputationToken) {
+  private suspend fun processComputation(token: ComputationToken) {
     if (token.attempt > maximumAttempts) {
       failComputation(token, "Failing computation due to too many failed ComputationStageAttempts.")
       return
@@ -682,7 +686,7 @@ abstract class MillBase(
   }
 
   /** Gets the latest [ComputationToken] for computation with [globalId]. */
-  protected suspend fun getLatestComputationToken(globalId: String): ComputationToken {
+  private suspend fun getLatestComputationToken(globalId: String): ComputationToken {
     val response: GetComputationTokenResponse =
       try {
         dataClients.computationsClient.getComputationToken(
