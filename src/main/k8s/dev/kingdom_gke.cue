@@ -136,11 +136,6 @@ kingdom: #Kingdom & {
 	}
 
 	networkPolicies: {
-		"internal-data-server": {
-			_sourceMatchLabels: _sourceMatchLabels + [
-						"operational-metrics-app",
-			]
-		}
 		"operational-metrics": {
 			_app_label: "operational-metrics-app"
 			_egresses: {
