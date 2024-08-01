@@ -1458,15 +1458,14 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
-    val measurementRequest =
-      createMeasurementRequest {
-        measurement =
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-          }
-      }
+    val measurementRequest = createMeasurementRequest {
+      measurement =
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+    }
 
     measurementsService.batchCreateMeasurements(
       batchCreateMeasurementsRequest {
@@ -1488,8 +1487,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(measurements).hasSize(3)
     assertThat(measurements[0].updateTime).isEqualTo(measurements[1].updateTime)
     assertThat(measurements[1].updateTime).isEqualTo(measurements[2].updateTime)
-    assertThat(measurements[0].externalMeasurementId).isLessThan(measurements[1].externalMeasurementId)
-    assertThat(measurements[1].externalMeasurementId).isLessThan(measurements[2].externalMeasurementId)
+    assertThat(measurements[0].externalMeasurementId)
+      .isLessThan(measurements[1].externalMeasurementId)
+    assertThat(measurements[1].externalMeasurementId)
+      .isLessThan(measurements[2].externalMeasurementId)
   }
 
   @Test
