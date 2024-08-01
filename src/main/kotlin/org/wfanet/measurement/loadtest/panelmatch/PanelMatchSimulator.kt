@@ -147,7 +147,7 @@ class PanelMatchSimulator(
     assertNotNull(blob)
 
     val decryptedEvents =
-      parsePlaintextResults(blob!!.parseDelimitedMessages(keyedDecryptedEventDataSet {})).map {
+      parsePlaintextResults(blob.parseDelimitedMessages(keyedDecryptedEventDataSet {})).map {
         it.joinKey to it.plaintexts
       }
 
