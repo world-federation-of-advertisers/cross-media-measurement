@@ -15,7 +15,7 @@
 name: Deploy Kingdom
 
 on:
-  push:
+  workflow_dispatch:
 
 jobs:
   terraform:
