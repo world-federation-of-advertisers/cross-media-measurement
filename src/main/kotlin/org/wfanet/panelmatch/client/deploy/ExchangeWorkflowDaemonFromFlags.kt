@@ -142,6 +142,8 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
 
   override val identity: Identity by lazy { Identity(flags.id, flags.partyType) }
 
+  override val runMode: RunMode by lazy { flags.runMode }
+
   private fun createThrottler(): Throttler = MinimumIntervalThrottler(clock, flags.pollingInterval)
 
   private fun createKingdomBasedCertificateManager(): CertificateManager {

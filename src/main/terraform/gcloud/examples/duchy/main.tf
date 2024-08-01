@@ -51,7 +51,7 @@ module "cluster" {
   location            = local.cluster_location
   release_channel     = var.cluster_release_channel
   secret_key          = module.common.cluster_secret_key
-  autoscaling_profile = "OPTIMIZE_UTILIZATION"
+  autoscaling_profile = "BALANCED"
 }
 
 module "default_node_pool" {

@@ -879,17 +879,16 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
 
   @Test
   fun `claimWork returns computation of prioritized stage`() = runBlocking {
-    var computation1 =
-      service
-        .createComputation(
-          DEFAULT_CREATE_COMPUTATION_REQUEST.copy {
-            globalComputationId = "1"
-            requisitions.clear()
-          }
-        )
-        .token
+    service
+      .createComputation(
+        DEFAULT_CREATE_COMPUTATION_REQUEST.copy {
+          globalComputationId = "1"
+          requisitions.clear()
+        }
+      )
+      .token
 
-    computation1 =
+    var computation1 =
       service
         .claimWork(
           DEFAULT_CLAIM_WORK_REQUEST.copy {
