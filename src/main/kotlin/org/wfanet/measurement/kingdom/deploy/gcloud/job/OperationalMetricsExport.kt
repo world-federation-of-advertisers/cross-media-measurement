@@ -48,16 +48,16 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.gcloud.common.await
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementsTableRow
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
+import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.computationParticipantsTableRow
-import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.bigquerytables.latestMeasurementReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.measurementsTableRow
-import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.bigquerytables.requisitionsTableRow
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 
 class OperationalMetricsExport(
@@ -236,7 +236,9 @@ class OperationalMetricsExport(
       }
       latestMeasurementReadDataWriter
         .appendRows(
-          ProtoRows.newBuilder().addSerializedRows(latestMeasurementReadTableRow.toByteString()).build()
+          ProtoRows.newBuilder()
+            .addSerializedRows(latestMeasurementReadTableRow.toByteString())
+            .build()
         )
         .await()
 
