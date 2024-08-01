@@ -276,7 +276,7 @@ EOF
 }
 
 module "kingdom_operational_metrics" {
-  source = "../modules/workload-identity-user"
+  source = "../workload-identity-user"
 
   k8s_service_account_name        = "operational-metrics"
   iam_service_account_name        = "operational-metrics"
