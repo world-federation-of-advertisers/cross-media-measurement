@@ -108,7 +108,7 @@ kingdom: #Kingdom & {
 
 	cronJobs: {
 		"operational-metrics": {
-			_container: {
+			_container: Container={
 				image:     _images["operational-metrics"]
 				resources: #OperationalMetricsJobResourceRequirements
 				args:      [
