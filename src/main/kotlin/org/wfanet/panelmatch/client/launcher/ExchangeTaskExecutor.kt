@@ -20,6 +20,7 @@ import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -56,31 +57,29 @@ class ExchangeTaskExecutor(
   private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ExchangeStepExecutor {
 
-  override suspend fun execute(exchangeStep: ApiClient.ClaimedExchangeStep) {
-    coroutineScope {
-      val attemptKey = exchangeStep.attemptKey
-      launch(dispatcher + CoroutineName(attemptKey.toString()) + TaskLog(attemptKey.toString())) {
-        try {
-          val validatedStep = validator.validate(exchangeStep)
-          val context =
-            ExchangeContext(
-              attemptKey,
-              validatedStep.date,
-              validatedStep.workflow,
-              validatedStep.step,
-            )
-          context.tryExecute()
-        } catch (e: Exception) {
-          logger.addToTaskLog("Caught Exception in task execution:", Level.SEVERE)
-          logger.addToTaskLog(e, Level.SEVERE)
-          val attemptState =
-            when (e) {
-              is ExchangeTaskFailedException -> e.attemptState
-              else -> ExchangeStepAttempt.State.FAILED
-            }
-          markAsFinished(attemptKey, attemptState)
-          cancel("Task failed and reported back to Kingdom. Cancelling task scope.", e)
-        }
+  override suspend fun execute(exchangeStep: ApiClient.ClaimedExchangeStep): Job = coroutineScope {
+    val attemptKey = exchangeStep.attemptKey
+    launch(dispatcher + CoroutineName(attemptKey.toString()) + TaskLog(attemptKey.toString())) {
+      try {
+        val validatedStep = validator.validate(exchangeStep)
+        val context =
+          ExchangeContext(
+            attemptKey,
+            validatedStep.date,
+            validatedStep.workflow,
+            validatedStep.step,
+          )
+        context.tryExecute()
+      } catch (e: Exception) {
+        logger.addToTaskLog("Caught Exception in task execution:", Level.SEVERE)
+        logger.addToTaskLog(e, Level.SEVERE)
+        val attemptState =
+          when (e) {
+            is ExchangeTaskFailedException -> e.attemptState
+            else -> ExchangeStepAttempt.State.FAILED
+          }
+        markAsFinished(attemptKey, attemptState)
+        cancel("Task failed and reported back to Kingdom. Cancelling task scope.", e)
       }
     }
   }

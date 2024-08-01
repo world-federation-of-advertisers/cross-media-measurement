@@ -59,6 +59,8 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.k8s.KubernetesClient
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.toProtoDuration
+import org.wfanet.measurement.duchy.mill.MillType
+import org.wfanet.measurement.duchy.mill.prioritizedStages
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
@@ -76,6 +78,8 @@ class MillJobSchedulerTest {
     onBlocking { getDeployment(any(), any()) } doReturn deployment
     onBlocking { getPodTemplate(eq(LLV2_POD_TEMPLATE_NAME), any()) } doReturn
       liquidLegionsV2PodTemplate
+    onBlocking { getPodTemplate(eq(HMSS_POD_TEMPLATE_NAME), any()) } doReturn
+      shareShufflePodTemplate
   }
 
   @JvmField @Rule val serverRule = GrpcTestServerRule { addService(computationsServiceMock) }
@@ -91,6 +95,9 @@ class MillJobSchedulerTest {
       LLV2_POD_TEMPLATE_NAME,
       LLV2_MAX_CONCURRENCY,
       LLV2_WORK_LOCK_DURATION,
+      HMSS_POD_TEMPLATE_NAME,
+      HMSS_MAX_CONCURRENCY,
+      HMSS_WORK_LOCK_DURATION,
       Random(123),
       k8sClientMock,
     )
@@ -135,6 +142,46 @@ class MillJobSchedulerTest {
     assertThat(createJobRequest.metadata.ownerReferences).containsExactly(deploymentOwnerReference)
     assertThat(createJobRequest.spec.template.metadata.labels)
       .containsAtLeastEntriesIn(liquidLegionsV2PodTemplate.template.metadata.labels)
+  }
+
+  @Test
+  fun `claims work and creates HMSS job when below maximum concurrency`() = runTest {
+    whenever(k8sClientMock.listJobs(any(), any())).thenReturn(V1JobList())
+    var claimWorkRequest: ClaimWorkRequest? = null
+    whenever(
+        computationsServiceMock.claimWork(
+          hasComputationType(ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE)
+        )
+      )
+      .thenAnswer { invocation ->
+        claimWorkRequest = invocation.getArgument(0)
+        claimWorkResponse { token = computationToken { globalComputationId = "comp-1" } }
+      }
+    val jobCreated = CompletableDeferred<V1Job>()
+    whenever(k8sClientMock.createJob(any())).thenAnswer { invocation ->
+      jobCreated.complete(invocation.arguments.first() as V1Job)
+      null
+    }
+    val jobScheduler = createMillJobScheduler()
+
+    backgroundScope.launch { jobScheduler.run() }
+    // Wait until createJob has been called.
+    val createJobRequest: V1Job = jobCreated.await()
+
+    assertThat(claimWorkRequest)
+      .ignoringFields(ClaimWorkRequest.OWNER_FIELD_NUMBER)
+      .isEqualTo(
+        claimWorkRequest {
+          computationType = ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE
+          prioritizedStages += ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE.prioritizedStages
+          lockDuration = HMSS_WORK_LOCK_DURATION.toProtoDuration()
+        }
+      )
+    assertThat(createJobRequest.metadata.labels)
+      .containsEntry("mill-type", MillType.HONEST_MAJORITY_SHARE_SHUFFLE.name)
+    assertThat(createJobRequest.metadata.ownerReferences).containsExactly(deploymentOwnerReference)
+    assertThat(createJobRequest.spec.template.metadata.labels)
+      .containsAtLeastEntriesIn(shareShufflePodTemplate.template.metadata.labels)
   }
 
   @Test
@@ -231,8 +278,11 @@ class MillJobSchedulerTest {
     private const val DUCHY_ID = "worker1"
     private const val DEPLOYMENT_NAME = "$DUCHY_ID-mill-job-scheduler-deployment"
     private const val LLV2_POD_TEMPLATE_NAME = "$DUCHY_ID-llv2-mill"
-    private val LLV2_WORK_LOCK_DURATION = Duration.ofMinutes(5)
+    private val LLV2_WORK_LOCK_DURATION = Duration.ofMinutes(10)
     private const val LLV2_MAX_CONCURRENCY = 5
+    private const val HMSS_POD_TEMPLATE_NAME = "$DUCHY_ID-hmss-mill"
+    private val HMSS_WORK_LOCK_DURATION = Duration.ofMinutes(5)
+    private const val HMSS_MAX_CONCURRENCY = 3
     private val POLLING_DELAY = Duration.ofSeconds(2)
     private const val SUCCESSFUL_JOB_HISTORY_LIMIT = 3
     private const val FAILED_JOB_HISTORY_LIMIT = 3
@@ -263,6 +313,18 @@ class MillJobSchedulerTest {
             spec =
               V1PodSpec().apply {
                 addContainersItem(V1Container().apply { name = "llv2-mill-container" })
+              }
+          }
+      }
+    private val shareShufflePodTemplate =
+      V1PodTemplate().apply {
+        metadata = V1ObjectMeta().apply { name = HMSS_POD_TEMPLATE_NAME }
+        template =
+          V1PodTemplateSpec().apply {
+            metadata = V1ObjectMeta().apply { putLabelsItem("app", "hmss-mill") }
+            spec =
+              V1PodSpec().apply {
+                addContainersItem(V1Container().apply { name = "hmss-mill-container" })
               }
           }
       }

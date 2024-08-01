@@ -97,7 +97,8 @@ object Covariances {
           // Custom direct methodology must guarantee independence.
           return 0.0
         }
-        is DeterministicMethodology -> {
+        is DeterministicMethodology,
+        is HonestMajorityShareShuffleMethodology -> {
           return computeDeterministicCovariance(
             ReachMeasurementCovarianceParams(
               reach = weightedMeasurementVarianceParams.measurementVarianceParams.reach,
@@ -121,9 +122,6 @@ object Covariances {
         is LiquidLegionsV2Methodology -> {
           LiquidLegionsSketchParams(methodology.decayRate, methodology.sketchSize)
         }
-        is HonestMajorityShareShuffleMethodology -> {
-          throw IllegalArgumentException("Unsupported methodology.")
-        }
       }
 
     when (val otherMethodology = otherWeightedMeasurementVarianceParams.methodology) {
@@ -132,7 +130,8 @@ object Covariances {
         // Custom direct methodology must guarantee independence.
         return 0.0
       }
-      is DeterministicMethodology -> {
+      is DeterministicMethodology,
+      is HonestMajorityShareShuffleMethodology -> {
         return computeDeterministicCovariance(
           ReachMeasurementCovarianceParams(
             reach = weightedMeasurementVarianceParams.measurementVarianceParams.reach,
@@ -171,9 +170,6 @@ object Covariances {
               "measurements using the same decay rate and sketch size."
           )
         }
-      }
-      is HonestMajorityShareShuffleMethodology -> {
-        throw IllegalArgumentException("Unsupported methodology.")
       }
     }
     return computeLiquidLegionsCovariance(

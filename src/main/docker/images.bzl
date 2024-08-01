@@ -137,8 +137,8 @@ GKE_IMAGES = [
         repository = _PREFIX + "/duchy/liquid-legions-v2-mill",
     ),
     struct(
-        name = "duchy_honest_majority_share_shuffle_mill_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/daemon/mill/shareshuffle:gcs_honest_majority_share_shuffle_mill_daemon_image",
+        name = "duchy_honest_majority_share_shuffle_mill_job_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/job/mill/shareshuffle:gcs_honest_majority_share_shuffle_mill_job_image",
         repository = _PREFIX + "/duchy/honest-majority-share-shuffle-mill",
     ),
     struct(
@@ -182,8 +182,8 @@ EKS_IMAGES = [
         repository = _PREFIX + "/duchy/aws-liquid-legions-v2-mill",
     ),
     struct(
-        name = "duchy_s3_honest_majority_share_shuffle_mill_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/daemon/mill/shareshuffle:s3_honest_majority_share_shuffle_mill_daemon_image",
+        name = "duchy_s3_honest_majority_share_shuffle_mill_job_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/job/mill/shareshuffle:s3_honest_majority_share_shuffle_mill_job_image",
         repository = _PREFIX + "/duchy/aws-honest-majority-share-shuffle-mill",
     ),
     struct(
@@ -206,8 +206,8 @@ LOCAL_IMAGES = [
         repository = _PREFIX + "/duchy/local-liquid-legions-v2-mill",
     ),
     struct(
-        name = "forwarded_storage_honest_majority_share_shuffle_mill_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/shareshuffle:forwarded_storage_honest_majority_share_shuffle_mill_daemon_image",
+        name = "forwarded_storage_honest_majority_share_shuffle_mill_job_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/job/mill/shareshuffle:forwarded_storage_honest_majority_share_shuffle_mill_job_image",
         repository = _PREFIX + "/duchy/local-honest-majority-share-shuffle-mill",
     ),
     struct(
