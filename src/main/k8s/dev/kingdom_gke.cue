@@ -137,8 +137,8 @@ kingdom: #Kingdom & {
 
 	networkPolicies: {
 		"internal-data-server": {
-			_sourceMatchLabels: [
-				"operational-metrics-app",
+			_sourceMatchLabels: _sourceMatchLabels + [
+						"operational-metrics-app",
 			]
 		}
 		"operational-metrics": {
