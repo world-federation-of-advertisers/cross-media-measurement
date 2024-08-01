@@ -93,6 +93,7 @@ class OperationalMetricsExport(
 
     var streamMeasurementsRequest = streamMeasurementsRequest {
       measurementView = Measurement.View.COMPUTATION
+      orderByMeasurementView = Measurement.View.DEFAULT
       limit = BATCH_SIZE
       filter =
         StreamMeasurementsRequestKt.filter {

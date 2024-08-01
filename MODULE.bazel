@@ -293,6 +293,7 @@ http_archive(
     url = "https://github.com/google/shell-encryption/archive/507781e129a03f8178c9716d79163fae23d34b6a.tar.gz",
 )
 
+# DO NOT SUBMIT
 archive_override(
     module_name = "common-jvm",
     strip_prefix = "common-jvm-dd3b1091aa6eab26660fe9e3d22f1fd0dfe2ed9e",
