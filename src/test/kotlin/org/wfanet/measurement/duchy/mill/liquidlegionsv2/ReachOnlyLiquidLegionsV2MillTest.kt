@@ -625,9 +625,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
       requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
     )
 
-    var cryptoRequest = CompleteReachOnlyInitializationPhaseRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeReachOnlyInitializationPhase(any())).thenAnswer {
-      cryptoRequest = it.getArgument(0)
       completeReachOnlyInitializationPhaseResponse {
         elGamalKeyPair = elGamalKeyPair {
           publicKey = elGamalPublicKey {
