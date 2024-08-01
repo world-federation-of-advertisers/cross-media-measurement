@@ -134,7 +134,7 @@ private constructor(
           content,
         )
       } catch (e: StorageException) {
-        throw PermanentErrorException("Error writing blob to storage.", e)
+        throw TransientErrorException("Error writing blob to storage.", e)
       }
 
     val response: RecordOutputBlobPathResponse =
