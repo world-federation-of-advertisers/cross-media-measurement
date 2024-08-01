@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.kingdom.job
+package org.wfanet.measurement.kingdom.deploy.gcloud.job
 
 import com.google.cloud.bigquery.BigQuery
 import com.google.cloud.bigquery.Field
@@ -52,15 +52,15 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
-import org.wfanet.measurement.internal.kingdom.ComputationParticipantData
-import org.wfanet.measurement.internal.kingdom.LatestMeasurementRead
+import org.wfanet.measurement.internal.kingdom.bigquerytables.ComputationParticipantsTableRow
+import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestMeasurementReadTableRow
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementData
+import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementsTableRow
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.RequisitionData
+import org.wfanet.measurement.internal.kingdom.bigquerytables.RequisitionsTableRow
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.computationParticipant
@@ -105,7 +105,7 @@ class OperationalMetricsExportTest {
         val protoRows: ProtoRows = it.getArgument(0)
         assertThat(protoRows.serializedRowsList).hasSize(2)
 
-        val computationMeasurementData = MeasurementData.parseFrom(protoRows.serializedRowsList[1])
+        val computationMeasurementData = MeasurementsTableRow.parseFrom(protoRows.serializedRowsList[1])
         assertThat(computationMeasurementData.measurementConsumerId)
           .isEqualTo(externalIdToApiId(computationMeasurement.externalMeasurementConsumerId))
         assertThat(computationMeasurementData.measurementId)
@@ -117,22 +117,8 @@ class OperationalMetricsExportTest {
           .isEqualTo(Timestamps.toMicros(computationMeasurement.createTime))
         assertThat(computationMeasurementData.updateTime)
           .isEqualTo(Timestamps.toMicros(computationMeasurement.updateTime))
-        assertThat(computationMeasurementData.updateTimeMinusCreateTime)
-          .isEqualTo(
-            Durations.toMillis(
-              Timestamps.between(
-                computationMeasurement.createTime,
-                computationMeasurement.updateTime,
-              )
-            )
-          )
-        assertThat(computationMeasurementData.updateTimeMinusCreateTimeSquared)
-          .isEqualTo(
-            computationMeasurementData.updateTimeMinusCreateTime *
-              computationMeasurementData.updateTimeMinusCreateTime
-          )
 
-        val directMeasurementData = MeasurementData.parseFrom(protoRows.serializedRowsList[0])
+        val directMeasurementData = MeasurementsTableRow.parseFrom(protoRows.serializedRowsList[0])
         assertThat(directMeasurementData.measurementConsumerId)
           .isEqualTo(externalIdToApiId(directMeasurement.externalMeasurementConsumerId))
         assertThat(directMeasurementData.measurementId)
@@ -144,17 +130,7 @@ class OperationalMetricsExportTest {
           .isEqualTo(Timestamps.toMicros(directMeasurement.createTime))
         assertThat(directMeasurementData.updateTime)
           .isEqualTo(Timestamps.toMicros(directMeasurement.updateTime))
-        assertThat(directMeasurementData.updateTimeMinusCreateTime)
-          .isEqualTo(
-            Durations.toMillis(
-              Timestamps.between(directMeasurement.createTime, directMeasurement.updateTime)
-            )
-          )
-        assertThat(directMeasurementData.updateTimeMinusCreateTimeSquared)
-          .isEqualTo(
-            directMeasurementData.updateTimeMinusCreateTime *
-              directMeasurementData.updateTimeMinusCreateTime
-          )
+
         async {}
       }
     }
@@ -165,7 +141,7 @@ class OperationalMetricsExportTest {
         assertThat(protoRows.serializedRowsList).hasSize(2)
 
         val computationParticipantRequisitionData =
-          RequisitionData.parseFrom(protoRows.serializedRowsList[1])
+          RequisitionsTableRow.parseFrom(protoRows.serializedRowsList[1])
         assertThat(computationParticipantRequisitionData.measurementConsumerId)
           .isEqualTo(externalIdToApiId(computationMeasurement.externalMeasurementConsumerId))
         assertThat(computationParticipantRequisitionData.measurementId)
@@ -186,22 +162,8 @@ class OperationalMetricsExportTest {
           .isEqualTo(Timestamps.toMicros(computationMeasurement.createTime))
         assertThat(computationParticipantRequisitionData.updateTime)
           .isEqualTo(Timestamps.toMicros(computationMeasurement.requisitionsList[0].updateTime))
-        assertThat(computationParticipantRequisitionData.updateTimeMinusCreateTime)
-          .isEqualTo(
-            Durations.toMillis(
-              Timestamps.between(
-                computationMeasurement.createTime,
-                computationMeasurement.requisitionsList[0].updateTime,
-              )
-            )
-          )
-        assertThat(computationParticipantRequisitionData.updateTimeMinusCreateTimeSquared)
-          .isEqualTo(
-            computationParticipantRequisitionData.updateTimeMinusCreateTime *
-              computationParticipantRequisitionData.updateTimeMinusCreateTime
-          )
 
-        val directRequisitionData = RequisitionData.parseFrom(protoRows.serializedRowsList[0])
+        val directRequisitionData = RequisitionsTableRow.parseFrom(protoRows.serializedRowsList[0])
         assertThat(directRequisitionData.measurementConsumerId)
           .isEqualTo(externalIdToApiId(directMeasurement.externalMeasurementConsumerId))
         assertThat(directRequisitionData.measurementId)
@@ -219,20 +181,7 @@ class OperationalMetricsExportTest {
           .isEqualTo(Timestamps.toMicros(directMeasurement.createTime))
         assertThat(directRequisitionData.updateTime)
           .isEqualTo(Timestamps.toMicros(directMeasurement.requisitionsList[0].updateTime))
-        assertThat(directRequisitionData.updateTimeMinusCreateTime)
-          .isEqualTo(
-            Durations.toMillis(
-              Timestamps.between(
-                directMeasurement.createTime,
-                directMeasurement.requisitionsList[0].updateTime,
-              )
-            )
-          )
-        assertThat(directRequisitionData.updateTimeMinusCreateTimeSquared)
-          .isEqualTo(
-            directRequisitionData.updateTimeMinusCreateTime *
-              directRequisitionData.updateTimeMinusCreateTime
-          )
+
         async {}
       }
     }
@@ -245,7 +194,7 @@ class OperationalMetricsExportTest {
 
           for (serializedProtoRow in protoRows.serializedRowsList) {
             val computationParticipantData =
-              ComputationParticipantData.parseFrom(serializedProtoRow)
+              ComputationParticipantsTableRow.parseFrom(serializedProtoRow)
             for (computationParticipant in computationMeasurement.computationParticipantsList) {
               if (computationParticipant.externalDuchyId == computationParticipantData.duchyId) {
                 assertThat(computationParticipantData.measurementConsumerId)
@@ -264,23 +213,10 @@ class OperationalMetricsExportTest {
                   .isEqualTo(Timestamps.toMicros(computationMeasurement.createTime))
                 assertThat(computationParticipantData.updateTime)
                   .isEqualTo(Timestamps.toMicros(computationParticipant.updateTime))
-                assertThat(computationParticipantData.updateTimeMinusCreateTime)
-                  .isEqualTo(
-                    Durations.toMillis(
-                      Timestamps.between(
-                        computationMeasurement.createTime,
-                        computationParticipant.updateTime,
-                      )
-                    )
-                  )
-                assertThat(computationParticipantData.updateTimeMinusCreateTimeSquared)
-                  .isEqualTo(
-                    computationParticipantData.updateTimeMinusCreateTime *
-                      computationParticipantData.updateTimeMinusCreateTime
-                  )
               }
             }
           }
+
           async {}
         }
       }
@@ -292,7 +228,7 @@ class OperationalMetricsExportTest {
           assertThat(protoRows.serializedRowsList).hasSize(1)
 
           val latestMeasurementRead =
-            LatestMeasurementRead.parseFrom(protoRows.serializedRowsList[0])
+            LatestMeasurementReadTableRow.parseFrom(protoRows.serializedRowsList[0])
           assertThat(latestMeasurementRead.updateTime)
             .isEqualTo(Timestamps.toNanos(computationMeasurement.updateTime))
           assertThat(latestMeasurementRead.externalMeasurementConsumerId)

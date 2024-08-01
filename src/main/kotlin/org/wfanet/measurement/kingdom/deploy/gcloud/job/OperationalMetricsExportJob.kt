@@ -27,13 +27,12 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withVerboseLogging
-import org.wfanet.measurement.internal.kingdom.ComputationParticipantData
-import org.wfanet.measurement.internal.kingdom.LatestMeasurementRead
-import org.wfanet.measurement.internal.kingdom.MeasurementData
+import org.wfanet.measurement.internal.kingdom.bigquerytables.ComputationParticipantsTableRow
+import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestMeasurementReadTableRow
+import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementsTableRow
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
-import org.wfanet.measurement.internal.kingdom.RequisitionData
+import org.wfanet.measurement.internal.kingdom.bigquerytables.RequisitionsTableRow
 import org.wfanet.measurement.kingdom.deploy.common.server.KingdomApiServerFlags
-import org.wfanet.measurement.kingdom.job.OperationalMetricsExport
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -91,7 +90,7 @@ private fun run(
           client = bigQueryWriteClient,
           protoSchema =
             ProtoSchema.newBuilder()
-              .setProtoDescriptor(MeasurementData.getDescriptor().toProto())
+              .setProtoDescriptor(MeasurementsTableRow.getDescriptor().toProto())
               .build(),
         )
       val requisitionsDataWriter =
@@ -102,7 +101,7 @@ private fun run(
           client = bigQueryWriteClient,
           protoSchema =
             ProtoSchema.newBuilder()
-              .setProtoDescriptor(RequisitionData.getDescriptor().toProto())
+              .setProtoDescriptor(RequisitionsTableRow.getDescriptor().toProto())
               .build(),
         )
       val computationParticipantsDataWriter =
@@ -113,7 +112,7 @@ private fun run(
           client = bigQueryWriteClient,
           protoSchema =
             ProtoSchema.newBuilder()
-              .setProtoDescriptor(ComputationParticipantData.getDescriptor().toProto())
+              .setProtoDescriptor(ComputationParticipantsTableRow.getDescriptor().toProto())
               .build(),
         )
       val latestMeasurementReadDataWriter =
@@ -124,7 +123,7 @@ private fun run(
           client = bigQueryWriteClient,
           protoSchema =
             ProtoSchema.newBuilder()
-              .setProtoDescriptor(LatestMeasurementRead.getDescriptor().toProto())
+              .setProtoDescriptor(LatestMeasurementReadTableRow.getDescriptor().toProto())
               .build(),
         )
 
