@@ -32,8 +32,6 @@ import org.wfanet.measurement.internal.kingdom.LatestMeasurementRead
 import org.wfanet.measurement.internal.kingdom.MeasurementData
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.RequisitionData
-import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
-import org.wfanet.measurement.kingdom.deploy.common.DuchyIdsFlags
 import org.wfanet.measurement.kingdom.deploy.common.server.KingdomApiServerFlags
 import org.wfanet.measurement.kingdom.job.OperationalMetricsExport
 import picocli.CommandLine
@@ -42,7 +40,7 @@ import picocli.CommandLine
   name = "OperationalMetricsJobExecutor",
   description =
     [
-      "Process for reading data for Metrics from the Kingdom Spanner Database and writing it to BigQuery."
+      "Process for reading data for Metrics from the Kingdom Internal Server and writing it to BigQuery."
     ],
   mixinStandardHelpOptions = true,
   showDefaultValues = true,
@@ -51,10 +49,7 @@ private fun run(
   @CommandLine.Mixin kingdomApiServerFlags: KingdomApiServerFlags,
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
   @CommandLine.Mixin operationalMetricsFlags: OperationalMetricsFlags,
-  @CommandLine.Mixin duchyIdsFlags: DuchyIdsFlags,
 ) {
-  DuchyIds.initializeFromFlags(duchyIdsFlags)
-
   val clientCerts =
     SigningCerts.fromPemFiles(
       certificateFile = commonServerFlags.tlsFlags.certFile,
