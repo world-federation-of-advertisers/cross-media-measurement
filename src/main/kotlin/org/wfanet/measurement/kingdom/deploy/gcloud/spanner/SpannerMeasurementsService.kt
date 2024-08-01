@@ -139,7 +139,7 @@ class SpannerMeasurementsService(
   }
 
   override fun streamMeasurements(request: StreamMeasurementsRequest): Flow<Measurement> {
-    return StreamMeasurements(request.measurementView, request.filter, request.limit)
+    return StreamMeasurements(request.measurementView, request.filter, request.limit, request.orderByMeasurementView)
       .execute(client.singleUse())
       .map { it.measurement }
   }
