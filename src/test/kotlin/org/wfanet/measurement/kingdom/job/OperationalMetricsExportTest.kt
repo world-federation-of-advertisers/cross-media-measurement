@@ -358,6 +358,7 @@ class OperationalMetricsExportTest {
           .isEqualTo(
             streamMeasurementsRequest {
               measurementView = Measurement.View.COMPUTATION
+              orderByMeasurementView = Measurement.View.DEFAULT
               filter =
                 StreamMeasurementsRequestKt.filter {
                   states += Measurement.State.SUCCEEDED
