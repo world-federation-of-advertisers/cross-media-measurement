@@ -108,19 +108,22 @@ kingdom: #Kingdom & {
 
 	cronJobs: {
 		"operational-metrics": {
-			_container: Container={
+			_container: {
 				image:     _images["operational-metrics"]
 				resources: #OperationalMetricsJobResourceRequirements
-				args:      [
-						"--bigquery-project=\(#GCloudProject)",
-						"--bigquery-dataset=operational_metrics",
-						"--measurements-table=measurements",
-						"--requisitions-table=requisitions",
-						"--computation-participants-table=computation_participants",
-						"--latest-measurement-read-table=latest_measurement_read",
-						"--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
-						"--internal-api-cert-host=localhost",
-				] + Container._commonServerFlags
+				args: [
+					"--bigquery-project=\(#GCloudProject)",
+					"--bigquery-dataset=operational_metrics",
+					"--measurements-table=measurements",
+					"--requisitions-table=requisitions",
+					"--computation-participants-table=computation_participants",
+					"--latest-measurement-read-table=latest_measurement_read",
+					"--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem",
+					"--tls-key-file=/var/run/secrets/files/kingdom_tls.key",
+					"--cert-collection-file=/var/run/secrets/files/kingdom_root.pem",
+					"--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
+					"--internal-api-cert-host=localhost",
+				]
 			}
 			spec: {
 				concurrencyPolicy: "Forbid"
