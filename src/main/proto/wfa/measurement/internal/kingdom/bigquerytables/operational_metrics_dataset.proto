@@ -16,10 +16,10 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_package = "org.wfanet.measurement.internal.kingdom.bigquerytables";
 option java_multiple_files = true;
 
-message MeasurementData {
+message MeasurementsTableRow {
   string measurement_consumer_id = 1;
   string measurement_id = 2;
 
@@ -34,12 +34,9 @@ message MeasurementData {
   int64 create_time = 6;
   // in microseconds
   int64 update_time = 7;
-  // in milliseconds
-  int64 update_time_minus_create_time = 8;
-  int64 update_time_minus_create_time_squared = 9;
 }
 
-message RequisitionData {
+message RequisitionsTableRow {
   string measurement_consumer_id = 1;
   string measurement_id = 2;
   string requisition_id = 3;
@@ -56,12 +53,9 @@ message RequisitionData {
   int64 create_time = 8;
   // in microseconds
   int64 update_time = 9;
-  // in milliseconds
-  int64 update_time_minus_create_time = 10;
-  int64 update_time_minus_create_time_squared = 11;
 }
 
-message ComputationParticipantData {
+message ComputationParticipantsTableRow {
   string measurement_consumer_id = 1;
   string measurement_id = 2;
   string computation_id = 3;
@@ -80,12 +74,9 @@ message ComputationParticipantData {
   int64 create_time = 8;
   // in microseconds
   int64 update_time = 9;
-  // in milliseconds
-  int64 update_time_minus_create_time = 10;
-  int64 update_time_minus_create_time_squared = 11;
 }
 
-message LatestMeasurementRead {
+message LatestMeasurementReadTableRow {
   // Since BigQuery timestamp is microsecond precision, this is in nanoseconds
   // and is stored as an integer.
   int64 update_time = 1;
