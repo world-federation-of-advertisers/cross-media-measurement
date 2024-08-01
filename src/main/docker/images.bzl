@@ -154,7 +154,7 @@ GKE_IMAGES = [
     struct(
         name = "kingdom_operational_metrics_export_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/job:operational_metrics_export_job_image",
-        repository = _PREFIX + "/kingdom/operational-metrics",
+        repository = _PREFIX + "/kingdom/bigquery-operational-metrics",
     ),
 ]
 

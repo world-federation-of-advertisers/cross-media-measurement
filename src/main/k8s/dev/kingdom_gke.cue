@@ -63,7 +63,7 @@ kingdom: #Kingdom & {
 
 	_imageSuffixes: [string]: string
 	_imageSuffixes: {
-		"operational-metrics": string | *"kingdom/operational-metrics"
+		"operational-metrics": string | *"kingdom/bigquery-operational-metrics"
 	}
 	_imageConfigs: [string]: #ImageConfig
 	_imageConfigs: {
@@ -127,7 +127,7 @@ kingdom: #Kingdom & {
 			}
 			spec: {
 				concurrencyPolicy: "Forbid"
-				schedule:          "30 * * * *" // Hourly, 30 minutes past the hour
+				schedule:          "*/5 * * * *" // Hourly, 30 minutes past the hour
 				jobTemplate: spec: template: spec: #ServiceAccountPodSpec & {
 					serviceAccountName: #OperationalMetricsServiceAccount
 				}
@@ -136,10 +136,15 @@ kingdom: #Kingdom & {
 	}
 
 	networkPolicies: {
+    "internal-data-server": {
+      _sourceMatchLabels: [
+        "operational-metrics-app",
+      ]
+    }
 		"operational-metrics": {
 			_app_label: "operational-metrics-app"
 			_egresses: {
-				// Need to send external traffic to Spanner and BigQuery.
+				// Need to send external traffic to BigQuery.
 				any: {}
 			}
 		}

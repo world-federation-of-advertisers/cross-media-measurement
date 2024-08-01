@@ -597,7 +597,3 @@ kt_jvm_grpc_proto_library(
     name = "populations_service_kt_jvm_grpc_proto",
     deps = [":populations_service_proto"],
 )
-
-proto_and_kt_jvm_proto_library(
-    name = "operational_metrics",
-)
