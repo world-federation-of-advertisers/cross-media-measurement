@@ -27,10 +27,10 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withVerboseLogging
+import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.bigquerytables.ComputationParticipantsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestMeasurementReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementsTableRow
-import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.bigquerytables.RequisitionsTableRow
 import org.wfanet.measurement.kingdom.deploy.common.server.KingdomApiServerFlags
 import picocli.CommandLine

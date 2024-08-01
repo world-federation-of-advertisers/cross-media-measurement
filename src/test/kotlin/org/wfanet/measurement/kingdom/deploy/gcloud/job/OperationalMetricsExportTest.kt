@@ -28,7 +28,6 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
-import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.async
@@ -52,17 +51,17 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
-import org.wfanet.measurement.internal.kingdom.bigquerytables.ComputationParticipantsTableRow
-import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestMeasurementReadTableRow
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementsTableRow
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.bigquerytables.RequisitionsTableRow
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
+import org.wfanet.measurement.internal.kingdom.bigquerytables.ComputationParticipantsTableRow
+import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestMeasurementReadTableRow
+import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementsTableRow
+import org.wfanet.measurement.internal.kingdom.bigquerytables.RequisitionsTableRow
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.measurement
@@ -105,7 +104,8 @@ class OperationalMetricsExportTest {
         val protoRows: ProtoRows = it.getArgument(0)
         assertThat(protoRows.serializedRowsList).hasSize(2)
 
-        val computationMeasurementData = MeasurementsTableRow.parseFrom(protoRows.serializedRowsList[1])
+        val computationMeasurementData =
+          MeasurementsTableRow.parseFrom(protoRows.serializedRowsList[1])
         assertThat(computationMeasurementData.measurementConsumerId)
           .isEqualTo(externalIdToApiId(computationMeasurement.externalMeasurementConsumerId))
         assertThat(computationMeasurementData.measurementId)
