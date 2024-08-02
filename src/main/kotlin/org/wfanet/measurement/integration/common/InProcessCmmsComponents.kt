@@ -199,6 +199,7 @@ class InProcessCmmsComponents(
       it.startMill(duchyCertMap)
     }
     edpSimulators.forEach { it.start() }
+    edpSimulators.forEach { it.waitUntilHealthy() }
   }
 
   fun stopEdpSimulators() = runBlocking { edpSimulators.forEach { it.stop() } }

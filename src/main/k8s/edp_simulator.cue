@@ -70,7 +70,34 @@ import "list"
 				"--kingdom-public-api-target=\(_kingdom_public_api_target)",
 				"--kingdom-public-api-cert-host=localhost",
 				"--log-sketch-details=\(_logSketchDetails)",
+				"--health-file=/run/probe/healthy",
 			] + _requisitionFulfillmentServiceFlags + _additional_args
+		}
+		spec: template: spec: {
+			_mounts: {
+				"probe": {
+					volume: emptyDir: {}
+				}
+			}
+			_containers: {
+				"probe-sidecar": {
+					image: "registry.k8s.io/busybox"
+					args: ["/bin/sh", "-c", "while true; do sleep 30; done"]
+					startupProbe: {
+						exec: command: ["cat", "/run/probe/healthy"]
+						initialDelaySeconds: 10
+						periodSeconds:       1
+						failureThreshold:    30
+					}
+					resources: Resources={
+						requests: {
+							cpu:    "1m"
+							memory: "10Mi"
+						}
+						limits: memory: _ | *Resources.requests.memory
+					}
+				}
+			}
 		}
 	}
 
