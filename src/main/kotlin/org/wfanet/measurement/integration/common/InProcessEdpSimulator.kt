@@ -43,6 +43,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.common.Health
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.dataprovider.DataProviderData
@@ -67,7 +68,7 @@ class InProcessEdpSimulator(
   private val syntheticDataSpec: SyntheticEventGroupSpec,
   coroutineContext: CoroutineContext = Dispatchers.Default,
   honestMajorityShareShuffleSupported: Boolean = true,
-) {
+) : Health {
   private val loggingName = "${javaClass.simpleName} $displayName"
   private val backgroundScope =
     CoroutineScope(
@@ -138,6 +139,11 @@ class InProcessEdpSimulator(
   }
 
   private lateinit var edpJob: Job
+
+  override val healthy: Boolean
+    get() = delegate.healthy
+
+  override suspend fun waitUntilHealthy() = delegate.waitUntilHealthy()
 
   fun start() {
     edpJob = backgroundScope.launch { delegate.run() }

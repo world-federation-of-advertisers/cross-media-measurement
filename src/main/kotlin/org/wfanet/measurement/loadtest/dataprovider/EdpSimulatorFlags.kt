@@ -123,4 +123,13 @@ class EdpSimulatorFlags {
   )
   var logSketchDetails: Boolean = false
     private set
+
+  @CommandLine.Option(
+    names = ["--health-file"],
+    description = ["File indicating whether the process is healthy"],
+    required = true,
+    defaultValue = "/run/probe/healthy",
+  )
+  lateinit var healthFile: File
+    private set
 }
