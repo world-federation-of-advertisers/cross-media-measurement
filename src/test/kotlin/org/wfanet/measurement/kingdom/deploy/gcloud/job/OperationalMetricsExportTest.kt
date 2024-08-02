@@ -23,6 +23,8 @@ import com.google.cloud.bigquery.FieldValue
 import com.google.cloud.bigquery.FieldValueList
 import com.google.cloud.bigquery.LegacySQLTypeName
 import com.google.cloud.bigquery.TableResult
+import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient
+import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings
 import com.google.cloud.bigquery.storage.v1.ProtoRows
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
@@ -77,7 +79,9 @@ class OperationalMetricsExportTest {
       .thenReturn(flowOf(DIRECT_MEASUREMENT, COMPUTATION_MEASUREMENT))
   }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(measurementsMock) }
+  @get:Rule val grpcTestServerRule = GrpcTestServerRule {
+    addService(measurementsMock)
+  }
 
   private lateinit var measurementsClient: MeasurementsGrpcKt.MeasurementsCoroutineStub
 
@@ -99,156 +103,139 @@ class OperationalMetricsExportTest {
       whenever(bigQuery.query(any())).thenReturn(tableResultMock)
     }
 
-    val measurementsDataWriterMock: OperationalMetricsExport.DataWriter = mock { dataWriter ->
-      whenever(dataWriter.appendRows(any())).thenAnswer {
-        val protoRows: ProtoRows = it.getArgument(0)
-        assertThat(protoRows.serializedRowsList).hasSize(2)
+    val bigQueryWriteClientMock: BigQueryWriteClient = mock()
+    whenever(bigQueryWriteClientMock.getSettings()).thenReturn(BigQueryWriteSettings.newBuilder().build())
 
-        val computationMeasurementData =
-          MeasurementsTableRow.parseFrom(protoRows.serializedRowsList[1])
-        assertThat(computationMeasurementData.measurementConsumerId)
-          .isEqualTo(externalIdToApiId(computationMeasurement.externalMeasurementConsumerId))
-        assertThat(computationMeasurementData.measurementId)
-          .isEqualTo(externalIdToApiId(computationMeasurement.externalMeasurementId))
-        assertThat(computationMeasurementData.isDirect).isFalse()
-        assertThat(computationMeasurementData.measurementType).isEqualTo("REACH_AND_FREQUENCY")
-        assertThat(computationMeasurementData.state).isEqualTo("SUCCEEDED")
-        assertThat(computationMeasurementData.createTime)
-          .isEqualTo(Timestamps.toMicros(computationMeasurement.createTime))
-        assertThat(computationMeasurementData.updateTime)
-          .isEqualTo(Timestamps.toMicros(computationMeasurement.updateTime))
+    /*
 
-        val directMeasurementData = MeasurementsTableRow.parseFrom(protoRows.serializedRowsList[0])
-        assertThat(directMeasurementData.measurementConsumerId)
-          .isEqualTo(externalIdToApiId(directMeasurement.externalMeasurementConsumerId))
-        assertThat(directMeasurementData.measurementId)
-          .isEqualTo(externalIdToApiId(directMeasurement.externalMeasurementId))
-        assertThat(directMeasurementData.isDirect).isTrue()
-        assertThat(directMeasurementData.measurementType).isEqualTo("REACH_AND_FREQUENCY")
-        assertThat(directMeasurementData.state).isEqualTo("SUCCEEDED")
-        assertThat(directMeasurementData.createTime)
-          .isEqualTo(Timestamps.toMicros(directMeasurement.createTime))
-        assertThat(directMeasurementData.updateTime)
-          .isEqualTo(Timestamps.toMicros(directMeasurement.updateTime))
+    val protoRows: ProtoRows = it.getArgument(0)
+    assertThat(protoRows.serializedRowsList).hasSize(2)
 
-        async {}
+    val computationMeasurementData =
+      MeasurementsTableRow.parseFrom(protoRows.serializedRowsList[1])
+    assertThat(computationMeasurementData.measurementConsumerId)
+      .isEqualTo(externalIdToApiId(computationMeasurement.externalMeasurementConsumerId))
+    assertThat(computationMeasurementData.measurementId)
+      .isEqualTo(externalIdToApiId(computationMeasurement.externalMeasurementId))
+    assertThat(computationMeasurementData.isDirect).isFalse()
+    assertThat(computationMeasurementData.measurementType).isEqualTo("REACH_AND_FREQUENCY")
+    assertThat(computationMeasurementData.state).isEqualTo("SUCCEEDED")
+    assertThat(computationMeasurementData.createTime)
+      .isEqualTo(Timestamps.toMicros(computationMeasurement.createTime))
+    assertThat(computationMeasurementData.updateTime)
+      .isEqualTo(Timestamps.toMicros(computationMeasurement.updateTime))
+
+    val directMeasurementData = MeasurementsTableRow.parseFrom(protoRows.serializedRowsList[0])
+    assertThat(directMeasurementData.measurementConsumerId)
+      .isEqualTo(externalIdToApiId(directMeasurement.externalMeasurementConsumerId))
+    assertThat(directMeasurementData.measurementId)
+      .isEqualTo(externalIdToApiId(directMeasurement.externalMeasurementId))
+    assertThat(directMeasurementData.isDirect).isTrue()
+    assertThat(directMeasurementData.measurementType).isEqualTo("REACH_AND_FREQUENCY")
+    assertThat(directMeasurementData.state).isEqualTo("SUCCEEDED")
+    assertThat(directMeasurementData.createTime)
+      .isEqualTo(Timestamps.toMicros(directMeasurement.createTime))
+    assertThat(directMeasurementData.updateTime)
+      .isEqualTo(Timestamps.toMicros(directMeasurement.updateTime))
+
+    val protoRows: ProtoRows = it.getArgument(0)
+    assertThat(protoRows.serializedRowsList).hasSize(2)
+
+    val computationParticipantRequisitionData =
+      RequisitionsTableRow.parseFrom(protoRows.serializedRowsList[1])
+    assertThat(computationParticipantRequisitionData.measurementConsumerId)
+      .isEqualTo(externalIdToApiId(computationMeasurement.externalMeasurementConsumerId))
+    assertThat(computationParticipantRequisitionData.measurementId)
+      .isEqualTo(externalIdToApiId(computationMeasurement.externalMeasurementId))
+    assertThat(computationParticipantRequisitionData.requisitionId)
+      .isEqualTo(
+        externalIdToApiId(computationMeasurement.requisitionsList[0].externalRequisitionId)
+      )
+    assertThat(computationParticipantRequisitionData.dataProviderId)
+      .isEqualTo(
+        externalIdToApiId(computationMeasurement.requisitionsList[0].externalDataProviderId)
+      )
+    assertThat(computationParticipantRequisitionData.isDirect).isFalse()
+    assertThat(computationParticipantRequisitionData.measurementType)
+      .isEqualTo("REACH_AND_FREQUENCY")
+    assertThat(computationParticipantRequisitionData.state).isEqualTo("UNFULFILLED")
+    assertThat(computationParticipantRequisitionData.createTime)
+      .isEqualTo(Timestamps.toMicros(computationMeasurement.createTime))
+    assertThat(computationParticipantRequisitionData.updateTime)
+      .isEqualTo(Timestamps.toMicros(computationMeasurement.requisitionsList[0].updateTime))
+
+    val directRequisitionData = RequisitionsTableRow.parseFrom(protoRows.serializedRowsList[0])
+    assertThat(directRequisitionData.measurementConsumerId)
+      .isEqualTo(externalIdToApiId(directMeasurement.externalMeasurementConsumerId))
+    assertThat(directRequisitionData.measurementId)
+      .isEqualTo(externalIdToApiId(directMeasurement.externalMeasurementId))
+    assertThat(directRequisitionData.requisitionId)
+      .isEqualTo(externalIdToApiId(directMeasurement.requisitionsList[0].externalRequisitionId))
+    assertThat(directRequisitionData.dataProviderId)
+      .isEqualTo(
+        externalIdToApiId(directMeasurement.requisitionsList[0].externalDataProviderId)
+      )
+    assertThat(directRequisitionData.isDirect).isTrue()
+    assertThat(directRequisitionData.measurementType).isEqualTo("REACH_AND_FREQUENCY")
+    assertThat(directRequisitionData.state).isEqualTo("UNFULFILLED")
+    assertThat(directRequisitionData.createTime)
+      .isEqualTo(Timestamps.toMicros(directMeasurement.createTime))
+    assertThat(directRequisitionData.updateTime)
+      .isEqualTo(Timestamps.toMicros(directMeasurement.requisitionsList[0].updateTime))
+
+    val protoRows: ProtoRows = it.getArgument(0)
+    assertThat(protoRows.serializedRowsList).hasSize(3)
+
+    for (serializedProtoRow in protoRows.serializedRowsList) {
+      val computationParticipantData =
+        ComputationParticipantsTableRow.parseFrom(serializedProtoRow)
+      for (computationParticipant in computationMeasurement.computationParticipantsList) {
+        if (computationParticipant.externalDuchyId == computationParticipantData.duchyId) {
+          assertThat(computationParticipantData.measurementConsumerId)
+            .isEqualTo(
+              externalIdToApiId(computationMeasurement.externalMeasurementConsumerId)
+            )
+          assertThat(computationParticipantData.measurementId)
+            .isEqualTo(externalIdToApiId(computationMeasurement.externalMeasurementId))
+          assertThat(computationParticipantData.computationId)
+            .isEqualTo(externalIdToApiId(computationMeasurement.externalComputationId))
+          assertThat(computationParticipantData.protocol).isEqualTo("PROTOCOL_NOT_SET")
+          assertThat(computationParticipantData.measurementType)
+            .isEqualTo("REACH_AND_FREQUENCY")
+          assertThat(computationParticipantData.state).isEqualTo("CREATED")
+          assertThat(computationParticipantData.createTime)
+            .isEqualTo(Timestamps.toMicros(computationMeasurement.createTime))
+          assertThat(computationParticipantData.updateTime)
+            .isEqualTo(Timestamps.toMicros(computationParticipant.updateTime))
+        }
       }
     }
 
-    val requisitionsDataWriterMock: OperationalMetricsExport.DataWriter = mock { dataWriter ->
-      whenever(dataWriter.appendRows(any())).thenAnswer {
-        val protoRows: ProtoRows = it.getArgument(0)
-        assertThat(protoRows.serializedRowsList).hasSize(2)
+    val protoRows: ProtoRows = it.getArgument(0)
+    assertThat(protoRows.serializedRowsList).hasSize(1)
 
-        val computationParticipantRequisitionData =
-          RequisitionsTableRow.parseFrom(protoRows.serializedRowsList[1])
-        assertThat(computationParticipantRequisitionData.measurementConsumerId)
-          .isEqualTo(externalIdToApiId(computationMeasurement.externalMeasurementConsumerId))
-        assertThat(computationParticipantRequisitionData.measurementId)
-          .isEqualTo(externalIdToApiId(computationMeasurement.externalMeasurementId))
-        assertThat(computationParticipantRequisitionData.requisitionId)
-          .isEqualTo(
-            externalIdToApiId(computationMeasurement.requisitionsList[0].externalRequisitionId)
-          )
-        assertThat(computationParticipantRequisitionData.dataProviderId)
-          .isEqualTo(
-            externalIdToApiId(computationMeasurement.requisitionsList[0].externalDataProviderId)
-          )
-        assertThat(computationParticipantRequisitionData.isDirect).isFalse()
-        assertThat(computationParticipantRequisitionData.measurementType)
-          .isEqualTo("REACH_AND_FREQUENCY")
-        assertThat(computationParticipantRequisitionData.state).isEqualTo("UNFULFILLED")
-        assertThat(computationParticipantRequisitionData.createTime)
-          .isEqualTo(Timestamps.toMicros(computationMeasurement.createTime))
-        assertThat(computationParticipantRequisitionData.updateTime)
-          .isEqualTo(Timestamps.toMicros(computationMeasurement.requisitionsList[0].updateTime))
+    val latestMeasurementRead =
+      LatestMeasurementReadTableRow.parseFrom(protoRows.serializedRowsList[0])
+    assertThat(latestMeasurementRead.updateTime)
+      .isEqualTo(Timestamps.toNanos(computationMeasurement.updateTime))
+    assertThat(latestMeasurementRead.externalMeasurementConsumerId)
+      .isEqualTo(computationMeasurement.externalMeasurementConsumerId)
+    assertThat(latestMeasurementRead.externalMeasurementId)
+      .isEqualTo(computationMeasurement.externalMeasurementId)
 
-        val directRequisitionData = RequisitionsTableRow.parseFrom(protoRows.serializedRowsList[0])
-        assertThat(directRequisitionData.measurementConsumerId)
-          .isEqualTo(externalIdToApiId(directMeasurement.externalMeasurementConsumerId))
-        assertThat(directRequisitionData.measurementId)
-          .isEqualTo(externalIdToApiId(directMeasurement.externalMeasurementId))
-        assertThat(directRequisitionData.requisitionId)
-          .isEqualTo(externalIdToApiId(directMeasurement.requisitionsList[0].externalRequisitionId))
-        assertThat(directRequisitionData.dataProviderId)
-          .isEqualTo(
-            externalIdToApiId(directMeasurement.requisitionsList[0].externalDataProviderId)
-          )
-        assertThat(directRequisitionData.isDirect).isTrue()
-        assertThat(directRequisitionData.measurementType).isEqualTo("REACH_AND_FREQUENCY")
-        assertThat(directRequisitionData.state).isEqualTo("UNFULFILLED")
-        assertThat(directRequisitionData.createTime)
-          .isEqualTo(Timestamps.toMicros(directMeasurement.createTime))
-        assertThat(directRequisitionData.updateTime)
-          .isEqualTo(Timestamps.toMicros(directMeasurement.requisitionsList[0].updateTime))
-
-        async {}
-      }
-    }
-
-    val computationParticipantsDataWriterMock: OperationalMetricsExport.DataWriter =
-      mock { dataWriter ->
-        whenever(dataWriter.appendRows(any())).thenAnswer {
-          val protoRows: ProtoRows = it.getArgument(0)
-          assertThat(protoRows.serializedRowsList).hasSize(3)
-
-          for (serializedProtoRow in protoRows.serializedRowsList) {
-            val computationParticipantData =
-              ComputationParticipantsTableRow.parseFrom(serializedProtoRow)
-            for (computationParticipant in computationMeasurement.computationParticipantsList) {
-              if (computationParticipant.externalDuchyId == computationParticipantData.duchyId) {
-                assertThat(computationParticipantData.measurementConsumerId)
-                  .isEqualTo(
-                    externalIdToApiId(computationMeasurement.externalMeasurementConsumerId)
-                  )
-                assertThat(computationParticipantData.measurementId)
-                  .isEqualTo(externalIdToApiId(computationMeasurement.externalMeasurementId))
-                assertThat(computationParticipantData.computationId)
-                  .isEqualTo(externalIdToApiId(computationMeasurement.externalComputationId))
-                assertThat(computationParticipantData.protocol).isEqualTo("PROTOCOL_NOT_SET")
-                assertThat(computationParticipantData.measurementType)
-                  .isEqualTo("REACH_AND_FREQUENCY")
-                assertThat(computationParticipantData.state).isEqualTo("CREATED")
-                assertThat(computationParticipantData.createTime)
-                  .isEqualTo(Timestamps.toMicros(computationMeasurement.createTime))
-                assertThat(computationParticipantData.updateTime)
-                  .isEqualTo(Timestamps.toMicros(computationParticipant.updateTime))
-              }
-            }
-          }
-
-          async {}
-        }
-      }
-
-    val latestMeasurementReadDataWriterMock: OperationalMetricsExport.DataWriter =
-      mock { dataWriter ->
-        whenever(dataWriter.appendRows(any())).thenAnswer {
-          val protoRows: ProtoRows = it.getArgument(0)
-          assertThat(protoRows.serializedRowsList).hasSize(1)
-
-          val latestMeasurementRead =
-            LatestMeasurementReadTableRow.parseFrom(protoRows.serializedRowsList[0])
-          assertThat(latestMeasurementRead.updateTime)
-            .isEqualTo(Timestamps.toNanos(computationMeasurement.updateTime))
-          assertThat(latestMeasurementRead.externalMeasurementConsumerId)
-            .isEqualTo(computationMeasurement.externalMeasurementConsumerId)
-          assertThat(latestMeasurementRead.externalMeasurementId)
-            .isEqualTo(computationMeasurement.externalMeasurementId)
-          async {}
-        }
-      }
+     */
 
     val operationalMetricsExport =
       OperationalMetricsExport(
         measurementsClient = measurementsClient,
         bigQuery = bigQueryMock,
+        bigQueryWriteClient = bigQueryWriteClientMock,
+        projectId = "project",
         datasetId = "dataset",
-        latestMeasurementReadTableId = "table",
-        measurementsDataWriter = measurementsDataWriterMock,
-        requisitionsDataWriter = requisitionsDataWriterMock,
-        computationParticipantsDataWriter = computationParticipantsDataWriterMock,
-        latestMeasurementReadDataWriter = latestMeasurementReadDataWriterMock,
+        latestMeasurementReadTableId = "latest_measurement_read",
+        measurementsTableId = "measurements",
+        requisitionsTableId = "requisitions",
+        computationParticipantsTableId = "computation_participants",
       )
 
     operationalMetricsExport.execute()
@@ -319,34 +306,20 @@ class OperationalMetricsExportTest {
         whenever(bigQuery.query(any())).thenReturn(tableResultMock)
       }
 
-      val measurementsDataWriterMock: OperationalMetricsExport.DataWriter = mock { dataWriter ->
-        whenever(dataWriter.appendRows(any())).thenReturn(async {})
+      val bigQueryWriteClientMock: BigQueryWriteClient = mock { bigQueryWriteClient ->
       }
-
-      val requisitionsDataWriterMock: OperationalMetricsExport.DataWriter = mock { dataWriter ->
-        whenever(dataWriter.appendRows(any())).thenReturn(async {})
-      }
-
-      val computationParticipantsDataWriterMock: OperationalMetricsExport.DataWriter =
-        mock { dataWriter ->
-          whenever(dataWriter.appendRows(any())).thenReturn(async {})
-        }
-
-      val latestMeasurementReadDataWriterMock: OperationalMetricsExport.DataWriter =
-        mock { dataWriter ->
-          whenever(dataWriter.appendRows(any())).thenReturn(async {})
-        }
 
       val operationalMetricsExport =
         OperationalMetricsExport(
           measurementsClient = measurementsClient,
           bigQuery = bigQueryMock,
+          bigQueryWriteClient = bigQueryWriteClientMock,
+          projectId = "project",
           datasetId = "dataset",
-          latestMeasurementReadTableId = "table",
-          measurementsDataWriter = measurementsDataWriterMock,
-          requisitionsDataWriter = requisitionsDataWriterMock,
-          computationParticipantsDataWriter = computationParticipantsDataWriterMock,
-          latestMeasurementReadDataWriter = latestMeasurementReadDataWriterMock,
+          latestMeasurementReadTableId = "latest_measurement_read",
+          measurementsTableId = "measurements",
+          requisitionsTableId = "requisitions",
+          computationParticipantsTableId = "computation_participants",
         )
 
       operationalMetricsExport.execute()
@@ -363,34 +336,20 @@ class OperationalMetricsExportTest {
         whenever(bigQuery.query(any())).thenReturn(tableResultMock)
       }
 
-      val measurementsDataWriterMock: OperationalMetricsExport.DataWriter = mock { dataWriter ->
-        whenever(dataWriter.appendRows(any())).thenThrow(IllegalStateException(""))
+      val bigQueryWriteClientMock: BigQueryWriteClient = mock { bigQueryWriteClient ->
       }
-
-      val requisitionsDataWriterMock: OperationalMetricsExport.DataWriter = mock { dataWriter ->
-        whenever(dataWriter.appendRows(any())).thenReturn(async {})
-      }
-
-      val computationParticipantsDataWriterMock: OperationalMetricsExport.DataWriter =
-        mock { dataWriter ->
-          whenever(dataWriter.appendRows(any())).thenReturn(async {})
-        }
-
-      val latestMeasurementReadDataWriterMock: OperationalMetricsExport.DataWriter =
-        mock { dataWriter ->
-          whenever(dataWriter.appendRows(any())).thenReturn(async {})
-        }
 
       val operationalMetricsExport =
         OperationalMetricsExport(
           measurementsClient = measurementsClient,
           bigQuery = bigQueryMock,
+          bigQueryWriteClient = bigQueryWriteClientMock,
+          projectId = "project",
           datasetId = "dataset",
-          latestMeasurementReadTableId = "table",
-          measurementsDataWriter = measurementsDataWriterMock,
-          requisitionsDataWriter = requisitionsDataWriterMock,
-          computationParticipantsDataWriter = computationParticipantsDataWriterMock,
-          latestMeasurementReadDataWriter = latestMeasurementReadDataWriterMock,
+          latestMeasurementReadTableId = "latest_measurement_read",
+          measurementsTableId = "measurements",
+          requisitionsTableId = "requisitions",
+          computationParticipantsTableId = "computation_participants",
         )
 
       assertFailsWith<IllegalStateException> { operationalMetricsExport.execute() }

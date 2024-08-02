@@ -34,6 +34,8 @@ import com.google.protobuf.util.Timestamps
 import com.google.rpc.Code
 import java.util.concurrent.Executors
 import java.util.logging.Logger
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -47,11 +49,16 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.gcloud.common.await
+import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
+import org.wfanet.measurement.internal.kingdom.bigquerytables.ComputationParticipantsTableRow
+import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestMeasurementReadTableRow
+import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementType
 import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementsTableRow
+import org.wfanet.measurement.internal.kingdom.bigquerytables.RequisitionsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.computationParticipantsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.latestMeasurementReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.measurementsTableRow
@@ -63,12 +70,13 @@ import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 class OperationalMetricsExport(
   private val measurementsClient: MeasurementsGrpcKt.MeasurementsCoroutineStub,
   private val bigQuery: BigQuery,
+  private val bigQueryWriteClient: BigQueryWriteClient,
+  private val projectId: String,
   private val datasetId: String,
   private val latestMeasurementReadTableId: String,
-  private val measurementsDataWriter: DataWriter,
-  private val requisitionsDataWriter: DataWriter,
-  private val computationParticipantsDataWriter: DataWriter,
-  private val latestMeasurementReadDataWriter: DataWriter,
+  private val measurementsTableId: String,
+  private val requisitionsTableId: String,
+  private val computationParticipantsTableId: String,
 ) {
   suspend fun execute() {
     var measurementsQueryResponseSize: Int
@@ -118,6 +126,52 @@ class OperationalMetricsExport(
         }
     }
 
+    val measurementsDataWriter =
+      DataWriter(
+        projectId = projectId,
+        datasetId = datasetId,
+        tableId = measurementsTableId,
+        client = bigQueryWriteClient,
+        protoSchema =
+        ProtoSchema.newBuilder()
+          .setProtoDescriptor(MeasurementsTableRow.getDescriptor().toProto())
+          .build(),
+      )
+    val requisitionsDataWriter =
+      DataWriter(
+        projectId = projectId,
+        datasetId = datasetId,
+        tableId = requisitionsTableId,
+        client = bigQueryWriteClient,
+        protoSchema =
+        ProtoSchema.newBuilder()
+          .setProtoDescriptor(RequisitionsTableRow.getDescriptor().toProto())
+          .build(),
+      )
+    val computationParticipantsDataWriter =
+      DataWriter(
+        projectId = projectId,
+        datasetId = datasetId,
+        tableId = computationParticipantsTableId,
+        client = bigQueryWriteClient,
+        protoSchema =
+        ProtoSchema.newBuilder()
+          .setProtoDescriptor(ComputationParticipantsTableRow.getDescriptor().toProto())
+          .build(),
+      )
+    val latestMeasurementReadDataWriter =
+      DataWriter(
+        projectId = projectId,
+        datasetId = datasetId,
+        tableId = latestMeasurementReadTableId,
+        client = bigQueryWriteClient,
+        protoSchema =
+        ProtoSchema.newBuilder()
+          .setProtoDescriptor(LatestMeasurementReadTableRow.getDescriptor().toProto())
+          .build(),
+      )
+
+
     do {
       measurementsQueryResponseSize = 0
 
@@ -138,6 +192,7 @@ class OperationalMetricsExport(
                 when (measurement.details.apiVersion) {
                   Version.V2_ALPHA.toString() ->
                     ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
+
                   else -> ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
                 }
             }
@@ -146,61 +201,111 @@ class OperationalMetricsExport(
           signatureAlgorithmOid = measurement.details.measurementSpecSignatureAlgorithmOid
         }
         val measurementTypeCase = measurementSpec.unpack<MeasurementSpec>().measurementTypeCase
+        val measurementType =
+          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+          when (measurementTypeCase) {
+            MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> MeasurementType.REACH_AND_FREQUENCY
+            MeasurementSpec.MeasurementTypeCase.IMPRESSION -> MeasurementType.IMPRESSION
+            MeasurementSpec.MeasurementTypeCase.DURATION -> MeasurementType.DURATION
+            MeasurementSpec.MeasurementTypeCase.REACH -> MeasurementType.REACH
+            MeasurementSpec.MeasurementTypeCase.POPULATION -> MeasurementType.POPULATION
+            MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
+          }
 
         val measurementConsumerId = externalIdToApiId(measurement.externalMeasurementConsumerId)
         val measurementId = externalIdToApiId(measurement.externalMeasurementId)
 
-        measurementsProtoRowsBuilder.addSerializedRows(
+        val measurementState =
+          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+          when (measurement.state) {
+            // StreamMeasurements filter only returns SUCCEEDED and FAILED Measurements.
+            Measurement.State.PENDING_REQUISITION_PARAMS,
+            Measurement.State.PENDING_REQUISITION_FULFILLMENT,
+            Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+            Measurement.State.PENDING_COMPUTATION,
+            Measurement.State.STATE_UNSPECIFIED,
+            Measurement.State.CANCELLED,
+            Measurement.State.UNRECOGNIZED -> MeasurementsTableRow.State.UNRECOGNIZED
+            Measurement.State.SUCCEEDED -> MeasurementsTableRow.State.SUCCEEDED
+            Measurement.State.FAILED -> MeasurementsTableRow.State.FAILED
+          }
+
+          measurementsProtoRowsBuilder.addSerializedRows(
           measurementsTableRow {
-              this.measurementConsumerId = measurementConsumerId
-              this.measurementId = measurementId
-              isDirect = measurement.details.protocolConfig.hasDirect()
-              measurementType = measurementTypeCase.name
-              state = measurement.state.name
-              createTime = Timestamps.toMicros(measurement.createTime)
-              updateTime = Timestamps.toMicros(measurement.updateTime)
-            }
+            this.measurementConsumerId = measurementConsumerId
+            this.measurementId = measurementId
+            isDirect = measurement.details.protocolConfig.hasDirect()
+            this.measurementType = measurementType
+            state = measurementState
+            createTime = Timestamps.toMicros(measurement.createTime)
+            updateTime = Timestamps.toMicros(measurement.updateTime)
+          }
             .toByteString()
         )
 
         for (requisition in measurement.requisitionsList) {
-          val state =
+          val requisitionState =
+            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
             when (requisition.state) {
-              Requisition.State.PENDING_PARAMS -> Requisition.State.UNFULFILLED.name
-              else -> requisition.state.name
+              Requisition.State.STATE_UNSPECIFIED -> RequisitionsTableRow.State.STATE_UNSPECIFIED
+              Requisition.State.UNRECOGNIZED -> RequisitionsTableRow.State.UNRECOGNIZED
+              Requisition.State.PENDING_PARAMS,
+              Requisition.State.UNFULFILLED -> RequisitionsTableRow.State.UNFULFILLED
+              Requisition.State.FULFILLED -> RequisitionsTableRow.State.FULFILLED
+              Requisition.State.REFUSED -> RequisitionsTableRow.State.REFUSED
             }
 
           requisitionsProtoRowsBuilder.addSerializedRows(
             requisitionsTableRow {
-                this.measurementConsumerId = measurementConsumerId
-                this.measurementId = measurementId
-                requisitionId = externalIdToApiId(requisition.externalRequisitionId)
-                dataProviderId = externalIdToApiId(requisition.externalDataProviderId)
-                isDirect = measurement.details.protocolConfig.hasDirect()
-                measurementType = measurementTypeCase.name
-                this.state = state
-                createTime = Timestamps.toMicros(measurement.createTime)
-                updateTime = Timestamps.toMicros(requisition.updateTime)
-              }
+              this.measurementConsumerId = measurementConsumerId
+              this.measurementId = measurementId
+              requisitionId = externalIdToApiId(requisition.externalRequisitionId)
+              dataProviderId = externalIdToApiId(requisition.externalDataProviderId)
+              isDirect = measurement.details.protocolConfig.hasDirect()
+              this.measurementType = measurementType
+              state = requisitionState
+              createTime = Timestamps.toMicros(measurement.createTime)
+              updateTime = Timestamps.toMicros(requisition.updateTime)
+            }
               .toByteString()
           )
         }
 
         if (measurement.externalComputationId != 0L) {
           for (computationParticipant in measurement.computationParticipantsList) {
+            val computationParticipantProtocol =
+              @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+              when (computationParticipant.details.protocolCase) {
+                ComputationParticipant.Details.ProtocolCase.LIQUID_LEGIONS_V2 -> ComputationParticipantsTableRow.Protocol.LIQUID_LEGIONS_V2
+                ComputationParticipant.Details.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> ComputationParticipantsTableRow.Protocol.REACH_ONLY_LIQUID_LEGIONS_V2
+                ComputationParticipant.Details.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> ComputationParticipantsTableRow.Protocol.HONEST_MAJORITY_SHARE_SHUFFLE
+                ComputationParticipant.Details.ProtocolCase.PROTOCOL_NOT_SET -> ComputationParticipantsTableRow.Protocol.PROTOCOL_UNSPECIFIED
+              }
+
+            val computationParticipantState =
+              @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+              when (computationParticipant.state) {
+                ComputationParticipant.State.STATE_UNSPECIFIED -> ComputationParticipantsTableRow.State.STATE_UNSPECIFIED
+                ComputationParticipant.State.UNRECOGNIZED -> ComputationParticipantsTableRow.State.UNRECOGNIZED
+                ComputationParticipant.State.CREATED -> ComputationParticipantsTableRow.State.CREATED
+                ComputationParticipant.State.REQUISITION_PARAMS_SET -> ComputationParticipantsTableRow.State.REQUISITION_PARAMS_SET
+                ComputationParticipant.State.READY -> ComputationParticipantsTableRow.State.READY
+                ComputationParticipant.State.FAILED -> ComputationParticipantsTableRow.State.FAILED
+              }
+
             computationParticipantsProtoRowsBuilder.addSerializedRows(
-              computationParticipantsTableRow {
-                  this.measurementConsumerId = measurementConsumerId
-                  this.measurementId = measurementId
-                  computationId = externalIdToApiId(measurement.externalComputationId)
-                  duchyId = computationParticipant.externalDuchyId
-                  protocol = computationParticipant.details.protocolCase.name
-                  measurementType = measurementTypeCase.name
-                  state = computationParticipant.state.name
-                  createTime = Timestamps.toMicros(measurement.createTime)
-                  updateTime = Timestamps.toMicros(computationParticipant.updateTime)
-                }
-                .toByteString()
+            computationParticipantsTableRow {
+              this.measurementConsumerId = measurementConsumerId
+              this.measurementId = measurementId
+              computationId = externalIdToApiId(measurement.externalComputationId)
+              duchyId = computationParticipant.externalDuchyId
+              protocol = computationParticipantProtocol
+              this.measurementType = measurementType
+              state = computationParticipantState
+              createTime = Timestamps.toMicros(measurement.createTime)
+              updateTime = Timestamps.toMicros(computationParticipant.updateTime)
+            }
+              .toByteString()
             )
           }
         }
@@ -210,14 +315,16 @@ class OperationalMetricsExport(
 
       val deferredResults: MutableList<Deferred<Unit>> = mutableListOf()
       if (measurementsProtoRowsBuilder.serializedRowsCount > 0) {
-        deferredResults.add(measurementsDataWriter.appendRows(measurementsProtoRowsBuilder.build()))
-        deferredResults.add(requisitionsDataWriter.appendRows(requisitionsProtoRowsBuilder.build()))
-        if (computationParticipantsProtoRowsBuilder.serializedRowsCount > 0) {
-          deferredResults.add(
-            computationParticipantsDataWriter.appendRows(
-              computationParticipantsProtoRowsBuilder.build()
+        coroutineScope {
+          deferredResults.add(measurementsDataWriter.asyncAppendRows(this, measurementsProtoRowsBuilder.build()))
+          deferredResults.add(requisitionsDataWriter.asyncAppendRows(this, requisitionsProtoRowsBuilder.build()))
+          if (computationParticipantsProtoRowsBuilder.serializedRowsCount > 0) {
+            deferredResults.add(
+              computationParticipantsDataWriter.asyncAppendRows(
+                this, computationParticipantsProtoRowsBuilder.build()
+              )
             )
-          )
+          }
         }
         deferredResults.awaitAll()
       } else {
@@ -234,13 +341,16 @@ class OperationalMetricsExport(
         externalMeasurementConsumerId = apiIdToExternalId(lastMeasurement.measurementConsumerId)
         externalMeasurementId = apiIdToExternalId(lastMeasurement.measurementId)
       }
-      latestMeasurementReadDataWriter
-        .appendRows(
-          ProtoRows.newBuilder()
-            .addSerializedRows(latestMeasurementReadTableRow.toByteString())
-            .build()
-        )
-        .await()
+      coroutineScope {
+        latestMeasurementReadDataWriter
+          .asyncAppendRows(
+            this,
+            ProtoRows.newBuilder()
+              .addSerializedRows(latestMeasurementReadTableRow.toByteString())
+              .build()
+          )
+          .await()
+      }
 
       streamMeasurementsRequest =
         streamMeasurementsRequest.copy {
@@ -266,28 +376,18 @@ class OperationalMetricsExport(
     private const val BATCH_SIZE = 1000
   }
 
-  abstract class DataWriter {
-    abstract suspend fun appendRows(protoRows: ProtoRows): Deferred<Unit>
-  }
-
-  class DataWriterImplementation(
+  private class DataWriter (
     private val projectId: String,
     private val datasetId: String,
     private val tableId: String,
     private val client: BigQueryWriteClient,
     private val protoSchema: ProtoSchema,
-  ) : DataWriter() {
-    private lateinit var streamWriter: StreamWriter
+  ): AutoCloseable {
+    private var streamWriter: StreamWriter = createStreamWriter()
     private var recreateCount: Int = 0
 
-    fun init() {
-      streamWriter = createStreamWriter()
-    }
-
-    fun close() {
-      if (this::streamWriter.isInitialized) {
-        streamWriter.close()
-      }
+    override fun close() {
+      streamWriter.close()
     }
 
     private fun createStreamWriter(): StreamWriter {
@@ -310,44 +410,42 @@ class OperationalMetricsExport(
      * @returns ApiFuture containing the write response.
      * @throws IllegalStateException if append fails and is no longer retriable
      */
-    override suspend fun appendRows(protoRows: ProtoRows): Deferred<Unit> {
-      return coroutineScope {
-        async {
-          logger.info("Begin writing to stream ${streamWriter.streamName}")
-          for (i in 1..RETRY_COUNT) {
-            if (streamWriter.isClosed) {
-              if (!streamWriter.isUserClosed && recreateCount < MAX_RECREATE_COUNT) {
-                logger.info("Recreating stream writer")
-                streamWriter = createStreamWriter()
-                recreateCount++
-              } else {
-                throw IllegalStateException("Unable to recreate stream writer")
-              }
+    fun asyncAppendRows(scope: CoroutineScope, protoRows: ProtoRows): Deferred<Unit> {
+      return scope.async {
+        logger.info("Begin writing to stream ${streamWriter.streamName}")
+        for (i in 1..RETRY_COUNT) {
+          if (streamWriter.isClosed) {
+            if (!streamWriter.isUserClosed && recreateCount < MAX_RECREATE_COUNT) {
+              logger.info("Recreating stream writer")
+              streamWriter = createStreamWriter()
+              recreateCount++
+            } else {
+              throw IllegalStateException("Unable to recreate stream writer")
             }
+          }
 
-            try {
-              val response = streamWriter.append(protoRows).await()
-              if (response.hasError()) {
-                logger.warning("Write response error: ${response.error}")
-                if (response.error.code != Code.INTERNAL.number) {
-                  throw IllegalStateException("Cannot retry append.")
-                } else if (i == RETRY_COUNT) {
-                  throw IllegalStateException("Too many retries.")
-                }
-              } else {
-                logger.info("End writing to stream ${streamWriter.streamName}")
-                break
-              }
-            } catch (e: AppendSerializationError) {
-              for (value in e.rowIndexToErrorMessage.values) {
-                logger.warning(value)
-              }
-              throw e
-            } catch (e: Exception) {
-              logger.warning("Append attempt failed: ${e.printStackTrace()}")
-              if (i == RETRY_COUNT) {
+          try {
+            val response = streamWriter.append(protoRows).await()
+            if (response.hasError()) {
+              logger.warning("Write response error: ${response.error}")
+              if (response.error.code != Code.INTERNAL.number) {
+                throw IllegalStateException("Cannot retry append.")
+              } else if (i == RETRY_COUNT) {
                 throw IllegalStateException("Too many retries.")
               }
+            } else {
+              logger.info("End writing to stream ${streamWriter.streamName}")
+              break
+            }
+          } catch (e: AppendSerializationError) {
+            for (value in e.rowIndexToErrorMessage.values) {
+              logger.warning(value)
+            }
+            throw e
+          } catch (e: Exception) {
+            logger.warning("Append attempt failed: ${e.printStackTrace()}")
+            if (i == RETRY_COUNT) {
+              throw IllegalStateException("Too many retries.")
             }
           }
         }
