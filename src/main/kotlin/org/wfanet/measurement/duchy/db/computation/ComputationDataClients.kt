@@ -134,6 +134,14 @@ private constructor(
           content,
         )
       } catch (e: StorageException) {
+        // Storage client is possible to raise non-retryable exceptions, which are actually
+        // retryable. To avoid to fail Computation in this case, mark all StorageExceptions as
+        // transient so the mill can start another attempt. This is only for LLv2 protocol because
+        // HMSS does not need to write intermediate result into storage.
+        // A Google internal bug ticket has been created. Ticket id: 356682439
+        //
+        // TODO(@renjiez): Handle the exception case by case after the storage client fixes the
+        // classification of retryable vs non-retryable.
         throw TransientErrorException("Error writing blob to storage.", e)
       }
 
