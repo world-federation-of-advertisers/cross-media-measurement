@@ -14,21 +14,33 @@
 
 syntax = "proto3";
 
-package wfa.measurement.internal.kingdom;
+package wfa.measurement.internal.kingdom.bigquerytables;
 
 option java_package = "org.wfanet.measurement.internal.kingdom.bigquerytables";
 option java_multiple_files = true;
+
+enum MeasurementType {
+  MEASUREMENT_TYPE_UNSPECIFIED = 0;
+  REACH_AND_FREQUENCY = 1;
+  REACH = 2;
+  IMPRESSION = 3;
+  DURATION = 4;
+  POPULATION = 5;
+}
 
 message MeasurementsTableRow {
   string measurement_consumer_id = 1;
   string measurement_id = 2;
 
   bool is_direct = 3;
-  // `REACH_AND_FREQUENCY`, `REACH`, `IMPRESSION`, `DURATION`, or `POPULATION`
-  string measurement_type = 4;
+  MeasurementType measurement_type = 4;
 
-  // `SUCCEEDED` or `FAILED`
-  string state = 5;
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    SUCCEEDED = 1;
+    FAILED = 2;
+  }
+  State state = 5;
 
   // in microseconds
   int64 create_time = 6;
@@ -43,11 +55,15 @@ message RequisitionsTableRow {
   string data_provider_id = 4;
 
   bool is_direct = 5;
-  // `REACH_AND_FREQUENCY`, `REACH`, `IMPRESSION`, `DURATION`, or `POPULATION`
-  string measurement_type = 6;
+  MeasurementType measurement_type = 6;
 
-  // `UNFULFILLED`, `FULFILLED`, or `REFUSED`
-  string state = 7;
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    UNFULFILLED = 1;
+    FULFILLED = 2;
+    REFUSED = 3;
+  }
+  State state = 7;
 
   // in microseconds
   int64 create_time = 8;
@@ -61,14 +77,24 @@ message ComputationParticipantsTableRow {
   string computation_id = 3;
   string duchy_id = 4;
 
-  // `LIQUID_LEGIONS_V2`, `REACH_ONLY_LIQUID_LEGIONS_V2`,
-  // `HONEST_MAJORITY_SHARE_SHUFFLE`, or `PROTOCOL_NOT_SET`
-  string protocol = 5;
-  // `REACH_AND_FREQUENCY`, `REACH`, `IMPRESSION`, `DURATION`, or `POPULATION`
-  string measurement_type = 6;
+  enum Protocol {
+    PROTOCOL_UNSPECIFIED = 0;
+    LIQUID_LEGIONS_V2 = 1;
+    REACH_ONLY_LIQUID_LEGIONS_V2 = 2;
+    HONEST_MAJORITY_SHARE_SHUFFLE = 3;
+  }
+  Protocol protocol = 5;
 
-  // `CREATED`, `REQUISITION_PARAMS_SET`, `READY`, or `FAILED`
-  string state = 7;
+  MeasurementType measurement_type = 6;
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    CREATED = 1;
+    REQUISITION_PARAMS_SET = 2;
+    READY = 3;
+    FAILED = 4;
+  }
+  State state = 7;
 
   // in microseconds
   int64 create_time = 8;

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# DO NOT SUBMIT
+
 name: Deploy Kingdom
 
 on:
