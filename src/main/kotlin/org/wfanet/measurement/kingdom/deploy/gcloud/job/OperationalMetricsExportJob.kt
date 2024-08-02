@@ -19,7 +19,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.job
 import com.google.cloud.bigquery.BigQuery
 import com.google.cloud.bigquery.BigQueryOptions
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient
-import com.google.cloud.bigquery.storage.v1.ProtoSchema
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -28,10 +27,6 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
-import org.wfanet.measurement.internal.kingdom.bigquerytables.ComputationParticipantsTableRow
-import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestMeasurementReadTableRow
-import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementsTableRow
-import org.wfanet.measurement.internal.kingdom.bigquerytables.RequisitionsTableRow
 import org.wfanet.measurement.kingdom.deploy.common.server.KingdomApiServerFlags
 import picocli.CommandLine
 
@@ -82,75 +77,20 @@ private fun run(
     val latestMeasurementReadTableId = operationalMetricsFlags.latestMeasurementReadTable
 
     BigQueryWriteClient.create().use { bigQueryWriteClient ->
-      val measurementsDataWriter =
-        OperationalMetricsExport.DataWriterImplementation(
-          projectId = projectId,
-          datasetId = datasetId,
-          tableId = measurementsTableId,
-          client = bigQueryWriteClient,
-          protoSchema =
-            ProtoSchema.newBuilder()
-              .setProtoDescriptor(MeasurementsTableRow.getDescriptor().toProto())
-              .build(),
-        )
-      val requisitionsDataWriter =
-        OperationalMetricsExport.DataWriterImplementation(
-          projectId = projectId,
-          datasetId = datasetId,
-          tableId = requisitionsTableId,
-          client = bigQueryWriteClient,
-          protoSchema =
-            ProtoSchema.newBuilder()
-              .setProtoDescriptor(RequisitionsTableRow.getDescriptor().toProto())
-              .build(),
-        )
-      val computationParticipantsDataWriter =
-        OperationalMetricsExport.DataWriterImplementation(
-          projectId = projectId,
-          datasetId = datasetId,
-          tableId = computationParticipantsTableId,
-          client = bigQueryWriteClient,
-          protoSchema =
-            ProtoSchema.newBuilder()
-              .setProtoDescriptor(ComputationParticipantsTableRow.getDescriptor().toProto())
-              .build(),
-        )
-      val latestMeasurementReadDataWriter =
-        OperationalMetricsExport.DataWriterImplementation(
-          projectId = projectId,
-          datasetId = datasetId,
-          tableId = latestMeasurementReadTableId,
-          client = bigQueryWriteClient,
-          protoSchema =
-            ProtoSchema.newBuilder()
-              .setProtoDescriptor(LatestMeasurementReadTableRow.getDescriptor().toProto())
-              .build(),
-        )
-
       val operationalMetricsExport =
         OperationalMetricsExport(
           measurementsClient = measurementsClient,
           bigQuery = bigQuery,
+          bigQueryWriteClient = bigQueryWriteClient,
+          projectId = projectId,
           datasetId = datasetId,
           latestMeasurementReadTableId = latestMeasurementReadTableId,
-          measurementsDataWriter = measurementsDataWriter,
-          requisitionsDataWriter = requisitionsDataWriter,
-          computationParticipantsDataWriter = computationParticipantsDataWriter,
-          latestMeasurementReadDataWriter = latestMeasurementReadDataWriter,
+          measurementsTableId = measurementsTableId,
+          requisitionsTableId = requisitionsTableId,
+          computationParticipantsTableId = computationParticipantsTableId,
         )
 
-      try {
-        measurementsDataWriter.init()
-        requisitionsDataWriter.init()
-        computationParticipantsDataWriter.init()
-        latestMeasurementReadDataWriter.init()
-        operationalMetricsExport.execute()
-      } finally {
-        measurementsDataWriter.close()
-        requisitionsDataWriter.close()
-        computationParticipantsDataWriter.close()
-        latestMeasurementReadDataWriter.close()
-      }
+      operationalMetricsExport.execute()
     }
   }
 }
