@@ -34,7 +34,6 @@ import com.google.protobuf.util.Timestamps
 import com.google.rpc.Code
 import java.util.concurrent.Executors
 import java.util.logging.Logger
-import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
@@ -133,9 +132,9 @@ class OperationalMetricsExport(
         tableId = measurementsTableId,
         client = bigQueryWriteClient,
         protoSchema =
-        ProtoSchema.newBuilder()
-          .setProtoDescriptor(MeasurementsTableRow.getDescriptor().toProto())
-          .build(),
+          ProtoSchema.newBuilder()
+            .setProtoDescriptor(MeasurementsTableRow.getDescriptor().toProto())
+            .build(),
       )
     val requisitionsDataWriter =
       DataWriter(
@@ -144,9 +143,9 @@ class OperationalMetricsExport(
         tableId = requisitionsTableId,
         client = bigQueryWriteClient,
         protoSchema =
-        ProtoSchema.newBuilder()
-          .setProtoDescriptor(RequisitionsTableRow.getDescriptor().toProto())
-          .build(),
+          ProtoSchema.newBuilder()
+            .setProtoDescriptor(RequisitionsTableRow.getDescriptor().toProto())
+            .build(),
       )
     val computationParticipantsDataWriter =
       DataWriter(
@@ -155,9 +154,9 @@ class OperationalMetricsExport(
         tableId = computationParticipantsTableId,
         client = bigQueryWriteClient,
         protoSchema =
-        ProtoSchema.newBuilder()
-          .setProtoDescriptor(ComputationParticipantsTableRow.getDescriptor().toProto())
-          .build(),
+          ProtoSchema.newBuilder()
+            .setProtoDescriptor(ComputationParticipantsTableRow.getDescriptor().toProto())
+            .build(),
       )
     val latestMeasurementReadDataWriter =
       DataWriter(
@@ -166,11 +165,10 @@ class OperationalMetricsExport(
         tableId = latestMeasurementReadTableId,
         client = bigQueryWriteClient,
         protoSchema =
-        ProtoSchema.newBuilder()
-          .setProtoDescriptor(LatestMeasurementReadTableRow.getDescriptor().toProto())
-          .build(),
+          ProtoSchema.newBuilder()
+            .setProtoDescriptor(LatestMeasurementReadTableRow.getDescriptor().toProto())
+            .build(),
       )
-
 
     do {
       measurementsQueryResponseSize = 0
@@ -192,7 +190,6 @@ class OperationalMetricsExport(
                 when (measurement.details.apiVersion) {
                   Version.V2_ALPHA.toString() ->
                     ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
-
                   else -> ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
                 }
             }
@@ -204,12 +201,14 @@ class OperationalMetricsExport(
         val measurementType =
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
           when (measurementTypeCase) {
-            MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> MeasurementType.REACH_AND_FREQUENCY
+            MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
+              MeasurementType.REACH_AND_FREQUENCY
             MeasurementSpec.MeasurementTypeCase.IMPRESSION -> MeasurementType.IMPRESSION
             MeasurementSpec.MeasurementTypeCase.DURATION -> MeasurementType.DURATION
             MeasurementSpec.MeasurementTypeCase.REACH -> MeasurementType.REACH
             MeasurementSpec.MeasurementTypeCase.POPULATION -> MeasurementType.POPULATION
-            MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
+            MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
+              MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
           }
 
         val measurementConsumerId = externalIdToApiId(measurement.externalMeasurementConsumerId)
@@ -230,16 +229,16 @@ class OperationalMetricsExport(
             Measurement.State.FAILED -> MeasurementsTableRow.State.FAILED
           }
 
-          measurementsProtoRowsBuilder.addSerializedRows(
+        measurementsProtoRowsBuilder.addSerializedRows(
           measurementsTableRow {
-            this.measurementConsumerId = measurementConsumerId
-            this.measurementId = measurementId
-            isDirect = measurement.details.protocolConfig.hasDirect()
-            this.measurementType = measurementType
-            state = measurementState
-            createTime = Timestamps.toMicros(measurement.createTime)
-            updateTime = Timestamps.toMicros(measurement.updateTime)
-          }
+              this.measurementConsumerId = measurementConsumerId
+              this.measurementId = measurementId
+              isDirect = measurement.details.protocolConfig.hasDirect()
+              this.measurementType = measurementType
+              state = measurementState
+              createTime = Timestamps.toMicros(measurement.createTime)
+              updateTime = Timestamps.toMicros(measurement.updateTime)
+            }
             .toByteString()
         )
 
@@ -257,16 +256,16 @@ class OperationalMetricsExport(
 
           requisitionsProtoRowsBuilder.addSerializedRows(
             requisitionsTableRow {
-              this.measurementConsumerId = measurementConsumerId
-              this.measurementId = measurementId
-              requisitionId = externalIdToApiId(requisition.externalRequisitionId)
-              dataProviderId = externalIdToApiId(requisition.externalDataProviderId)
-              isDirect = measurement.details.protocolConfig.hasDirect()
-              this.measurementType = measurementType
-              state = requisitionState
-              createTime = Timestamps.toMicros(measurement.createTime)
-              updateTime = Timestamps.toMicros(requisition.updateTime)
-            }
+                this.measurementConsumerId = measurementConsumerId
+                this.measurementId = measurementId
+                requisitionId = externalIdToApiId(requisition.externalRequisitionId)
+                dataProviderId = externalIdToApiId(requisition.externalDataProviderId)
+                isDirect = measurement.details.protocolConfig.hasDirect()
+                this.measurementType = measurementType
+                state = requisitionState
+                createTime = Timestamps.toMicros(measurement.createTime)
+                updateTime = Timestamps.toMicros(requisition.updateTime)
+              }
               .toByteString()
           )
         }
@@ -276,36 +275,44 @@ class OperationalMetricsExport(
             val computationParticipantProtocol =
               @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
               when (computationParticipant.details.protocolCase) {
-                ComputationParticipant.Details.ProtocolCase.LIQUID_LEGIONS_V2 -> ComputationParticipantsTableRow.Protocol.LIQUID_LEGIONS_V2
-                ComputationParticipant.Details.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> ComputationParticipantsTableRow.Protocol.REACH_ONLY_LIQUID_LEGIONS_V2
-                ComputationParticipant.Details.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> ComputationParticipantsTableRow.Protocol.HONEST_MAJORITY_SHARE_SHUFFLE
-                ComputationParticipant.Details.ProtocolCase.PROTOCOL_NOT_SET -> ComputationParticipantsTableRow.Protocol.PROTOCOL_UNSPECIFIED
+                ComputationParticipant.Details.ProtocolCase.LIQUID_LEGIONS_V2 ->
+                  ComputationParticipantsTableRow.Protocol.LIQUID_LEGIONS_V2
+                ComputationParticipant.Details.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
+                  ComputationParticipantsTableRow.Protocol.REACH_ONLY_LIQUID_LEGIONS_V2
+                ComputationParticipant.Details.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+                  ComputationParticipantsTableRow.Protocol.HONEST_MAJORITY_SHARE_SHUFFLE
+                ComputationParticipant.Details.ProtocolCase.PROTOCOL_NOT_SET ->
+                  ComputationParticipantsTableRow.Protocol.PROTOCOL_UNSPECIFIED
               }
 
             val computationParticipantState =
               @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
               when (computationParticipant.state) {
-                ComputationParticipant.State.STATE_UNSPECIFIED -> ComputationParticipantsTableRow.State.STATE_UNSPECIFIED
-                ComputationParticipant.State.UNRECOGNIZED -> ComputationParticipantsTableRow.State.UNRECOGNIZED
-                ComputationParticipant.State.CREATED -> ComputationParticipantsTableRow.State.CREATED
-                ComputationParticipant.State.REQUISITION_PARAMS_SET -> ComputationParticipantsTableRow.State.REQUISITION_PARAMS_SET
+                ComputationParticipant.State.STATE_UNSPECIFIED ->
+                  ComputationParticipantsTableRow.State.STATE_UNSPECIFIED
+                ComputationParticipant.State.UNRECOGNIZED ->
+                  ComputationParticipantsTableRow.State.UNRECOGNIZED
+                ComputationParticipant.State.CREATED ->
+                  ComputationParticipantsTableRow.State.CREATED
+                ComputationParticipant.State.REQUISITION_PARAMS_SET ->
+                  ComputationParticipantsTableRow.State.REQUISITION_PARAMS_SET
                 ComputationParticipant.State.READY -> ComputationParticipantsTableRow.State.READY
                 ComputationParticipant.State.FAILED -> ComputationParticipantsTableRow.State.FAILED
               }
 
             computationParticipantsProtoRowsBuilder.addSerializedRows(
-            computationParticipantsTableRow {
-              this.measurementConsumerId = measurementConsumerId
-              this.measurementId = measurementId
-              computationId = externalIdToApiId(measurement.externalComputationId)
-              duchyId = computationParticipant.externalDuchyId
-              protocol = computationParticipantProtocol
-              this.measurementType = measurementType
-              state = computationParticipantState
-              createTime = Timestamps.toMicros(measurement.createTime)
-              updateTime = Timestamps.toMicros(computationParticipant.updateTime)
-            }
-              .toByteString()
+              computationParticipantsTableRow {
+                  this.measurementConsumerId = measurementConsumerId
+                  this.measurementId = measurementId
+                  computationId = externalIdToApiId(measurement.externalComputationId)
+                  duchyId = computationParticipant.externalDuchyId
+                  protocol = computationParticipantProtocol
+                  this.measurementType = measurementType
+                  state = computationParticipantState
+                  createTime = Timestamps.toMicros(measurement.createTime)
+                  updateTime = Timestamps.toMicros(computationParticipant.updateTime)
+                }
+                .toByteString()
             )
           }
         }
@@ -316,12 +323,17 @@ class OperationalMetricsExport(
       val deferredResults: MutableList<Deferred<Unit>> = mutableListOf()
       if (measurementsProtoRowsBuilder.serializedRowsCount > 0) {
         coroutineScope {
-          deferredResults.add(measurementsDataWriter.asyncAppendRows(this, measurementsProtoRowsBuilder.build()))
-          deferredResults.add(requisitionsDataWriter.asyncAppendRows(this, requisitionsProtoRowsBuilder.build()))
+          deferredResults.add(
+            measurementsDataWriter.asyncAppendRows(this, measurementsProtoRowsBuilder.build())
+          )
+          deferredResults.add(
+            requisitionsDataWriter.asyncAppendRows(this, requisitionsProtoRowsBuilder.build())
+          )
           if (computationParticipantsProtoRowsBuilder.serializedRowsCount > 0) {
             deferredResults.add(
               computationParticipantsDataWriter.asyncAppendRows(
-                this, computationParticipantsProtoRowsBuilder.build()
+                this,
+                computationParticipantsProtoRowsBuilder.build(),
               )
             )
           }
@@ -347,7 +359,7 @@ class OperationalMetricsExport(
             this,
             ProtoRows.newBuilder()
               .addSerializedRows(latestMeasurementReadTableRow.toByteString())
-              .build()
+              .build(),
           )
           .await()
       }
@@ -376,13 +388,13 @@ class OperationalMetricsExport(
     private const val BATCH_SIZE = 1000
   }
 
-  private class DataWriter (
+  private class DataWriter(
     private val projectId: String,
     private val datasetId: String,
     private val tableId: String,
     private val client: BigQueryWriteClient,
     private val protoSchema: ProtoSchema,
-  ): AutoCloseable {
+  ) : AutoCloseable {
     private var streamWriter: StreamWriter = createStreamWriter()
     private var recreateCount: Int = 0
 
