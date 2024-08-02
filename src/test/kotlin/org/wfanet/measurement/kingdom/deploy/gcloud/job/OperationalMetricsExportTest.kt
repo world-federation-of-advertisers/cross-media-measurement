@@ -25,14 +25,12 @@ import com.google.cloud.bigquery.LegacySQLTypeName
 import com.google.cloud.bigquery.TableResult
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings
-import com.google.cloud.bigquery.storage.v1.ProtoRows
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Timestamps
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -50,7 +48,6 @@ import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
@@ -60,10 +57,6 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
-import org.wfanet.measurement.internal.kingdom.bigquerytables.ComputationParticipantsTableRow
-import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestMeasurementReadTableRow
-import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementsTableRow
-import org.wfanet.measurement.internal.kingdom.bigquerytables.RequisitionsTableRow
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.measurement
@@ -79,9 +72,7 @@ class OperationalMetricsExportTest {
       .thenReturn(flowOf(DIRECT_MEASUREMENT, COMPUTATION_MEASUREMENT))
   }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule {
-    addService(measurementsMock)
-  }
+  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(measurementsMock) }
 
   private lateinit var measurementsClient: MeasurementsGrpcKt.MeasurementsCoroutineStub
 
@@ -104,7 +95,8 @@ class OperationalMetricsExportTest {
     }
 
     val bigQueryWriteClientMock: BigQueryWriteClient = mock()
-    whenever(bigQueryWriteClientMock.getSettings()).thenReturn(BigQueryWriteSettings.newBuilder().build())
+    whenever(bigQueryWriteClientMock.getSettings())
+      .thenReturn(BigQueryWriteSettings.newBuilder().build())
 
     /*
 
@@ -306,8 +298,7 @@ class OperationalMetricsExportTest {
         whenever(bigQuery.query(any())).thenReturn(tableResultMock)
       }
 
-      val bigQueryWriteClientMock: BigQueryWriteClient = mock { bigQueryWriteClient ->
-      }
+      val bigQueryWriteClientMock: BigQueryWriteClient = mock { bigQueryWriteClient -> }
 
       val operationalMetricsExport =
         OperationalMetricsExport(
@@ -336,8 +327,7 @@ class OperationalMetricsExportTest {
         whenever(bigQuery.query(any())).thenReturn(tableResultMock)
       }
 
-      val bigQueryWriteClientMock: BigQueryWriteClient = mock { bigQueryWriteClient ->
-      }
+      val bigQueryWriteClientMock: BigQueryWriteClient = mock { bigQueryWriteClient -> }
 
       val operationalMetricsExport =
         OperationalMetricsExport(
