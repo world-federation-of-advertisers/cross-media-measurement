@@ -430,7 +430,9 @@ abstract class MillBase(
     cause: Throwable? = null,
   ) {
     val errorMessage: String = message ?: cause?.message.orEmpty()
-    val logMessageSupplier = { "${token.globalComputationId}@$millId: $errorMessage" }
+    val logMessageSupplier = {
+      "${token.globalComputationId}@$millId: Failing Computation. $errorMessage"
+    }
     if (cause == null) {
       logger.log(Level.SEVERE, logMessageSupplier)
     } else {

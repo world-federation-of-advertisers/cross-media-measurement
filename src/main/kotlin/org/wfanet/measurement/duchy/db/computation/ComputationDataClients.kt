@@ -134,7 +134,16 @@ private constructor(
           content,
         )
       } catch (e: StorageException) {
-        throw PermanentErrorException("Error writing blob to storage.", e)
+        // Storage client is possible to raise non-retryable exceptions, which are actually
+        // retryable. To avoid to fail Computation in this case, mark all StorageExceptions as
+        // transient so the mill can start another attempt. This is only for LLv2 protocol because
+        // HMSS does not need to write intermediate result into storage.
+        //
+        // See github issue:
+        // https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/1733
+        //
+        // TODO(@renjiez): Handle the exception case by case after the issue fixed.
+        throw TransientErrorException("Error writing blob to storage.", e)
       }
 
     val response: RecordOutputBlobPathResponse =
