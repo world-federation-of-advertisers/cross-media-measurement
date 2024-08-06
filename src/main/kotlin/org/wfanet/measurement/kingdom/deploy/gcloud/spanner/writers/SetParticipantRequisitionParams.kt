@@ -215,16 +215,6 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
             set("RequisitionId" to requisitionId)
             set("UpdateTime" to Value.COMMIT_TIMESTAMP)
             set("State" to Requisition.State.UNFULFILLED)
-            if (request.hasHonestMajorityShareShuffle()) {
-              val fulfillingDuchyId =
-                selectFulfillingDuchyId(
-                  requisitionId,
-                  duchyId,
-                  participantDetails,
-                  otherComputationParticipants,
-                )
-              set("FulfillingDuchyId" to fulfillingDuchyId)
-            }
           }
         }
     }

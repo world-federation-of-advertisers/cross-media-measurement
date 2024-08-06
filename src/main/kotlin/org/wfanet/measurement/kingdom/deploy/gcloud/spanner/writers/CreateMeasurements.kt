@@ -48,6 +48,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProvider
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
 
+private const val HMSS_MINIMUM_NUMBER_OF_REQUIRED_DUCHIES = 3
+
 /**
  * Create measurements in the database.
  *
@@ -164,7 +166,11 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
           RoLlv2ProtocolConfig.requiredExternalDuchyIds
         ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
-          HmssProtocolConfig.requiredExternalDuchyIds
+          setOf(
+            HmssProtocolConfig.firstNonAggregatorDuchyId,
+            HmssProtocolConfig.secondNonAggregatorDuchyId,
+            HmssProtocolConfig.aggregatorDuchyId,
+          )
         ProtocolConfig.ProtocolCase.DIRECT,
         ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
       }
@@ -188,7 +194,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
           RoLlv2ProtocolConfig.minimumNumberOfRequiredDuchies
         ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
-          HmssProtocolConfig.requiredExternalDuchyIds.size
+          HMSS_MINIMUM_NUMBER_OF_REQUIRED_DUCHIES
         ProtocolConfig.ProtocolCase.DIRECT,
         ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
       }
@@ -242,6 +248,8 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         )
       }
       ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+        val fulfillingDuchies =
+          includedDuchyEntries.filter { it.externalDuchyId != HmssProtocolConfig.aggregatorDuchyId }
         // For each EDP, insert a Requisition for each non-aggregator Duchy.
         insertRequisitions(
           measurementConsumerId = measurementConsumerId,
@@ -249,7 +257,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
           dataProvidersMap = createMeasurementRequest.measurement.dataProvidersMap,
           dataProvideReaderResultsMap = dataProvideReaderResultsMap,
           initialRequisitionState = Requisition.State.PENDING_PARAMS,
-          fulfillingDuchies = includedDuchyEntries.drop(1),
+          fulfillingDuchies = fulfillingDuchies,
         )
       }
       ProtocolConfig.ProtocolCase.DIRECT,
