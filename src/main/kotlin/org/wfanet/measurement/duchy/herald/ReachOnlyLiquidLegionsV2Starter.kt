@@ -60,6 +60,7 @@ object ReachOnlyLiquidLegionsV2Starter {
   val TERMINAL_STAGE = ReachOnlyLiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage()
 
   suspend fun createComputation(
+    duchyId: String,
     computationStorageClient: ComputationsGrpcKt.ComputationsCoroutineStub,
     systemComputation: Computation,
     reachOnlyLiquidLegionsV2SetupConfig: LiquidLegionsV2SetupConfig,
@@ -67,8 +68,9 @@ object ReachOnlyLiquidLegionsV2Starter {
   ) {
     require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = systemComputation.key.computationId
+
     val initialComputationDetails = computationDetails {
-      blobsStoragePrefix = "$blobStorageBucket/$globalId"
+      blobsStoragePrefix = "$blobStorageBucket/$duchyId/$globalId"
       kingdomComputation = systemComputation.toKingdomComputationDetails()
       reachOnlyLiquidLegionsV2 =
         ReachOnlyLiquidLegionsSketchAggregationV2Kt.computationDetails {
