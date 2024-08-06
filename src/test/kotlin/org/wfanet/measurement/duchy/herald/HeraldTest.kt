@@ -519,7 +519,7 @@ class HeraldTest {
       )
       .isEqualTo(
         computationDetails {
-          blobsStoragePrefix = "computation-blob-storage/$AGGREGATOR_DUCHY_ID-2"
+          blobsStoragePrefix = "computation-blob-storage/$AGGREGATOR_DUCHY_ID/2"
           kingdomComputation = kingdomComputationDetails {
             publicApiVersion = PUBLIC_API_VERSION
             measurementSpec = SERIALIZED_MEASUREMENT_SPEC
@@ -622,7 +622,7 @@ class HeraldTest {
       )
       .isEqualTo(
         computationDetails {
-          blobsStoragePrefix = "computation-blob-storage/$AGGREGATOR_DUCHY_ID-2"
+          blobsStoragePrefix = "computation-blob-storage/$AGGREGATOR_DUCHY_ID/2"
           kingdomComputation = kingdomComputationDetails {
             publicApiVersion = PUBLIC_API_VERSION
             measurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC
@@ -723,7 +723,7 @@ class HeraldTest {
       )
       .isEqualTo(
         computationDetails {
-          blobsStoragePrefix = "computation-blob-storage/$AGGREGATOR_DUCHY_ID-2"
+          blobsStoragePrefix = "computation-blob-storage/$AGGREGATOR_DUCHY_ID/2"
           kingdomComputation = kingdomComputationDetails {
             publicApiVersion = PUBLIC_API_VERSION
             measurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC
@@ -817,7 +817,7 @@ class HeraldTest {
       .ignoringFields(ComputationDetails.HONEST_MAJORITY_SHARE_SHUFFLE_FIELD_NUMBER)
       .isEqualTo(
         computationDetails {
-          blobsStoragePrefix = "computation-blob-storage/$NON_AGGREGATOR_DUCHY_ID-2"
+          blobsStoragePrefix = "computation-blob-storage/$NON_AGGREGATOR_DUCHY_ID/2"
           kingdomComputation = kingdomComputationDetails {
             publicApiVersion = PUBLIC_API_VERSION
             measurementSpec = SERIALIZED_MEASUREMENT_SPEC
@@ -923,7 +923,7 @@ class HeraldTest {
       .ignoringFields(ComputationDetails.HONEST_MAJORITY_SHARE_SHUFFLE_FIELD_NUMBER)
       .isEqualTo(
         computationDetails {
-          blobsStoragePrefix = "computation-blob-storage/$AGGREGATOR_DUCHY_ID-2"
+          blobsStoragePrefix = "computation-blob-storage/$AGGREGATOR_DUCHY_ID/2"
           kingdomComputation = kingdomComputationDetails {
             publicApiVersion = PUBLIC_API_VERSION
             measurementSpec = SERIALIZED_MEASUREMENT_SPEC

@@ -82,7 +82,7 @@ object LiquidLegionsV2Starter {
     val globalId: String = systemComputation.key.computationId
 
     val initialComputationDetails = computationDetails {
-      blobsStoragePrefix = "$blobStorageBucket/$duchyId-$globalId"
+      blobsStoragePrefix = "$blobStorageBucket/$duchyId/$globalId"
       kingdomComputation = systemComputation.toKingdomComputationDetails()
       liquidLegionsV2 = llv2Details {
         role = liquidLegionsV2SetupConfig.role

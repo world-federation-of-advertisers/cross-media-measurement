@@ -70,7 +70,7 @@ object ReachOnlyLiquidLegionsV2Starter {
     val globalId: String = systemComputation.key.computationId
 
     val initialComputationDetails = computationDetails {
-      blobsStoragePrefix = "$blobStorageBucket/$duchyId-$globalId"
+      blobsStoragePrefix = "$blobStorageBucket/$duchyId/$globalId"
       kingdomComputation = systemComputation.toKingdomComputationDetails()
       reachOnlyLiquidLegionsV2 =
         ReachOnlyLiquidLegionsSketchAggregationV2Kt.computationDetails {
