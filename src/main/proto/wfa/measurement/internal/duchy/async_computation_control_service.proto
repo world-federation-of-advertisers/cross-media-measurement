@@ -34,6 +34,10 @@ service AsyncComputationControl {
   // Returns the output blob metadata for the current computation stage.
   rpc GetOutputBlobMetadata(GetOutputBlobMetadataRequest)
       returns (ComputationStageBlobMetadata) {}
+
+  // Returns the Stage of MPC protocol for the Computation.
+  rpc GetComputationStage(GetComputationStageRequest)
+      returns (ComputationStage) {}
 }
 
 // Request to record an expected output of the current computation stage and
@@ -60,4 +64,9 @@ message GetOutputBlobMetadataRequest {
   string global_computation_id = 1;
   // The origin of the data, i.e., which duchy it comes from.
   string data_origin = 2;
+}
+
+message GetComputationStageRequest {
+  // Global identifier of the Computation.
+  string global_computation_id = 1;
 }
