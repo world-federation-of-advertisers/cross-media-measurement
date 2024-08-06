@@ -29,16 +29,20 @@ import java.security.cert.X509Certificate
 import java.time.Instant
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.coroutines.CoroutineContext
 import kotlin.math.log2
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import org.apache.commons.math3.distribution.ConstantRealDistribution
+import org.jetbrains.annotations.BlockingExecutor
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
@@ -109,7 +113,9 @@ import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.v2alpha.updateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
+import org.wfanet.measurement.common.Health
 import org.wfanet.measurement.common.ProtoReflection
+import org.wfanet.measurement.common.SettableHealth
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -174,6 +180,8 @@ class EdpSimulator(
   private val sketchEncrypter: SketchEncrypter = SketchEncrypter.Default,
   private val random: Random = Random,
   private val logSketchDetails: Boolean = false,
+  private val health: SettableHealth = SettableHealth(),
+  private val blockingCoroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
 ) :
   RequisitionFulfiller(
     edpData,
@@ -182,7 +190,8 @@ class EdpSimulator(
     throttler,
     trustedCertificates,
     measurementConsumerName,
-  ) {
+  ),
+  Health by health {
   val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
 
   val supportedProtocols = buildSet {
@@ -217,6 +226,7 @@ class EdpSimulator(
       }
     )
 
+    withContext(blockingCoroutineContext) { health.setHealthy(true) }
     throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
   }
 
