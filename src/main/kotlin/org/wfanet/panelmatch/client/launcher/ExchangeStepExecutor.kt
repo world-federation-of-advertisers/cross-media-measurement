@@ -14,8 +14,10 @@
 
 package org.wfanet.panelmatch.client.launcher
 
+import kotlinx.coroutines.Job
+
 /** Executes [ApiClient.ClaimedExchangeStep]s. */
 interface ExchangeStepExecutor {
-  /** Executes [exchangeStep]. */
-  suspend fun execute(exchangeStep: ApiClient.ClaimedExchangeStep)
+  /** Executes [exchangeStep] in a new coroutine and returns the running [Job]. */
+  suspend fun execute(exchangeStep: ApiClient.ClaimedExchangeStep): Job
 }

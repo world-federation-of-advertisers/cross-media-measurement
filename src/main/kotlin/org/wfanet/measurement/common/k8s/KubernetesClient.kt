@@ -22,6 +22,7 @@ import io.kubernetes.client.extended.kubectl.Kubectl
 import io.kubernetes.client.openapi.ApiCallback
 import io.kubernetes.client.openapi.ApiClient
 import io.kubernetes.client.openapi.ApiException
+import io.kubernetes.client.openapi.ApiResponse
 import io.kubernetes.client.openapi.Configuration
 import io.kubernetes.client.openapi.JSON
 import io.kubernetes.client.openapi.apis.AppsV1Api
@@ -44,10 +45,12 @@ import io.kubernetes.client.util.Yaml
 import java.io.File
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.Continuation
 import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.coroutines.suspendCoroutine
 import kotlin.random.Random
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
@@ -134,13 +137,13 @@ class KubernetesClientImpl(
   private val batchApi = BatchV1Api(apiClient)
 
   override suspend fun getDeployment(name: String, namespace: String): V1Deployment? {
-    return apiCall { callback ->
+    return awaitData { callback ->
       appsApi.readNamespacedDeployment(name, namespace).executeAsync(callback)
     }
   }
 
   override suspend fun getPodTemplate(name: String, namespace: String): V1PodTemplate? {
-    return apiCall { callback ->
+    return awaitData { callback ->
       coreApi.readNamespacedPodTemplate(name, namespace).executeAsync(callback)
     }
   }
@@ -150,7 +153,7 @@ class KubernetesClientImpl(
     val labelSelector = deployment.labelSelector
     val revision = deployment.metadata?.annotations?.get(REVISION_ANNOTATION) ?: return null
 
-    return apiCall { callback ->
+    return awaitData { callback ->
         appsApi
           .listNamespacedReplicaSet(namespace)
           .labelSelector(labelSelector)
@@ -164,7 +167,7 @@ class KubernetesClientImpl(
     val namespace: String = replicaSet.metadata?.namespace ?: Namespaces.NAMESPACE_DEFAULT
     val labelSelector: V1LabelSelector = checkNotNull(replicaSet.spec).selector
 
-    return apiCall { callback ->
+    return awaitData { callback ->
       coreApi
         .listNamespacedPod(namespace)
         .labelSelector(labelSelector.matchLabelsSelector)
@@ -173,7 +176,7 @@ class KubernetesClientImpl(
   }
 
   override suspend fun listJobs(matchLabelsSelector: String, namespace: String): V1JobList {
-    return apiCall { callback ->
+    return awaitData { callback ->
       batchApi
         .listNamespacedJob(namespace)
         .labelSelector(matchLabelsSelector)
@@ -183,7 +186,7 @@ class KubernetesClientImpl(
 
   override suspend fun createJob(job: V1Job): V1Job {
     val namespace: String = job.metadata.namespace ?: Namespaces.NAMESPACE_DEFAULT
-    return apiCall { callback ->
+    return awaitData { callback ->
       batchApi.createNamespacedJob(namespace, job).executeAsync(callback)
     }
   }
@@ -193,7 +196,7 @@ class KubernetesClientImpl(
     namespace: String,
     propagationPolicy: PropagationPolicy,
   ): V1Status {
-    return apiCall { callback ->
+    return awaitData { callback ->
       batchApi
         .deleteNamespacedJob(name, namespace)
         .propagationPolicy(propagationPolicy.value)
@@ -363,22 +366,18 @@ val V1Job.complete: Boolean
     return conditions.any { it.type == "Complete" && it.status == "True" }
   }
 
-private class DeferredApiCallback<T>
-private constructor(private val delegate: CompletableDeferred<T>) :
-  ApiCallback<T>, Deferred<T> by delegate {
-
-  constructor() : this(CompletableDeferred())
-
+private class CoroutineApiCallback<T>(private val continuation: Continuation<ApiResponse<T>>) :
+  ApiCallback<T> {
   override fun onFailure(
     e: ApiException,
     statusCode: Int,
     responseHeaders: Map<String, List<String>>?,
   ) {
-    delegate.completeExceptionally(e)
+    continuation.resumeWithException(e)
   }
 
   override fun onSuccess(result: T, statusCode: Int, responseHeaders: Map<String, List<String>>) {
-    delegate.complete(result)
+    continuation.resume(ApiResponse(statusCode, responseHeaders, result))
   }
 
   override fun onUploadProgress(bytesWritten: Long, contentLength: Long, done: Boolean) {}
@@ -386,15 +385,25 @@ private constructor(private val delegate: CompletableDeferred<T>) :
   override fun onDownloadProgress(bytesRead: Long, contentLength: Long, done: Boolean) {}
 }
 
-private inline fun <T> apiCallAsync(
-  executeAsync: (callback: ApiCallback<T>) -> okhttp3.Call
-): Deferred<T> {
-  return DeferredApiCallback<T>().also { executeAsync(it) }
+/**
+ * Suspends until the [okhttp3.Call] returned by [executeAsync] has a response.
+ *
+ * @return the [ApiResponse] for the call
+ */
+private suspend inline fun <T> await(
+  crossinline executeAsync: (callback: ApiCallback<T>) -> okhttp3.Call
+): ApiResponse<T> = suspendCoroutine { continuation ->
+  executeAsync(CoroutineApiCallback(continuation))
 }
 
-private suspend inline fun <T> apiCall(
-  executeAsync: (callback: ApiCallback<T>) -> okhttp3.Call
-): T = apiCallAsync(executeAsync).await()
+/**
+ * Suspends until the [okhttp3.Call] returned by [executeAsync] has a response.
+ *
+ * @return the data from the API response
+ */
+private suspend inline fun <T> awaitData(
+  crossinline executeAsync: (callback: ApiCallback<T>) -> okhttp3.Call
+): T = await(executeAsync).data
 
 /**
  * Policy for whether and how garbage collection will be performed.
