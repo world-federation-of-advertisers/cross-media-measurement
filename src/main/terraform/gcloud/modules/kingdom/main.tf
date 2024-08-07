@@ -58,7 +58,7 @@ resource "google_bigquery_table" "measurements" {
   dataset_id = google_bigquery_dataset.operational_metrics.dataset_id
   table_id   = "measurements"
 
-  deletion_protection = true
+  deletion_protection = false
 
   time_partitioning {
     field = "update_time"
@@ -114,7 +114,7 @@ resource "google_bigquery_table" "requisitions" {
   dataset_id = google_bigquery_dataset.operational_metrics.dataset_id
   table_id   = "requisitions"
 
-  deletion_protection = true
+  deletion_protection = false
 
   time_partitioning {
     field = "update_time"
@@ -180,7 +180,7 @@ resource "google_bigquery_table" "computation_participants" {
   dataset_id = google_bigquery_dataset.operational_metrics.dataset_id
   table_id   = "computation_participants"
 
-  deletion_protection = true
+  deletion_protection = false
 
   time_partitioning {
     field = "update_time"
