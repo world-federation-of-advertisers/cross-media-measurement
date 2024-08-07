@@ -23,6 +23,7 @@ import com.google.protobuf.Message
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
@@ -144,17 +145,16 @@ class GcpSpannerComputationsDatabaseTransactor<
     ownerId: String,
     lockDuration: Duration,
     prioritizedStages: List<StageT>,
-  ): String? =
-    databaseClient.readWriteTransaction().execute { txn ->
-      UnclaimedTasksQuery(
-          computationMutations.protocolEnumToLong(protocol),
-          prioritizedStages,
-          computationMutations::longValuesToComputationStageEnum,
-          computationMutations::computationStageEnumToLongValues,
-          clock.gcloudTimestamp(),
-        )
-        .execute(txn)
-        .filter { result ->
+  ): String? {
+    /** Claim a specific task represented by the results of running the above sql. */
+    suspend fun claimSpecificTask(result: UnclaimedTaskQueryResult<StageT>): Boolean =
+      databaseClient.readWriteTransaction().execute { txn ->
+        val current: Struct =
+          txn.readRow("Computations", Key.of(result.computationId), listOf("UpdateTime"))
+            ?: throw ComputationNotFoundException(result.computationId)
+
+        val updateTime = current.getTimestamp("UpdateTime")
+        if (updateTime == result.updateTime) {
           claim(
             txn,
             result.computationId,
@@ -164,10 +164,30 @@ class GcpSpannerComputationsDatabaseTransactor<
             ownerId,
             lockDuration,
           )
+        } else {
+          logger.log(Level.WARNING) {
+            "Failed to claim specific task because of editVersion mismatch. computationId=${result.computationId}"
+          }
+          false
         }
-        .firstOrNull()
-        ?.globalId
-    }
+      }
+    return UnclaimedTasksQuery(
+        computationMutations.protocolEnumToLong(protocol),
+        prioritizedStages,
+        computationMutations::longValuesToComputationStageEnum,
+        computationMutations::computationStageEnumToLongValues,
+        clock.gcloudTimestamp(),
+      )
+      .execute(databaseClient)
+      // First the possible tasks to claim are selected from the computations table, then for each
+      // item in the list we try to claim the lock in a transaction which will only succeed if the
+      // lock is still available. This pattern means only the item which is being updated
+      // would need to be locked and not every possible computation that can be worked on.
+      .filter { claimSpecificTask(it) }
+      // If the value is null, no tasks were claimed.
+      .firstOrNull()
+      ?.globalId
+  }
 
   /**
    * Tries to claim a specific computation for an owner, returning the result of the attempt. If a
