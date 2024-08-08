@@ -23,7 +23,6 @@ import com.google.protobuf.Message
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
-import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
@@ -149,27 +148,15 @@ class GcpSpannerComputationsDatabaseTransactor<
     /** Claim a specific task represented by the results of running the above sql. */
     suspend fun claimSpecificTask(result: UnclaimedTaskQueryResult<StageT>): Boolean =
       databaseClient.readWriteTransaction().execute { txn ->
-        val current: Struct =
-          txn.readRow("Computations", Key.of(result.computationId), listOf("UpdateTime"))
-            ?: throw ComputationNotFoundException(result.computationId)
-
-        val updateTime = current.getTimestamp("UpdateTime")
-        if (updateTime == result.updateTime) {
-          claim(
-            txn,
-            result.computationId,
-            result.computationStage,
-            result.nextAttempt,
-            result.updateTime,
-            ownerId,
-            lockDuration,
-          )
-        } else {
-          logger.log(Level.WARNING) {
-            "Failed to claim specific task because of editVersion mismatch. computationId=${result.computationId}"
-          }
-          false
-        }
+        claim(
+          txn,
+          result.computationId,
+          result.computationStage,
+          result.nextAttempt,
+          result.updateTime,
+          ownerId,
+          lockDuration,
+        )
       }
     return UnclaimedTasksQuery(
         computationMutations.protocolEnumToLong(protocol),
