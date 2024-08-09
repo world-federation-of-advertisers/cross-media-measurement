@@ -115,14 +115,13 @@ class OperationalMetricsExportTest {
 
   private val bigQueryWriteClientMock: BigQueryWriteClient = mock { bigQueryWriteClient ->
     val writeStreamMock: WriteStream = mock { writeStream ->
-      whenever(writeStream.tableSchema)
-        .thenReturn(TableSchema.getDefaultInstance())
-      whenever(writeStream.location)
-        .thenReturn("LOCATION")
+      whenever(writeStream.tableSchema).thenReturn(TableSchema.getDefaultInstance())
+      whenever(writeStream.location).thenReturn("LOCATION")
     }
-    whenever(bigQueryWriteClient.settings)
-      .thenReturn(BigQueryWriteSettings.newBuilder().build())
-    whenever(bigQueryWriteClient.getWriteStream(ArgumentMatchers.isA(GetWriteStreamRequest::class.java)))
+    whenever(bigQueryWriteClient.settings).thenReturn(BigQueryWriteSettings.newBuilder().build())
+    whenever(
+        bigQueryWriteClient.getWriteStream(ArgumentMatchers.isA(GetWriteStreamRequest::class.java))
+      )
       .thenReturn(writeStreamMock)
   }
 
