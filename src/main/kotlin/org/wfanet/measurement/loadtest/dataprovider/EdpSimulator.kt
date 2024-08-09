@@ -967,31 +967,6 @@ class EdpSimulator(
     }
   }
 
-  private fun generateHmssSketch(
-    vidIndexMap: VidIndexMap,
-    measurementSpec: MeasurementSpec,
-    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
-  ): IntArray {
-    logger.info("Generating HMSS Sketch...")
-    val maximumFrequency =
-      if (measurementSpec.hasReachAndFrequency()) measurementSpec.reachAndFrequency.maximumFrequency
-      else 1
-
-    val sketch =
-      FrequencyVectorGenerator(emptyMap(), eventQuery, measurementSpec.vidSamplingInterval)
-        .generate(eventGroupSpecs)
-        .map { if (it > maximumFrequency) maximumFrequency else it }
-        .toIntArray()
-
-    logger.log(Level.INFO) { "Registers Size:\n${sketch.size}" }
-
-    if (logSketchDetails) {
-      logShareShuffleSketchDetails(sketch)
-    }
-
-    return sketch
-  }
-
   private fun encryptLiquidLegionsV2Sketch(
     sketch: Sketch,
     ellipticCurveId: Int,
