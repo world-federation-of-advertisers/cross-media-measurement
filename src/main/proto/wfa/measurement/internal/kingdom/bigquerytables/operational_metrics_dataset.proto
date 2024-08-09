@@ -46,6 +46,9 @@ message MeasurementsTableRow {
   int64 create_time = 6;
   // in microseconds
   int64 update_time = 7;
+
+  int64 completion_duration_seconds = 8;
+  int64 completion_duration_seconds_squared = 9;
 }
 
 message RequisitionsTableRow {
@@ -69,6 +72,11 @@ message RequisitionsTableRow {
   int64 create_time = 8;
   // in microseconds
   int64 update_time = 9;
+
+  int64 completion_duration_seconds = 10;
+  int64 completion_duration_seconds_squared = 11;
+
+  string data_provider_display_name = 12;
 }
 
 message ComputationParticipantsTableRow {
@@ -100,6 +108,9 @@ message ComputationParticipantsTableRow {
   int64 create_time = 8;
   // in microseconds
   int64 update_time = 9;
+
+  int64 completion_duration_seconds = 10;
+  int64 completion_duration_seconds_squared = 11;
 }
 
 message LatestMeasurementReadTableRow {

@@ -26,6 +26,7 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withVerboseLogging
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.kingdom.deploy.common.server.KingdomApiServerFlags
 import picocli.CommandLine
@@ -60,6 +61,7 @@ private fun run(
       .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
       .withDefaultDeadline(kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
 
+  val dataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(channel)
   val measurementsClient = MeasurementsGrpcKt.MeasurementsCoroutineStub(channel)
 
   val bigQuery: BigQuery =
@@ -80,6 +82,7 @@ private fun run(
       val operationalMetricsExport =
         OperationalMetricsExport(
           measurementsClient = measurementsClient,
+          dataProvidersClient = dataProvidersClient,
           bigQuery = bigQuery,
           bigQueryWriteClient = bigQueryWriteClient,
           projectId = projectId,

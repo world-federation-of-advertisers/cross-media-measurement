@@ -22,7 +22,6 @@ import com.google.cloud.bigquery.FieldValueList
 import com.google.cloud.bigquery.QueryJobConfiguration
 import com.google.cloud.bigquery.storage.v1.AppendRowsRequest
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient
-import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings
 import com.google.cloud.bigquery.storage.v1.Exceptions.AppendSerializationError
 import com.google.cloud.bigquery.storage.v1.ProtoRows
 import com.google.cloud.bigquery.storage.v1.ProtoSchema
@@ -30,6 +29,7 @@ import com.google.cloud.bigquery.storage.v1.StreamWriter
 import com.google.cloud.bigquery.storage.v1.TableName
 import com.google.protobuf.Timestamp
 import com.google.protobuf.any
+import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
 import com.google.rpc.Code
 import java.util.concurrent.Executors
@@ -39,6 +39,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.setMessage
@@ -49,9 +50,12 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.gcloud.common.await
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
+import org.wfanet.measurement.internal.kingdom.DataProvider
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.bigquerytables.ComputationParticipantsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestMeasurementReadTableRow
@@ -63,11 +67,13 @@ import org.wfanet.measurement.internal.kingdom.bigquerytables.latestMeasurementR
 import org.wfanet.measurement.internal.kingdom.bigquerytables.measurementsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.requisitionsTableRow
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 
 class OperationalMetricsExport(
   private val measurementsClient: MeasurementsGrpcKt.MeasurementsCoroutineStub,
+  private val dataProvidersClient: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   private val bigQuery: BigQuery,
   private val bigQueryWriteClient: BigQueryWriteClient,
   private val projectId: String,
@@ -76,6 +82,7 @@ class OperationalMetricsExport(
   private val measurementsTableId: String,
   private val requisitionsTableId: String,
   private val computationParticipantsTableId: String,
+  private val createStreamWriterFunc: (projectId: String, datasetId: String, tableId: String, client: BigQueryWriteClient, protoSchema: ProtoSchema) -> StreamWriter = this::createStreamWriter
 ) {
   suspend fun execute() {
     var measurementsQueryResponseSize: Int
@@ -99,7 +106,7 @@ class OperationalMetricsExport(
 
     var streamMeasurementsRequest = streamMeasurementsRequest {
       measurementView = Measurement.View.COMPUTATION
-      orderByMeasurementView = Measurement.View.DEFAULT
+      orderBy = StreamMeasurementsRequest.OrderBy.MEASUREMENT
       limit = BATCH_SIZE
       filter =
         StreamMeasurementsRequestKt.filter {
@@ -135,6 +142,7 @@ class OperationalMetricsExport(
           ProtoSchema.newBuilder()
             .setProtoDescriptor(MeasurementsTableRow.getDescriptor().toProto())
             .build(),
+        createStreamWriterFunc = createStreamWriterFunc,
       )
     val requisitionsDataWriter =
       DataWriter(
@@ -146,6 +154,7 @@ class OperationalMetricsExport(
           ProtoSchema.newBuilder()
             .setProtoDescriptor(RequisitionsTableRow.getDescriptor().toProto())
             .build(),
+        createStreamWriterFunc = createStreamWriterFunc,
       )
     val computationParticipantsDataWriter =
       DataWriter(
@@ -157,6 +166,7 @@ class OperationalMetricsExport(
           ProtoSchema.newBuilder()
             .setProtoDescriptor(ComputationParticipantsTableRow.getDescriptor().toProto())
             .build(),
+        createStreamWriterFunc = createStreamWriterFunc,
       )
     val latestMeasurementReadDataWriter =
       DataWriter(
@@ -168,7 +178,11 @@ class OperationalMetricsExport(
           ProtoSchema.newBuilder()
             .setProtoDescriptor(LatestMeasurementReadTableRow.getDescriptor().toProto())
             .build(),
+        createStreamWriterFunc = createStreamWriterFunc,
       )
+
+    // Map of externalDataProviderId to DataProvider
+    val dataProvidersMap: HashMap<Long, DataProvider> = hashMapOf()
 
     do {
       measurementsQueryResponseSize = 0
@@ -213,6 +227,12 @@ class OperationalMetricsExport(
 
         val measurementConsumerId = externalIdToApiId(measurement.externalMeasurementConsumerId)
         val measurementId = externalIdToApiId(measurement.externalMeasurementId)
+        val measurementCreateTimeMicros = Timestamps.toMicros(measurement.createTime)
+
+        val measurementCompletionDurationSeconds =
+          Durations.toSeconds(
+            Timestamps.between(measurement.createTime, measurement.updateTime)
+          )
 
         val measurementState =
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -236,13 +256,20 @@ class OperationalMetricsExport(
               isDirect = measurement.details.protocolConfig.hasDirect()
               this.measurementType = measurementType
               state = measurementState
-              createTime = Timestamps.toMicros(measurement.createTime)
+              createTime = measurementCreateTimeMicros
               updateTime = Timestamps.toMicros(measurement.updateTime)
+              completionDurationSeconds = measurementCompletionDurationSeconds
+              completionDurationSecondsSquared = measurementCompletionDurationSeconds * measurementCompletionDurationSeconds
             }
             .toByteString()
         )
 
         for (requisition in measurement.requisitionsList) {
+          val requisitionCompletionDurationSeconds =
+            Durations.toSeconds(
+              Timestamps.between(measurement.createTime, requisition.updateTime)
+            )
+
           val requisitionState =
             @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
             when (requisition.state) {
@@ -254,6 +281,22 @@ class OperationalMetricsExport(
               Requisition.State.REFUSED -> RequisitionsTableRow.State.REFUSED
             }
 
+          val value = dataProvidersMap[requisition.externalDataProviderId]
+          val dataProvider =
+            if (value != null) {
+              value
+            } else {
+              val response =
+                runBlocking {
+                  dataProvidersClient.getDataProvider(
+                    getDataProviderRequest {
+                      externalDataProviderId = requisition.externalDataProviderId
+                    })
+                }
+              dataProvidersMap[requisition.externalDataProviderId] = response
+              response
+            }
+
           requisitionsProtoRowsBuilder.addSerializedRows(
             requisitionsTableRow {
                 this.measurementConsumerId = measurementConsumerId
@@ -263,8 +306,11 @@ class OperationalMetricsExport(
                 isDirect = measurement.details.protocolConfig.hasDirect()
                 this.measurementType = measurementType
                 state = requisitionState
-                createTime = Timestamps.toMicros(measurement.createTime)
+                createTime = measurementCreateTimeMicros
                 updateTime = Timestamps.toMicros(requisition.updateTime)
+                completionDurationSeconds = requisitionCompletionDurationSeconds
+                completionDurationSecondsSquared = requisitionCompletionDurationSeconds * requisitionCompletionDurationSeconds
+                dataProviderDisplayName = dataProvider.details.displayName
               }
               .toByteString()
           )
@@ -272,6 +318,11 @@ class OperationalMetricsExport(
 
         if (measurement.externalComputationId != 0L) {
           for (computationParticipant in measurement.computationParticipantsList) {
+            val computationParticipantCompletionDurationSeconds =
+              Durations.toSeconds(
+                Timestamps.between(measurement.createTime, computationParticipant.updateTime)
+              )
+
             val computationParticipantProtocol =
               @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
               when (computationParticipant.details.protocolCase) {
@@ -309,8 +360,10 @@ class OperationalMetricsExport(
                   protocol = computationParticipantProtocol
                   this.measurementType = measurementType
                   state = computationParticipantState
-                  createTime = Timestamps.toMicros(measurement.createTime)
+                  createTime = measurementCreateTimeMicros
                   updateTime = Timestamps.toMicros(computationParticipant.updateTime)
+                  completionDurationSeconds = computationParticipantCompletionDurationSeconds
+                  completionDurationSecondsSquared = computationParticipantCompletionDurationSeconds * computationParticipantCompletionDurationSeconds
                 }
                 .toByteString()
             )
@@ -386,6 +439,19 @@ class OperationalMetricsExport(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private const val BATCH_SIZE = 1000
+
+    private const val DEFAULT_STREAM_PATH = "/streams/_default"
+    private fun createStreamWriter(projectId: String, datasetId: String, tableId: String, client: BigQueryWriteClient, protoSchema: ProtoSchema): StreamWriter {
+      val tableName = TableName.of(projectId, datasetId, tableId)
+      return StreamWriter.newBuilder(tableName.toString() + DEFAULT_STREAM_PATH, client)
+        .setExecutorProvider(FixedExecutorProvider.create(Executors.newScheduledThreadPool(1)))
+        .setEnableConnectionPool(true)
+        .setDefaultMissingValueInterpretation(
+          AppendRowsRequest.MissingValueInterpretation.DEFAULT_VALUE
+        )
+        .setWriterSchema(protoSchema)
+        .build()
+    }
   }
 
   private class DataWriter(
@@ -394,25 +460,13 @@ class OperationalMetricsExport(
     private val tableId: String,
     private val client: BigQueryWriteClient,
     private val protoSchema: ProtoSchema,
+    private val createStreamWriterFunc: (projectId: String, datasetId: String, tableId: String, client: BigQueryWriteClient, protoSchema: ProtoSchema) -> StreamWriter,
   ) : AutoCloseable {
-    private var streamWriter: StreamWriter = createStreamWriter()
+    private var streamWriter: StreamWriter = createStreamWriterFunc(projectId, datasetId, tableId, client, protoSchema)
     private var recreateCount: Int = 0
 
     override fun close() {
       streamWriter.close()
-    }
-
-    private fun createStreamWriter(): StreamWriter {
-      val tableName = TableName.of(projectId, datasetId, tableId)
-      return StreamWriter.newBuilder(tableName.toString() + DEFAULT_STREAM_PATH, client)
-        .setExecutorProvider(FixedExecutorProvider.create(Executors.newScheduledThreadPool(1)))
-        .setChannelProvider(BigQueryWriteSettings.defaultGrpcTransportProviderBuilder().build())
-        .setEnableConnectionPool(true)
-        .setDefaultMissingValueInterpretation(
-          AppendRowsRequest.MissingValueInterpretation.DEFAULT_VALUE
-        )
-        .setWriterSchema(protoSchema)
-        .build()
     }
 
     /**
@@ -420,7 +474,8 @@ class OperationalMetricsExport(
      *
      * @param protoRows protos representing the rows to write.
      * @returns ApiFuture containing the write response.
-     * @throws IllegalStateException if append fails and is no longer retriable
+     * @throws IllegalStateException if append fails and error is not retriable or too many retry
+     * attempts have been made
      */
     fun asyncAppendRows(scope: CoroutineScope, protoRows: ProtoRows): Deferred<Unit> {
       return scope.async {
@@ -429,7 +484,8 @@ class OperationalMetricsExport(
           if (streamWriter.isClosed) {
             if (!streamWriter.isUserClosed && recreateCount < MAX_RECREATE_COUNT) {
               logger.info("Recreating stream writer")
-              streamWriter = createStreamWriter()
+              streamWriter =
+                createStreamWriterFunc(projectId, datasetId, tableId, client, protoSchema)
               recreateCount++
             } else {
               throw IllegalStateException("Unable to recreate stream writer")
@@ -441,7 +497,7 @@ class OperationalMetricsExport(
             if (response.hasError()) {
               logger.warning("Write response error: ${response.error}")
               if (response.error.code != Code.INTERNAL.number) {
-                throw IllegalStateException("Cannot retry append.")
+                throw IllegalStateException("Cannot retry failed append.")
               } else if (i == RETRY_COUNT) {
                 throw IllegalStateException("Too many retries.")
               }
@@ -454,11 +510,6 @@ class OperationalMetricsExport(
               logger.warning(value)
             }
             throw e
-          } catch (e: Exception) {
-            logger.warning("Append attempt failed: ${e.printStackTrace()}")
-            if (i == RETRY_COUNT) {
-              throw IllegalStateException("Too many retries.")
-            }
           }
         }
       }
@@ -467,7 +518,6 @@ class OperationalMetricsExport(
     companion object {
       private const val MAX_RECREATE_COUNT = 3
       private const val RETRY_COUNT = 3
-      private const val DEFAULT_STREAM_PATH = "/streams/_default"
     }
   }
 }

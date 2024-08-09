@@ -29,11 +29,11 @@ class StreamMeasurements(
   view: Measurement.View,
   requestFilter: StreamMeasurementsRequest.Filter,
   limit: Int = 0,
-  orderByView: Measurement.View = Measurement.View.UNRECOGNIZED,
+  orderBy: StreamMeasurementsRequest.OrderBy = StreamMeasurementsRequest.OrderBy.ORDER_BY_NOT_SPECIFIED,
 ) : SimpleSpannerQuery<MeasurementReader.Result>() {
 
   override val reader: BaseSpannerReader<MeasurementReader.Result> =
-    buildReader(view, requestFilter, limit, orderByView)
+    buildReader(view, requestFilter, limit, orderBy)
 
   companion object {
     private const val LIMIT_PARAM = "limit"
@@ -57,13 +57,14 @@ class StreamMeasurements(
       view: Measurement.View,
       requestFilter: StreamMeasurementsRequest.Filter,
       limit: Int,
-      orderByView: Measurement.View,
+      orderBy: StreamMeasurementsRequest.OrderBy,
     ): MeasurementReader {
       val orderByClause =
-        when (orderByView) {
-          Measurement.View.COMPUTATION -> getOrderByClause(orderByView)
-          Measurement.View.DEFAULT -> getOrderByClause(orderByView)
-          Measurement.View.UNRECOGNIZED -> getOrderByClause(view)
+        when (orderBy) {
+          StreamMeasurementsRequest.OrderBy.MEASUREMENT -> getOrderByClause(Measurement.View.DEFAULT)
+          StreamMeasurementsRequest.OrderBy.COMPUTATION -> getOrderByClause(Measurement.View.COMPUTATION)
+          StreamMeasurementsRequest.OrderBy.ORDER_BY_NOT_SPECIFIED,
+          StreamMeasurementsRequest.OrderBy.UNRECOGNIZED -> getOrderByClause(view)
         }
 
       return MeasurementReader(view).apply {

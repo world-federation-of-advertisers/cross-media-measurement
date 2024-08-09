@@ -104,6 +104,18 @@ resource "google_bigquery_table" "measurements" {
     "name": "update_time",
     "type": "TIMESTAMP",
     "mode": "REQUIRED"
+  },
+  {
+    "name": "completion_duration_seconds",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "defaultValueExpression": "0"
+  },
+  {
+    "name": "completion_duration_seconds_squared",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "defaultValueExpression": "0"
   }
 ]
 EOF
@@ -144,6 +156,11 @@ resource "google_bigquery_table" "requisitions" {
     "mode": "REQUIRED"
   },
   {
+    "name": "data_provider_display_name",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
     "name": "is_direct",
     "type": "BOOLEAN",
     "mode": "REQUIRED",
@@ -170,6 +187,18 @@ resource "google_bigquery_table" "requisitions" {
     "name": "update_time",
     "type": "TIMESTAMP",
     "mode": "REQUIRED"
+  },
+  {
+    "name": "completion_duration_seconds",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "defaultValueExpression": "0"
+  },
+  {
+    "name": "completion_duration_seconds_squared",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "defaultValueExpression": "0"
   }
 ]
 EOF
@@ -236,6 +265,18 @@ resource "google_bigquery_table" "computation_participants" {
     "name": "update_time",
     "type": "TIMESTAMP",
     "mode": "REQUIRED"
+  },
+  {
+    "name": "completion_duration_seconds",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "defaultValueExpression": "0"
+  },
+  {
+    "name": "completion_duration_seconds_squared",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "defaultValueExpression": "0"
   }
 ]
 EOF
