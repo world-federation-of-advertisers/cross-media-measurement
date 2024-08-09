@@ -26,4 +26,5 @@ duchy_protocol_config {
   }
 }
 required_external_duchy_ids: "aggregator"
-minimum_duchy_participant_count: 3
+required_external_duchy_ids: "worker1"
+minimum_duchy_participant_count: 2
