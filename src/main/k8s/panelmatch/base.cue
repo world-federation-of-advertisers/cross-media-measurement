@@ -102,19 +102,72 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	...
 }
 
+#CronJob: CronJob={
+	_name:        string
+	_secretName?: string
+	_component:   string
+	_jvmFlags:    string | *""
+	_configMapMounts: [...#ConfigMapMount]
+	_podSpec: #PodSpec & {
+		if _secretName != _|_ {
+			_secretMounts: [{
+				name:       _name + "-files"
+				secretName: _secretName
+			}]
+		}
+		_configMapMounts: CronJob._configMapMounts
+
+		restartPolicy: _ | *"Never"
+	}
+
+	apiVersion: "batch/v1"
+	kind:       "CronJob"
+	metadata: {
+		name: _name + "-cronjob"
+		labels: {
+			"app.kubernetes.io/name":      _name
+			"app.kubernetes.io/part-of":   #AppName
+			"app.kubernetes.io/component": _component
+		}
+	}
+	spec: {
+		schedule:          string
+		concurrencyPolicy: "Allow" | "Forbid" | "Replace"
+		jobTemplate: {
+			spec: {
+				backoffLimit: uint | *0
+				template: {
+					metadata: labels: "app.kubernetes.io/name": _name
+					spec: _podSpec & {
+						containers: [{
+							name: _name + "-container"
+							env: [{
+								name:  "JAVA_TOOL_OPTIONS"
+								value: _jvmFlags
+							}]
+						}]
+					}
+				}
+			}
+		}
+	}
+}
+
 #Deployment: Deployment={
-	_name:       string
-	_secretName: string
-	_ports:      [{containerPort: #GrpcServicePort}] | *[]
-	_component:  string
-	_jvmFlags:   string | *""
+	_name:        string
+	_secretName?: string
+	_ports:       [{containerPort: #GrpcServicePort}] | *[]
+	_component:   string
+	_jvmFlags:    string | *""
 	_dependencies: [...string]
 	_configMapMounts: [...#ConfigMapMount]
 	_podSpec: #PodSpec & {
-		_secretMounts: [{
-			name:       _name + "-files"
-			secretName: _secretName
-		}]
+		if _secretName != _|_ {
+			_secretMounts: [{
+				name:       _name + "-files"
+				secretName: _secretName
+			}]
+		}
 		_configMapMounts: Deployment._configMapMounts
 
 		restartPolicy?: string | "Always"

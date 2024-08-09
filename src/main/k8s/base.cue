@@ -488,8 +488,11 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 // K8s Probe.
 #Probe: {
-	grpc: {
+	grpc?: {
 		port: uint32
+	}
+	exec?: {
+		command: [...string]
 	}
 	initialDelaySeconds?: uint32
 	periodSeconds?:       uint32
@@ -535,6 +538,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	volumeMounts: [ for _, volumeMount in _volumeMounts {volumeMount}]
 	resources?:      #ResourceRequirements
 	readinessProbe?: #Probe
+	startupProbe?:   #Probe
+	restartPolicy?:  "Always" // For sidecar containers.
 	env: [ for _, envVar in _envVars {envVar}]
 }
 

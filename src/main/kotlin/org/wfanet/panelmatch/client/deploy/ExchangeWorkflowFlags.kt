@@ -18,7 +18,7 @@ import java.time.Duration
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Party
-import picocli.CommandLine
+import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Model.CommandSpec
 import picocli.CommandLine.Option
 import picocli.CommandLine.ParameterException
@@ -27,6 +27,10 @@ import picocli.CommandLine.Spec
 class ExchangeWorkflowFlags {
 
   @Spec lateinit var spec: CommandSpec
+
+  @ArgGroup(exclusive = true, multiplicity = "1")
+  lateinit var protocolOptions: ProtocolOptions
+    private set
 
   @Option(names = ["--id"], description = ["Id of the provider"], required = true)
   lateinit var id: String
@@ -40,17 +44,8 @@ class ExchangeWorkflowFlags {
   lateinit var partyType: Party
     private set
 
-  @CommandLine.Mixin
+  @ArgGroup(exclusive = false, multiplicity = "0..1")
   lateinit var tlsFlags: TlsFlags
-    private set
-
-  @Option(
-    names = ["--channel-shutdown-timeout"],
-    defaultValue = "3s",
-    description = ["How long to allow for the gRPC channel to shutdown."],
-    required = true,
-  )
-  lateinit var channelShutdownTimeout: Duration
     private set
 
   @Option(
@@ -78,30 +73,6 @@ class ExchangeWorkflowFlags {
     required = true,
   )
   lateinit var taskTimeout: Duration
-    private set
-
-  @Option(
-    names = ["--exchange-api-target"],
-    description =
-      ["Address and port for servers hosting /ExchangeSteps and /ExchangeStepAttempts services"],
-    required = true,
-  )
-  lateinit var exchangeApiTarget: String
-    private set
-
-  @Option(
-    names = ["--exchange-api-cert-host"],
-    description = ["Expected hostname in the TLS certificate for --exchange-api-target"],
-    required = true,
-  )
-  lateinit var exchangeApiCertHost: String
-    private set
-
-  @Option(
-    names = ["--debug-verbose-grpc-client-logging"],
-    description = ["Enables full gRPC request and response logging for outgoing gRPCs"],
-  )
-  var debugVerboseGrpcClientLogging = false
     private set
 
   @set:Option(
@@ -150,5 +121,105 @@ class ExchangeWorkflowFlags {
     required = true,
   )
   lateinit var fallbackPrivateKeyBlobKey: String
+    private set
+
+  @Option(
+    names = ["--run-mode"],
+    description =
+      [
+        "The manner in which the job is being run, determining the structure of the job's main loop"
+      ],
+    defaultValue = "DAEMON", // For backwards compatibility
+    required = true,
+  )
+  lateinit var runMode: ExchangeWorkflowDaemon.RunMode
+    private set
+}
+
+class ProtocolOptions {
+
+  @ArgGroup(exclusive = false, multiplicity = "0..1")
+  var kingdomBasedExchangeFlags: KingdomBasedExchangeFlags? = null
+    private set
+
+  @ArgGroup(exclusive = false, multiplicity = "0..1")
+  var kingdomlessExchangeFlags: KingdomlessExchangeFlags? = null
+    private set
+
+  val protocolSpecificFlags: ProtocolSpecificFlags
+    get() {
+      return when {
+        kingdomBasedExchangeFlags != null -> kingdomBasedExchangeFlags!!
+        kingdomlessExchangeFlags != null -> kingdomlessExchangeFlags!!
+        else -> error("Missing protocol-specific flags")
+      }
+    }
+}
+
+sealed interface ProtocolSpecificFlags
+
+class KingdomBasedExchangeFlags : ProtocolSpecificFlags {
+
+  @Option(
+    names = ["--channel-shutdown-timeout"],
+    defaultValue = "3s",
+    description = ["How long to allow for the gRPC channel to shutdown."],
+    required = true,
+  )
+  lateinit var channelShutdownTimeout: Duration
+    private set
+
+  @Option(
+    names = ["--exchange-api-target"],
+    description =
+      ["Address and port for servers hosting /ExchangeSteps and /ExchangeStepAttempts services"],
+    required = true,
+  )
+  lateinit var exchangeApiTarget: String
+    private set
+
+  @Option(
+    names = ["--exchange-api-cert-host"],
+    description = ["Expected hostname in the TLS certificate for --exchange-api-target"],
+    required = true,
+  )
+  lateinit var exchangeApiCertHost: String
+    private set
+
+  @Option(
+    names = ["--debug-verbose-grpc-client-logging"],
+    description = ["Enables full gRPC request and response logging for outgoing gRPCs"],
+  )
+  var debugVerboseGrpcClientLogging = false
+    private set
+}
+
+class KingdomlessExchangeFlags : ProtocolSpecificFlags {
+
+  @Option(
+    names = ["--kingdomless-recurring-exchange-ids"],
+    description = ["IDs of recurring exchanges to run using the Kingdom-less protocol"],
+    split = ",",
+    required = true,
+  )
+  lateinit var kingdomlessRecurringExchangeIds: List<String>
+    private set
+
+  @Option(
+    names = ["--checkpoint-signing-algorithm"],
+    description = ["Algorithm to use for signing exchange checkpoints"],
+    defaultValue = "SHA256withECDSA",
+    required = true,
+  )
+  lateinit var checkpointSigningAlgorithm: String
+    private set
+
+  @Option(
+    names = ["--lookback-window"],
+    description = ["When claiming exchange tasks, how far back to look for available tasks"],
+    defaultValue = "14d",
+    required = true,
+  )
+  lateinit var lookbackWindow: Duration
     private set
 }
