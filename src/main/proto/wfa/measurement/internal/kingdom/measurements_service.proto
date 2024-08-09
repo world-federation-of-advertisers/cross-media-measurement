@@ -111,6 +111,8 @@ message StreamMeasurementsRequest {
 
   // The view of the `Measurement` to return.
   Measurement.View measurement_view = 3;
+  // Determines which key to use for order.
+  Measurement.View order_by_measurement_view = 4;
 }
 
 message SetMeasurementResultRequest {

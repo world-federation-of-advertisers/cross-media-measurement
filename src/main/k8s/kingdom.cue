@@ -258,6 +258,7 @@ import ("strings")
 				"completed-measurements-deletion-app",
 				"pending-measurements-cancellation-app",
 				"exchanges-deletion-app",
+				"operational-metrics-app",
 			]
 			_egresses: {
 				// Need to send external traffic to Spanner.
