@@ -1196,15 +1196,15 @@ class EdpSimulator(
     )
 
     logger.info("Generating sampled frequency vector for HMSS...")
-    val vectorBuilder =
+    val frequencyVectorBuilder =
       FrequencyVectorBuilder(vidIndexMap.populationSpec, measurementSpec, strict = false)
     for (eventGroupSpec in eventGroupSpecs) {
       eventQuery.getUserVirtualIds(eventGroupSpec).forEach {
-        vectorBuilder.increment(vidIndexMap[it])
+        frequencyVectorBuilder.increment(vidIndexMap[it])
       }
     }
 
-    val sampledFrequencyVector = vectorBuilder.build()
+    val sampledFrequencyVector = frequencyVectorBuilder.build()
     logger.log(Level.INFO) { "Sampled frequency vector size:\n${sampledFrequencyVector.dataCount}" }
 
     val requests =
