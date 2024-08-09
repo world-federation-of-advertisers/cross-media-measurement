@@ -82,7 +82,15 @@ class OperationalMetricsExport(
   private val measurementsTableId: String,
   private val requisitionsTableId: String,
   private val computationParticipantsTableId: String,
-  private val createStreamWriterFunc: (projectId: String, datasetId: String, tableId: String, client: BigQueryWriteClient, protoSchema: ProtoSchema) -> StreamWriter = this::createStreamWriter
+  private val createStreamWriterFunc:
+    (
+      projectId: String,
+      datasetId: String,
+      tableId: String,
+      client: BigQueryWriteClient,
+      protoSchema: ProtoSchema,
+    ) -> StreamWriter =
+    this::createStreamWriter,
 ) {
   suspend fun execute() {
     var measurementsQueryResponseSize: Int
@@ -230,9 +238,7 @@ class OperationalMetricsExport(
         val measurementCreateTimeMicros = Timestamps.toMicros(measurement.createTime)
 
         val measurementCompletionDurationSeconds =
-          Durations.toSeconds(
-            Timestamps.between(measurement.createTime, measurement.updateTime)
-          )
+          Durations.toSeconds(Timestamps.between(measurement.createTime, measurement.updateTime))
 
         val measurementState =
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -259,16 +265,15 @@ class OperationalMetricsExport(
               createTime = measurementCreateTimeMicros
               updateTime = Timestamps.toMicros(measurement.updateTime)
               completionDurationSeconds = measurementCompletionDurationSeconds
-              completionDurationSecondsSquared = measurementCompletionDurationSeconds * measurementCompletionDurationSeconds
+              completionDurationSecondsSquared =
+                measurementCompletionDurationSeconds * measurementCompletionDurationSeconds
             }
             .toByteString()
         )
 
         for (requisition in measurement.requisitionsList) {
           val requisitionCompletionDurationSeconds =
-            Durations.toSeconds(
-              Timestamps.between(measurement.createTime, requisition.updateTime)
-            )
+            Durations.toSeconds(Timestamps.between(measurement.createTime, requisition.updateTime))
 
           val requisitionState =
             @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -286,13 +291,13 @@ class OperationalMetricsExport(
             if (value != null) {
               value
             } else {
-              val response =
-                runBlocking {
-                  dataProvidersClient.getDataProvider(
-                    getDataProviderRequest {
-                      externalDataProviderId = requisition.externalDataProviderId
-                    })
-                }
+              val response = runBlocking {
+                dataProvidersClient.getDataProvider(
+                  getDataProviderRequest {
+                    externalDataProviderId = requisition.externalDataProviderId
+                  }
+                )
+              }
               dataProvidersMap[requisition.externalDataProviderId] = response
               response
             }
@@ -309,7 +314,8 @@ class OperationalMetricsExport(
                 createTime = measurementCreateTimeMicros
                 updateTime = Timestamps.toMicros(requisition.updateTime)
                 completionDurationSeconds = requisitionCompletionDurationSeconds
-                completionDurationSecondsSquared = requisitionCompletionDurationSeconds * requisitionCompletionDurationSeconds
+                completionDurationSecondsSquared =
+                  requisitionCompletionDurationSeconds * requisitionCompletionDurationSeconds
                 dataProviderDisplayName = dataProvider.details.displayName
               }
               .toByteString()
@@ -363,7 +369,9 @@ class OperationalMetricsExport(
                   createTime = measurementCreateTimeMicros
                   updateTime = Timestamps.toMicros(computationParticipant.updateTime)
                   completionDurationSeconds = computationParticipantCompletionDurationSeconds
-                  completionDurationSecondsSquared = computationParticipantCompletionDurationSeconds * computationParticipantCompletionDurationSeconds
+                  completionDurationSecondsSquared =
+                    computationParticipantCompletionDurationSeconds *
+                      computationParticipantCompletionDurationSeconds
                 }
                 .toByteString()
             )
@@ -441,7 +449,14 @@ class OperationalMetricsExport(
     private const val BATCH_SIZE = 1000
 
     private const val DEFAULT_STREAM_PATH = "/streams/_default"
-    private fun createStreamWriter(projectId: String, datasetId: String, tableId: String, client: BigQueryWriteClient, protoSchema: ProtoSchema): StreamWriter {
+
+    private fun createStreamWriter(
+      projectId: String,
+      datasetId: String,
+      tableId: String,
+      client: BigQueryWriteClient,
+      protoSchema: ProtoSchema,
+    ): StreamWriter {
       val tableName = TableName.of(projectId, datasetId, tableId)
       return StreamWriter.newBuilder(tableName.toString() + DEFAULT_STREAM_PATH, client)
         .setExecutorProvider(FixedExecutorProvider.create(Executors.newScheduledThreadPool(1)))
@@ -460,9 +475,17 @@ class OperationalMetricsExport(
     private val tableId: String,
     private val client: BigQueryWriteClient,
     private val protoSchema: ProtoSchema,
-    private val createStreamWriterFunc: (projectId: String, datasetId: String, tableId: String, client: BigQueryWriteClient, protoSchema: ProtoSchema) -> StreamWriter,
+    private val createStreamWriterFunc:
+      (
+        projectId: String,
+        datasetId: String,
+        tableId: String,
+        client: BigQueryWriteClient,
+        protoSchema: ProtoSchema,
+      ) -> StreamWriter,
   ) : AutoCloseable {
-    private var streamWriter: StreamWriter = createStreamWriterFunc(projectId, datasetId, tableId, client, protoSchema)
+    private var streamWriter: StreamWriter =
+      createStreamWriterFunc(projectId, datasetId, tableId, client, protoSchema)
     private var recreateCount: Int = 0
 
     override fun close() {
@@ -475,7 +498,7 @@ class OperationalMetricsExport(
      * @param protoRows protos representing the rows to write.
      * @returns ApiFuture containing the write response.
      * @throws IllegalStateException if append fails and error is not retriable or too many retry
-     * attempts have been made
+     *   attempts have been made
      */
     fun asyncAppendRows(scope: CoroutineScope, protoRows: ProtoRows): Deferred<Unit> {
       return scope.async {

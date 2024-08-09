@@ -29,7 +29,8 @@ class StreamMeasurements(
   view: Measurement.View,
   requestFilter: StreamMeasurementsRequest.Filter,
   limit: Int = 0,
-  orderBy: StreamMeasurementsRequest.OrderBy = StreamMeasurementsRequest.OrderBy.ORDER_BY_NOT_SPECIFIED,
+  orderBy: StreamMeasurementsRequest.OrderBy =
+    StreamMeasurementsRequest.OrderBy.ORDER_BY_NOT_SPECIFIED,
 ) : SimpleSpannerQuery<MeasurementReader.Result>() {
 
   override val reader: BaseSpannerReader<MeasurementReader.Result> =
@@ -61,8 +62,10 @@ class StreamMeasurements(
     ): MeasurementReader {
       val orderByClause =
         when (orderBy) {
-          StreamMeasurementsRequest.OrderBy.MEASUREMENT -> getOrderByClause(Measurement.View.DEFAULT)
-          StreamMeasurementsRequest.OrderBy.COMPUTATION -> getOrderByClause(Measurement.View.COMPUTATION)
+          StreamMeasurementsRequest.OrderBy.MEASUREMENT ->
+            getOrderByClause(Measurement.View.DEFAULT)
+          StreamMeasurementsRequest.OrderBy.COMPUTATION ->
+            getOrderByClause(Measurement.View.COMPUTATION)
           StreamMeasurementsRequest.OrderBy.ORDER_BY_NOT_SPECIFIED,
           StreamMeasurementsRequest.OrderBy.UNRECOGNIZED -> getOrderByClause(view)
         }
