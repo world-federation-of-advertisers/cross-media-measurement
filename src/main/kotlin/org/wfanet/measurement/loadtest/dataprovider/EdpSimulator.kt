@@ -1162,47 +1162,6 @@ class EdpSimulator(
 
   private suspend fun fulfillRequisition(
     requisition: Requisition,
-    requisitionFingerprint: ByteString,
-    nonce: Long,
-    encryptedSignedSeed: EncryptedMessage,
-    shareVector: FrequencyVector,
-  ) {
-    logger.info("Fulfilling requisition ${requisition.name}...")
-    val requests: Flow<FulfillRequisitionRequest> = flow {
-      logger.info { "Emitting FulfillRequisitionRequests..." }
-      emit(
-        fulfillRequisitionRequest {
-          header = header {
-            name = requisition.name
-            this.requisitionFingerprint = requisitionFingerprint
-            this.nonce = nonce
-            this.honestMajorityShareShuffle = honestMajorityShareShuffle {
-              secretSeed = encryptedSignedSeed
-              registerCount = shareVector.dataList.size.toLong()
-              dataProviderCertificate = edpData.certificateKey.toName()
-            }
-          }
-        }
-      )
-      emitAll(
-        shareVector.toByteString().asBufferedFlow(RPC_CHUNK_SIZE_BYTES).map {
-          fulfillRequisitionRequest { bodyChunk = bodyChunk { this.data = it } }
-        }
-      )
-    }
-    try {
-      val duchyId = getDuchyWithoutPublicKey(requisition)
-      val requisitionFulfillmentStub =
-        requisitionFulfillmentStubsByDuchyId[duchyId]
-          ?: throw Exception("Requisition fulfillment stub not found for $duchyId.")
-      requisitionFulfillmentStub.fulfillRequisition(requests)
-    } catch (e: StatusException) {
-      throw Exception("Error fulfilling requisition ${requisition.name}", e)
-    }
-  }
-
-  private suspend fun fulfillRequisition(
-    requisition: Requisition,
     requests: Sequence<FulfillRequisitionRequest>,
   ) {
     logger.info("Fulfilling requisition ${requisition.name}...")
@@ -1262,6 +1221,7 @@ class EdpSimulator(
       requisition.duchiesCount - 1,
     )
 
+    logger.info("Generating sampled frequency vector for HMSS...")
     val vectorBuilder =
       FrequencyVectorBuilder(vidIndexMap.populationSpec, measurementSpec, strict = false)
     for (eventGroupSpec in eventGroupSpecs) {
@@ -1269,7 +1229,9 @@ class EdpSimulator(
         vectorBuilder.increment(vidIndexMap[it])
       }
     }
+
     val sampledFrequencyVector = vectorBuilder.build()
+    logger.log(Level.INFO) { "Sampled frequency vector size:\n${sampledFrequencyVector.dataCount}" }
 
     val requests =
       FulfillRequisitionRequestBuilder.build(

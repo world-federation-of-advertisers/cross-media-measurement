@@ -382,7 +382,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
         knownEventGroupMetadataTypes = knownEventGroupMetadataTypes,
       )
 
@@ -442,7 +442,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
       )
 
     runBlocking { edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, SYNTHETIC_DATA_SPEC) }
@@ -493,7 +493,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
       )
 
     runBlocking { edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, SYNTHETIC_DATA_SPEC) }
@@ -524,7 +524,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
       )
     val metadataByReferenceIdSuffix =
       mapOf(
@@ -587,7 +587,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
       )
     val metadataByReferenceIdSuffix = mapOf("-foo" to SYNTHETIC_DATA_SPEC, "-bar" to TEST_METADATA)
 
@@ -650,7 +650,7 @@ class EdpSimulatorTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
       )
 
     runBlocking {
@@ -689,7 +689,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -743,7 +743,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -822,7 +822,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
       )
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
@@ -969,7 +969,7 @@ class EdpSimulatorTest {
           dummyThrottler,
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
-          inputVidToIndexMap,
+          VID_INDEX_MAP,
         )
       runBlocking {
         edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, TEST_METADATA)
@@ -1098,7 +1098,7 @@ class EdpSimulatorTest {
           dummyThrottler,
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
-          inputVidToIndexMap,
+          VID_INDEX_MAP,
         )
       runBlocking {
         edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, TEST_METADATA)
@@ -1247,7 +1247,7 @@ class EdpSimulatorTest {
           dummyThrottler,
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
-          inputVidToIndexMap,
+          VID_INDEX_MAP,
         )
       runBlocking {
         edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, TEST_METADATA)
@@ -1354,7 +1354,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
         sketchEncrypter = fakeSketchEncrypter,
       )
 
@@ -1412,7 +1412,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
       )
     val requisition =
       REQUISITION.copy {
@@ -1472,7 +1472,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
       )
     eventGroupsServiceMock.stub {
       onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
@@ -1543,7 +1543,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1611,7 +1611,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -1679,7 +1679,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1745,7 +1745,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1811,7 +1811,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1877,7 +1877,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1943,7 +1943,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2006,7 +2006,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2063,7 +2063,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2167,7 +2167,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2238,7 +2238,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2309,7 +2309,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2367,7 +2367,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2432,7 +2432,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2497,7 +2497,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2563,7 +2563,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2626,7 +2626,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2690,7 +2690,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2757,7 +2757,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2819,7 +2819,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2878,7 +2878,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        inputVidToIndexMap,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -3161,6 +3161,16 @@ class EdpSimulatorTest {
         }
       }
 
+    private val POPULATION_SPEC = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1L
+          endVidInclusive = 1000L
+        }
+      }
+    }
+    private val VID_INDEX_MAP = InMemoryVidIndexMap.build(POPULATION_SPEC)
+
     /** Dummy [Throttler] for satisfying signatures without being used. */
     private val dummyThrottler =
       object : Throttler {
@@ -3203,16 +3213,6 @@ class EdpSimulatorTest {
     private const val REACH_TOLERANCE = 1.0
     private const val FREQUENCY_DISTRIBUTION_TOLERANCE = 1.0
     private const val IMPRESSION_TOLERANCE = 1.0
-
-    private val POPULATION_SPEC = populationSpec {
-      subpopulations += subPopulation {
-        vidRanges += vidRange {
-          startVid = 1L
-          endVidInclusive = 1000L
-        }
-      }
-    }
-    private val inputVidToIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC)
 
     private fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
       return loadPrivateKey(SECRET_FILES_PATH.resolve(fileName).toFile())
