@@ -27,6 +27,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -35,6 +36,8 @@ import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.dataprovider.DataProviderData
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
 import org.wfanet.measurement.loadtest.config.PrivacyBudgets.createNoOpPrivacyBudgetManager
 import picocli.CommandLine
 
@@ -49,7 +52,8 @@ abstract class EdpSimulatorRunner : Runnable {
     eventTemplates: Iterable<EventGroup.EventTemplate>,
     metadataByReferenceIdSuffix: Map<String, Message>,
     knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>,
-    vidToIndexMap: Map<Long, IndexedValue> = emptyMap(),
+    vidIndexMap: VidIndexMap =
+      InMemoryVidIndexMap.build(PopulationSpec.getDefaultInstance()),
   ) {
     val clientCerts =
       SigningCerts.fromPemFiles(
@@ -115,7 +119,7 @@ abstract class EdpSimulatorRunner : Runnable {
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
         createNoOpPrivacyBudgetManager(),
         clientCerts.trustedCertificates,
-        vidToIndexMap = vidToIndexMap,
+        vidIndexMap = vidIndexMap,
         knownEventGroupMetadataTypes = knownEventGroupMetadataTypes,
         random = random,
         logSketchDetails = flags.logSketchDetails,

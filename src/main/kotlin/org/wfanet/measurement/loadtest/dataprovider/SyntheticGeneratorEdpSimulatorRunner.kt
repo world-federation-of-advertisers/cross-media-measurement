@@ -19,12 +19,17 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.TypeRegistry
 import java.io.File
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -66,7 +71,7 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
   private lateinit var eventGroupSpecFileByReferenceIdSuffix: Map<String, File>
 
   override fun run() {
-    val populationSpec =
+    val syntheticPopulationSpec =
       parseTextProto(populationSpecFile, SyntheticPopulationSpec.getDefaultInstance())
     val eventGroupSpecByReferenceIdSuffix =
       eventGroupSpecFileByReferenceIdSuffix.mapValues {
@@ -74,28 +79,36 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
       }
     val eventMessageRegistry: TypeRegistry = buildEventMessageRegistry()
     val eventMessageDescriptor: Descriptors.Descriptor =
-      eventMessageRegistry.getDescriptorForTypeUrl(populationSpec.eventMessageTypeUrl)
+      eventMessageRegistry.getDescriptorForTypeUrl(syntheticPopulationSpec.eventMessageTypeUrl)
 
     val eventQuery =
-      object : SyntheticGeneratorEventQuery(populationSpec, eventMessageRegistry) {
+      object : SyntheticGeneratorEventQuery(syntheticPopulationSpec, eventMessageRegistry) {
         override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
           val suffix =
             EdpSimulator.getEventGroupReferenceIdSuffix(eventGroup, flags.dataProviderDisplayName)
           return eventGroupSpecByReferenceIdSuffix.getValue(suffix)
         }
       }
-
-    val vidToIndexMap =
-      VidToIndexMapGenerator.generateMapping(
-        (populationSpec.vidRange.start until populationSpec.vidRange.endExclusive).asSequence()
-      )
+    val populationSpec = populationSpec {
+      subpopulations +=
+        syntheticPopulationSpec.subPopulationsList.map { it ->
+          subPopulation {
+            vidRanges += vidRange {
+              startVid = it.vidSubRange.start
+              endVidInclusive = (it.vidSubRange.endExclusive - 1)
+            }
+          }
+        }
+    }
+    val vidIndexMap =
+      InMemoryVidIndexMap.build(populationSpec)
 
     run(
       eventQuery,
       EdpSimulator.buildEventTemplates(eventMessageDescriptor),
       eventGroupSpecByReferenceIdSuffix,
       listOf(SyntheticEventGroupSpec.getDescriptor().file),
-      vidToIndexMap,
+      vidIndexMap,
     )
   }
 

@@ -34,6 +34,7 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -85,6 +86,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -103,6 +105,7 @@ import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.randomSeed
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
@@ -137,6 +140,9 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getDirectAcdpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper.getMpcAcdpQuery
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.FrequencyVectorBuilder
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.FulfillRequisitionRequestBuilder
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
 import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults.computeImpression
@@ -158,12 +164,12 @@ class EdpSimulator(
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   /**
-   * EDP uses the vidToIndexMap to fulfill the requisitions for the honest majority share shuffle
+   * EDP uses the vidIndexMap to fulfill the requisitions for the honest majority share shuffle
    * protocol.
    *
-   * When the vidToIndexMap is empty, the honest majority share shuffle protocol is not supported.
+   * When the vidIndexMap is empty, the honest majority share shuffle protocol is not supported.
    */
-  private val vidToIndexMap: Map<Long, IndexedValue> = emptyMap(),
+  private val vidIndexMap: VidIndexMap,
   /**
    * Known protobuf types for [EventGroupMetadataDescriptor]s.
    *
@@ -188,7 +194,7 @@ class EdpSimulator(
   val supportedProtocols = buildSet {
     add(ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
     add(ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2)
-    if (vidToIndexMap.isNotEmpty()) {
+    if (vidIndexMap.size != 0L) {
       add(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
     }
   }
@@ -212,7 +218,7 @@ class EdpSimulator(
         name = edpData.name
         capabilities =
           DataProviderKt.capabilities {
-            honestMajorityShareShuffleSupported = vidToIndexMap.isNotEmpty()
+            honestMajorityShareShuffleSupported = (vidIndexMap.size != 0L)
           }
       }
     )
@@ -962,7 +968,7 @@ class EdpSimulator(
   }
 
   private fun generateHmssSketch(
-    vidToIndexMap: Map<Long, IndexedValue>,
+    vidIndexMap: VidIndexMap,
     measurementSpec: MeasurementSpec,
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
   ): IntArray {
@@ -972,7 +978,7 @@ class EdpSimulator(
       else 1
 
     val sketch =
-      FrequencyVectorGenerator(vidToIndexMap, eventQuery, measurementSpec.vidSamplingInterval)
+      FrequencyVectorGenerator(emptyMap(), eventQuery, measurementSpec.vidSamplingInterval)
         .generate(eventGroupSpecs)
         .map { if (it > maximumFrequency) maximumFrequency else it }
         .toIntArray()
@@ -1194,6 +1200,22 @@ class EdpSimulator(
     }
   }
 
+  private suspend fun fulfillRequisition(
+    requisition: Requisition,
+    requests: Sequence<FulfillRequisitionRequest>,
+  ) {
+    logger.info("Fulfilling requisition ${requisition.name}...")
+    try {
+      val duchyId = getDuchyWithoutPublicKey(requisition)
+      val requisitionFulfillmentStub =
+        requisitionFulfillmentStubsByDuchyId[duchyId]
+          ?: throw Exception("Requisition fulfillment stub not found for $duchyId.")
+      requisitionFulfillmentStub.fulfillRequisition(requests.asFlow())
+    } catch (e: StatusException) {
+      throw Exception("Error fulfilling requisition ${requisition.name}", e)
+    }
+  }
+
   private fun getEncryptionKeyForShareSeed(requisition: Requisition): SignedMessage {
     return requisition.duchiesList
       .map { it.value.honestMajorityShareShuffle }
@@ -1239,41 +1261,59 @@ class EdpSimulator(
       requisition.duchiesCount - 1,
     )
 
-    val frequencyVector =
-      try {
-        generateHmssSketch(vidToIndexMap, measurementSpec, eventGroupSpecs)
-      } catch (e: EventFilterValidationException) {
-        logger.log(
-          Level.WARNING,
-          "RequisitionFulfillmentWorkflow failed due to invalid event filter",
-          e,
-        )
-        throw RequisitionRefusalException(
-          Requisition.Refusal.Justification.SPEC_INVALID,
-          "Invalid event filter (${e.code}): ${e.code.description}",
-        )
+    val vectorBuilder = FrequencyVectorBuilder(vidIndexMap.populationSpec, measurementSpec, strict = false)
+    for (eventGroupSpec in eventGroupSpecs) {
+      eventQuery.getUserVirtualIds(eventGroupSpec).forEach {
+        vectorBuilder.increment(vidIndexMap[it])
       }
-
-    val secretShareGeneratorRequest = secretShareGeneratorRequest {
-      data += frequencyVector.toList()
-      ringModulus = protocolConfig.ringModulus
     }
+    val sampledFrequencyVector = vectorBuilder.build()
 
-    val secretShare =
-      SecretShare.parseFrom(
-        SecretShareGeneratorAdapter.generateSecretShares(secretShareGeneratorRequest.toByteArray())
-      )
+    val requests =
+      FulfillRequisitionRequestBuilder.build(
+          requisition,
+          nonce,
+          sampledFrequencyVector,
+          edpData.certificateKey,
+          edpData.signingKeyHandle,
+        )
+    println("requests: " + requests)
 
-    val shareSeed = randomSeed { data = secretShare.shareSeed.key.concat(secretShare.shareSeed.iv) }
-    val signedShareSeed =
-      signRandomSeed(shareSeed, edpData.signingKeyHandle, edpData.signingKeyHandle.defaultAlgorithm)
-    val publicKey =
-      EncryptionPublicKey.parseFrom(getEncryptionKeyForShareSeed(requisition).message.value)
-    val shareSeedCiphertext = encryptRandomSeed(signedShareSeed, publicKey)
-
-    val shareVector = frequencyVector { data += secretShare.shareVectorList }
-
-    fulfillRequisition(requisition, requisitionFingerprint, nonce, shareSeedCiphertext, shareVector)
+    // val frequencyVector =
+    //   try {
+    //     generateHmssSketch(vidIndexMap, measurementSpec, eventGroupSpecs)
+    //   } catch (e: EventFilterValidationException) {
+    //     logger.log(
+    //       Level.WARNING,
+    //       "RequisitionFulfillmentWorkflow failed due to invalid event filter",
+    //       e,
+    //     )
+    //     throw RequisitionRefusalException(
+    //       Requisition.Refusal.Justification.SPEC_INVALID,
+    //       "Invalid event filter (${e.code}): ${e.code.description}",
+    //     )
+    //   }
+    //
+    // val secretShareGeneratorRequest = secretShareGeneratorRequest {
+    //   data += frequencyVector.toList()
+    //   ringModulus = protocolConfig.ringModulus
+    // }
+    //
+    // val secretShare =
+    //   SecretShare.parseFrom(
+    //     SecretShareGeneratorAdapter.generateSecretShares(secretShareGeneratorRequest.toByteArray())
+    //   )
+    //
+    // val shareSeed = randomSeed { data = secretShare.shareSeed.key.concat(secretShare.shareSeed.iv) }
+    // val signedShareSeed =
+    //   signRandomSeed(shareSeed, edpData.signingKeyHandle, edpData.signingKeyHandle.defaultAlgorithm)
+    // val publicKey =
+    //   EncryptionPublicKey.parseFrom(getEncryptionKeyForShareSeed(requisition).message.value)
+    // val shareSeedCiphertext = encryptRandomSeed(signedShareSeed, publicKey)
+    //
+    // val shareVector = frequencyVector { data += secretShare.shareVectorList }
+    // fulfillRequisition(requisition, requisitionFingerprint, nonce, shareSeedCiphertext, shareVector)
+    fulfillRequisition(requisition, requests)
   }
 
   private fun Requisition.getCombinedPublicKey(curveId: Int): AnySketchElGamalPublicKey {

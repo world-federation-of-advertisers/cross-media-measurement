@@ -77,6 +77,9 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
@@ -121,6 +124,7 @@ import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
@@ -170,6 +174,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestInMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.EventGroupMetadata
@@ -822,8 +827,10 @@ class EdpSimulatorTest {
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
+    println("requisition spec nonce: " + REQUISITION_SPEC.nonce)
     val requests: List<FulfillRequisitionRequest> =
       fakeRequisitionFulfillmentService.fullfillRequisitionInvocations.single().requests
+    println(requests)
     val header: FulfillRequisitionRequest.Header = requests.first().header
     val shareVector =
       FrequencyVector.parseFrom(requests.drop(1).map { it.bodyChunk.data }.flatten())
@@ -872,7 +879,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        emptyMap(),
+        InMemoryVidIndexMap.build(PopulationSpec.getDefaultInstance()),
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -3199,8 +3206,17 @@ class EdpSimulatorTest {
     private const val FREQUENCY_DISTRIBUTION_TOLERANCE = 1.0
     private const val IMPRESSION_TOLERANCE = 1.0
 
+    private val POPULATION_SPEC = populationSpec {
+      subpopulations +=
+          subPopulation {
+            vidRanges += vidRange {
+              startVid = 1L
+              endVidInclusive = 1000L
+            }
+          }
+    }
     private val inputVidToIndexMap =
-      VidToIndexMapGenerator.generateMapping((0L..1000000L).asSequence())
+      InMemoryVidIndexMap.build(POPULATION_SPEC)
 
     private fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
       return loadPrivateKey(SECRET_FILES_PATH.resolve(fileName).toFile())

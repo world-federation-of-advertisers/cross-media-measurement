@@ -38,11 +38,14 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.dataprovider.DataProviderData
@@ -50,9 +53,9 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemory
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
-import org.wfanet.measurement.loadtest.dataprovider.VidToIndexMapGenerator
 
 /** An in process EDP simulator. */
 class InProcessEdpSimulator(
@@ -81,15 +84,24 @@ class InProcessEdpSimulator(
   private val delegate: EdpSimulator
 
   init {
+    val populationSpec = populationSpec {
+      subpopulations +=
+        syntheticPopulationSpec.subPopulationsList.map { it ->
+          subPopulation {
+            vidRanges += vidRange {
+              startVid = it.vidSubRange.start
+              endVidInclusive = (it.vidSubRange.endExclusive - 1)
+            }
+          }
+        }
+    }
     val vidRangeStart = syntheticPopulationSpec.vidRange.start
     val vidRangeEndExclusive = syntheticPopulationSpec.vidRange.endExclusive
     val vidIndexMap =
       if (honestMajorityShareShuffleSupported) {
-        VidToIndexMapGenerator.generateMapping(
-          (vidRangeStart until vidRangeEndExclusive).asSequence()
-        )
+        InMemoryVidIndexMap.build(populationSpec)
       } else {
-        emptyMap()
+        InMemoryVidIndexMap.build(populationSpec {})
       }
 
     delegate =
@@ -131,7 +143,7 @@ class InProcessEdpSimulator(
             100.0f,
           ),
         trustedCertificates = trustedCertificates,
-        vidToIndexMap = vidIndexMap,
+        vidIndexMap = vidIndexMap,
         knownEventGroupMetadataTypes = listOf(SyntheticEventGroupSpec.getDescriptor().file),
         random = random,
       )
