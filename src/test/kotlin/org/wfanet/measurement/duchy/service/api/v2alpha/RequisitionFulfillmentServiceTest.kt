@@ -87,6 +87,7 @@ private fun buildSecretSeed(seed: String): EncryptedMessage {
   }
 }
 
+private const val DUCHY_ID = "worker1"
 private const val COMPUTATION_ID = "xyz"
 private const val EXTERNAL_DATA_PROVIDER_ID = 123L
 private val DATA_PROVIDER_API_ID = externalIdToApiId(EXTERNAL_DATA_PROVIDER_ID)
@@ -131,6 +132,13 @@ private val REQUISITION_METADATA = requisitionMetadata {
   externalKey = REQUISITION_KEY
   details = requisitionDetails { nonceHash = NONCE_HASH.bytes }
 }
+private val HMSS_REQUISITION_METADATA = requisitionMetadata {
+  externalKey = REQUISITION_KEY
+  details = requisitionDetails {
+    externalFulfillingDuchyId = DUCHY_ID
+    nonceHash = NONCE_HASH.bytes
+  }
+}
 private val REQUISITION_BLOB_CONTEXT = RequisitionBlobContext(COMPUTATION_ID, REQUISITION_API_ID)
 
 /** Test for [RequisitionFulfillmentService]. */
@@ -153,6 +161,7 @@ class RequisitionFulfillmentServiceTest {
     requisitionStore = RequisitionStore(InMemoryStorageClient())
     service =
       RequisitionFulfillmentService(
+        DUCHY_ID,
         RequisitionsCoroutineStub(grpcTestServerRule.channel),
         ComputationsCoroutineStub(grpcTestServerRule.channel),
         requisitionStore,
@@ -238,7 +247,7 @@ class RequisitionFulfillmentServiceTest {
       globalComputationId = COMPUTATION_ID
       computationStage = computationStage { honestMajorityShareShuffle = Stage.INITIALIZED }
       computationDetails = COMPUTATION_DETAILS
-      requisitions += REQUISITION_METADATA
+      requisitions += HMSS_REQUISITION_METADATA
     }
     computationsServiceMock.stub {
       onBlocking { getComputationToken(any()) }
@@ -290,7 +299,7 @@ class RequisitionFulfillmentServiceTest {
       globalComputationId = COMPUTATION_ID
       computationStage = computationStage { honestMajorityShareShuffle = Stage.INITIALIZED }
       computationDetails = COMPUTATION_DETAILS
-      requisitions += REQUISITION_METADATA
+      requisitions += HMSS_REQUISITION_METADATA
     }
     computationsServiceMock.stub {
       onBlocking { getComputationToken(any()) }

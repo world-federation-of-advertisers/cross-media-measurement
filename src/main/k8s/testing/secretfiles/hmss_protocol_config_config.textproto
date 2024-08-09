@@ -6,6 +6,6 @@ protocol_config {
   reach_ring_modulus: 127
 }
 
-required_external_duchy_ids: "worker1"
-required_external_duchy_ids: "worker2"
-required_external_duchy_ids: "aggregator"
+first_non_aggregator_duchy_id: "worker1"
+second_non_aggregator_duchy_id: "worker2"
+aggregator_duchy_id: "aggregator"

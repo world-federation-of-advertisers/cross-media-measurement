@@ -66,6 +66,7 @@ abstract class RequisitionFulfillmentServer : Runnable {
     val principalLookup = AkidPrincipalLookup(flags.authorityKeyIdentifierToPrincipalMap)
     val service =
       RequisitionFulfillmentService(
+          flags.duchy.duchyName,
           systemRequisitionsClient,
           computationsClient,
           RequisitionStore(storageClient),
