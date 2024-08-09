@@ -17,6 +17,8 @@ package org.wfanet.measurement.duchy.service.api.v2alpha
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
+import java.util.logging.Level
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.Version
@@ -81,6 +83,8 @@ class RequisitionFulfillmentService(
           }
         grpcRequire(header.nonce != 0L) { "nonce unspecified" }
 
+        logger.log(Level.INFO, "Receiving fulfillment... requisitionId=${key.requisitionId}")
+
         val authenticatedPrincipal = principalFromCurrentContext
         if (key.parentKey != authenticatedPrincipal.resourceKey) {
           throw Permission.FULFILL.deniedStatus(header.name).asRuntimeException()
@@ -131,6 +135,8 @@ class RequisitionFulfillmentService(
           externalRequisitionKey.externalRequisitionId,
           header.nonce,
         )
+
+        logger.log(Level.INFO, "Requisition fulfilled. requisitionId=${key.requisitionId}")
 
         return FULFILLED_RESPONSE
       }
@@ -253,6 +259,10 @@ class RequisitionFulfillmentService(
         this.nonce = nonce
       }
     )
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
 
