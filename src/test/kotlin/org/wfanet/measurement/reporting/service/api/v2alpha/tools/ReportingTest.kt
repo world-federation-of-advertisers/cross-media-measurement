@@ -659,6 +659,33 @@ class ReportingTest {
   }
 
   @Test
+  fun `create-from-existing calls api with valid request`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "reports",
+        "create-from-existing",
+        REPORT_NAME,
+      )
+    val output = callCli(args)
+
+    verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::getReport)
+      .isEqualTo(getReportRequest { name = REPORT_NAME })
+    verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::createReport)
+      .ignoringFields(CreateReportRequest.REPORT_ID_FIELD_NUMBER)
+      .isEqualTo(
+        createReportRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          report = REPORT
+        }
+      )
+    assertThat(output).status().isEqualTo(0)
+  }
+
+  @Test
   fun `create metric calculation spec without frequency and window calls api with valid request`() {
     val textFormatMetricSpecFile = TEXTPROTO_DIR.resolve("metric_spec.textproto").toFile()
 
