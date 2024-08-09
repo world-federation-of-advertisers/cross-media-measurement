@@ -29,7 +29,6 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
-import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -100,8 +99,7 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
           }
         }
     }
-    val vidIndexMap =
-      InMemoryVidIndexMap.build(populationSpec)
+    val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
 
     run(
       eventQuery,

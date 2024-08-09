@@ -54,8 +54,7 @@ abstract class EdpSimulatorRunner : Runnable {
     eventTemplates: Iterable<EventGroup.EventTemplate>,
     metadataByReferenceIdSuffix: Map<String, Message>,
     knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>,
-    vidIndexMap: VidIndexMap =
-      InMemoryVidIndexMap.build(PopulationSpec.getDefaultInstance()),
+    vidIndexMap: VidIndexMap = InMemoryVidIndexMap.build(PopulationSpec.getDefaultInstance()),
   ) {
     val clientCerts =
       SigningCerts.fromPemFiles(

@@ -19,7 +19,6 @@ import kotlin.properties.Delegates
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
 import org.wfanet.measurement.loadtest.config.EventGroupMetadata
 import picocli.CommandLine
 

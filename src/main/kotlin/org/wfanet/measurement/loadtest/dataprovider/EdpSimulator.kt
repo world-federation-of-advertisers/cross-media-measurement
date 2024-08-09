@@ -35,9 +35,9 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
-import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -49,10 +49,6 @@ import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
 import org.wfanet.frequencycount.FrequencyVector
-import org.wfanet.frequencycount.SecretShare
-import org.wfanet.frequencycount.SecretShareGeneratorAdapter
-import org.wfanet.frequencycount.frequencyVector
-import org.wfanet.frequencycount.secretShareGeneratorRequest
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt.variance
@@ -65,7 +61,6 @@ import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptedMessage
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
@@ -90,7 +85,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -110,7 +104,6 @@ import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.populationSpec
-import org.wfanet.measurement.api.v2alpha.randomSeed
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.api.v2alpha.unpack
@@ -128,8 +121,6 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
-import org.wfanet.measurement.consent.client.dataprovider.encryptRandomSeed
-import org.wfanet.measurement.consent.client.dataprovider.signRandomSeed
 import org.wfanet.measurement.consent.client.dataprovider.verifyElGamalPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.dataprovider.DataProviderData
@@ -1271,7 +1262,8 @@ class EdpSimulator(
       requisition.duchiesCount - 1,
     )
 
-    val vectorBuilder = FrequencyVectorBuilder(vidIndexMap.populationSpec, measurementSpec, strict = false)
+    val vectorBuilder =
+      FrequencyVectorBuilder(vidIndexMap.populationSpec, measurementSpec, strict = false)
     for (eventGroupSpec in eventGroupSpecs) {
       eventQuery.getUserVirtualIds(eventGroupSpec).forEach {
         vectorBuilder.increment(vidIndexMap[it])
@@ -1281,48 +1273,13 @@ class EdpSimulator(
 
     val requests =
       FulfillRequisitionRequestBuilder.build(
-          requisition,
-          nonce,
-          sampledFrequencyVector,
-          edpData.certificateKey,
-          edpData.signingKeyHandle,
-        )
-    println("requests: " + requests)
+        requisition,
+        nonce,
+        sampledFrequencyVector,
+        edpData.certificateKey,
+        edpData.signingKeyHandle,
+      )
 
-    // val frequencyVector =
-    //   try {
-    //     generateHmssSketch(vidIndexMap, measurementSpec, eventGroupSpecs)
-    //   } catch (e: EventFilterValidationException) {
-    //     logger.log(
-    //       Level.WARNING,
-    //       "RequisitionFulfillmentWorkflow failed due to invalid event filter",
-    //       e,
-    //     )
-    //     throw RequisitionRefusalException(
-    //       Requisition.Refusal.Justification.SPEC_INVALID,
-    //       "Invalid event filter (${e.code}): ${e.code.description}",
-    //     )
-    //   }
-    //
-    // val secretShareGeneratorRequest = secretShareGeneratorRequest {
-    //   data += frequencyVector.toList()
-    //   ringModulus = protocolConfig.ringModulus
-    // }
-    //
-    // val secretShare =
-    //   SecretShare.parseFrom(
-    //     SecretShareGeneratorAdapter.generateSecretShares(secretShareGeneratorRequest.toByteArray())
-    //   )
-    //
-    // val shareSeed = randomSeed { data = secretShare.shareSeed.key.concat(secretShare.shareSeed.iv) }
-    // val signedShareSeed =
-    //   signRandomSeed(shareSeed, edpData.signingKeyHandle, edpData.signingKeyHandle.defaultAlgorithm)
-    // val publicKey =
-    //   EncryptionPublicKey.parseFrom(getEncryptionKeyForShareSeed(requisition).message.value)
-    // val shareSeedCiphertext = encryptRandomSeed(signedShareSeed, publicKey)
-    //
-    // val shareVector = frequencyVector { data += secretShare.shareVectorList }
-    // fulfillRequisition(requisition, requisitionFingerprint, nonce, shareSeedCiphertext, shareVector)
     fulfillRequisition(requisition, requests)
   }
 

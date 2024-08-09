@@ -827,10 +827,8 @@ class EdpSimulatorTest {
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
-    println("requisition spec nonce: " + REQUISITION_SPEC.nonce)
     val requests: List<FulfillRequisitionRequest> =
       fakeRequisitionFulfillmentService.fullfillRequisitionInvocations.single().requests
-    println(requests)
     val header: FulfillRequisitionRequest.Header = requests.first().header
     val shareVector =
       FrequencyVector.parseFrom(requests.drop(1).map { it.bodyChunk.data }.flatten())
@@ -3207,16 +3205,14 @@ class EdpSimulatorTest {
     private const val IMPRESSION_TOLERANCE = 1.0
 
     private val POPULATION_SPEC = populationSpec {
-      subpopulations +=
-          subPopulation {
-            vidRanges += vidRange {
-              startVid = 1L
-              endVidInclusive = 1000L
-            }
-          }
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1L
+          endVidInclusive = 1000L
+        }
+      }
     }
-    private val inputVidToIndexMap =
-      InMemoryVidIndexMap.build(POPULATION_SPEC)
+    private val inputVidToIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC)
 
     private fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
       return loadPrivateKey(SECRET_FILES_PATH.resolve(fileName).toFile())
