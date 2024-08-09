@@ -143,7 +143,7 @@ class SpannerMeasurementsService(
         request.measurementView,
         request.filter,
         request.limit,
-        request.orderByMeasurementView,
+        request.orderBy,
       )
       .execute(client.singleUse())
       .map { it.measurement }

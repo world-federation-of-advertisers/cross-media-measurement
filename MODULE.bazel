@@ -199,12 +199,6 @@ maven.artifact(
     group = "org.apache.beam",
     version = APACHE_BEAM_VERSION,
 )
-maven.artifact(
-    testonly = True,
-    artifact = "mockito-inline",
-    group = "org.mockito",
-    version = "4.3.1",
-)
 maven.install(
     artifacts = [
         "com.github.ben-manes.caffeine:caffeine:3.1.8",

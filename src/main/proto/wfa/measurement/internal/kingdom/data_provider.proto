@@ -45,6 +45,8 @@ message DataProvider {
 
     google.type.Interval data_availability_interval = 5;
     Capabilities capabilities = 6;
+
+    string display_name = 7;
   }
   Details details = 3;
 
