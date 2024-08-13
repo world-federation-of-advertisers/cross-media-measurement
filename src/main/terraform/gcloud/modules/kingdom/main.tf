@@ -297,6 +297,11 @@ resource "google_bigquery_table" "latest_measurement_read" {
     "mode": "REQUIRED"
   },
   {
+    "name": "external_computation_id",
+    "type": "INTEGER",
+    "mode": "REQUIRED"
+  },
+  {
     "name": "external_measurement_consumer_id",
     "type": "INTEGER",
     "mode": "REQUIRED"

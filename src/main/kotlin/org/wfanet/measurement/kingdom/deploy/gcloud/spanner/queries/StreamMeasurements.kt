@@ -29,12 +29,10 @@ class StreamMeasurements(
   view: Measurement.View,
   requestFilter: StreamMeasurementsRequest.Filter,
   limit: Int = 0,
-  orderBy: StreamMeasurementsRequest.OrderBy =
-    StreamMeasurementsRequest.OrderBy.ORDER_BY_NOT_SPECIFIED,
 ) : SimpleSpannerQuery<MeasurementReader.Result>() {
 
   override val reader: BaseSpannerReader<MeasurementReader.Result> =
-    buildReader(view, requestFilter, limit, orderBy)
+    buildReader(view, requestFilter, limit)
 
   companion object {
     private const val LIMIT_PARAM = "limit"
@@ -58,18 +56,8 @@ class StreamMeasurements(
       view: Measurement.View,
       requestFilter: StreamMeasurementsRequest.Filter,
       limit: Int,
-      orderBy: StreamMeasurementsRequest.OrderBy,
     ): MeasurementReader {
-      val orderByClause =
-        when (orderBy) {
-          StreamMeasurementsRequest.OrderBy.MEASUREMENT ->
-            getOrderByClause(Measurement.View.DEFAULT)
-          StreamMeasurementsRequest.OrderBy.COMPUTATION ->
-            getOrderByClause(Measurement.View.COMPUTATION)
-          StreamMeasurementsRequest.OrderBy.ORDER_BY_NOT_SPECIFIED,
-          StreamMeasurementsRequest.OrderBy.UNRECOGNIZED -> getOrderByClause(view)
-        }
-
+      val orderByClause = getOrderByClause(view)
       return MeasurementReader(view).apply {
         this.orderByClause = orderByClause
         fillStatementBuilder {
@@ -86,7 +74,8 @@ class StreamMeasurements(
     private fun getOrderByClause(view: Measurement.View): String {
       return when (view) {
         Measurement.View.COMPUTATION ->
-          "ORDER BY Measurements.UpdateTime ASC, ExternalComputationId ASC"
+          "ORDER BY Measurements.UpdateTime ASC, ExternalComputationId ASC, " +
+            "ExternalMeasurementConsumerId ASC, ExternalMeasurementId ASC"
         Measurement.View.DEFAULT ->
           "ORDER BY Measurements.UpdateTime ASC, ExternalMeasurementConsumerId ASC, " +
             "ExternalMeasurementId ASC"
@@ -200,6 +189,9 @@ class StreamMeasurements(
                 OR (
                   Measurements.UpdateTime = @${AfterParams.UPDATE_TIME}
                   AND ExternalComputationId > @${AfterParams.EXTERNAL_COMPUTATION_ID}
+                  AND ExternalMeasurementConsumerId =
+                    @${AfterParams.EXTERNAL_MEASUREMENT_CONSUMER_ID}
+                  AND ExternalMeasurementId > @${AfterParams.EXTERNAL_MEASUREMENT_ID}
                 )
               )
               """
@@ -208,6 +200,13 @@ class StreamMeasurements(
             bind(AfterParams.UPDATE_TIME).to(filter.after.updateTime.toGcloudTimestamp())
             bind(
               AfterParams.EXTERNAL_COMPUTATION_ID to filter.after.computation.externalComputationId
+            )
+            bind(
+              AfterParams.EXTERNAL_MEASUREMENT_CONSUMER_ID to
+                filter.after.computation.externalMeasurementConsumerId
+            )
+            bind(
+              AfterParams.EXTERNAL_MEASUREMENT_ID to filter.after.computation.externalMeasurementId
             )
           }
           StreamMeasurementsRequest.Filter.After.KeyCase.KEY_NOT_SET ->

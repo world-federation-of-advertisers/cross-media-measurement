@@ -82,10 +82,10 @@ import org.wfanet.measurement.internal.kingdom.bigquerytables.computationPartici
 import org.wfanet.measurement.internal.kingdom.bigquerytables.latestMeasurementReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.measurementsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.requisitionsTableRow
+import org.wfanet.measurement.internal.kingdom.computationKey
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.measurement
-import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
@@ -378,6 +378,11 @@ class OperationalMetricsExportTest {
           FieldValue.Attribute.PRIMITIVE,
           "${Timestamps.toNanos(directMeasurement.updateTime)}",
         )
+      val externalComputationIdFieldValue: FieldValue =
+        FieldValue.of(
+          FieldValue.Attribute.PRIMITIVE,
+          "${directMeasurement.externalComputationId}",
+        )
       val externalMeasurementConsumerIdFieldValue: FieldValue =
         FieldValue.of(
           FieldValue.Attribute.PRIMITIVE,
@@ -385,6 +390,7 @@ class OperationalMetricsExportTest {
         )
       val externalMeasurementIdFieldValue: FieldValue =
         FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${directMeasurement.externalMeasurementId}")
+
       val tableResultMock: TableResult = mock { tableResult ->
         whenever(tableResult.iterateAll())
           .thenReturn(
@@ -392,6 +398,7 @@ class OperationalMetricsExportTest {
               FieldValueList.of(
                 mutableListOf(
                   updateTimeFieldValue,
+                  externalComputationIdFieldValue,
                   externalMeasurementConsumerIdFieldValue,
                   externalMeasurementIdFieldValue,
                 ),
@@ -408,7 +415,6 @@ class OperationalMetricsExportTest {
           .isEqualTo(
             streamMeasurementsRequest {
               measurementView = Measurement.View.COMPUTATION
-              orderBy = StreamMeasurementsRequest.OrderBy.MEASUREMENT
               filter =
                 StreamMeasurementsRequestKt.filter {
                   states += Measurement.State.SUCCEEDED
@@ -416,7 +422,7 @@ class OperationalMetricsExportTest {
                   after =
                     StreamMeasurementsRequestKt.FilterKt.after {
                       updateTime = directMeasurement.updateTime
-                      measurement = measurementKey {
+                      computation = computationKey {
                         externalMeasurementConsumerId =
                           directMeasurement.externalMeasurementConsumerId
                         externalMeasurementId = directMeasurement.externalMeasurementId
@@ -744,6 +750,7 @@ class OperationalMetricsExportTest {
       FieldList.of(
         listOf(
           Field.of("update_time", LegacySQLTypeName.INTEGER),
+          Field.of("external_computation_id", LegacySQLTypeName.INTEGER),
           Field.of("external_measurement_consumer_id", LegacySQLTypeName.INTEGER),
           Field.of("external_measurement_id", LegacySQLTypeName.INTEGER),
         )
