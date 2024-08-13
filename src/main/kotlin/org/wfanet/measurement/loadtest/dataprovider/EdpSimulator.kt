@@ -165,7 +165,7 @@ class EdpSimulator(
    *
    * When the vidIndexMap is empty, the honest majority share shuffle protocol is not supported.
    */
-  private val vidIndexMap: VidIndexMap,
+  private val vidIndexMap: VidIndexMap = VidIndexMap.EMPTY,
   /**
    * Known protobuf types for [EventGroupMetadataDescriptor]s.
    *
