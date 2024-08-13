@@ -66,3 +66,6 @@ databaseChangeLog:
 - include:
     file: reorder-measurements-by-continuation-token.sql
     relativeToChangeLogFile: true
+- include:
+    file: create-measurements-by-update-time-index.sql
+    relativeToChangeLogFile: true

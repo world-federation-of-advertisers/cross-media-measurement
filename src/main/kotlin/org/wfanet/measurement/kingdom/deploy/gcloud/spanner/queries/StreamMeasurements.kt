@@ -58,7 +58,13 @@ class StreamMeasurements(
       limit: Int,
     ): MeasurementReader {
       val orderByClause = getOrderByClause(view)
-      return MeasurementReader(view).apply {
+      val index =
+        if (view == Measurement.View.DEFAULT) {
+          MeasurementReader.Index.UPDATE_TIME
+        } else {
+          MeasurementReader.Index.NONE
+        }
+      return MeasurementReader(view, index).apply {
         this.orderByClause = orderByClause
         fillStatementBuilder {
           appendWhereClause(requestFilter)

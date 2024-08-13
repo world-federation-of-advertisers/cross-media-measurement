@@ -53,6 +53,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
   enum class Index(internal val sql: String) {
     NONE(""),
     CREATE_REQUEST_ID("@{FORCE_INDEX=MeasurementsByCreateRequestId}"),
+    UPDATE_TIME("@{FORCE_INDEX=MeasurementsByUpdateTime}"),
   }
 
   override val baseSql: String
