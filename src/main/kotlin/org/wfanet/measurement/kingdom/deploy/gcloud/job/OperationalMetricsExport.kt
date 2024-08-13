@@ -48,7 +48,6 @@ import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.bigquerytables.ComputationParticipantsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestMeasurementReadTableRow
@@ -59,8 +58,8 @@ import org.wfanet.measurement.internal.kingdom.bigquerytables.computationPartici
 import org.wfanet.measurement.internal.kingdom.bigquerytables.latestMeasurementReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.measurementsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.requisitionsTableRow
+import org.wfanet.measurement.internal.kingdom.computationKey
 import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 
 class OperationalMetricsExport(
@@ -80,9 +79,9 @@ class OperationalMetricsExport(
 
     val query =
       """
-    SELECT update_time, external_measurement_consumer_id, external_measurement_id
+    SELECT update_time, external_computation_id, external_measurement_consumer_id, external_measurement_id
     FROM `$datasetId.$latestMeasurementReadTableId`
-    ORDER BY update_time DESC, external_measurement_consumer_id DESC, external_measurement_id DESC
+    ORDER BY update_time DESC, external_computation_id DESC, external_measurement_consumer_id DESC, external_measurement_id DESC
     LIMIT 1
     """
         .trimIndent()
@@ -97,7 +96,6 @@ class OperationalMetricsExport(
 
     var streamMeasurementsRequest = streamMeasurementsRequest {
       measurementView = Measurement.View.COMPUTATION
-      orderBy = StreamMeasurementsRequest.OrderBy.MEASUREMENT
       limit = BATCH_SIZE
       filter =
         StreamMeasurementsRequestKt.filter {
@@ -110,7 +108,11 @@ class OperationalMetricsExport(
                   Timestamps.fromNanos(
                     latestMeasurementReadFromPreviousJob.get("update_time").longValue
                   )
-                measurement = measurementKey {
+                computation = computationKey {
+                  externalComputationId =
+                    latestMeasurementReadFromPreviousJob
+                      .get("external_computation_id")
+                      .longValue
                   externalMeasurementConsumerId =
                     latestMeasurementReadFromPreviousJob
                       .get("external_measurement_consumer_id")
@@ -395,7 +397,8 @@ class OperationalMetricsExport(
               after =
                 StreamMeasurementsRequestKt.FilterKt.after {
                   updateTime = latestUpdateTime
-                  measurement = measurementKey {
+                  computation = computationKey {
+                    externalComputationId = latestMeasurementReadTableRow.externalComputationId
                     externalMeasurementConsumerId =
                       latestMeasurementReadTableRow.externalMeasurementConsumerId
                     externalMeasurementId = latestMeasurementReadTableRow.externalMeasurementId

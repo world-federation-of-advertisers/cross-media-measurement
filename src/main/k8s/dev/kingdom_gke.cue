@@ -123,7 +123,6 @@ kingdom: #Kingdom & {
 					"--cert-collection-file=/var/run/secrets/files/kingdom_root.pem",
 					"--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
 					"--internal-api-cert-host=localhost",
-					"--internal-api-default-deadline=60s",
 				]
 			}
 			spec: {

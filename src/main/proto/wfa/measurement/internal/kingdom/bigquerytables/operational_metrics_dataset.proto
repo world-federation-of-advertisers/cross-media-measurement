@@ -115,6 +115,7 @@ message LatestMeasurementReadTableRow {
   // Since BigQuery timestamp is microsecond precision, this is in nanoseconds
   // and is stored as an integer.
   int64 update_time = 1;
-  int64 external_measurement_consumer_id = 2;
-  int64 external_measurement_id = 3;
+  int64 external_computation_id = 2;
+  int64 external_measurement_consumer_id = 3;
+  int64 external_measurement_id = 4;
 }

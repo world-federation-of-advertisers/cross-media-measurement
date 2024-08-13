@@ -95,12 +95,9 @@ message StreamMeasurementsRequest {
     message After {
       google.protobuf.Timestamp update_time = 1;
       oneof key {
-        // Key of the `Measurement`, used when view is DEFAULT and `order_by` is
-        // ORDER_BY_NOT_SPECIFIED, or `order_by` is MEASUREMENT.
+        // Key of the `Measurement`, used when view is DEFAULT.
         MeasurementKey measurement = 2;
-        // Computation key of the `Measurement`, used when view is COMPUTATION
-        // and 'order_by' is ORDER_BY_NOT_SPECIFIED, or `order_by` is
-        // COMPUTATION.
+        // Computation key of the `Measurement`, used when view is COMPUTATION.
         ComputationKey computation = 3;
       }
     }
@@ -114,15 +111,6 @@ message StreamMeasurementsRequest {
 
   // The view of the `Measurement` to return.
   Measurement.View measurement_view = 3;
-
-  enum OrderBy {
-    ORDER_BY_NOT_SPECIFIED = 0;
-    MEASUREMENT = 1;
-    COMPUTATION = 2;
-  }
-
-  // Determines ordering of response.
-  OrderBy order_by = 4;
 }
 
 message SetMeasurementResultRequest {
@@ -189,6 +177,8 @@ message MeasurementKey {
 
 message ComputationKey {
   fixed64 external_computation_id = 1;
+  fixed64 external_measurement_consumer_id = 2;
+  fixed64 external_measurement_id = 3;
 }
 
 message BatchCreateMeasurementsRequest {

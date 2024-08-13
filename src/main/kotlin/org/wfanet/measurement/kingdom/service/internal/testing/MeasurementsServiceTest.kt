@@ -1454,47 +1454,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamMeasurements with computation view and default order by returns in diff order`():
-    Unit = runBlocking {
-    val measurementConsumer =
-      population.createMeasurementConsumer(measurementConsumersService, accountsService)
-
-    val measurementRequest = createMeasurementRequest {
-      measurement =
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
-        }
-    }
-
-    measurementsService.batchCreateMeasurements(
-      batchCreateMeasurementsRequest {
-        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-        requests += measurementRequest
-        requests += measurementRequest
-        requests += measurementRequest
-      }
-    )
-
-    val streamMeasurementsRequest = streamMeasurementsRequest {
-      measurementView = Measurement.View.COMPUTATION
-      orderBy = StreamMeasurementsRequest.OrderBy.MEASUREMENT
-    }
-
-    val measurements: List<Measurement> =
-      measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
-
-    assertThat(measurements).hasSize(3)
-    assertThat(measurements[0].updateTime).isEqualTo(measurements[1].updateTime)
-    assertThat(measurements[1].updateTime).isEqualTo(measurements[2].updateTime)
-    assertThat(measurements[0].externalMeasurementId)
-      .isLessThan(measurements[1].externalMeasurementId)
-    assertThat(measurements[1].externalMeasurementId)
-      .isLessThan(measurements[2].externalMeasurementId)
-  }
-
-  @Test
   fun `streamMeasurements respects limit`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
