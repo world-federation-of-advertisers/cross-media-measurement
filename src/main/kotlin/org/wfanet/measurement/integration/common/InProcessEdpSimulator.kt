@@ -39,7 +39,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.Ev
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
@@ -49,6 +48,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.Health
 import org.wfanet.measurement.common.identity.withPrincipalName
+import org.wfanet.measurement.common.testing.toPopulationSpec
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStore
@@ -86,17 +86,7 @@ class InProcessEdpSimulator(
   private val delegate: EdpSimulator
 
   init {
-    val populationSpec = populationSpec {
-      subpopulations +=
-        syntheticPopulationSpec.subPopulationsList.map { it ->
-          subPopulation {
-            vidRanges += vidRange {
-              startVid = it.vidSubRange.start
-              endVidInclusive = (it.vidSubRange.endExclusive - 1)
-            }
-          }
-        }
-    }
+    val populationSpec = syntheticPopulationSpec.toPopulationSpec()
     val vidRangeStart = syntheticPopulationSpec.vidRange.start
     val vidRangeEndExclusive = syntheticPopulationSpec.vidRange.endExclusive
     val vidIndexMap =

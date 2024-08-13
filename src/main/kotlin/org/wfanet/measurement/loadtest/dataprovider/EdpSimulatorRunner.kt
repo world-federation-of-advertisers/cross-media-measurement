@@ -27,7 +27,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.FileExistsHealth
@@ -38,7 +37,6 @@ import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.dataprovider.DataProviderData
-import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
 import org.wfanet.measurement.loadtest.config.PrivacyBudgets.createNoOpPrivacyBudgetManager
 import picocli.CommandLine
@@ -54,7 +52,7 @@ abstract class EdpSimulatorRunner : Runnable {
     eventTemplates: Iterable<EventGroup.EventTemplate>,
     metadataByReferenceIdSuffix: Map<String, Message>,
     knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>,
-    vidIndexMap: VidIndexMap = InMemoryVidIndexMap.build(PopulationSpec.getDefaultInstance()),
+    vidIndexMap: VidIndexMap = VidIndexMap.EMPTY,
   ) {
     val clientCerts =
       SigningCerts.fromPemFiles(

@@ -1127,24 +1127,17 @@ class EdpSimulator(
         }
       )
     }
-    try {
-      requisitionFulfillmentStubsByDuchyId.values.first().fulfillRequisition(requests)
-    } catch (e: StatusException) {
-      throw Exception("Error fulfilling requisition ${requisition.name}", e)
-    }
+    fulfillRequisition(requisitionFulfillmentStubsByDuchyId.values.first(), requisition, requests)
   }
 
   private suspend fun fulfillRequisition(
+    requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
     requisition: Requisition,
-    requests: Sequence<FulfillRequisitionRequest>,
+    requests: Flow<FulfillRequisitionRequest>,
   ) {
     logger.info("Fulfilling requisition ${requisition.name}...")
     try {
-      val duchyId = getDuchyWithoutPublicKey(requisition)
-      val requisitionFulfillmentStub =
-        requisitionFulfillmentStubsByDuchyId[duchyId]
-          ?: throw Exception("Requisition fulfillment stub not found for $duchyId.")
-      requisitionFulfillmentStub.fulfillRequisition(requests.asFlow())
+      requisitionFulfillmentStub.fulfillRequisition(requests)
     } catch (e: StatusException) {
       throw Exception("Error fulfilling requisition ${requisition.name}", e)
     }
@@ -1209,14 +1202,19 @@ class EdpSimulator(
 
     val requests =
       FulfillRequisitionRequestBuilder.build(
-        requisition,
-        nonce,
-        sampledFrequencyVector,
-        edpData.certificateKey,
-        edpData.signingKeyHandle,
-      )
+          requisition,
+          nonce,
+          sampledFrequencyVector,
+          edpData.certificateKey,
+          edpData.signingKeyHandle,
+        )
+        .asFlow()
 
-    fulfillRequisition(requisition, requests)
+    val duchyId = getDuchyWithoutPublicKey(requisition)
+    val requisitionFulfillmentStub =
+      requisitionFulfillmentStubsByDuchyId[duchyId]
+        ?: throw Exception("Requisition fulfillment stub not found for $duchyId.")
+    fulfillRequisition(requisitionFulfillmentStub, requisition, requests)
   }
 
   private fun Requisition.getCombinedPublicKey(curveId: Int): AnySketchElGamalPublicKey {

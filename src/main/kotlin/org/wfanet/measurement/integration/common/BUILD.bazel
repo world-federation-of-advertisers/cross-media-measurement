@@ -182,6 +182,7 @@ kt_jvm_library(
         ":configs",
         ":synthetic_generation_specs",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/common/testing:population_spec_converter",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/shareshuffle/v2alpha:shareshuffle",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator",
