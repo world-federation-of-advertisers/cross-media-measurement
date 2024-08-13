@@ -40,7 +40,7 @@ interface VidIndexMap {
   companion object {
     val EMPTY: VidIndexMap =
       object : VidIndexMap {
-        override fun get(vid: Long): Int = throw NoSuchElementException("The VidIndexMap is empty.")
+        override fun get(vid: Long): Int = throw VidNotFoundException(vid)
 
         override val size: Long = 0L
 
