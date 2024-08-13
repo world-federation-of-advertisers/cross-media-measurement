@@ -379,10 +379,7 @@ class OperationalMetricsExportTest {
           "${Timestamps.toNanos(directMeasurement.updateTime)}",
         )
       val externalComputationIdFieldValue: FieldValue =
-        FieldValue.of(
-          FieldValue.Attribute.PRIMITIVE,
-          "${directMeasurement.externalComputationId}",
-        )
+        FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${directMeasurement.externalComputationId}")
       val externalMeasurementConsumerIdFieldValue: FieldValue =
         FieldValue.of(
           FieldValue.Attribute.PRIMITIVE,
