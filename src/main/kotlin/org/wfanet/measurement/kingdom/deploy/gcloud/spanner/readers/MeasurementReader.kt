@@ -38,6 +38,7 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
 
 class MeasurementReader(private val view: Measurement.View, measurementsIndex: Index = Index.NONE) :
@@ -476,8 +477,16 @@ private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
   val requisitionsStructs = struct.getStructList("Requisitions")
   val dataProvidersCount = requisitionsStructs.size
 
-  val externalMeasurementId = ExternalId(struct.getLong("ExternalMeasurementId"))
   val externalMeasurementConsumerId = ExternalId(struct.getLong("ExternalMeasurementConsumerId"))
+  val externalMeasurementId = ExternalId(struct.getLong("ExternalMeasurementId"))
+
+  if (struct.isNull("ExternalComputationId")) {
+    throw MeasurementNotComputationException(
+      externalMeasurementConsumerId = externalMeasurementConsumerId,
+      externalMeasurementId = externalMeasurementId,
+    )
+  }
+
   val externalComputationId = ExternalId(struct.getLong("ExternalComputationId"))
 
   // Map of external Duchy ID to ComputationParticipant struct.

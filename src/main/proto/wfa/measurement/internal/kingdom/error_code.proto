@@ -34,6 +34,8 @@ enum ErrorCode {
   MEASUREMENT_NOT_FOUND = 5;
   /** Measurement is in an illegal state for the operation. */
   MEASUREMENT_STATE_ILLEGAL = 6;
+  /** Measurement is not a Computation. */
+  MEASUREMENT_NOT_COMPUTATION = 45;
   /** Certificate with the same subject key identifier (SKID) already exists.
    */
   CERT_SUBJECT_KEY_ID_ALREADY_EXISTS = 7;

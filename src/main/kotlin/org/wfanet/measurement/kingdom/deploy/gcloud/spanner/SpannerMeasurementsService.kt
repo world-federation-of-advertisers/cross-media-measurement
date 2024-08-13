@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import com.google.protobuf.Empty
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
@@ -48,6 +49,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFound
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementEtagMismatchException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
@@ -141,6 +143,11 @@ class SpannerMeasurementsService(
   override fun streamMeasurements(request: StreamMeasurementsRequest): Flow<Measurement> {
     return StreamMeasurements(request.measurementView, request.filter, request.limit)
       .execute(client.singleUse())
+      .catch {
+        if (it is MeasurementNotComputationException) {
+          throw it.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT, "Measurement that is not Computation found")
+        }
+      }
       .map { it.measurement }
   }
 

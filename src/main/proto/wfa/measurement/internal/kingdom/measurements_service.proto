@@ -39,6 +39,9 @@ service Measurements {
   //
   // Which key is used for the ordering depends on which view is specified in
   // the request.
+  //
+  // If the view is `Measurement.View.COMPUTATION` and the response contains
+  // Measurements that aren't Computations, then an error is returned.
   rpc StreamMeasurements(StreamMeasurementsRequest)
       returns (stream Measurement);
 
@@ -91,6 +94,7 @@ message StreamMeasurementsRequest {
     string externalDuchyId = 7;
     google.protobuf.Timestamp updated_before = 8;
     google.protobuf.Timestamp created_before = 9;
+    bool has_external_computation_id = 11;
 
     message After {
       google.protobuf.Timestamp update_time = 1;

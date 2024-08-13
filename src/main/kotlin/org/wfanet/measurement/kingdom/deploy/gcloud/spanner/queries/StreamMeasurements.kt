@@ -61,7 +61,7 @@ class StreamMeasurements(
       return MeasurementReader(view).apply {
         this.orderByClause = orderByClause
         fillStatementBuilder {
-          appendWhereClause(view, requestFilter)
+          appendWhereClause(requestFilter)
           appendClause(orderByClause)
           if (limit > 0) {
             appendClause("LIMIT @$LIMIT_PARAM")
@@ -83,12 +83,11 @@ class StreamMeasurements(
     }
 
     private fun Statement.Builder.appendWhereClause(
-      view: Measurement.View,
       filter: StreamMeasurementsRequest.Filter,
     ) {
       val conjuncts = mutableListOf<String>()
 
-      if (view == Measurement.View.COMPUTATION) {
+      if (filter.hasExternalComputationId) {
         conjuncts.add("ExternalComputationId IS NOT NULL")
       }
 
