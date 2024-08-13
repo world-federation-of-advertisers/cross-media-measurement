@@ -82,9 +82,7 @@ class StreamMeasurements(
       }
     }
 
-    private fun Statement.Builder.appendWhereClause(
-      filter: StreamMeasurementsRequest.Filter,
-    ) {
+    private fun Statement.Builder.appendWhereClause(filter: StreamMeasurementsRequest.Filter) {
       val conjuncts = mutableListOf<String>()
 
       if (filter.hasExternalComputationId) {

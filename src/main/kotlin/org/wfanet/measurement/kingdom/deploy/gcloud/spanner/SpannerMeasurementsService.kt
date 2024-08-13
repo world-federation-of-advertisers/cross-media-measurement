@@ -145,7 +145,10 @@ class SpannerMeasurementsService(
       .execute(client.singleUse())
       .catch {
         if (it is MeasurementNotComputationException) {
-          throw it.asStatusRuntimeException(Status.Code.UNKNOWN, "Measurement that is not Computation found")
+          throw it.asStatusRuntimeException(
+            Status.Code.UNKNOWN,
+            "Measurement that is not Computation found",
+          )
         }
       }
       .map { it.measurement }
