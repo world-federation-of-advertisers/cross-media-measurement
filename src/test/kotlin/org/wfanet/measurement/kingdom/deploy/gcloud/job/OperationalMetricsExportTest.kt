@@ -66,8 +66,6 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
-import org.wfanet.measurement.internal.kingdom.DataProviderKt
-import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
@@ -86,7 +84,6 @@ import org.wfanet.measurement.internal.kingdom.bigquerytables.measurementsTableR
 import org.wfanet.measurement.internal.kingdom.bigquerytables.requisitionsTableRow
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig
@@ -95,23 +92,14 @@ import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 
 @RunWith(JUnit4::class)
 class OperationalMetricsExportTest {
-  private val dataProvidersMock: DataProvidersGrpcKt.DataProvidersCoroutineImplBase = mockService {
-    onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER)
-  }
-
   private val measurementsMock: MeasurementsGrpcKt.MeasurementsCoroutineImplBase = mockService {
     onBlocking { streamMeasurements(any()) }
       .thenReturn(flowOf(DIRECT_MEASUREMENT, COMPUTATION_MEASUREMENT))
   }
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule {
-    addService(dataProvidersMock)
-    addService(measurementsMock)
-  }
+  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(measurementsMock) }
 
   private lateinit var measurementsClient: MeasurementsGrpcKt.MeasurementsCoroutineStub
-  private lateinit var dataProvidersClient: DataProvidersGrpcKt.DataProvidersCoroutineStub
 
   private val bigQueryWriteClientMock: BigQueryWriteClient = mock { bigQueryWriteClient ->
     val writeStreamMock: WriteStream = mock { writeStream ->
@@ -130,13 +118,11 @@ class OperationalMetricsExportTest {
   private lateinit var computationParticipantsStreamWriterMock: StreamWriter
   private lateinit var latestMeasurementReadStreamWriterMock: StreamWriter
 
-  private lateinit var createStreamWriter:
-    (String, String, String, BigQueryWriteClient, ProtoSchema) -> StreamWriter
+  private lateinit var streamWriterFactoryTestImpl: StreamWriterFactory
 
   @Before
   fun init() {
     measurementsClient = MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel)
-    dataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(grpcTestServerRule.channel)
 
     measurementsStreamWriterMock = mock {
       whenever(it.append(any()))
@@ -162,16 +148,15 @@ class OperationalMetricsExportTest {
       whenever(it.isClosed).thenReturn(false)
     }
 
-    createStreamWriter =
-      { _: String, _: String, tableId: String, _: BigQueryWriteClient, _: ProtoSchema ->
-        when (tableId) {
-          MEASUREMENTS_TABLE_ID -> measurementsStreamWriterMock
-          REQUISITIONS_TABLE_ID -> requisitionsStreamWriterMock
-          COMPUTATION_PARTICIPANTS_TABLE_ID -> computationParticipantsStreamWriterMock
-          LATEST_MEASUREMENT_READ_TABLE_ID -> latestMeasurementReadStreamWriterMock
-          else -> mock {}
-        }
+    streamWriterFactoryTestImpl = StreamWriterFactory { _: String, _: String, tableId: String, _: BigQueryWriteClient, _: ProtoSchema ->
+      when (tableId) {
+        MEASUREMENTS_TABLE_ID -> measurementsStreamWriterMock
+        REQUISITIONS_TABLE_ID -> requisitionsStreamWriterMock
+        COMPUTATION_PARTICIPANTS_TABLE_ID -> computationParticipantsStreamWriterMock
+        LATEST_MEASUREMENT_READ_TABLE_ID -> latestMeasurementReadStreamWriterMock
+        else -> mock {}
       }
+    }
   }
 
   @Test
@@ -190,7 +175,6 @@ class OperationalMetricsExportTest {
     val operationalMetricsExport =
       OperationalMetricsExport(
         measurementsClient = measurementsClient,
-        dataProvidersClient = dataProvidersClient,
         bigQuery = bigQueryMock,
         bigQueryWriteClient = bigQueryWriteClientMock,
         projectId = PROJECT_ID,
@@ -199,7 +183,7 @@ class OperationalMetricsExportTest {
         measurementsTableId = MEASUREMENTS_TABLE_ID,
         requisitionsTableId = REQUISITIONS_TABLE_ID,
         computationParticipantsTableId = COMPUTATION_PARTICIPANTS_TABLE_ID,
-        createStreamWriterFunc = createStreamWriter,
+        streamWriterFactory = streamWriterFactoryTestImpl,
       )
 
     operationalMetricsExport.execute()
@@ -287,7 +271,6 @@ class OperationalMetricsExportTest {
                 )
               )
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
-            dataProviderDisplayName = "display-name"
           }
         )
 
@@ -316,7 +299,6 @@ class OperationalMetricsExportTest {
                 )
               )
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
-            dataProviderDisplayName = "display-name"
           }
         )
     }
@@ -448,7 +430,6 @@ class OperationalMetricsExportTest {
       val operationalMetricsExport =
         OperationalMetricsExport(
           measurementsClient = measurementsClient,
-          dataProvidersClient = dataProvidersClient,
           bigQuery = bigQueryMock,
           bigQueryWriteClient = bigQueryWriteClientMock,
           projectId = PROJECT_ID,
@@ -457,7 +438,7 @@ class OperationalMetricsExportTest {
           measurementsTableId = MEASUREMENTS_TABLE_ID,
           requisitionsTableId = REQUISITIONS_TABLE_ID,
           computationParticipantsTableId = COMPUTATION_PARTICIPANTS_TABLE_ID,
-          createStreamWriterFunc = createStreamWriter,
+          streamWriterFactory = streamWriterFactoryTestImpl,
         )
 
       operationalMetricsExport.execute()
@@ -479,7 +460,6 @@ class OperationalMetricsExportTest {
     val operationalMetricsExport =
       OperationalMetricsExport(
         measurementsClient = measurementsClient,
-        dataProvidersClient = dataProvidersClient,
         bigQuery = bigQueryMock,
         bigQueryWriteClient = bigQueryWriteClientMock,
         projectId = PROJECT_ID,
@@ -488,7 +468,7 @@ class OperationalMetricsExportTest {
         measurementsTableId = MEASUREMENTS_TABLE_ID,
         requisitionsTableId = REQUISITIONS_TABLE_ID,
         computationParticipantsTableId = COMPUTATION_PARTICIPANTS_TABLE_ID,
-        createStreamWriterFunc = createStreamWriter,
+        streamWriterFactory = streamWriterFactoryTestImpl,
       )
 
     operationalMetricsExport.execute()
@@ -517,7 +497,6 @@ class OperationalMetricsExportTest {
     val operationalMetricsExport =
       OperationalMetricsExport(
         measurementsClient = measurementsClient,
-        dataProvidersClient = dataProvidersClient,
         bigQuery = bigQueryMock,
         bigQueryWriteClient = bigQueryWriteClientMock,
         projectId = PROJECT_ID,
@@ -526,7 +505,7 @@ class OperationalMetricsExportTest {
         measurementsTableId = MEASUREMENTS_TABLE_ID,
         requisitionsTableId = REQUISITIONS_TABLE_ID,
         computationParticipantsTableId = COMPUTATION_PARTICIPANTS_TABLE_ID,
-        createStreamWriterFunc = createStreamWriter,
+        streamWriterFactory = streamWriterFactoryTestImpl,
       )
 
     operationalMetricsExport.execute()
@@ -555,7 +534,6 @@ class OperationalMetricsExportTest {
       val operationalMetricsExport =
         OperationalMetricsExport(
           measurementsClient = measurementsClient,
-          dataProvidersClient = dataProvidersClient,
           bigQuery = bigQueryMock,
           bigQueryWriteClient = bigQueryWriteClientMock,
           projectId = PROJECT_ID,
@@ -564,7 +542,7 @@ class OperationalMetricsExportTest {
           measurementsTableId = MEASUREMENTS_TABLE_ID,
           requisitionsTableId = REQUISITIONS_TABLE_ID,
           computationParticipantsTableId = COMPUTATION_PARTICIPANTS_TABLE_ID,
-          createStreamWriterFunc = createStreamWriter,
+          streamWriterFactory = streamWriterFactoryTestImpl,
         )
 
       assertFailsWith<IllegalStateException> { operationalMetricsExport.execute() }
@@ -594,7 +572,6 @@ class OperationalMetricsExportTest {
       val operationalMetricsExport =
         OperationalMetricsExport(
           measurementsClient = measurementsClient,
-          dataProvidersClient = dataProvidersClient,
           bigQuery = bigQueryMock,
           bigQueryWriteClient = bigQueryWriteClientMock,
           projectId = PROJECT_ID,
@@ -603,7 +580,7 @@ class OperationalMetricsExportTest {
           measurementsTableId = MEASUREMENTS_TABLE_ID,
           requisitionsTableId = REQUISITIONS_TABLE_ID,
           computationParticipantsTableId = COMPUTATION_PARTICIPANTS_TABLE_ID,
-          createStreamWriterFunc = createStreamWriter,
+          streamWriterFactory = streamWriterFactoryTestImpl,
         )
 
       assertFailsWith<IllegalStateException> { operationalMetricsExport.execute() }
@@ -627,7 +604,6 @@ class OperationalMetricsExportTest {
       val operationalMetricsExport =
         OperationalMetricsExport(
           measurementsClient = measurementsClient,
-          dataProvidersClient = dataProvidersClient,
           bigQuery = bigQueryMock,
           bigQueryWriteClient = bigQueryWriteClientMock,
           projectId = PROJECT_ID,
@@ -636,7 +612,7 @@ class OperationalMetricsExportTest {
           measurementsTableId = MEASUREMENTS_TABLE_ID,
           requisitionsTableId = REQUISITIONS_TABLE_ID,
           computationParticipantsTableId = COMPUTATION_PARTICIPANTS_TABLE_ID,
-          createStreamWriterFunc = createStreamWriter,
+          streamWriterFactory = streamWriterFactoryTestImpl,
         )
 
       assertFailsWith<AppendSerializationError> { operationalMetricsExport.execute() }
@@ -652,10 +628,6 @@ class OperationalMetricsExportTest {
     private const val LATEST_MEASUREMENT_READ_TABLE_ID = "latest_measurement_read"
 
     private const val API_VERSION = "v2alpha"
-
-    private val DATA_PROVIDER = dataProvider {
-      details = DataProviderKt.details { displayName = "display-name" }
-    }
 
     private val PUBLIC_API_ENCRYPTION_PUBLIC_KEY = encryptionPublicKey {
       format = EncryptionPublicKey.Format.TINK_KEYSET

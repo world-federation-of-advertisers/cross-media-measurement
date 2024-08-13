@@ -10,7 +10,6 @@ kt_jvm_library(
         ":operational_metrics_export",
         "//imports/java/com/google/cloud/bigquery/storage",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:utils",
-        "//src/main/proto/wfa/measurement/internal/kingdom:data_providers_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:measurements_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/bigquery",
         "@wfa_common_jvm//imports/java/picocli",
@@ -39,11 +38,11 @@ kt_jvm_library(
     srcs = ["OperationalMetricsExport.kt"],
     visibility = ["//src/test/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/job:__pkg__"],
     deps = [
+        ":stream_writer_factory",
         "//imports/java/com/google/cloud/bigquery/storage",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/internal/kingdom:data_providers_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:measurements_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom/bigquerytables:operational_metrics_dataset_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/bigquery",
@@ -51,5 +50,14 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "stream_writer_factory",
+    srcs = ["StreamWriterFactory.kt"],
+    visibility = ["//src/test/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/job:__pkg__"],
+    deps = [
+        "//imports/java/com/google/cloud/bigquery/storage",
     ],
 )

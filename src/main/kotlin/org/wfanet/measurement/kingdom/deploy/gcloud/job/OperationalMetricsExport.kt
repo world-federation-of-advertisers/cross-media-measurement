@@ -16,30 +16,25 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.job
 
-import com.google.api.gax.core.FixedExecutorProvider
 import com.google.cloud.bigquery.BigQuery
 import com.google.cloud.bigquery.FieldValueList
 import com.google.cloud.bigquery.QueryJobConfiguration
-import com.google.cloud.bigquery.storage.v1.AppendRowsRequest
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient
 import com.google.cloud.bigquery.storage.v1.Exceptions.AppendSerializationError
 import com.google.cloud.bigquery.storage.v1.ProtoRows
 import com.google.cloud.bigquery.storage.v1.ProtoSchema
 import com.google.cloud.bigquery.storage.v1.StreamWriter
-import com.google.cloud.bigquery.storage.v1.TableName
 import com.google.protobuf.Timestamp
 import com.google.protobuf.any
 import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
 import com.google.rpc.Code
-import java.util.concurrent.Executors
 import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.setMessage
@@ -50,8 +45,6 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.gcloud.common.await
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
-import org.wfanet.measurement.internal.kingdom.DataProvider
-import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -67,13 +60,11 @@ import org.wfanet.measurement.internal.kingdom.bigquerytables.latestMeasurementR
 import org.wfanet.measurement.internal.kingdom.bigquerytables.measurementsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.requisitionsTableRow
 import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 
 class OperationalMetricsExport(
   private val measurementsClient: MeasurementsGrpcKt.MeasurementsCoroutineStub,
-  private val dataProvidersClient: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   private val bigQuery: BigQuery,
   private val bigQueryWriteClient: BigQueryWriteClient,
   private val projectId: String,
@@ -82,15 +73,7 @@ class OperationalMetricsExport(
   private val measurementsTableId: String,
   private val requisitionsTableId: String,
   private val computationParticipantsTableId: String,
-  private val createStreamWriterFunc:
-    (
-      projectId: String,
-      datasetId: String,
-      tableId: String,
-      client: BigQueryWriteClient,
-      protoSchema: ProtoSchema,
-    ) -> StreamWriter =
-    this::createStreamWriter,
+  private val streamWriterFactory: StreamWriterFactory = StreamWriterFactoryImpl(),
 ) {
   suspend fun execute() {
     var measurementsQueryResponseSize: Int
@@ -150,7 +133,7 @@ class OperationalMetricsExport(
           ProtoSchema.newBuilder()
             .setProtoDescriptor(MeasurementsTableRow.getDescriptor().toProto())
             .build(),
-        createStreamWriterFunc = createStreamWriterFunc,
+        streamWriterFactory = streamWriterFactory,
       )
     val requisitionsDataWriter =
       DataWriter(
@@ -162,7 +145,7 @@ class OperationalMetricsExport(
           ProtoSchema.newBuilder()
             .setProtoDescriptor(RequisitionsTableRow.getDescriptor().toProto())
             .build(),
-        createStreamWriterFunc = createStreamWriterFunc,
+        streamWriterFactory = streamWriterFactory,
       )
     val computationParticipantsDataWriter =
       DataWriter(
@@ -174,7 +157,7 @@ class OperationalMetricsExport(
           ProtoSchema.newBuilder()
             .setProtoDescriptor(ComputationParticipantsTableRow.getDescriptor().toProto())
             .build(),
-        createStreamWriterFunc = createStreamWriterFunc,
+        streamWriterFactory = streamWriterFactory,
       )
     val latestMeasurementReadDataWriter =
       DataWriter(
@@ -186,11 +169,8 @@ class OperationalMetricsExport(
           ProtoSchema.newBuilder()
             .setProtoDescriptor(LatestMeasurementReadTableRow.getDescriptor().toProto())
             .build(),
-        createStreamWriterFunc = createStreamWriterFunc,
+        streamWriterFactory = streamWriterFactory,
       )
-
-    // Map of externalDataProviderId to DataProvider
-    val dataProvidersMap: HashMap<Long, DataProvider> = hashMapOf()
 
     do {
       measurementsQueryResponseSize = 0
@@ -286,22 +266,6 @@ class OperationalMetricsExport(
               Requisition.State.REFUSED -> RequisitionsTableRow.State.REFUSED
             }
 
-          val value = dataProvidersMap[requisition.externalDataProviderId]
-          val dataProvider =
-            if (value != null) {
-              value
-            } else {
-              val response = runBlocking {
-                dataProvidersClient.getDataProvider(
-                  getDataProviderRequest {
-                    externalDataProviderId = requisition.externalDataProviderId
-                  }
-                )
-              }
-              dataProvidersMap[requisition.externalDataProviderId] = response
-              response
-            }
-
           requisitionsProtoRowsBuilder.addSerializedRows(
             requisitionsTableRow {
                 this.measurementConsumerId = measurementConsumerId
@@ -316,7 +280,6 @@ class OperationalMetricsExport(
                 completionDurationSeconds = requisitionCompletionDurationSeconds
                 completionDurationSecondsSquared =
                   requisitionCompletionDurationSeconds * requisitionCompletionDurationSeconds
-                dataProviderDisplayName = dataProvider.details.displayName
               }
               .toByteString()
           )
@@ -445,28 +408,7 @@ class OperationalMetricsExport(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-
     private const val BATCH_SIZE = 1000
-
-    private const val DEFAULT_STREAM_PATH = "/streams/_default"
-
-    private fun createStreamWriter(
-      projectId: String,
-      datasetId: String,
-      tableId: String,
-      client: BigQueryWriteClient,
-      protoSchema: ProtoSchema,
-    ): StreamWriter {
-      val tableName = TableName.of(projectId, datasetId, tableId)
-      return StreamWriter.newBuilder(tableName.toString() + DEFAULT_STREAM_PATH, client)
-        .setExecutorProvider(FixedExecutorProvider.create(Executors.newScheduledThreadPool(1)))
-        .setEnableConnectionPool(true)
-        .setDefaultMissingValueInterpretation(
-          AppendRowsRequest.MissingValueInterpretation.DEFAULT_VALUE
-        )
-        .setWriterSchema(protoSchema)
-        .build()
-    }
   }
 
   private class DataWriter(
@@ -475,17 +417,10 @@ class OperationalMetricsExport(
     private val tableId: String,
     private val client: BigQueryWriteClient,
     private val protoSchema: ProtoSchema,
-    private val createStreamWriterFunc:
-      (
-        projectId: String,
-        datasetId: String,
-        tableId: String,
-        client: BigQueryWriteClient,
-        protoSchema: ProtoSchema,
-      ) -> StreamWriter,
+    private val streamWriterFactory: StreamWriterFactory,
   ) : AutoCloseable {
     private var streamWriter: StreamWriter =
-      createStreamWriterFunc(projectId, datasetId, tableId, client, protoSchema)
+      streamWriterFactory.create(projectId, datasetId, tableId, client, protoSchema)
     private var recreateCount: Int = 0
 
     override fun close() {
@@ -508,7 +443,7 @@ class OperationalMetricsExport(
             if (!streamWriter.isUserClosed && recreateCount < MAX_RECREATE_COUNT) {
               logger.info("Recreating stream writer")
               streamWriter =
-                createStreamWriterFunc(projectId, datasetId, tableId, client, protoSchema)
+                streamWriterFactory.create(projectId, datasetId, tableId, client, protoSchema)
               recreateCount++
             } else {
               throw IllegalStateException("Unable to recreate stream writer")
