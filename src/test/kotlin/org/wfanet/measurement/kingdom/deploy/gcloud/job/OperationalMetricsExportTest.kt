@@ -148,15 +148,21 @@ class OperationalMetricsExportTest {
       whenever(it.isClosed).thenReturn(false)
     }
 
-    streamWriterFactoryTestImpl = StreamWriterFactory { _: String, _: String, tableId: String, _: BigQueryWriteClient, _: ProtoSchema ->
-      when (tableId) {
-        MEASUREMENTS_TABLE_ID -> measurementsStreamWriterMock
-        REQUISITIONS_TABLE_ID -> requisitionsStreamWriterMock
-        COMPUTATION_PARTICIPANTS_TABLE_ID -> computationParticipantsStreamWriterMock
-        LATEST_MEASUREMENT_READ_TABLE_ID -> latestMeasurementReadStreamWriterMock
-        else -> mock {}
+    streamWriterFactoryTestImpl =
+      StreamWriterFactory {
+        _: String,
+        _: String,
+        tableId: String,
+        _: BigQueryWriteClient,
+        _: ProtoSchema ->
+        when (tableId) {
+          MEASUREMENTS_TABLE_ID -> measurementsStreamWriterMock
+          REQUISITIONS_TABLE_ID -> requisitionsStreamWriterMock
+          COMPUTATION_PARTICIPANTS_TABLE_ID -> computationParticipantsStreamWriterMock
+          LATEST_MEASUREMENT_READ_TABLE_ID -> latestMeasurementReadStreamWriterMock
+          else -> mock {}
+        }
       }
-    }
   }
 
   @Test
