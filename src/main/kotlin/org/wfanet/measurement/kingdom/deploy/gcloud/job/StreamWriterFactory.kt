@@ -25,11 +25,13 @@ import com.google.cloud.bigquery.storage.v1.TableName
 import java.util.concurrent.Executors
 
 fun interface StreamWriterFactory {
-  fun create (projectId: String,
-                       datasetId: String,
-                       tableId: String,
-                       client: BigQueryWriteClient,
-                       protoSchema: ProtoSchema,): StreamWriter
+  fun create(
+    projectId: String,
+    datasetId: String,
+    tableId: String,
+    client: BigQueryWriteClient,
+    protoSchema: ProtoSchema,
+  ): StreamWriter
 }
 
 class StreamWriterFactoryImpl : StreamWriterFactory {
