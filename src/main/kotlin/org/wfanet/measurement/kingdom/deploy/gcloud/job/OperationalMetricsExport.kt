@@ -110,9 +110,7 @@ class OperationalMetricsExport(
                   )
                 computation = computationKey {
                   externalComputationId =
-                    latestMeasurementReadFromPreviousJob
-                      .get("external_computation_id")
-                      .longValue
+                    latestMeasurementReadFromPreviousJob.get("external_computation_id").longValue
                   externalMeasurementConsumerId =
                     latestMeasurementReadFromPreviousJob
                       .get("external_measurement_consumer_id")
