@@ -75,8 +75,6 @@ message RequisitionsTableRow {
 
   int64 completion_duration_seconds = 10;
   int64 completion_duration_seconds_squared = 11;
-
-  string data_provider_display_name = 12;
 }
 
 message ComputationParticipantsTableRow {

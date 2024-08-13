@@ -156,11 +156,6 @@ resource "google_bigquery_table" "requisitions" {
     "mode": "REQUIRED"
   },
   {
-    "name": "data_provider_display_name",
-    "type": "STRING",
-    "mode": "REQUIRED"
-  },
-  {
     "name": "is_direct",
     "type": "BOOLEAN",
     "mode": "REQUIRED",
