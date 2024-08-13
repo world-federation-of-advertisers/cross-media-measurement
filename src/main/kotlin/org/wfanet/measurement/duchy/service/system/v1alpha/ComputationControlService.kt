@@ -31,23 +31,34 @@ import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
 import org.wfanet.measurement.internal.duchy.advanceComputationRequest
 import org.wfanet.measurement.internal.duchy.getOutputBlobMetadataRequest
+import org.wfanet.measurement.internal.duchy.getStageRequest as internalGetStageRequest
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationResponse
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationKey
+import org.wfanet.measurement.system.v1alpha.GetStageRequest
+import org.wfanet.measurement.system.v1alpha.Stage
+import org.wfanet.measurement.system.v1alpha.StageKey
 
 class ComputationControlService(
+  private val duchyId: String,
   private val asyncComputationControlClient: AsyncComputationControlCoroutineStub,
   private val computationStore: ComputationStore,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
 ) : ComputationControlCoroutineImplBase() {
 
   constructor(
+    duchyId: String,
     asyncComputationControlClient: AsyncComputationControlCoroutineStub,
     storageClient: StorageClient,
     duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
-  ) : this(asyncComputationControlClient, ComputationStore(storageClient), duchyIdentityProvider)
+  ) : this(
+    duchyId,
+    asyncComputationControlClient,
+    ComputationStore(storageClient),
+    duchyIdentityProvider,
+  )
 
   override suspend fun advanceComputation(
     requests: Flow<AdvanceComputationRequest>
@@ -101,11 +112,37 @@ class ComputationControlService(
       asyncComputationControlClient.advanceComputation(request)
     } catch (e: StatusException) {
       throw when (e.status.code) {
+          Status.Code.UNAVAILABLE -> Status.UNAVAILABLE
+          Status.Code.ABORTED -> Status.ABORTED
           Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
           else -> Status.UNKNOWN
         }
         .withCause(e)
         .asRuntimeException()
     }
+  }
+
+  override suspend fun getStage(request: GetStageRequest): Stage {
+    val stageKey = grpcRequireNotNull(StageKey.fromName(request.name)) { "Invalid Stage name." }
+    grpcRequire(stageKey.duchyId == duchyId) {
+      "Unmatched duchyId. request_duchy_id=${stageKey.duchyId}"
+    }
+    val internalRequest = internalGetStageRequest { globalComputationId = stageKey.computationId }
+    val stage =
+      try {
+        asyncComputationControlClient.getStage(internalRequest)
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.UNAVAILABLE -> Status.UNAVAILABLE
+            Status.Code.ABORTED -> Status.ABORTED
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND
+            else -> Status.UNKNOWN
+          }
+          .withCause(e)
+          .asRuntimeException()
+      }
+    return stage.toSystemStage(duchyId)
   }
 }

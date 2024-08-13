@@ -14,9 +14,11 @@
 
 package org.wfanet.measurement.duchy.service.system.v1alpha
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
+import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
@@ -50,15 +52,22 @@ import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.advanceComputationRequest as asyncAdvanceComputationRequest
 import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.getOutputBlobMetadataRequest
+import org.wfanet.measurement.internal.duchy.getStageRequest as internalGetStageRequest
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle as HonestMajorityShareShuffleProtocol
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.stage as internalStage
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffle
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
+import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2Stage
 import org.wfanet.measurement.system.v1alpha.ReachOnlyLiquidLegionsV2
+import org.wfanet.measurement.system.v1alpha.StageKey
+import org.wfanet.measurement.system.v1alpha.getStageRequest
+import org.wfanet.measurement.system.v1alpha.liquidLegionsV2Stage
+import org.wfanet.measurement.system.v1alpha.stage
 
 private const val RUNNING_DUCHY_NAME = "Alsace"
 private const val BAVARIA = "Bavaria"
@@ -123,6 +132,7 @@ class ComputationControlServiceTest {
     senderContext = SenderContext { duchyIdProvider ->
       service =
         ComputationControlService(
+          RUNNING_DUCHY_NAME,
           AsyncComputationControlCoroutineStub(grpcTestServerRule.channel),
           computationStore,
           duchyIdProvider,
@@ -456,6 +466,53 @@ class ComputationControlServiceTest {
       )
     val data = assertNotNull(computationStore.get(blobKey))
     assertThat(data).contentEqualTo(BLOB_CONTENT)
+  }
+
+  @Test
+  fun `getStage sends request for the stage`() = runBlocking {
+    val computationId = "123"
+    val etag = "101"
+    mockAsyncControlService.stub {
+      onBlocking { getStage(any()) }
+        .thenAnswer {
+          internalStage {
+            globalComputationId = computationId
+            computationStage =
+              LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
+                .toProtocolStage()
+            this.etag = etag
+          }
+        }
+    }
+
+    val stage =
+      withSender(carinthia) {
+        getStage(getStageRequest { name = StageKey(computationId, RUNNING_DUCHY_NAME).toName() })
+      }
+
+    verifyProtoArgument(mockAsyncControlService, AsyncComputationControlCoroutineImplBase::getStage)
+      .isEqualTo(internalGetStageRequest { globalComputationId = computationId })
+    assertThat(stage)
+      .isEqualTo(
+        stage {
+          name = "computations/$computationId/participants/$RUNNING_DUCHY_NAME/stage"
+          liquidLegionsV2Stage = liquidLegionsV2Stage {
+            this.stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
+          }
+          this.etag = etag
+        }
+      )
+  }
+
+  @Test
+  fun `getStage throw exception when duchy ids mismatch`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withSender(carinthia) {
+          getStage(getStageRequest { name = StageKey("123", "wrong_duchy_id").toName() })
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.INVALID_ARGUMENT.code)
   }
 }
 

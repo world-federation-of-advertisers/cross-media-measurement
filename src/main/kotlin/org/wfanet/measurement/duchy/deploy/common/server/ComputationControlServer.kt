@@ -59,7 +59,11 @@ abstract class ComputationControlServer : Runnable {
     CommonServer.fromFlags(
         flags.server,
         javaClass.name,
-        ComputationControlService(AsyncComputationControlCoroutineStub(channel), storageClient)
+        ComputationControlService(
+            flags.duchy.duchyName,
+            AsyncComputationControlCoroutineStub(channel),
+            storageClient,
+          )
           .withDuchyIdentities(),
       )
       .start()
