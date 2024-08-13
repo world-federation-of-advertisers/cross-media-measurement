@@ -82,8 +82,10 @@ class StreamMeasurements(
       }
     }
 
-    private fun Statement.Builder.appendWhereClause(      view: Measurement.View,
-                                                          filter: StreamMeasurementsRequest.Filter) {
+    private fun Statement.Builder.appendWhereClause(
+      view: Measurement.View,
+      filter: StreamMeasurementsRequest.Filter,
+    ) {
       val conjuncts = mutableListOf<String>()
 
       if (view == Measurement.View.COMPUTATION) {
