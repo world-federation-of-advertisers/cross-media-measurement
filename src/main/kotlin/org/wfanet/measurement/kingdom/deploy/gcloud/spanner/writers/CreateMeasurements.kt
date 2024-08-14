@@ -191,7 +191,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
           Llv2ProtocolConfig.minimumNumberOfRequiredDuchies
         ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
           RoLlv2ProtocolConfig.minimumNumberOfRequiredDuchies
-        ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> HMSS_DUCHY_COUNT
+        ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> HmssProtocolConfig.DUCHY_COUNT
         ProtocolConfig.ProtocolCase.DIRECT,
         ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
       }
@@ -470,10 +470,6 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         }
       }
     }
-  }
-
-  companion object {
-    private const val HMSS_DUCHY_COUNT = 3
   }
 }
 

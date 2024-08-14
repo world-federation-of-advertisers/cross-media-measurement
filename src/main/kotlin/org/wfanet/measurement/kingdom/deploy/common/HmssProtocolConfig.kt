@@ -21,7 +21,10 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import picocli.CommandLine
 
 object HmssProtocolConfig {
-  const val name = "hmss"
+  const val NAME = "hmss"
+
+  const val DUCHY_COUNT = 3
+
   lateinit var protocolConfig: ProtocolConfig.HonestMajorityShareShuffle
     private set
 
