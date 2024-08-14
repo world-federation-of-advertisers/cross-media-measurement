@@ -599,7 +599,13 @@ class EdpSimulator(
         logger.log(Level.INFO, "RequisitionSpec:\n$requisitionSpec")
 
         for (eventGroupEntry in requisitionSpec.events.eventGroupsList) {
-          val eventGroupId = EventGroupKey.fromName(eventGroupEntry.key)!!.eventGroupId
+          val eventGroupKey =
+            EventGroupKey.fromName(eventGroupEntry.key)
+              ?: throw RequisitionRefusalException(
+                Requisition.Refusal.Justification.SPEC_INVALID,
+                "Invalid EventGroup resource name ${eventGroupEntry.key}",
+              )
+          val eventGroupId = eventGroupKey.eventGroupId
           if (eventGroupId == CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID) {
             throw RequisitionRefusalException(
               Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
