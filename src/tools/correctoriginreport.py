@@ -92,27 +92,29 @@ def getCorrectedReport(measurements):
     report = Report(
         {
             ami: MetricReport(
-                total_campaign_reach_time_series=measurements[TOTAL_CAMPAIGN][
-                    AMI_FILTER
-                ],
-                reach_time_series_by_edp=[
-                    measurements[EDP_ONE][AMI_FILTER],
-                    measurements[EDP_TWO][AMI_FILTER],
-                ],
+                reach_time_series_by_edp_combination={
+                    frozenset({EDP_ONE, EDP_TWO}): measurements[TOTAL_CAMPAIGN][
+                        AMI_FILTER
+                    ],
+                    frozenset({EDP_ONE}): measurements[EDP_ONE][AMI_FILTER],
+                    frozenset({EDP_TWO}): measurements[EDP_TWO][AMI_FILTER],
+                }
             ),
             mrc: MetricReport(
-                total_campaign_reach_time_series=measurements[TOTAL_CAMPAIGN][
-                    MRC_FILTER
-                ],
-                reach_time_series_by_edp=[
-                    measurements[EDP_ONE][MRC_FILTER],
-                    measurements[EDP_TWO][MRC_FILTER],
-                ],
+                reach_time_series_by_edp_combination={
+                    frozenset({EDP_ONE, EDP_TWO}): measurements[TOTAL_CAMPAIGN][
+                        MRC_FILTER
+                    ],
+                    frozenset({EDP_ONE}): measurements[EDP_ONE][MRC_FILTER],
+                    frozenset({EDP_TWO}): measurements[EDP_TWO][MRC_FILTER],
+                }
             ),
         },
         # AMI is a parent of MRC
         metric_subsets_by_parent={ami: [mrc]},
+        cumulative_inconsistency_allowed_edp_combs={},
     )
+
     return report.get_corrected_report()
 
 
@@ -143,17 +145,19 @@ def correctTotSheet(df, ami_val, mrc_val):
 def buildCorrectedExcel(correctedReport, excel):
     ami_metric_report = correctedReport.get_metric_report(ami)
     mrc_metric_report = correctedReport.get_metric_report(mrc)
+
+    
     for edp in EDP_MAP:
         edp_index = EDP_MAP[edp]["ind"]
         amiFunc = (
-            ami_metric_report.get_total_reach_measurement
+            partial(ami_metric_report.get_edp_comb_measurement, frozenset({EDP_ONE, EDP_TWO}))
             if (edp == TOTAL_CAMPAIGN)
-            else partial(ami_metric_report.get_edp_measurement, edp_index)
+            else partial(ami_metric_report.get_edp_comb_measurement, frozenset({edp}))
         )
         mrcFunc = (
-            mrc_metric_report.get_total_reach_measurement
+            partial(mrc_metric_report.get_edp_comb_measurement, frozenset({EDP_ONE, EDP_TWO}))
             if (edp == TOTAL_CAMPAIGN)
-            else partial(mrc_metric_report.get_edp_measurement, edp_index)
+            else partial(mrc_metric_report.get_edp_comb_measurement, frozenset({edp}))
         )
 
         cumilative_sheet_name = EDP_MAP[edp]["sheet"]
@@ -161,16 +165,17 @@ def buildCorrectedExcel(correctedReport, excel):
             excel[cumilative_sheet_name], amiFunc, mrcFunc
         )
 
+
         # The last value of the corrected measurement series is the total reach.
         totAmiVal = (
-            ami_metric_report.get_total_reach_measurement(-1).value
+            ami_metric_report.get_edp_comb_measurement(frozenset({EDP_ONE, EDP_TWO}), -1).value
             if (edp == TOTAL_CAMPAIGN)
-            else ami_metric_report.get_edp_measurement(edp_index, -1).value
+            else ami_metric_report.get_edp_comb_measurement(frozenset({edp}), -1).value
         )
         totMrcVal = (
-            mrc_metric_report.get_total_reach_measurement(-1).value
+            mrc_metric_report.get_edp_comb_measurement(frozenset({EDP_ONE, EDP_TWO}), -1).value
             if (edp == TOTAL_CAMPAIGN)
-            else mrc_metric_report.get_edp_measurement(edp_index, -1).value
+            else mrc_metric_report.get_edp_comb_measurement(frozenset({edp}), -1).value
         )
         total_sheet_name = edp
         excel[total_sheet_name] = correctTotSheet(
