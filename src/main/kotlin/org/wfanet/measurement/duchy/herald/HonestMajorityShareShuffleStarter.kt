@@ -72,6 +72,7 @@ object HonestMajorityShareShuffleStarter {
    * pairs.
    */
   suspend fun createComputation(
+    duchyId: String,
     computationStorageClient: ComputationsGrpcKt.ComputationsCoroutineStub,
     systemComputation: Computation,
     protocolSetupConfig: HonestMajorityShareShuffleSetupConfig,
@@ -83,7 +84,7 @@ object HonestMajorityShareShuffleStarter {
     val role = protocolSetupConfig.role
 
     val initialComputationDetails = computationDetails {
-      blobsStoragePrefix = "$blobStorageBucket/$globalId"
+      blobsStoragePrefix = "$blobStorageBucket/$duchyId/$globalId"
       kingdomComputation = systemComputation.toKingdomComputationDetails()
       honestMajorityShareShuffle =
         HonestMajorityShareShuffleKt.computationDetails {

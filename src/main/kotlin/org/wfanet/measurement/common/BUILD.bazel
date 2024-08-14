@@ -25,3 +25,12 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
     ],
 )
+
+kt_jvm_library(
+    name = "health",
+    srcs = ["Health.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)

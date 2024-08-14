@@ -144,30 +144,41 @@ class GcpSpannerComputationsDatabaseTransactor<
     ownerId: String,
     lockDuration: Duration,
     prioritizedStages: List<StageT>,
-  ): String? =
-    databaseClient.readWriteTransaction().execute { txn ->
-      UnclaimedTasksQuery(
-          computationMutations.protocolEnumToLong(protocol),
-          prioritizedStages,
-          computationMutations::longValuesToComputationStageEnum,
-          computationMutations::computationStageEnumToLongValues,
-          clock.gcloudTimestamp(),
+  ): String? {
+    /**
+     * Claim a specific task represented by the results of running the above sql.
+     *
+     * TODO(@renjiez): throw ABORT if fail to claim.
+     */
+    suspend fun claimSpecificTask(result: UnclaimedTaskQueryResult<StageT>): Boolean =
+      databaseClient.readWriteTransaction().execute { txn ->
+        claim(
+          txn,
+          result.computationId,
+          result.computationStage,
+          result.nextAttempt,
+          result.updateTime,
+          ownerId,
+          lockDuration,
         )
-        .execute(txn)
-        .filter { result ->
-          claim(
-            txn,
-            result.computationId,
-            result.computationStage,
-            result.nextAttempt,
-            result.updateTime,
-            ownerId,
-            lockDuration,
-          )
-        }
-        .firstOrNull()
-        ?.globalId
-    }
+      }
+    return UnclaimedTasksQuery(
+        computationMutations.protocolEnumToLong(protocol),
+        prioritizedStages,
+        computationMutations::longValuesToComputationStageEnum,
+        computationMutations::computationStageEnumToLongValues,
+        clock.gcloudTimestamp(),
+      )
+      .execute(databaseClient)
+      // First the possible tasks to claim are selected from the computations table, then for each
+      // item in the list we try to claim the lock in a transaction which will only succeed if the
+      // lock is still available. This pattern means only the item which is being updated
+      // would need to be locked and not every possible computation that can be worked on.
+      .filter { claimSpecificTask(it) }
+      // If the value is null, no tasks were claimed.
+      .firstOrNull()
+      ?.globalId
+  }
 
   /**
    * Tries to claim a specific computation for an owner, returning the result of the attempt. If a
@@ -182,17 +193,26 @@ class GcpSpannerComputationsDatabaseTransactor<
     ownerId: String,
     lockDuration: Duration,
   ): Boolean {
-    val currentLockOwnerStruct =
-      txn.readRow("Computations", Key.of(computationId), listOf("LockOwner", "UpdateTime"))
-        ?: error("Failed to claim computation $computationId. It does not exist.")
-    // Verify that the row hasn't been updated since the previous, non-transactional read.
-    // If it has been updated since that time the lock should not be acquired.
-    if (currentLockOwnerStruct.getTimestamp("UpdateTime") != lastUpdate) return false
+    val currentLockInfo =
+      txn.readRow(
+        "Computations",
+        Key.of(computationId),
+        listOf("LockOwner", "LockExpirationTime", "UpdateTime"),
+      ) ?: error("Failed to claim computation $computationId. It does not exist.")
 
     // TODO(sanjayvas): Determine whether we can use commit timestamp via
     // spanner.commit_timestamp() in mutation.
     val writeTime: Instant = clock.instant()
     val writeTimestamp = writeTime.toGcloudTimestamp()
+
+    // Verify that the row hasn't been updated since the previous, non-transactional read.
+    // If it has been updated since that time the lock should not be acquired.
+    if (currentLockInfo.getTimestamp("UpdateTime") != lastUpdate) return false
+    // Verify if this computation is still locked.
+    if (currentLockInfo.getTimestamp("LockExpirationTime") > writeTimestamp) {
+      return false
+    }
+
     txn.buffer(setLockMutation(computationId, ownerId, writeTime, lockDuration))
     // Create a new attempt of the stage for the nextAttempt.
     txn.buffer(
@@ -213,7 +233,7 @@ class GcpSpannerComputationsDatabaseTransactor<
       )
     )
 
-    if (currentLockOwnerStruct.getNullableString("LockOwner") != null) {
+    if (currentLockInfo.getNullableString("LockOwner") != null) {
       // The current attempt is the one before the nextAttempt
       val currentAttempt = nextAttempt - 1
       val details =

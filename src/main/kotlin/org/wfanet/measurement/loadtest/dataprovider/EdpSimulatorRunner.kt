@@ -29,6 +29,8 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.common.FileExistsHealth
+import org.wfanet.measurement.common.SettableHealth
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
@@ -100,6 +102,9 @@ abstract class EdpSimulatorRunner : Runnable {
         Random.Default
       }
 
+    val healthFile = flags.healthFile
+    val health = if (healthFile == null) SettableHealth() else FileExistsHealth(healthFile)
+
     val edpSimulator =
       EdpSimulator(
         edpData,
@@ -119,6 +124,7 @@ abstract class EdpSimulatorRunner : Runnable {
         knownEventGroupMetadataTypes = knownEventGroupMetadataTypes,
         random = random,
         logSketchDetails = flags.logSketchDetails,
+        health = health,
       )
     runBlocking {
       edpSimulator.ensureEventGroups(eventTemplates, metadataByReferenceIdSuffix)
