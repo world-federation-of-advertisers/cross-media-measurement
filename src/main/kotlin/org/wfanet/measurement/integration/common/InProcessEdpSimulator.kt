@@ -38,7 +38,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -47,7 +46,6 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.Health
 import org.wfanet.measurement.common.identity.withPrincipalName
-import org.wfanet.measurement.common.testing.toPopulationSpec
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStore
@@ -58,6 +56,7 @@ import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVid
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
+import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 
 /** An in process EDP simulator. */
 class InProcessEdpSimulator(
@@ -87,8 +86,6 @@ class InProcessEdpSimulator(
 
   init {
     val populationSpec = syntheticPopulationSpec.toPopulationSpec()
-    val vidRangeStart = syntheticPopulationSpec.vidRange.start
-    val vidRangeEndExclusive = syntheticPopulationSpec.vidRange.endExclusive
     val vidIndexMap =
       if (honestMajorityShareShuffleSupported) {
         InMemoryVidIndexMap.build(populationSpec)

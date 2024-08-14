@@ -26,7 +26,6 @@ import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.common.testing.toPopulationSpec
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
 import picocli.CommandLine
 
