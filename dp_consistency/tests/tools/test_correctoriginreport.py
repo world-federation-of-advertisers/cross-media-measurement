@@ -10,8 +10,7 @@ AMI_FILTER = "AMI"
 MRC_FILTER = "MRC"
 
 
-class TestReport(TestCase):
-
+class TestOriginSheetReport(TestCase):
     def test_get_origin_report_corrected_successfully(self):
         correctedExcel = correctExcelFile(
             "tests/tools/example_origin_report.xlsx", "Linear TV"
