@@ -80,7 +80,6 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
@@ -563,8 +562,7 @@ class EdpSimulator(
     val requisitions =
       getRequisitions().filter {
         checkNotNull(MeasurementKey.fromName(it.measurement)).measurementConsumerId ==
-          checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
-            .measurementConsumerId
+          measurementConsumerKey.measurementConsumerId
       }
 
     if (requisitions.isEmpty()) {
@@ -586,12 +584,10 @@ class EdpSimulator(
           try {
             verifySpecifications(requisition, measurementConsumerCertificate)
           } catch (e: InvalidConsentSignalException) {
-            logger.log(Level.WARNING, e) {
-              "Consent signaling verification failed for ${requisition.name}"
-            }
             throw RequisitionRefusalException(
               Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
               e.message.orEmpty(),
+              e,
             )
           }
 
@@ -601,41 +597,41 @@ class EdpSimulator(
         for (eventGroupEntry in requisitionSpec.events.eventGroupsList) {
           val eventGroupKey =
             EventGroupKey.fromName(eventGroupEntry.key)
-              ?: throw RequisitionRefusalException(
+              ?: throw TestRequisitionRefusalException(
                 Requisition.Refusal.Justification.SPEC_INVALID,
                 "Invalid EventGroup resource name ${eventGroupEntry.key}",
               )
           val eventGroupId = eventGroupKey.eventGroupId
           if (eventGroupId == CONSENT_SIGNAL_INVALID_EVENT_GROUP_ID) {
-            throw RequisitionRefusalException(
+            throw TestRequisitionRefusalException(
               Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID,
               "consent signal invalid",
             )
           }
 
           if (eventGroupId == SPEC_INVALID_EVENT_GROUP_ID) {
-            throw RequisitionRefusalException(
+            throw TestRequisitionRefusalException(
               Requisition.Refusal.Justification.SPEC_INVALID,
               "spec invalid",
             )
           }
 
           if (eventGroupId == INSUFFICIENT_PRIVACY_BUDGET_EVENT_GROUP_ID) {
-            throw RequisitionRefusalException(
+            throw TestRequisitionRefusalException(
               Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
               "insufficient privacy budget",
             )
           }
 
           if (eventGroupId == UNFULFILLABLE_EVENT_GROUP_ID) {
-            throw RequisitionRefusalException(
+            throw TestRequisitionRefusalException(
               Requisition.Refusal.Justification.UNFULFILLABLE,
               "unfulfillable",
             )
           }
 
           if (eventGroupId == DECLINED_EVENT_GROUP_ID) {
-            throw RequisitionRefusalException(
+            throw TestRequisitionRefusalException(
               Requisition.Refusal.Justification.DECLINED,
               "declined",
             )
@@ -706,10 +702,6 @@ class EdpSimulator(
               directProtocol,
             )
           } else {
-            logger.log(
-              Level.WARNING,
-              "Skipping ${requisition.name}: Measurement type not supported for direct fulfillment.",
-            )
             throw RequisitionRefusalException(
               Requisition.Refusal.Justification.SPEC_INVALID,
               "Measurement type not supported for direct fulfillment.",
@@ -717,10 +709,6 @@ class EdpSimulator(
           }
         } else if (protocols.any { it.hasLiquidLegionsV2() }) {
           if (!measurementSpec.hasReach() && !measurementSpec.hasReachAndFrequency()) {
-            logger.log(
-              Level.WARNING,
-              "Skipping ${requisition.name}: Measurement type not supported for protocol llv2.",
-            )
             throw RequisitionRefusalException(
               Requisition.Refusal.Justification.SPEC_INVALID,
               "Measurement type not supported for protocol llv2.",
@@ -740,10 +728,6 @@ class EdpSimulator(
           )
         } else if (protocols.any { it.hasReachOnlyLiquidLegionsV2() }) {
           if (!measurementSpec.hasReach()) {
-            logger.log(
-              Level.WARNING,
-              "Skipping ${requisition.name}: Measurement type not supported for protocol rollv2.",
-            )
             throw RequisitionRefusalException(
               Requisition.Refusal.Justification.SPEC_INVALID,
               "Measurement type not supported for protocol rollv2.",
@@ -763,10 +747,6 @@ class EdpSimulator(
           )
         } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
           if (!measurementSpec.hasReach() && !measurementSpec.hasReachAndFrequency()) {
-            logger.log(
-              Level.WARNING,
-              "Skipping ${requisition.name}: Measurement type not supported for protocol hmss.",
-            )
             throw RequisitionRefusalException(
               Requisition.Refusal.Justification.SPEC_INVALID,
               "Measurement type not supported for protocol hmss.",
@@ -785,21 +765,17 @@ class EdpSimulator(
             eventGroupSpecs,
           )
         } else {
-          logger.log(
-            Level.WARNING,
-            "Skipping ${requisition.name}: Protocol not set or not supported.",
-          )
           throw RequisitionRefusalException(
             Requisition.Refusal.Justification.SPEC_INVALID,
             "Protocol not set or not supported.",
           )
         }
-      } catch (refusalException: RequisitionRefusalException) {
-        refuseRequisition(
-          requisition.name,
-          refusalException.justification,
-          refusalException.message ?: "Refuse to fulfill requisition.",
-        )
+      } catch (e: RequisitionRefusalException) {
+        if (e !is TestRequisitionRefusalException) {
+          logger.log(Level.WARNING, e) { "Refusing Requisition ${requisition.name}" }
+        }
+
+        refuseRequisition(requisition.name, e.justification, e.message)
       }
     }
   }
