@@ -77,7 +77,7 @@ class OperationalMetricsExport(
       """
     SELECT update_time, external_measurement_consumer_id, external_measurement_id
     FROM `$datasetId.$latestMeasurementReadTableId`
-    ORDER BY update_time DESC, external_computation_id DESC, external_measurement_consumer_id DESC, external_measurement_id DESC
+    ORDER BY update_time DESC, external_measurement_consumer_id DESC, external_measurement_id DESC
     LIMIT 1
     """
         .trimIndent()
