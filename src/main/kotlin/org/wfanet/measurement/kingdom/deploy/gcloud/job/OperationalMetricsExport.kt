@@ -23,6 +23,7 @@ import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient
 import com.google.cloud.bigquery.storage.v1.Exceptions.AppendSerializationError
 import com.google.cloud.bigquery.storage.v1.ProtoRows
 import com.google.cloud.bigquery.storage.v1.ProtoSchema
+import com.google.cloud.bigquery.storage.v1.ProtoSchemaConverter
 import com.google.cloud.bigquery.storage.v1.StreamWriter
 import com.google.protobuf.Timestamp
 import com.google.protobuf.any
@@ -122,17 +123,7 @@ class OperationalMetricsExport(
         datasetId = datasetId,
         tableId = measurementsTableId,
         client = bigQueryWriteClient,
-        protoSchema =
-          ProtoSchema.newBuilder()
-            .setProtoDescriptor(
-              ProtoSchema.newBuilder()
-                .protoDescriptorBuilder
-                .addAllField(MeasurementsTableRow.getDescriptor().toProto().fieldList)
-                .addEnumType(MeasurementType.getDescriptor().toProto())
-                .addEnumType(MeasurementsTableRow.State.getDescriptor().toProto())
-                .addAllField(Timestamp.getDescriptor().toProto().fieldList)
-            )
-            .build(),
+        protoSchema = ProtoSchemaConverter.convert(MeasurementsTableRow.getDescriptor()),
         streamWriterFactory = streamWriterFactory,
       )
       .use { measurementsDataWriter ->
@@ -141,17 +132,7 @@ class OperationalMetricsExport(
             datasetId = datasetId,
             tableId = requisitionsTableId,
             client = bigQueryWriteClient,
-            protoSchema =
-              ProtoSchema.newBuilder()
-                .setProtoDescriptor(
-                  ProtoSchema.newBuilder()
-                    .protoDescriptorBuilder
-                    .addAllField(RequisitionsTableRow.getDescriptor().toProto().fieldList)
-                    .addEnumType(MeasurementType.getDescriptor().toProto())
-                    .addEnumType(RequisitionsTableRow.State.getDescriptor().toProto())
-                    .addAllField(Timestamp.getDescriptor().toProto().fieldList)
-                )
-                .build(),
+            protoSchema = ProtoSchemaConverter.convert(RequisitionsTableRow.getDescriptor()),
             streamWriterFactory = streamWriterFactory,
           )
           .use { requisitionsDataWriter ->
@@ -160,21 +141,7 @@ class OperationalMetricsExport(
                 datasetId = datasetId,
                 tableId = computationParticipantsTableId,
                 client = bigQueryWriteClient,
-                protoSchema =
-                  ProtoSchema.newBuilder()
-                    .setProtoDescriptor(
-                      ProtoSchema.newBuilder()
-                        .protoDescriptorBuilder
-                        .addAllField(
-                          ComputationParticipantsTableRow.getDescriptor().toProto().fieldList
-                        )
-                        .addEnumType(MeasurementType.getDescriptor().toProto())
-                        .addEnumType(
-                          ComputationParticipantsTableRow.State.getDescriptor().toProto()
-                        )
-                        .addAllField(Timestamp.getDescriptor().toProto().fieldList)
-                    )
-                    .build(),
+                protoSchema = ProtoSchemaConverter.convert(ComputationParticipantsTableRow.getDescriptor()),
                 streamWriterFactory = streamWriterFactory,
               )
               .use { computationParticipantsDataWriter ->
