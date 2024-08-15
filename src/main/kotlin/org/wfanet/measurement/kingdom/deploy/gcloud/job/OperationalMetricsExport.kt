@@ -165,9 +165,13 @@ class OperationalMetricsExport(
                     .setProtoDescriptor(
                       ProtoSchema.newBuilder()
                         .protoDescriptorBuilder
-                        .addAllField(ComputationParticipantsTableRow.getDescriptor().toProto().fieldList)
+                        .addAllField(
+                          ComputationParticipantsTableRow.getDescriptor().toProto().fieldList
+                        )
                         .addEnumType(MeasurementType.getDescriptor().toProto())
-                        .addEnumType(ComputationParticipantsTableRow.State.getDescriptor().toProto())
+                        .addEnumType(
+                          ComputationParticipantsTableRow.State.getDescriptor().toProto()
+                        )
                         .addAllField(Timestamp.getDescriptor().toProto().fieldList)
                     )
                     .build(),
