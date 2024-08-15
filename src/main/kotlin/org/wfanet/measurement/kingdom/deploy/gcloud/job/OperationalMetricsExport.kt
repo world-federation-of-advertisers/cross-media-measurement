@@ -366,9 +366,15 @@ class OperationalMetricsExport(
 
                       if (measurementsProtoRowsBuilder.serializedRowsCount > 0) {
                         coroutineScope {
-                          launch { measurementsDataWriter.appendRows(measurementsProtoRowsBuilder.build()) }
+                          launch {
+                            measurementsDataWriter.appendRows(measurementsProtoRowsBuilder.build())
+                          }
                           if (requisitionsProtoRowsBuilder.serializedRowsCount > 0) {
-                            launch { requisitionsDataWriter.appendRows(requisitionsProtoRowsBuilder.build()) }
+                            launch {
+                              requisitionsDataWriter.appendRows(
+                                requisitionsProtoRowsBuilder.build()
+                              )
+                            }
                           }
                           if (computationParticipantsProtoRowsBuilder.serializedRowsCount > 0) {
                             launch {
