@@ -95,7 +95,7 @@ message StreamMeasurementsRequest {
     message After {
       google.protobuf.Timestamp update_time = 1;
       oneof key {
-        // Key of the `Measurement`, used when view is DEFAULT.
+        // Key of the `Measurement`, used when view is DEFAULT or FULL.
         MeasurementKey measurement = 2;
         // Computation key of the `Measurement`, used when view is COMPUTATION.
         ComputationKey computation = 3;
@@ -177,8 +177,6 @@ message MeasurementKey {
 
 message ComputationKey {
   fixed64 external_computation_id = 1;
-  fixed64 external_measurement_consumer_id = 2;
-  fixed64 external_measurement_id = 3;
 }
 
 message BatchCreateMeasurementsRequest {

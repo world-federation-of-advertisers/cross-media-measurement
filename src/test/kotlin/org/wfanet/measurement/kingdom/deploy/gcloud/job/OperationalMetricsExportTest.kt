@@ -82,10 +82,10 @@ import org.wfanet.measurement.internal.kingdom.bigquerytables.computationPartici
 import org.wfanet.measurement.internal.kingdom.bigquerytables.latestMeasurementReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.measurementsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.requisitionsTableRow
-import org.wfanet.measurement.internal.kingdom.computationKey
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.measurement
+import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
@@ -266,7 +266,7 @@ class OperationalMetricsExportTest {
               externalIdToApiId(computationMeasurement.requisitionsList[0].externalDataProviderId)
             isDirect = false
             measurementType = MeasurementType.REACH_AND_FREQUENCY
-            state = RequisitionsTableRow.State.UNFULFILLED
+            state = RequisitionsTableRow.State.FULFILLED
             createTime = Timestamps.toMicros(computationMeasurement.createTime)
             updateTime = Timestamps.toMicros(computationMeasurement.requisitionsList[0].updateTime)
             completionDurationSeconds =
@@ -294,7 +294,7 @@ class OperationalMetricsExportTest {
               externalIdToApiId(directMeasurement.requisitionsList[0].externalDataProviderId)
             isDirect = true
             measurementType = MeasurementType.REACH_AND_FREQUENCY
-            state = RequisitionsTableRow.State.UNFULFILLED
+            state = RequisitionsTableRow.State.FULFILLED
             createTime = Timestamps.toMicros(directMeasurement.createTime)
             updateTime = Timestamps.toMicros(directMeasurement.requisitionsList[0].updateTime)
             completionDurationSeconds =
@@ -330,7 +330,7 @@ class OperationalMetricsExportTest {
                   duchyId = computationParticipantsTableRow.duchyId
                   protocol = ComputationParticipantsTableRow.Protocol.PROTOCOL_UNSPECIFIED
                   measurementType = MeasurementType.REACH_AND_FREQUENCY
-                  state = ComputationParticipantsTableRow.State.CREATED
+                  state = ComputationParticipantsTableRow.State.READY
                   createTime = Timestamps.toMicros(computationMeasurement.createTime)
                   updateTime = Timestamps.toMicros(computationParticipant.updateTime)
                   completionDurationSeconds =
@@ -369,6 +369,163 @@ class OperationalMetricsExportTest {
   }
 
   @Test
+  fun `job does not create protos for requisitions that are incomplete`() = runBlocking {
+    whenever(measurementsMock.streamMeasurements(any()))
+      .thenReturn(flowOf(
+        DIRECT_MEASUREMENT, COMPUTATION_MEASUREMENT.copy {
+          requisitions.clear()
+          requisitions += COMPUTATION_MEASUREMENT.requisitionsList[0].copy {
+            state = Requisition.State.UNFULFILLED
+          }
+        }
+      ))
+
+    val directMeasurement = DIRECT_MEASUREMENT
+
+    val tableResultMock: TableResult = mock { tableResult ->
+      whenever(tableResult.iterateAll()).thenReturn(emptyList())
+    }
+
+    val bigQueryMock: BigQuery = mock { bigQuery ->
+      whenever(bigQuery.query(any())).thenReturn(tableResultMock)
+    }
+
+    val operationalMetricsExport =
+      OperationalMetricsExport(
+        measurementsClient = measurementsClient,
+        bigQuery = bigQueryMock,
+        bigQueryWriteClient = bigQueryWriteClientMock,
+        projectId = PROJECT_ID,
+        datasetId = DATASET_ID,
+        latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
+        measurementsTableId = MEASUREMENTS_TABLE_ID,
+        requisitionsTableId = REQUISITIONS_TABLE_ID,
+        computationParticipantsTableId = COMPUTATION_PARTICIPANTS_TABLE_ID,
+        streamWriterFactory = streamWriterFactoryTestImpl,
+      )
+
+    operationalMetricsExport.execute()
+
+    with(argumentCaptor<ProtoRows>()) {
+      verify(requisitionsStreamWriterMock).append(capture())
+
+      val protoRows: ProtoRows = allValues.first()
+      assertThat(protoRows.serializedRowsList).hasSize(1)
+
+      val directRequisitionTableRow =
+        RequisitionsTableRow.parseFrom(protoRows.serializedRowsList[0])
+      assertThat(directRequisitionTableRow)
+        .isEqualTo(
+          requisitionsTableRow {
+            measurementConsumerId =
+              externalIdToApiId(directMeasurement.externalMeasurementConsumerId)
+            measurementId = externalIdToApiId(directMeasurement.externalMeasurementId)
+            requisitionId =
+              externalIdToApiId(directMeasurement.requisitionsList[0].externalRequisitionId)
+            dataProviderId =
+              externalIdToApiId(directMeasurement.requisitionsList[0].externalDataProviderId)
+            isDirect = true
+            measurementType = MeasurementType.REACH_AND_FREQUENCY
+            state = RequisitionsTableRow.State.FULFILLED
+            createTime = Timestamps.toMicros(directMeasurement.createTime)
+            updateTime = Timestamps.toMicros(directMeasurement.requisitionsList[0].updateTime)
+            completionDurationSeconds =
+              Durations.toSeconds(
+                Timestamps.between(
+                  directMeasurement.createTime,
+                  directMeasurement.requisitionsList[0].updateTime,
+                )
+              )
+            completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
+          }
+        )
+    }
+  }
+
+  @Test
+  fun `job does not create protos for computation participants that are incomplete`() =
+    runBlocking {
+      whenever(measurementsMock.streamMeasurements(any()))
+        .thenReturn(flowOf(
+          COMPUTATION_MEASUREMENT.copy {
+            computationParticipants.clear()
+            computationParticipants += COMPUTATION_MEASUREMENT.computationParticipantsList[0]
+            computationParticipants += COMPUTATION_MEASUREMENT.computationParticipantsList[1]
+            computationParticipants += COMPUTATION_MEASUREMENT.computationParticipantsList[2]
+              .copy {
+                state = ComputationParticipant.State.CREATED
+              }
+          }
+        ))
+
+      val computationMeasurement = COMPUTATION_MEASUREMENT
+
+      val tableResultMock: TableResult = mock { tableResult ->
+        whenever(tableResult.iterateAll()).thenReturn(emptyList())
+      }
+
+      val bigQueryMock: BigQuery = mock { bigQuery ->
+        whenever(bigQuery.query(any())).thenReturn(tableResultMock)
+      }
+
+      val operationalMetricsExport =
+        OperationalMetricsExport(
+          measurementsClient = measurementsClient,
+          bigQuery = bigQueryMock,
+          bigQueryWriteClient = bigQueryWriteClientMock,
+          projectId = PROJECT_ID,
+          datasetId = DATASET_ID,
+          latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
+          measurementsTableId = MEASUREMENTS_TABLE_ID,
+          requisitionsTableId = REQUISITIONS_TABLE_ID,
+          computationParticipantsTableId = COMPUTATION_PARTICIPANTS_TABLE_ID,
+          streamWriterFactory = streamWriterFactoryTestImpl,
+        )
+
+      operationalMetricsExport.execute()
+
+      with(argumentCaptor<ProtoRows>()) {
+        verify(computationParticipantsStreamWriterMock).append(capture())
+
+        val protoRows: ProtoRows = allValues.first()
+        assertThat(protoRows.serializedRowsList).hasSize(2)
+
+        for (serializedProtoRow in protoRows.serializedRowsList) {
+          val computationParticipantsTableRow =
+            ComputationParticipantsTableRow.parseFrom(serializedProtoRow)
+          for (computationParticipant in computationMeasurement.computationParticipantsList) {
+            if (computationParticipant.externalDuchyId == computationParticipantsTableRow.duchyId) {
+              assertThat(computationParticipantsTableRow)
+                .isEqualTo(
+                  computationParticipantsTableRow {
+                    measurementConsumerId =
+                      externalIdToApiId(computationMeasurement.externalMeasurementConsumerId)
+                    measurementId = externalIdToApiId(computationMeasurement.externalMeasurementId)
+                    computationId = externalIdToApiId(computationMeasurement.externalComputationId)
+                    duchyId = computationParticipantsTableRow.duchyId
+                    protocol = ComputationParticipantsTableRow.Protocol.PROTOCOL_UNSPECIFIED
+                    measurementType = MeasurementType.REACH_AND_FREQUENCY
+                    state = ComputationParticipantsTableRow.State.READY
+                    createTime = Timestamps.toMicros(computationMeasurement.createTime)
+                    updateTime = Timestamps.toMicros(computationParticipant.updateTime)
+                    completionDurationSeconds =
+                      Durations.toSeconds(
+                        Timestamps.between(
+                          computationMeasurement.createTime,
+                          computationParticipant.updateTime,
+                        )
+                      )
+                    completionDurationSecondsSquared =
+                      completionDurationSeconds * completionDurationSeconds
+                  }
+                )
+            }
+          }
+        }
+      }
+    }
+
+  @Test
   fun `job can process the next batch of measurements without starting at the beginning`() =
     runBlocking {
       val directMeasurement = DIRECT_MEASUREMENT
@@ -378,8 +535,6 @@ class OperationalMetricsExportTest {
           FieldValue.Attribute.PRIMITIVE,
           "${Timestamps.toNanos(directMeasurement.updateTime)}",
         )
-      val externalComputationIdFieldValue: FieldValue =
-        FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${directMeasurement.externalComputationId}")
       val externalMeasurementConsumerIdFieldValue: FieldValue =
         FieldValue.of(
           FieldValue.Attribute.PRIMITIVE,
@@ -395,7 +550,6 @@ class OperationalMetricsExportTest {
               FieldValueList.of(
                 mutableListOf(
                   updateTimeFieldValue,
-                  externalComputationIdFieldValue,
                   externalMeasurementConsumerIdFieldValue,
                   externalMeasurementIdFieldValue,
                 ),
@@ -411,7 +565,7 @@ class OperationalMetricsExportTest {
           .ignoringRepeatedFieldOrder()
           .isEqualTo(
             streamMeasurementsRequest {
-              measurementView = Measurement.View.COMPUTATION
+              measurementView = Measurement.View.FULL
               filter =
                 StreamMeasurementsRequestKt.filter {
                   states += Measurement.State.SUCCEEDED
@@ -419,7 +573,7 @@ class OperationalMetricsExportTest {
                   after =
                     StreamMeasurementsRequestKt.FilterKt.after {
                       updateTime = directMeasurement.updateTime
-                      computation = computationKey {
+                      measurement = measurementKey {
                         externalMeasurementConsumerId =
                           directMeasurement.externalMeasurementConsumerId
                         externalMeasurementId = directMeasurement.externalMeasurementId
@@ -692,7 +846,7 @@ class OperationalMetricsExportTest {
         requisitions += requisition {
           externalDataProviderId = 432
           externalRequisitionId = 433
-          state = Requisition.State.UNFULFILLED
+          state = Requisition.State.FULFILLED
           updateTime = timestamp {
             seconds = 500
             nanos = 100
@@ -701,17 +855,17 @@ class OperationalMetricsExportTest {
 
         computationParticipants += computationParticipant {
           externalDuchyId = "0"
-          state = ComputationParticipant.State.CREATED
+          state = ComputationParticipant.State.READY
           updateTime = timestamp { seconds = 300 }
         }
         computationParticipants += computationParticipant {
           externalDuchyId = "1"
-          state = ComputationParticipant.State.CREATED
+          state = ComputationParticipant.State.READY
           updateTime = timestamp { seconds = 400 }
         }
         computationParticipants += computationParticipant {
           externalDuchyId = "2"
-          state = ComputationParticipant.State.CREATED
+          state = ComputationParticipant.State.READY
           updateTime = timestamp { seconds = 500 }
         }
       }
@@ -735,7 +889,7 @@ class OperationalMetricsExportTest {
         requisitions += requisition {
           externalDataProviderId = 432
           externalRequisitionId = 437
-          state = Requisition.State.UNFULFILLED
+          state = Requisition.State.FULFILLED
           updateTime = timestamp {
             seconds = 600
             nanos = 100
@@ -747,7 +901,6 @@ class OperationalMetricsExportTest {
       FieldList.of(
         listOf(
           Field.of("update_time", LegacySQLTypeName.INTEGER),
-          Field.of("external_computation_id", LegacySQLTypeName.INTEGER),
           Field.of("external_measurement_consumer_id", LegacySQLTypeName.INTEGER),
           Field.of("external_measurement_id", LegacySQLTypeName.INTEGER),
         )

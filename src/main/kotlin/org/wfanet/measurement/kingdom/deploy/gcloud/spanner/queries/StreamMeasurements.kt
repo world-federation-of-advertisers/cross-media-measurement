@@ -74,9 +74,9 @@ class StreamMeasurements(
     private fun getOrderByClause(view: Measurement.View): String {
       return when (view) {
         Measurement.View.COMPUTATION ->
-          "ORDER BY Measurements.UpdateTime ASC, ExternalComputationId ASC, " +
-            "ExternalMeasurementConsumerId ASC, ExternalMeasurementId ASC"
-        Measurement.View.DEFAULT ->
+          "ORDER BY Measurements.UpdateTime ASC, ExternalComputationId ASC"
+        Measurement.View.DEFAULT,
+        Measurement.View.FULL ->
           "ORDER BY Measurements.UpdateTime ASC, ExternalMeasurementConsumerId ASC, " +
             "ExternalMeasurementId ASC"
         Measurement.View.UNRECOGNIZED -> error("Unrecognized View")
@@ -189,9 +189,6 @@ class StreamMeasurements(
                 OR (
                   Measurements.UpdateTime = @${AfterParams.UPDATE_TIME}
                   AND ExternalComputationId > @${AfterParams.EXTERNAL_COMPUTATION_ID}
-                  AND ExternalMeasurementConsumerId =
-                    @${AfterParams.EXTERNAL_MEASUREMENT_CONSUMER_ID}
-                  AND ExternalMeasurementId > @${AfterParams.EXTERNAL_MEASUREMENT_ID}
                 )
               )
               """
@@ -200,13 +197,6 @@ class StreamMeasurements(
             bind(AfterParams.UPDATE_TIME).to(filter.after.updateTime.toGcloudTimestamp())
             bind(
               AfterParams.EXTERNAL_COMPUTATION_ID to filter.after.computation.externalComputationId
-            )
-            bind(
-              AfterParams.EXTERNAL_MEASUREMENT_CONSUMER_ID to
-                filter.after.computation.externalMeasurementConsumerId
-            )
-            bind(
-              AfterParams.EXTERNAL_MEASUREMENT_ID to filter.after.computation.externalMeasurementId
             )
           }
           StreamMeasurementsRequest.Filter.After.KeyCase.KEY_NOT_SET ->

@@ -62,9 +62,8 @@ message RequisitionsTableRow {
 
   enum State {
     STATE_UNSPECIFIED = 0;
-    UNFULFILLED = 1;
-    FULFILLED = 2;
-    REFUSED = 3;
+    FULFILLED = 1;
+    REFUSED = 2;
   }
   State state = 7;
 
@@ -95,10 +94,8 @@ message ComputationParticipantsTableRow {
 
   enum State {
     STATE_UNSPECIFIED = 0;
-    CREATED = 1;
-    REQUISITION_PARAMS_SET = 2;
-    READY = 3;
-    FAILED = 4;
+    READY = 1;
+    FAILED = 2;
   }
   State state = 7;
 
@@ -115,7 +112,6 @@ message LatestMeasurementReadTableRow {
   // Since BigQuery timestamp is microsecond precision, this is in nanoseconds
   // and is stored as an integer.
   int64 update_time = 1;
-  int64 external_computation_id = 2;
-  int64 external_measurement_consumer_id = 3;
-  int64 external_measurement_id = 4;
+  int64 external_measurement_consumer_id = 2;
+  int64 external_measurement_id = 3;
 }

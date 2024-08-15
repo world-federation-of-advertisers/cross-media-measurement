@@ -171,7 +171,7 @@ resource "google_bigquery_table" "requisitions" {
     "name": "state",
     "type": "STRING",
     "mode": "REQUIRED",
-    "description": "UNFULFILLED, FULFILLED, or REFUSED"
+    "description": "FULFILLED or REFUSED"
   },
   {
     "name": "create_time",
@@ -249,7 +249,7 @@ resource "google_bigquery_table" "computation_participants" {
     "name": "state",
     "type": "STRING",
     "mode": "REQUIRED",
-    "description": "CREATED, REQUISITION_PARAMS_SET, READY, or FAILED"
+    "description": "READY or FAILED"
   },
   {
     "name": "create_time",
@@ -293,11 +293,6 @@ resource "google_bigquery_table" "latest_measurement_read" {
 [
   {
     "name": "update_time",
-    "type": "INTEGER",
-    "mode": "REQUIRED"
-  },
-  {
-    "name": "external_computation_id",
     "type": "INTEGER",
     "mode": "REQUIRED"
   },
