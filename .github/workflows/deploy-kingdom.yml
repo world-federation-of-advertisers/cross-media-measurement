@@ -17,7 +17,7 @@
 name: Deploy Kingdom
 
 on:
-  workflow_dispatch:
+  push:
 
 jobs:
   terraform:
@@ -31,6 +31,6 @@ jobs:
     uses: ./.github/workflows/configure-kingdom.yml
     secrets: inherit
     with:
-      image-tag: 79c641c68517baa5ad60141aac3d91025430c2e5
+      image-tag: 7fccbebe36cd53bc1a135c31a5f8ee9c9ecdb572
       environment: dev
       apply: true
