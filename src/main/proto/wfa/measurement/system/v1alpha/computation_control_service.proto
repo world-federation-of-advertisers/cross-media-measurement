@@ -146,6 +146,7 @@ message AdvanceComputationResponse {
 // Request message for `GetComputationStage` method.
 message GetStageRequest {
   // Resource name of the `Stage`.
+  // Format: "computations/{computation}/participants/{duchy}/stage"
   string name = 1 [
     (google.api.resource_reference).type = "halo-system.wfanet.org/Stage",
     (google.api.field_behavior) = REQUIRED

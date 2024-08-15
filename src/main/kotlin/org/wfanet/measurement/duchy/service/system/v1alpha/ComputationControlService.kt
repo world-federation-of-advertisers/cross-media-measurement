@@ -126,7 +126,7 @@ class ComputationControlService(
   override suspend fun getStage(request: GetStageRequest): Stage {
     val stageKey = grpcRequireNotNull(StageKey.fromName(request.name)) { "Invalid Stage name." }
     grpcRequire(stageKey.duchyId == duchyId) {
-      "Unmatched duchyId. request_duchy_id=${stageKey.duchyId}"
+      "Unmatched duchyId. request_duchy_id=${stageKey.duchyId}, service_duchy_id=${duchyId}"
     }
     val internalRequest = internalGetStageRequest { globalComputationId = stageKey.computationId }
     val stage =
