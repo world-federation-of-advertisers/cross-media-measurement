@@ -32,6 +32,7 @@ import com.google.protobuf.util.Timestamps
 import com.google.rpc.Code
 import java.util.logging.Logger
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.setMessage
@@ -365,14 +366,16 @@ class OperationalMetricsExport(
 
                       if (measurementsProtoRowsBuilder.serializedRowsCount > 0) {
                         coroutineScope {
-                          measurementsDataWriter.appendRows(measurementsProtoRowsBuilder.build())
+                          launch { measurementsDataWriter.appendRows(measurementsProtoRowsBuilder.build()) }
                           if (requisitionsProtoRowsBuilder.serializedRowsCount > 0) {
-                            requisitionsDataWriter.appendRows(requisitionsProtoRowsBuilder.build())
+                            launch { requisitionsDataWriter.appendRows(requisitionsProtoRowsBuilder.build()) }
                           }
                           if (computationParticipantsProtoRowsBuilder.serializedRowsCount > 0) {
-                            computationParticipantsDataWriter.appendRows(
-                              computationParticipantsProtoRowsBuilder.build()
-                            )
+                            launch {
+                              computationParticipantsDataWriter.appendRows(
+                                computationParticipantsProtoRowsBuilder.build()
+                              )
+                            }
                           }
                         }
                       } else {

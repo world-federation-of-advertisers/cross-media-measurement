@@ -237,7 +237,8 @@ resource "google_bigquery_table" "computation_participants" {
     "name": "protocol",
     "type": "STRING",
     "mode": "REQUIRED",
-    "description": "LIQUID_LEGIONS_V2, REACH_ONLY_LIQUID_LEGIONS_V2, HONEST_MAJORITY_SHARE_SHUFFLE, OR PROTOCOL_UNSPECIFIED"
+    "description": "LIQUID_LEGIONS_V2, REACH_ONLY_LIQUID_LEGIONS_V2, HONEST_MAJORITY_SHARE_SHUFFLE, OR PROTOCOL_UNSPECIFIED",
+    "defaultValueExpression": "PROTOCOL_UNSPECIFIED"
   },
   {
     "name": "measurement_type",
