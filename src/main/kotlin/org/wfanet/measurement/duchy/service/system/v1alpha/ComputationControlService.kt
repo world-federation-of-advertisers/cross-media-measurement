@@ -41,6 +41,14 @@ import org.wfanet.measurement.system.v1alpha.GetStageRequest
 import org.wfanet.measurement.system.v1alpha.Stage
 import org.wfanet.measurement.system.v1alpha.StageKey
 
+/**
+ * Service for controlling inter-Duchy operations on Computation related resources.
+ *
+ * @param duchyId the id of the duchy hosting this service.
+ * @param asyncComputationControlClient client to the internal service.
+ * @param computationStore storage to the computation blobs.
+ * @param duchyIdentityProvider a provider to fetch the duchy identity of the caller.
+ */
 class ComputationControlService(
   private val duchyId: String,
   private val asyncComputationControlClient: AsyncComputationControlCoroutineStub,
