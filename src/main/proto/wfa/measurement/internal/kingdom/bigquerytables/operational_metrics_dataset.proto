@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom.bigquerytables;
 
+import "google/protobuf/timestamp.proto";
+
 option java_package = "org.wfanet.measurement.internal.kingdom.bigquerytables";
 option java_multiple_files = true;
 
@@ -42,10 +44,8 @@ message MeasurementsTableRow {
   }
   State state = 5;
 
-  // in microseconds
-  int64 create_time = 6;
-  // in microseconds
-  int64 update_time = 7;
+  google.protobuf.Timestamp create_time = 6;
+  google.protobuf.Timestamp update_time = 7;
 
   int64 completion_duration_seconds = 8;
   int64 completion_duration_seconds_squared = 9;
@@ -67,10 +67,8 @@ message RequisitionsTableRow {
   }
   State state = 7;
 
-  // in microseconds
-  int64 create_time = 8;
-  // in microseconds
-  int64 update_time = 9;
+  google.protobuf.Timestamp create_time = 8;
+  google.protobuf.Timestamp update_time = 9;
 
   int64 completion_duration_seconds = 10;
   int64 completion_duration_seconds_squared = 11;
@@ -99,10 +97,8 @@ message ComputationParticipantsTableRow {
   }
   State state = 7;
 
-  // in microseconds
-  int64 create_time = 8;
-  // in microseconds
-  int64 update_time = 9;
+  google.protobuf.Timestamp create_time = 8;
+  google.protobuf.Timestamp update_time = 9;
 
   int64 completion_duration_seconds = 10;
   int64 completion_duration_seconds_squared = 11;

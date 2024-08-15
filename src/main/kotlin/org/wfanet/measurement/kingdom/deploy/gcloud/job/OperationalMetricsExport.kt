@@ -124,7 +124,14 @@ class OperationalMetricsExport(
         client = bigQueryWriteClient,
         protoSchema =
           ProtoSchema.newBuilder()
-            .setProtoDescriptor(MeasurementsTableRow.getDescriptor().toProto())
+            .setProtoDescriptor(
+              ProtoSchema.newBuilder()
+                .protoDescriptorBuilder
+                .addAllField(MeasurementsTableRow.getDescriptor().toProto().fieldList)
+                .addEnumType(MeasurementType.getDescriptor().toProto())
+                .addEnumType(MeasurementsTableRow.State.getDescriptor().toProto())
+                .addAllField(Timestamp.getDescriptor().toProto().fieldList)
+            )
             .build(),
         streamWriterFactory = streamWriterFactory,
       )
@@ -136,7 +143,14 @@ class OperationalMetricsExport(
             client = bigQueryWriteClient,
             protoSchema =
               ProtoSchema.newBuilder()
-                .setProtoDescriptor(RequisitionsTableRow.getDescriptor().toProto())
+                .setProtoDescriptor(
+                  ProtoSchema.newBuilder()
+                    .protoDescriptorBuilder
+                    .addAllField(RequisitionsTableRow.getDescriptor().toProto().fieldList)
+                    .addEnumType(MeasurementType.getDescriptor().toProto())
+                    .addEnumType(RequisitionsTableRow.State.getDescriptor().toProto())
+                    .addAllField(Timestamp.getDescriptor().toProto().fieldList)
+                )
                 .build(),
             streamWriterFactory = streamWriterFactory,
           )
@@ -148,7 +162,14 @@ class OperationalMetricsExport(
                 client = bigQueryWriteClient,
                 protoSchema =
                   ProtoSchema.newBuilder()
-                    .setProtoDescriptor(ComputationParticipantsTableRow.getDescriptor().toProto())
+                    .setProtoDescriptor(
+                      ProtoSchema.newBuilder()
+                        .protoDescriptorBuilder
+                        .addAllField(ComputationParticipantsTableRow.getDescriptor().toProto().fieldList)
+                        .addEnumType(MeasurementType.getDescriptor().toProto())
+                        .addEnumType(ComputationParticipantsTableRow.State.getDescriptor().toProto())
+                        .addAllField(Timestamp.getDescriptor().toProto().fieldList)
+                    )
                     .build(),
                 streamWriterFactory = streamWriterFactory,
               )
@@ -218,8 +239,6 @@ class OperationalMetricsExport(
                         val measurementConsumerId =
                           externalIdToApiId(measurement.externalMeasurementConsumerId)
                         val measurementId = externalIdToApiId(measurement.externalMeasurementId)
-                        val measurementCreateTimeMicros =
-                          Timestamps.toMicros(measurement.createTime)
 
                         val measurementCompletionDurationSeconds =
                           Durations.toSeconds(
@@ -252,8 +271,8 @@ class OperationalMetricsExport(
                               isDirect = measurement.details.protocolConfig.hasDirect()
                               this.measurementType = measurementType
                               state = measurementState
-                              createTime = measurementCreateTimeMicros
-                              updateTime = Timestamps.toMicros(measurement.updateTime)
+                              createTime = measurement.createTime
+                              updateTime = measurement.updateTime
                               completionDurationSeconds = measurementCompletionDurationSeconds
                               completionDurationSecondsSquared =
                                 measurementCompletionDurationSeconds *
@@ -291,8 +310,8 @@ class OperationalMetricsExport(
                                 isDirect = measurement.details.protocolConfig.hasDirect()
                                 this.measurementType = measurementType
                                 state = requisitionState
-                                createTime = measurementCreateTimeMicros
-                                updateTime = Timestamps.toMicros(requisition.updateTime)
+                                createTime = measurement.createTime
+                                updateTime = requisition.updateTime
                                 completionDurationSeconds = requisitionCompletionDurationSeconds
                                 completionDurationSecondsSquared =
                                   requisitionCompletionDurationSeconds *
@@ -356,9 +375,8 @@ class OperationalMetricsExport(
                                   protocol = computationParticipantProtocol
                                   this.measurementType = measurementType
                                   state = computationParticipantState
-                                  createTime = measurementCreateTimeMicros
-                                  updateTime =
-                                    Timestamps.toMicros(computationParticipant.updateTime)
+                                  createTime = measurement.createTime
+                                  updateTime = computationParticipant.updateTime
                                   completionDurationSeconds =
                                     computationParticipantCompletionDurationSeconds
                                   completionDurationSecondsSquared =

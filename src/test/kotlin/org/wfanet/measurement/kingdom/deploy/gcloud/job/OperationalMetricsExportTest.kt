@@ -211,8 +211,8 @@ class OperationalMetricsExportTest {
             isDirect = false
             measurementType = MeasurementType.REACH_AND_FREQUENCY
             state = MeasurementsTableRow.State.SUCCEEDED
-            createTime = Timestamps.toMicros(computationMeasurement.createTime)
-            updateTime = Timestamps.toMicros(computationMeasurement.updateTime)
+            createTime = computationMeasurement.createTime
+            updateTime = computationMeasurement.updateTime
             completionDurationSeconds =
               Durations.toSeconds(
                 Timestamps.between(
@@ -235,8 +235,8 @@ class OperationalMetricsExportTest {
             isDirect = true
             measurementType = MeasurementType.REACH_AND_FREQUENCY
             state = MeasurementsTableRow.State.SUCCEEDED
-            createTime = Timestamps.toMicros(directMeasurement.createTime)
-            updateTime = Timestamps.toMicros(directMeasurement.updateTime)
+            createTime = directMeasurement.createTime
+            updateTime = directMeasurement.updateTime
             completionDurationSeconds =
               Durations.toSeconds(
                 Timestamps.between(directMeasurement.createTime, directMeasurement.updateTime)
@@ -267,8 +267,8 @@ class OperationalMetricsExportTest {
             isDirect = false
             measurementType = MeasurementType.REACH_AND_FREQUENCY
             state = RequisitionsTableRow.State.FULFILLED
-            createTime = Timestamps.toMicros(computationMeasurement.createTime)
-            updateTime = Timestamps.toMicros(computationMeasurement.requisitionsList[0].updateTime)
+            createTime = computationMeasurement.createTime
+            updateTime = computationMeasurement.requisitionsList[0].updateTime
             completionDurationSeconds =
               Durations.toSeconds(
                 Timestamps.between(
@@ -295,8 +295,8 @@ class OperationalMetricsExportTest {
             isDirect = true
             measurementType = MeasurementType.REACH_AND_FREQUENCY
             state = RequisitionsTableRow.State.FULFILLED
-            createTime = Timestamps.toMicros(directMeasurement.createTime)
-            updateTime = Timestamps.toMicros(directMeasurement.requisitionsList[0].updateTime)
+            createTime = directMeasurement.createTime
+            updateTime = directMeasurement.requisitionsList[0].updateTime
             completionDurationSeconds =
               Durations.toSeconds(
                 Timestamps.between(
@@ -331,8 +331,8 @@ class OperationalMetricsExportTest {
                   protocol = ComputationParticipantsTableRow.Protocol.PROTOCOL_UNSPECIFIED
                   measurementType = MeasurementType.REACH_AND_FREQUENCY
                   state = ComputationParticipantsTableRow.State.READY
-                  createTime = Timestamps.toMicros(computationMeasurement.createTime)
-                  updateTime = Timestamps.toMicros(computationParticipant.updateTime)
+                  createTime = computationMeasurement.createTime
+                  updateTime = computationParticipant.updateTime
                   completionDurationSeconds =
                     Durations.toSeconds(
                       Timestamps.between(
@@ -431,8 +431,8 @@ class OperationalMetricsExportTest {
             isDirect = true
             measurementType = MeasurementType.REACH_AND_FREQUENCY
             state = RequisitionsTableRow.State.FULFILLED
-            createTime = Timestamps.toMicros(directMeasurement.createTime)
-            updateTime = Timestamps.toMicros(directMeasurement.requisitionsList[0].updateTime)
+            createTime = directMeasurement.createTime
+            updateTime = directMeasurement.requisitionsList[0].updateTime
             completionDurationSeconds =
               Durations.toSeconds(
                 Timestamps.between(
@@ -512,8 +512,8 @@ class OperationalMetricsExportTest {
                     protocol = ComputationParticipantsTableRow.Protocol.PROTOCOL_UNSPECIFIED
                     measurementType = MeasurementType.REACH_AND_FREQUENCY
                     state = ComputationParticipantsTableRow.State.READY
-                    createTime = Timestamps.toMicros(computationMeasurement.createTime)
-                    updateTime = Timestamps.toMicros(computationParticipant.updateTime)
+                    createTime = computationMeasurement.createTime
+                    updateTime = computationParticipant.updateTime
                     completionDurationSeconds =
                       Durations.toSeconds(
                         Timestamps.between(
