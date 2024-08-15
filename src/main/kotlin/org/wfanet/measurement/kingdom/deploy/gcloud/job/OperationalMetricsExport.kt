@@ -33,6 +33,7 @@ import com.google.rpc.Code
 import java.util.logging.Logger
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.setMessage
@@ -401,13 +402,12 @@ class OperationalMetricsExport(
                           apiIdToExternalId(lastMeasurement.measurementConsumerId)
                         externalMeasurementId = apiIdToExternalId(lastMeasurement.measurementId)
                       }
-                      coroutineScope {
-                        latestMeasurementReadDataWriter.appendRows(
-                          ProtoRows.newBuilder()
-                            .addSerializedRows(latestMeasurementReadTableRow.toByteString())
-                            .build()
-                        )
-                      }
+
+                      latestMeasurementReadDataWriter.appendRows(
+                        ProtoRows.newBuilder()
+                          .addSerializedRows(latestMeasurementReadTableRow.toByteString())
+                          .build()
+                      )
 
                       streamMeasurementsRequest =
                         streamMeasurementsRequest.copy {
@@ -457,11 +457,12 @@ class OperationalMetricsExport(
      * Writes data to the stream.
      *
      * @param protoRows protos representing the rows to write.
-     * @returns ApiFuture containing the write response.
+     * @returns Unit
      * @throws IllegalStateException if append fails and error is not retriable or too many retry
      *   attempts have been made
      */
-    suspend fun appendRows(protoRows: ProtoRows) {
+    @Blocking
+    fun appendRows(protoRows: ProtoRows) {
       logger.info("Begin writing to stream ${streamWriter.streamName}")
       for (i in 1..RETRY_COUNT) {
         if (streamWriter.isClosed) {
@@ -476,7 +477,7 @@ class OperationalMetricsExport(
         }
 
         try {
-          val response = streamWriter.append(protoRows).await()
+          val response = streamWriter.append(protoRows).get()
           if (response.hasError()) {
             logger.warning("Write response error: ${response.error}")
             if (response.error.code != Code.INTERNAL.number) {
