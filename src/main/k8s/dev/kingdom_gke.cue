@@ -45,8 +45,8 @@ _systemApiAddressName: string @tag("system_api_address_name")
 
 #OperationalMetricsJobResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "20m"
-		memory: "256Mi"
+		cpu:    "10m"
+		memory: "157Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -109,6 +109,7 @@ kingdom: #Kingdom & {
 	cronJobs: {
 		"operational-metrics": {
 			_container: {
+				_javaOptions: maxHeapSize: "48M"
 				image:     _images["operational-metrics"]
 				resources: #OperationalMetricsJobResourceRequirements
 				args: [
@@ -127,7 +128,7 @@ kingdom: #Kingdom & {
 			}
 			spec: {
 				concurrencyPolicy: "Forbid"
-				schedule:          "*/5 * * * *" // Hourly, 30 minutes past the hour
+				schedule:          "30 * * * *" // Hourly, 30 minutes past the hour
 				jobTemplate: spec: template: spec: #ServiceAccountPodSpec & {
 					serviceAccountName: #OperationalMetricsServiceAccount
 				}
