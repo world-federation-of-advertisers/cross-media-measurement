@@ -631,7 +631,9 @@ private fun MeasurementKt.Dsl.fillFullView(struct: Struct) {
     participantStructs =
       struct.getStructList("ComputationParticipants").associateBy {
         val duchyId = it.getLong("DuchyId")
-        checkNotNull(DuchyIds.getExternalId(duchyId)) { "Duchy with internal ID $duchyId not found" }
+        checkNotNull(DuchyIds.getExternalId(duchyId)) {
+          "Duchy with internal ID $duchyId not found"
+        }
       }
 
     for ((externalDuchyId, participantStruct) in participantStructs) {
@@ -649,7 +651,12 @@ private fun MeasurementKt.Dsl.fillFullView(struct: Struct) {
 
   for (requisitionStruct in struct.getStructList("Requisitions")) {
     requisitions +=
-      RequisitionReader.buildRequisition(struct, requisitionStruct, participantStructs, dataProvidersCount)
+      RequisitionReader.buildRequisition(
+        struct,
+        requisitionStruct,
+        participantStructs,
+        dataProvidersCount,
+      )
 
     val requisitionDetails =
       requisitionStruct.getProtoMessage("RequisitionDetails", Requisition.Details.parser())

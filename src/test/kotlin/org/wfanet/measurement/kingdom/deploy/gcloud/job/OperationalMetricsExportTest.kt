@@ -371,14 +371,18 @@ class OperationalMetricsExportTest {
   @Test
   fun `job does not create protos for requisitions that are incomplete`() = runBlocking {
     whenever(measurementsMock.streamMeasurements(any()))
-      .thenReturn(flowOf(
-        DIRECT_MEASUREMENT, COMPUTATION_MEASUREMENT.copy {
-          requisitions.clear()
-          requisitions += COMPUTATION_MEASUREMENT.requisitionsList[0].copy {
-            state = Requisition.State.UNFULFILLED
-          }
-        }
-      ))
+      .thenReturn(
+        flowOf(
+          DIRECT_MEASUREMENT,
+          COMPUTATION_MEASUREMENT.copy {
+            requisitions.clear()
+            requisitions +=
+              COMPUTATION_MEASUREMENT.requisitionsList[0].copy {
+                state = Requisition.State.UNFULFILLED
+              }
+          },
+        )
+      )
 
     val directMeasurement = DIRECT_MEASUREMENT
 
@@ -446,17 +450,19 @@ class OperationalMetricsExportTest {
   fun `job does not create protos for computation participants that are incomplete`() =
     runBlocking {
       whenever(measurementsMock.streamMeasurements(any()))
-        .thenReturn(flowOf(
-          COMPUTATION_MEASUREMENT.copy {
-            computationParticipants.clear()
-            computationParticipants += COMPUTATION_MEASUREMENT.computationParticipantsList[0]
-            computationParticipants += COMPUTATION_MEASUREMENT.computationParticipantsList[1]
-            computationParticipants += COMPUTATION_MEASUREMENT.computationParticipantsList[2]
-              .copy {
-                state = ComputationParticipant.State.CREATED
-              }
-          }
-        ))
+        .thenReturn(
+          flowOf(
+            COMPUTATION_MEASUREMENT.copy {
+              computationParticipants.clear()
+              computationParticipants += COMPUTATION_MEASUREMENT.computationParticipantsList[0]
+              computationParticipants += COMPUTATION_MEASUREMENT.computationParticipantsList[1]
+              computationParticipants +=
+                COMPUTATION_MEASUREMENT.computationParticipantsList[2].copy {
+                  state = ComputationParticipant.State.CREATED
+                }
+            }
+          )
+        )
 
       val computationMeasurement = COMPUTATION_MEASUREMENT
 
