@@ -155,20 +155,15 @@ class StreamMeasurements(
           StreamMeasurementsRequest.Filter.After.KeyCase.MEASUREMENT -> {
             conjuncts.add(
               """
-              (
-                Measurements.UpdateTime > @${AfterParams.UPDATE_TIME}
-                OR (
-                  Measurements.UpdateTime = @${AfterParams.UPDATE_TIME}
-                  AND ExternalMeasurementConsumerId >
-                    @${AfterParams.EXTERNAL_MEASUREMENT_CONSUMER_ID}
-                )
-                OR (
-                  Measurements.UpdateTime = @${AfterParams.UPDATE_TIME}
-                  AND ExternalMeasurementConsumerId =
-                    @${AfterParams.EXTERNAL_MEASUREMENT_CONSUMER_ID}
-                  AND ExternalMeasurementId > @${AfterParams.EXTERNAL_MEASUREMENT_ID}
-                )
-              )
+              CASE
+                WHEN Measurements.UpdateTime > @${AfterParams.UPDATE_TIME} THEN TRUE
+                WHEN Measurements.UpdateTime = @${AfterParams.UPDATE_TIME}
+                  AND ExternalMeasurementConsumerId > @${AfterParams.EXTERNAL_MEASUREMENT_CONSUMER_ID} THEN TRUE
+                WHEN Measurements.UpdateTime = @${AfterParams.UPDATE_TIME}
+                  AND ExternalMeasurementConsumerId = @${AfterParams.EXTERNAL_MEASUREMENT_CONSUMER_ID}
+                  AND ExternalMeasurementId > @${AfterParams.EXTERNAL_MEASUREMENT_ID} THEN TRUE
+                ELSE FALSE
+              END
               """
                 .trimIndent()
             )
