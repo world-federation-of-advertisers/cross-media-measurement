@@ -30,7 +30,6 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.DeterministicCount
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.Measurement
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -100,8 +99,7 @@ class PopulationRequisitionFulfiller(
     val requisitions =
       getRequisitions().filter {
         checkNotNull(MeasurementKey.fromName(it.measurement)).measurementConsumerId ==
-          checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
-            .measurementConsumerId
+          measurementConsumerKey.measurementConsumerId
       }
 
     if (requisitions.isEmpty()) {
@@ -158,12 +156,13 @@ class PopulationRequisitionFulfiller(
           populationInfo,
           typeRegistry,
         )
-      } catch (refusalException: RequisitionRefusalException) {
-        refuseRequisition(
-          requisition.name,
-          refusalException.justification,
-          refusalException.message ?: "Refuse to fulfill requisition.",
-        )
+      } catch (e: RequisitionRefusalException) {
+        if (e is TestRequisitionRefusalException) {
+          continue
+        }
+
+        logger.log(Level.WARNING, e) { "Refusing Requisition ${requisition.name}" }
+        refuseRequisition(requisition.name, e.justification, e.message)
       }
     }
   }
