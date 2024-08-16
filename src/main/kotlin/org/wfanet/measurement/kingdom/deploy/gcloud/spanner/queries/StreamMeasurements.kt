@@ -153,6 +153,7 @@ class StreamMeasurements(
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf case fields cannot be null.
         when (filter.after.keyCase) {
           StreamMeasurementsRequest.Filter.After.KeyCase.MEASUREMENT -> {
+            // CASE implements short-circuiting, which fixes performance issues with this filter.
             conjuncts.add(
               """
               CASE

@@ -457,7 +457,6 @@ class OperationalMetricsExport(
      * Writes data to the stream.
      *
      * @param protoRows protos representing the rows to write.
-     * @returns Unit
      * @throws IllegalStateException if append fails and error is not retriable or too many retry
      *   attempts have been made
      */
