@@ -51,6 +51,10 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.ProtoReflection
@@ -119,6 +123,98 @@ class EventGroupsServiceTest {
         ENCRYPTION_KEY_PAIR_STORE,
         celEnvCacheProvider,
       )
+  }
+
+  @Test
+  fun `listEventGroups returns events groups after multiple calls to kingdom`() = runBlocking {
+    val testMessage = testMetadataMessage { publisherId = 5 }
+    val cmmsEventGroup2 =
+      CMMS_EVENT_GROUP.copy {
+        encryptedMetadata =
+          encryptMetadata(
+            CmmsEventGroupKt.metadata {
+              eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+              metadata = Any.pack(testMessage)
+            },
+            ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey(),
+          )
+      }
+
+    whenever(publicKingdomEventGroupsMock.listEventGroups(any()))
+      .thenReturn(listEventGroupsResponse {
+        nextPageToken = "1"
+        eventGroups += cmmsEventGroup2
+      })
+      .thenReturn(listEventGroupsResponse {
+        eventGroups += listOf(CMMS_EVENT_GROUP, cmmsEventGroup2)
+        nextPageToken = "2"
+      })
+
+    val response =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking {
+          service.listEventGroups(listEventGroupsRequest {
+            parent = MEASUREMENT_CONSUMER_NAME
+            filter = "metadata.metadata.publisher_id > 5"
+          })
+        }
+      }
+
+    assertThat(response.eventGroupsList).containsExactly(EVENT_GROUP)
+    assertThat(response.nextPageToken).isEqualTo("2")
+
+    with(argumentCaptor<ListEventGroupsRequest>()) {
+      verify(publicKingdomEventGroupsMock, times(2)).listEventGroups(capture())
+      assertThat(allValues[0].pageToken).isEmpty()
+      assertThat(allValues[1].pageToken).isEqualTo("1")
+    }
+  }
+
+  @Test
+  fun `listEventGroups returns no events groups after multiple calls to kingdom`() = runBlocking {
+    whenever(publicKingdomEventGroupsMock.listEventGroups(any()))
+      .thenReturn(listEventGroupsResponse {
+        nextPageToken = "1"
+        eventGroups += CMMS_EVENT_GROUP
+      })
+      .thenReturn(listEventGroupsResponse {
+        nextPageToken = "2"
+        eventGroups += CMMS_EVENT_GROUP
+      })
+      .thenReturn(listEventGroupsResponse {
+        nextPageToken = "3"
+        eventGroups += CMMS_EVENT_GROUP
+      })
+      .thenReturn(listEventGroupsResponse {
+        nextPageToken = "4"
+        eventGroups += CMMS_EVENT_GROUP
+      })
+      .thenReturn(listEventGroupsResponse {
+        nextPageToken = "5"
+        eventGroups += CMMS_EVENT_GROUP
+      })
+
+    val response =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking {
+          service.listEventGroups(listEventGroupsRequest {
+            parent = MEASUREMENT_CONSUMER_NAME
+            filter = "metadata.metadata.publisher_id > 100"
+          })
+        }
+      }
+
+    assertThat(response.eventGroupsList).isEmpty()
+    assertThat(response.nextPageToken).isEqualTo("5")
+
+    with(argumentCaptor<ListEventGroupsRequest>()) {
+      verify(publicKingdomEventGroupsMock, times(5)).listEventGroups(capture())
+      assertThat(allValues[0].pageToken).isEmpty()
+      assertThat(allValues[1].pageToken).isEqualTo("1")
+      assertThat(allValues[2].pageToken).isEqualTo("2")
+      assertThat(allValues[3].pageToken).isEqualTo("3")
+      assertThat(allValues[4].pageToken).isEqualTo("4")
+    }
   }
 
   @Test

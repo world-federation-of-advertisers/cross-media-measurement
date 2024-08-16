@@ -30,7 +30,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as CmmsEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -80,43 +79,59 @@ class EventGroupsService(
         else -> request.pageSize
       }
 
-    val cmmsListEventGroupResponse =
-      try {
-        cmmsEventGroupsStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .listEventGroups(
-            listEventGroupsRequest {
-              parent = parentKey.toName()
-              this.pageSize = pageSize
-              pageToken = request.pageToken
-            }
-          )
-      } catch (e: StatusException) {
-        throw when (e.status.code) {
+    var nextPageToken = request.pageToken
+    var numAttempts = 0
+
+    while (numAttempts < LIST_EVENT_GROUPS_MAX_ATTEMPTS) {
+
+      val cmmsListEventGroupResponse =
+        try {
+          cmmsEventGroupsStub
+            .withAuthenticationKey(apiAuthenticationKey)
+            .listEventGroups(
+              listEventGroupsRequest {
+                parent = parentKey.toName()
+                this.pageSize = pageSize
+                pageToken = nextPageToken
+              }
+            )
+        } catch (e: StatusException) {
+          throw when (e.status.code) {
             Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
             Status.Code.CANCELLED -> Status.CANCELLED
             else -> Status.UNKNOWN
           }
-          .withCause(e)
-          .asRuntimeException()
-      }
-    val cmmsEventGroups = cmmsListEventGroupResponse.eventGroupsList
+            .withCause(e)
+            .asRuntimeException()
+        }
+      val cmmsEventGroups = cmmsListEventGroupResponse.eventGroupsList
 
-    val eventGroups =
-      cmmsEventGroups.map {
-        val cmmsMetadata: CmmsEventGroup.Metadata? =
-          if (it.hasEncryptedMetadata()) {
-            decryptMetadata(it, principal.resourceKey.toName())
-          } else {
-            null
-          }
+      val eventGroups =
+        cmmsEventGroups.map {
+          val cmmsMetadata: CmmsEventGroup.Metadata? =
+            if (it.hasEncryptedMetadata()) {
+              decryptMetadata(it, principal.resourceKey.toName())
+            } else {
+              null
+            }
 
-        it.toEventGroup(cmmsMetadata)
+          it.toEventGroup(cmmsMetadata)
+        }
+
+      val filteredEventGroups = filterEventGroups(eventGroups, request.filter)
+      if (filteredEventGroups.size > 0) {
+        return listEventGroupsResponse {
+          this.eventGroups += filteredEventGroups
+          this.nextPageToken = cmmsListEventGroupResponse.nextPageToken
+        }
+      } else {
+        nextPageToken = cmmsListEventGroupResponse.nextPageToken
+        numAttempts++
       }
+    }
 
     return listEventGroupsResponse {
-      this.eventGroups += filterEventGroups(eventGroups, request.filter)
-      nextPageToken = cmmsListEventGroupResponse.nextPageToken
+      this.nextPageToken = nextPageToken
     }
   }
 
@@ -249,5 +264,7 @@ class EventGroupsService(
     private const val MIN_PAGE_SIZE = 1
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 1000
+
+    private const val LIST_EVENT_GROUPS_MAX_ATTEMPTS = 5
   }
 }
