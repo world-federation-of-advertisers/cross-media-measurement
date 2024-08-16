@@ -128,7 +128,7 @@ kingdom: #Kingdom & {
 			}
 			spec: {
 				concurrencyPolicy: "Forbid"
-				schedule:          "*/5 * * * *" // Hourly, 30 minutes past the hour
+				schedule:          "30 * * * *" // Hourly, 30 minutes past the hour
 				jobTemplate: spec: template: spec: #ServiceAccountPodSpec & {
 					serviceAccountName: #OperationalMetricsServiceAccount
 				}
