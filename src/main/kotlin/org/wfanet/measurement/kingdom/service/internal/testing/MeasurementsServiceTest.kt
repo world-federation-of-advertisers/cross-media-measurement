@@ -43,10 +43,12 @@ import org.wfanet.measurement.internal.kingdom.CancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
+import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DeleteMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
@@ -1184,6 +1186,46 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
+  fun `cancelMeasurement transitions Requisition state`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProviders = (1..2).map { population.createDataProvider(dataProvidersService) }
+    val measurement =
+      population.createLlv2Measurement(
+        measurementsService,
+        measurementConsumer,
+        PROVIDED_MEASUREMENT_ID,
+        *dataProviders.toTypedArray(),
+      )
+
+    measurementsService.cancelMeasurement(
+      cancelMeasurementRequest {
+        externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+        externalMeasurementId = measurement.externalMeasurementId
+      }
+    )
+
+    val requisitions: List<Requisition> =
+      requisitionsService
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              StreamRequisitionsRequestKt.filter {
+                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                externalMeasurementId = measurement.externalMeasurementId
+              }
+          }
+        )
+        .toList()
+    assertThat(requisitions)
+      .comparingExpectedFieldsOnly()
+      .containsExactly(
+        requisition { state = Requisition.State.WITHDRAWN },
+        requisition { state = Requisition.State.WITHDRAWN },
+      )
+  }
+
+  @Test
   fun `cancelMeasurement throws FAILED_PRECONDITION when Measurement in illegal state`() =
     runBlocking {
       val measurementConsumer =
@@ -1909,6 +1951,55 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(cancelledMeasurements)
       .containsExactly(cancelledMeasurement1, cancelledMeasurement2)
       .inOrder()
+  }
+
+  @Test
+  fun `batchCancelMeasurements withdraws Requisitions`(): Unit = runBlocking {
+    val measurementCount = 2
+    val dataProviderCount = 2
+    val requisitionCount = dataProviderCount * measurementCount
+    val measurementConsumer: MeasurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProviders: List<DataProvider> =
+      (1..dataProviderCount).map { population.createDataProvider(dataProvidersService) }
+    val measurements: List<Measurement> =
+      (1..measurementCount).map {
+        population.createLlv2Measurement(
+          measurementsService,
+          measurementConsumer,
+          "measurement-$it",
+          *dataProviders.toTypedArray(),
+        )
+      }
+
+    measurementsService.batchCancelMeasurements(
+      batchCancelMeasurementsRequest {
+        requests +=
+          measurements.map {
+            cancelMeasurementRequest {
+              externalMeasurementConsumerId = it.externalMeasurementConsumerId
+              externalMeasurementId = it.externalMeasurementId
+            }
+          }
+      }
+    )
+
+    val requisitions =
+      requisitionsService
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              StreamRequisitionsRequestKt.filter {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              }
+          }
+        )
+        .toList()
+    assertThat(requisitions)
+      .comparingExpectedFieldsOnly()
+      .containsExactlyElementsIn(
+        (1..requisitionCount).map { requisition { state = Requisition.State.WITHDRAWN } }
+      )
   }
 
   @Test

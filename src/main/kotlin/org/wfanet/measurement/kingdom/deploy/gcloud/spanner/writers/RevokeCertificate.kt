@@ -252,5 +252,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
       measurementLogEntryDetails = measurementLogEntryDetails,
       details = details,
     )
+
+    withdrawRequisitions(measurementConsumerId, measurementId)
   }
 }

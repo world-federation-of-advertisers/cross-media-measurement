@@ -111,6 +111,7 @@ class BatchCancelMeasurements(private val requests: BatchCancelMeasurementsReque
         previousState = result.measurement.state,
         measurementLogEntryDetails = measurementLogEntryDetails,
       )
+      withdrawRequisitions(result.measurementConsumerId, result.measurementId)
     }
 
     return batchCancelMeasurementsResponse {

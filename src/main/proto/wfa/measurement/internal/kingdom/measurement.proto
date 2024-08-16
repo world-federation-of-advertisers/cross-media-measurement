@@ -186,6 +186,7 @@ message Requisition {
     UNFULFILLED = 2;
     FULFILLED = 3;
     REFUSED = 4;
+    WITHDRAWN = 5;
   }
   State state = 7;
 
