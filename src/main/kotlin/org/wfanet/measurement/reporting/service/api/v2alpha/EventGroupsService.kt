@@ -84,7 +84,7 @@ class EventGroupsService(
 
     var nextPageToken = request.pageToken
     val deadline = Context.current().deadline ?: Deadline.after(30, TimeUnit.SECONDS)
-    while (deadline.timeRemaining(TimeUnit.SECONDS) > 5) {
+    do {
       val cmmsListEventGroupResponse =
         try {
           cmmsEventGroupsStub
@@ -128,7 +128,7 @@ class EventGroupsService(
       } else {
         nextPageToken = cmmsListEventGroupResponse.nextPageToken
       }
-    }
+    } while (deadline.timeRemaining(TimeUnit.SECONDS) > 5)
 
     return listEventGroupsResponse { this.nextPageToken = nextPageToken }
   }
