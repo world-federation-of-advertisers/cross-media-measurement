@@ -32,6 +32,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
@@ -42,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.Ev
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
@@ -51,10 +55,6 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
-import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.times
-import org.mockito.kotlin.verify
-import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.ProtoReflection
@@ -141,22 +141,28 @@ class EventGroupsServiceTest {
       }
 
     whenever(publicKingdomEventGroupsMock.listEventGroups(any()))
-      .thenReturn(listEventGroupsResponse {
-        nextPageToken = "1"
-        eventGroups += cmmsEventGroup2
-      })
-      .thenReturn(listEventGroupsResponse {
-        eventGroups += listOf(CMMS_EVENT_GROUP, cmmsEventGroup2)
-        nextPageToken = "2"
-      })
+      .thenReturn(
+        listEventGroupsResponse {
+          nextPageToken = "1"
+          eventGroups += cmmsEventGroup2
+        }
+      )
+      .thenReturn(
+        listEventGroupsResponse {
+          eventGroups += listOf(CMMS_EVENT_GROUP, cmmsEventGroup2)
+          nextPageToken = "2"
+        }
+      )
 
     val response =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
         runBlocking {
-          service.listEventGroups(listEventGroupsRequest {
-            parent = MEASUREMENT_CONSUMER_NAME
-            filter = "metadata.metadata.publisher_id > 5"
-          })
+          service.listEventGroups(
+            listEventGroupsRequest {
+              parent = MEASUREMENT_CONSUMER_NAME
+              filter = "metadata.metadata.publisher_id > 5"
+            }
+          )
         }
       }
 
@@ -173,34 +179,46 @@ class EventGroupsServiceTest {
   @Test
   fun `listEventGroups returns no events groups after multiple calls to kingdom`() = runBlocking {
     whenever(publicKingdomEventGroupsMock.listEventGroups(any()))
-      .thenReturn(listEventGroupsResponse {
-        nextPageToken = "1"
-        eventGroups += CMMS_EVENT_GROUP
-      })
-      .thenReturn(listEventGroupsResponse {
-        nextPageToken = "2"
-        eventGroups += CMMS_EVENT_GROUP
-      })
-      .thenReturn(listEventGroupsResponse {
-        nextPageToken = "3"
-        eventGroups += CMMS_EVENT_GROUP
-      })
-      .thenReturn(listEventGroupsResponse {
-        nextPageToken = "4"
-        eventGroups += CMMS_EVENT_GROUP
-      })
-      .thenReturn(listEventGroupsResponse {
-        nextPageToken = "5"
-        eventGroups += CMMS_EVENT_GROUP
-      })
+      .thenReturn(
+        listEventGroupsResponse {
+          nextPageToken = "1"
+          eventGroups += CMMS_EVENT_GROUP
+        }
+      )
+      .thenReturn(
+        listEventGroupsResponse {
+          nextPageToken = "2"
+          eventGroups += CMMS_EVENT_GROUP
+        }
+      )
+      .thenReturn(
+        listEventGroupsResponse {
+          nextPageToken = "3"
+          eventGroups += CMMS_EVENT_GROUP
+        }
+      )
+      .thenReturn(
+        listEventGroupsResponse {
+          nextPageToken = "4"
+          eventGroups += CMMS_EVENT_GROUP
+        }
+      )
+      .thenReturn(
+        listEventGroupsResponse {
+          nextPageToken = "5"
+          eventGroups += CMMS_EVENT_GROUP
+        }
+      )
 
     val response =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
         runBlocking {
-          service.listEventGroups(listEventGroupsRequest {
-            parent = MEASUREMENT_CONSUMER_NAME
-            filter = "metadata.metadata.publisher_id > 100"
-          })
+          service.listEventGroups(
+            listEventGroupsRequest {
+              parent = MEASUREMENT_CONSUMER_NAME
+              filter = "metadata.metadata.publisher_id > 100"
+            }
+          )
         }
       }
 

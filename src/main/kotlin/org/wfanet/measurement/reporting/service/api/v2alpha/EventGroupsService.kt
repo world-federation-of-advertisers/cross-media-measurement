@@ -97,10 +97,10 @@ class EventGroupsService(
             )
         } catch (e: StatusException) {
           throw when (e.status.code) {
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            Status.Code.CANCELLED -> Status.CANCELLED
-            else -> Status.UNKNOWN
-          }
+              Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+              Status.Code.CANCELLED -> Status.CANCELLED
+              else -> Status.UNKNOWN
+            }
             .withCause(e)
             .asRuntimeException()
         }
@@ -130,9 +130,7 @@ class EventGroupsService(
       }
     }
 
-    return listEventGroupsResponse {
-      this.nextPageToken = nextPageToken
-    }
+    return listEventGroupsResponse { this.nextPageToken = nextPageToken }
   }
 
   private suspend fun filterEventGroups(
