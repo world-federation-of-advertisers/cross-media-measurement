@@ -123,7 +123,7 @@ python3 -m venv ../noisecorrectionenv
 source ../noisecorrectionenv/bin/activate
 cd dp_consistency
 pip3 install -r requirements.txt
-python3 -m src.tools.correctoriginreport --path_to_report=/path/to/Origin_Report.xlsx --unnoised_edps "Linear TV"
+python3 -m src.main.python.tools.correctoriginreport --path_to_report=/path/to/Origin_Report.xlsx --unnoised_edps "Linear TV"
 ```
 This will correct the report and create a corrected a file called `Origin_Report_corrected.xlsx` in this folder. 
 
