@@ -18,9 +18,12 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.kotlin.unpack
+import io.grpc.Context
+import io.grpc.Deadline
 import io.grpc.Status
 import io.grpc.StatusException
 import java.security.GeneralSecurityException
+import java.util.concurrent.TimeUnit
 import org.projectnessie.cel.common.types.Err
 import org.projectnessie.cel.common.types.ref.Val
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -28,9 +31,6 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as CmmsEventGroupsCoroutineStub
-import io.grpc.Context
-import io.grpc.Deadline
-import java.util.concurrent.TimeUnit
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
@@ -83,8 +83,7 @@ class EventGroupsService(
       }
 
     var nextPageToken = request.pageToken
-    val deadline = Context.current().deadline
-      ?: Deadline.after(30, TimeUnit.SECONDS)
+    val deadline = Context.current().deadline ?: Deadline.after(30, TimeUnit.SECONDS)
     while (deadline.timeRemaining(TimeUnit.SECONDS) > 5) {
       val cmmsListEventGroupResponse =
         try {
