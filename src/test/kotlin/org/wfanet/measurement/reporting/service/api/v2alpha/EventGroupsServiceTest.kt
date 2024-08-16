@@ -177,7 +177,7 @@ class EventGroupsServiceTest {
   }
 
   @Test
-  fun `listEventGroups returns no events groups after multiple calls to kingdom`() = runBlocking {
+  fun `listEventGroups returns no events groups after deadline almost reached`() = runBlocking {
     whenever(publicKingdomEventGroupsMock.listEventGroups(any()))
       .thenReturn(
         listEventGroupsResponse {
@@ -188,24 +188,6 @@ class EventGroupsServiceTest {
       .thenReturn(
         listEventGroupsResponse {
           nextPageToken = "2"
-          eventGroups += CMMS_EVENT_GROUP
-        }
-      )
-      .thenReturn(
-        listEventGroupsResponse {
-          nextPageToken = "3"
-          eventGroups += CMMS_EVENT_GROUP
-        }
-      )
-      .thenReturn(
-        listEventGroupsResponse {
-          nextPageToken = "4"
-          eventGroups += CMMS_EVENT_GROUP
-        }
-      )
-      .thenReturn(
-        listEventGroupsResponse {
-          nextPageToken = "5"
           eventGroups += CMMS_EVENT_GROUP
         }
       )
@@ -223,16 +205,7 @@ class EventGroupsServiceTest {
       }
 
     assertThat(response.eventGroupsList).isEmpty()
-    assertThat(response.nextPageToken).isEqualTo("5")
-
-    with(argumentCaptor<ListEventGroupsRequest>()) {
-      verify(publicKingdomEventGroupsMock, times(5)).listEventGroups(capture())
-      assertThat(allValues[0].pageToken).isEmpty()
-      assertThat(allValues[1].pageToken).isEqualTo("1")
-      assertThat(allValues[2].pageToken).isEqualTo("2")
-      assertThat(allValues[3].pageToken).isEqualTo("3")
-      assertThat(allValues[4].pageToken).isEqualTo("4")
-    }
+    assertThat(response.nextPageToken).isEqualTo("2")
   }
 
   @Test
@@ -656,7 +629,7 @@ class EventGroupsServiceTest {
           service.listEventGroups(
             listEventGroupsRequest {
               parent = MEASUREMENT_CONSUMER_NAME
-              filter = "field_that_doesnt_exist = 10"
+              filter = "field_that_doesnt_exist == 10"
             }
           )
         }

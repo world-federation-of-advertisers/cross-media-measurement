@@ -28,6 +28,9 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as CmmsEventGroupsCoroutineStub
+import io.grpc.Context
+import io.grpc.Deadline
+import java.util.concurrent.TimeUnit
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
@@ -80,10 +83,9 @@ class EventGroupsService(
       }
 
     var nextPageToken = request.pageToken
-    var numAttempts = 0
-
-    while (numAttempts < LIST_EVENT_GROUPS_MAX_ATTEMPTS) {
-
+    val deadline = Context.current().deadline
+      ?: Deadline.after(30, TimeUnit.SECONDS)
+    while (deadline.timeRemaining(TimeUnit.SECONDS) > 5) {
       val cmmsListEventGroupResponse =
         try {
           cmmsEventGroupsStub
@@ -126,7 +128,6 @@ class EventGroupsService(
         }
       } else {
         nextPageToken = cmmsListEventGroupResponse.nextPageToken
-        numAttempts++
       }
     }
 
@@ -262,7 +263,5 @@ class EventGroupsService(
     private const val MIN_PAGE_SIZE = 1
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 1000
-
-    private const val LIST_EVENT_GROUPS_MAX_ATTEMPTS = 5
   }
 }
