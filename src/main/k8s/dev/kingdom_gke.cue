@@ -46,7 +46,7 @@ _systemApiAddressName: string @tag("system_api_address_name")
 #OperationalMetricsJobResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "10m"
-		memory: "240Mi"
+		memory: "232Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
