@@ -37,6 +37,9 @@ module "eks" {
     vpc-cni = {
       most_recent = true
     }
+    amazon-cloudwatch-observability = {
+      most_recent = true
+    }
   }
 
   eks_managed_node_group_defaults = {
@@ -78,12 +81,19 @@ module "eks" {
     }
   }
 
-  kms_key_administrators    = var.kms_key_administrators
-  create_kms_key            = true
-  enable_kms_key_rotation   = true
+  kms_key_administrators  = var.kms_key_administrators
+  create_kms_key          = true
+  enable_kms_key_rotation = true
   cluster_encryption_config = {
     "resources" : [
       "secrets"
     ]
   }
+}
+
+resource "aws_iam_role_policy_attachment" "cloudwatch_policy_attachment" {
+  for_each = module.eks.eks_managed_node_groups
+
+  role       = each.value.iam_role_name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
