@@ -586,7 +586,7 @@ class OperationalMetricsExportTest {
                       }
                     }
                 }
-              limit = 5000
+              limit = 3000
             }
           )
         flowOf(COMPUTATION_MEASUREMENT)
