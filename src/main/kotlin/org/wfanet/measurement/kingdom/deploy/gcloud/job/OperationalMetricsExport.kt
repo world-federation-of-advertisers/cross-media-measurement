@@ -263,6 +263,7 @@ class OperationalMetricsExport(
                               Requisition.State.STATE_UNSPECIFIED,
                               Requisition.State.UNRECOGNIZED,
                               Requisition.State.PENDING_PARAMS,
+                              Requisition.State.WITHDRAWN,
                               Requisition.State.UNFULFILLED -> continue
                               Requisition.State.FULFILLED -> RequisitionsTableRow.State.FULFILLED
                               Requisition.State.REFUSED -> RequisitionsTableRow.State.REFUSED
@@ -433,7 +434,7 @@ class OperationalMetricsExport(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private const val BATCH_SIZE = 1000
+    private const val BATCH_SIZE = 10000
   }
 
   private class DataWriter(
