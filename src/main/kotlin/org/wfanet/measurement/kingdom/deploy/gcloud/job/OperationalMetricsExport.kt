@@ -434,7 +434,7 @@ class OperationalMetricsExport(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private const val BATCH_SIZE = 10000
+    private const val BATCH_SIZE = 5000
   }
 
   private class DataWriter(
