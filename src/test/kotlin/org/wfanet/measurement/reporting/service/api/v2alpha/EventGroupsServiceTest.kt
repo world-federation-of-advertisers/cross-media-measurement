@@ -32,6 +32,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
@@ -42,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.Ev
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
@@ -119,6 +123,89 @@ class EventGroupsServiceTest {
         ENCRYPTION_KEY_PAIR_STORE,
         celEnvCacheProvider,
       )
+  }
+
+  @Test
+  fun `listEventGroups returns events groups after multiple calls to kingdom`() = runBlocking {
+    val testMessage = testMetadataMessage { publisherId = 5 }
+    val cmmsEventGroup2 =
+      CMMS_EVENT_GROUP.copy {
+        encryptedMetadata =
+          encryptMetadata(
+            CmmsEventGroupKt.metadata {
+              eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+              metadata = Any.pack(testMessage)
+            },
+            ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey(),
+          )
+      }
+
+    whenever(publicKingdomEventGroupsMock.listEventGroups(any()))
+      .thenReturn(
+        listEventGroupsResponse {
+          nextPageToken = "1"
+          eventGroups += cmmsEventGroup2
+        }
+      )
+      .thenReturn(
+        listEventGroupsResponse {
+          eventGroups += listOf(CMMS_EVENT_GROUP, cmmsEventGroup2)
+          nextPageToken = "2"
+        }
+      )
+
+    val response =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking {
+          service.listEventGroups(
+            listEventGroupsRequest {
+              parent = MEASUREMENT_CONSUMER_NAME
+              filter = "metadata.metadata.publisher_id > 5"
+            }
+          )
+        }
+      }
+
+    assertThat(response.eventGroupsList).containsExactly(EVENT_GROUP)
+    assertThat(response.nextPageToken).isEqualTo("2")
+
+    with(argumentCaptor<ListEventGroupsRequest>()) {
+      verify(publicKingdomEventGroupsMock, times(2)).listEventGroups(capture())
+      assertThat(allValues[0].pageToken).isEmpty()
+      assertThat(allValues[1].pageToken).isEqualTo("1")
+    }
+  }
+
+  @Test
+  fun `listEventGroups returns no events groups after deadline almost reached`() = runBlocking {
+    whenever(publicKingdomEventGroupsMock.listEventGroups(any()))
+      .thenReturn(
+        listEventGroupsResponse {
+          nextPageToken = "1"
+          eventGroups += CMMS_EVENT_GROUP
+        }
+      )
+      .thenReturn(
+        listEventGroupsResponse {
+          nextPageToken = "2"
+          eventGroups += CMMS_EVENT_GROUP
+        }
+      )
+
+    val response =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking {
+          service.listEventGroups(
+            listEventGroupsRequest {
+              parent = MEASUREMENT_CONSUMER_NAME
+              filter = "metadata.metadata.publisher_id > 100"
+            }
+          )
+        }
+      }
+
+    assertThat(response.eventGroupsList).isEmpty()
+    assertThat(response.nextPageToken).isEqualTo("2")
   }
 
   @Test
@@ -542,7 +629,7 @@ class EventGroupsServiceTest {
           service.listEventGroups(
             listEventGroupsRequest {
               parent = MEASUREMENT_CONSUMER_NAME
-              filter = "field_that_doesnt_exist = 10"
+              filter = "field_that_doesnt_exist == 10"
             }
           )
         }
