@@ -409,6 +409,7 @@ private fun State.toInternal(): InternalState =
     State.UNFULFILLED -> InternalState.UNFULFILLED
     State.FULFILLED -> InternalState.FULFILLED
     State.REFUSED -> InternalState.REFUSED
+    State.WITHDRAWN -> InternalState.WITHDRAWN
     State.STATE_UNSPECIFIED,
     State.UNRECOGNIZED -> InternalState.STATE_UNSPECIFIED
   }
@@ -527,6 +528,7 @@ private fun buildInternalStreamRequisitionsRequest(
           states += InternalState.UNFULFILLED
           states += InternalState.FULFILLED
           states += InternalState.REFUSED
+          states += InternalState.WITHDRAWN
         } else {
           states += requestStates.map { it.toInternal() }
         }

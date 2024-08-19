@@ -85,7 +85,8 @@ class FailComputationParticipant(private val request: FailComputationParticipant
 
     when (measurementState) {
       Measurement.State.PENDING_REQUISITION_PARAMS,
-      Measurement.State.PENDING_REQUISITION_FULFILLMENT,
+      Measurement.State.PENDING_REQUISITION_FULFILLMENT ->
+        withdrawRequisitions(measurementConsumerId, measurementId)
       Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
       Measurement.State.PENDING_COMPUTATION -> {}
       Measurement.State.FAILED,
@@ -142,8 +143,8 @@ class FailComputationParticipant(private val request: FailComputationParticipant
     }
 
     updateMeasurementState(
-      measurementConsumerId = InternalId(measurementConsumerId),
-      measurementId = InternalId(measurementId),
+      measurementConsumerId = measurementConsumerId,
+      measurementId = measurementId,
       nextState = Measurement.State.FAILED,
       previousState = measurementState,
       measurementLogEntryDetails = measurementLogEntryDetails,
@@ -151,8 +152,8 @@ class FailComputationParticipant(private val request: FailComputationParticipant
     )
 
     insertDuchyMeasurementLogEntry(
-      InternalId(measurementId),
-      InternalId(measurementConsumerId),
+      measurementId,
+      measurementConsumerId,
       InternalId(duchyId),
       duchyMeasurementLogEntry.details,
     )

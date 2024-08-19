@@ -113,8 +113,8 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       )
     }
 
-    val measurementId = InternalId(computationParticipantResult.measurementId)
-    val measurementConsumerId = InternalId(computationParticipantResult.measurementConsumerId)
+    val measurementId = computationParticipantResult.measurementId
+    val measurementConsumerId = computationParticipantResult.measurementConsumerId
 
     if (computationParticipant.state != ComputationParticipant.State.CREATED) {
       throw ComputationParticipantStateIllegalException(
