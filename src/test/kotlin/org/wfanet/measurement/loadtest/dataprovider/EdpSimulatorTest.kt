@@ -382,7 +382,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
         knownEventGroupMetadataTypes = knownEventGroupMetadataTypes,
       )
 
@@ -442,7 +442,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
       )
 
     runBlocking { edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, SYNTHETIC_DATA_SPEC) }
@@ -493,7 +493,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
       )
 
     runBlocking { edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, SYNTHETIC_DATA_SPEC) }
@@ -524,7 +524,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
       )
     val metadataByReferenceIdSuffix =
       mapOf(
@@ -587,7 +587,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
       )
     val metadataByReferenceIdSuffix = mapOf("-foo" to SYNTHETIC_DATA_SPEC, "-bar" to TEST_METADATA)
 
@@ -650,7 +650,7 @@ class EdpSimulatorTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
       )
 
     runBlocking {
@@ -689,7 +689,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -743,7 +743,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -822,7 +822,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
       )
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
@@ -856,7 +856,7 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `refuses HMSS requisition due to empty vidIndexMap`() {
+  fun `refuses HMSS requisition due to empty hmssVidIndexMap`() {
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += HMSS_REQUISITION })
@@ -877,7 +877,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VidIndexMap.EMPTY,
+        hmssVidIndexMap = null,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -969,7 +969,7 @@ class EdpSimulatorTest {
           dummyThrottler,
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
-          VID_INDEX_MAP,
+          HMSS_VID_INDEX_MAP,
         )
       runBlocking {
         edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, TEST_METADATA)
@@ -1098,7 +1098,7 @@ class EdpSimulatorTest {
           dummyThrottler,
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
-          VID_INDEX_MAP,
+          HMSS_VID_INDEX_MAP,
         )
       runBlocking {
         edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, TEST_METADATA)
@@ -1247,7 +1247,7 @@ class EdpSimulatorTest {
           dummyThrottler,
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
-          VID_INDEX_MAP,
+          HMSS_VID_INDEX_MAP,
         )
       runBlocking {
         edpSimulator.ensureEventGroup(TEST_EVENT_TEMPLATES, TEST_METADATA)
@@ -1354,7 +1354,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
         sketchEncrypter = fakeSketchEncrypter,
       )
 
@@ -1382,10 +1382,10 @@ class EdpSimulatorTest {
     val encryptedSketch: ByteString = requests.drop(1).map { it.bodyChunk.data }.flatten()
     val expectedSketch =
       SketchGenerator(
-          eventQuery,
-          LIQUID_LEGIONS_SKETCH_PARAMS.toSketchConfig(),
-          MEASUREMENT_SPEC.vidSamplingInterval,
-        )
+        eventQuery,
+        LIQUID_LEGIONS_SKETCH_PARAMS.toSketchConfig(),
+        MEASUREMENT_SPEC.vidSamplingInterval,
+      )
         .generate(
           REQUISITION_SPEC.events.eventGroupsList.map {
             EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
@@ -1412,7 +1412,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
       )
     val requisition =
       REQUISITION.copy {
@@ -1472,7 +1472,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
       )
     eventGroupsServiceMock.stub {
       onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
@@ -1543,7 +1543,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1611,7 +1611,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -1679,7 +1679,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1745,7 +1745,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1811,7 +1811,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1877,7 +1877,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1943,7 +1943,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2006,7 +2006,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2063,7 +2063,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2167,7 +2167,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2238,7 +2238,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2309,7 +2309,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2367,7 +2367,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2432,7 +2432,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2497,7 +2497,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2563,7 +2563,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2626,7 +2626,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2690,7 +2690,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2757,7 +2757,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2819,7 +2819,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2878,7 +2878,7 @@ class EdpSimulatorTest {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        VID_INDEX_MAP,
+        HMSS_VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2911,7 +2911,7 @@ class EdpSimulatorTest {
       get() = _fullfillRequisitionInvocations
 
     override suspend fun fulfillRequisition(
-      requests: Flow<FulfillRequisitionRequest>
+      requests: Flow<FulfillRequisitionRequest>,
     ): FulfillRequisitionResponse {
       // Consume flow before returning.
       _fullfillRequisitionInvocations.add(FulfillRequisitionInvocation(requests.toList()))
@@ -3169,7 +3169,7 @@ class EdpSimulatorTest {
         }
       }
     }
-    private val VID_INDEX_MAP = InMemoryVidIndexMap.build(POPULATION_SPEC)
+    private val HMSS_VID_INDEX_MAP = InMemoryVidIndexMap.build(POPULATION_SPEC)
 
     /** Dummy [Throttler] for satisfying signatures without being used. */
     private val dummyThrottler =

@@ -87,14 +87,14 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
         }
       }
     val populationSpec = syntheticPopulationSpec.toPopulationSpec()
-    val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
+    val hmssVidIndexMap = InMemoryVidIndexMap.build(populationSpec)
 
     run(
       eventQuery,
       EdpSimulator.buildEventTemplates(eventMessageDescriptor),
       eventGroupSpecByReferenceIdSuffix,
       listOf(SyntheticEventGroupSpec.getDescriptor().file),
-      vidIndexMap,
+      hmssVidIndexMap,
     )
   }
 

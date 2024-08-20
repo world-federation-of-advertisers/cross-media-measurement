@@ -164,7 +164,7 @@ class EdpSimulator(
    *
    * When the vidIndexMap is empty, the honest majority share shuffle protocol is not supported.
    */
-  private val vidIndexMap: VidIndexMap = VidIndexMap.EMPTY,
+  private val hmssVidIndexMap: VidIndexMap? = null,
   /**
    * Known protobuf types for [EventGroupMetadataDescriptor]s.
    *
@@ -192,7 +192,7 @@ class EdpSimulator(
   val supportedProtocols = buildSet {
     add(ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
     add(ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2)
-    if (vidIndexMap.size != 0L) {
+    if (hmssVidIndexMap != null) {
       add(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
     }
   }
@@ -216,7 +216,7 @@ class EdpSimulator(
         name = edpData.name
         capabilities =
           DataProviderKt.capabilities {
-            honestMajorityShareShuffleSupported = (vidIndexMap.size != 0L)
+            honestMajorityShareShuffleSupported = (hmssVidIndexMap != null)
           }
       }
     )
@@ -1172,10 +1172,10 @@ class EdpSimulator(
 
     logger.info("Generating sampled frequency vector for HMSS...")
     val frequencyVectorBuilder =
-      FrequencyVectorBuilder(vidIndexMap.populationSpec, measurementSpec, strict = false)
+      FrequencyVectorBuilder(hmssVidIndexMap!!.populationSpec, measurementSpec, strict = false)
     for (eventGroupSpec in eventGroupSpecs) {
       eventQuery.getUserVirtualIds(eventGroupSpec).forEach {
-        frequencyVectorBuilder.increment(vidIndexMap[it])
+        frequencyVectorBuilder.increment(hmssVidIndexMap!![it])
       }
     }
 

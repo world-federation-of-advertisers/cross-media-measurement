@@ -86,11 +86,11 @@ class InProcessEdpSimulator(
 
   init {
     val populationSpec = syntheticPopulationSpec.toPopulationSpec()
-    val vidIndexMap =
+    val hmssVidIndexMap =
       if (honestMajorityShareShuffleSupported) {
         InMemoryVidIndexMap.build(populationSpec)
       } else {
-        VidIndexMap.EMPTY
+        null
       }
 
     delegate =
@@ -118,7 +118,7 @@ class InProcessEdpSimulator(
         eventQuery =
           object :
             SyntheticGeneratorEventQuery(
-              SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
+              syntheticPopulationSpec,
               TestEvent.getDescriptor(),
             ) {
             override fun getSyntheticDataSpec(eventGroup: EventGroup) = syntheticDataSpec
@@ -132,7 +132,7 @@ class InProcessEdpSimulator(
             100.0f,
           ),
         trustedCertificates = trustedCertificates,
-        vidIndexMap = vidIndexMap,
+        hmssVidIndexMap = hmssVidIndexMap,
         knownEventGroupMetadataTypes = listOf(SyntheticEventGroupSpec.getDescriptor().file),
         random = random,
       )
