@@ -2982,11 +2982,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       )
       HmssProtocolConfig.setForTest(
         ProtocolConfig.HonestMajorityShareShuffle.getDefaultInstance(),
-        setOf(
-          Population.AGGREGATOR_DUCHY.externalDuchyId,
-          Population.WORKER1_DUCHY.externalDuchyId,
-          Population.WORKER2_DUCHY.externalDuchyId,
-        ),
+        Population.WORKER1_DUCHY.externalDuchyId,
+        Population.WORKER2_DUCHY.externalDuchyId,
+        Population.AGGREGATOR_DUCHY.externalDuchyId,
       )
     }
   }
