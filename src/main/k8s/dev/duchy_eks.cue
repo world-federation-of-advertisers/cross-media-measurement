@@ -89,7 +89,7 @@ _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 }
 #ControlServiceMaxHeapSize: "320M"
 
-objectSets: [default_deny_ingress_and_egress] + [ for objectSet in duchy {objectSet}]
+objectSets: [defaultNetworkPolicies] + [ for objectSet in duchy {objectSet}]
 
 duchy: #PostgresDuchy & {
 	_imageSuffixes: {
