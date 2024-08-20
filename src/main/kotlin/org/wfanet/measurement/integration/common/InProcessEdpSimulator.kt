@@ -53,7 +53,6 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
-import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
@@ -117,10 +116,7 @@ class InProcessEdpSimulator(
           },
         eventQuery =
           object :
-            SyntheticGeneratorEventQuery(
-              syntheticPopulationSpec,
-              TestEvent.getDescriptor(),
-            ) {
+            SyntheticGeneratorEventQuery(syntheticPopulationSpec, TestEvent.getDescriptor()) {
             override fun getSyntheticDataSpec(eventGroup: EventGroup) = syntheticDataSpec
           },
         throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),

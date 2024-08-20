@@ -174,7 +174,6 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyL
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestInMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
-import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.EventGroupMetadata
@@ -1382,10 +1381,10 @@ class EdpSimulatorTest {
     val encryptedSketch: ByteString = requests.drop(1).map { it.bodyChunk.data }.flatten()
     val expectedSketch =
       SketchGenerator(
-        eventQuery,
-        LIQUID_LEGIONS_SKETCH_PARAMS.toSketchConfig(),
-        MEASUREMENT_SPEC.vidSamplingInterval,
-      )
+          eventQuery,
+          LIQUID_LEGIONS_SKETCH_PARAMS.toSketchConfig(),
+          MEASUREMENT_SPEC.vidSamplingInterval,
+        )
         .generate(
           REQUISITION_SPEC.events.eventGroupsList.map {
             EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
@@ -2911,7 +2910,7 @@ class EdpSimulatorTest {
       get() = _fullfillRequisitionInvocations
 
     override suspend fun fulfillRequisition(
-      requests: Flow<FulfillRequisitionRequest>,
+      requests: Flow<FulfillRequisitionRequest>
     ): FulfillRequisitionResponse {
       // Consume flow before returning.
       _fullfillRequisitionInvocations.add(FulfillRequisitionInvocation(requests.toList()))
