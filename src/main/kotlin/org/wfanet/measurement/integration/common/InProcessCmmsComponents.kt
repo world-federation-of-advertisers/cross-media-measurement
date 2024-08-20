@@ -243,7 +243,9 @@ class InProcessCmmsComponents(
       )
       HmssProtocolConfig.setForTest(
         HMSS_PROTOCOL_CONFIG_CONFIG.protocolConfig,
-        setOf("worker1", "worker2", "aggregator"),
+        "worker1",
+        "worker2",
+        "aggregator",
       )
       DuchyInfo.initializeFromConfig(
         loadTextProto("duchy_cert_config.textproto", DuchyCertConfig.getDefaultInstance())
