@@ -164,7 +164,11 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
           RoLlv2ProtocolConfig.requiredExternalDuchyIds
         ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
-          HmssProtocolConfig.requiredExternalDuchyIds
+          setOf(
+            HmssProtocolConfig.firstNonAggregatorDuchyId,
+            HmssProtocolConfig.secondNonAggregatorDuchyId,
+            HmssProtocolConfig.aggregatorDuchyId,
+          )
         ProtocolConfig.ProtocolCase.DIRECT,
         ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
       }
@@ -187,8 +191,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
           Llv2ProtocolConfig.minimumNumberOfRequiredDuchies
         ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
           RoLlv2ProtocolConfig.minimumNumberOfRequiredDuchies
-        ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
-          HmssProtocolConfig.requiredExternalDuchyIds.size
+        ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> HmssProtocolConfig.DUCHY_COUNT
         ProtocolConfig.ProtocolCase.DIRECT,
         ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
       }
@@ -242,6 +245,8 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         )
       }
       ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+        val fulfillingDuchies =
+          includedDuchyEntries.filter { it.externalDuchyId != HmssProtocolConfig.aggregatorDuchyId }
         // For each EDP, insert a Requisition for each non-aggregator Duchy.
         insertRequisitions(
           measurementConsumerId = measurementConsumerId,
@@ -249,7 +254,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
           dataProvidersMap = createMeasurementRequest.measurement.dataProvidersMap,
           dataProvideReaderResultsMap = dataProvideReaderResultsMap,
           initialRequisitionState = Requisition.State.PENDING_PARAMS,
-          fulfillingDuchies = includedDuchyEntries.drop(1),
+          fulfillingDuchies = fulfillingDuchies,
         )
       }
       ProtocolConfig.ProtocolCase.DIRECT,
