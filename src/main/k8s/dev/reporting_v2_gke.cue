@@ -41,7 +41,7 @@ _publicApiAddressName:        string @tag("public_api_address_name")
 }
 
 objectSets: [
-	default_deny_ingress_and_egress,
+	defaultNetworkPolicies,
 	reporting.serviceAccounts,
 	reporting.configMaps,
 	reporting.deployments,
