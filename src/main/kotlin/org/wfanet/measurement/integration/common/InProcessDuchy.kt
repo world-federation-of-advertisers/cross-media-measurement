@@ -181,6 +181,7 @@ class InProcessDuchy(
       addService(
         ComputationControlService(
             externalDuchyId,
+            computationsClient,
             asyncComputationControlClient,
             duchyDependencies.storageClient,
           )

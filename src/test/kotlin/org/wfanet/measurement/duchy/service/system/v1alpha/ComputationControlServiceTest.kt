@@ -42,6 +42,7 @@ import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.identity.testing.SenderContext
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.duchy.ETags
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationRequest as AsyncAdvanceComputationRequest
@@ -49,14 +50,17 @@ import org.wfanet.measurement.internal.duchy.AdvanceComputationResponse as Async
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
+import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
+import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.advanceComputationRequest as asyncAdvanceComputationRequest
 import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
+import org.wfanet.measurement.internal.duchy.computationToken
+import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
+import org.wfanet.measurement.internal.duchy.getComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.getOutputBlobMetadataRequest
-import org.wfanet.measurement.internal.duchy.getStageRequest as internalGetStageRequest
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle as HonestMajorityShareShuffleProtocol
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
-import org.wfanet.measurement.internal.duchy.stage as internalStage
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
@@ -65,9 +69,9 @@ import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2Stage
 import org.wfanet.measurement.system.v1alpha.ReachOnlyLiquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.StageKey
-import org.wfanet.measurement.system.v1alpha.getStageRequest
+import org.wfanet.measurement.system.v1alpha.computationStage
+import org.wfanet.measurement.system.v1alpha.getComputationStageRequest
 import org.wfanet.measurement.system.v1alpha.liquidLegionsV2Stage
-import org.wfanet.measurement.system.v1alpha.stage
 
 private const val RUNNING_DUCHY_NAME = "Alsace"
 private const val BAVARIA = "Bavaria"
@@ -80,6 +84,7 @@ private val SEED = "seed".toByteStringUtf8()
 @RunWith(JUnit4::class)
 class ComputationControlServiceTest {
   private val mockAsyncControlService: AsyncComputationControlCoroutineImplBase = mockService()
+  private val mockComputationsService: ComputationsCoroutineImplBase = mockService()
   private val advanceAsyncComputationRequests = mutableListOf<AsyncAdvanceComputationRequest>()
 
   private fun stubAsyncService() {
@@ -113,6 +118,7 @@ class ComputationControlServiceTest {
     val storageClient = FileSystemStorageClient(tempDirectory.root)
     computationStore = ComputationStore(storageClient)
     addService(mockAsyncControlService)
+    addService(mockComputationsService)
   }
 
   @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, duchyIdSetter, grpcTestServerRule)
@@ -133,6 +139,7 @@ class ComputationControlServiceTest {
       service =
         ComputationControlService(
           RUNNING_DUCHY_NAME,
+          ComputationsCoroutineStub(grpcTestServerRule.channel),
           AsyncComputationControlCoroutineStub(grpcTestServerRule.channel),
           computationStore,
           duchyIdProvider,
@@ -469,37 +476,41 @@ class ComputationControlServiceTest {
   }
 
   @Test
-  fun `getStage sends request for the stage`() = runBlocking {
+  fun `getStage returns stage`() = runBlocking {
     val computationId = "123"
-    val etag = "101"
-    mockAsyncControlService.stub {
-      onBlocking { getStage(any()) }
+    val tokenVersion = 101L
+    mockComputationsService.stub {
+      onBlocking { getComputationToken(any()) }
         .thenAnswer {
-          internalStage {
-            globalComputationId = computationId
-            computationStage =
-              LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
-                .toProtocolStage()
-            this.etag = etag
+          getComputationTokenResponse {
+            token = computationToken {
+              globalComputationId = computationId
+              computationStage =
+                LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
+                  .toProtocolStage()
+              version = tokenVersion
+            }
           }
         }
     }
 
     val stage =
       withSender(carinthia) {
-        getStage(getStageRequest { name = StageKey(computationId, RUNNING_DUCHY_NAME).toName() })
+        getComputationStage(
+          getComputationStageRequest { name = StageKey(computationId, RUNNING_DUCHY_NAME).toName() }
+        )
       }
 
-    verifyProtoArgument(mockAsyncControlService, AsyncComputationControlCoroutineImplBase::getStage)
-      .isEqualTo(internalGetStageRequest { globalComputationId = computationId })
+    verifyProtoArgument(mockComputationsService, ComputationsCoroutineImplBase::getComputationToken)
+      .isEqualTo(getComputationTokenRequest { globalComputationId = computationId })
     assertThat(stage)
       .isEqualTo(
-        stage {
+        computationStage {
           name = "computations/$computationId/participants/$RUNNING_DUCHY_NAME/stage"
           liquidLegionsV2Stage = liquidLegionsV2Stage {
             this.stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
           }
-          this.etag = etag
+          this.etag = ETags.computeETag(tokenVersion)
         }
       )
   }
@@ -509,7 +520,9 @@ class ComputationControlServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withSender(carinthia) {
-          getStage(getStageRequest { name = StageKey("123", "wrong_duchy_id").toName() })
+          getComputationStage(
+            getComputationStageRequest { name = StageKey("123", "wrong_duchy_id").toName() }
+          )
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.INVALID_ARGUMENT.code)

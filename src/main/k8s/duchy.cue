@@ -196,6 +196,8 @@ import ("strings")
 		}
 		"computation-control-server-deployment": #ServerDeployment & {
 			_container: args: [
+						_duchyInternalApiTargetFlag,
+						_duchyInternalApiCertHostFlag,
 						_async_computations_control_service_target_flag,
 						_async_computations_control_service_cert_host_flag,
 						_duchy_name_flag,

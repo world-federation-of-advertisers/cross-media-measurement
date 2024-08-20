@@ -23,7 +23,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.time.delay
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.grpc.failGrpc
-import org.wfanet.measurement.duchy.ETags
 import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
 import org.wfanet.measurement.duchy.service.internal.computations.outputPathList
 import org.wfanet.measurement.internal.duchy.AdvanceComputationRequest
@@ -34,11 +33,8 @@ import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.GetOutputBlobMetadataRequest
-import org.wfanet.measurement.internal.duchy.GetStageRequest
-import org.wfanet.measurement.internal.duchy.Stage
 import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.recordOutputBlobPathRequest
-import org.wfanet.measurement.internal.duchy.stage
 
 /** Implementation of the internal Async Computation Control Service. */
 class AsyncComputationControlService(
@@ -184,17 +180,6 @@ class AsyncComputationControlService(
     }
   }
 
-  override suspend fun getStage(request: GetStageRequest): Stage {
-    val token =
-      getComputationToken(request.globalComputationId)
-        ?: throw Status.NOT_FOUND.withDescription(
-            "Computation with global ID ${request.globalComputationId} not found"
-          )
-          .asRuntimeException()
-
-    return token.toStage()
-  }
-
   /**
    * Retrieves a [ComputationToken] from the Computations service.
    *
@@ -218,15 +203,6 @@ class AsyncComputationControlService(
   private class RetryableException(message: String? = null, cause: Throwable? = null) :
     Exception(message, cause) {
     constructor(cause: Throwable) : this(null, cause)
-  }
-
-  private fun ComputationToken.toStage(): Stage {
-    val source = this
-    return stage {
-      globalComputationId = source.globalComputationId
-      computationStage = source.computationStage
-      etag = ETags.computeETag(source.version)
-    }
   }
 
   companion object {

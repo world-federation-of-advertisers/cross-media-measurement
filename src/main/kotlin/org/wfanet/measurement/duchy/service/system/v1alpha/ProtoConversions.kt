@@ -14,42 +14,43 @@
 
 package org.wfanet.measurement.duchy.service.system.v1alpha
 
-import org.wfanet.measurement.internal.duchy.ComputationStage
-import org.wfanet.measurement.internal.duchy.Stage as InternalStage
+import org.wfanet.measurement.duchy.ETags
+import org.wfanet.measurement.internal.duchy.ComputationStage as InternalComputationStage
+import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.system.v1alpha.ComputationStage
 import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffleStage
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2Stage
 import org.wfanet.measurement.system.v1alpha.ReachOnlyLiquidLegionsV2Stage
-import org.wfanet.measurement.system.v1alpha.Stage
 import org.wfanet.measurement.system.v1alpha.StageKey
+import org.wfanet.measurement.system.v1alpha.computationStage
 import org.wfanet.measurement.system.v1alpha.honestMajorityShareShuffleStage
 import org.wfanet.measurement.system.v1alpha.liquidLegionsV2Stage
 import org.wfanet.measurement.system.v1alpha.reachOnlyLiquidLegionsV2Stage
-import org.wfanet.measurement.system.v1alpha.stage
 
-fun InternalStage.toSystemStage(duchyId: String): Stage {
+fun ComputationToken.toSystemStage(duchyId: String): ComputationStage {
   val source = this
-  return stage {
+  return computationStage {
     name = StageKey(source.globalComputationId, duchyId).toName()
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (source.computationStage.stageCase) {
-      ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 -> {
+      InternalComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 -> {
         liquidLegionsV2Stage =
           source.computationStage.liquidLegionsSketchAggregationV2.toSystemStage()
       }
-      ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 -> {
+      InternalComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 -> {
         reachOnlyLiquidLegionsStage =
           source.computationStage.reachOnlyLiquidLegionsSketchAggregationV2.toSystemStage()
       }
-      ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+      InternalComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
         honestMajorityShareShuffleStage =
           source.computationStage.honestMajorityShareShuffle.toSystemStage()
       }
-      ComputationStage.StageCase.STAGE_NOT_SET -> error("Invalid stage case.")
+      InternalComputationStage.StageCase.STAGE_NOT_SET -> error("Invalid stage case.")
     }
-    etag = source.etag
+    etag = ETags.computeETag(source.version)
   }
 }
 

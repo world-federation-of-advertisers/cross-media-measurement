@@ -77,6 +77,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
@@ -121,6 +123,7 @@ import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
@@ -2896,6 +2899,24 @@ class EdpSimulatorTest {
     assertThat(refuseRequest.refusal.message).contains("No valid methodologies")
     assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
     verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
+  }
+
+  @Test
+  fun `convert synthetic_population_spec to population_spec`() {
+    val syntheticPopulationSpec = SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE
+    val populationSpec = populationSpec {
+      subpopulations +=
+        syntheticPopulationSpec.subPopulationsList.map { it ->
+          subPopulation {
+            vidRanges += vidRange {
+              startVid = it.vidSubRange.start
+              endVidInclusive = (it.vidSubRange.endExclusive - 1)
+            }
+          }
+        }
+    }
+    print(populationSpec)
+    print(" ")
   }
 
   private class FakeRequisitionFulfillmentService : RequisitionFulfillmentCoroutineImplBase() {

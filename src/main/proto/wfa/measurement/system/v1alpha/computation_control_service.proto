@@ -19,7 +19,7 @@ package wfa.measurement.system.v1alpha;
 import "google/api/client.proto";
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
-import "wfa/measurement/system/v1alpha/stage.proto";
+import "wfa/measurement/system/v1alpha/computation_stage.proto";
 
 option java_package = "org.wfanet.measurement.system.v1alpha";
 option java_multiple_files = true;
@@ -33,7 +33,8 @@ service ComputationControl {
       returns (AdvanceComputationResponse) {}
 
   // Returns the stage of a MPC protocol for the specific Computation.
-  rpc GetStage(GetStageRequest) returns (Stage) {
+  rpc GetComputationStage(GetComputationStageRequest)
+      returns (ComputationStage) {
     option (google.api.method_signature) = "name";
   }
 }
@@ -144,11 +145,12 @@ message AdvanceComputationResponse {
 }
 
 // Request message for `GetComputationStage` method.
-message GetStageRequest {
+message GetComputationStageRequest {
   // Resource name of the `Stage`.
-  // Format: "computations/{computation}/participants/{duchy}/stage"
+  // Format: "computations/{computation}/participants/{duchy}/computationStage"
   string name = 1 [
-    (google.api.resource_reference).type = "halo-system.wfanet.org/Stage",
+    (google.api.resource_reference).type =
+        "halo-system.wfanet.org/ComputationStage",
     (google.api.field_behavior) = REQUIRED
   ];
 }
