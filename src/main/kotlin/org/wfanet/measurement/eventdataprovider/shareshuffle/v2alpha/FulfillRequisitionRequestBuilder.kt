@@ -52,6 +52,7 @@ import org.wfanet.measurement.consent.client.dataprovider.signRandomSeed
  */
 class FulfillRequisitionRequestBuilder(
   private val requisition: Requisition,
+  private val requisitionNonce: Long,
   private val frequencyVector: FrequencyVector,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
   private val signingKeyHandle: SigningKeyHandle,
@@ -128,7 +129,7 @@ class FulfillRequisitionRequestBuilder(
         header = header {
           name = requisition.name
           requisitionFingerprint = computeRequisitionFingerprint(requisition)
-          nonce = requisition.nonce
+          this.nonce = requisitionNonce
           protocolConfig = requisition.protocolConfig
           this.honestMajorityShareShuffle = honestMajorityShareShuffle {
             secretSeed = encryptedSignedShareSeed
@@ -185,12 +186,14 @@ class FulfillRequisitionRequestBuilder(
     /** A convenience function for building the Sequence of Requests. */
     fun build(
       requisition: Requisition,
+      requisitionNonce: Long,
       frequencyVector: FrequencyVector,
       dataProviderCertificateKey: DataProviderCertificateKey,
       signingKeyHandle: SigningKeyHandle,
     ): Sequence<FulfillRequisitionRequest> =
       FulfillRequisitionRequestBuilder(
           requisition,
+          requisitionNonce,
           frequencyVector,
           dataProviderCertificateKey,
           signingKeyHandle,

@@ -168,6 +168,7 @@ private val VISIBLE_REQUISITION_STATES: Set<InternalRequisition.State> =
     InternalRequisition.State.UNFULFILLED,
     InternalRequisition.State.FULFILLED,
     InternalRequisition.State.REFUSED,
+    InternalRequisition.State.WITHDRAWN,
   )
 
 @RunWith(JUnit4::class)

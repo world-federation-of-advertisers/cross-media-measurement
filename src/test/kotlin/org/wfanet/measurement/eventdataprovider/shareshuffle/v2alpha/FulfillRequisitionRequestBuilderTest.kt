@@ -41,6 +41,7 @@ class FulfillRequisitionRequestBuilderTest {
       assertFailsWith<IllegalArgumentException>("expected exception") {
         FulfillRequisitionRequestBuilder.build(
           requisition {},
+          requisitionNonce = 123L,
           frequencyVector { data += 1 },
           Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
           Requisitions.EDP_SIGNING_KEY,
@@ -60,6 +61,7 @@ class FulfillRequisitionRequestBuilderTest {
               protocols += protocol { honestMajorityShareShuffle = honestMajorityShareShuffle {} }
             }
           },
+          requisitionNonce = 123L,
           frequencyVector { data += 1 },
           Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
           Requisitions.EDP_SIGNING_KEY,
@@ -74,6 +76,7 @@ class FulfillRequisitionRequestBuilderTest {
       assertFailsWith<IllegalArgumentException>("expected exception") {
         FulfillRequisitionRequestBuilder.build(
           HMSS_REQUISITION.copy { duchies.clear() },
+          requisitionNonce = 123L,
           frequencyVector { data += 1 },
           Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
           Requisitions.EDP_SIGNING_KEY,
@@ -95,6 +98,7 @@ class FulfillRequisitionRequestBuilderTest {
               }
             }
           },
+          requisitionNonce = 123L,
           frequencyVector { data += 1 },
           Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
           Requisitions.EDP_SIGNING_KEY,
@@ -109,6 +113,7 @@ class FulfillRequisitionRequestBuilderTest {
       assertFailsWith<IllegalArgumentException>("expected exception") {
         FulfillRequisitionRequestBuilder.build(
           HMSS_REQUISITION,
+          requisitionNonce = 123L,
           frequencyVector {},
           Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
           Requisitions.EDP_SIGNING_KEY,
@@ -126,6 +131,7 @@ class FulfillRequisitionRequestBuilderTest {
     val requests =
       FulfillRequisitionRequestBuilder.build(
           requisition,
+          nonce,
           inputFrequencyVector,
           Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
           Requisitions.EDP_SIGNING_KEY,

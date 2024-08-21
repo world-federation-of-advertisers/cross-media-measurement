@@ -113,8 +113,8 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       )
     }
 
-    val measurementId = InternalId(computationParticipantResult.measurementId)
-    val measurementConsumerId = InternalId(computationParticipantResult.measurementConsumerId)
+    val measurementId = computationParticipantResult.measurementId
+    val measurementConsumerId = computationParticipantResult.measurementConsumerId
 
     if (computationParticipant.state != ComputationParticipant.State.CREATED) {
       throw ComputationParticipantStateIllegalException(
@@ -215,16 +215,6 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
             set("RequisitionId" to requisitionId)
             set("UpdateTime" to Value.COMMIT_TIMESTAMP)
             set("State" to Requisition.State.UNFULFILLED)
-            if (request.hasHonestMajorityShareShuffle()) {
-              val fulfillingDuchyId =
-                selectFulfillingDuchyId(
-                  requisitionId,
-                  duchyId,
-                  participantDetails,
-                  otherComputationParticipants,
-                )
-              set("FulfillingDuchyId" to fulfillingDuchyId)
-            }
           }
         }
     }

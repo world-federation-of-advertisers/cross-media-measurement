@@ -81,6 +81,7 @@ fun InternalRequisition.State.toSystemRequisitionState(): Requisition.State {
     InternalRequisition.State.UNFULFILLED -> Requisition.State.UNFULFILLED
     InternalRequisition.State.FULFILLED -> Requisition.State.FULFILLED
     InternalRequisition.State.REFUSED -> Requisition.State.REFUSED
+    InternalRequisition.State.WITHDRAWN -> Requisition.State.WITHDRAWN
     InternalRequisition.State.STATE_UNSPECIFIED,
     InternalRequisition.State.UNRECOGNIZED -> error("Invalid requisition state.")
   }
