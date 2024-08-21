@@ -101,7 +101,6 @@ import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
-import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.api.v2alpha.unpack
@@ -1152,6 +1151,8 @@ class EdpSimulator(
     nonce: Long,
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
   ) {
+    requireNotNull(hmssVidIndexMap) { "hmssVidIndexMap cannot be null." }
+
     val protocolConfig: ProtocolConfig.HonestMajorityShareShuffle =
       requireNotNull(
           requisition.protocolConfig.protocolsList.find { protocol ->
@@ -1172,10 +1173,10 @@ class EdpSimulator(
 
     logger.info("Generating sampled frequency vector for HMSS...")
     val frequencyVectorBuilder =
-      FrequencyVectorBuilder(hmssVidIndexMap!!.populationSpec, measurementSpec, strict = false)
+      FrequencyVectorBuilder(hmssVidIndexMap.populationSpec, measurementSpec, strict = false)
     for (eventGroupSpec in eventGroupSpecs) {
       eventQuery.getUserVirtualIds(eventGroupSpec).forEach {
-        frequencyVectorBuilder.increment(hmssVidIndexMap!![it])
+        frequencyVectorBuilder.increment(hmssVidIndexMap[it])
       }
     }
 
