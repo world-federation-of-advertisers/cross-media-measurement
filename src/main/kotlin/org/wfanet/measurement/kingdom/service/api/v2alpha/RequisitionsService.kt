@@ -28,7 +28,6 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
-import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionResponse
@@ -480,7 +479,7 @@ private fun ComputationParticipant.HonestMajorityShareShuffleDetails.toHmssDuchy
           value = source.tinkPublicKey
           typeUrl =
             when (apiVersion) {
-              Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptedMessage.getDescriptor())
+              Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
             }
         }
       )
