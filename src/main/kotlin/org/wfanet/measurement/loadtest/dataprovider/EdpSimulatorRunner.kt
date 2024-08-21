@@ -37,6 +37,7 @@ import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.dataprovider.DataProviderData
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
 import org.wfanet.measurement.loadtest.config.PrivacyBudgets.createNoOpPrivacyBudgetManager
 import picocli.CommandLine
 
@@ -51,7 +52,7 @@ abstract class EdpSimulatorRunner : Runnable {
     eventTemplates: Iterable<EventGroup.EventTemplate>,
     metadataByReferenceIdSuffix: Map<String, Message>,
     knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>,
-    vidToIndexMap: Map<Long, IndexedValue> = emptyMap(),
+    hmssVidIndexMap: VidIndexMap? = null,
   ) {
     val clientCerts =
       SigningCerts.fromPemFiles(
@@ -120,7 +121,7 @@ abstract class EdpSimulatorRunner : Runnable {
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
         createNoOpPrivacyBudgetManager(),
         clientCerts.trustedCertificates,
-        vidToIndexMap = vidToIndexMap,
+        hmssVidIndexMap = hmssVidIndexMap,
         knownEventGroupMetadataTypes = knownEventGroupMetadataTypes,
         random = random,
         logSketchDetails = flags.logSketchDetails,
