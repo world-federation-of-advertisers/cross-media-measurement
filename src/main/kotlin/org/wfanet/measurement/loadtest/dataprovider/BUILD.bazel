@@ -151,13 +151,14 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/api/v2alpha:privacy_query_mapper",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/shareshuffle/v2alpha:shareshuffle",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/common:sample_vids",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:privacy_budgets",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:test_identifiers",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
         "//src/main/proto/halo_cmm/uk/pilot:event_kt_jvm_proto",
+        "//src/main/proto/wfa/any_sketch:frequency_vector_kt_jvm_proto",
         "//src/main/proto/wfa/any_sketch:sketch_kt_jvm_proto",
-        "//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto",
         "//src/main/proto/wfa/frequency_count:secret_share_kt_jvm_proto",
         "//src/main/proto/wfa/frequency_count:secret_share_methods_kt_jvm__proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
@@ -286,6 +287,7 @@ kt_jvm_library(
     srcs = ["SyntheticGeneratorEdpSimulatorRunner.kt"],
     deps = [
         ":edp_simulator_runner",
+        ":population_spec_converter",
         ":synthetic_generator_event_query",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
@@ -325,5 +327,16 @@ kt_jvm_library(
         ":vid_to_index_map_generator",
         "//src/main/kotlin/org/wfanet/measurement/common:sorted_lists",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+    ],
+)
+
+kt_jvm_library(
+    name = "population_spec_converter",
+    srcs = [
+        "PopulationSpecConverter.kt",
+    ],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
     ],
 )
