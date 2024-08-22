@@ -306,6 +306,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         }
 
       waitUntilDeploymentsComplete(appliedObjects)
+      logger.info("All deployments complete.")
     }
 
     private suspend fun loadKingdom() {
