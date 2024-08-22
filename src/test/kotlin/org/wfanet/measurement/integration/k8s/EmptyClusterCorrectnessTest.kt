@@ -20,6 +20,7 @@ import io.grpc.Channel
 import io.grpc.ManagedChannel
 import io.kubernetes.client.common.KubernetesObject
 import io.kubernetes.client.openapi.Configuration
+import io.kubernetes.client.openapi.models.V1ContainerStatus
 import io.kubernetes.client.openapi.models.V1Deployment
 import io.kubernetes.client.openapi.models.V1Pod
 import io.kubernetes.client.util.ClientBuilder
@@ -229,6 +230,13 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private suspend fun createTestHarness(
       measurementConsumerData: MeasurementConsumerData
     ): MeasurementConsumerSimulator {
+      println("name: ${V1ContainerStatus::class.java.`package`.name}")
+      println("specification title: ${V1ContainerStatus::class.java.`package`.specificationTitle}")
+      println("specification vendor: ${V1ContainerStatus::class.java.`package`.specificationVendor}")
+      println("specification version: ${V1ContainerStatus::class.java.`package`.specificationVersion}")
+      println("implementation title: ${V1ContainerStatus::class.java.`package`.implementationTitle}")
+      println("implementation vendor: ${V1ContainerStatus::class.java.`package`.implementationVendor}")
+      println("implementation version: ${V1ContainerStatus::class.java.`package`.implementationVersion}")
       val kingdomPublicPod: V1Pod = getPod(KINGDOM_PUBLIC_DEPLOYMENT_NAME)
 
       val publicApiForwarder = PortForwarder(kingdomPublicPod, SERVER_PORT)
