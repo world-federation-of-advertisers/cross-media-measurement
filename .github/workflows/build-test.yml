@@ -102,11 +102,11 @@ jobs:
         with:
           mount-path: ${{ steps.get-cache-params.outputs.cache-path }}
 
-      - name: Restore repository cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.get-cache-params.outputs.repo-cache-path }}
-          key: ${{ vars.BAZEL_REPO_CACHE_KEY }}
+#      - name: Restore repository cache
+#        uses: actions/cache/restore@v4
+#        with:
+#          path: ${{ steps.get-cache-params.outputs.repo-cache-path }}
+#          key: ${{ vars.BAZEL_REPO_CACHE_KEY }}
 
       - name: Check lockfile
         run: bazel mod deps
