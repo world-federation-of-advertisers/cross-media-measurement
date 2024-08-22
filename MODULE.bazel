@@ -129,7 +129,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.89.0",
+    version = "0.87.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -292,6 +292,13 @@ http_archive(
     sha256 = "807d42caed3056cea63b9048a2fd69122c071740d43c9de546cc0fabded87a5c",
     strip_prefix = "shell-encryption-507781e129a03f8178c9716d79163fae23d34b6a",
     url = "https://github.com/google/shell-encryption/archive/507781e129a03f8178c9716d79163fae23d34b6a.tar.gz",
+)
+
+# DO NOT SUBMIT
+archive_override(
+    module_name = "common-jvm",
+    strip_prefix = "common-jvm-e0eb1dfe1ad144c22ffe70ca01d6ffc9d41cf5de",
+    urls = ["https://github.com/world-federation-of-advertisers/common-jvm/archive/e0eb1dfe1ad144c22ffe70ca01d6ffc9d41cf5de.tar.gz"],
 )
 
 http_archive(
