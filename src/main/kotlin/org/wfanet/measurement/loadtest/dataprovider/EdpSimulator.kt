@@ -755,7 +755,6 @@ class EdpSimulator(
           fulfillRequisitionForHmssMeasurement(
             requisition,
             measurementSpec,
-            requisitionFingerprint,
             requisitionSpec.nonce,
             eventGroupSpecs,
           )
@@ -1147,11 +1146,10 @@ class EdpSimulator(
   private suspend fun fulfillRequisitionForHmssMeasurement(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
-    requisitionFingerprint: ByteString,
     nonce: Long,
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
   ) {
-    requireNotNull(hmssVidIndexMap) { "hmssVidIndexMap cannot be null." }
+    requireNotNull(hmssVidIndexMap) { "HMSS VidIndexMap cannot be null." }
 
     val protocolConfig: ProtocolConfig.HonestMajorityShareShuffle =
       requireNotNull(
