@@ -117,7 +117,6 @@ kingdom: #Kingdom & {
 					"--bigquery-dataset=operational_metrics",
 					"--measurements-table=measurements",
 					"--requisitions-table=requisitions",
-					"--computation-participants-table=computation_participants",
 					"--latest-measurement-read-table=latest_measurement_read",
 					"--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem",
 					"--tls-key-file=/var/run/secrets/files/kingdom_tls.key",

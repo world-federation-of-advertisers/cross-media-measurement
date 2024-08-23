@@ -74,36 +74,6 @@ message RequisitionsTableRow {
   int64 completion_duration_seconds_squared = 11;
 }
 
-message ComputationParticipantsTableRow {
-  string measurement_consumer_id = 1;
-  string measurement_id = 2;
-  string computation_id = 3;
-  string duchy_id = 4;
-
-  enum Protocol {
-    PROTOCOL_UNSPECIFIED = 0;
-    LIQUID_LEGIONS_V2 = 1;
-    REACH_ONLY_LIQUID_LEGIONS_V2 = 2;
-    HONEST_MAJORITY_SHARE_SHUFFLE = 3;
-  }
-  Protocol protocol = 5;
-
-  MeasurementType measurement_type = 6;
-
-  enum State {
-    STATE_UNSPECIFIED = 0;
-    READY = 1;
-    FAILED = 2;
-  }
-  State state = 7;
-
-  google.protobuf.Timestamp create_time = 8;
-  google.protobuf.Timestamp update_time = 9;
-
-  int64 completion_duration_seconds = 10;
-  int64 completion_duration_seconds_squared = 11;
-}
-
 message LatestMeasurementReadTableRow {
   // Since BigQuery timestamp is microsecond precision, this is in nanoseconds
   // and is stored as an integer.

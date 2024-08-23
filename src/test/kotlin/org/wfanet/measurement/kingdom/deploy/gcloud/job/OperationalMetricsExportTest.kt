@@ -73,12 +73,10 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
-import org.wfanet.measurement.internal.kingdom.bigquerytables.ComputationParticipantsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestMeasurementReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementType
 import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.RequisitionsTableRow
-import org.wfanet.measurement.internal.kingdom.bigquerytables.computationParticipantsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.latestMeasurementReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.measurementsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.requisitionsTableRow
@@ -115,7 +113,6 @@ class OperationalMetricsExportTest {
 
   private lateinit var measurementsStreamWriterMock: StreamWriter
   private lateinit var requisitionsStreamWriterMock: StreamWriter
-  private lateinit var computationParticipantsStreamWriterMock: StreamWriter
   private lateinit var latestMeasurementReadStreamWriterMock: StreamWriter
 
   private lateinit var streamWriterFactoryTestImpl: StreamWriterFactory
@@ -131,12 +128,6 @@ class OperationalMetricsExportTest {
     }
 
     requisitionsStreamWriterMock = mock {
-      whenever(it.append(any()))
-        .thenReturn(ApiFutures.immediateFuture(AppendRowsResponse.getDefaultInstance()))
-      whenever(it.isClosed).thenReturn(false)
-    }
-
-    computationParticipantsStreamWriterMock = mock {
       whenever(it.append(any()))
         .thenReturn(ApiFutures.immediateFuture(AppendRowsResponse.getDefaultInstance()))
       whenever(it.isClosed).thenReturn(false)
@@ -158,7 +149,6 @@ class OperationalMetricsExportTest {
         when (tableId) {
           MEASUREMENTS_TABLE_ID -> measurementsStreamWriterMock
           REQUISITIONS_TABLE_ID -> requisitionsStreamWriterMock
-          COMPUTATION_PARTICIPANTS_TABLE_ID -> computationParticipantsStreamWriterMock
           LATEST_MEASUREMENT_READ_TABLE_ID -> latestMeasurementReadStreamWriterMock
           else -> mock {}
         }
@@ -188,7 +178,6 @@ class OperationalMetricsExportTest {
         latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
         measurementsTableId = MEASUREMENTS_TABLE_ID,
         requisitionsTableId = REQUISITIONS_TABLE_ID,
-        computationParticipantsTableId = COMPUTATION_PARTICIPANTS_TABLE_ID,
         streamWriterFactory = streamWriterFactoryTestImpl,
       )
 
@@ -310,46 +299,6 @@ class OperationalMetricsExportTest {
     }
 
     with(argumentCaptor<ProtoRows>()) {
-      verify(computationParticipantsStreamWriterMock).append(capture())
-
-      val protoRows: ProtoRows = allValues.first()
-      assertThat(protoRows.serializedRowsList).hasSize(3)
-
-      for (serializedProtoRow in protoRows.serializedRowsList) {
-        val computationParticipantsTableRow =
-          ComputationParticipantsTableRow.parseFrom(serializedProtoRow)
-        for (computationParticipant in computationMeasurement.computationParticipantsList) {
-          if (computationParticipant.externalDuchyId == computationParticipantsTableRow.duchyId) {
-            assertThat(computationParticipantsTableRow)
-              .isEqualTo(
-                computationParticipantsTableRow {
-                  measurementConsumerId =
-                    externalIdToApiId(computationMeasurement.externalMeasurementConsumerId)
-                  measurementId = externalIdToApiId(computationMeasurement.externalMeasurementId)
-                  computationId = externalIdToApiId(computationMeasurement.externalComputationId)
-                  duchyId = computationParticipantsTableRow.duchyId
-                  protocol = ComputationParticipantsTableRow.Protocol.PROTOCOL_UNSPECIFIED
-                  measurementType = MeasurementType.REACH_AND_FREQUENCY
-                  state = ComputationParticipantsTableRow.State.READY
-                  createTime = computationMeasurement.createTime
-                  updateTime = computationParticipant.updateTime
-                  completionDurationSeconds =
-                    Durations.toSeconds(
-                      Timestamps.between(
-                        computationMeasurement.createTime,
-                        computationParticipant.updateTime,
-                      )
-                    )
-                  completionDurationSecondsSquared =
-                    completionDurationSeconds * completionDurationSeconds
-                }
-              )
-          }
-        }
-      }
-    }
-
-    with(argumentCaptor<ProtoRows>()) {
       verify(latestMeasurementReadStreamWriterMock).append(capture())
 
       val protoRows: ProtoRows = allValues.first()
@@ -404,7 +353,6 @@ class OperationalMetricsExportTest {
         latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
         measurementsTableId = MEASUREMENTS_TABLE_ID,
         requisitionsTableId = REQUISITIONS_TABLE_ID,
-        computationParticipantsTableId = COMPUTATION_PARTICIPANTS_TABLE_ID,
         streamWriterFactory = streamWriterFactoryTestImpl,
       )
 
@@ -445,91 +393,6 @@ class OperationalMetricsExportTest {
         )
     }
   }
-
-  @Test
-  fun `job does not create protos for computation participants that are incomplete`() =
-    runBlocking {
-      whenever(measurementsMock.streamMeasurements(any()))
-        .thenReturn(
-          flowOf(
-            COMPUTATION_MEASUREMENT.copy {
-              computationParticipants.clear()
-              computationParticipants += COMPUTATION_MEASUREMENT.computationParticipantsList[0]
-              computationParticipants += COMPUTATION_MEASUREMENT.computationParticipantsList[1]
-              computationParticipants +=
-                COMPUTATION_MEASUREMENT.computationParticipantsList[2].copy {
-                  state = ComputationParticipant.State.CREATED
-                }
-            }
-          )
-        )
-
-      val computationMeasurement = COMPUTATION_MEASUREMENT
-
-      val tableResultMock: TableResult = mock { tableResult ->
-        whenever(tableResult.iterateAll()).thenReturn(emptyList())
-      }
-
-      val bigQueryMock: BigQuery = mock { bigQuery ->
-        whenever(bigQuery.query(any())).thenReturn(tableResultMock)
-      }
-
-      val operationalMetricsExport =
-        OperationalMetricsExport(
-          measurementsClient = measurementsClient,
-          bigQuery = bigQueryMock,
-          bigQueryWriteClient = bigQueryWriteClientMock,
-          projectId = PROJECT_ID,
-          datasetId = DATASET_ID,
-          latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
-          measurementsTableId = MEASUREMENTS_TABLE_ID,
-          requisitionsTableId = REQUISITIONS_TABLE_ID,
-          computationParticipantsTableId = COMPUTATION_PARTICIPANTS_TABLE_ID,
-          streamWriterFactory = streamWriterFactoryTestImpl,
-        )
-
-      operationalMetricsExport.execute()
-
-      with(argumentCaptor<ProtoRows>()) {
-        verify(computationParticipantsStreamWriterMock).append(capture())
-
-        val protoRows: ProtoRows = allValues.first()
-        assertThat(protoRows.serializedRowsList).hasSize(2)
-
-        for (serializedProtoRow in protoRows.serializedRowsList) {
-          val computationParticipantsTableRow =
-            ComputationParticipantsTableRow.parseFrom(serializedProtoRow)
-          for (computationParticipant in computationMeasurement.computationParticipantsList) {
-            if (computationParticipant.externalDuchyId == computationParticipantsTableRow.duchyId) {
-              assertThat(computationParticipantsTableRow)
-                .isEqualTo(
-                  computationParticipantsTableRow {
-                    measurementConsumerId =
-                      externalIdToApiId(computationMeasurement.externalMeasurementConsumerId)
-                    measurementId = externalIdToApiId(computationMeasurement.externalMeasurementId)
-                    computationId = externalIdToApiId(computationMeasurement.externalComputationId)
-                    duchyId = computationParticipantsTableRow.duchyId
-                    protocol = ComputationParticipantsTableRow.Protocol.PROTOCOL_UNSPECIFIED
-                    measurementType = MeasurementType.REACH_AND_FREQUENCY
-                    state = ComputationParticipantsTableRow.State.READY
-                    createTime = computationMeasurement.createTime
-                    updateTime = computationParticipant.updateTime
-                    completionDurationSeconds =
-                      Durations.toSeconds(
-                        Timestamps.between(
-                          computationMeasurement.createTime,
-                          computationParticipant.updateTime,
-                        )
-                      )
-                    completionDurationSecondsSquared =
-                      completionDurationSeconds * completionDurationSeconds
-                  }
-                )
-            }
-          }
-        }
-      }
-    }
 
   @Test
   fun `job can process the next batch of measurements without starting at the beginning`() =
@@ -606,7 +469,6 @@ class OperationalMetricsExportTest {
           latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
           measurementsTableId = MEASUREMENTS_TABLE_ID,
           requisitionsTableId = REQUISITIONS_TABLE_ID,
-          computationParticipantsTableId = COMPUTATION_PARTICIPANTS_TABLE_ID,
           streamWriterFactory = streamWriterFactoryTestImpl,
         )
 
@@ -636,7 +498,6 @@ class OperationalMetricsExportTest {
         latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
         measurementsTableId = MEASUREMENTS_TABLE_ID,
         requisitionsTableId = REQUISITIONS_TABLE_ID,
-        computationParticipantsTableId = COMPUTATION_PARTICIPANTS_TABLE_ID,
         streamWriterFactory = streamWriterFactoryTestImpl,
       )
 
@@ -673,7 +534,6 @@ class OperationalMetricsExportTest {
         latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
         measurementsTableId = MEASUREMENTS_TABLE_ID,
         requisitionsTableId = REQUISITIONS_TABLE_ID,
-        computationParticipantsTableId = COMPUTATION_PARTICIPANTS_TABLE_ID,
         streamWriterFactory = streamWriterFactoryTestImpl,
       )
 
@@ -710,7 +570,6 @@ class OperationalMetricsExportTest {
           latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
           measurementsTableId = MEASUREMENTS_TABLE_ID,
           requisitionsTableId = REQUISITIONS_TABLE_ID,
-          computationParticipantsTableId = COMPUTATION_PARTICIPANTS_TABLE_ID,
           streamWriterFactory = streamWriterFactoryTestImpl,
         )
 
@@ -748,7 +607,6 @@ class OperationalMetricsExportTest {
           latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
           measurementsTableId = MEASUREMENTS_TABLE_ID,
           requisitionsTableId = REQUISITIONS_TABLE_ID,
-          computationParticipantsTableId = COMPUTATION_PARTICIPANTS_TABLE_ID,
           streamWriterFactory = streamWriterFactoryTestImpl,
         )
 
@@ -780,7 +638,6 @@ class OperationalMetricsExportTest {
           latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
           measurementsTableId = MEASUREMENTS_TABLE_ID,
           requisitionsTableId = REQUISITIONS_TABLE_ID,
-          computationParticipantsTableId = COMPUTATION_PARTICIPANTS_TABLE_ID,
           streamWriterFactory = streamWriterFactoryTestImpl,
         )
 
@@ -793,7 +650,6 @@ class OperationalMetricsExportTest {
     private const val DATASET_ID = "dataset"
     private const val MEASUREMENTS_TABLE_ID = "measurements"
     private const val REQUISITIONS_TABLE_ID = "requisitions"
-    private const val COMPUTATION_PARTICIPANTS_TABLE_ID = "computation_participants"
     private const val LATEST_MEASUREMENT_READ_TABLE_ID = "latest_measurement_read"
 
     private const val API_VERSION = "v2alpha"
