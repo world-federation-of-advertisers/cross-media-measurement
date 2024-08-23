@@ -134,6 +134,7 @@ jobs:
           echo "KUBECONFIG=$HOME/.kube/config" >> "$GITHUB_ENV"
           curl -LOJ https://kind.sigs.k8s.io/examples/kind-with-registry.sh
           chmod +x kind-with-registry.sh
+          sed -i 's|kind create cluster|kind create cluster --image=kindest/node:v1.30.0|g' kind-with-registry.sh
           ./kind-with-registry.sh
 
       - name: Run correctness test
