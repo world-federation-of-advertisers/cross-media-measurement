@@ -27,6 +27,7 @@ use whichever you prefer.
     *   `open-telemetry-java-agent`
 *   NetworkPolicy
     *   `opentelemetry-collector-network-policy`
+    *   `to-opentelemetry-collector-network-policy`
 
 ## Before you start
 

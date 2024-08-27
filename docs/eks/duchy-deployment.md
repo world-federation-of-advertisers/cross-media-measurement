@@ -52,7 +52,8 @@ For a Duchy named `worker2`, the cluster will be populated with the following:
 -   CronJob
     -   `worker2-computations-cleaner-cronjob`
 -   NetworkPolicy
-    -   `default-deny-ingress-and-egress`
+    -   `default-deny-network-policy`
+    -   `kube-dns-network-policy`
     -   `worker2-async-computation-controls-server-network-policy`
     -   `worker2-computation-control-server-network-policy`
     -   `worker2-computations-cleaner-network-policy`
