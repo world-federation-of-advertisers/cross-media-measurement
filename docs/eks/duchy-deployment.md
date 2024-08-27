@@ -58,6 +58,7 @@ For a Duchy named `worker2`, the cluster will be populated with the following:
     -   `worker2-computation-control-server-network-policy`
     -   `worker2-computations-cleaner-network-policy`
     -   `worker2-herald-daemon-network-policy`
+    -   `worker2-mill-job-scheduler-network-policy`
     -   `worker2-llv2-mill-network-policy`
     -   `worker2-hmss-mill-network-policy`
     -   `worker2-requisition-fulfillment-server-network-policy`
