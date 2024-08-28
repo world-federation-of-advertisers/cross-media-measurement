@@ -7,7 +7,7 @@
 
 vid_range {
   start: 1
-  end_exclusive: 34335355  # Age 18-64 with known social grade.
+  end_exclusive: 34335356  # Age 18-64 with known social grade.
 }
 event_message_type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
 population_fields: "person.gender"
