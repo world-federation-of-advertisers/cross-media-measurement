@@ -710,19 +710,6 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				}]
 			}
 		}
-		dns: {
-			to: [{
-				namespaceSelector: {} // Allow DNS only inside the cluster
-				podSelector: matchLabels: "k8s-app": "kube-dns"
-			}]
-			ports: [{
-				protocol: "UDP"
-				port:     53
-			}, {
-				protocol: "TCP"
-				port:     53
-			}]
-		}
 	}
 
 	apiVersion: "networking.k8s.io/v1"
@@ -738,27 +725,45 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				}
 			}
 		}
-		policyTypes: ["Ingress", "Egress"]
+		policyTypes?: ["Ingress"] | ["Egress"] | ["Ingress", "Egress"]
 		ingress: [ for _, ingress in _ingresses {ingress}]
 		egress: [ for _, egress in _egresses {egress}]
 	}
 }
 
-// This policy will deny ingress and egress traffic at all unconfigured pods.
-default_deny_ingress_and_egress: [{
-	apiVersion: "networking.k8s.io/v1"
-	kind:       "NetworkPolicy"
-	metadata: {
-		name: "default-deny-ingress-and-egress"
-		labels: {
-			"app.kubernetes.io/part-of": #AppName
+defaultNetworkPolicies: [Name=string]: #NetworkPolicy & {
+	_name: Name
+}
+defaultNetworkPolicies: {
+	// This policy will deny ingress and egress traffic at all unconfigured pods.
+	"default-deny": {
+		spec: {
+			podSelector: {}
+			policyTypes: ["Ingress", "Egress"]
 		}
 	}
-	spec: {
-		podSelector: {}
-		policyTypes: ["Ingress", "Egress"]
+	"kube-dns": {
+		_egresses: {
+			dns: {
+				to: [{
+					namespaceSelector: {} // Allow DNS only inside the cluster
+					podSelector: matchLabels: "k8s-app": "kube-dns"
+				}]
+				ports: [{
+					protocol: "UDP"
+					port:     53
+				}, {
+					protocol: "TCP"
+					port:     53
+				}]
+			}
+		}
+		spec: {
+			podSelector: {}
+			policyTypes: ["Egress"]
+		}
 	}
-}]
+}
 
 // A simple fanout Ingress base definition
 #Ingress: {
