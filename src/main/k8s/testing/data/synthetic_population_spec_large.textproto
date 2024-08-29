@@ -7,7 +7,7 @@
 
 vid_range {
   start: 1
-  end_exclusive: 34335356  # Age 18-64 with known social grade.
+  end_exclusive: 34288881  # Age 18-64 with known social grade.
 }
 event_message_type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
 population_fields: "person.gender"
@@ -137,7 +137,7 @@ sub_populations {
 sub_populations {
   vid_sub_range {
     start: 15341499
-    end_exclusive: 17038163
+    end_exclusive: 16991688
   }
   population_fields_values {
     key: "person.age_group"
@@ -160,8 +160,8 @@ sub_populations {
 }
 sub_populations {
   vid_sub_range {
-    start: 17038163
-    end_exclusive: 20356531
+    start: 16991688
+    end_exclusive: 20310056
   }
   population_fields_values {
     key: "person.age_group"
@@ -184,8 +184,8 @@ sub_populations {
 }
 sub_populations {
   vid_sub_range {
-    start: 20356531
-    end_exclusive: 23213118
+    start: 20310056
+    end_exclusive: 23166643
   }
   population_fields_values {
     key: "person.age_group"
@@ -208,8 +208,8 @@ sub_populations {
 }
 sub_populations {
   vid_sub_range {
-    start: 23213118
-    end_exclusive: 27540955
+    start: 23166643
+    end_exclusive: 27494480
   }
   population_fields_values {
     key: "person.age_group"
@@ -232,8 +232,8 @@ sub_populations {
 }
 sub_populations {
   vid_sub_range {
-    start: 27540955
-    end_exclusive: 31020333
+    start: 27494480
+    end_exclusive: 30973858
   }
   population_fields_values {
     key: "person.age_group"
@@ -256,8 +256,8 @@ sub_populations {
 }
 sub_populations {
   vid_sub_range {
-    start: 31020333
-    end_exclusive: 32726015
+    start: 30973858
+    end_exclusive: 32679540
   }
   population_fields_values {
     key: "person.age_group"
@@ -280,8 +280,8 @@ sub_populations {
 }
 sub_populations {
   vid_sub_range {
-    start: 32726015
-    end_exclusive: 34335356
+    start: 32679540
+    end_exclusive: 34288881
   }
   population_fields_values {
     key: "person.age_group"
