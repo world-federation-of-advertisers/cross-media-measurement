@@ -12,8 +12,8 @@ build --cxxopt='-std=c++17'
 # Use JDK 17.
 build --java_runtime_version=remotejdk_17
 
-# Target Java 9.
-build --java_language_version=9
+# Target Java 11.
+build --java_language_version=11
 
 # Pass environment variables.
 test --test_env TESTCONTAINERS_RYUK_DISABLED=true
