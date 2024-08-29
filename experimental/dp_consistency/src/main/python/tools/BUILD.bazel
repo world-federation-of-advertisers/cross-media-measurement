@@ -1,0 +1,14 @@
+load("@pip//:requirements.bzl", "requirement")
+load("@rules_python//python:defs.bzl", "py_library")
+
+py_library(
+    name = "correct_origin_report",
+    srcs = ["correct_origin_report.py"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//experimental/dp_consistency/src/main/python/noiseninja:noised_measurements",
+        "//experimental/dp_consistency/src/main/python/noiseninja:solver",
+        requirement("openpyxl"),
+        requirement("pandas"),
+    ],
+)

@@ -1,0 +1,19 @@
+load("@pip//:requirements.bzl", "requirement")
+load("@rules_python//python:defs.bzl", "py_library")
+
+py_library(
+    name = "noised_measurements",
+    srcs = ["noised_measurements.py"],
+    visibility = ["//visibility:public"],
+)
+
+py_library(
+    name = "solver",
+    srcs = ["solver.py"],
+    visibility = ["//visibility:public"],
+    deps = [
+        requirement("numpy"),
+        requirement("qpsolvers"),
+        requirement("highspy"),
+    ],
+)

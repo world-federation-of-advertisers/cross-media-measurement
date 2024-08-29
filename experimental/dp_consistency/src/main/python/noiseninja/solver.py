@@ -18,7 +18,7 @@ from typing import Any
 import numpy as np
 from qpsolvers import solve_problem, Problem, Solution
 
-from src.main.python.noiseninja.noised_measurements import SetMeasurementsSpec
+from experimental.dp_consistency.src.main.python.noiseninja.noised_measurements import SetMeasurementsSpec
 
 SOLVER = "highs"
 

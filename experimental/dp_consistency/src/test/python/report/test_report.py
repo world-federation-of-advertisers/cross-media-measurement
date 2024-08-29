@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import unittest
 from unittest import TestCase
 
-from src.main.python.noiseninja.noised_measurements import Measurement
-from src.main.python.report.report import Report, MetricReport
+from experimental.dp_consistency.src.main.python.noiseninja.noised_measurements import Measurement
+from experimental.dp_consistency.src.main.python.report.report import Report, MetricReport
 
 EXPECTED_PRECISION = 3
 EDP_ONE = "EDP_ONE"
@@ -745,3 +746,6 @@ class TestReport(TestCase):
                 actual.get_metric_report(metric),
                 msg,
             )
+
+if __name__=="__main__":
+    unittest.main()
