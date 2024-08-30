@@ -22,6 +22,7 @@ import "google/api/resource.proto";
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ReportingSetProto";
+option go_package = "github.com/world-federation-of-advertisers/cross-media-measurement/reporting/v2alpha";
 
 // The resource name of a reporting set.
 message ReportingSet {
