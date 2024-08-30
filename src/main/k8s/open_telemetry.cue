@@ -58,7 +58,6 @@ package k8s
 	collectors: [Name=string]: #OpenTelemetryCollector & {
 		metadata: name: Name
 	}
-
 	collectors: {
 		"default": {
 			spec: {
@@ -142,15 +141,45 @@ package k8s
 	}
 
 	networkPolicies: [Name=_]: #NetworkPolicy & {
-		_policyPodSelectorMatchLabels: "app.kubernetes.io/component": "opentelemetry-collector"
 		_name: Name
 	}
-
 	networkPolicies: {
-		"opentelemetry-collector": {
-			_ingresses: {
-				any: {}
+		"to-opentelemetry-collector": {
+			_egresses: {
+				collector: {
+					to: [{
+						podSelector: {
+							matchLabels: {
+								"app.kubernetes.io/component": "opentelemetry-collector"
+							}
+						}
+					}]
+				}
+			}
+			spec: {
+				podSelector: {}
+				policyTypes: ["Egress"]
 			}
 		}
+		"opentelemetry-collector": {
+			_ingresses: {
+				allPods: {
+					from: [{
+						podSelector: {}
+					}]
+				}
+			}
+			spec: {
+				podSelector: {
+					matchLabels: {
+						"app.kubernetes.io/component": "opentelemetry-collector"
+					}
+				}
+			}
+		}
+	}
+
+	serviceAccounts: [Name=string]: #ServiceAccount & {
+		metadata: name: Name
 	}
 }

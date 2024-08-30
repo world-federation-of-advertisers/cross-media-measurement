@@ -54,11 +54,14 @@ For a Duchy named `worker1`, the cluster will be populated with the following:
 -   CronJob
     -   `worker1-computations-cleaner-cronjob`
 -   NetworkPolicy
-    -   `default-deny-ingress-and-egress`
+    -   `default-deny-network-policy`
+    -   `kube-dns-network-policy`
+    -   `gke-network-policy`
     -   `worker1-async-computation-controls-server-network-policy`
     -   `worker1-computation-control-server-network-policy`
     -   `worker1-computations-cleaner-network-policy`
     -   `worker1-herald-daemon-network-policy`
+    -   `worker1-mill-job-scheduler-network-policy`
     -   `worker1-llv2-mill-network-policy`
     -   `worker1-hmss-mill-network-policy`
     -   `worker1-requisition-fulfillment-server-network-policy`
