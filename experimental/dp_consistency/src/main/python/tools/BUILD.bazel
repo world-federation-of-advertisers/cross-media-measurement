@@ -6,8 +6,8 @@ py_library(
     srcs = ["correct_origin_report.py"],
     visibility = ["//visibility:public"],
     deps = [
-        "//experimental/dp_consistency/src/main/python/noiseninja:noised_measurements",
-        "//experimental/dp_consistency/src/main/python/noiseninja:solver",
+        "//experimental/dp_consistency/src/main/python:report",
+        "//experimental/dp_consistency/src/main/python/report",
         requirement("openpyxl"),
         requirement("pandas"),
     ],

@@ -16,8 +16,8 @@ import random
 
 import numpy as np
 
-from experimental.dp_consistency.src.main.python.noiseninja.noised_measurements import SetMeasurementsSpec, Measurement
-from experimental.dp_consistency.src.main.python.noiseninja.solver import Solver
+from noiseninja.noised_measurements import SetMeasurementsSpec, Measurement
+from noiseninja.solver import Solver
 from typing import FrozenSet
 from itertools import combinations
 from functools import reduce

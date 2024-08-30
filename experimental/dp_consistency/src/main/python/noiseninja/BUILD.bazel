@@ -2,14 +2,8 @@ load("@pip//:requirements.bzl", "requirement")
 load("@rules_python//python:defs.bzl", "py_library")
 
 py_library(
-    name = "noised_measurements",
-    srcs = ["noised_measurements.py"],
-    visibility = ["//visibility:public"],
-)
-
-py_library(
-    name = "solver",
-    srcs = ["solver.py"],
+    name = "noiseninja",
+    srcs = glob(["*.py"]),
     visibility = ["//visibility:public"],
     deps = [
         requirement("numpy"),

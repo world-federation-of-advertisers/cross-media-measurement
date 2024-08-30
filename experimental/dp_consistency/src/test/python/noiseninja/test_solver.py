@@ -14,8 +14,8 @@
 
 import unittest
 
-from experimental.dp_consistency.src.main.python.noiseninja.noised_measurements import SetMeasurementsSpec, Measurement
-from experimental.dp_consistency.src.main.python.noiseninja.solver import Solver
+from noiseninja.noised_measurements import SetMeasurementsSpec, Measurement
+from noiseninja.solver import Solver
 
 
 class SolverTest(unittest.TestCase):

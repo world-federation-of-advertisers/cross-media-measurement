@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import unittest
-from experimental.dp_consistency.src.main.python.tools.correct_origin_report import correctExcelFile
 
+from tools.correct_origin_report import correctExcelFile
 
 CUML_REACH_COL_NAME = "Cumulative Reach 1+"
 TOTAL_REACH_COL_NAME = "Total Reach (1+)"

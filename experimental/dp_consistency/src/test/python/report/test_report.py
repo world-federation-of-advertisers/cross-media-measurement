@@ -13,18 +13,16 @@
 # limitations under the License.
 
 import unittest
-from unittest import TestCase
 
-from experimental.dp_consistency.src.main.python.noiseninja.noised_measurements import Measurement
-from experimental.dp_consistency.src.main.python.report.report import Report, MetricReport
+from noiseninja.noised_measurements import Measurement
+from report.report import Report, MetricReport
 
 EXPECTED_PRECISION = 3
 EDP_ONE = "EDP_ONE"
 EDP_TWO = "EDP_TWO"
 EDP_THREE = "EDP_THREE"
 
-
-class TestReport(TestCase):
+class TestReport(unittest.TestCase):
 
     def test_get_cover_relationships(self):
         metric_report = MetricReport(

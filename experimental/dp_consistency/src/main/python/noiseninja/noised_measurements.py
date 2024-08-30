@@ -14,7 +14,6 @@
 
 from collections import defaultdict
 
-
 class Measurement:
     """Represents a measurement with a mean value and a standard deviation"""
 
