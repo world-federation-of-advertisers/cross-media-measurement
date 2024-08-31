@@ -3,9 +3,9 @@ load("@rules_python//python:defs.bzl", "py_library")
 py_library(
     name = "report",
     srcs = ["report.py"],
+    imports = ["../"],
     visibility = ["//visibility:public"],
     deps = [
-        "//experimental/dp_consistency/src/main/python:noiseninja",
         "//experimental/dp_consistency/src/main/python/noiseninja",
     ],
 )

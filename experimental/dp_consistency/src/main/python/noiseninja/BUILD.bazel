@@ -4,6 +4,7 @@ load("@rules_python//python:defs.bzl", "py_library")
 py_library(
     name = "noiseninja",
     srcs = glob(["*.py"]),
+    imports = ["../"],
     visibility = ["//visibility:public"],
     deps = [
         requirement("numpy"),

@@ -4,9 +4,9 @@ load("@rules_python//python:defs.bzl", "py_library")
 py_library(
     name = "correct_origin_report",
     srcs = ["correct_origin_report.py"],
+    imports = ["../"],
     visibility = ["//visibility:public"],
     deps = [
-        "//experimental/dp_consistency/src/main/python:report",
         "//experimental/dp_consistency/src/main/python/report",
         requirement("openpyxl"),
         requirement("pandas"),
