@@ -497,17 +497,17 @@ class MeasurementsService(
               dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
           ) {
             protocolConfig {
-              externalProtocolConfigId = HmssProtocolConfig.name
+              externalProtocolConfigId = HmssProtocolConfig.NAME
               honestMajorityShareShuffle = HmssProtocolConfig.protocolConfig
             }
           } else if (reachOnlyLlV2Enabled) {
             protocolConfig {
-              externalProtocolConfigId = RoLlv2ProtocolConfig.name
+              externalProtocolConfigId = RoLlv2ProtocolConfig.NAME
               reachOnlyLiquidLegionsV2 = RoLlv2ProtocolConfig.protocolConfig
             }
           } else {
             protocolConfig {
-              externalProtocolConfigId = Llv2ProtocolConfig.name
+              externalProtocolConfigId = Llv2ProtocolConfig.NAME
               liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
             }
           }
@@ -537,12 +537,12 @@ class MeasurementsService(
               dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
           ) {
             protocolConfig {
-              externalProtocolConfigId = HmssProtocolConfig.name
+              externalProtocolConfigId = HmssProtocolConfig.NAME
               honestMajorityShareShuffle = HmssProtocolConfig.protocolConfig
             }
           } else {
             protocolConfig {
-              externalProtocolConfigId = Llv2ProtocolConfig.name
+              externalProtocolConfigId = Llv2ProtocolConfig.NAME
               liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
             }
           }

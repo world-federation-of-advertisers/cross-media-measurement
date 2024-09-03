@@ -30,6 +30,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig.HonestMajorityShareShuf
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.randomSeed
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.NativeLibraryLoader
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
@@ -52,6 +53,7 @@ import org.wfanet.measurement.consent.client.dataprovider.signRandomSeed
  */
 class FulfillRequisitionRequestBuilder(
   private val requisition: Requisition,
+  private val requisitionNonce: Long,
   private val frequencyVector: FrequencyVector,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
   private val signingKeyHandle: SigningKeyHandle,
@@ -94,7 +96,7 @@ class FulfillRequisitionRequestBuilder(
         ?: throw IllegalArgumentException(
           "Exactly one duchy entry is expected to have the encryption public key. Found: ${publicKeyList.size}"
         )
-    shareSeedEncryptionKey = EncryptionPublicKey.parseFrom(publicKeyBlob.message.value)
+    shareSeedEncryptionKey = publicKeyBlob.unpack()
   }
 
   private val shareVector: FrequencyVector
@@ -128,7 +130,7 @@ class FulfillRequisitionRequestBuilder(
         header = header {
           name = requisition.name
           requisitionFingerprint = computeRequisitionFingerprint(requisition)
-          nonce = requisition.nonce
+          this.nonce = requisitionNonce
           protocolConfig = requisition.protocolConfig
           this.honestMajorityShareShuffle = honestMajorityShareShuffle {
             secretSeed = encryptedSignedShareSeed
@@ -185,12 +187,14 @@ class FulfillRequisitionRequestBuilder(
     /** A convenience function for building the Sequence of Requests. */
     fun build(
       requisition: Requisition,
+      requisitionNonce: Long,
       frequencyVector: FrequencyVector,
       dataProviderCertificateKey: DataProviderCertificateKey,
       signingKeyHandle: SigningKeyHandle,
     ): Sequence<FulfillRequisitionRequest> =
       FulfillRequisitionRequestBuilder(
           requisition,
+          requisitionNonce,
           frequencyVector,
           dataProviderCertificateKey,
           signingKeyHandle,

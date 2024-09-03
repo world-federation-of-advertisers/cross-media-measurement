@@ -2716,7 +2716,9 @@ class MeasurementsServiceTest {
       )
       HmssProtocolConfig.setForTest(
         HMSS_INTERNAL_PROTOCOL_CONFIG.honestMajorityShareShuffle,
-        setOf("aggregator", "worker1", "worker2"),
+        "worker1",
+        "worker2",
+        "aggregator",
       )
     }
 

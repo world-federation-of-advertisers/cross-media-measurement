@@ -50,19 +50,24 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
+import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamCertificatesRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamCertificatesRequestKt.orderedKey
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
+import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getCertificateRequest
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest
+import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.streamCertificatesRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
@@ -92,6 +97,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val modelProvidersService: ModelProvidersCoroutineImplBase,
     val computationParticipantsService: ComputationParticipantsCoroutineImplBase,
     val accountsService: AccountsCoroutineImplBase,
+    val requisitionsService: RequisitionsCoroutineImplBase,
   )
 
   private val clock: Clock = Clock.systemUTC()
@@ -119,6 +125,9 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   protected lateinit var accountsService: AccountsCoroutineImplBase
     private set
 
+  protected lateinit var requisitionsService: RequisitionsCoroutineImplBase
+    private set
+
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
   @Before
@@ -131,6 +140,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     modelProvidersService = services.modelProvidersService
     computationParticipantsService = services.computationParticipantsService
     accountsService = services.accountsService
+    requisitionsService = services.requisitionsService
   }
 
   @Test
@@ -542,7 +552,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
-
     val measurementOne =
       population.createLlv2Measurement(
         measurementsService,
@@ -563,7 +572,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         externalMeasurementId = measurementTwo.externalMeasurementId
       }
     )
-
     val request = revokeCertificateRequest {
       externalDataProviderId = dataProvider.externalDataProviderId
       externalCertificateId = dataProvider.certificate.externalCertificateId
@@ -584,7 +592,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           }
         )
         .toList()
-
     assertThat(measurements)
       .comparingExpectedFieldsOnly()
       .containsExactly(
@@ -599,6 +606,26 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
                   message = "An associated Data Provider certificate has been revoked."
                 }
             }
+        }
+      )
+    val requisitions =
+      requisitionsService
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              StreamRequisitionsRequestKt.filter {
+                externalMeasurementConsumerId = measurementOne.externalMeasurementConsumerId
+                externalMeasurementId = measurementOne.externalMeasurementId
+              }
+          }
+        )
+        .toList()
+    assertThat(requisitions)
+      .comparingExpectedFieldsOnly()
+      .containsExactly(
+        requisition {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          state = Requisition.State.WITHDRAWN
         }
       )
   }

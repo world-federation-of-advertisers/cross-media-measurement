@@ -26,6 +26,7 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
+import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
@@ -92,8 +93,8 @@ private val BASE_SQL =
 class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantReader.Result>() {
   data class Result(
     val computationParticipant: ComputationParticipant,
-    val measurementId: Long,
-    val measurementConsumerId: Long,
+    val measurementId: InternalId,
+    val measurementConsumerId: InternalId,
     val measurementState: Measurement.State,
     val measurementDetails: Measurement.Details,
   )
@@ -140,8 +141,8 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
   override suspend fun translate(struct: Struct) =
     Result(
       buildComputationParticipant(struct),
-      struct.getLong("MeasurementId"),
-      struct.getLong("MeasurementConsumerId"),
+      struct.getInternalId("MeasurementId"),
+      struct.getInternalId("MeasurementConsumerId"),
       struct.getProtoEnum("MeasurementState", Measurement.State::forNumber),
       struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser()),
     )

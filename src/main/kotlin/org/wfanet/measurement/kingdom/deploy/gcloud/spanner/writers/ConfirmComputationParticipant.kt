@@ -117,18 +117,16 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
     }
 
     val duchyIds: List<InternalId> =
-      getComputationParticipantsDuchyIds(
-          InternalId(measurementConsumerId),
-          InternalId(measurementId),
-        )
-        .filter { it.value != duchyId }
+      getComputationParticipantsDuchyIds(measurementConsumerId, measurementId).filter {
+        it.value != duchyId
+      }
 
     if (
       computationParticipantsInState(
         transactionContext,
         duchyIds,
-        InternalId(measurementConsumerId),
-        InternalId(measurementId),
+        measurementConsumerId,
+        measurementId,
         NEXT_COMPUTATION_PARTICIPANT_STATE,
       )
     ) {
@@ -139,8 +137,8 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
         }
 
       updateMeasurementState(
-        measurementConsumerId = InternalId(measurementConsumerId),
-        measurementId = InternalId(measurementId),
+        measurementConsumerId = measurementConsumerId,
+        measurementId = measurementId,
         nextState = Measurement.State.PENDING_COMPUTATION,
         previousState = measurementState,
         measurementLogEntryDetails = measurementLogEntryDetails,

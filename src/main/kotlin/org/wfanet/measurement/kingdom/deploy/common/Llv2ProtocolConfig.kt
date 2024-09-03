@@ -23,7 +23,7 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import picocli.CommandLine
 
 object Llv2ProtocolConfig {
-  const val name = "llv2"
+  const val NAME = "llv2"
   lateinit var protocolConfig: ProtocolConfig.LiquidLegionsV2
     private set
 

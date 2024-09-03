@@ -19,7 +19,6 @@ import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.common.SqlBasedQuery
-import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.statement
 
 /** Queries for computations which may be claimed at a timestamp. */
@@ -35,19 +34,31 @@ class UnclaimedTasksQuery<StageT>(
     // is regarded as the oldest one (the smallest value).
     private const val parameterizedQueryString =
       """
-      SELECT c.ComputationId,  c.GlobalComputationId,
-             c.Protocol, c.ComputationStage, c.UpdateTime,
-             c.CreationTime, cs.NextAttempt
-      FROM Computations@
-        {
-          FORCE_INDEX=ComputationsByLockExpirationTime,
+      SELECT
+        ComputationId,
+        GlobalComputationId,
+        Protocol,
+        ComputationStage,
+        UpdateTime,
+        Computations.CreationTime,
+        NextAttempt,
+        CASE WHEN ComputationStage IN UNNEST(@prioritized_stages) THEN 0 ELSE 1 END AS Priority
+      FROM
+        Computations@{
           spanner_emulator.disable_query_null_filtered_index_check=true
-        } AS c
-      JOIN ComputationStages AS cs USING(ComputationId, ComputationStage)
-      WHERE c.Protocol = @protocol
-        AND c.LockExpirationTime IS NOT NULL
-        AND c.UpdateTime IS NOT NULL
-        AND c.LockExpirationTime <= @current_time
+        }
+        JOIN ComputationStages USING(ComputationId, ComputationStage)
+      WHERE
+          Protocol = @protocol
+          AND LockExpirationTime IS NOT NULL
+          AND UpdateTime IS NOT NULL
+          AND LockExpirationTime <= @current_time
+      ORDER BY
+        Priority,
+        CreationTime,
+        LockExpirationTime,
+        UpdateTime
+      LIMIT 1
       """
   }
 
@@ -55,23 +66,10 @@ class UnclaimedTasksQuery<StageT>(
     statement(parameterizedQueryString) {
       bind("current_time").to(timestamp)
       bind("protocol").to(protocol)
-      if (prioritizedStages.isEmpty()) {
-        appendClause("ORDER BY c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC")
-      } else {
-        appendClause(
-          """
-            ORDER BY
-              CASE WHEN c.ComputationStage IN UNNEST (@prioritized_stages) THEN 0
-              ELSE 1 END ASC,
-            c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC
-          """
-            .trimIndent()
-        )
-        val prioritizedStageLongValues =
-          prioritizedStages.map(computationStageEnumToLongValues).map { it.stage }
-        bind("prioritized_stages").toInt64Array(prioritizedStageLongValues)
-      }
-      appendClause("LIMIT 50")
+
+      val prioritizedStageLongValues =
+        prioritizedStages.map(computationStageEnumToLongValues).map { it.stage }
+      bind("prioritized_stages").toInt64Array(prioritizedStageLongValues)
     }
 
   override fun asResult(struct: Struct): UnclaimedTaskQueryResult<StageT> =

@@ -68,7 +68,7 @@ _computationControlTargets: {
 		"computation-control-server":     "duchy/local-computation-control"
 		"herald-daemon":                  "duchy/local-herald"
 		"llv2-mill":                      "duchy/local-liquid-legions-v2-mill"
-		"hmss-mill-daemon":               "duchy/local-honest-majority-share-shuffle-mill"
+		"hmss-mill":                      "duchy/local-honest-majority-share-shuffle-mill"
 		"requisition-fulfillment-server": "duchy/local-requisition-fulfillment"
 	}
 	_duchy_secret_name:           _secret_name

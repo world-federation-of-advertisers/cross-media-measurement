@@ -1236,7 +1236,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         }
       )
     }
-    val requisition =
+    val requisitions =
       service
         .streamRequisitions(
           streamRequisitionsRequest {
@@ -1246,9 +1246,10 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             }
           }
         )
-        .first()
+        .toList()
+    val requisition: Requisition = requisitions.first()
 
-    val response =
+    val response: Requisition =
       service.refuseRequisition(
         refuseRequisitionRequest {
           externalDataProviderId = requisition.externalDataProviderId
@@ -1270,6 +1271,18 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           }
         )
       )
+    val otherRequisition: Requisition = requisitions[1]
+    assertThat(
+        service
+          .getRequisition(
+            getRequisitionRequest {
+              externalDataProviderId = otherRequisition.externalDataProviderId
+              externalRequisitionId = otherRequisition.externalRequisitionId
+            }
+          )
+          .state
+      )
+      .isEqualTo(Requisition.State.WITHDRAWN)
     val updatedMeasurement =
       dataServices.measurementsService.getMeasurement(
         getMeasurementRequest {
