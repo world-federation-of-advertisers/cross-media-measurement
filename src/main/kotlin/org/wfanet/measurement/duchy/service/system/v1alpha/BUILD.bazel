@@ -27,12 +27,26 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "proto_conversions",
+    srcs = [
+        "ProtoConversions.kt",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy:etags",
+        "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
+        "//src/main/proto/wfa/measurement/internal/duchy:async_computation_control_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_control_service_kt_jvm_grpc_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "computation_control_service",
     srcs = [
         "ComputationControlService.kt",
     ],
     deps = [
         ":advance_computation_request_headers",
+        ":proto_conversions",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/storage:computation_store",

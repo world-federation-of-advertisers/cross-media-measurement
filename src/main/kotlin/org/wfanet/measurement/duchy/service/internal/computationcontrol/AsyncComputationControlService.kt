@@ -128,6 +128,7 @@ class AsyncComputationControlService(
           )
         } catch (e: StatusException) {
           throw when (e.status.code) {
+            Status.Code.UNAVAILABLE,
             Status.Code.ABORTED -> RetryableException(e)
             else -> Status.UNKNOWN.withCause(e).asRuntimeException()
           }
@@ -147,6 +148,7 @@ class AsyncComputationControlService(
         )
       } catch (e: StatusException) {
         throw when (e.status.code) {
+          Status.Code.UNAVAILABLE,
           Status.Code.ABORTED -> RetryableException(e)
           else -> Status.UNKNOWN.withCause(e).asRuntimeException()
         }
