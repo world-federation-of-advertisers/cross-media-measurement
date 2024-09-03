@@ -12,18 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
+
+from noiseninja.noised_measurements import SetMeasurementsSpec
+from qpsolvers import solve_problem, Problem, Solution
 from threading import Semaphore
 from typing import Any
-
-import numpy as np
-from qpsolvers import solve_problem, Problem, Solution
-
-from src.main.python.noiseninja.noised_measurements import SetMeasurementsSpec
 
 SOLVER = "highs"
 
 SEMAPHORE = Semaphore()
-
 
 class SolutionNotFoundError(ValueError):
     __non_solution: Solution
