@@ -26,14 +26,18 @@ option java_multiple_files = true;
 option java_outer_classname = "ComputationLogEntryProto";
 
 // Resource representing a log entry for a `ComputationParticipant`.
+//
+// TODO(googleapis/api-linter#1424): Remove when fixed in linter.
+// (-- api-linter: core::0123::resource-pattern-singular=disabled
+//     aip.dev/not-precedent: This is a nested collection. --)
+// (-- api-linter: core::0123::resource-pattern-plural=disabled
+//     aip.dev/not-precedent: This is a nested collection. --)
 message ComputationLogEntry {
   option (google.api.resource) = {
     type: "halo-system.wfanet.org/ComputationLogEntry"
     singular: "computationLogEntry"
     plural: "computationLogEntries"
-
-    // `duchy` is the Duchy ID from the public API.
-    pattern: "computations/{computation}/participants/{duchy}/logEntries/{computation_log_entry}"
+    pattern: "computations/{computation}/participants/{participant}/logEntries/{log_entry}"
   };
 
   // Resource name.

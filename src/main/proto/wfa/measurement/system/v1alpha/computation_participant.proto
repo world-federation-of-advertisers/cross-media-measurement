@@ -32,8 +32,8 @@ message ComputationParticipant {
     singular: "computationParticipant"
     plural: "computationParticipants"
 
-    // `duchy` is the Duchy ID from the public API.
-    pattern: "computations/{computation}/participants/{duchy}"
+    // `participant` is the Duchy ID from the public API.
+    pattern: "computations/{computation}/participants/{participant}"
   };
 
   // Resource name.
