@@ -53,10 +53,12 @@ private class ProberMeasurementCreationFlags {
   lateinit var apiAuthenticationKey: String
     private set
 
-  @Mixin lateinit var tlsFlags: TlsFlags
+  @Mixin
+  lateinit var tlsFlags: TlsFlags
     private set
 
-  @Mixin lateinit var kingdomApiServerFlags: KingdomApiServerFlags
+  @Mixin
+  lateinit var kingdomApiServerFlags: KingdomApiServerFlags
     private set
 
   @Option(
@@ -70,7 +72,10 @@ private class ProberMeasurementCreationFlags {
 
   @Option(
     names = ["--simulator-event-group-name"],
-    description = ["QA event group name to use for requisitions and measurements. This identifies that a prober is being launched in a QA environment"],
+    description =
+      [
+        "QA event group name to use for requisitions and measurements. This identifies that a prober is being launched in a QA environment"
+      ],
     required = false,
   )
   lateinit var simulatorEventGroupName: String
