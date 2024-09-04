@@ -58,6 +58,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
+import org.wfanet.measurement.duchy.toComputationStage
 import org.wfanet.measurement.duchy.utils.ComputationResult
 import org.wfanet.measurement.duchy.utils.toV2AlphaEncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
@@ -85,10 +86,12 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
+import org.wfanet.measurement.system.v1alpha.StageKey
 import org.wfanet.measurement.system.v1alpha.computationLogEntry
 import org.wfanet.measurement.system.v1alpha.createComputationLogEntryRequest
 import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.getComputationParticipantRequest
+import org.wfanet.measurement.system.v1alpha.getStageRequest
 import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
 import org.wfanet.measurement.system.v1alpha.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.system.v1alpha.stageAttempt
@@ -786,6 +789,17 @@ abstract class MillBase(
       }
 
     return response.token
+  }
+
+  protected suspend fun getComputationStageInOtherDuchy(
+    globalComputationId: String,
+    otherDuchyId: String,
+    stub: ComputationControlCoroutineStub,
+  ): ComputationStage {
+    val systemStage =
+      stub.getStage(getStageRequest { name = StageKey(globalComputationId, otherDuchyId).toName() })
+
+    return systemStage.toComputationStage()
   }
 
   @OptIn(ExperimentalTime::class)

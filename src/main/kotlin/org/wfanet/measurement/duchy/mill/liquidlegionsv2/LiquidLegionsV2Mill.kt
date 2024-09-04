@@ -207,14 +207,18 @@ abstract class LiquidLegionsV2Mill(
     throw ComputationDataClients.PermanentErrorException(errorMessage)
   }
 
+  protected fun nextDuchyId(duchyList: List<InternalComputationParticipant>): String {
+    val index = duchyList.indexOfFirst { it.duchyId == duchyId }
+    return duchyList[(index + 1) % duchyList.size].duchyId
+  }
+
   protected fun nextDuchyStub(
     duchyList: List<InternalComputationParticipant>
   ): ComputationControlCoroutineStub {
-    val index = duchyList.indexOfFirst { it.duchyId == duchyId }
-    val nextDuchy = duchyList[(index + 1) % duchyList.size].duchyId
-    return workerStubs[nextDuchy]
+    val nextDuchyId = nextDuchyId(duchyList)
+    return workerStubs[nextDuchyId]
       ?: throw ComputationDataClients.PermanentErrorException(
-        "No ComputationControlService stub for next duchy '$nextDuchy'"
+        "No ComputationControlService stub for next duchy '$nextDuchyId'"
       )
   }
 
