@@ -22,13 +22,13 @@ import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.TlsFlags
-import org.wfanet.measurement.kingdom.batch.ProberMeasurementCreation
+import org.wfanet.measurement.kingdom.batch.MeasurementSystemProber
 import org.wfanet.measurement.kingdom.deploy.common.server.KingdomApiServerFlags
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
 
-private class ProberMeasurementCreationFlags {
+private class MeasurementSystemProberFlags {
   @Option(
     names = ["--measurement-consumer"],
     description = ["API resource name of the MeasurementConsumer"],
@@ -109,9 +109,9 @@ private class ProberMeasurementCreationFlags {
   mixinStandardHelpOptions = true,
   showDefaultValues = true,
 )
-private fun run(@Mixin flags: ProberMeasurementCreationFlags) {
-  val proberMeasurementCreation = ProberMeasurementCreation()
-  proberMeasurementCreation.run()
+private fun run(@Mixin flags: MeasurementSystemProberFlags) {
+  val measurementSystemProber = MeasurementSystemProber()
+  measurementSystemProber.run()
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)
