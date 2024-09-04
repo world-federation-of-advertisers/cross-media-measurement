@@ -17,6 +17,9 @@
 package org.wfanet.measurement.kingdom.deploy.common.job
 
 import java.io.File
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.hours
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.kingdom.batch.ProberMeasurementCreation
@@ -32,6 +35,7 @@ private class ProberMeasurementCreationFlags {
     required = true,
   )
   lateinit var measurementConsumer: String
+    private set
 
   @Option(
     names = ["--private-key-der-file"],
@@ -39,6 +43,7 @@ private class ProberMeasurementCreationFlags {
     required = true,
   )
   lateinit var privateKeyDerFile: File
+    private set
 
   @Option(
     names = ["--api-key"],
@@ -49,23 +54,27 @@ private class ProberMeasurementCreationFlags {
     private set
 
   @Mixin lateinit var tlsFlags: TlsFlags
+    private set
 
   @Mixin lateinit var kingdomApiServerFlags: KingdomApiServerFlags
+    private set
 
   @Option(
-    names = ["--data-providers"],
-    description = ["All data provider API resource names"],
+    names = ["--data-provider"],
+    description = ["Data provider API resource name (can be specified multiple times)"],
     required = true,
+    arity = "1..*",
   )
-  lateinit var dataProviders: List<String>
+  lateinit var dataProvider: List<String>
     private set
 
   @Option(
     names = ["--simulator-event-group-name"],
-    description = ["QA event group name to use for requisitions and measurements"],
+    description = ["QA event group name to use for requisitions and measurements. This identifies that a prober is being launched in a QA environment"],
     required = false,
   )
   lateinit var simulatorEventGroupName: String
+    private set
 
   @Option(
     names = ["--measurement-lookback-duration"],
@@ -75,7 +84,7 @@ private class ProberMeasurementCreationFlags {
       ],
     required = true,
   )
-  lateinit var measurementLookbackDuration: String
+  var measurementLookbackDuration: Duration = 1.days
     private set
 
   @Option(
@@ -86,11 +95,12 @@ private class ProberMeasurementCreationFlags {
       ],
     required = true,
   )
-  lateinit var durationBetweenMeasurement: String
+  var durationBetweenMeasurement: Duration = 1.hours
+    private set
 }
 
 @Command(
-  name = "ProberMeasurementCreationJob",
+  name = "MeasurementSystemProberJob",
   mixinStandardHelpOptions = true,
   showDefaultValues = true,
 )

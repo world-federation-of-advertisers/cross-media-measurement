@@ -17,5 +17,6 @@
 package org.wfanet.measurement.kingdom.batch
 
 class ProberMeasurementCreation() {
+  // TODO(@roaminggypsy): Implement measurement verification, creation and report
   fun run() {}
 }
