@@ -50,6 +50,7 @@ class CertificateAuthority(
   private val certificateAuthorityArn: String,
   private val client: CreateCertificateClient,
   private val generateKeyPair: () -> KeyPair = { generateKeyPair("RSA") },
+  private val signingAlgorithm: SigningAlgorithm = AWS_CERTIFICATE_SIGNING_ALGORITHM,
 ) : CertificateAuthority {
 
   private val certificateParams =
@@ -92,11 +93,16 @@ class CertificateAuthority(
         .certificateAuthorityArn(certificateAuthorityArn)
         .csr(
           SdkBytes.fromByteArray(
-            generateCsrFromPrivateKey(keyPair, context.organization, context.commonName)
+            generateCsrFromPrivateKey(
+                keyPair,
+                context.organization,
+                context.commonName,
+                signingAlgorithm.toString(),
+              )
               .toByteArray()
           )
         )
-        .signingAlgorithm(AWS_CERTIFICATE_SIGNING_ALGORITHM)
+        .signingAlgorithm(signingAlgorithm)
         .validity(certificateLifetime)
         .build()
 

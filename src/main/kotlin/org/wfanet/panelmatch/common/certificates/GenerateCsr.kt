@@ -25,9 +25,9 @@ import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder
 /**
  * Generates a PEM format CSR through BouncyCastle API for a given private key, organization and common name.
  */
-fun generateCsrFromPrivateKey(keyPair: KeyPair, organization: String, commonName: String): String {
+fun generateCsrFromPrivateKey(keyPair: KeyPair, organization: String, commonName: String, algorithm: String): String {
   val pkcs10CsrBuilder = JcaPKCS10CertificationRequestBuilder(X500Principal("O=$organization, CN=$commonName"), keyPair.public)
-  val csBuilder = JcaContentSignerBuilder("SHA256withRSA")
+  val csBuilder = JcaContentSignerBuilder(algorithm)
   val signer = csBuilder.build(keyPair.private)
   val strWriter = StringWriter()
   val pemWriter = JcaPEMWriter(strWriter)

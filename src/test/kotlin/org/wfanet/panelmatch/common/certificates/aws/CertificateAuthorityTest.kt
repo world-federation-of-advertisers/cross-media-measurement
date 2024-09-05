@@ -34,18 +34,7 @@ import org.wfanet.measurement.common.crypto.sign
 import org.wfanet.measurement.common.crypto.testing.TestData
 import org.wfanet.measurement.common.crypto.verifySignature
 import org.wfanet.panelmatch.common.certificates.CertificateAuthority
-import software.amazon.awssdk.services.acmpca.model.ASN1Subject
-import software.amazon.awssdk.services.acmpca.model.ApiPassthrough
-import software.amazon.awssdk.services.acmpca.model.ExtendedKeyUsage
-import software.amazon.awssdk.services.acmpca.model.ExtendedKeyUsageType
-import software.amazon.awssdk.services.acmpca.model.Extensions
-import software.amazon.awssdk.services.acmpca.model.GeneralName
-import software.amazon.awssdk.services.acmpca.model.GetCertificateRequest
-import software.amazon.awssdk.services.acmpca.model.GetCertificateResponse
-import software.amazon.awssdk.services.acmpca.model.IssueCertificateRequest
-import software.amazon.awssdk.services.acmpca.model.IssueCertificateResponse
-import software.amazon.awssdk.services.acmpca.model.KeyUsage
-import software.amazon.awssdk.services.acmpca.model.Validity
+import software.amazon.awssdk.services.acmpca.model.*
 
 private val CONTEXT =
   CertificateAuthority.Context(
@@ -114,12 +103,15 @@ class CertificateAuthorityTest {
           .build()
       )
 
+    val expectedSigningAlgorithm = SigningAlgorithm.SHA256_WITHECDSA
+
     val certificateAuthority =
       CertificateAuthority(
         CONTEXT,
         CERTIFICATE_AUTHORITY_ARN,
         mockCreateCertificateClient,
         generateKeyPair = { KeyPair(ROOT_PUBLIC_KEY, readPrivateKey(ROOT_PRIVATE_KEY_FILE, "ec")) },
+        signingAlgorithm = expectedSigningAlgorithm,
       )
 
     val (x509, privateKey) = certificateAuthority.generateX509CertificateAndPrivateKey()
@@ -133,7 +125,7 @@ class CertificateAuthorityTest {
     assertThat(issueCertificateRequest.certificateAuthorityArn())
       .isEqualTo(CERTIFICATE_AUTHORITY_ARN)
     assertThat(issueCertificateRequest.signingAlgorithm())
-      .isEqualTo(AWS_CERTIFICATE_SIGNING_ALGORITHM)
+      .isEqualTo(expectedSigningAlgorithm)
     assertThat(issueCertificateRequest.validity()).isEqualTo(CERTIFICATE_LIFETIME)
 
     val getCertificateRequest =
