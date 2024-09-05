@@ -20,8 +20,10 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage as Llv2Stage
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.Stage as RoLlv2Stage
 import org.wfanet.measurement.system.v1alpha.ComputationStage as SystemComputationStage
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2Stage
+import org.wfanet.measurement.system.v1alpha.ReachOnlyLiquidLegionsV2Stage
 
 val ComputationStage.name: String
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -89,11 +91,30 @@ fun SystemComputationStage.toComputationStage(): ComputationStage {
           Llv2Stage.EXECUTION_PHASE_THREE.toProtocolStage()
         LiquidLegionsV2Stage.Stage.COMPLETE -> Llv2Stage.COMPLETE.toProtocolStage()
         LiquidLegionsV2Stage.Stage.STAGE_UNSPECIFIED,
-        LiquidLegionsV2Stage.Stage.UNRECOGNIZED -> error("Invalid SystemComputationStage")
+        LiquidLegionsV2Stage.Stage.UNRECOGNIZED -> error("Invalid LLv2 Stage")
       }
     }
     SystemComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_STAGE -> {
-      error("Invalid SystemComputationStage")
+      when (this.reachOnlyLiquidLegionsStage.stage) {
+        ReachOnlyLiquidLegionsV2Stage.Stage.INITIALIZATION_PHASE ->
+          RoLlv2Stage.INITIALIZATION_PHASE.toProtocolStage()
+        ReachOnlyLiquidLegionsV2Stage.Stage.WAIT_REQUISITIONS_AND_KEY_SET ->
+          RoLlv2Stage.WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage()
+        ReachOnlyLiquidLegionsV2Stage.Stage.CONFIRMATION_PHASE ->
+          RoLlv2Stage.CONFIRMATION_PHASE.toProtocolStage()
+        ReachOnlyLiquidLegionsV2Stage.Stage.WAIT_TO_START ->
+          RoLlv2Stage.WAIT_TO_START.toProtocolStage()
+        ReachOnlyLiquidLegionsV2Stage.Stage.WAIT_SETUP_PHASE_INPUTS ->
+          RoLlv2Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
+        ReachOnlyLiquidLegionsV2Stage.Stage.SETUP_PHASE -> RoLlv2Stage.SETUP_PHASE.toProtocolStage()
+        ReachOnlyLiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_INPUTS ->
+          RoLlv2Stage.WAIT_EXECUTION_PHASE_INPUTS.toProtocolStage()
+        ReachOnlyLiquidLegionsV2Stage.Stage.EXECUTION_PHASE ->
+          RoLlv2Stage.EXECUTION_PHASE.toProtocolStage()
+        ReachOnlyLiquidLegionsV2Stage.Stage.COMPLETE -> Llv2Stage.COMPLETE.toProtocolStage()
+        ReachOnlyLiquidLegionsV2Stage.Stage.STAGE_UNSPECIFIED,
+        ReachOnlyLiquidLegionsV2Stage.Stage.UNRECOGNIZED -> error("Invalid RoLLv2 Stage")
+      }
     }
     SystemComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE_STAGE -> {
       error("Invalid SystemComputationStage")
