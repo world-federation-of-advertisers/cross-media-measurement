@@ -129,6 +129,11 @@ bazel_dep(
     version = "0.82.2",
     repo_name = "wfa_common_jvm",
 )
+local_path_override(
+    module_name = "common-jvm",
+    path = "/home/sandip.samantaray/repos/common-jvm",
+)
+
 bazel_dep(
     name = "common-cpp",
     version = "0.12.0",

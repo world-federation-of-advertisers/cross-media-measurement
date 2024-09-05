@@ -30,6 +30,7 @@ import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.common.TaskParameters
 import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessingParameters
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
+import org.wfanet.panelmatch.client.exchangetasks.remote.RemoteTaskOrchestrator
 import org.wfanet.panelmatch.client.launcher.ApiClient
 import org.wfanet.panelmatch.client.launcher.GrpcApiClient
 import org.wfanet.panelmatch.common.Timeout
@@ -62,6 +63,8 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
 
   /** Apache Beam options. */
   protected abstract fun makePipelineOptions(): PipelineOptions
+
+  protected abstract fun makeRemoteTaskOrchestrator(): RemoteTaskOrchestrator?
 
   /** [CertificateAuthority] for use in [V2AlphaCertificateManager]. */
   protected abstract val certificateAuthority: CertificateAuthority
@@ -97,7 +100,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
 
   override val throttler: Throttler by lazy { createThrottler() }
 
-  protected val taskContext: TaskParameters by lazy {
+  private val taskContext: TaskParameters by lazy {
     TaskParameters(
       setOf(
         PreprocessingParameters(
@@ -117,6 +120,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
       certificateManager = certificateManager,
       makePipelineOptions = ::makePipelineOptions,
       taskContext = taskContext,
+      makeRemoteTaskOrchestrator = ::makeRemoteTaskOrchestrator,
     )
   }
 
@@ -136,7 +140,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
 
   override val identity: Identity by lazy { Identity(flags.id, flags.partyType) }
 
-  protected fun createThrottler(): Throttler = MinimumIntervalThrottler(clock, flags.pollingInterval)
+  private fun rcreateThrottler(): Throttler = MinimumIntervalThrottler(clock, flags.pollingInterval)
 
   companion object {
     @JvmStatic protected val logger by loggerFor()

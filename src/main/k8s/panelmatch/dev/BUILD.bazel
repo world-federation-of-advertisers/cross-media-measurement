@@ -1,5 +1,5 @@
 load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
-load("//build:variables.bzl", "EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG")
+load("//build:variables.bzl", "EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG", "PANEL_EXCHANGE_CLIENT_TEST_AWS_CLOUD_SETTINGS")
 load("//build/k8s:defs.bzl", "kustomization_dir")
 load("//src/main/k8s:macros.bzl", "cue_dump")
 
@@ -92,8 +92,13 @@ cue_dump(
     name = "example_edp_daemon_aws",
     srcs = ["example_edp_daemon_aws.cue"],
     cue_tags = {
+        "account_id": PANEL_EXCHANGE_CLIENT_TEST_AWS_CLOUD_SETTINGS.account_id,
+        "region": PANEL_EXCHANGE_CLIENT_TEST_AWS_CLOUD_SETTINGS.region,
         "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_name,
-        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_secret_name,
+        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.secret_name,
+        "tink_key_uri": PANEL_EXCHANGE_CLIENT_TEST_AWS_CLOUD_SETTINGS.tink_key_uri,
+        "ca_arn": PANEL_EXCHANGE_CLIENT_TEST_AWS_CLOUD_SETTINGS.ca_arn,
+        "emr_executor_role_arn": PANEL_EXCHANGE_CLIENT_TEST_AWS_CLOUD_SETTINGS.emr_executor_role_arn,
     },
     tags = ["manual"],
     deps = [":example_daemon_aws"],
@@ -114,8 +119,13 @@ cue_dump(
     name = "example_mp_daemon_aws",
     srcs = ["example_mp_daemon_aws.cue"],
     cue_tags = {
+        "account_id": PANEL_EXCHANGE_CLIENT_TEST_AWS_CLOUD_SETTINGS.account_id,
+        "region": PANEL_EXCHANGE_CLIENT_TEST_AWS_CLOUD_SETTINGS.region,
         "party_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_name,
-        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_secret_name,
+        "secret_name": EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.secret_name,
+        "tink_key_uri": PANEL_EXCHANGE_CLIENT_TEST_AWS_CLOUD_SETTINGS.tink_key_uri,
+        "ca_arn": PANEL_EXCHANGE_CLIENT_TEST_AWS_CLOUD_SETTINGS.ca_arn,
+        "emr_executor_role_arn": PANEL_EXCHANGE_CLIENT_TEST_AWS_CLOUD_SETTINGS.emr_executor_role_arn,
     },
     tags = ["manual"],
     deps = [":example_daemon_aws"],

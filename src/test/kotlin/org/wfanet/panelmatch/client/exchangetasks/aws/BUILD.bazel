@@ -1,0 +1,35 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "EmrExchangeTaskServiceTest",
+    timeout = "short",
+    srcs = ["RemoteRemoteTaskOrchestratorTest.kt"],
+    test_class = "aws",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks/emr",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/java/org/mockito",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+    ],
+)
+
+kt_jvm_test(
+    name = "EmrServerlessClientServiceTest",
+    timeout = "short",
+    srcs = ["EmrServerlessClientTest.kt"],
+    test_class = "aws",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks/emr",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/java/org/mockito",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+    ],
+)

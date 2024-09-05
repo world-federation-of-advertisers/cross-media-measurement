@@ -17,7 +17,6 @@ package org.wfanet.panelmatch.common.certificates.aws
 import java.security.KeyPair
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
-import java.util.logging.Logger
 import org.wfanet.measurement.common.crypto.generateKeyPair
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.panelmatch.common.certificates.CertificateAuthority

@@ -37,7 +37,7 @@ import org.wfanet.panelmatch.client.exchangetasks.CopyFromPreviousExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyFromSharedStorageTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyToSharedStorageTask
 import org.wfanet.panelmatch.client.exchangetasks.DeterministicCommutativeCipherTask
-import org.wfanet.panelmatch.client.exchangetasks.EmrExchangeTask
+import org.wfanet.panelmatch.client.exchangetasks.RemoteExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.exchangetasks.GenerateAsymmetricKeyPairTask
@@ -53,8 +53,8 @@ import org.wfanet.panelmatch.client.exchangetasks.copyFromSharedStorage
 import org.wfanet.panelmatch.client.exchangetasks.copyToSharedStorage
 import org.wfanet.panelmatch.client.exchangetasks.decryptPrivateMembershipResults
 import org.wfanet.panelmatch.client.exchangetasks.executePrivateMembershipQueries
+import org.wfanet.panelmatch.client.exchangetasks.remote.RemoteTaskOrchestrator
 import org.wfanet.panelmatch.client.exchangetasks.preprocessEvents
-import org.wfanet.panelmatch.client.exchangetasks.emr.EmrExchangeTaskService
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.JniPrivateMembershipCryptor
@@ -80,8 +80,7 @@ open class ProductionExchangeTaskMapper(
   private val certificateManager: CertificateManager,
   private val makePipelineOptions: () -> PipelineOptions,
   private val taskContext: TaskParameters,
-  private val emrBeamTaskExecutorOnDaemon: Boolean = false,
-  private val emrService: EmrExchangeTaskService? = null,
+  private val makeRemoteTaskOrchestrator: () -> RemoteTaskOrchestrator?,
 ) : ExchangeTaskMapper() {
   override suspend fun ExchangeContext.commutativeDeterministicEncrypt(): ExchangeTask {
     return DeterministicCommutativeCipherTask.forEncryption(JniDeterministicCommutativeCipher())
@@ -181,12 +180,13 @@ open class ProductionExchangeTaskMapper(
       step.stepCase == ExchangeWorkflow.Step.StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP
     )
 
-    return if (emrBeamTaskExecutorOnDaemon) {
-      requireNotNull(emrService)
+    val remoteTaskOrchestrator = makeRemoteTaskOrchestrator()
+
+    return if (remoteTaskOrchestrator != null) {
       val exchangeId = exchangeDateKey.recurringExchangeId
       val date = exchangeDateKey.date
 
-      EmrExchangeTask(emrService,
+      RemoteExchangeTask(remoteTaskOrchestrator,
         exchangeId,
         "${ExchangeWorkflow.Step.StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP.name.lowercase()}-$exchangeId-${date.format(DateTimeFormatter.ISO_LOCAL_DATE)}",
         workflow.stepsList.indexOfFirst {
