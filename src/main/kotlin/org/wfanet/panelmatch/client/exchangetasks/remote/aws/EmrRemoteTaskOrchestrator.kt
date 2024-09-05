@@ -50,8 +50,8 @@ class EmrRemoteTaskOrchestrator(
   }
 
   override suspend fun orchestrateTask(
+    orchestrationName: String,
     exchangeWorkflowId: String,
-    exchangeStepName: String,
     exchangeStepIndex: Int,
     exchangeStepAttempt: CanonicalExchangeStepAttemptKey,
     exchangeDate: LocalDate,
@@ -61,7 +61,7 @@ class EmrRemoteTaskOrchestrator(
     }
 
     if (!emrServerlessClient.startAndWaitJobRunCompletion(
-        exchangeStepName,
+        orchestrationName,
         appId,
         listOf(
           "--exchange-workflow-blob-key=$exchangeWorkflowPrefix/$exchangeWorkflowId",

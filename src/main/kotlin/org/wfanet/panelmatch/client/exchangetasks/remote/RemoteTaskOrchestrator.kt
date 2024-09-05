@@ -5,8 +5,8 @@ import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 
 interface RemoteTaskOrchestrator {
   suspend fun orchestrateTask(
+    orchestrationName: String,
     exchangeWorkflowId: String,
-    exchangeStepName: String,
     exchangeStepIndex: Int,
     exchangeStepAttempt: CanonicalExchangeStepAttemptKey,
     exchangeDate: LocalDate,

@@ -23,8 +23,8 @@ import org.wfanet.panelmatch.client.exchangetasks.remote.RemoteTaskOrchestrator
 
 class RemoteExchangeTask(
   private val remoteTaskOrchestrator: RemoteTaskOrchestrator,
+  private val orchestrationName: String,
   private val exchangeId: String,
-  private val exchangeStepName: String,
   private val exchangeStepIndex: Int,
   private val exchangeStepAttempt: CanonicalExchangeStepAttemptKey,
   private val exchangeDate: LocalDate,
@@ -32,8 +32,8 @@ class RemoteExchangeTask(
   override suspend fun execute(input: Map<String, StorageClient.Blob>): Map<String, Flow<ByteString>> {
     try {
       remoteTaskOrchestrator.orchestrateTask(
+        orchestrationName,
         exchangeId,
-        exchangeStepName,
         exchangeStepIndex,
         exchangeStepAttempt,
         exchangeDate,

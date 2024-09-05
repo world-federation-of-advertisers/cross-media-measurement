@@ -140,7 +140,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
 
   override val identity: Identity by lazy { Identity(flags.id, flags.partyType) }
 
-  private fun rcreateThrottler(): Throttler = MinimumIntervalThrottler(clock, flags.pollingInterval)
+  private fun createThrottler(): Throttler = MinimumIntervalThrottler(clock, flags.pollingInterval)
 
   companion object {
     @JvmStatic protected val logger by loggerFor()

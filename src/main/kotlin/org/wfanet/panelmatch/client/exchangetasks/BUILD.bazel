@@ -16,7 +16,7 @@ kt_jvm_library(
         "//imports/java/software/amazon/awssdk/emrserverless",
         "//src/main/kotlin/org/wfanet/panelmatch/client/common",
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
-        "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks/emr",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks/remote",
         "//src/main/kotlin/org/wfanet/panelmatch/client/logger",
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",

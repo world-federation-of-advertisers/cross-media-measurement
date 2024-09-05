@@ -6,10 +6,11 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "emr",
+    name = "aws",
     srcs = glob(["*.kt"]),
     deps = [
         "//imports/java/software/amazon/awssdk/emrserverless",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks/remote",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/storage",
