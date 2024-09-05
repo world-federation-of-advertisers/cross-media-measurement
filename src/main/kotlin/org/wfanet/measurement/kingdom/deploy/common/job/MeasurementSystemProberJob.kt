@@ -17,9 +17,7 @@
 package org.wfanet.measurement.kingdom.deploy.common.job
 
 import java.io.File
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.days
-import kotlin.time.Duration.Companion.hours
+import java.time.Duration
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.kingdom.batch.MeasurementSystemProber
@@ -88,8 +86,9 @@ private class MeasurementSystemProberFlags {
         "Subtracted from the current time, specifies the start time for the interval of event data collection"
       ],
     required = true,
+    defaultValue = "1d",
   )
-  var measurementLookbackDuration: Duration = 1.days
+  lateinit var measurementLookbackDuration: Duration
     private set
 
   @Option(
@@ -99,8 +98,9 @@ private class MeasurementSystemProberFlags {
         "Added to the update time of the most recently completed measurement, determines whether enough time has elapsed to request a new measurement"
       ],
     required = true,
+    defaultValue = "1d",
   )
-  var durationBetweenMeasurement: Duration = 1.hours
+  lateinit var durationBetweenMeasurement: Duration
     private set
 }
 
