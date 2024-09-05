@@ -187,10 +187,9 @@ open class ProductionExchangeTaskMapper(
       val date = exchangeDateKey.date
 
       RemoteExchangeTask(remoteTaskOrchestrator,
-        "${ExchangeWorkflow.Step.StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP.name.lowercase()}-$exchangeId-${date.format(DateTimeFormatter.ISO_LOCAL_DATE)}",
         exchangeId,
         workflow.stepsList.indexOfFirst {
-          it.stepCase == ExchangeWorkflow.Step.StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP
+          it.stepCase == step.stepCase
         },
         attemptKey,
         date,

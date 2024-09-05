@@ -33,8 +33,8 @@ class EmrRemoteTaskOrchestrator(
   val storageType: PlatformCase,
   val storageBucket: String,
   val storageRegion: String,
-  val emrServerlessClient: EmrServerlessClient
-): RemoteTaskOrchestrator {
+  val emrServerlessClient: EmrServerlessClient,
+) : RemoteTaskOrchestrator {
   private val appId: String by lazy {
     runBlocking {
       val exchangeTaskAppIdBlob = storageClient.getBlob(exchangeTaskAppIdPath)
@@ -50,7 +50,6 @@ class EmrRemoteTaskOrchestrator(
   }
 
   override suspend fun orchestrateTask(
-    orchestrationName: String,
     exchangeWorkflowId: String,
     exchangeStepIndex: Int,
     exchangeStepAttempt: CanonicalExchangeStepAttemptKey,
@@ -60,8 +59,12 @@ class EmrRemoteTaskOrchestrator(
       throw Exception("Panel exchange app was not started successfully")
     }
 
-    if (!emrServerlessClient.startAndWaitJobRunCompletion(
-        orchestrationName,
+    val jobRunId =
+      "${exchangeStepAttempt.exchangeStepId}-${exchangeStepAttempt.exchangeId}-${exchangeDate.format(DateTimeFormatter.ISO_LOCAL_DATE)}"
+
+    if (
+      !emrServerlessClient.startAndWaitJobRunCompletion(
+        jobRunId,
         appId,
         listOf(
           "--exchange-workflow-blob-key=$exchangeWorkflowPrefix/$exchangeWorkflowId",
@@ -73,7 +76,9 @@ class EmrRemoteTaskOrchestrator(
           "--s3-storage-bucket=${storageBucket}",
           "--google-cloud-storage-bucket=",
           "--google-cloud-storage-project=",
-        ))) {
+        ),
+      )
+    ) {
       throw Exception("Panel exchange step was not executed successfully")
     }
 
