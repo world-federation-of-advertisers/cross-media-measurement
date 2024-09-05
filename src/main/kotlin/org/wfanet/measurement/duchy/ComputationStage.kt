@@ -20,8 +20,8 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage as Llv2Stage
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.system.v1alpha.ComputationStage as SystemComputationStage
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2Stage
-import org.wfanet.measurement.system.v1alpha.Stage as SystemComputationStage
 
 val ComputationStage.name: String
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.

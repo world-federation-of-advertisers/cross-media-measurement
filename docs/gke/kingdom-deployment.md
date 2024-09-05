@@ -48,7 +48,9 @@ The cluster will be populated with the following:
     -   `pending-measurements-cancellation-cronjob`
     -   `exchanges-deletion-cronjob`
 -   NetworkPolicy
-    -   `default-deny-ingress-and-egress`
+    -   `default-deny-network-policy`
+    -   `kube-dns-network-policy`
+    -   `gke-network-policy`
     -   `internal-data-server-network-policy`
     -   `system-api-server-network-policy`
     -   `public-api-server-network-policy`

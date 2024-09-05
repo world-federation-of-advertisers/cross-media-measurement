@@ -21,7 +21,7 @@ import "google/api/resource.proto";
 
 option java_package = "org.wfanet.measurement.system.v1alpha";
 option java_multiple_files = true;
-option java_outer_classname = "StageProto";
+option java_outer_classname = "ComputationStageProto";
 
 // Stage of LiquidLegionsV2 protocol.
 message LiquidLegionsV2Stage {
@@ -88,14 +88,14 @@ message HonestMajorityShareShuffleStage {
 }
 
 // Stage of a MPC protocol for a Computation at a ComputationParticipant.
-message Stage {
+message ComputationStage {
   option (google.api.resource) = {
-    type: "halo-system.wfanet.org/Stage"
-    singular: "stage"
-    plural: "stages"
+    type: "halo-system.wfanet.org/ComputationStage"
+    singular: "computationStage"
+    plural: "computationStages"
 
     // `duchy` is the Duchy ID from the public API.
-    pattern: "computations/{computation}/participants/{duchy}/stage"
+    pattern: "computations/{computation}/participants/{duchy}/computationStage"
   };
 
   // Resource name.

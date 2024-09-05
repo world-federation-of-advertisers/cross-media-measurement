@@ -54,6 +54,7 @@ private val FULFILLED_RESPONSE =
 
 /** Implementation of `wfa.measurement.api.v2alpha.RequisitionFulfillment` gRPC service. */
 class RequisitionFulfillmentService(
+  private val duchyId: String,
   private val systemRequisitionsClient: RequisitionsCoroutineStub,
   private val computationsClient: ComputationsCoroutineStub,
   private val requisitionStore: RequisitionStore,
@@ -109,6 +110,11 @@ class RequisitionFulfillmentService(
             grpcRequire(hmss.hasSecretSeed()) { "Secret seed not specified for HMSS protocol." }
             grpcRequire(hmss.dataProviderCertificate.isNotBlank()) {
               "DataProviderCertificate not specified for HMSS protocol."
+            }
+            val fulfillingDuchyId = requisitionMetadata.details.externalFulfillingDuchyId
+            grpcRequire(fulfillingDuchyId == duchyId) {
+              "FulfillingDuchyId mismatch. fulfillingDuchyId=$fulfillingDuchyId, " +
+                "currentDuchy=$duchyId"
             }
 
             val secretSeedCiphertext = hmss.secretSeed.ciphertext

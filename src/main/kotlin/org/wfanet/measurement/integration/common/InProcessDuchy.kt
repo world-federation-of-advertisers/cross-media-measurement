@@ -160,6 +160,7 @@ class InProcessDuchy(
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       addService(
         RequisitionFulfillmentService(
+            externalDuchyId,
             systemRequisitionsClient,
             computationsClient,
             RequisitionStore(duchyDependencies.storageClient),
@@ -181,6 +182,7 @@ class InProcessDuchy(
       addService(
         ComputationControlService(
             externalDuchyId,
+            computationsClient,
             asyncComputationControlClient,
             duchyDependencies.storageClient,
           )

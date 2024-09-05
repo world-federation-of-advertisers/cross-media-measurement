@@ -133,7 +133,6 @@ proto_library(
     deps = [
         ":computation_protocols_proto",
         ":computation_token_proto",
-        ":stage_proto",
     ],
 )
 
@@ -198,18 +197,4 @@ kt_jvm_proto_library(
 cc_proto_library(
     name = "noise_mechanism_cc_proto",
     deps = [":noise_mechanism_proto"],
-)
-
-proto_library(
-    name = "stage_proto",
-    srcs = ["stage.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        ":computation_protocols_proto",
-    ],
-)
-
-kt_jvm_proto_library(
-    name = "stage_kt_jvm_proto",
-    deps = [":stage_proto"],
 )

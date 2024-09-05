@@ -29,20 +29,30 @@ import org.wfanet.measurement.common.identity.duchyIdentityFromContext
 import org.wfanet.measurement.duchy.storage.ComputationBlobContext
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
+import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt
 import org.wfanet.measurement.internal.duchy.advanceComputationRequest
+import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.getOutputBlobMetadataRequest
-import org.wfanet.measurement.internal.duchy.getStageRequest as internalGetStageRequest
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationResponse
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationKey
-import org.wfanet.measurement.system.v1alpha.GetStageRequest
-import org.wfanet.measurement.system.v1alpha.Stage
+import org.wfanet.measurement.system.v1alpha.ComputationStage
+import org.wfanet.measurement.system.v1alpha.GetComputationStageRequest
 import org.wfanet.measurement.system.v1alpha.StageKey
 
+/**
+ * Service for controlling inter-Duchy operations on Computation related resources.
+ *
+ * @param duchyId the id of the duchy hosting this service.
+ * @param asyncComputationControlClient client to the internal service.
+ * @param computationStore storage to the computation blobs.
+ * @param duchyIdentityProvider a provider to fetch the duchy identity of the caller.
+ */
 class ComputationControlService(
   private val duchyId: String,
+  private val internalComputationsClient: ComputationsGrpcKt.ComputationsCoroutineStub,
   private val asyncComputationControlClient: AsyncComputationControlCoroutineStub,
   private val computationStore: ComputationStore,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
@@ -50,11 +60,13 @@ class ComputationControlService(
 
   constructor(
     duchyId: String,
+    internalComputationsClient: ComputationsGrpcKt.ComputationsCoroutineStub,
     asyncComputationControlClient: AsyncComputationControlCoroutineStub,
     storageClient: StorageClient,
     duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
   ) : this(
     duchyId,
+    internalComputationsClient,
     asyncComputationControlClient,
     ComputationStore(storageClient),
     duchyIdentityProvider,
@@ -123,15 +135,18 @@ class ComputationControlService(
     }
   }
 
-  override suspend fun getStage(request: GetStageRequest): Stage {
+  override suspend fun getComputationStage(request: GetComputationStageRequest): ComputationStage {
     val stageKey = grpcRequireNotNull(StageKey.fromName(request.name)) { "Invalid Stage name." }
     grpcRequire(stageKey.duchyId == duchyId) {
-      "Unmatched duchyId. request_duchy_id=${stageKey.duchyId}"
+      "Unmatched duchyId. request_duchy_id=${stageKey.duchyId}, service_duchy_id=${duchyId}"
     }
-    val internalRequest = internalGetStageRequest { globalComputationId = stageKey.computationId }
-    val stage =
+    val computationToken =
       try {
-        asyncComputationControlClient.getStage(internalRequest)
+        internalComputationsClient
+          .getComputationToken(
+            getComputationTokenRequest { globalComputationId = stageKey.computationId }
+          )
+          .token
       } catch (e: StatusException) {
         throw when (e.status.code) {
             Status.Code.UNAVAILABLE -> Status.UNAVAILABLE
@@ -143,6 +158,6 @@ class ComputationControlService(
           .withCause(e)
           .asRuntimeException()
       }
-    return stage.toSystemStage(duchyId)
+    return computationToken.toSystemStage(duchyId)
   }
 }

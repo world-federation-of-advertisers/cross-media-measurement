@@ -91,7 +91,7 @@ import org.wfanet.measurement.system.v1alpha.computationLogEntry
 import org.wfanet.measurement.system.v1alpha.createComputationLogEntryRequest
 import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.getComputationParticipantRequest
-import org.wfanet.measurement.system.v1alpha.getStageRequest
+import org.wfanet.measurement.system.v1alpha.getComputationStageRequest
 import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
 import org.wfanet.measurement.system.v1alpha.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.system.v1alpha.stageAttempt
@@ -797,7 +797,9 @@ abstract class MillBase(
     stub: ComputationControlCoroutineStub,
   ): ComputationStage {
     val systemStage =
-      stub.getStage(getStageRequest { name = StageKey(globalComputationId, otherDuchyId).toName() })
+      stub.getComputationStage(
+        getComputationStageRequest { name = StageKey(globalComputationId, otherDuchyId).toName() }
+      )
 
     return systemStage.toComputationStage()
   }

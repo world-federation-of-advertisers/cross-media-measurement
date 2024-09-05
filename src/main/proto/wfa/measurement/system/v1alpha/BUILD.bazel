@@ -63,8 +63,8 @@ kt_jvm_proto_library(
 )
 
 proto_library(
-    name = "stage_proto",
-    srcs = ["stage.proto"],
+    name = "computation_stage_proto",
+    srcs = ["computation_stage.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         "@com_google_googleapis//google/api:annotations_proto",
@@ -74,9 +74,9 @@ proto_library(
 )
 
 kt_jvm_proto_library(
-    name = "stage_kt_jvm_proto",
+    name = "computation_stage_kt_jvm_proto",
     visibility = ["//visibility:public"],
-    deps = [":stage_proto"],
+    deps = [":computation_stage_proto"],
 )
 
 proto_library(
@@ -204,7 +204,7 @@ proto_library(
     srcs = ["computation_control_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":stage_proto",
+        ":computation_stage_proto",
         "@com_google_googleapis//google/api:client_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",

@@ -22,7 +22,7 @@ module "clusters" {
 
   aws_region               = var.aws_region
   cluster_name             = "${each.key}-duchy"
-  cluster_version          = "1.28"
+  cluster_version          = "1.29"
   kms_key_administrators   = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
   control_plane_subnet_ids = module.vpc.intra_subnets
   subnet_ids               = module.vpc.private_subnets

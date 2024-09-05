@@ -196,6 +196,8 @@ import ("strings")
 		}
 		"computation-control-server-deployment": #ServerDeployment & {
 			_container: args: [
+						_duchyInternalApiTargetFlag,
+						_duchyInternalApiCertHostFlag,
 						_async_computations_control_service_target_flag,
 						_async_computations_control_service_cert_host_flag,
 						_duchy_name_flag,
@@ -378,7 +380,6 @@ import ("strings")
 			]
 			_destinationMatchLabels: [
 				_object_prefix + "internal-api-server-app",
-				"opentelemetry-collector-app",
 			]
 		}
 		"computation-control-server": {
@@ -394,6 +395,18 @@ import ("strings")
 			_egresses: {
 				// Need to send external traffic.
 				any: {}
+			}
+		}
+		"mill-job-scheduler": {
+			_app_label: _object_prefix + "mill-job-scheduler-app"
+			_destinationMatchLabels: [
+				_object_prefix + "internal-api-server-app",
+				_object_prefix + "computation-control-server-app",
+			]
+			_egresses: {
+				// There doesn't appear to be cluster-agnostic way to target
+				// kube-apiserver, so we just allow egress traffic to anywhere.
+				kubernetesService: {}
 			}
 		}
 		"llv2-mill": {

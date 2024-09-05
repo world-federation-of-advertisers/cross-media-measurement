@@ -60,6 +60,8 @@ message Requisition {
     //
     // The parent `Computation` will be in the `FAILED` state.
     REFUSED = 3;
+    // The `Requisition` has been withdrawn. Terminal state.
+    WITHDRAWN = 4;
   }
   // The state of this `Requisition`.
   State state = 4 [(google.api.field_behavior) = OUTPUT_ONLY];

@@ -29,7 +29,6 @@ import org.mockito.kotlin.stub
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.duchy.ETags
 import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newOutputBlobMetadata
@@ -57,14 +56,11 @@ import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.getOutputBlobMetadataRequest
-import org.wfanet.measurement.internal.duchy.getStageRequest
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage as HmssStage
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage as Llv2Stage
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
-import org.wfanet.measurement.internal.duchy.protocol.honestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.recordOutputBlobPathRequest
-import org.wfanet.measurement.internal.duchy.stage
 
 private const val SHUFFLE_BLOB_ID = 1L
 private val SHUFFLE_BLOB_PATH = "path"
@@ -742,31 +738,6 @@ class AsyncComputationControlServiceTest {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception).hasMessageThat().contains(HmssStage.SHUFFLE_PHASE.name)
-  }
-
-  @Test
-  fun `getStage returns the stage of a Computation`() {
-    val token_version = 123L
-    val token = computationToken {
-      computationStage = HmssStage.SHUFFLE_PHASE.toProtocolStage()
-      version = token_version
-    }
-    mockComputationsService.stub {
-      onBlocking { getComputationToken(any()) }.thenReturn(token.toGetComputationTokenResponse())
-    }
-
-    val stage = runBlocking {
-      service.getStage(getStageRequest { globalComputationId = token.globalComputationId })
-    }
-
-    assertThat(stage)
-      .isEqualTo(
-        stage {
-          globalComputationId = token.globalComputationId
-          computationStage = token.computationStage
-          etag = ETags.computeETag(token_version)
-        }
-      )
   }
 
   companion object {

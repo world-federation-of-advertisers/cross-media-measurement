@@ -28,7 +28,6 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
-import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionResponse
@@ -409,6 +408,7 @@ private fun State.toInternal(): InternalState =
     State.UNFULFILLED -> InternalState.UNFULFILLED
     State.FULFILLED -> InternalState.FULFILLED
     State.REFUSED -> InternalState.REFUSED
+    State.WITHDRAWN -> InternalState.WITHDRAWN
     State.STATE_UNSPECIFIED,
     State.UNRECOGNIZED -> InternalState.STATE_UNSPECIFIED
   }
@@ -480,7 +480,7 @@ private fun ComputationParticipant.HonestMajorityShareShuffleDetails.toHmssDuchy
           value = source.tinkPublicKey
           typeUrl =
             when (apiVersion) {
-              Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptedMessage.getDescriptor())
+              Version.V2_ALPHA -> ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
             }
         }
       )
@@ -527,6 +527,7 @@ private fun buildInternalStreamRequisitionsRequest(
           states += InternalState.UNFULFILLED
           states += InternalState.FULFILLED
           states += InternalState.REFUSED
+          states += InternalState.WITHDRAWN
         } else {
           states += requestStates.map { it.toInternal() }
         }

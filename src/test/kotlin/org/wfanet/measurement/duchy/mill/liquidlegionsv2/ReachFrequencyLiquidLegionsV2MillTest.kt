@@ -175,11 +175,11 @@ import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.SetComputationResultRequest
 import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.system.v1alpha.computationParticipant
+import org.wfanet.measurement.system.v1alpha.computationStage
 import org.wfanet.measurement.system.v1alpha.confirmComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.copy
 import org.wfanet.measurement.system.v1alpha.liquidLegionsV2Stage
 import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
-import org.wfanet.measurement.system.v1alpha.stage
 
 private const val PUBLIC_API_VERSION = "v2alpha"
 
@@ -1207,9 +1207,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       blobs = listOf(newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)),
     )
     mockLiquidLegionsComputationControl.stub {
-      onBlocking { getStage(any()) }
+      onBlocking { getComputationStage(any()) }
         .thenReturn(
-          stage {
+          computationStage {
             liquidLegionsV2Stage = liquidLegionsV2Stage {
               stage = LiquidLegionsV2Stage.Stage.WAIT_SETUP_PHASE_INPUTS
             }
@@ -1326,9 +1326,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
     )
     mockLiquidLegionsComputationControl.stub {
-      onBlocking { getStage(any()) }
+      onBlocking { getComputationStage(any()) }
         .thenReturn(
-          stage {
+          computationStage {
             liquidLegionsV2Stage = liquidLegionsV2Stage {
               stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
             }
@@ -1448,9 +1448,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
     )
     mockLiquidLegionsComputationControl.stub {
-      onBlocking { getStage(any()) }
+      onBlocking { getComputationStage(any()) }
         .thenReturn(
-          stage {
+          computationStage {
             liquidLegionsV2Stage = liquidLegionsV2Stage {
               stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
             }
@@ -1565,9 +1565,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       requisitions = REQUISITIONS,
     )
     mockLiquidLegionsComputationControl.stub {
-      onBlocking { getStage(any()) }
+      onBlocking { getComputationStage(any()) }
         .thenReturn(
-          stage {
+          computationStage {
             liquidLegionsV2Stage = liquidLegionsV2Stage {
               stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
             }
@@ -1634,9 +1634,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       requisitions = REQUISITIONS,
     )
     mockLiquidLegionsComputationControl.stub {
-      onBlocking { getStage(any()) }
+      onBlocking { getComputationStage(any()) }
         .thenReturn(
-          stage {
+          computationStage {
             liquidLegionsV2Stage = liquidLegionsV2Stage {
               stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
             }
@@ -1733,9 +1733,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       requisitions = REQUISITIONS,
     )
     mockLiquidLegionsComputationControl.stub {
-      onBlocking { getStage(any()) }
+      onBlocking { getComputationStage(any()) }
         .thenReturn(
-          stage {
+          computationStage {
             liquidLegionsV2Stage = liquidLegionsV2Stage {
               stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS
             }
@@ -1954,9 +1954,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         .build()
     }
     mockLiquidLegionsComputationControl.stub {
-      onBlocking { getStage(any()) }
+      onBlocking { getComputationStage(any()) }
         .thenReturn(
-          stage {
+          computationStage {
             liquidLegionsV2Stage = liquidLegionsV2Stage {
               stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS
             }
@@ -2160,9 +2160,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       requisitions = REQUISITIONS,
     )
     mockLiquidLegionsComputationControl.stub {
-      onBlocking { getStage(any()) }
+      onBlocking { getComputationStage(any()) }
         .thenReturn(
-          stage {
+          computationStage {
             liquidLegionsV2Stage = liquidLegionsV2Stage {
               stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS
             }
@@ -2295,9 +2295,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       requisitions = REQUISITIONS,
     )
     mockLiquidLegionsComputationControl.stub {
-      onBlocking { getStage(any()) }
+      onBlocking { getComputationStage(any()) }
         .thenReturn(
-          stage {
+          computationStage {
             liquidLegionsV2Stage = liquidLegionsV2Stage {
               stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS
             }
@@ -2648,9 +2648,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       requisitions = REQUISITIONS,
     )
     mockLiquidLegionsComputationControl.stub {
-      onBlocking { getStage(any()) }
+      onBlocking { getComputationStage(any()) }
         .thenReturn(
-          stage {
+          computationStage {
             liquidLegionsV2Stage = liquidLegionsV2Stage {
               stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS
             }
@@ -2839,9 +2839,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       requisitions = REQUISITIONS,
     )
     mockLiquidLegionsComputationControl.stub {
-      onBlocking { getStage(any()) }
+      onBlocking { getComputationStage(any()) }
         .thenReturn(
-          stage {
+          computationStage {
             liquidLegionsV2Stage = liquidLegionsV2Stage {
               // A future stage
               stage = LiquidLegionsV2Stage.Stage.EXECUTION_PHASE_TWO

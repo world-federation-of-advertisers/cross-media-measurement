@@ -24,8 +24,10 @@ import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.common.identity.withDuchyIdentities
 import org.wfanet.measurement.duchy.deploy.common.AsyncComputationControlServiceFlags
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
+import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
+import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
@@ -48,7 +50,7 @@ abstract class ComputationControlServer : Runnable {
         trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile,
       )
 
-    val channel: Channel =
+    val asyncControlServiceChannel: Channel =
       buildMutualTlsChannel(
           flags.asyncComputationControlServiceFlags.target,
           clientCerts,
@@ -56,12 +58,21 @@ abstract class ComputationControlServer : Runnable {
         )
         .withDefaultDeadline(flags.asyncComputationControlServiceFlags.defaultDeadlineDuration)
 
+    val computationsServiceChannel: Channel =
+      buildMutualTlsChannel(
+          flags.computationsServiceFlags.target,
+          clientCerts,
+          flags.computationsServiceFlags.certHost,
+        )
+        .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
+
     CommonServer.fromFlags(
         flags.server,
         javaClass.name,
         ComputationControlService(
             flags.duchy.duchyName,
-            AsyncComputationControlCoroutineStub(channel),
+            ComputationsCoroutineStub(computationsServiceChannel),
+            AsyncComputationControlCoroutineStub(asyncControlServiceChannel),
             storageClient,
           )
           .withDuchyIdentities(),
@@ -81,6 +92,10 @@ abstract class ComputationControlServer : Runnable {
 
     @CommandLine.Mixin
     lateinit var asyncComputationControlServiceFlags: AsyncComputationControlServiceFlags
+      private set
+
+    @CommandLine.Mixin
+    lateinit var computationsServiceFlags: ComputationsServiceFlags
       private set
   }
 
