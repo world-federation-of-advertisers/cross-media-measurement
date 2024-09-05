@@ -7,9 +7,12 @@ package(default_visibility = [
 
 kt_jvm_library(
     name = "certificates",
-    srcs = glob(["*.kt"]),
+    srcs = [
+        "CertificateAuthority.kt",
+        "CertificateManager.kt",
+        "V2AlphaCertificateManager.kt",
+    ],
     deps = [
-        "//imports/java/org/bouncycastle/bcpkix",
         "//src/main/kotlin/org/wfanet/panelmatch/client/logger",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/secrets",
@@ -21,5 +24,15 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:pem_io",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
+    ],
+)
+
+kt_jvm_library(
+    name = "generate-csr",
+    srcs = [
+        "GenerateCsr.kt",
+    ],
+    deps = [
+        "//imports/java/org/bouncycastle/bcpkix",
     ],
 )
