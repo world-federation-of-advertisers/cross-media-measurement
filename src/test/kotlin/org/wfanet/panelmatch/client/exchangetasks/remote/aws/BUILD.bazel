@@ -1,12 +1,12 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "EmrExchangeTaskServiceTest",
+    name = "EmrRemoteTaskOrchestratorTest",
     timeout = "short",
-    srcs = ["RemoteRemoteTaskOrchestratorTest.kt"],
-    test_class = "aws",
+    srcs = ["EmrRemoteTaskOrchestratorTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.exchangetasks.remote.aws.EmrRemoteTaskOrchestratorTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks/emr",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks/remote/aws",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/org/junit",
@@ -18,12 +18,12 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "EmrServerlessClientServiceTest",
+    name = "EmrServerlessClientTest",
     timeout = "short",
     srcs = ["EmrServerlessClientTest.kt"],
-    test_class = "aws",
+    test_class = "org.wfanet.panelmatch.client.exchangetasks.remote.aws.EmrServerlessClientTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks/emr",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks/remote/aws",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/org/junit",

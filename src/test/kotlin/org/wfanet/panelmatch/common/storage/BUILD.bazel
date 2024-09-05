@@ -22,7 +22,7 @@ kt_jvm_test(
 kt_jvm_test(
     name = "SizeLimitedStorageClientTest",
     timeout = "short",
-    srcs = ["SizeLimitedStorageClientTest.kt"],
+    srcs = ["SizeLimitedStorageEmrServerlessClientTest.kt"],
     test_class = "org.wfanet.panelmatch.common.storage.SizeLimitedStorageClientTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/common",

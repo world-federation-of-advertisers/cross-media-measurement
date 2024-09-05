@@ -34,7 +34,7 @@ private const val SAFE_CONTENTS = "0123456789"
 private const val UNSAFE_CONTENTS = "A0123456789"
 
 @RunWith(JUnit4::class)
-class SizeLimitedStorageClientTest {
+class SizeLimitedStorageEmrServerlessClientTest {
   private val delegate = InMemoryStorageClient()
   private val storageClient = SizeLimitedStorageClient(10L, delegate)
 

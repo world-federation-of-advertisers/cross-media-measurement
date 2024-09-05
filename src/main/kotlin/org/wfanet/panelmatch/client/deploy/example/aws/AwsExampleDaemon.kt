@@ -29,11 +29,12 @@ import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.deploy.example.ExampleDaemon
 import org.wfanet.panelmatch.client.exchangetasks.remote.RemoteTaskOrchestrator
 import org.wfanet.panelmatch.client.exchangetasks.remote.aws.EmrRemoteTaskOrchestrator
+import org.wfanet.panelmatch.client.exchangetasks.remote.aws.EmrServerlessClientImpl
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidatorImpl
 import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
+import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.common.beam.BeamOptions
-import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.common.certificates.aws.CertificateAuthority
 import org.wfanet.panelmatch.common.certificates.aws.PrivateCaClient
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
@@ -122,14 +123,16 @@ private class AwsExampleDaemon : ExampleDaemon() {
       storageType = StorageDetails.PlatformCase.AWS,
       storageBucket = s3Bucket,
       storageRegion = s3Region,
-      emrServerlessClient = org.wfanet.panelmatch.client.exchangetasks.remote.aws.EmrServerlessClient(
-        s3ExchangeTaskJarPath = "s3://${s3Bucket}/exchange-tasks/jars/beam-exchange-tasks.jar",
-        s3ExchangeTaskLogPath = "s3://${s3Bucket}/exchange-tasks/logs",
-        emrJobExecutionRoleArn = emrExecutorRoleArn,
-        emrServerlessClient = EmrServerlessAsyncClient.builder()
-          .credentialsProvider(DefaultCredentialsProvider.create())
-          .build()
-      ),
+      emrServerlessClient =
+        EmrServerlessClientImpl(
+          s3ExchangeTaskJarPath = "s3://${s3Bucket}/exchange-tasks/jars/beam-exchange-tasks.jar",
+          s3ExchangeTaskLogPath = "s3://${s3Bucket}/exchange-tasks/logs",
+          emrJobExecutionRoleArn = emrExecutorRoleArn,
+          emrServerlessClient =
+            EmrServerlessAsyncClient.builder()
+              .credentialsProvider(DefaultCredentialsProvider.create())
+              .build(),
+        ),
     )
   }
 

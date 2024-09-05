@@ -19,9 +19,9 @@ import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
-import org.wfanet.panelmatch.client.storage.testing.VerifiedStorageClientTest
+import org.wfanet.panelmatch.client.storage.testing.VerifiedStorageEmrServerlessClientTest
 
-class FileSystemVerifiedStorageClientTest : VerifiedStorageClientTest() {
+class FileSystemVerifiedStorageEmrServerlessClientTest : VerifiedStorageEmrServerlessClientTest() {
   @get:Rule val temporaryFolder = TemporaryFolder()
 
   override val underlyingClient: StorageClient by lazy {

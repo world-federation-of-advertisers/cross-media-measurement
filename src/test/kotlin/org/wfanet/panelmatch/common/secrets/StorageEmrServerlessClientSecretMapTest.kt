@@ -21,7 +21,7 @@ import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.common.secrets.testing.AbstractMutableSecretMapTest
 
 @RunWith(JUnit4::class)
-class StorageClientSecretMapTest : AbstractMutableSecretMapTest<StorageClientSecretMap>() {
+class StorageEmrServerlessClientSecretMapTest : AbstractMutableSecretMapTest<StorageClientSecretMap>() {
   override suspend fun secretMapOf(vararg items: Pair<String, ByteString>): StorageClientSecretMap {
     val storageClient = InMemoryStorageClient()
     for ((key, value) in items) {
