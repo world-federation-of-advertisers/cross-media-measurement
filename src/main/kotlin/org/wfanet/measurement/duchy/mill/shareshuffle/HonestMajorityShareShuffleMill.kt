@@ -253,7 +253,7 @@ class HonestMajorityShareShuffleMill(
     }
 
     val peerDuchyId = peerDuchyId(role)
-    val peerDuchyStub = peerDuchyStub(role)
+    val peerDuchyStub = workerStubs[peerDuchyId] ?: error("$peerDuchyId stub not found")
     val peerDuchyStage =
       getComputationStageInOtherDuchy(token.globalComputationId, peerDuchyId, peerDuchyStub)
         .honestMajorityShareShuffle
@@ -264,7 +264,7 @@ class HonestMajorityShareShuffleMill(
       if (role == FIRST_NON_AGGREGATOR) Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE
       else Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO
 
-    if (skipAdvanceComputation(peerDuchyExpectedStage, peerDuchyStage)) {
+    if (peerDuchyStage.isSequencedAfter(peerDuchyExpectedStage)) {
       logger.log(Level.WARNING) {
         "Skipping advanceComputation for next duchy $peerDuchyId. " +
           "expected_stage=${peerDuchyExpectedStage}, actual_stage=${peerDuchyStage}"
@@ -457,12 +457,12 @@ class HonestMajorityShareShuffleMill(
       registerCount = request.frequencyVectorParams.registerCount
     }
 
-    val aggregatorId = aggregatorId()
-    val aggregatorStub = aggregatorStub()
+    val aggregatorId = protocolSetupConfig.aggregatorDuchyId
+    val aggregatorStub = workerStubs[aggregatorId] ?: error("$aggregatorId stub not found")
     val aggregatorStage =
       getComputationStageInOtherDuchy(token.globalComputationId, aggregatorId, aggregatorStub)
         .honestMajorityShareShuffle
-    if (skipAdvanceComputation(Stage.WAIT_ON_AGGREGATION_INPUT, aggregatorStage)) {
+    if (aggregatorStage.isSequencedAfter(Stage.WAIT_ON_AGGREGATION_INPUT)) {
       logger.log(Level.WARNING) {
         "Skipping advanceComputation for the aggregator " +
           "expected_stage=${Stage.WAIT_ON_AGGREGATION_INPUT}, actual_stage=${aggregatorStage}"
@@ -607,27 +607,8 @@ class HonestMajorityShareShuffleMill(
       )
   }
 
-  private fun aggregatorId(): String {
-    return protocolSetupConfig.aggregatorDuchyId
-  }
-
-  private fun aggregatorStub(): ComputationControlCoroutineStub {
-    val aggregator = aggregatorId()
-    return workerStubs[aggregator]
-      ?: throw PermanentErrorException(
-        "No ComputationControlService stub for aggregator '$aggregator'"
-      )
-  }
-
-  private fun skipAdvanceComputation(expectedStage: Stage, actualStage: Stage): Boolean {
-    if (expectedStage == actualStage) {
-      return false
-    }
-
-    val actualStageIndex = stageSequence.indexOf(actualStage)
-    val expectedStageIndex = stageSequence.indexOf(expectedStage)
-    return actualStageIndex >= expectedStageIndex
-  }
+  private fun Stage.isSequencedAfter(other: Stage): Boolean =
+    stageSequence.indexOf(this) > stageSequence.indexOf(other)
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

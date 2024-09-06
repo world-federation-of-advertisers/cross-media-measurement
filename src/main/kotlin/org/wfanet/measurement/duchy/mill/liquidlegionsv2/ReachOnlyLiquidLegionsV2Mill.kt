@@ -380,12 +380,12 @@ class ReachOnlyLiquidLegionsV2Mill(
       }
 
     val nextDuchyId = nextDuchyId(rollv2Details.participantList)
-    val nextDuchyStub = nextDuchyStub(rollv2Details.participantList)
+    val nextDuchyStub = workerStubs[nextDuchyId] ?: error("$nextDuchyId stub not found")
     val nextDuchyStage =
       getComputationStageInOtherDuchy(token.globalComputationId, nextDuchyId, nextDuchyStub)
         .reachOnlyLiquidLegionsSketchAggregationV2
 
-    if (skipAdvanceComputation(Stage.WAIT_EXECUTION_PHASE_INPUTS, nextDuchyStage)) {
+    if (nextDuchyStage.isSequencedAfter(Stage.WAIT_EXECUTION_PHASE_INPUTS)) {
       logger.log(Level.WARNING) {
         "Skipping advanceComputation for next duchy $nextDuchyId. " +
           "expected_stage=${Stage.WAIT_EXECUTION_PHASE_INPUTS}, actual_stage=${nextDuchyStage}"
@@ -435,12 +435,12 @@ class ReachOnlyLiquidLegionsV2Mill(
       }
 
     val aggregatorId = rollv2Details.participantList.last().duchyId
-    val aggregatorStub = aggregatorDuchyStub(rollv2Details.participantList.last().duchyId)
+    val aggregatorStub = workerStubs[aggregatorId] ?: error("$aggregatorId stub not found")
     val aggregatorStage =
       getComputationStageInOtherDuchy(token.globalComputationId, aggregatorId, aggregatorStub)
         .reachOnlyLiquidLegionsSketchAggregationV2
 
-    if (skipAdvanceComputation(Stage.WAIT_SETUP_PHASE_INPUTS, aggregatorStage)) {
+    if (aggregatorStage.isSequencedAfter(Stage.WAIT_SETUP_PHASE_INPUTS)) {
       logger.log(Level.WARNING) {
         "Skipping advanceComputation for next duchy $aggregatorId. " +
           "expected_stage=${Stage.WAIT_SETUP_PHASE_INPUTS}, actual_stage=${aggregatorStage}"
@@ -573,12 +573,12 @@ class ReachOnlyLiquidLegionsV2Mill(
 
     // Passes the computation to the next duchy.
     val nextDuchyId = nextDuchyId(rollv2Details.participantList)
-    val nextDuchyStub = nextDuchyStub(rollv2Details.participantList)
+    val nextDuchyStub = workerStubs[nextDuchyId] ?: error("$nextDuchyId stub not found")
     val nextDuchyStage =
       getComputationStageInOtherDuchy(token.globalComputationId, nextDuchyId, nextDuchyStub)
         .reachOnlyLiquidLegionsSketchAggregationV2
 
-    if (skipAdvanceComputation(Stage.WAIT_EXECUTION_PHASE_INPUTS, nextDuchyStage)) {
+    if (nextDuchyStage.isSequencedAfter(Stage.WAIT_EXECUTION_PHASE_INPUTS)) {
       logger.log(Level.WARNING) {
         "Skipping advanceComputation for next duchy $nextDuchyId. " +
           "expected_stage=${Stage.WAIT_EXECUTION_PHASE_INPUTS}, actual_stage=${nextDuchyStage}"
@@ -686,15 +686,9 @@ class ReachOnlyLiquidLegionsV2Mill(
     return combinedRegisterVector.concat(combinedNoiseCiphertext)
   }
 
-  private fun skipAdvanceComputation(expectedStage: Stage, actualStage: Stage): Boolean {
-    if (expectedStage == actualStage) {
-      return false
-    }
-
-    val actualStageIndex = stageSequence.indexOf(actualStage)
-    val expectedStageIndex = stageSequence.indexOf(expectedStage)
-    return actualStageIndex >= expectedStageIndex
-  }
+  /** Returns whether this [Stage] is after [other] in [stageSequence]. */
+  private fun Stage.isSequencedAfter(other: Stage): Boolean =
+    stageSequence.indexOf(this) > stageSequence.indexOf(other)
 
   companion object {
     private const val BYTES_PER_CIPHERTEXT = 66

@@ -797,9 +797,19 @@ abstract class MillBase(
     stub: ComputationControlCoroutineStub,
   ): ComputationStage {
     val systemStage =
-      stub.getComputationStage(
-        getComputationStageRequest { name = StageKey(globalComputationId, otherDuchyId).toName() }
-      )
+      try {
+        stub.getComputationStage(
+          getComputationStageRequest { name = StageKey(globalComputationId, otherDuchyId).toName() }
+        )
+      } catch (e: StatusException) {
+        val message = "Error getting computation stage from other duchy."
+        throw when (e.status.code) {
+          Status.Code.UNAVAILABLE,
+          Status.Code.DEADLINE_EXCEEDED,
+          Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
+          else -> ComputationDataClients.PermanentErrorException(message, e)
+        }
+      }
 
     return systemStage.toComputationStage()
   }
