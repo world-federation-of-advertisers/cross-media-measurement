@@ -28,7 +28,7 @@ import org.wfanet.panelmatch.common.testing.runBlockingTest
 private const val KEY = "some/arbitrary.key"
 private val VALUE = "<some-arbitrary-value>".toByteStringUtf8()
 
-abstract class VerifiedStorageEmrServerlessClientTest {
+abstract class VerifiedStorageClientTest {
   private lateinit var verifyingStorage: VerifyingStorageClient
   private lateinit var signingStorage: SigningStorageClient
   abstract val underlyingClient: StorageClient

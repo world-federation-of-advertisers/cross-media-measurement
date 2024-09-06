@@ -95,7 +95,7 @@ private val FULL_CLAIM_READY_EXCHANGE_STEP_RESPONSE = claimReadyExchangeStepResp
 private val EMPTY_CLAIM_READY_EXCHANGE_STEP_RESPONSE = claimReadyExchangeStepResponse {}
 
 @RunWith(JUnit4::class)
-class GrpcApiEmrServerlessClientTest {
+class GrpcApiClientTest {
   private val exchangeStepsServiceMock: ExchangeStepsCoroutineImplBase = mockService {}
 
   private val exchangeStepsAttemptsServiceMock: ExchangeStepAttemptsCoroutineImplBase =

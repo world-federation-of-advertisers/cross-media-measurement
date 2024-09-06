@@ -17,6 +17,9 @@ package org.wfanet.panelmatch.client.exchangetasks.remote.aws
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import kotlin.test.assertEquals
+import kotlin.time.DurationUnit
+import kotlin.time.toDuration
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -63,7 +66,8 @@ private const val JOB_EXEC_ROLE_ARN = "job-exec-role-arn"
 @RunWith(JUnit4::class)
 class EmrServerlessClientTest {
 
-  @Mock private lateinit var emrServerlessAsyncClient: EmrServerlessAsyncClient
+  @Mock
+  private lateinit var emrServerlessAsyncClient: EmrServerlessAsyncClient
 
   private lateinit var emrServerlessClient: EmrServerlessClientImpl
 
@@ -77,7 +81,8 @@ class EmrServerlessClientTest {
         EXCHANGE_TASK_LOG_PATH,
         JOB_EXEC_ROLE_ARN,
         emrServerlessAsyncClient,
-        3,
+        Duration.ofSeconds(3),
+        Duration.ofSeconds(4),
         Duration.ofSeconds(1),
       )
   }
@@ -119,12 +124,67 @@ class EmrServerlessClientTest {
 
     val success = emrServerlessClient.startApplication(TEST_APPLICATION_ID)
 
-    assertEquals(success, true)
+    assertEquals(true, success)
 
     verify(emrServerlessAsyncClient, times(1))
       .startApplication(any(StartApplicationRequest::class.java))
     verify(emrServerlessAsyncClient, times(2))
       .getApplication(any(GetApplicationRequest::class.java))
+  }
+
+  @Test
+  fun testStartFailsAfterUnexpectedState(): Unit = runBlocking {
+    whenever(emrServerlessAsyncClient.startApplication(any(StartApplicationRequest::class.java)))
+      .thenReturn(CompletableFuture.completedFuture(StartApplicationResponse.builder().build()))
+
+    whenever(emrServerlessAsyncClient.getApplication(any(GetApplicationRequest::class.java)))
+      .thenReturn(
+        CompletableFuture.completedFuture(
+          GetApplicationResponse.builder()
+            .application(Application.builder().state(CREATED).build())
+            .build()
+        )
+      )
+      .thenReturn(
+        CompletableFuture.completedFuture(
+          GetApplicationResponse.builder()
+            .application(Application.builder().state(TERMINATED).build())
+            .build()
+        )
+      )
+
+    val success = emrServerlessClient.startApplication(TEST_APPLICATION_ID)
+
+    assertEquals(false, success)
+  }
+
+  @Test
+  fun testStartFailsAfterTimeout(): Unit = runBlocking {
+    whenever(emrServerlessAsyncClient.startApplication(any(StartApplicationRequest::class.java)))
+      .thenReturn(CompletableFuture.completedFuture(StartApplicationResponse.builder().build()))
+
+    whenever(emrServerlessAsyncClient.getApplication(any(GetApplicationRequest::class.java)))
+      .thenReturn(
+        CompletableFuture.completedFuture(
+          GetApplicationResponse.builder()
+            .application(Application.builder().state(CREATED).build())
+            .build()
+        )
+      )
+      .thenReturn(
+        CompletableFuture.supplyAsync {
+          runBlocking {
+            delay(8L.toDuration(DurationUnit.SECONDS))
+            GetApplicationResponse.builder()
+              .application(Application.builder().state(TERMINATED).build())
+              .build()
+          }
+        }
+      )
+
+    val success = emrServerlessClient.startApplication(TEST_APPLICATION_ID)
+
+    assertEquals(false, success)
   }
 
   @Test
@@ -150,7 +210,7 @@ class EmrServerlessClientTest {
 
     val success = emrServerlessClient.stopApplication(TEST_APPLICATION_ID)
 
-    assertEquals(success, true)
+    assertEquals(true, success)
 
     verify(emrServerlessAsyncClient, times(1))
       .stopApplication(any(StopApplicationRequest::class.java))
@@ -159,30 +219,18 @@ class EmrServerlessClientTest {
   }
 
   @Test
-  fun testStartFailsAfterMaxStateChecks(): Unit = runBlocking {
-    whenever(emrServerlessAsyncClient.startApplication(any(StartApplicationRequest::class.java)))
-      .thenReturn(CompletableFuture.completedFuture(StartApplicationResponse.builder().build()))
+  fun testStopFailsAfterUnexpectedState(): Unit = runBlocking {
+    whenever(emrServerlessAsyncClient.stopApplication(any(StopApplicationRequest::class.java)))
+      .thenReturn(CompletableFuture.completedFuture(StopApplicationResponse.builder().build()))
 
     whenever(emrServerlessAsyncClient.getApplication(any(GetApplicationRequest::class.java)))
       .thenReturn(
         CompletableFuture.completedFuture(
           GetApplicationResponse.builder()
-            .application(Application.builder().state(TERMINATED).build())
+            .application(Application.builder().state(STARTED).build())
             .build()
         )
       )
-
-    val success = emrServerlessClient.startApplication(TEST_APPLICATION_ID)
-
-    assertEquals(success, false)
-  }
-
-  @Test
-  fun testStopFailsAfterMaxStateChecks(): Unit = runBlocking {
-    whenever(emrServerlessAsyncClient.stopApplication(any(StopApplicationRequest::class.java)))
-      .thenReturn(CompletableFuture.completedFuture(StopApplicationResponse.builder().build()))
-
-    whenever(emrServerlessAsyncClient.getApplication(any(GetApplicationRequest::class.java)))
       .thenReturn(
         CompletableFuture.completedFuture(
           GetApplicationResponse.builder()
@@ -193,7 +241,36 @@ class EmrServerlessClientTest {
 
     val success = emrServerlessClient.stopApplication(TEST_APPLICATION_ID)
 
-    assertEquals(success, false)
+    assertEquals(false, success)
+  }
+
+  @Test
+  fun testStopFailsAfterTimeout(): Unit = runBlocking {
+    whenever(emrServerlessAsyncClient.stopApplication(any(StopApplicationRequest::class.java)))
+      .thenReturn(CompletableFuture.completedFuture(StopApplicationResponse.builder().build()))
+
+    whenever(emrServerlessAsyncClient.getApplication(any(GetApplicationRequest::class.java)))
+      .thenReturn(
+        CompletableFuture.completedFuture(
+          GetApplicationResponse.builder()
+            .application(Application.builder().state(STARTED).build())
+            .build()
+        )
+      )
+      .thenReturn(
+        CompletableFuture.supplyAsync {
+          runBlocking {
+            delay(8L.toDuration(DurationUnit.SECONDS))
+            GetApplicationResponse.builder()
+              .application(Application.builder().state(TERMINATED).build())
+              .build()
+          }
+        }
+      )
+
+    val success = emrServerlessClient.stopApplication(TEST_APPLICATION_ID)
+
+    assertEquals(false, success)
   }
 
   @Test
@@ -229,7 +306,7 @@ class EmrServerlessClientTest {
         emptyList(),
       )
 
-    assertEquals(success, true)
+    assertEquals(true, success)
 
     verify(emrServerlessAsyncClient, times(1)).startJobRun(any(StartJobRunRequest::class.java))
     verify(emrServerlessAsyncClient, times(3)).getJobRun(any(GetJobRunRequest::class.java))
@@ -268,11 +345,11 @@ class EmrServerlessClientTest {
         emptyList(),
       )
 
-    assertEquals(success, false)
+    assertEquals(false, success)
   }
 
   @Test
-  fun testStartAndWaitJobRunCompletionFailsAfterMaxStateChecks(): Unit = runBlocking {
+  fun testStartAndWaitJobRunCompletionFailsAfterTimeout(): Unit = runBlocking {
     whenever(emrServerlessAsyncClient.startJobRun(any(StartJobRunRequest::class.java)))
       .thenReturn(
         CompletableFuture.completedFuture(
@@ -282,19 +359,12 @@ class EmrServerlessClientTest {
 
     whenever(emrServerlessAsyncClient.getJobRun(any(GetJobRunRequest::class.java)))
       .thenReturn(
-        CompletableFuture.completedFuture(
-          GetJobRunResponse.builder().jobRun(JobRun.builder().state(SUBMITTED).build()).build()
-        )
-      )
-      .thenReturn(
-        CompletableFuture.completedFuture(
-          GetJobRunResponse.builder().jobRun(JobRun.builder().state(RUNNING).build()).build()
-        )
-      )
-      .thenReturn(
-        CompletableFuture.completedFuture(
-          GetJobRunResponse.builder().jobRun(JobRun.builder().state(RUNNING).build()).build()
-        )
+        CompletableFuture.supplyAsync {
+          runBlocking {
+            delay(8L.toDuration(DurationUnit.SECONDS))
+            GetJobRunResponse.builder().jobRun(JobRun.builder().state(SUBMITTED).build()).build()
+          }
+        }
       )
 
     val success =
@@ -304,6 +374,6 @@ class EmrServerlessClientTest {
         emptyList(),
       )
 
-    assertEquals(success, false)
+    assertEquals(false, success)
   }
 }

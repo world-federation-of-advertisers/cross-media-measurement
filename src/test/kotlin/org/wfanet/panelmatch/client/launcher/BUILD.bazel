@@ -47,7 +47,7 @@ kt_jvm_test(
 kt_jvm_test(
     name = "GrpcApiClientTest",
     timeout = "short",
-    srcs = ["GrpcApiEmrServerlessClientTest.kt"],
+    srcs = ["GrpcApiClientTest.kt"],
     test_class = "org.wfanet.panelmatch.client.launcher.GrpcApiClientTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/launcher",

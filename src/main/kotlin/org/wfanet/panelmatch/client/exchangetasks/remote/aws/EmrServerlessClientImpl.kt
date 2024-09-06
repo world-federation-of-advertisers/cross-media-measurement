@@ -15,11 +15,10 @@
 package org.wfanet.panelmatch.client.exchangetasks.remote.aws
 
 import java.time.Duration
-import kotlinx.coroutines.Dispatchers
+import kotlin.time.toKotlinDuration
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.future.await
-import kotlinx.coroutines.time.delay
-import kotlinx.coroutines.withContext
-import org.wfanet.measurement.common.ExponentialBackoff
+import org.wfanet.panelmatch.common.asTimeout
 import org.wfanet.panelmatch.common.loggerFor
 import software.amazon.awssdk.services.emrserverless.EmrServerlessAsyncClient
 import software.amazon.awssdk.services.emrserverless.model.ApplicationState
@@ -39,17 +38,19 @@ import software.amazon.awssdk.services.emrserverless.model.StopApplicationReques
 
 private const val EMR_RELEASE_LABEL = "emr-7.1.0"
 
-private const val MAX_STATE_CHECK = 100
-private val INITIAL_CHECK_DELAY: Duration = Duration.ofSeconds(10L)
+private val DEFAULT_JOB_EXECUTION_TIMEOUT: Duration = Duration.ofMinutes(60L)
+private val DEFAULT_APP_STATE_CHECK_TIMEOUT: Duration = Duration.ofMinutes(5L)
+private val DEFAULT_POLLING_INTERVAL: Duration = Duration.ofSeconds(10L)
 
 class EmrServerlessClientImpl(
   private val s3ExchangeTaskJarPath: String,
   private val s3ExchangeTaskLogPath: String,
   private val emrJobExecutionRoleArn: String,
   private val emrServerlessClient: EmrServerlessAsyncClient,
-  private val maxStateChecks: Int = MAX_STATE_CHECK,
-  private val initialCheckDelay: Duration = INITIAL_CHECK_DELAY,
-): EmrServerlessClient {
+  private val appStateCheckTimeout: Duration = DEFAULT_APP_STATE_CHECK_TIMEOUT,
+  private val jobExexutionTimeout: Duration = DEFAULT_JOB_EXECUTION_TIMEOUT,
+  private val pollingInterval: Duration = DEFAULT_POLLING_INTERVAL,
+) : EmrServerlessClient {
   override suspend fun createApplication(applicationName: String): String {
     val request =
       CreateApplicationRequest.builder()
@@ -62,154 +63,153 @@ class EmrServerlessClientImpl(
     return response.await().applicationId()
   }
 
-  override suspend fun startApplication(applicationId: String): Boolean =
-    withContext(Dispatchers.IO) {
-      return@withContext try {
-        retryWithBackoff {
-          val request = GetApplicationRequest.builder().applicationId(applicationId).build()
+  override suspend fun startApplication(applicationId: String): Boolean {
+    val request = GetApplicationRequest.builder().applicationId(applicationId).build()
 
-          val state = emrServerlessClient.getApplication(request).await().application().state()
+    val state = emrServerlessClient.getApplication(request).await().application().state()
 
-          if (state == ApplicationState.CREATED || state == ApplicationState.STOPPED) {
-            val startAppReq = StartApplicationRequest.builder().applicationId(applicationId).build()
-            emrServerlessClient.startApplication(startAppReq).await()
-          }
-
-          if (state != ApplicationState.STARTED) throw Exception("Application not started")
-        }
-        true
-      } catch (e: Exception) {
-        logger.severe(e.message)
-        false
-      }
+    if (state == ApplicationState.CREATED || state == ApplicationState.STOPPED) {
+      val startAppReq = StartApplicationRequest.builder().applicationId(applicationId).build()
+      emrServerlessClient.startApplication(startAppReq)
+      return waitForAppStateChange(applicationId, ApplicationState.STARTED)
     }
 
-  override suspend fun stopApplication(applicationId: String): Boolean =
-    withContext(Dispatchers.IO) {
-      return@withContext try {
-        retryWithBackoff {
-          val request = GetApplicationRequest.builder().applicationId(applicationId).build()
+    return state == ApplicationState.STARTED
+  }
 
-          val state = emrServerlessClient.getApplication(request).await().application().state()
+  override suspend fun stopApplication(applicationId: String): Boolean {
+    val request = GetApplicationRequest.builder().applicationId(applicationId).build()
 
-          if (state == ApplicationState.STARTED) {
-            val stopAppReq = StopApplicationRequest.builder().applicationId(applicationId).build()
-            emrServerlessClient.stopApplication(stopAppReq).await()
-          }
+    val state = emrServerlessClient.getApplication(request).await().application().state()
 
-          if (state != ApplicationState.STOPPED) throw Exception("Application not stopped")
-        }
-        true
-      } catch (e: Exception) {
-        logger.severe(e.message)
-        false
-      }
+    if (state == ApplicationState.STARTED) {
+      val stopAppReq = StopApplicationRequest.builder().applicationId(applicationId).build()
+      emrServerlessClient.stopApplication(stopAppReq).await()
+      return waitForAppStateChange(applicationId, ApplicationState.STOPPED)
     }
+
+    return state == ApplicationState.STOPPED
+  }
 
   override suspend fun startAndWaitJobRunCompletion(
     jobRunName: String,
     applicationId: String,
     arguments: List<String>,
-  ): Boolean =
-    withContext(Dispatchers.IO) {
-      val startJobReq =
-        StartJobRunRequest.builder()
-          .name(jobRunName)
-          .applicationId(applicationId)
-          .executionRoleArn(emrJobExecutionRoleArn)
-          .jobDriver(
-            JobDriver.builder()
-              .sparkSubmit(
-                SparkSubmit.builder()
-                  .entryPoint(s3ExchangeTaskJarPath)
-                  .entryPointArguments(arguments)
-                  .build()
-              )
-              .build()
-          )
-          .configurationOverrides(
-            ConfigurationOverrides.builder()
-              .applicationConfiguration(
-                Configuration.builder()
-                  .classification("spark-defaults")
-                  .properties(
-                    mapOf(
-                      "spark.executor.cores" to "4",
-                      "spark.executor.memory" to "20g",
-                      "spark.driver.cores" to "4",
-                      "spark.driver.memory" to "20g",
-                      "spark.emr-serverless.driverEnv.JAVA_HOME" to
-                        "/usr/lib/jvm/java-17-amazon-corretto.x86_64/",
-                      "spark.executorEnv.JAVA_HOME" to
-                        "/usr/lib/jvm/java-17-amazon-corretto.x86_64/",
-                    )
-                  )
-                  .build()
-              )
-              .monitoringConfiguration(
-                MonitoringConfiguration.builder()
-                  .s3MonitoringConfiguration(
-                    S3MonitoringConfiguration.builder().logUri(s3ExchangeTaskLogPath).build()
-                  )
-                  .build()
-              )
-              .build()
-          )
-          .build()
-      val startJobResp = emrServerlessClient.startJobRun(startJobReq).await()
+  ): Boolean {
 
-      val jobRunId = startJobResp.jobRunId()
+    val startJobReq =
+      StartJobRunRequest.builder()
+        .name(jobRunName)
+        .applicationId(applicationId)
+        .executionRoleArn(emrJobExecutionRoleArn)
+        .jobDriver(
+          JobDriver.builder()
+            .sparkSubmit(
+              SparkSubmit.builder()
+                .entryPoint(s3ExchangeTaskJarPath)
+                .entryPointArguments(arguments)
+                .build()
+            )
+            .build()
+        )
+        .configurationOverrides(
+          ConfigurationOverrides.builder()
+            .applicationConfiguration(
+              Configuration.builder()
+                .classification("spark-defaults")
+                .properties(
+                  mapOf(
+                    "spark.executor.cores" to "4",
+                    "spark.executor.memory" to "20g",
+                    "spark.driver.cores" to "4",
+                    "spark.driver.memory" to "20g",
+                    "spark.emr-serverless.driverEnv.JAVA_HOME" to
+                      "/usr/lib/jvm/java-17-amazon-corretto.x86_64/",
+                    "spark.executorEnv.JAVA_HOME" to "/usr/lib/jvm/java-17-amazon-corretto.x86_64/",
+                  )
+                )
+                .build()
+            )
+            .monitoringConfiguration(
+              MonitoringConfiguration.builder()
+                .s3MonitoringConfiguration(
+                  S3MonitoringConfiguration.builder().logUri(s3ExchangeTaskLogPath).build()
+                )
+                .build()
+            )
+            .build()
+        )
+        .build()
+    val startJobResp = emrServerlessClient.startJobRun(startJobReq).await()
 
-      return@withContext try {
-        retryWithBackoff {
+    val jobRunId = startJobResp.jobRunId()
+
+    return waitForJobStateChange(applicationId, jobRunId)
+  }
+
+  private suspend fun waitForAppStateChange(
+    applicationId: String,
+    finalState: ApplicationState,
+  ): Boolean {
+    try {
+      return appStateCheckTimeout.asTimeout().runWithTimeout {
+        var state: ApplicationState? = null
+        while (state != finalState) {
+          delay(pollingInterval.toKotlinDuration())
+
+          val request = GetApplicationRequest.builder().applicationId(applicationId).build()
+          val response = emrServerlessClient.getApplication(request).await()
+          state = response.application().state()
+
+          if (APP_UNEXPECTED_STATES.contains(state))
+            throw Exception("Emr application returned unexpected state: ${state.name}")
+        }
+
+        return@runWithTimeout true
+      }
+    } catch (e: Exception) {
+      logger.severe("Failed while polling for app state check with error: ${e.message}")
+      return false
+    }
+  }
+
+  private suspend fun waitForJobStateChange(applicationId: String, jobRunId: String): Boolean {
+    try {
+      return jobExexutionTimeout.asTimeout().runWithTimeout {
+        var state: JobRunState? = null
+        var stateDetails: String? = null
+        while (!JOB_TERMINAL_STATES.contains(state)) {
+          delay(pollingInterval.toKotlinDuration())
+
           val request =
             GetJobRunRequest.builder().applicationId(applicationId).jobRunId(jobRunId).build()
-
           val response = emrServerlessClient.getJobRun(request).await()
-
-          val jobState = response.jobRun().state()
-
-          if (!terminalStates.contains(jobState)) {
-            val msg = "Emr serverless application job is still running"
-            logger.info(msg)
-            throw Exception(msg)
-          }
-
-          if (jobState == JobRunState.SUCCESS) {
-            return@retryWithBackoff true
-          } else {
-            logger.severe(
-              "Emr serverless application job run completed with a non-successful " +
-                "terminal state: ${jobState.name}, state details: ${response.jobRun().stateDetails()}"
-            )
-            return@retryWithBackoff false
-          }
+          state = response.jobRun().state()
+          stateDetails = response.jobRun().stateDetails()
         }
-      } catch (e: Exception) {
-        logger.severe(e.message)
-        false
-      }
-    }
 
-  private suspend fun <T> retryWithBackoff(
-    retryCount: Int = maxStateChecks,
-    backoff: ExponentialBackoff = ExponentialBackoff(initialDelay = initialCheckDelay),
-    block: suspend () -> T,
-  ): T {
-    for (i in (1..retryCount)) {
-      try {
-        return block()
-      } catch (e: Exception) {
-        delay(backoff.durationForAttempt(i))
+        if (state == JobRunState.SUCCESS) {
+          return@runWithTimeout true
+        } else {
+          throw Exception(
+            "Emr serverless application job run completed with a non-successful " +
+              "terminal state: ${state?.name ?: "null"}, state details: ${stateDetails?: "null"}"
+          )
+        }
       }
+    } catch (e: Exception) {
+      logger.severe("Failed while polling for job run state check with error: ${e.message}")
+      return false
     }
-    throw Exception("Max retries reaches")
   }
 
   companion object {
     private val logger by loggerFor()
 
-    private val terminalStates =
+    private val JOB_TERMINAL_STATES =
       setOf(JobRunState.CANCELLED, JobRunState.FAILED, JobRunState.SUCCESS)
+
+    private val APP_UNEXPECTED_STATES =
+      setOf(ApplicationState.TERMINATED, ApplicationState.UNKNOWN_TO_SDK_VERSION)
   }
 }

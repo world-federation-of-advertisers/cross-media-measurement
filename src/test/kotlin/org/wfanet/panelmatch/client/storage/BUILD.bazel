@@ -3,7 +3,7 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "FileSystemVerifiedStorageClientTest",
     timeout = "short",
-    srcs = ["FileSystemVerifiedStorageEmrServerlessClientTest.kt"],
+    srcs = ["FileSystemVerifiedStorageClientTest.kt"],
     test_class = "org.wfanet.panelmatch.client.storage.FileSystemVerifiedStorageClientTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
