@@ -1,6 +1,6 @@
 {
   "lockFileVersion": 6,
-  "moduleFileHash": "f8e833c73428d00ca7b484e816fbb12827b52054397bd67cdaeb8e6194767ec2",
+  "moduleFileHash": "c78f6870ccb59bcfa37a25ac3fca950e53c85d79e951fc20a0d5394cbc24dc63",
   "flags": {
     "cmdRegistries": [
       "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main",
@@ -14,8 +14,7 @@
     "compatibilityMode": "ERROR"
   },
   "localOverrideHashes": {
-    "bazel_tools": "1ae69322ac3823527337acf02016e8ee95813d8d356f47060255b8956fa642f0",
-    "common-jvm": "44777e921a870e8747c79ebdc1e12d23aee3933aa66dd4a6b0b3123d24741bc1"
+    "bazel_tools": "1ae69322ac3823527337acf02016e8ee95813d8d356f47060255b8956fa642f0"
   },
   "moduleDepGraph": {
     "<root>": {
@@ -407,7 +406,7 @@
         "wfa_rules_kotlin_jvm": "rules_kotlin_jvm@0.2.0",
         "wfa_rules_swig": "rules_swig@0.1.0",
         "wfa_rules_cue": "rules_cue@0.4.0",
-        "wfa_common_jvm": "common-jvm@_",
+        "wfa_common_jvm": "common-jvm@0.90.0",
         "wfa_common_cpp": "common-cpp@0.13.0",
         "wfa_measurement_proto": "cross-media-measurement-api@0.65.0",
         "wfa_consent_signaling_client": "consent-signaling-client@0.22.0",
@@ -2214,10 +2213,10 @@
         }
       }
     },
-    "common-jvm@_": {
+    "common-jvm@0.90.0": {
       "name": "common-jvm",
-      "version": "",
-      "key": "common-jvm@_",
+      "version": "0.90.0",
+      "key": "common-jvm@0.90.0",
       "repoName": "wfa_common_jvm",
       "executionPlatformsToRegister": [],
       "toolchainsToRegister": [
@@ -2227,10 +2226,10 @@
         {
           "extensionBzlFile": "@rules_jvm_external//:extensions.bzl",
           "extensionName": "maven",
-          "usingModule": "common-jvm@_",
+          "usingModule": "common-jvm@0.90.0",
           "location": {
-            "file": "@@common-jvm~//:MODULE.bazel",
-            "line": 88,
+            "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+            "line": 89,
             "column": 22
           },
           "imports": {
@@ -2248,8 +2247,8 @@
               },
               "devDependency": false,
               "location": {
-                "file": "@@common-jvm~//:MODULE.bazel",
-                "line": 89,
+                "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+                "line": 90,
                 "column": 15
               }
             },
@@ -2263,8 +2262,8 @@
               },
               "devDependency": false,
               "location": {
-                "file": "@@common-jvm~//:MODULE.bazel",
-                "line": 95,
+                "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+                "line": 96,
                 "column": 15
               }
             },
@@ -2278,8 +2277,8 @@
               },
               "devDependency": false,
               "location": {
-                "file": "@@common-jvm~//:MODULE.bazel",
-                "line": 101,
+                "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+                "line": 102,
                 "column": 15
               }
             },
@@ -2293,8 +2292,8 @@
               },
               "devDependency": false,
               "location": {
-                "file": "@@common-jvm~//:MODULE.bazel",
-                "line": 107,
+                "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+                "line": 108,
                 "column": 15
               }
             },
@@ -2308,8 +2307,8 @@
               },
               "devDependency": false,
               "location": {
-                "file": "@@common-jvm~//:MODULE.bazel",
-                "line": 113,
+                "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+                "line": 114,
                 "column": 15
               }
             },
@@ -2323,8 +2322,8 @@
               },
               "devDependency": false,
               "location": {
-                "file": "@@common-jvm~//:MODULE.bazel",
-                "line": 119,
+                "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+                "line": 120,
                 "column": 15
               }
             },
@@ -2338,8 +2337,8 @@
               },
               "devDependency": false,
               "location": {
-                "file": "@@common-jvm~//:MODULE.bazel",
-                "line": 125,
+                "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+                "line": 126,
                 "column": 15
               }
             },
@@ -2353,8 +2352,8 @@
               },
               "devDependency": false,
               "location": {
-                "file": "@@common-jvm~//:MODULE.bazel",
-                "line": 131,
+                "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+                "line": 132,
                 "column": 15
               }
             },
@@ -2368,8 +2367,8 @@
               },
               "devDependency": false,
               "location": {
-                "file": "@@common-jvm~//:MODULE.bazel",
-                "line": 137,
+                "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+                "line": 138,
                 "column": 15
               }
             },
@@ -2383,8 +2382,8 @@
               },
               "devDependency": false,
               "location": {
-                "file": "@@common-jvm~//:MODULE.bazel",
-                "line": 143,
+                "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+                "line": 144,
                 "column": 15
               }
             },
@@ -2398,8 +2397,8 @@
               },
               "devDependency": false,
               "location": {
-                "file": "@@common-jvm~//:MODULE.bazel",
-                "line": 149,
+                "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+                "line": 150,
                 "column": 15
               }
             },
@@ -2413,8 +2412,8 @@
               },
               "devDependency": false,
               "location": {
-                "file": "@@common-jvm~//:MODULE.bazel",
-                "line": 155,
+                "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+                "line": 156,
                 "column": 15
               }
             },
@@ -2430,8 +2429,8 @@
               },
               "devDependency": false,
               "location": {
-                "file": "@@common-jvm~//:MODULE.bazel",
-                "line": 161,
+                "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+                "line": 162,
                 "column": 15
               }
             },
@@ -2445,8 +2444,8 @@
               },
               "devDependency": false,
               "location": {
-                "file": "@@common-jvm~//:MODULE.bazel",
-                "line": 169,
+                "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+                "line": 170,
                 "column": 15
               }
             },
@@ -2520,8 +2519,8 @@
               },
               "devDependency": false,
               "location": {
-                "file": "@@common-jvm~//:MODULE.bazel",
-                "line": 176,
+                "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+                "line": 177,
                 "column": 14
               }
             }
@@ -2532,10 +2531,10 @@
         {
           "extensionBzlFile": "@rules_oci//oci:extensions.bzl",
           "extensionName": "oci",
-          "usingModule": "common-jvm@_",
+          "usingModule": "common-jvm@0.90.0",
           "location": {
-            "file": "@@common-jvm~//:MODULE.bazel",
-            "line": 261,
+            "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+            "line": 262,
             "column": 20
           },
           "imports": {
@@ -2556,8 +2555,8 @@
               },
               "devDependency": false,
               "location": {
-                "file": "@@common-jvm~//:MODULE.bazel",
-                "line": 262,
+                "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+                "line": 263,
                 "column": 9
               }
             },
@@ -2573,8 +2572,8 @@
               },
               "devDependency": false,
               "location": {
-                "file": "@@common-jvm~//:MODULE.bazel",
-                "line": 269,
+                "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+                "line": 270,
                 "column": 9
               }
             }
@@ -2585,9 +2584,9 @@
         {
           "extensionBzlFile": "//:MODULE.bazel",
           "extensionName": "_repo_rules",
-          "usingModule": "common-jvm@_",
+          "usingModule": "common-jvm@0.90.0",
           "location": {
-            "file": "@@common-jvm~//:MODULE.bazel",
+            "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
             "line": 0,
             "column": 0
           },
@@ -2609,8 +2608,8 @@
               },
               "devDependency": false,
               "location": {
-                "file": "@@common-jvm~//:MODULE.bazel",
-                "line": 284,
+                "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+                "line": 285,
                 "column": 13
               }
             },
@@ -2625,8 +2624,8 @@
               },
               "devDependency": false,
               "location": {
-                "file": "@@common-jvm~//:MODULE.bazel",
-                "line": 291,
+                "file": "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/MODULE.bazel",
+                "line": 292,
                 "column": 13
               }
             }
@@ -2651,6 +2650,21 @@
         "cloud_spanner_emulator": "cloud-spanner-emulator-bin@1.5.13",
         "bazel_tools": "bazel_tools@_",
         "local_config_platform": "local_config_platform@_"
+      },
+      "repoSpec": {
+        "bzlFile": "@@bazel_tools//tools/build_defs/repo:http.bzl",
+        "ruleClassName": "http_archive",
+        "attributes": {
+          "urls": [
+            "https://github.com/world-federation-of-advertisers/common-jvm/archive/refs/tags/v0.90.0.tar.gz"
+          ],
+          "integrity": "sha256-56v9vcfiOgZBrPNXj7vkDPQJhHlI1TUOv8V3k13XNpE=",
+          "strip_prefix": "common-jvm-0.90.0",
+          "remote_patches": {
+            "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.90.0/patches/module_dot_bazel.patch": "sha256-6+T0kz7Lk/7cTq0mIKgJh4q2RkaPNmeFk4nXZNWfVkY="
+          },
+          "remote_patch_strip": 0
+        }
       }
     },
     "common-cpp@0.13.0": {
@@ -2785,7 +2799,7 @@
       "deps": {
         "wfa_rules_kotlin_jvm": "rules_kotlin_jvm@0.2.0",
         "wfa_measurement_proto": "cross-media-measurement-api@0.65.0",
-        "wfa_common_jvm": "common-jvm@_",
+        "wfa_common_jvm": "common-jvm@0.90.0",
         "bazel_tools": "bazel_tools@_",
         "local_config_platform": "local_config_platform@_"
       },

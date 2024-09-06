@@ -34,7 +34,18 @@ import org.wfanet.measurement.common.crypto.sign
 import org.wfanet.measurement.common.crypto.testing.TestData
 import org.wfanet.measurement.common.crypto.verifySignature
 import org.wfanet.panelmatch.common.certificates.CertificateAuthority
-import software.amazon.awssdk.services.acmpca.model.*
+import software.amazon.awssdk.services.acmpca.model.ASN1Subject
+import software.amazon.awssdk.services.acmpca.model.ApiPassthrough
+import software.amazon.awssdk.services.acmpca.model.ExtendedKeyUsage
+import software.amazon.awssdk.services.acmpca.model.ExtendedKeyUsageType
+import software.amazon.awssdk.services.acmpca.model.Extensions
+import software.amazon.awssdk.services.acmpca.model.GeneralName
+import software.amazon.awssdk.services.acmpca.model.GetCertificateRequest
+import software.amazon.awssdk.services.acmpca.model.GetCertificateResponse
+import software.amazon.awssdk.services.acmpca.model.IssueCertificateRequest
+import software.amazon.awssdk.services.acmpca.model.IssueCertificateResponse
+import software.amazon.awssdk.services.acmpca.model.KeyUsage
+import software.amazon.awssdk.services.acmpca.model.SigningAlgorithm
 
 private val CONTEXT =
   CertificateAuthority.Context(

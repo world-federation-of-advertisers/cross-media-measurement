@@ -17,7 +17,6 @@ package org.wfanet.panelmatch.client.exchangetasks
 import com.google.protobuf.ByteString
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.exchangetasks.remote.RemoteTaskOrchestrator
