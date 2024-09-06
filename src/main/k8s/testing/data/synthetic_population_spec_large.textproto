@@ -1,0 +1,304 @@
+# proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
+# proto-message: SyntheticPopulationSpec
+
+# 2011 UK population by sex, age, and social grade.
+#
+# See https://www.ons.gov.uk/peoplepopulationandcommunity/birthsdeathsandmarriages/families/adhocs/005317ct05672011censussexbyagesyoabyapproximatedsocialgradenationaltocountry
+
+vid_range {
+  start: 1
+  end_exclusive: 34288881  # Age 18-64 with known social grade.
+}
+event_message_type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+population_fields: "person.gender"
+population_fields: "person.age_group"
+population_fields: "person.social_grade_group"
+non_population_fields: "video_ad.viewed_fraction"
+sub_populations {
+  vid_sub_range {
+    start: 1
+    end_exclusive: 3274022
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 3274022
+    end_exclusive: 6151245
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 6151245
+    end_exclusive: 10177155
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 10177155
+    end_exclusive: 13782705
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 13782705
+    end_exclusive: 15341499
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 3
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 15341499
+    end_exclusive: 16991688
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 3
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 16991688
+    end_exclusive: 20310056
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 20310056
+    end_exclusive: 23166643
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 23166643
+    end_exclusive: 27494480
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 27494480
+    end_exclusive: 30973858
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 30973858
+    end_exclusive: 32679540
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 3
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 1
+    }
+  }
+}
+sub_populations {
+  vid_sub_range {
+    start: 32679540
+    end_exclusive: 34288881
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 3
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.social_grade_group"
+    value {
+      enum_value: 2
+    }
+  }
+}

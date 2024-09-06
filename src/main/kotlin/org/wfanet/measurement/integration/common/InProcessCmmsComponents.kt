@@ -26,10 +26,10 @@ import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.identity.DuchyInfo
@@ -38,6 +38,7 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.DuchyCertConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
@@ -54,8 +55,10 @@ class InProcessCmmsComponents(
   private val kingdomDataServicesRule: ProviderRule<DataServices>,
   private val duchyDependenciesRule:
     ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
+  private val syntheticPopulationSpec: SyntheticPopulationSpec =
+    SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
   private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
-    SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS,
+    SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
 ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value
@@ -72,6 +75,7 @@ class InProcessCmmsComponents(
       InProcessDuchy(
         externalDuchyId = it,
         kingdomSystemApiChannel = kingdom.systemApiChannel,
+        kingdomPublicApiChannel = kingdom.publicApiChannel,
         duchyDependenciesRule = duchyDependenciesRule,
         trustedCertificates = TRUSTED_CERTIFICATES,
         verboseGrpcLogging = false,
@@ -91,11 +95,14 @@ class InProcessCmmsComponents(
         kingdomPublicApiChannel = kingdom.publicApiChannel,
         duchyPublicApiChannelMap =
           mapOf(
-            DuchyKey(duchies[1].externalDuchyId).toName() to duchies[1].publicApiChannel,
-            DuchyKey(duchies[2].externalDuchyId).toName() to duchies[2].publicApiChannel,
+            duchies[1].externalDuchyId to duchies[1].publicApiChannel,
+            duchies[2].externalDuchyId to duchies[2].publicApiChannel,
           ),
         trustedCertificates = TRUSTED_CERTIFICATES,
+        syntheticPopulationSpec = syntheticPopulationSpec,
         syntheticDataSpec = syntheticEventGroupSpecs[specIndex],
+        honestMajorityShareShuffleSupported =
+          (displayName in ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES),
       )
     }
   }
@@ -189,9 +196,10 @@ class InProcessCmmsComponents(
     // created.
     duchies.forEach {
       it.startHerald()
-      it.startLiquidLegionsV2mill(duchyCertMap)
+      it.startMill(duchyCertMap)
     }
     edpSimulators.forEach { it.start() }
+    edpSimulators.forEach { it.waitUntilHealthy() }
   }
 
   fun stopEdpSimulators() = runBlocking { edpSimulators.forEach { it.stop() } }
@@ -199,7 +207,7 @@ class InProcessCmmsComponents(
   fun stopDuchyDaemons() = runBlocking {
     for (duchy in duchies) {
       duchy.stopHerald()
-      duchy.stopLiquidLegionsV2Mill()
+      duchy.stopMill()
     }
   }
 
@@ -232,6 +240,12 @@ class InProcessCmmsComponents(
         RO_LLV2_PROTOCOL_CONFIG_CONFIG.duchyProtocolConfig,
         setOf("aggregator"),
         2,
+      )
+      HmssProtocolConfig.setForTest(
+        HMSS_PROTOCOL_CONFIG_CONFIG.protocolConfig,
+        "worker1",
+        "worker2",
+        "aggregator",
       )
       DuchyInfo.initializeFromConfig(
         loadTextProto("duchy_cert_config.textproto", DuchyCertConfig.getDefaultInstance())

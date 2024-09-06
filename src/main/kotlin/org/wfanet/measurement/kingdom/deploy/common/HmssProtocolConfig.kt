@@ -21,37 +21,50 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import picocli.CommandLine
 
 object HmssProtocolConfig {
-  const val name = "hmss"
+  const val NAME = "hmss"
+
+  const val DUCHY_COUNT = 3
+
   lateinit var protocolConfig: ProtocolConfig.HonestMajorityShareShuffle
     private set
 
-  /**
-   * Set of external IDs of required Duchies, where the first entry must correspond to the Duchy in
-   * the aggregator role.
-   */
-  lateinit var requiredExternalDuchyIds: Set<String>
+  lateinit var firstNonAggregatorDuchyId: String
+    private set
+
+  lateinit var secondNonAggregatorDuchyId: String
+    private set
+
+  lateinit var aggregatorDuchyId: String
     private set
 
   fun initializeFromFlags(flags: HmssProtocolConfigFlags) {
     require(!HmssProtocolConfig::protocolConfig.isInitialized)
-    require(!HmssProtocolConfig::requiredExternalDuchyIds.isInitialized)
+    require(!HmssProtocolConfig::firstNonAggregatorDuchyId.isInitialized)
+    require(!HmssProtocolConfig::secondNonAggregatorDuchyId.isInitialized)
+    require(!HmssProtocolConfig::aggregatorDuchyId.isInitialized)
     val configMessage =
       flags.config.reader().use {
         parseTextProto(it, HmssProtocolConfigConfig.getDefaultInstance())
       }
 
     protocolConfig = configMessage.protocolConfig
-    requiredExternalDuchyIds = configMessage.requiredExternalDuchyIdsList.toSet()
+    firstNonAggregatorDuchyId = configMessage.firstNonAggregatorDuchyId
+    secondNonAggregatorDuchyId = configMessage.secondNonAggregatorDuchyId
+    aggregatorDuchyId = configMessage.aggregatorDuchyId
   }
 
   fun setForTest(
     protocolConfig: ProtocolConfig.HonestMajorityShareShuffle,
-    requiredExternalDuchyIds: Set<String>,
+    firstNonAggregatorDuchyId: String,
+    secondNonAggregatorDuchyId: String,
+    aggregatorDuchyId: String,
   ) {
     require(!HmssProtocolConfig::protocolConfig.isInitialized)
 
     HmssProtocolConfig.protocolConfig = protocolConfig
-    HmssProtocolConfig.requiredExternalDuchyIds = requiredExternalDuchyIds
+    HmssProtocolConfig.firstNonAggregatorDuchyId = firstNonAggregatorDuchyId
+    HmssProtocolConfig.secondNonAggregatorDuchyId = secondNonAggregatorDuchyId
+    HmssProtocolConfig.aggregatorDuchyId = aggregatorDuchyId
   }
 }
 

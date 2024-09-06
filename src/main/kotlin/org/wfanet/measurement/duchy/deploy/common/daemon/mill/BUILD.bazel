@@ -1,0 +1,42 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@wfa_common_jvm//build:defs.bzl", "test_target")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("//src/main/docker:macros.bzl", "java_image")
+
+package(
+    default_visibility = [test_target(":__pkg__")],
+)
+
+kt_jvm_library(
+    name = "job_scheduler",
+    srcs = ["MillJobScheduler.kt"],
+    deps = [
+        "//imports/java/io/kubernetes/client",
+        "//imports/java/io/kubernetes/client/extended",
+        "//src/main/kotlin/org/wfanet/measurement/common/k8s:client",
+        "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill:mill_type",
+        "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_binary(
+    name = "MillJobScheduler",
+    main_class = "org.wfanet.measurement.duchy.deploy.common.daemon.mill.MillJobScheduler",
+    runtime_deps = [
+        ":job_scheduler",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
+    ],
+)
+
+java_image(
+    name = "job_scheduler_image",
+    binary = ":MillJobScheduler",
+    main_class = "org.wfanet.measurement.duchy.deploy.common.daemon.mill.MillJobScheduler",
+    visibility = ["//src:docker_image_deployment"],
+)

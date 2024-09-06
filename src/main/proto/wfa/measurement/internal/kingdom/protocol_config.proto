@@ -133,11 +133,18 @@ message ProtocolConfig {
 
   // Configuration for Honest Majority Share Shuffle protocols.
   message HonestMajorityShareShuffle {
-    // Parameters for sketches.
-    ShareShuffleSketchParams sketch_params = 1;
+    reserved 1;
 
     // The mechanism to generate noise by MPC nodes during computation.
     NoiseMechanism noise_mechanism = 2;
+
+    // The modulus used in the protocol for ReachAndFrequency Measurement.
+    int32 reach_and_frequency_ring_modulus = 3;
+
+    // The modulus used in the protocol for Reach Measurement.
+    //
+    // This must be a prime number.
+    int32 reach_ring_modulus = 4;
   }
 
   // Configuration for the specific protocol.
@@ -171,16 +178,4 @@ message LiquidLegionsSketchParams {
   // The size of the distribution of the sampling indicator value.
   // Reach-Only Liquid Legions protocol ignores this field.
   int64 sampling_indicator_size = 3;
-}
-
-// Parameters for a honest majority share shuffle sketch.
-message ShareShuffleSketchParams {
-  // The number of registers in the sketch.
-  int64 register_count = 1;
-
-  // Length of each register in bytes.
-  int32 bytes_per_register = 2;
-
-  // Secret share modulus.
-  uint32 ring_modulus = 3;
 }

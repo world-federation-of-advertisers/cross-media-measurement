@@ -24,12 +24,12 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.batchCancelMeasurementsResponse
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementEtagMismatchException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.getEtag
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.readEtag
 
 /**
@@ -111,6 +111,7 @@ class BatchCancelMeasurements(private val requests: BatchCancelMeasurementsReque
         previousState = result.measurement.state,
         measurementLogEntryDetails = measurementLogEntryDetails,
       )
+      withdrawRequisitions(result.measurementConsumerId, result.measurementId)
     }
 
     return batchCancelMeasurementsResponse {
@@ -128,7 +129,7 @@ class BatchCancelMeasurements(private val requests: BatchCancelMeasurementsReque
         this@buildResult.transactionResult.measurementsList.map {
           it.copy {
             updateTime = commitTimestamp.toProto()
-            etag = getEtag(commitTimestamp)
+            etag = ETags.computeETag(commitTimestamp)
           }
         }
     }

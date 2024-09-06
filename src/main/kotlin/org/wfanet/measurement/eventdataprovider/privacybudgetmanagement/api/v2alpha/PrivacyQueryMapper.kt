@@ -18,6 +18,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec.MeasurementTypeCase
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpParamsConverter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpQuery
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.EventGroupSpec
@@ -28,7 +29,7 @@ object PrivacyQueryMapper {
   private const val SENSITIVITY = 1.0
 
   /**
-   * Constructs a pbm specific [AcdpQuery] from given proto messages for LiquidLegionsV2 protocol.
+   * Constructs a pbm specific [AcdpQuery] from given proto messages for Mpc protocols.
    *
    * @param reference representing the reference key and if the charge is a refund.
    * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
@@ -41,7 +42,7 @@ object PrivacyQueryMapper {
    *   if an error occurs in handling this request. Possible exceptions could include running out of
    *   privacy budget or a failure to commit the transaction to the database.
    */
-  fun getLiquidLegionsV2AcdpQuery(
+  fun getMpcAcdpQuery(
     reference: Reference,
     measurementSpec: MeasurementSpec,
     eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
@@ -50,7 +51,7 @@ object PrivacyQueryMapper {
     val acdpCharge =
       when (measurementSpec.measurementTypeCase) {
         MeasurementTypeCase.REACH -> {
-          AcdpParamsConverter.getLlv2AcdpCharge(
+          AcdpParamsConverter.getMpcAcdpCharge(
             DpParams(
               measurementSpec.reach.privacyParams.epsilon,
               measurementSpec.reach.privacyParams.delta,
@@ -59,87 +60,30 @@ object PrivacyQueryMapper {
           )
         }
         MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-          // TODO(@ple13): Optimize the pbm charge by computing the Acdp charge separately for
-          // reach and for frequency, then add them up.
-          val dpParams =
-            DpParams(
-              measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon +
-                measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon,
-              measurementSpec.reachAndFrequency.reachPrivacyParams.delta +
-                measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta,
+          val acdpChargeForReach =
+            AcdpParamsConverter.getMpcAcdpCharge(
+              DpParams(
+                measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon,
+                measurementSpec.reachAndFrequency.reachPrivacyParams.delta,
+              ),
+              contributorCount,
             )
-
-          AcdpParamsConverter.getLlv2AcdpCharge(dpParams, contributorCount)
+          val acdpChargeForFrequency =
+            AcdpParamsConverter.getMpcAcdpCharge(
+              DpParams(
+                measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon,
+                measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta,
+              ),
+              contributorCount,
+            )
+          AcdpCharge(
+            acdpChargeForReach.rho + acdpChargeForFrequency.rho,
+            acdpChargeForReach.theta + acdpChargeForFrequency.theta,
+          )
         }
         else ->
           throw IllegalArgumentException(
             "Measurement type ${measurementSpec.measurementTypeCase} is not supported in getMpcAcdpQuery()"
-          )
-      }
-
-    return AcdpQuery(
-      reference,
-      LandscapeMask(
-        eventSpecs.map { EventGroupSpec(it.filter.expression, it.collectionInterval.toRange()) },
-        measurementSpec.vidSamplingInterval.start,
-        measurementSpec.vidSamplingInterval.width,
-      ),
-      acdpCharge,
-    )
-  }
-
-  /**
-   * Constructs a pbm specific [AcdpQuery] from given proto messages for Hmss protocol.
-   *
-   * @param reference representing the reference key and if the charge is a refund.
-   * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
-   *   sampling interval is obtained from this.
-   * @param eventSpecs event specs from the Requisition. The date range and demo groups are obtained
-   *   from this.
-   * @param contributorCount number of Duchies
-   * @throws
-   *   org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
-   *   if an error occurs in handling this request. Possible exceptions could include running out of
-   *   privacy budget or a failure to commit the transaction to the database.
-   */
-  fun getHmssAcdpQuery(
-    reference: Reference,
-    measurementSpec: MeasurementSpec,
-    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
-    contributorCount: Int,
-  ): AcdpQuery {
-    val acdpCharge =
-      when (measurementSpec.measurementTypeCase) {
-        MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-          // TODO(@ple13): Support different privacy parameters for reach and frequency.
-          require(
-            (measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon ==
-              measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon) &&
-              (measurementSpec.reachAndFrequency.reachPrivacyParams.delta ==
-                measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta)
-          ) {
-            "Different privacy parameters for reach and for frequency have not been support yet."
-          }
-          // TODO(@ple13): Optimize the pbm charge by computing the Acdp charge separately for
-          // reach and for frequency, then add them up.
-          val dpParams =
-            DpParams(
-              measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon +
-                measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon,
-              measurementSpec.reachAndFrequency.reachPrivacyParams.delta +
-                measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta,
-            )
-
-          // TODO(@ple13): Update the code when AcdpParamsConverter has been extended to support
-          // binomial noise and HMSS switchs to binomial noise.
-
-          // Uses the function getLlv2AcdpCharge to compute the ACDP charge for this query as HMSS
-          // and LLV2 use the same approach when adding differential private noise.
-          AcdpParamsConverter.getLlv2AcdpCharge(dpParams, contributorCount)
-        }
-        else ->
-          throw IllegalArgumentException(
-            "Measurement type ${measurementSpec.measurementTypeCase} is not supported in getHmssAcdpQuery()"
           )
       }
 
@@ -184,15 +128,26 @@ object PrivacyQueryMapper {
           )
         }
         MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-          val dpParams =
-            DpParams(
-              measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon +
-                measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon,
-              measurementSpec.reachAndFrequency.reachPrivacyParams.delta +
-                measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta,
+          val acdpChargeForReach =
+            AcdpParamsConverter.getDirectAcdpCharge(
+              DpParams(
+                measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon,
+                measurementSpec.reachAndFrequency.reachPrivacyParams.delta,
+              ),
+              SENSITIVITY,
             )
-
-          AcdpParamsConverter.getDirectAcdpCharge(dpParams, SENSITIVITY)
+          val acdpChargeForFrequency =
+            AcdpParamsConverter.getDirectAcdpCharge(
+              DpParams(
+                measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon,
+                measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta,
+              ),
+              SENSITIVITY,
+            )
+          AcdpCharge(
+            acdpChargeForReach.rho + acdpChargeForFrequency.rho,
+            acdpChargeForReach.theta + acdpChargeForFrequency.theta,
+          )
         }
         MeasurementTypeCase.IMPRESSION ->
           AcdpParamsConverter.getDirectAcdpCharge(

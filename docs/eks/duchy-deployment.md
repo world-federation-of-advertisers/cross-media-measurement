@@ -36,27 +36,37 @@ For a Duchy named `worker2`, the cluster will be populated with the following:
     -   `config-files-<hash>`
 -   Deployment
     -   `worker2-async-computation-control-server-deployment`
-    -   `worker2-computation-control-server-deployment`
+    -   `worker2-computation-control-server-deployment` (System API server)
     -   `worker2-herald-daemon-deployment`
-    -   `worker2-liquid-legions-v2-mill-daemon-deployment`
-    -   `worker2-requisition-fulfillment-server-deployment`
-    -   `worker2-spanner-computations-server-deployment`
+    -   `worker2-requisition-fulfillment-server-deployment` (Public API server)
+    -   `worker2-spanner-computations-server-deployment` (Internal API server)
+    -   `worker2-mill-job-scheduler-deployment`
 -   Service
     -   `worker2-async-computation-control-server` (Cluster IP)
-    -   `worker2-spanner-computations-server`
+    -   `worker2-internal-api-server` (Cluster IP)
+    -   `worker2-computation-control-server` (External load balancer)
     -   `worker2-requisition-fulfillment-server` (External load balancer)
-    -   `v2alpha-public-api-server` (External load balancer)
+-   PodTemplate
+    -   `worker2-llv2-mill`
+    -   `worker2-hmss-mill`
 -   CronJob
     -   `worker2-computations-cleaner-cronjob`
 -   NetworkPolicy
-    -   `default-deny-ingress-and-egress`
+    -   `default-deny-network-policy`
+    -   `kube-dns-network-policy`
     -   `worker2-async-computation-controls-server-network-policy`
     -   `worker2-computation-control-server-network-policy`
     -   `worker2-computations-cleaner-network-policy`
     -   `worker2-herald-daemon-network-policy`
-    -   `worker2-liquid-legions-v2-mill-daemon-network-policy`
+    -   `worker2-mill-job-scheduler-network-policy`
+    -   `worker2-llv2-mill-network-policy`
+    -   `worker2-hmss-mill-network-policy`
     -   `worker2-requisition-fulfillment-server-network-policy`
     -   `worker2-spanner-computations-server-network-policy`
+-   Role
+    -   `worker2-mill-job-scheduler`
+-   RoleBinding
+    -   `worker2-mill-job-scheduler-binding`
 
 ## Before you start
 
@@ -216,6 +226,18 @@ files are required in a Duchy:
     -   This contains information about the protocols run in the duchy
     -   Set the role (aggregator or non_aggregator) in the config appropriately
     -   [Example](../../src/main/k8s/testing/secretfiles/aggregator_protocols_setup_config.textproto)
+
+1.  `worker2_kek.tink`
+
+    Key encryption key used in HMSS protocol to encrypt Tink key pairs.
+
+    -   One way to create the key is to use the Tinkey command line tool
+
+        ```shell
+        tinkey create-keyset --key-template AES128_GCM --out-format binary --out worker2_kek.tink
+        ```
+
+    -   [Example](../../src/main/k8s/testing/secretfiles/worker2_kek.tink)
 
 Place these files into the `src/main/k8s/dev/worker2_duchy_secret/` path within
 the Kustomization directory.

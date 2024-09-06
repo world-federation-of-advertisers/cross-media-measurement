@@ -72,7 +72,11 @@ object Covariances {
     )
   }
 
-  /** Computes the covariance of two reach measurements based on their methodologies. */
+  /**
+   * Computes the covariance of two reach measurements based on their methodologies.
+   *
+   * TODO(@ple13): Add support for Honest Majority Share Shuffle.
+   */
   fun computeMeasurementCovariance(
     weightedMeasurementVarianceParams: WeightedReachMeasurementVarianceParams,
     otherWeightedMeasurementVarianceParams: WeightedReachMeasurementVarianceParams,
@@ -93,7 +97,8 @@ object Covariances {
           // Custom direct methodology must guarantee independence.
           return 0.0
         }
-        is DeterministicMethodology -> {
+        is DeterministicMethodology,
+        is HonestMajorityShareShuffleMethodology -> {
           return computeDeterministicCovariance(
             ReachMeasurementCovarianceParams(
               reach = weightedMeasurementVarianceParams.measurementVarianceParams.reach,
@@ -125,7 +130,8 @@ object Covariances {
         // Custom direct methodology must guarantee independence.
         return 0.0
       }
-      is DeterministicMethodology -> {
+      is DeterministicMethodology,
+      is HonestMajorityShareShuffleMethodology -> {
         return computeDeterministicCovariance(
           ReachMeasurementCovarianceParams(
             reach = weightedMeasurementVarianceParams.measurementVarianceParams.reach,

@@ -19,13 +19,14 @@ import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.exchangetasks.remote.RemoteTaskOrchestrator
 
 class RemoteExchangeTask(
   private val remoteTaskOrchestrator: RemoteTaskOrchestrator,
   private val exchangeId: String,
   private val exchangeStepIndex: Int,
-  private val exchangeStepAttempt: CanonicalExchangeStepAttemptKey,
+  private val exchangeStepAttempt: ExchangeStepAttemptKey,
   private val exchangeDate: LocalDate,
 ): ExchangeTask {
   override suspend fun execute(input: Map<String, StorageClient.Blob>): Map<String, Flow<ByteString>> {

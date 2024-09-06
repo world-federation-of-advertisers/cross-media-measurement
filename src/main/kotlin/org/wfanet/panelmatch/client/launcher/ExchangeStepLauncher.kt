@@ -15,24 +15,25 @@
 package org.wfanet.panelmatch.client.launcher
 
 import java.util.logging.Level
+import kotlinx.coroutines.Job
 import org.wfanet.panelmatch.common.loggerFor
 
-/** Finds an [ExchangeStep], validates it, and starts executing the work. */
+/** Finds an [ApiClient.ClaimedExchangeStep], validates it, and starts executing the work. */
 class ExchangeStepLauncher(
   private val apiClient: ApiClient,
   private val taskLauncher: ExchangeStepExecutor,
 ) {
   /**
-   * Finds a single ready Exchange Step and starts executing. If an Exchange Step is found, this
-   * passes it to the executor for validation and execution. If not found simply returns.
+   * Finds a single ready Exchange Step and starts executing, returning a [Job] that can be used to
+   * track the completion of the step. If an Exchange Step is found, this passes it to the executor
+   * for validation and execution. If not found or an error is encountered, returns null.
    */
-  suspend fun findAndRunExchangeStep() {
+  suspend fun findAndRunExchangeStep(): Job? {
     try {
-      apiClient.claimExchangeStep()?.let {
-        taskLauncher.execute(it.exchangeStep, it.exchangeStepAttempt)
-      }
+      return apiClient.claimExchangeStep()?.let { taskLauncher.execute(it) }
     } catch (e: Exception) {
       logger.log(Level.SEVERE, "Exchange Launcher Error:", e)
+      return null
     }
   }
 

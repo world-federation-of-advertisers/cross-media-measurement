@@ -25,18 +25,18 @@ import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 class AcdpParamsConverterTest {
 
   @Test
-  fun `getLlv2AcdpCharge throws exception with invalid epsilon`() {
-    assertFails { AcdpParamsConverter.getLlv2AcdpCharge(DpParams(-0.1, 0.1), CONTRIBUTOR_COUNT) }
+  fun `getMpcAcdpCharge throws exception with invalid epsilon`() {
+    assertFails { AcdpParamsConverter.getMpcAcdpCharge(DpParams(-0.1, 0.1), CONTRIBUTOR_COUNT) }
   }
 
   @Test
-  fun `getLlv2AcdpCharge throws exception with invalid delta`() {
-    assertFails { AcdpParamsConverter.getLlv2AcdpCharge(DpParams(0.1, -0.1), CONTRIBUTOR_COUNT) }
+  fun `getMpcAcdpCharge throws exception with invalid delta`() {
+    assertFails { AcdpParamsConverter.getMpcAcdpCharge(DpParams(0.1, -0.1), CONTRIBUTOR_COUNT) }
   }
 
   @Test
-  fun `getLlv2AcdpCharge throws exception with invalid contributorCount`() {
-    assertFails { AcdpParamsConverter.getLlv2AcdpCharge(DP_PARAMS, -1) }
+  fun `getMpcAcdpCharge throws exception with invalid contributorCount`() {
+    assertFails { AcdpParamsConverter.getMpcAcdpCharge(DP_PARAMS, -1) }
   }
 
   @Test
@@ -50,9 +50,9 @@ class AcdpParamsConverterTest {
   }
 
   @Test
-  fun `llv2 rho and theta should be correct with given dpParams and one contributor`() {
+  fun `Mpc rho and theta should be correct with given dpParams and one contributor`() {
     // mu and sigmaDistributed with given DP params: mu = 261.0, sigma = 48.23177914088707
-    val acdpCharge = AcdpParamsConverter.getLlv2AcdpCharge(DP_PARAMS, CONTRIBUTOR_COUNT)
+    val acdpCharge = AcdpParamsConverter.getMpcAcdpCharge(DP_PARAMS, CONTRIBUTOR_COUNT)
     val expectedAcdpCharge = AcdpCharge(2.149331679905983E-4, 4.378180881551259E-7)
 
     assertThat(acdpCharge.rho).isWithin(TOLERANCE).of(expectedAcdpCharge.rho)
@@ -60,8 +60,8 @@ class AcdpParamsConverterTest {
   }
 
   @Test
-  fun `llv2 rho and theta should be correct with given dpParams and three contributors`() {
-    val acdpCharge = AcdpParamsConverter.getLlv2AcdpCharge(DP_PARAMS, 3)
+  fun `Mpc rho and theta should be correct with given dpParams and three contributors`() {
+    val acdpCharge = AcdpParamsConverter.getMpcAcdpCharge(DP_PARAMS, 3)
     val expectedAcdpCharge = AcdpCharge(2.149331679905983E-4, 4.5945334251551807E-7)
 
     assertThat(acdpCharge.rho).isWithin(TOLERANCE).of(expectedAcdpCharge.rho)
@@ -69,10 +69,10 @@ class AcdpParamsConverterTest {
   }
 
   @Test
-  fun `llv2 rho and theta should be correct with large dpParams and three contributors`() {
+  fun `Mpc rho and theta should be correct with large dpParams and three contributors`() {
     // sigmaDistributed and lambda with this set of params: sigmaDistributed = 1.1509301704045332,
     // lambda = 2.12667410579919E-6
-    val acdpCharge = AcdpParamsConverter.getLlv2AcdpCharge(DpParams(0.9, 0.5), 3)
+    val acdpCharge = AcdpParamsConverter.getMpcAcdpCharge(DpParams(0.9, 0.5), 3)
     val expectedAcdpCharge = AcdpCharge(0.12582564093358586, 0.007149139528009278)
 
     assertThat(acdpCharge.rho).isWithin(TOLERANCE).of(expectedAcdpCharge.rho)
@@ -80,8 +80,8 @@ class AcdpParamsConverterTest {
   }
 
   @Test
-  fun `llv2 rho and theta should be correct when epsilon is 1 in dpParams and three contributors`() {
-    val acdpCharge = AcdpParamsConverter.getLlv2AcdpCharge(DpParams(1.0, 1e-15), 3)
+  fun `Mpc rho and theta should be correct when epsilon is 1 in dpParams and three contributors`() {
+    val acdpCharge = AcdpParamsConverter.getMpcAcdpCharge(DpParams(1.0, 1e-15), 3)
     val expectedAcdpCharge = AcdpCharge(0.007051178301426351, 3.0946438646612866E-17)
 
     assertThat(acdpCharge.rho).isWithin(TOLERANCE).of(expectedAcdpCharge.rho)

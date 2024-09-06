@@ -232,6 +232,7 @@ class MeasurementsServiceTest {
   }
 
   private lateinit var service: MeasurementsService
+  private lateinit var hmssEnabledService: MeasurementsService
 
   @Before
   fun initService() {
@@ -241,6 +242,13 @@ class MeasurementsServiceTest {
         DataProvidersGrpcKt.DataProvidersCoroutineStub(grpcTestServerRule.channel),
         NOISE_MECHANISMS,
         reachOnlyLlV2Enabled = true,
+      )
+
+    hmssEnabledService =
+      MeasurementsService(
+        MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
+        DataProvidersGrpcKt.DataProvidersCoroutineStub(grpcTestServerRule.channel),
+        NOISE_MECHANISMS,
         hmssEnabled = true,
       )
   }
@@ -804,7 +812,7 @@ class MeasurementsServiceTest {
     }
 
     withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-      runBlocking { service.createMeasurement(request) }
+      runBlocking { hmssEnabledService.createMeasurement(request) }
     }
 
     verifyProtoArgument(
@@ -2708,7 +2716,9 @@ class MeasurementsServiceTest {
       )
       HmssProtocolConfig.setForTest(
         HMSS_INTERNAL_PROTOCOL_CONFIG.honestMajorityShareShuffle,
-        setOf("aggregator", "worker1", "worker2"),
+        "worker1",
+        "worker2",
+        "aggregator",
       )
     }
 

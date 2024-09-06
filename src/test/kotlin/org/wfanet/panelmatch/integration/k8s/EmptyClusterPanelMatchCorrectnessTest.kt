@@ -49,8 +49,8 @@ import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
-import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.k8s.KubernetesClient
+import org.wfanet.measurement.common.k8s.KubernetesClientImpl
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -305,8 +305,8 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
 
         ResourceSetupOutput(
           EntitiesData(
-            apiIdToExternalId(panelMatchResourceKey.dataProviderKey.dataProviderId),
-            apiIdToExternalId(panelMatchResourceKey.modelProviderKey.modelProviderId),
+            panelMatchResourceKey.dataProviderKey,
+            panelMatchResourceKey.modelProviderKey,
           ),
           akidPrincipalMap,
         )
@@ -516,7 +516,7 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
 
     private val localSystem =
       LocalSystem(
-        lazy { KubernetesClient(ClientBuilder.defaultClient()) },
+        lazy { KubernetesClientImpl(ClientBuilder.defaultClient()) },
         lazy { tempDir },
         lazy { UUID.randomUUID().toString() },
       )

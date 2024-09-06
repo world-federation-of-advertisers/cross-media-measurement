@@ -14,90 +14,113 @@
 
 package k8s
 
-import "encoding/yaml"
-
-#GCloudProject: string @tag("google_cloud_project")
-
 // Name of K8s service account for OpenTelemetry collector.
 #CollectorServiceAccount: "open-telemetry"
 
-objectSets: [
-	collectors,
-	openTelemetry.instrumentations,
-	networkPolicies,
-	serviceAccounts,
-]
+objectSets: [ for objectSet in openTelemetry {objectSet}]
 
-serviceAccounts: [Name=string]: #ServiceAccount & {
-	metadata: name: Name
-}
-
-serviceAccounts: {
-	"\(#CollectorServiceAccount)": #WorkloadIdentityServiceAccount & {
-		_iamServiceAccountName: "open-telemetry"
+#OpenTelemetryCollector: {
+	spec: {
+		resources: requests: memory: "48Mi"
+		podAnnotations: {}
 	}
 }
 
-#OpenTelemetryCollector: {
-	spec: resources: requests: memory: "48Mi"
-}
+openTelemetry: #OpenTelemetry & {
+	collectors: {
+		"default": {
+			spec: {
+				serviceAccount: #CollectorServiceAccount
+				config: {
+					processors: {
+						filter: {
+							spans: {
+								exclude: {
+									match_type: "strict"
+									attributes: [{
+										key:   "rpc.method"
+										value: "Check"
+									}]
+								}
+							}
+						}
+						resourcedetection: {
+							detectors: ["gcp"]
+							timeout: "10s"
+						}
+						transform: {
+							// "location", "cluster", "namespace", "job", "instance", and
+							// "project_id" are reserved, and metrics containing these labels
+							// will be rejected.  Prefix them with exported_ to prevent this.
+							metric_statements: [{
+								context: "datapoint"
+								statements: [
+									"set(attributes[\"exported_location\"], attributes[\"location\"])",
+									"delete_key(attributes, \"location\")",
+									"set(attributes[\"exported_cluster\"], attributes[\"cluster\"])",
+									"delete_key(attributes, \"cluster\")",
+									"set(attributes[\"exported_namespace\"], attributes[\"namespace\"])",
+									"delete_key(attributes, \"namespace\")",
+									"set(attributes[\"exported_job\"], attributes[\"job\"])",
+									"delete_key(attributes, \"job\")",
+									"set(attributes[\"exported_instance\"], attributes[\"instance\"])",
+									"delete_key(attributes, \"instance\")",
+									"set(attributes[\"exported_project_id\"], attributes[\"project_id\"])",
+									"delete_key(attributes, \"project_id\")",
+								]
+							}]
+						}
+					}
 
-openTelemetry: #OpenTelemetry
+					exporters: {
+						googlecloud: {}
+					}
 
-collectors: openTelemetry.collectors & {
-	"default": {
-		spec: {
-			serviceAccount: #CollectorServiceAccount
-			_config: {
-				processors: {
-					filter: {
-						spans: {
-							exclude: {
-								match_type: "strict"
-								attributes: [{
-									key:   "rpc.method"
-									value: "Check"
-								}]
+					service: {
+						pipelines: {
+							metrics: {
+								receivers: ["otlp"]
+								processors: [
+									"batch",
+									"memory_limiter",
+									"resourcedetection",
+									"transform",
+								]
+								exporters: ["googlecloud"]
+							}
+							traces: {
+								receivers: ["otlp"]
+								processors: ["batch", "memory_limiter", "filter"]
+								exporters: ["googlecloud"]
 							}
 						}
 					}
 				}
-
-				exporters: {...} | *{
-					googlecloud: {
-						project: "\(#GCloudProject)"
-						trace: {}
-					}
-				}
-
-				service: {
-					pipelines: {
-						traces: {
-							receivers: ["otlp"]
-							processors: ["batch", "filter"]
-							exporters: [...] | *["googlecloud"]
-						}
-					}
-				}
 			}
-
-			config: yaml.Marshal(_config)
 		}
 	}
-}
 
-networkPolicies: [Name=_]: #NetworkPolicy & {
-	_policyPodSelectorMatchLabels: "app.kubernetes.io/component": "opentelemetry-collector"
-	_name: Name
-}
-
-networkPolicies: {
-	"opentelemetry-collector": {
-		_ingresses: {
-			any: {}
+	instrumentations: "java-instrumentation": {
+		spec: {
+			_envVars: {
+				OTEL_TRACES_EXPORTER:                                     "otlp"
+				OTEL_EXPORTER_OTLP_METRICS_DEFAULT_HISTOGRAM_AGGREGATION: "base2_exponential_bucket_histogram"
+			}
 		}
-		_egresses: {
-			any: {}
+	}
+
+	networkPolicies: {
+		"opentelemetry-collector": {
+			_egresses: {
+				// Need to call Google Cloud Monitoring.
+				any: {}
+			}
+		}
+	}
+
+	serviceAccounts: {
+		"\(#CollectorServiceAccount)": #WorkloadIdentityServiceAccount & {
+			_iamServiceAccountName: "open-telemetry"
 		}
 	}
 }

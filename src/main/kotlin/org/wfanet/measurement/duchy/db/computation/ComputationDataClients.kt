@@ -33,6 +33,7 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.StorageException
 import org.wfanet.measurement.storage.Store.Blob
 
 /** Storage clients providing access to the ComputationsService and ComputationStore. */
@@ -127,7 +128,24 @@ private constructor(
     }
 
     val blob =
-      computationStore.write(ComputationBlobContext.fromToken(computationToken, metadata), content)
+      try {
+        computationStore.write(
+          ComputationBlobContext.fromToken(computationToken, metadata),
+          content,
+        )
+      } catch (e: StorageException) {
+        // Storage client is possible to raise non-retryable exceptions, which are actually
+        // retryable. To avoid to fail Computation in this case, mark all StorageExceptions as
+        // transient so the mill can start another attempt. This is only for LLv2 protocol because
+        // HMSS does not need to write intermediate result into storage.
+        //
+        // See github issue:
+        // https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/1733
+        //
+        // TODO(@renjiez): Handle the exception case by case after the issue fixed.
+        throw TransientErrorException("Error writing blob to storage.", e)
+      }
+
     val response: RecordOutputBlobPathResponse =
       try {
         computationsClient.recordOutputBlobPath(

@@ -18,8 +18,8 @@ import com.google.protobuf.kotlin.toByteStringUtf8
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.exchangetasks.remote.RemoteTaskOrchestrator
 import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
 import org.wfanet.panelmatch.common.storage.toStringUtf8
@@ -52,24 +52,23 @@ class EmrRemoteTaskOrchestrator(
   override suspend fun orchestrateTask(
     exchangeWorkflowId: String,
     exchangeStepIndex: Int,
-    exchangeStepAttempt: CanonicalExchangeStepAttemptKey,
+    exchangeStepAttempt: ExchangeStepAttemptKey,
     exchangeDate: LocalDate,
   ) {
     if (!emrServerlessClient.startApplication(appId)) {
       throw Exception("Panel exchange app was not started successfully")
     }
 
-    val jobRunId =
-      "${exchangeStepAttempt.exchangeStepId}-${exchangeStepAttempt.exchangeId}-${exchangeDate.format(DateTimeFormatter.ISO_LOCAL_DATE)}"
+    val jobRunName = exchangeStepAttempt.toString()
 
     if (
       !emrServerlessClient.startAndWaitJobRunCompletion(
-        jobRunId,
+        jobRunName,
         appId,
         listOf(
           "--exchange-workflow-blob-key=$exchangeWorkflowPrefix/$exchangeWorkflowId",
           "--step-index=$exchangeStepIndex",
-          "--exchange-step-attempt-resource-id=${exchangeStepAttempt.toName()}",
+          "--exchange-step-attempt-resource-id=$exchangeStepAttempt",
           "--exchange-date=${exchangeDate.format(DateTimeFormatter.ISO_LOCAL_DATE)}",
           "--storage-type=${storageType.name}",
           "--s3-region=${storageRegion}",

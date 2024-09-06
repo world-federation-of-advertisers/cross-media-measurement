@@ -42,7 +42,7 @@ import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
-import org.wfanet.measurement.api.v2alpha.EncryptedMessage
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
@@ -62,7 +62,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegio
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
-import org.wfanet.measurement.api.v2alpha.ShareShuffleSketchParams
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
@@ -169,6 +168,7 @@ private val VISIBLE_REQUISITION_STATES: Set<InternalRequisition.State> =
     InternalRequisition.State.UNFULFILLED,
     InternalRequisition.State.FULFILLED,
     InternalRequisition.State.REFUSED,
+    InternalRequisition.State.WITHDRAWN,
   )
 
 @RunWith(JUnit4::class)
@@ -1361,6 +1361,8 @@ class RequisitionsServiceTest {
               externalProtocolConfigId = "hmss"
               honestMajorityShareShuffle =
                 InternalProtocolConfigKt.honestMajorityShareShuffle {
+                  reachRingModulus = 127
+                  reachAndFrequencyRingModulus = 127
                   noiseMechanism = InternalProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
                 }
             }
@@ -1439,7 +1441,7 @@ class RequisitionsServiceTest {
               ProtocolConfigKt.protocol {
                 honestMajorityShareShuffle =
                   ProtocolConfigKt.honestMajorityShareShuffle {
-                    sketchParams = ShareShuffleSketchParams.getDefaultInstance()
+                    ringModulus = 127
                     noiseMechanism = ProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN
                   }
               }
@@ -1463,7 +1465,7 @@ class RequisitionsServiceTest {
                   setMessage(
                     protoAny {
                       value = TINK_PUBLIC_KEY_2
-                      typeUrl = ProtoReflection.getTypeUrl(EncryptedMessage.getDescriptor())
+                      typeUrl = ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
                     }
                   )
                   signature = TINK_PUBLIC_KEY_SIGNATURE_2

@@ -63,6 +63,7 @@ permissions:
 
 env:
   KUSTOMIZATION_PATH: "k8s/cmms"
+  KUBECTL_APPLYSET: true
   DUCHY_NAME: ${{ inputs.duchy-name }}
 
 jobs:
@@ -91,23 +92,50 @@ jobs:
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
         KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
+        KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         AGGREGATOR_SYSTEM_API_TARGET: ${{ vars.AGGREGATOR_SYSTEM_API_TARGET }}
         WORKER1_SYSTEM_API_TARGET: ${{ vars.WORKER1_SYSTEM_API_TARGET }}
         WORKER2_SYSTEM_API_TARGET: ${{ vars.WORKER2_SYSTEM_API_TARGET }}
+        SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
+        STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
         common --config=ghcr
         build --define image_tag=$IMAGE_TAG
         build --define google_cloud_project=$GCLOUD_PROJECT
+        build --define spanner_instance=$SPANNER_INSTANCE
         build --define kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET
+        build --define kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET
         build --define aggregator_system_api_target=$AGGREGATOR_SYSTEM_API_TARGET
         build --define worker1_system_api_target=$WORKER1_SYSTEM_API_TARGET
         build --define worker2_system_api_target=$WORKER2_SYSTEM_API_TARGET
         build --define duchy_cert_id=$DUCHY_CERT_ID
         build --define duchy_public_api_address_name=${DUCHY_NAME}-duchy-v2alpha
         build --define duchy_system_api_address_name=${DUCHY_NAME}-duchy-system-v1alpha
+        build --define duchy_storage_bucket=$STORAGE_BUCKET
         EOF
+
+    - name: Get Bazel cache params
+      id: get-cache-params
+      run: |
+        cache_path="$(bazelisk info output_base)"
+        echo "cache-path=${cache_path}" >> "$GITHUB_OUTPUT"
+
+        tree_hash="$(git rev-parse HEAD:)"
+        restore_key="duchy-bazel-"
+        echo "restore-key=${restore_key}" >> "$GITHUB_OUTPUT"
+
+        cache_key="${restore_key}${tree_hash}"
+        echo "cache-key=${cache_key}" >> "$GITHUB_OUTPUT"
+
+    - name: Restore Bazel cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.get-cache-params.outputs.cache-path }}
+        key: ${{ steps.get-cache-params.outputs.cache-key }}
+        restore-keys: |
+          ${{ steps.get-cache-params.outputs.restore-key }}
 
     - name: Export BAZEL_BIN
       run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
@@ -123,22 +151,17 @@ jobs:
       if: ${{ inputs.apply }}
 
     - name: Generate archives
-      env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
-        SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
-        KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
-        STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
       run: >
         bazelisk build 
         "//src/main/k8s/dev:${DUCHY_NAME}_duchy.tar"
         //src/main/k8s/testing/secretfiles:archive
-        --config ghcr
-        --define "image_tag=$IMAGE_TAG"
-        --define "google_cloud_project=$GCLOUD_PROJECT"
-        --define "spanner_instance=$SPANNER_INSTANCE"
-        --define "kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET"
-        --define "duchy_storage_bucket=$STORAGE_BUCKET"
-        --define "duchy_cert_id=$DUCHY_CERT_ID"
+
+    - name: Save Bazel cache
+      continue-on-error: true
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.get-cache-params.outputs.cache-path }}
+        key: ${{ steps.get-cache-params.outputs.cache-key }}
 
     - name: Make Kustomization dir
       run: mkdir -p "$KUSTOMIZATION_PATH"
@@ -163,6 +186,13 @@ jobs:
         echo "$AKID_TO_PRINCIPAL_MAP" | sed $'s/\r$//'  >
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/config_files/authority_key_identifier_to_principal_map.textproto"
 
+    - name: Upload Kustomization artifact
+      uses: actions/upload-artifact@v4
+      continue-on-error: true
+      with:
+        name: ${{ env.DUCHY_NAME }}-kustomization
+        path: ${{ env.KUSTOMIZATION_PATH }}
+
     - name: Export KUSTOMIZE_PATH
       run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/${DUCHY_NAME}_duchy" >> $GITHUB_ENV
 
@@ -174,7 +204,7 @@ jobs:
 
     - name: kubectl apply
       if: ${{ inputs.apply }}
-      run: kubectl apply -k "$KUSTOMIZE_PATH"
+      run: kubectl apply -k "$KUSTOMIZE_PATH" --namespace=default --prune --applyset=configmaps/kubectl
 
     - name: Wait for rollout
       if: ${{ inputs.apply }}

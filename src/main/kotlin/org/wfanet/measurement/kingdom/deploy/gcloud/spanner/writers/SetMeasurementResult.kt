@@ -23,16 +23,17 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.getEtag
 
 private val NEXT_MEASUREMENT_STATE = Measurement.State.SUCCEEDED
 
@@ -92,6 +93,15 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       set("State" to NEXT_MEASUREMENT_STATE)
     }
 
+    updateMeasurementState(
+      measurementConsumerId = measurementConsumerId,
+      measurementId = measurementId,
+      nextState = NEXT_MEASUREMENT_STATE,
+      previousState = measurement.state,
+      measurementLogEntryDetails =
+        MeasurementLogEntryKt.details { logMessage = "Measurement succeeded" },
+    )
+
     return measurement.copy {
       state = NEXT_MEASUREMENT_STATE
       results += resultInfo {
@@ -106,7 +116,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   override fun ResultScope<Measurement>.buildResult(): Measurement {
     return checkNotNull(transactionResult).copy {
       updateTime = commitTimestamp.toProto()
-      etag = getEtag(commitTimestamp)
+      etag = ETags.computeETag(commitTimestamp)
     }
   }
 }

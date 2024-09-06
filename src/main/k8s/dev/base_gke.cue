@@ -14,38 +14,37 @@
 
 package k8s
 
-#NetworkPolicy: {
-	_egresses: {
-		gkeMetadataServer: {
-			to: [{ipBlock: cidr: "169.254.169.252/32"}]
-			ports: [
-				{
+defaultNetworkPolicies: {
+	"gke": {
+		_egresses: {
+			// See https://cloud.google.com/kubernetes-engine/docs/how-to/network-policy#network-policy-and-workload-identity
+			gkeMetadataServer: {
+				to: [{ipBlock: cidr: "169.254.169.252/32"}]
+				ports: [{
 					protocol: "TCP"
 					port:     988
-				},
-				{
+				}]
+			}
+			gkeDataplaneV2: {
+				to: [{ipBlock: cidr: "169.254.169.254/32"}]
+				ports: [{
 					protocol: "TCP"
 					port:     80
 				}]
+			}
 		}
-		openTelemetryCollector: {
-			to: [{podSelector: matchLabels: app: "opentelemetry-collector-app"}]
-			ports: [{
-				port: #OpenTelemetryReceiverPort
-			}]
-		}
-	}
 
-	_ingresses: {
-		gmpManagedCollector: {
-			from: [{
-				namespaceSelector: matchLabels: "kubernetes.io/metadata.name": "gmp-system"
-				podSelector: matchLabels: app:                                 "managed-prometheus-collector"
-			}]
-			ports: [{
-				protocol: "TCP"
-				port:     #OpenTelemetryPrometheusExporterPort
-			}]
+		_ingresses: {
+			gmpManagedCollector: {
+				from: [{
+					namespaceSelector: matchLabels: "kubernetes.io/metadata.name": "gmp-system"
+					podSelector: matchLabels: app:                                 "managed-prometheus-collector"
+				}]
+				ports: [{
+					protocol: "TCP"
+					port:     #OpenTelemetryPrometheusExporterPort
+				}]
+			}
 		}
 	}
 }

@@ -31,7 +31,6 @@ import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisitio
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationKey
-import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.HonestMajorityShareShuffleKt.shareShuffleSketchParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.liquidLegionsSketchParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.honestMajorityShareShuffle
@@ -82,6 +81,7 @@ fun InternalRequisition.State.toSystemRequisitionState(): Requisition.State {
     InternalRequisition.State.UNFULFILLED -> Requisition.State.UNFULFILLED
     InternalRequisition.State.FULFILLED -> Requisition.State.FULFILLED
     InternalRequisition.State.REFUSED -> Requisition.State.REFUSED
+    InternalRequisition.State.WITHDRAWN -> Requisition.State.WITHDRAWN
     InternalRequisition.State.STATE_UNSPECIFIED,
     InternalRequisition.State.UNRECOGNIZED -> error("Invalid requisition state.")
   }
@@ -99,54 +99,61 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
         .toName()
     state = source.state.toSystemRequisitionState()
     updateTime = source.updateTime
-    requisitionParams =
-      ComputationParticipantKt.requisitionParams {
-        if (hasDuchyCertificate()) {
-          duchyCertificate =
-            when (Version.fromString(apiVersion)) {
-              Version.V2_ALPHA ->
-                DuchyCertificateKey(
-                    source.externalDuchyId,
-                    externalIdToApiId(source.duchyCertificate.externalCertificateId),
-                  )
-                  .toName()
+    if (
+      source.hasDuchyCertificate() ||
+        source.details.protocolCase !=
+          InternalComputationParticipant.Details.ProtocolCase.PROTOCOL_NOT_SET
+    ) {
+      requisitionParams =
+        ComputationParticipantKt.requisitionParams {
+          if (hasDuchyCertificate()) {
+            duchyCertificate =
+              when (Version.fromString(apiVersion)) {
+                Version.V2_ALPHA ->
+                  DuchyCertificateKey(
+                      source.externalDuchyId,
+                      externalIdToApiId(source.duchyCertificate.externalCertificateId),
+                    )
+                    .toName()
+              }
+            duchyCertificateDer = source.duchyCertificate.details.x509Der
+          }
+          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+          when (source.details.protocolCase) {
+            InternalComputationParticipant.Details.ProtocolCase.LIQUID_LEGIONS_V2 -> {
+              liquidLegionsV2 =
+                ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
+                  elGamalPublicKey = source.details.liquidLegionsV2.elGamalPublicKey
+                  elGamalPublicKeySignature =
+                    source.details.liquidLegionsV2.elGamalPublicKeySignature
+                  elGamalPublicKeySignatureAlgorithmOid =
+                    source.details.liquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
+                }
             }
-          duchyCertificateDer = source.duchyCertificate.details.x509Der
+            InternalComputationParticipant.Details.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+              reachOnlyLiquidLegionsV2 =
+                ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
+                  elGamalPublicKey = source.details.reachOnlyLiquidLegionsV2.elGamalPublicKey
+                  elGamalPublicKeySignature =
+                    source.details.reachOnlyLiquidLegionsV2.elGamalPublicKeySignature
+                  elGamalPublicKeySignatureAlgorithmOid =
+                    source.details.reachOnlyLiquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
+                }
+            }
+            InternalComputationParticipant.Details.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+              honestMajorityShareShuffle =
+                ComputationParticipantKt.RequisitionParamsKt.honestMajorityShareShuffle {
+                  tinkPublicKey = source.details.honestMajorityShareShuffle.tinkPublicKey
+                  tinkPublicKeySignature =
+                    source.details.honestMajorityShareShuffle.tinkPublicKeySignature
+                  tinkPublicKeySignatureAlgorithmOid =
+                    source.details.honestMajorityShareShuffle.tinkPublicKeySignatureAlgorithmOid
+                }
+            }
+            InternalComputationParticipant.Details.ProtocolCase.PROTOCOL_NOT_SET -> Unit
+          }
         }
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-        when (source.details.protocolCase) {
-          InternalComputationParticipant.Details.ProtocolCase.LIQUID_LEGIONS_V2 -> {
-            liquidLegionsV2 =
-              ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
-                elGamalPublicKey = source.details.liquidLegionsV2.elGamalPublicKey
-                elGamalPublicKeySignature = source.details.liquidLegionsV2.elGamalPublicKeySignature
-                elGamalPublicKeySignatureAlgorithmOid =
-                  source.details.liquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
-              }
-          }
-          InternalComputationParticipant.Details.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
-            reachOnlyLiquidLegionsV2 =
-              ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
-                elGamalPublicKey = source.details.reachOnlyLiquidLegionsV2.elGamalPublicKey
-                elGamalPublicKeySignature =
-                  source.details.reachOnlyLiquidLegionsV2.elGamalPublicKeySignature
-                elGamalPublicKeySignatureAlgorithmOid =
-                  source.details.reachOnlyLiquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
-              }
-          }
-          InternalComputationParticipant.Details.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
-            honestMajorityShareShuffle =
-              ComputationParticipantKt.RequisitionParamsKt.honestMajorityShareShuffle {
-                tinkPublicKey = source.details.honestMajorityShareShuffle.tinkPublicKey
-                tinkPublicKeySignature =
-                  source.details.honestMajorityShareShuffle.tinkPublicKeySignature
-                tinkPublicKeySignatureAlgorithmOid =
-                  source.details.honestMajorityShareShuffle.tinkPublicKeySignatureAlgorithmOid
-              }
-          }
-          InternalComputationParticipant.Details.ProtocolCase.PROTOCOL_NOT_SET -> Unit
-        }
-      }
+    }
     if (hasFailureLogEntry()) {
       failure =
         ComputationParticipantKt.failure {
@@ -156,6 +163,7 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
           stageAttempt = source.failureLogEntry.details.stageAttempt.toSystemStageAttempt()
         }
     }
+    etag = source.etag
   }
 }
 
@@ -235,7 +243,7 @@ fun InternalMeasurement.toSystemComputation(): Computation {
  * Builds a [Computation.MpcProtocolConfig] using the [InternalDuchyProtocolConfig] and
  * [InternalProtocolConfig].
  */
-fun buildMpcProtocolConfig(
+private fun buildMpcProtocolConfig(
   duchyProtocolConfig: InternalDuchyProtocolConfig,
   protocolConfig: InternalProtocolConfig,
 ): Computation.MpcProtocolConfig {
@@ -310,11 +318,9 @@ fun buildMpcProtocolConfig(
     InternalProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
       mpcProtocolConfig {
         honestMajorityShareShuffle = honestMajorityShareShuffle {
-          sketchParams = shareShuffleSketchParams {
-            bytesPerRegister =
-              protocolConfig.honestMajorityShareShuffle.sketchParams.bytesPerRegister
-            ringModulus = protocolConfig.honestMajorityShareShuffle.sketchParams.ringModulus
-          }
+          reachAndFrequencyRingModulus =
+            protocolConfig.honestMajorityShareShuffle.reachAndFrequencyRingModulus
+          reachRingModulus = protocolConfig.honestMajorityShareShuffle.reachRingModulus
           noiseMechanism =
             protocolConfig.honestMajorityShareShuffle.noiseMechanism.toSystemNoiseMechanism()
         }

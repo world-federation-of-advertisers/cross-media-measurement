@@ -11,22 +11,25 @@ repositories owned by the WFA.
 
 ### Pull Request Description
 
-The title of a pull request (PR) should be a short summary of what is being done
-by the PR. This should be a complete imperative (written as if it were an order)
-sentence. For example, "Delete the Foo method from the Bar service." as opposed
-to "Deletes the Foo method from the Bar service."
+The pull request (PR) description is also used to populate the commit message
+when the PR is merged. New commits should adhere to the
+[Conventional Commits](https://www.conventionalcommits.org/) specification, with
+the addendum that the breaking change indicator (`!`) must be used for any
+change that needs to be mentioned in the release notes. The first line of the
+commit message corresponds to the PR title, and the body and footers correspond
+to the PR description body.
 
-The body of a PR description is optional, and should be used to add additional
-context.
+The `description` element of the commit message should be a short summary of
+what is being done by the PR. This should be a complete imperative (written as
+if it were an order) sentence. For example, "Delete the Foo method from the Bar
+service." as opposed to "Deletes the Foo method from the Bar service."
 
-[Example pull request:](https://github.com/world-federation-of-advertisers/common-jvm/pull/90)
+The `body` and `footer(s)` elements of the commit message are optional, and
+should be used to add additional context.
+
+[Example pull request:](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/1718)
 
 ![example pull request body](dev-std-body-ex.png)
-
-Make sure to adjust the final merge description when merging a PR, as GitHub by
-default generates an undesirable body.
-
-![example pull request title+body](dev-std-title-body-ex.png)
 
 ### Use Reviewable
 

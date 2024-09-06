@@ -32,8 +32,8 @@ message ComputationParticipant {
     singular: "computationParticipant"
     plural: "computationParticipants"
 
-    // `duchy` is the Duchy ID from the public API.
-    pattern: "computations/{computation}/participants/{duchy}"
+    // `participant` is the Duchy ID from the public API.
+    pattern: "computations/{computation}/participants/{participant}"
   };
 
   // Resource name.
@@ -145,4 +145,7 @@ message ComputationParticipant {
   }
   // Information about this participant's failure. Set when state is `FAILED`.
   Failure failure = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // RFC 7232 entity tag.
+  string etag = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

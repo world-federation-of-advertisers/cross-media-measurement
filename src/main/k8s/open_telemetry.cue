@@ -14,12 +14,10 @@
 
 package k8s
 
-import "encoding/yaml"
-
 // K8s custom resource defined by OpenTelemetry Operator used for creating
 // an OpenTelemetry Collector.
 #OpenTelemetryCollector: {
-	apiVersion: "opentelemetry.io/v1alpha1"
+	apiVersion: "opentelemetry.io/v1beta1"
 	kind:       "OpenTelemetryCollector"
 	metadata:   #ObjectMeta & {
 		_component: "metrics"
@@ -27,14 +25,29 @@ import "encoding/yaml"
 	}
 	spec: {
 		mode:             *"deployment" | "sidecar"
-		image:            string | *"ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.88.0"
+		image:            string | *"ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.99.0"
 		imagePullPolicy?: "IfNotPresent" | "Always" | "Never"
-		config:           string
+		config: {
+			exporters: {...}
+			receivers: {...}
+			service: {
+				pipelines: [string]: {
+					exporters: [...string]
+					processors: [...string]
+					receivers: [...string]
+				}
+				extensions?: [...]
+				telemetry?: {...}
+			}
+			connectors?: {...}
+			extensions?: {...}
+			processors?: {...}
+		}
 		nodeSelector?: {...}
 		podSelector?: {...}
 		serviceAccount?: string
 		resources?:      #ResourceRequirements
-		podAnnotations: {
+		podAnnotations:  {...} | *{
 			"prometheus.io/port":   string | *"\(#OpenTelemetryPrometheusExporterPort)"
 			"prometheus.io/scrape": string | *"true"
 		}
@@ -45,11 +58,10 @@ import "encoding/yaml"
 	collectors: [Name=string]: #OpenTelemetryCollector & {
 		metadata: name: Name
 	}
-
 	collectors: {
 		"default": {
 			spec: {
-				_config: {
+				config: {
 					receivers: {
 						otlp:
 							protocols:
@@ -58,13 +70,22 @@ import "encoding/yaml"
 					}
 
 					processors: {
+						// Batch metrics before sending to reduce API usage.
 						batch: {
-							send_batch_size: 200
-							timeout:         "10s"
+							send_batch_max_size: 200
+							send_batch_size:     200
+							timeout:             "5s"
+						}
+
+						// Drop metrics if memory usage gets too high.
+						memory_limiter: {
+							check_interval:         "1s"
+							limit_percentage:       65
+							spike_limit_percentage: 20
 						}
 					}
 
-					exporters: {...} | *{
+					exporters: _ | *{
 						prometheus: {
 							send_timestamps: true
 							endpoint:        "0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)"
@@ -73,7 +94,7 @@ import "encoding/yaml"
 						}
 					}
 
-					extensions: {...} | *{
+					extensions: _ | *{
 						health_check: {}
 					}
 
@@ -81,15 +102,13 @@ import "encoding/yaml"
 						extensions: [...] | *["health_check"]
 						pipelines: {
 							metrics: {
-								receivers: ["otlp"]
-								processors: ["batch"]
-								exporters: [...] | *["prometheus"]
+								receivers:  _ | *["otlp"]
+								processors: _ | *["batch", "memory_limiter"]
+								exporters:  [...] | *["prometheus"]
 							}
 						}
 					}
 				}
-
-				config: yaml.Marshal(_config)
 			}
 		}
 	}
@@ -100,48 +119,67 @@ import "encoding/yaml"
 			kind:       "Instrumentation"
 			metadata: name: "open-telemetry-java-agent"
 			spec: {
-				env: [
-					{
-						name:  "OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT"
-						value: "256"
-					}, {
-						name:  "OTEL_TRACES_EXPORTER"
-						value: "otlp"
-					}, {
-						name:  "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"
-						value: "grpc"
-					}, {
-						name:  "OTEL_EXPORTER_OTLP_ENDPOINT"
-						value: #OpenTelemetryCollectorEndpoint
-					}, {
-						name:  "OTEL_EXPORTER_OTLP_TIMEOUT"
-						value: "20000"
-					}, {
-						name:  "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL"
-						value: "grpc"
-					}, {
-						name:  "OTEL_METRICS_EXPORTER"
-						value: "otlp"
-					}, {
-						name:  "OTEL_METRIC_EXPORT_INTERVAL"
-						value: "30000"
-					},
-				]
-				java: image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:1.31.0"
+				_envVars: [string]: string
+				_envVars: {
+					OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT: "256"
+					OTEL_TRACES_EXPORTER:                   _ | *"none"
+					OTEL_EXPORTER_OTLP_TRACES_PROTOCOL:     "grpc"
+					OTEL_EXPORTER_OTLP_ENDPOINT:            "http://default-collector-headless.default.svc:\(#OpenTelemetryReceiverPort)"
+					OTEL_EXPORTER_OTLP_TIMEOUT:             "20000"
+					OTEL_EXPORTER_OTLP_METRICS_PROTOCOL:    "grpc"
+					OTEL_METRICS_EXPORTER:                  "otlp"
+					OTEL_METRIC_EXPORT_INTERVAL:            "30000"
+					OTEL_LOGS_EXPORTER:                     "none"
+				}
+				env: [ for k, v in _envVars {
+					name:  k
+					value: v
+				}]
+				java: image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.3.0"
 			}
 		}
 	}
 
 	networkPolicies: [Name=_]: #NetworkPolicy & {
-		_policyPodSelectorMatchLabels: "app.kubernetes.io/component": "opentelemetry-collector"
 		_name: Name
 	}
-
 	networkPolicies: {
-		"opentelemetry-collector": {
-			_ingresses: {
-				any: {}
+		"to-opentelemetry-collector": {
+			_egresses: {
+				collector: {
+					to: [{
+						podSelector: {
+							matchLabels: {
+								"app.kubernetes.io/component": "opentelemetry-collector"
+							}
+						}
+					}]
+				}
+			}
+			spec: {
+				podSelector: {}
+				policyTypes: ["Egress"]
 			}
 		}
+		"opentelemetry-collector": {
+			_ingresses: {
+				allPods: {
+					from: [{
+						podSelector: {}
+					}]
+				}
+			}
+			spec: {
+				podSelector: {
+					matchLabels: {
+						"app.kubernetes.io/component": "opentelemetry-collector"
+					}
+				}
+			}
+		}
+	}
+
+	serviceAccounts: [Name=string]: #ServiceAccount & {
+		metadata: name: Name
 	}
 }

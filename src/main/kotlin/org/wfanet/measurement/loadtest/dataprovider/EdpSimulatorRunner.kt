@@ -23,18 +23,21 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.common.FileExistsHealth
+import org.wfanet.measurement.common.SettableHealth
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.dataprovider.DataProviderData
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.VidIndexMap
 import org.wfanet.measurement.loadtest.config.PrivacyBudgets.createNoOpPrivacyBudgetManager
 import picocli.CommandLine
 
@@ -49,6 +52,7 @@ abstract class EdpSimulatorRunner : Runnable {
     eventTemplates: Iterable<EventGroup.EventTemplate>,
     metadataByReferenceIdSuffix: Map<String, Message>,
     knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>,
+    hmssVidIndexMap: VidIndexMap? = null,
   ) {
     val clientCerts =
       SigningCerts.fromPemFiles(
@@ -71,11 +75,11 @@ abstract class EdpSimulatorRunner : Runnable {
     val certificatesStub = CertificatesCoroutineStub(v2AlphaPublicApiChannel)
     val dataProvidersStub = DataProvidersCoroutineStub(v2AlphaPublicApiChannel)
 
-    val requisitionFulfillmentStubsByDuchyName =
+    val requisitionFulfillmentStubsByDuchyId =
       flags.requisitionFulfillmentServiceFlags.associate {
         val channel = buildMutualTlsChannel(it.target, clientCerts, it.certHost)
         val stub = RequisitionFulfillmentCoroutineStub(channel)
-        DuchyKey(it.duchyId).toName() to stub
+        it.duchyId to stub
       }
 
     val signingKeyHandle =
@@ -83,7 +87,7 @@ abstract class EdpSimulatorRunner : Runnable {
     val certificateKey =
       DataProviderCertificateKey.fromName(flags.dataProviderCertificateResourceName)!!
     val edpData =
-      EdpData(
+      DataProviderData(
         flags.dataProviderResourceName,
         flags.dataProviderDisplayName,
         loadPrivateKey(flags.edpEncryptionPrivateKeyset),
@@ -99,8 +103,9 @@ abstract class EdpSimulatorRunner : Runnable {
         Random.Default
       }
 
-    // TODO(@ple13): Use the actual vidToIndexMap instead of an empty map when a smaller dataset is
-    // available.
+    val healthFile = flags.healthFile
+    val health = if (healthFile == null) SettableHealth() else FileExistsHealth(healthFile)
+
     val edpSimulator =
       EdpSimulator(
         edpData,
@@ -111,15 +116,16 @@ abstract class EdpSimulatorRunner : Runnable {
         eventGroupsStub,
         eventGroupMetadataDescriptorsStub,
         requisitionsStub,
-        requisitionFulfillmentStubsByDuchyName,
+        requisitionFulfillmentStubsByDuchyId,
         eventQuery,
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
         createNoOpPrivacyBudgetManager(),
         clientCerts.trustedCertificates,
-        vidToIndexMap = emptyMap(),
+        hmssVidIndexMap = hmssVidIndexMap,
         knownEventGroupMetadataTypes = knownEventGroupMetadataTypes,
         random = random,
         logSketchDetails = flags.logSketchDetails,
+        health = health,
       )
     runBlocking {
       edpSimulator.ensureEventGroups(eventTemplates, metadataByReferenceIdSuffix)

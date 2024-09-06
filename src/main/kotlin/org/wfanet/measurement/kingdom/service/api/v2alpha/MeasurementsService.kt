@@ -102,13 +102,9 @@ class MeasurementsService(
   private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
   private val internalDataProvidersStub: InternalDataProvidersCoroutineStub,
   private val noiseMechanisms: List<NoiseMechanism>,
-  private val reachOnlyLlV2Enabled: Boolean,
-  /**
-   * Whether Honest Majority Share Shuffle (HMSS) is enabled.
-   *
-   * TODO(@renjiezh): Set this based on feature flag.
-   */
+  private val reachOnlyLlV2Enabled: Boolean = false,
   private val hmssEnabled: Boolean = false,
+  private val hmssEnabledMeasurementConsumers: List<String> = emptyList(),
 ) : MeasurementsCoroutineImplBase() {
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
@@ -475,6 +471,7 @@ class MeasurementsService(
   private fun buildInternalProtocolConfig(
     measurementSpec: MeasurementSpec,
     dataProviderCapabilities: Collection<InternalDataProvider.Capabilities>,
+    measurementConsumerName: String,
   ): InternalProtocolConfig {
     val dataProvidersCount = dataProviderCapabilities.size
     val internalNoiseMechanisms = noiseMechanisms.map { it.toInternal() }
@@ -496,20 +493,21 @@ class MeasurementsService(
           }
         } else {
           if (
-            hmssEnabled && dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
+            (measurementConsumerName in hmssEnabledMeasurementConsumers || hmssEnabled) &&
+              dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
           ) {
             protocolConfig {
-              externalProtocolConfigId = HmssProtocolConfig.name
+              externalProtocolConfigId = HmssProtocolConfig.NAME
               honestMajorityShareShuffle = HmssProtocolConfig.protocolConfig
             }
           } else if (reachOnlyLlV2Enabled) {
             protocolConfig {
-              externalProtocolConfigId = RoLlv2ProtocolConfig.name
+              externalProtocolConfigId = RoLlv2ProtocolConfig.NAME
               reachOnlyLiquidLegionsV2 = RoLlv2ProtocolConfig.protocolConfig
             }
           } else {
             protocolConfig {
-              externalProtocolConfigId = Llv2ProtocolConfig.name
+              externalProtocolConfigId = Llv2ProtocolConfig.NAME
               liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
             }
           }
@@ -535,15 +533,16 @@ class MeasurementsService(
           }
         } else {
           if (
-            hmssEnabled && dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
+            (measurementConsumerName in hmssEnabledMeasurementConsumers || hmssEnabled) &&
+              dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
           ) {
             protocolConfig {
-              externalProtocolConfigId = HmssProtocolConfig.name
+              externalProtocolConfigId = HmssProtocolConfig.NAME
               honestMajorityShareShuffle = HmssProtocolConfig.protocolConfig
             }
           } else {
             protocolConfig {
-              externalProtocolConfigId = Llv2ProtocolConfig.name
+              externalProtocolConfigId = Llv2ProtocolConfig.NAME
               liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
             }
           }
@@ -635,7 +634,7 @@ class MeasurementsService(
       measurement.toInternal(
         measurementConsumerCertificateKey,
         dataProviderValues,
-        buildInternalProtocolConfig(measurementSpec, dataProviderCapabilities),
+        buildInternalProtocolConfig(measurementSpec, dataProviderCapabilities, parentKey.toName()),
       )
 
     val requestId = this.requestId

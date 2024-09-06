@@ -98,11 +98,11 @@ class V2AlphaCertificateManagerTest {
   fun getCertificate() = runBlockingTest {
     setRootCertificate(LOCAL_NAME)
 
-    assertThat(certificateManager.getCertificate(EXCHANGE_DATE_KEY, LOCAL_NAME, RESOURCE_NAME))
+    assertThat(certificateManager.getCertificate(EXCHANGE_DATE_KEY, RESOURCE_NAME))
       .isEqualTo(CERTIFICATE)
 
     // Call again to ensure that caching works. There should only be one API call.
-    assertThat(certificateManager.getCertificate(EXCHANGE_DATE_KEY, LOCAL_NAME, RESOURCE_NAME))
+    assertThat(certificateManager.getCertificate(EXCHANGE_DATE_KEY, RESOURCE_NAME))
       .isEqualTo(CERTIFICATE)
 
     verifyBlocking(certificatesService, times(1)) {
@@ -117,11 +117,11 @@ class V2AlphaCertificateManagerTest {
   fun getCertificateUsesResourceNameAsCacheKey() = runBlockingTest {
     setRootCertificate(LOCAL_NAME)
 
-    assertThat(certificateManager.getCertificate(EXCHANGE_DATE_KEY, LOCAL_NAME, RESOURCE_NAME))
+    assertThat(certificateManager.getCertificate(EXCHANGE_DATE_KEY, RESOURCE_NAME))
       .isEqualTo(CERTIFICATE)
 
     val otherResourceName = "$LOCAL_NAME/certificates/anotherCertificateId"
-    assertThat(certificateManager.getCertificate(EXCHANGE_DATE_KEY, LOCAL_NAME, otherResourceName))
+    assertThat(certificateManager.getCertificate(EXCHANGE_DATE_KEY, otherResourceName))
       .isEqualTo(CERTIFICATE)
 
     verify(certificatesService, times(2)).getCertificate(any())
@@ -131,7 +131,7 @@ class V2AlphaCertificateManagerTest {
   fun getExchangePrivateKey() = runBlockingTest {
     privateKeys.underlyingMap[EXCHANGE_DATE_KEY.path] =
       signingKeys {
-          certResourceName = RESOURCE_NAME
+          certName = RESOURCE_NAME
           privateKey = PRIVATE_KEY.encoded.toByteString()
         }
         .toByteString()
@@ -161,7 +161,7 @@ class V2AlphaCertificateManagerTest {
     val privateKey = certificateManager.getExchangePrivateKey(EXCHANGE_DATE_KEY)
     assertThat(privateKey).isEqualTo(PRIVATE_KEY)
 
-    val x509 = certificateManager.getCertificate(EXCHANGE_DATE_KEY, LOCAL_NAME, RESOURCE_NAME)
+    val x509 = certificateManager.getCertificate(EXCHANGE_DATE_KEY, RESOURCE_NAME)
     assertThat(x509).isEqualTo(CERTIFICATE)
 
     verifyBlocking(certificatesService) {
@@ -184,7 +184,7 @@ class V2AlphaCertificateManagerTest {
   fun createForExchangeCacheHit() {
     privateKeys.underlyingMap[EXCHANGE_DATE_KEY.path] =
       signingKeys {
-          certResourceName = RESOURCE_NAME
+          certName = RESOURCE_NAME
           privateKey = PRIVATE_KEY.encoded.toByteString()
         }
         .toByteString()

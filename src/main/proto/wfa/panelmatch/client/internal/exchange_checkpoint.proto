@@ -1,0 +1,109 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.panelmatch.client.internal;
+
+import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "wfa/panelmatch/client/internal/exchange_step_attempt.proto";
+import "wfa/panelmatch/client/internal/exchange_workflow.proto";
+
+option java_package = "org.wfanet.panelmatch.client.internal";
+option java_multiple_files = true;
+
+// A signed `ExchangeCheckpoint`.
+message SignedExchangeCheckpoint {
+  // Serialized `ExchangeCheckpoint`.
+  bytes serialized_checkpoint = 1;
+
+  // Signature of `serialized_checkpoint`.
+  bytes signature = 2;
+
+  // Object identifier (OID) of the signature algorithm in dot notation.
+  string signature_algorithm_oid = 3;
+
+  // Name of the certificate used to generate `signature`. This is a blob key
+  // that points to a blob in shared storage containing a serialized
+  // certificate.
+  string cert_name = 4;
+}
+
+// Tracks the progress of an exchange for a single party. For a Kingdom-less
+// exchange, both parties keep a single checkpoint for each exchange date.
+// Together, the two checkpoints for a given exchange date can be used to
+// determine the current state of the exchange.
+message ExchangeCheckpoint {
+  // The party that owns this checkpoint.
+  ExchangeWorkflow.Party party = 1;
+
+  // ID of the recurring exchange for this checkpoint.
+  string recurring_exchange_id = 2;
+
+  // Date of the exchange.
+  google.type.Date exchange_date = 3;
+
+  // Cryptographically secure fingerprint of the workflow being executed. The
+  // fingerprint is of the pre-shared serialized workflow which both parties
+  // have a copy of. This can be compared against the fingerprint in the other
+  // party's checkpoint to verify that both parties are running the same
+  // workflow.
+  bytes workflow_fingerprint = 4;
+
+  // Progress info about a single exchange step attempt.
+  message ProgressEntry {
+    // Details about an attempt of an exchange step.
+    ExchangeStepAttempt attempt = 1;
+
+    // Time when the attempt began.
+    google.protobuf.Timestamp start_time = 2;
+
+    // Time when the attempt reached a terminal state. Unset if the attempt is
+    // still in progress.
+    google.protobuf.Timestamp end_time = 3;
+  }
+
+  // Progress entries for all exchange step attempts by the party that owns
+  // this checkpoint. When a new attempt is claimed, it as appended to the end
+  // of this list. Entries are modified by the owning party when the attempt
+  // reaches a terminal state.
+  repeated ProgressEntry progress_entries = 5;
+
+  // State of the exchange from the perspective of the party that owns this
+  // checkpoint.
+  enum ExchangeState {
+    EXCHANGE_STATE_UNSPECIFIED = 0;
+
+    // The exchange is still in-progress. Indicates that this party is
+    // currently executing an exchange step, or has further steps remaining to
+    // execute (which may be currently blocked).
+    IN_PROGRESS = 1;
+
+    // All steps belonging to this party have completed successfully. If both
+    // parties reach this state, then the entire exchange is considered to have
+    // completed successfully.
+    //
+    // Terminal state.
+    SUCCEEDED = 2;
+
+    // One or more steps belonging to this party have failed permanently. If
+    // either party reaches this state, then the entire exchange is considered
+    // to have failed.
+    //
+    // Terminal state.
+    FAILED = 3;
+  }
+  ExchangeState exchange_state = 6;
+}

@@ -1,0 +1,11 @@
+# proto-file: src/main/proto/wfa/measurement/internal/kingdom/protocol_config_config.proto
+# proto-message: HmssProtocolConfigConfig
+protocol_config {
+  noise_mechanism: DISCRETE_GAUSSIAN
+  reach_and_frequency_ring_modulus: 127
+  reach_ring_modulus: 127
+}
+
+first_non_aggregator_duchy_id: "worker1"
+second_non_aggregator_duchy_id: "worker2"
+aggregator_duchy_id: "aggregator"

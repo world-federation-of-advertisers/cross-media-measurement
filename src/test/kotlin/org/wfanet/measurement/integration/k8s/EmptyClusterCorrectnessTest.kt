@@ -18,7 +18,6 @@ package org.wfanet.measurement.integration.k8s
 
 import io.grpc.Channel
 import io.grpc.ManagedChannel
-import io.grpc.StatusException
 import io.kubernetes.client.common.KubernetesObject
 import io.kubernetes.client.openapi.Configuration
 import io.kubernetes.client.openapi.models.V1Deployment
@@ -33,10 +32,7 @@ import java.time.Duration
 import java.util.UUID
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.time.delay
 import kotlinx.coroutines.time.withTimeout
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.Blocking
@@ -51,17 +47,15 @@ import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
-import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
-import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.k8s.KubernetesClient
+import org.wfanet.measurement.common.k8s.KubernetesClientImpl
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -249,30 +243,20 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val eventGroupsClient = EventGroupsGrpcKt.EventGroupsCoroutineStub(publicApiChannel)
 
       return MeasurementConsumerSimulator(
-          measurementConsumerData,
-          OUTPUT_DP_PARAMS,
-          DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
-          eventGroupsClient,
-          MeasurementsGrpcKt.MeasurementsCoroutineStub(publicApiChannel),
-          MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicApiChannel),
-          CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel),
-          MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
-          MetadataSyntheticGeneratorEventQuery(
-            SyntheticGenerationSpecs.POPULATION_SPEC,
-            MC_ENCRYPTION_PRIVATE_KEY,
-          ),
-          ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
-        )
-        .also {
-          try {
-            eventGroupsClient.waitForEventGroups(
-              measurementConsumerData.name,
-              measurementConsumerData.apiAuthenticationKey,
-            )
-          } catch (e: StatusException) {
-            throw Exception("Error waiting for EventGroups", e)
-          }
-        }
+        measurementConsumerData,
+        OUTPUT_DP_PARAMS,
+        DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
+        eventGroupsClient,
+        MeasurementsGrpcKt.MeasurementsCoroutineStub(publicApiChannel),
+        MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicApiChannel),
+        CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel),
+        MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
+        MetadataSyntheticGeneratorEventQuery(
+          SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
+          MC_ENCRYPTION_PRIVATE_KEY,
+        ),
+        ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
+      )
     }
 
     fun stopPortForwarding() {
@@ -459,13 +443,14 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
   }
 
   companion object {
-    init {
-      // Remove Conscrypt provider so underlying OkHttp client won't use it and fail on unsupported
-      // certificate algorithms when connecting to cluster (ECFieldF2m).
-      Security.removeProvider(jceProvider.name)
-    }
-
     private val logger = Logger.getLogger(this::class.java.name)
+
+    init {
+      // Ensure that JCE provider is installed before Kubernetes API client is instantiated.
+      checkNotNull(Security.getProvider(jceProvider.name)) {
+        "JCE provider ${jceProvider.name} is not installed"
+      }
+    }
 
     private const val SERVER_PORT: Int = 8443
     private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
@@ -484,7 +469,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
     private val measurementSystem =
       LocalMeasurementSystem(
-        lazy { KubernetesClient(ClientBuilder.defaultClient()) },
+        lazy { KubernetesClientImpl(ClientBuilder.defaultClient()) },
         lazy { tempDir },
         lazy { UUID.randomUUID().toString() },
       )
@@ -492,34 +477,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     @ClassRule
     @JvmField
     val chainedRule = chainRulesSequentially(tempDir, Images(), measurementSystem)
-
-    private suspend fun EventGroupsGrpcKt.EventGroupsCoroutineStub.waitForEventGroups(
-      measurementConsumer: String,
-      apiKey: String,
-    ) {
-      logger.info { "Waiting for all event groups to be created..." }
-      while (currentCoroutineContext().isActive) {
-        val eventGroups =
-          withAuthenticationKey(apiKey)
-            .listEventGroups(
-              listEventGroupsRequest {
-                parent = measurementConsumer
-                filter =
-                  ListEventGroupsRequestKt.filter { measurementConsumers += measurementConsumer }
-              }
-            )
-            .eventGroupsList
-
-        // Each EDP simulator creates one event group, so we wait until there are as many event
-        // groups as EDP simulators.
-        if (eventGroups.size == NUM_DATA_PROVIDERS) {
-          logger.info { "All event groups created" }
-          return
-        }
-
-        delay(Duration.ofSeconds(1))
-      }
-    }
   }
 }
 

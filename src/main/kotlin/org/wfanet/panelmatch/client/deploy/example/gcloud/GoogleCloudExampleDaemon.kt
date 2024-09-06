@@ -209,7 +209,7 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
     DaemonStorageClientDefaults(
       rootStorageClient,
       tinkKeyUri,
-      TinkKeyStorageProvider(GcpKmsClient()),
+      TinkKeyStorageProvider(GcpKmsClient().withDefaultCredentials()),
     )
   }
 

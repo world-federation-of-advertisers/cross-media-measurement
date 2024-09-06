@@ -42,6 +42,9 @@ jobs:
       - name: Check out revision
         uses: actions/checkout@v4
 
+      - name: Set up Bazel
+        uses: world-federation-of-advertisers/actions/setup-bazel@v2
+
       - uses: ./.github/actions/free-disk-space
 
       # Authenticate to Google Cloud for access to remote cache.
@@ -86,10 +89,10 @@ jobs:
       - name: Get Bazel cache params
         id: get-cache-params
         run: |
-          cache_path="$(bazelisk info output_base)"
+          cache_path="$(bazel info output_base)"
           echo "cache-path=${cache_path}" >> $GITHUB_OUTPUT
 
-          repo_cache_path="$(bazelisk info repository_cache)"
+          repo_cache_path="$(bazel info repository_cache)"
           echo "repo-cache-path=${repo_cache_path}" >> $GITHUB_OUTPUT
 
       # Hack to work around disk space consumed by bazel-contrib/rules_oci#439.
@@ -105,9 +108,12 @@ jobs:
           path: ${{ steps.get-cache-params.outputs.repo-cache-path }}
           key: ${{ vars.BAZEL_REPO_CACHE_KEY }}
 
+      - name: Check lockfile
+        run: bazel mod deps
+
       - name: Build
         run: >
-          bazelisk build --worker_quit_after_build
+          bazel build --worker_quit_after_build
           //...
           //src/main/k8s/dev:synthetic_generator_edp_simulators
 
@@ -120,7 +126,7 @@ jobs:
 
       - name: Run tests
         id: run-tests
-        run: bazelisk test //...
+        run: bazel test //...
 
       - name: Create cluster
         id: create-cluster
@@ -128,12 +134,13 @@ jobs:
           echo "KUBECONFIG=$HOME/.kube/config" >> "$GITHUB_ENV"
           curl -LOJ https://kind.sigs.k8s.io/examples/kind-with-registry.sh
           chmod +x kind-with-registry.sh
+          sed -i 's|kind create cluster|kind create cluster --image=kindest/node:v1.30.0|g' kind-with-registry.sh
           ./kind-with-registry.sh
 
       - name: Run correctness test
         id: run-correctness-test
         run: >
-          bazelisk test
+          bazel test
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:EmptyClusterCorrectnessTest
           --test_output=streamed
 
@@ -146,7 +153,7 @@ jobs:
       - name: Run panelmatch correctness test
         id: run-panelmatch-correctness-test
         run: >
-          bazelisk test
+          bazel test
           //src/test/kotlin/org/wfanet/panelmatch/integration/k8s:EmptyClusterPanelMatchCorrectnessTest
           --test_output=streamed
 

@@ -30,12 +30,10 @@ import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
-import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.jceProvider
-import org.wfanet.measurement.common.k8s.KubernetesClient
+import org.wfanet.measurement.common.k8s.KubernetesClientImpl
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.loadtest.panelmatch.PanelMatchSimulator
 
 abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelMatchSystem) {
@@ -50,11 +48,12 @@ abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelM
   fun `Double blind workflow completes with expected result`() = runBlocking {
     logger.info { "Run Double Blind workflow test" }
     val workflow: ExchangeWorkflow by lazy {
-      loadTestData(
+      testHarness.populateWorkflow(
+        loadTestData(
           "double_blind_exchange_workflow.textproto",
           ExchangeWorkflow.getDefaultInstance(),
         )
-        .copy { firstExchangeDate = EXCHANGE_DATE.toProtoDate() }
+      )
     }
     testHarness.executeDoubleBlindExchangeWorkflow(workflow)
   }
@@ -63,9 +62,9 @@ abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelM
   fun `Mini workflow completes with expected result`() = runBlocking {
     logger.info { "Run Mini workflow test" }
     val workflow: ExchangeWorkflow by lazy {
-      loadTestData("mini_exchange_workflow.textproto", ExchangeWorkflow.getDefaultInstance()).copy {
-        firstExchangeDate = EXCHANGE_DATE.toProtoDate()
-      }
+      testHarness.populateWorkflow(
+        loadTestData("mini_exchange_workflow.textproto", ExchangeWorkflow.getDefaultInstance())
+      )
     }
     testHarness.executeMiniWorkflow(workflow)
   }
@@ -92,7 +91,7 @@ abstract class AbstractPanelMatchCorrectnessTest(private val localSystem: PanelM
       Security.removeProvider(jceProvider.name)
     }
 
-    val k8sClient = KubernetesClient(ClientBuilder.defaultClient())
+    val k8sClient = KubernetesClientImpl(ClientBuilder.defaultClient())
     @JvmStatic protected val READY_TIMEOUT = Duration.ofMinutes(2L)
     private val TEST_DATA_PATH =
       Paths.get("wfa_measurement_system", "src", "main", "k8s", "panelmatch", "testing", "data")

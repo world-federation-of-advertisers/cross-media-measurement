@@ -44,31 +44,76 @@ using ::wfa::math::kBytesPerAes256Iv;
 using ::wfa::math::kBytesPerAes256Key;
 using ::wfa::math::UniformPseudorandomGenerator;
 
-absl::StatusOr<std::vector<uint32_t>> GenerateNoiseRegisters(
-    const ShareShuffleSketchParams& sketch_param,
-    const math::DistributedNoiser& distributed_noiser) {
-  if (sketch_param.ring_modulus() <=
-      sketch_param.maximum_combined_frequency() + 1) {
+absl::StatusOr<std::vector<uint32_t>> GenerateReachAndFrequencyNoiseRegisters(
+    const ShareShuffleFrequencyVectorParams& frequency_vector_param,
+    const math::DistributedNoiser& distributed_reach_noiser,
+    const math::DistributedNoiser& distributed_frequency_noiser) {
+  if (frequency_vector_param.ring_modulus() <=
+      frequency_vector_param.maximum_combined_frequency() + 1) {
     return absl::InvalidArgumentError(
         "Ring modulus must be greater than maximum combined frequency plus 1.");
   }
 
   int64_t total_noise_registers_count =
-      distributed_noiser.options().shift_offset * 2 *
-      (1 + sketch_param.maximum_combined_frequency());
+      distributed_reach_noiser.options().shift_offset * 2 +
+      distributed_frequency_noiser.options().shift_offset * 2 *
+          frequency_vector_param.maximum_combined_frequency();
   // Sets all noise registers to the sentinel value (q-1).
-  std::vector<uint32_t> noise_registers(total_noise_registers_count,
-                                        sketch_param.ring_modulus() - 1);
+  std::vector<uint32_t> noise_registers(
+      total_noise_registers_count, frequency_vector_param.ring_modulus() - 1);
 
   int current_index = 0;
-  for (int k = 0; k <= sketch_param.maximum_combined_frequency(); k++) {
+  // Sample noise registers for reach.
+  ASSIGN_OR_RETURN(int64_t noise_register_count_for_reach,
+                   distributed_reach_noiser.GenerateNoiseComponent());
+  for (int i = 0; i < noise_register_count_for_reach; i++) {
+    noise_registers[current_index] = 0;
+    current_index++;
+  }
+
+  // Sample noise registers for 1+ frequency.
+  for (int k = 1; k <= frequency_vector_param.maximum_combined_frequency();
+       k++) {
     ASSIGN_OR_RETURN(int64_t noise_register_count_for_bucket_k,
-                     distributed_noiser.GenerateNoiseComponent());
+                     distributed_frequency_noiser.GenerateNoiseComponent());
     for (int i = 0; i < noise_register_count_for_bucket_k; i++) {
       noise_registers[current_index] = k;
       current_index++;
     }
   }
+
+  return noise_registers;
+}
+
+absl::StatusOr<std::vector<uint32_t>> GenerateReachOnlyNoiseRegisters(
+    const ShareShuffleFrequencyVectorParams& frequency_vector_param,
+    const math::DistributedNoiser& distributed_noiser) {
+  if (frequency_vector_param.ring_modulus() <=
+      frequency_vector_param.maximum_combined_frequency() + 1) {
+    return absl::InvalidArgumentError(
+        "Ring modulus must be greater than maximum combined frequency plus 1.");
+  }
+
+  int64_t total_noise_registers_count =
+      distributed_noiser.options().shift_offset * 2;
+
+  ASSIGN_OR_RETURN(int64_t non_zero_register_noise_count,
+                   distributed_noiser.GenerateNoiseComponent());
+
+  std::vector<unsigned char> key(kBytesPerAes256Key);
+  std::vector<unsigned char> iv(kBytesPerAes256Iv);
+  RAND_bytes(key.data(), key.size());
+  RAND_bytes(iv.data(), iv.size());
+
+  ASSIGN_OR_RETURN(std::unique_ptr<math::UniformPseudorandomGenerator> prng,
+                   math::OpenSslUniformPseudorandomGenerator::Create(key, iv));
+
+  ASSIGN_OR_RETURN(std::vector<uint32_t> noise_registers,
+                   prng->GenerateNonZeroUniformRandomRange(
+                       non_zero_register_noise_count,
+                       frequency_vector_param.ring_modulus()));
+
+  noise_registers.resize(total_noise_registers_count, 0);
 
   return noise_registers;
 }
@@ -102,7 +147,7 @@ absl::StatusOr<PrngSeed> GetPrngSeedFromCharVector(
 }
 
 absl::StatusOr<std::vector<uint32_t>> GenerateShareFromSeed(
-    const ShareShuffleSketchParams& param,
+    const ShareShuffleFrequencyVectorParams& param,
     const frequency_count::PrngSeed& seed) {
   ASSIGN_OR_RETURN(std::unique_ptr<math::UniformPseudorandomGenerator> prng,
                    math::CreatePrngFromSeed(seed));
@@ -112,52 +157,53 @@ absl::StatusOr<std::vector<uint32_t>> GenerateShareFromSeed(
   return share_from_seed;
 }
 
-absl::StatusOr<std::vector<uint32_t>> GetShareVectorFromSketchShare(
-    const ShareShuffleSketchParams& sketch_params,
-    const CompleteShufflePhaseRequest::SketchShare& sketch_share) {
+absl::StatusOr<std::vector<uint32_t>> GetShareVectorFromFrequencyVectorShare(
+    const ShareShuffleFrequencyVectorParams& frequency_vector_params,
+    const CompleteShufflePhaseRequest::FrequencyVectorShare&
+        frequency_vector_share) {
   std::vector<uint32_t> share_vector;
-  switch (sketch_share.share_type_case()) {
-    case CompleteShufflePhaseRequest::SketchShare::kData:
-      share_vector = std::vector(sketch_share.data().values().begin(),
-                                 sketch_share.data().values().end());
+  switch (frequency_vector_share.share_type_case()) {
+    case CompleteShufflePhaseRequest::FrequencyVectorShare::kData:
+      share_vector = std::vector(frequency_vector_share.data().values().begin(),
+                                 frequency_vector_share.data().values().end());
       break;
-    case CompleteShufflePhaseRequest::SketchShare::kSeed: {
+    case CompleteShufflePhaseRequest::FrequencyVectorShare::kSeed: {
       ASSIGN_OR_RETURN(frequency_count::PrngSeed seed,
-                       GetPrngSeedFromString(sketch_share.seed()));
+                       GetPrngSeedFromString(frequency_vector_share.seed()));
       ASSIGN_OR_RETURN(share_vector,
-                       GenerateShareFromSeed(sketch_params, seed));
+                       GenerateShareFromSeed(frequency_vector_params, seed));
       break;
     }
-    case CompleteShufflePhaseRequest::SketchShare::SHARE_TYPE_NOT_SET:
+    case CompleteShufflePhaseRequest::FrequencyVectorShare::SHARE_TYPE_NOT_SET:
       return absl::InvalidArgumentError("Share type is not defined.");
       break;
   }
   return share_vector;
 }
 
-absl::StatusOr<std::vector<uint32_t>> CombineSketchShares(
-    const ShareShuffleSketchParams& sketch_params,
+absl::StatusOr<std::vector<uint32_t>> CombineFrequencyVectorShares(
+    const ShareShuffleFrequencyVectorParams& frequency_vector_params,
     const google::protobuf::RepeatedPtrField<
-        CompleteAggregationPhaseRequest::ShareData>& sketch_shares) {
-  if (sketch_shares.empty()) {
+        CompleteAggregationPhaseRequest::ShareData>& frequency_vector_shares) {
+  if (frequency_vector_shares.empty()) {
     return absl::InvalidArgumentError(
         "There must be at least one share vector.");
   }
 
-  if (sketch_params.ring_modulus() < 2) {
+  if (frequency_vector_params.ring_modulus() < 2) {
     return absl::InvalidArgumentError("Ring modulus must be at least 2.");
   }
 
   std::vector<uint32_t> combined_share(
-      sketch_shares.Get(0).share_vector().size(), 0);
-  for (int i = 0; i < sketch_shares.size(); i++) {
+      frequency_vector_shares.Get(0).share_vector().size(), 0);
+  for (int i = 0; i < frequency_vector_shares.size(); i++) {
     std::vector<uint32_t> temp =
-        std::vector(sketch_shares.Get(i).share_vector().begin(),
-                    sketch_shares.Get(i).share_vector().end());
+        std::vector(frequency_vector_shares.Get(i).share_vector().begin(),
+                    frequency_vector_shares.Get(i).share_vector().end());
 
-    ASSIGN_OR_RETURN(
-        combined_share,
-        VectorAddMod(combined_share, temp, sketch_params.ring_modulus()));
+    ASSIGN_OR_RETURN(combined_share,
+                     VectorAddMod(combined_share, temp,
+                                  frequency_vector_params.ring_modulus()));
   }
 
   return combined_share;

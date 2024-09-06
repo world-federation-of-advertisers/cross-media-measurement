@@ -3,11 +3,6 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 package(default_visibility = ["//visibility:public"])
 
 kt_jvm_library(
-    name = "exponential_backoff",
-    srcs = ["ExponentialBackoff.kt"],
-)
-
-kt_jvm_library(
     name = "flows",
     srcs = ["Flows.kt"],
     deps = ["@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core"],
@@ -28,5 +23,14 @@ kt_jvm_library(
     deps = [
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+    ],
+)
+
+kt_jvm_library(
+    name = "health",
+    srcs = ["Health.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )

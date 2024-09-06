@@ -4,9 +4,8 @@ Getting visibility into CMMS metrics using Google Cloud Monitoring.
 
 ## Background
 
-We can use Google Managed Prometheus (GMP) on GKE clusters to get metrics into
-Google Cloud Monitoring. Using OpenTelemetry we can also collect more detailed
-metrics from CMMS component pods.
+We can use the OpenTelemetry Collector export OpenTelemetry metrics into Google
+Cloud Monitoring and OpenTelemetry traces into Google Cloud Trace.
 
 The configuration for the [`dev` environment](../../src/main/k8s/dev) can be
 used as the basis for deploying CMMS components using Google Kubernetes Engine
@@ -22,12 +21,9 @@ free to use whichever you prefer.
     *   `default`
 *   OpenTelemetry Instrumentation
     *   `open-telemetry-java-agent`
-*   GMP ClusterPodMonitoring
-    *   `opentelemetry-collector-pod-monitor`
-*   GMP PodMonitoring
-    *   `collector-pod-monitor`
 *   NetworkPolicy
     *   `opentelemetry-collector-network-policy`
+    *   `to-opentelemetry-collector-network-policy`
 
 ## Before you start
 
@@ -36,20 +32,21 @@ Deploy a Halo component. See the related guides:
 [Create Duchy Cluster](duchy-deployment.md), or
 [Create Reporting Cluster](reporting-server-deployment.md).
 
-## Enable Managed Service for Prometheus on the Cluster
+## Google Cloud APIs
 
-This can be done via the Google Cloud Console under "Features", or using the
-gcloud CLI. For example, assuming a cluster named "kingdom":
-
-```shell
-gcloud container clusters update kingdom --enable-managed-prometheus
-```
+Ensure that the Cloud Monitoring and Cloud Trace APIs are enabled. You can do
+this from the [APIs and Services](https://console.cloud.google.com/apis) page in
+the Google Cloud Console.
 
 ## Service Accounts
 
-Make sure that the least-privilege service account you created for the cluster
-has permissions to access the Cloud Monitoring API. See
-[Cluster Configuration](cluster-config.md#cluster-service-account).
+The `dev` configuration expects an IAM service account named `open-telemetry`
+that is enabled for Workload Identity.
+
+It must have at least the following roles:
+
+*   `roles/monitoring.metricWriter`
+*   `roles/cloudtrace.agent`
 
 ## Create the K8s Object Configurations
 
@@ -68,12 +65,6 @@ depends on [`open_telemetry.cue`](../../src/main/k8s/open_telemetry.cue).
 
 The default build target is `//src/main/k8s/dev:open_telemetry_gke`.
 
-### Prometheus Monitoring
-
-The `dev` configuration is in
-[`prometheus_gke.cue`](../../src/main/k8s/dev/prometheus_gke.cue). The build
-target is `//src/main/k8s/dev:prometheus_gke`.
-
 ## Apply the K8s Object Configurations
 
 ### Install cert-manager
@@ -86,18 +77,18 @@ and the collector image specified in
 [`open_telemetry.cue`](../../src/main/k8s/open_telemetry.cue).
 
 ```shell
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.2/cert-manager.yaml
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.5/cert-manager.yaml
 ```
 
 ### Install OpenTelemetry Operator
 
 ```shell
-kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.88.0/opentelemetry-operator.yaml
+kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.99.0/opentelemetry-operator.yaml
 ```
 
-### Apply OpenTelemetry and Prometheus Configurations
+### Apply OpenTelemetry Configurations
 
-You can just use `kubectl apply`, specifying the configuration files you created
+You can just use `kubectl apply`, specifying the configuration file you created
 in the previous step.
 
 ## Restart Deployments to Start Collecting Metrics
@@ -109,60 +100,32 @@ instrumentation.
 for deployment in $(kubectl get deployments -o name); do kubectl rollout restart $deployment; done
 ```
 
-## Verify Managed Prometheus can Scrape Metrics
+## Exported Metrics
 
-Visit the
-[Managed Prometheus](https://console.cloud.google.com/monitoring/prometheus)
-page in Cloud Console. Query `up` and `scrape_samples_scraped`.
+These will be visible in the "Workload" domain.
 
-The first one tells you which targets it can find and whether they are up, and
-the latter is a good way to check that scraping is occurring. If it hasn't been
-long enough, the latter might show all 0's, but after a couple of minutes you
-should be seeing results for every target that is up.
+### Automatic Java instrumentation
 
-## Adding Additional Metrics
+*   jvm.class.count
+*   jvm.class.loaded
+*   jvm.class.unloaded
+*   jvm.cpu.count
+*   jvm.cpu.recent_utilization
+*   jvm.cpu.time
+*   jvm.gc.duration
+*   jvm.memory.committed
+*   jvm.memory.limit
+*   jvm.memory.used
+*   jvm.memory.used_after_last_gc
+*   jvm.thread.count
+*   rpc.client.duration
+*   rpc.server.duration
 
-The above adds OpenTelemetry JVM and RPC metrics. With the above as a base, it 
-is possible to add other metrics that can be scraped.
+### Halo instrumentation
 
-### kubelet and cAdvisor
-
-See
-[kubelet](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed#kubelet-metrics)
-
-## List of OpenTelemetry Metrics on Prometheus Dashboard
-
-### OpenTelemetry Auto Instrumented RPC and JVM Metrics
-
--   rpc_client_duration_bucket
--   rpc_client_duration_count
--   rpc_client_duration_sum
--   rpc_server_duration_bucket
--   rpc_server_duration_count
--   rpc_server_duration_sum
--   process_runtime_jvm_buffer_count
--   process_runtime_jvm_buffer_limit
--   process_runtime_jvm_buffer_usage
--   process_runtime_jvm_classes_current_loaded
--   process_runtime_jvm_classes_loaded
--   process_runtime_jvm_classes_unloaded
--   process_runtime_jvm_cpu_utilization
--   process_runtime_jvm_memory_committed
--   process_runtime_jvm_memory_init
--   process_runtime_jvm_memory_limit
--   process_runtime_jvm_memory_usage
--   process_runtime_jvm_system_cpu_load_1m
--   process_runtime_jvm_system_cpu_utilization
--   process_runtime_jvm_threads_count
-
-### Mill Metrics
-
--   active_non_daemon_thread_count
--   jni_wall_clock_duration_millis
--   stage_wall_clock_duration_millis
--   stage_cpu_time_duration_millis
--   initialization_phase_crypto_cpu_time_duration_millis
--   setup_phase_crypto_cpu_time_duration_millis
--   execution_phase_one_crypto_cpu_time_duration_millis
--   execution_phase_two_crypto_cpu_time_duration_millis
--   execution_phase_three_crypto_cpu_time_duration_millis
+*   halo_cmm.computation.stage.crypto.cpu.time
+*   halo_cmm.computation.stage.crypto.time
+*   halo_cmm.computation.stage.time
+*   halo_cmm.retention.deleted_measurements
+*   halo_cmm.retention.deleted_exchanges
+*   halo_cmm.retention.cancelled_measurements

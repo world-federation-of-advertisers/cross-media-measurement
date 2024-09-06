@@ -3,8 +3,6 @@ module(
     repo_name = "wfa_measurement_system",
 )
 
-OPENTELEMETRY_JAVA_VERSION = "1.32.0"
-
 PROJECTNESSIE_CEL_VERSION = "0.3.11"
 
 BORINGSSL_VERSION = "0.0.0-20230215-5c22014"
@@ -18,12 +16,12 @@ BORINGSSL_VERSION = "0.0.0-20230215-5c22014"
 # * https://docs.aws.amazon.com/kinesisanalytics/latest/java/earlier.html
 APACHE_BEAM_VERSION = "2.45.0"
 
-K8S_CLIENT_VERSION = "20.0.0"
+K8S_CLIENT_VERSION = "21.0.1"
 
 # Bazel Central Registry modules.
 bazel_dep(
     name = "platforms",
-    version = "0.0.8",
+    version = "0.0.9",
 )
 bazel_dep(
     name = "bazel_skylib",
@@ -31,7 +29,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_proto",
-    version = "6.0.0-rc2",
+    version = "6.0.2",
 )
 bazel_dep(
     name = "rules_cc",
@@ -61,7 +59,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_python",
-    version = "0.29.0",
+    version = "0.31.0",
 )
 bazel_dep(
     name = "protobuf",
@@ -107,6 +105,11 @@ bazel_dep(
     name = "bazel_jar_jar",
     version = "0.1.0",
 )
+bazel_dep(
+    name = "riegeli",
+    version = "0.0.0-20240606-973b6f0",
+    repo_name = "com_google_riegeli",
+)
 
 # WFA registry modules.
 bazel_dep(
@@ -126,7 +129,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.82.2",
+    version = "0.89.0",
     repo_name = "wfa_common_jvm",
 )
 local_path_override(
@@ -136,12 +139,12 @@ local_path_override(
 
 bazel_dep(
     name = "common-cpp",
-    version = "0.12.0",
+    version = "0.13.0",
     repo_name = "wfa_common_cpp",
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.62.0",
+    version = "0.65.0",
     repo_name = "wfa_measurement_proto",
 )
 bazel_dep(
@@ -151,12 +154,12 @@ bazel_dep(
 )
 bazel_dep(
     name = "any-sketch",
-    version = "0.8.1",
+    version = "0.9.1",
     repo_name = "any_sketch",
 )
 bazel_dep(
     name = "any-sketch-java",
-    version = "0.6.0",
+    version = "0.7.0",
     repo_name = "any_sketch_java",
 )
 bazel_dep(
@@ -184,11 +187,6 @@ bazel_dep(
     version = "1.5.13",
     repo_name = "cloud_spanner_emulator",
 )
-bazel_dep(
-    name = "riegeli",
-    version = "0.0.0-20240122-ac83dce",
-    repo_name = "com_google_riegeli",
-)
 
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.artifact(
@@ -214,10 +212,6 @@ maven.install(
         "com.google.crypto.tink:tink-gcpkms:1.9.0",
         "com.squareup.okhttp3:okhttp:4.12.0",
         "io.opentelemetry.semconv:opentelemetry-semconv:1.22.0-alpha",
-        "io.opentelemetry:opentelemetry-sdk:" + OPENTELEMETRY_JAVA_VERSION,
-        "io.opentelemetry:opentelemetry-sdk-common:" + OPENTELEMETRY_JAVA_VERSION,
-        "io.opentelemetry:opentelemetry-sdk-metrics:" + OPENTELEMETRY_JAVA_VERSION,
-        "io.opentelemetry:opentelemetry-exporter-otlp:" + OPENTELEMETRY_JAVA_VERSION,
         "io.kubernetes:client-java:" + K8S_CLIENT_VERSION,
         "io.kubernetes:client-java-extended:" + K8S_CLIENT_VERSION,
         "joda-time:joda-time:2.10.10",
@@ -290,6 +284,14 @@ python.toolchain(
     python_version = "3.11",
 )
 
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    hub_name = "pip",
+    python_version = "3.11",
+    requirements_lock = "//:requirements.txt",
+)
+use_repo(pip, "pip")
+
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
@@ -318,18 +320,6 @@ http_archive(
     sha256 = "e5d9cb0f6087b6286f5bfeb053a968870c88c27fa7a5dc40055ae7681dad9b2c",
     strip_prefix = "uk-pilot-event-templates-0.2.0",
     url = "https://github.com/world-federation-of-advertisers/uk-pilot-event-templates/archive/refs/tags/v0.2.0.tar.gz",
-)
-
-# TODO(bazelbuild/rules_proto#203): Remove when fixed.
-archive_override(
-    module_name = "rules_proto",
-    integrity = "sha256-cf2+0AoHCVIa0hIFjGDROZe5IqXQHb/Zl/DVfWiee2c=",
-    patch_strip = 0,
-    patches = ["//build/rules_proto:module_dot_bazel.patch"],
-    strip_prefix = "rules_proto-6.0.0-rc2",
-    urls = [
-        "https://github.com/bazelbuild/rules_proto/releases/download/6.0.0-rc2/rules_proto-6.0.0-rc2.tar.gz",
-    ],
 )
 
 # Force use of newer version of boringssl.

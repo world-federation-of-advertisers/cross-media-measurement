@@ -23,6 +23,7 @@ import java.time.Clock
 import java.time.temporal.ChronoUnit
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -32,21 +33,24 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
-import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.details
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.honestMajorityShareShuffleDetails
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.computedRequisitionParams
-import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
@@ -56,8 +60,10 @@ import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.filte
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.confirmComputationParticipantRequest
+import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.failComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.getComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
@@ -144,6 +150,84 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         runBlocking { population.createDuchyCertificate(certificatesService, externalDuchyId) }
       }
   }
+
+  @Test
+  fun `getComputationParticipant returns ComputationParticipant`() = runBlocking {
+    createDuchyCertificates()
+    val measurementConsumer: MeasurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+    val measurement: Measurement =
+      population.createLlv2Measurement(
+        measurementsService,
+        measurementConsumer,
+        PROVIDED_MEASUREMENT_ID,
+        dataProvider,
+      )
+
+    val request = getComputationParticipantRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = DUCHIES.first().externalDuchyId
+    }
+    val response = computationParticipantsService.getComputationParticipant(request)
+
+    assertThat(response)
+      .ignoringFields(ComputationParticipant.ETAG_FIELD_NUMBER)
+      .isEqualTo(
+        computationParticipant {
+          externalComputationId = request.externalComputationId
+          externalDuchyId = request.externalDuchyId
+          externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          externalMeasurementId = measurement.externalMeasurementId
+          state = ComputationParticipant.State.CREATED
+          updateTime = measurement.updateTime
+          apiVersion = Version.V2_ALPHA.string
+          details = ComputationParticipant.Details.getDefaultInstance()
+        }
+      )
+    assertThat(response.etag).isNotEmpty()
+  }
+
+  @Test
+  fun `getComputationParticipant throws NOT_FOUND when Duchy not found`(): Unit = runBlocking {
+    val request = getComputationParticipantRequest {
+      externalComputationId = 1234L
+      externalDuchyId = "invalid Duchy ID"
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        computationParticipantsService.getComputationParticipant(request)
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    val errorInfo = assertNotNull(exception.errorInfo)
+    assertThat(errorInfo.reason).isEqualTo(ErrorCode.DUCHY_NOT_FOUND.name)
+    assertThat(errorInfo.metadataMap).containsAtLeast("external_duchy_id", request.externalDuchyId)
+  }
+
+  @Test
+  fun `getComputationParticipant throws NOT_FOUND when ComputationParticipant not found`(): Unit =
+    runBlocking {
+      val request = getComputationParticipantRequest {
+        externalComputationId = 404L
+        externalDuchyId = DUCHIES.first().externalDuchyId
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          computationParticipantsService.getComputationParticipant(request)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      val errorInfo = assertNotNull(exception.errorInfo)
+      assertThat(errorInfo.reason).isEqualTo(ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND.name)
+      assertThat(errorInfo.metadataMap)
+        .containsAtLeast(
+          "external_computation_id",
+          request.externalComputationId.toString(),
+          "external_duchy_id",
+          request.externalDuchyId,
+        )
+    }
 
   @Test
   fun `setParticipantRequisitionParams fails for wrong externalDuchyId`() = runBlocking {
@@ -415,18 +499,26 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   @Test
   fun `setParticipantRequisitionParams succeeds for non-final Duchy`() = runBlocking {
     createDuchyCertificates()
-    val measurementConsumer =
+    val measurementConsumer: MeasurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
-    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-    val dataProvider = population.createDataProvider(dataProvidersService)
-
-    val measurement =
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+    val measurement: Measurement =
       population.createLlv2Measurement(
         measurementsService,
         measurementConsumer,
         PROVIDED_MEASUREMENT_ID,
         dataProvider,
       )
+    val computation: Measurement =
+      measurementsService.getMeasurementByComputationId(
+        getMeasurementByComputationIdRequest {
+          externalComputationId = measurement.externalComputationId
+        }
+      )
+    val computationParticipant: ComputationParticipant =
+      computation.computationParticipantsList.single {
+        it.externalDuchyId == DUCHIES[0].externalDuchyId
+      }
 
     val request = setParticipantRequisitionParamsRequest {
       externalComputationId = measurement.externalComputationId
@@ -437,32 +529,74 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
         elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
       }
+      etag = computationParticipant.etag
     }
-
-    val expectedComputationParticipant = computationParticipant {
-      state = ComputationParticipant.State.REQUISITION_PARAMS_SET
-      this.externalMeasurementConsumerId = externalMeasurementConsumerId
-      externalMeasurementId = measurement.externalMeasurementId
-      externalComputationId = measurement.externalComputationId
-      externalDuchyId = DUCHIES[0].externalDuchyId
-      details = details { liquidLegionsV2 = request.liquidLegionsV2 }
-      apiVersion = measurement.details.apiVersion
-      duchyCertificate = duchyCertificates[DUCHIES[0].externalDuchyId]!!
-    }
-
-    val computationParticipant =
+    val response: ComputationParticipant =
       computationParticipantsService.setParticipantRequisitionParams(request)
-    assertThat(computationParticipant)
-      .ignoringFields(ComputationParticipant.UPDATE_TIME_FIELD_NUMBER)
-      .isEqualTo(expectedComputationParticipant)
 
-    val nonUpdatedMeasurement =
-      measurementsService.getMeasurementByComputationId(
-        GetMeasurementByComputationIdRequest.newBuilder()
-          .apply { externalComputationId = measurement.externalComputationId }
-          .build()
+    assertThat(response)
+      .ignoringFields(
+        ComputationParticipant.UPDATE_TIME_FIELD_NUMBER,
+        ComputationParticipant.ETAG_FIELD_NUMBER,
       )
-    assertThat(nonUpdatedMeasurement.state).isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
+      .isEqualTo(
+        computationParticipant.copy {
+          state = ComputationParticipant.State.REQUISITION_PARAMS_SET
+          duchyCertificate = duchyCertificates[DUCHIES[0].externalDuchyId]!!
+          details = details.copy { liquidLegionsV2 = request.liquidLegionsV2 }
+        }
+      )
+    assertThat(response.updateTime.toInstant())
+      .isGreaterThan(computationParticipant.updateTime.toInstant())
+    assertThat(response.etag).isNotEqualTo(computationParticipant.etag)
+
+    val updatedComputation: Measurement =
+      measurementsService.getMeasurementByComputationId(
+        getMeasurementByComputationIdRequest {
+          externalComputationId = measurement.externalComputationId
+        }
+      )
+    assertThat(updatedComputation.state).isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
+    assertThat(
+        updatedComputation.computationParticipantsList.single {
+          it.externalDuchyId == DUCHIES[0].externalDuchyId
+        }
+      )
+      .isEqualTo(response)
+  }
+
+  @Test
+  fun `setParticipantRequisitionParams throws ABORTED when etag mismatches`() = runBlocking {
+    createDuchyCertificates()
+    val measurementConsumer: MeasurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+    val measurement: Measurement =
+      population.createLlv2Measurement(
+        measurementsService,
+        measurementConsumer,
+        PROVIDED_MEASUREMENT_ID,
+        dataProvider,
+      )
+    val externalDuchyId = DUCHIES[0].externalDuchyId
+
+    val request = setParticipantRequisitionParamsRequest {
+      externalComputationId = measurement.externalComputationId
+      this.externalDuchyId = externalDuchyId
+      externalDuchyCertificateId = duchyCertificates[externalDuchyId]!!.externalCertificateId
+      liquidLegionsV2 = liquidLegionsV2Details {
+        elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+        elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+      }
+      etag = "invalid ETag"
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        computationParticipantsService.setParticipantRequisitionParams(request)
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("etag")
   }
 
   @Test
@@ -470,9 +604,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     createDuchyCertificates()
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
-    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
     val dataProvider = population.createDataProvider(dataProvidersService)
-
     val measurement =
       population.createHmssMeasurement(
         measurementsService,
@@ -480,6 +612,16 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         PROVIDED_MEASUREMENT_ID,
         dataProvider,
       )
+    val computation: Measurement =
+      measurementsService.getMeasurementByComputationId(
+        getMeasurementByComputationIdRequest {
+          externalComputationId = measurement.externalComputationId
+        }
+      )
+    val computationParticipant: ComputationParticipant =
+      computation.computationParticipantsList.single {
+        it.externalDuchyId == DUCHIES[0].externalDuchyId
+      }
 
     val request = setParticipantRequisitionParamsRequest {
       externalComputationId = measurement.externalComputationId
@@ -491,32 +633,36 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         tinkPublicKeySignature = TINK_PUBLIC_KEY_SIGNATURE
         tinkPublicKeySignatureAlgorithmOid = TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
       }
+      etag = computationParticipant.etag
     }
+    val response = computationParticipantsService.setParticipantRequisitionParams(request)
 
-    val expectedComputationParticipant = computationParticipant {
-      state = ComputationParticipant.State.READY
-      this.externalMeasurementConsumerId = externalMeasurementConsumerId
-      externalMeasurementId = measurement.externalMeasurementId
-      externalComputationId = measurement.externalComputationId
-      externalDuchyId = DUCHIES[0].externalDuchyId
-      details = details { honestMajorityShareShuffle = request.honestMajorityShareShuffle }
-      apiVersion = measurement.details.apiVersion
-      duchyCertificate = duchyCertificates[DUCHIES[0].externalDuchyId]!!
-    }
+    assertThat(response)
+      .ignoringFields(
+        ComputationParticipant.UPDATE_TIME_FIELD_NUMBER,
+        ComputationParticipant.ETAG_FIELD_NUMBER,
+      )
+      .isEqualTo(
+        computationParticipant.copy {
+          state = ComputationParticipant.State.READY
+          duchyCertificate = duchyCertificates[DUCHIES[0].externalDuchyId]!!
+          details = details.copy { honestMajorityShareShuffle = request.honestMajorityShareShuffle }
+        }
+      )
 
-    val computationParticipant =
-      computationParticipantsService.setParticipantRequisitionParams(request)
-    assertThat(computationParticipant)
-      .ignoringFields(ComputationParticipant.UPDATE_TIME_FIELD_NUMBER)
-      .isEqualTo(expectedComputationParticipant)
-
-    val nonUpdatedMeasurement =
+    val updatedComputation: Measurement =
       measurementsService.getMeasurementByComputationId(
         getMeasurementByComputationIdRequest {
           externalComputationId = measurement.externalComputationId
         }
       )
-    assertThat(nonUpdatedMeasurement.state).isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
+    assertThat(updatedComputation.state).isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
+    assertThat(
+        updatedComputation.computationParticipantsList.single {
+          it.externalDuchyId == DUCHIES[0].externalDuchyId
+        }
+      )
+      .isEqualTo(response)
   }
 
   @Test
@@ -926,6 +1072,75 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   }
 
   @Test
+  fun `confirmComputationParticipant throws ABORTED when etag mismatches`(): Unit = runBlocking {
+    createDuchyCertificates()
+    val measurement =
+      population.createLlv2Measurement(
+        measurementsService,
+        population.createMeasurementConsumer(measurementConsumersService, accountsService),
+        "measurement",
+        population.createDataProvider(dataProvidersService),
+        population.createDataProvider(dataProvidersService),
+      )
+    val liquidLegionsV2Details = liquidLegionsV2Details {
+      elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+      elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+    }
+    // Step 1 - SetParticipantRequisitionParams for all ComputationParticipants. This transitions
+    // the measurement state to PENDING_REQUISITION_FULFILLMENT.
+    for (duchyCertificate in duchyCertificates.values) {
+      computationParticipantsService.setParticipantRequisitionParams(
+        setParticipantRequisitionParamsRequest {
+          externalComputationId = measurement.externalComputationId
+          externalDuchyId = duchyCertificate.externalDuchyId
+          externalDuchyCertificateId = duchyCertificate.externalCertificateId
+          liquidLegionsV2 = liquidLegionsV2Details
+        }
+      )
+    }
+    // Step 2 - FulfillRequisitions for all Requisitions. This transitions the measurement state to
+    // PENDING_PARTICIPANT_CONFIRMATION.
+    val requisitions =
+      requisitionsService
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+              externalMeasurementId = measurement.externalMeasurementId
+            }
+          }
+        )
+        .toList()
+    val nonce = 3127743798281582205L
+    for ((requisition, duchy) in requisitions zip DUCHIES) {
+      requisitionsService.fulfillRequisition(
+        fulfillRequisitionRequest {
+          externalRequisitionId = requisition.externalRequisitionId
+          this.nonce = nonce
+          computedParams = computedRequisitionParams {
+            externalComputationId = measurement.externalComputationId
+            externalFulfillingDuchyId = duchy.externalDuchyId
+          }
+        }
+      )
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        computationParticipantsService.confirmComputationParticipant(
+          confirmComputationParticipantRequest {
+            externalComputationId = measurement.externalComputationId
+            externalDuchyId = DUCHIES[0].externalDuchyId
+            etag = "invalid ETag"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("etag")
+  }
+
+  @Test
   fun `failComputationParticipant fails due to illegal measurement state`() = runBlocking {
     createDuchyCertificates()
     val measurementConsumer =
@@ -983,7 +1198,6 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
-
     val measurement =
       population.createLlv2Measurement(
         measurementsService,
@@ -991,29 +1205,30 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         "measurement 1",
         dataProvider,
       )
+    val computationParticipant =
+      computationParticipantsService.setParticipantRequisitionParams(
+        setParticipantRequisitionParamsRequest {
+          externalComputationId = measurement.externalComputationId
+          externalDuchyId = DUCHIES[0].externalDuchyId
+          externalDuchyCertificateId =
+            duchyCertificates[DUCHIES[0].externalDuchyId]!!.externalCertificateId
+          liquidLegionsV2 = liquidLegionsV2Details {
+            elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+            elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+          }
+        }
+      )
 
-    val request = setParticipantRequisitionParamsRequest {
-      externalComputationId = measurement.externalComputationId
-      externalDuchyId = DUCHIES[0].externalDuchyId
-      externalDuchyCertificateId =
-        duchyCertificates[DUCHIES[0].externalDuchyId]!!.externalCertificateId
-      liquidLegionsV2 = liquidLegionsV2Details {
-        elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
-        elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
-      }
-    }
-
-    computationParticipantsService.setParticipantRequisitionParams(request)
-
-    val failedComputationParticipant =
+    val response =
       computationParticipantsService.failComputationParticipant(
         failComputationParticipantRequest {
           externalComputationId = measurement.externalComputationId
           externalDuchyId = DUCHIES[0].externalDuchyId
           errorMessage = "Failure message."
+          etag = computationParticipant.etag
         }
       )
-    assertThat(failedComputationParticipant.state).isEqualTo(ComputationParticipant.State.FAILED)
+    assertThat(response.state).isEqualTo(ComputationParticipant.State.FAILED)
 
     val failedMeasurement =
       measurementsService.getMeasurementByComputationId(
@@ -1034,7 +1249,37 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         }
       )
       .ignoringFields(ComputationParticipant.FAILURE_LOG_ENTRY_FIELD_NUMBER)
-      .isEqualTo(failedComputationParticipant)
+      .isEqualTo(response)
+  }
+
+  @Test
+  fun `failComputationParticipant throws ABORTED when etag mismatches`() = runBlocking {
+    createDuchyCertificates()
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val measurement =
+      population.createLlv2Measurement(
+        measurementsService,
+        measurementConsumer,
+        "measurement 1",
+        dataProvider,
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        computationParticipantsService.failComputationParticipant(
+          failComputationParticipantRequest {
+            externalComputationId = measurement.externalComputationId
+            externalDuchyId = DUCHIES[0].externalDuchyId
+            errorMessage = "Failure message."
+            etag = "invalid ETag"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("etag")
   }
 
   companion object {
@@ -1049,11 +1294,9 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       )
       HmssProtocolConfig.setForTest(
         ProtocolConfig.HonestMajorityShareShuffle.getDefaultInstance(),
-        setOf(
-          Population.AGGREGATOR_DUCHY.externalDuchyId,
-          Population.WORKER1_DUCHY.externalDuchyId,
-          Population.WORKER2_DUCHY.externalDuchyId,
-        ),
+        Population.WORKER1_DUCHY.externalDuchyId,
+        Population.WORKER2_DUCHY.externalDuchyId,
+        Population.AGGREGATOR_DUCHY.externalDuchyId,
       )
     }
   }

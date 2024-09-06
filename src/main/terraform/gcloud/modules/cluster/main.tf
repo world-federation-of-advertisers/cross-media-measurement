@@ -36,7 +36,7 @@ resource "google_container_cluster" "cluster" {
   }
 
   monitoring_config {
-    enable_components = ["SYSTEM_COMPONENTS"]
+    enable_components = ["SYSTEM_COMPONENTS", "HPA", "DEPLOYMENT", "POD"]
     managed_prometheus {
       enabled = true
     }
@@ -46,6 +46,10 @@ resource "google_container_cluster" "cluster" {
 
   release_channel {
     channel = var.release_channel
+  }
+
+  cluster_autoscaling {
+    autoscaling_profile = var.autoscaling_profile
   }
 
   # We can't create a cluster with no node pool defined, but we want to only use

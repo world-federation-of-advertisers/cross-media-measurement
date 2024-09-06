@@ -26,9 +26,14 @@
 
 namespace wfa::measurement::internal::duchy::protocol::share_shuffle {
 
-absl::StatusOr<std::vector<uint32_t>> GenerateNoiseRegisters(
-    const ShareShuffleSketchParams& sketch_param,
-    const math::DistributedNoiser& distributed_noiser);
+absl::StatusOr<std::vector<uint32_t>> GenerateReachAndFrequencyNoiseRegisters(
+    const ShareShuffleFrequencyVectorParams& frequency_vector_param,
+    const math::DistributedNoiser& distributed_reach_noiser,
+    const math::DistributedNoiser& distributed_frequency_noiser);
+
+absl::StatusOr<std::vector<uint32_t>> GenerateReachOnlyNoiseRegisters(
+    const ShareShuffleFrequencyVectorParams& frequency_vector_param,
+    const math::DistributedNoiser& distributed_reach_noiser);
 
 absl::StatusOr<frequency_count::PrngSeed> GetPrngSeedFromString(
     const std::string& seed_str);
@@ -37,17 +42,18 @@ absl::StatusOr<frequency_count::PrngSeed> GetPrngSeedFromCharVector(
     const std::vector<unsigned char>& seed_vec);
 
 absl::StatusOr<std::vector<uint32_t>> GenerateShareFromSeed(
-    const ShareShuffleSketchParams& param,
+    const ShareShuffleFrequencyVectorParams& param,
     const frequency_count::PrngSeed& seed);
 
-absl::StatusOr<std::vector<uint32_t>> GetShareVectorFromSketchShare(
-    const ShareShuffleSketchParams& sketch_params,
-    const CompleteShufflePhaseRequest::SketchShare& sketch_share);
+absl::StatusOr<std::vector<uint32_t>> GetShareVectorFromFrequencyVectorShare(
+    const ShareShuffleFrequencyVectorParams& frequency_vector_params,
+    const CompleteShufflePhaseRequest::FrequencyVectorShare&
+        frequency_vector_share);
 
-absl::StatusOr<std::vector<uint32_t>> CombineSketchShares(
-    const ShareShuffleSketchParams& sketch_params,
+absl::StatusOr<std::vector<uint32_t>> CombineFrequencyVectorShares(
+    const ShareShuffleFrequencyVectorParams& frequency_vector_params,
     const google::protobuf::RepeatedPtrField<
-        CompleteAggregationPhaseRequest::ShareData>& sketch_shares);
+        CompleteAggregationPhaseRequest::ShareData>& frequency_vector_shares);
 
 // Returns a vector result where result[i] = X[i] - Y[i] mod modulus.
 absl::StatusOr<std::vector<uint32_t>> VectorSubMod(

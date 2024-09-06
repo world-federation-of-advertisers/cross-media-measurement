@@ -65,13 +65,43 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 #OpenTelemetryReceiverPort:           4317
 #OpenTelemetryPrometheusExporterPort: 8889
-#OpenTelemetryCollectorEndpoint:      "http://default-collector-headless.default.svc:\(#OpenTelemetryReceiverPort)"
 
 // K8s ServiceAccount.
 #ServiceAccount: {
 	apiVersion: "v1"
 	kind:       "ServiceAccount"
 	metadata:   #ObjectMeta
+}
+
+// K8s Role.
+#Role: {
+	apiVersion: "rbac.authorization.k8s.io/v1"
+	kind:       "Role"
+	metadata:   #ObjectMeta
+	rules: [...{
+		apiGroups?: [...string]
+		resources?: [...string]
+		verbs: [...string]
+		resourceNames?: [...string]
+	}]
+}
+
+// K8s RoleBinding.
+#RoleBinding: {
+	apiVersion: "rbac.authorization.k8s.io/v1"
+	kind:       "RoleBinding"
+	metadata:   #ObjectMeta
+	roleRef: {
+		apiGroup: string
+		kind:     string
+		name:     string
+	}
+	subjects: [...{
+		kind:       string
+		name:       string
+		apiGroup?:  string
+		namespace?: string
+	}]
 }
 
 #ResourceQuantity: {
@@ -286,13 +316,15 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #ObjectMeta: {
 	_component?: string
 
-	name: string
+	name?: string
 	labels: [_=string]:      string
 	annotations: [_=string]: string
 
 	labels: {
-		"app.kubernetes.io/name":    name
 		"app.kubernetes.io/part-of": #AppName
+		if (name != _|_) {
+			"app.kubernetes.io/name": name
+		}
 		if (_component != _|_) {
 			"app.kubernetes.io/component": _component
 		}
@@ -309,7 +341,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 // K8s LabelSelector.
 #LabelSelector: {
 	matchExpressions?: [...#LabelSelectorRequirement]
-	matchLabels: [string]: string
+	matchLabels?: [string]: string
 }
 
 // K8s ConfigMap.
@@ -399,6 +431,49 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	tolerations: [ for _, toleration in _tolerations {toleration}]
 }
 
+// K8s PodTemplateSpec.
+#PodTemplateSpec: {
+	metadata: #ObjectMeta & {
+		annotations: {
+			"instrumentation.opentelemetry.io/inject-java": string | *"true"
+		}
+	}
+	spec: #PodSpec
+}
+
+// K8s PodTemplate.
+#PodTemplate: {
+	let Name = metadata.name
+
+	_secretName?: string
+	_container:   #Container & {
+		_javaOptions: {
+			heapDumpOnOutOfMemory: true
+			heapDumpPath:          "/run/heap-dumps"
+		}
+	}
+
+	apiVersion: "v1"
+	kind:       "PodTemplate"
+	metadata:   #ObjectMeta
+	template:   #PodTemplateSpec & {
+		metadata: labels: {
+			app: "\(Name)-app"
+		}
+		spec: {
+			_mounts: {
+				if _secretName != _|_ {
+					"\(Name)-files": {
+						volume: secret: secretName: _secretName
+					}
+				}
+				"heap-dumps": volume: emptyDir: {}
+			}
+			_containers: "\(Name)-container": _container
+		}
+	}
+}
+
 // K8s Pod.
 #Pod: {
 	apiVersion: "v1"
@@ -413,8 +488,11 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 // K8s Probe.
 #Probe: {
-	grpc: {
+	grpc?: {
 		port: uint32
+	}
+	exec?: {
+		command: [...string]
 	}
 	initialDelaySeconds?: uint32
 	periodSeconds?:       uint32
@@ -460,6 +538,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	volumeMounts: [ for _, volumeMount in _volumeMounts {volumeMount}]
 	resources?:      #ResourceRequirements
 	readinessProbe?: #Probe
+	startupProbe?:   #Probe
+	restartPolicy?:  "Always" // For sidecar containers.
 	env: [ for _, envVar in _envVars {envVar}]
 }
 
@@ -490,16 +570,13 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		selector:  #LabelSelector & {
 			matchLabels: app: _name + "-app"
 		}
-		template: {
+		template: #PodTemplateSpec & {
 			metadata: {
 				labels: {
 					app: _name + "-app"
 				}
-				annotations: {
-					"instrumentation.opentelemetry.io/inject-java": string | *"true"
-				}
 			}
-			spec: #PodSpec & {
+			spec: {
 				_mounts: {
 					if _secretName != _|_ {
 						"\(_name)-files": {
@@ -529,39 +606,6 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 }
 
-// K8s Job.
-#Job: {
-	_name:        string
-	_secretName?: string
-	_container:   #Container
-
-	apiVersion: "batch/v1"
-	kind:       "Job"
-	metadata: {
-		name: _name + "-job"
-		labels: {
-			"app.kubernetes.io/name":    _name
-			"app.kubernetes.io/part-of": #AppName
-		}
-	}
-	spec: {
-		backoffLimit?: uint
-		template: {
-			metadata: labels: app: _name + "-app"
-			spec: #PodSpec & {
-				if _secretName != _|_ {
-					_mounts: "\(_name)-files": {
-						volume: secret: secretName: _secretName
-					}
-				}
-				_containers: "\(_name)-container": _container
-
-				restartPolicy: restartPolicy | *"OnFailure"
-			}
-		}
-	}
-}
-
 // K8s CronJob
 #CronJob: {
 	_name:        string
@@ -570,32 +614,34 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 	apiVersion: "batch/v1"
 	kind:       "CronJob"
-	metadata: {
+	metadata:   #ObjectMeta & {
 		name: _name + "-cronjob"
-		labels: {
-			"app.kubernetes.io/name":    _name
-			"app.kubernetes.io/part-of": #AppName
-		}
 	}
 	spec: {
-		schedule: string
+		schedule:                    string
+		concurrencyPolicy?:          "Allow" | "Forbid" | "Replace"
+		startingDeadlineSeconds?:    int64
+		suspend?:                    bool
+		successfulJobsHistoryLimit?: int32 & >0
+		failedJobsHistoryLimit?:     int32 & >0
+
 		jobTemplate: {
 			spec: {
 				backoffLimit: uint | *0
-				template: {
+				template:     #PodTemplateSpec & {
 					metadata: {
 						labels: {
 							app: _name + "-app"
 						}
 					}
-					spec: #PodSpec & {
+					spec: {
 						if _secretName != _|_ {
 							_mounts: "\(_name)-files": {
 								volume: secret: secretName: _secretName
 							}
 						}
 						_containers: "\(_name)-container": _container
-						restartPolicy: restartPolicy | *"Never"
+						restartPolicy: _ | *"Never"
 					}
 				}
 			}
@@ -610,15 +656,23 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 }
 
 // K8s NetworkPolicyEgressRule.
-#EgressRule: {
-	to: [...]
-	ports: [...#NetworkPolicyPort]
+#NetworkPolicyEgressRule: {
+	to?: [...#NetworkPolicyPeer]
+	ports?: [...#NetworkPolicyPort]
 }
 
 // K8s NetworkPolicyIngressRule.
-#IngressRule: {
-	from: [...]
-	ports: [...#NetworkPolicyPort]
+#NetworkPolicyIngressRule: {
+	from?: [...#NetworkPolicyPeer]
+	ports?: [...#NetworkPolicyPort]
+}
+
+// K8s NetworkPolicyPeer.
+#NetworkPolicyPeer: {
+	ipBlock?: {...}
+	namespaceSelector?: #LabelSelector
+	podSelector?:       #LabelSelector
+	ports?: [...#NetworkPolicyPort]
 }
 
 // K8s NetworkPolicy.
@@ -632,8 +686,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_app_label?: string
 	_sourceMatchLabels: [...string]
 	_destinationMatchLabels: [...string]
-	_ingresses: [Name=_]: #IngressRule
-	_egresses: [Name=_]:  #EgressRule
+	_ingresses: [_]: #NetworkPolicyIngressRule
+	_egresses: [_]:  #NetworkPolicyEgressRule
 
 	_ingresses: {
 		if len(_sourceMatchLabels) > 0 {
@@ -656,28 +710,12 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				}]
 			}
 		}
-		dns: {
-			to: [{
-				namespaceSelector: {} // Allow DNS only inside the cluster
-				podSelector: matchLabels: "k8s-app": "kube-dns"
-			}]
-			ports: [{
-				protocol: "UDP"
-				port:     53
-			}, {
-				protocol: "TCP"
-				port:     53
-			}]
-		}
 	}
 
 	apiVersion: "networking.k8s.io/v1"
 	kind:       "NetworkPolicy"
-	metadata: {
+	metadata:   #ObjectMeta & {
 		name: _name + "-network-policy"
-		labels: {
-			"app.kubernetes.io/part-of": #AppName
-		}
 	}
 	spec: {
 		podSelector: #LabelSelector & {
@@ -687,27 +725,45 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				}
 			}
 		}
-		policyTypes: ["Ingress", "Egress"]
+		policyTypes?: ["Ingress"] | ["Egress"] | ["Ingress", "Egress"]
 		ingress: [ for _, ingress in _ingresses {ingress}]
 		egress: [ for _, egress in _egresses {egress}]
 	}
 }
 
-// This policy will deny ingress and egress traffic at all unconfigured pods.
-default_deny_ingress_and_egress: [{
-	apiVersion: "networking.k8s.io/v1"
-	kind:       "NetworkPolicy"
-	metadata: {
-		name: "default-deny-ingress-and-egress"
-		labels: {
-			"app.kubernetes.io/part-of": #AppName
+defaultNetworkPolicies: [Name=string]: #NetworkPolicy & {
+	_name: Name
+}
+defaultNetworkPolicies: {
+	// This policy will deny ingress and egress traffic at all unconfigured pods.
+	"default-deny": {
+		spec: {
+			podSelector: {}
+			policyTypes: ["Ingress", "Egress"]
 		}
 	}
-	spec: {
-		podSelector: {}
-		policyTypes: ["Ingress", "Egress"]
+	"kube-dns": {
+		_egresses: {
+			dns: {
+				to: [{
+					namespaceSelector: {} // Allow DNS only inside the cluster
+					podSelector: matchLabels: "k8s-app": "kube-dns"
+				}]
+				ports: [{
+					protocol: "UDP"
+					port:     53
+				}, {
+					protocol: "TCP"
+					port:     53
+				}]
+			}
+		}
+		spec: {
+			podSelector: {}
+			policyTypes: ["Egress"]
+		}
 	}
-}]
+}
 
 // A simple fanout Ingress base definition
 #Ingress: {

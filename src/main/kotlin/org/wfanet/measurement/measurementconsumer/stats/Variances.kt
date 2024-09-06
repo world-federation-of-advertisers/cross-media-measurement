@@ -167,7 +167,7 @@ object VariancesImpl : Variances {
     }
 
     val frequencyNoiseVariance: Double =
-      computeNoiseVariance(measurementParams.dpParams, measurementParams.noiseMechanism)
+      computeDirectNoiseVariance(measurementParams.dpParams, measurementParams.noiseMechanism)
     val varPart1 =
       reachRatio * (1.0 - reachRatio) * (1.0 - measurementParams.vidSamplingInterval.width) /
         (totalReach * measurementParams.vidSamplingInterval.width)
@@ -207,7 +207,7 @@ object VariancesImpl : Variances {
     noiseMechanism: NoiseMechanism,
   ): Double {
     require(measurementValue >= 0.0) { "The scalar measurement value cannot be negative." }
-    val noiseVariance: Double = computeNoiseVariance(dpParams, noiseMechanism)
+    val noiseVariance: Double = computeDirectNoiseVariance(dpParams, noiseMechanism)
     val variance =
       (maximumFrequencyPerUser *
         measurementValue *
@@ -227,7 +227,7 @@ object VariancesImpl : Variances {
     varianceParams: ReachMeasurementVarianceParams,
   ): Double {
     val noiseVariance: Double =
-      computeNoiseVariance(
+      computeDirectNoiseVariance(
         varianceParams.measurementParams.dpParams,
         varianceParams.measurementParams.noiseMechanism,
       )
@@ -275,7 +275,7 @@ object VariancesImpl : Variances {
     relativeFrequencyMeasurementVarianceParams: RelativeFrequencyMeasurementVarianceParams
   ) -> Double {
     val frequencyNoiseVariance: Double =
-      computeNoiseVariance(measurementParams.dpParams, measurementParams.noiseMechanism)
+      computeDirectNoiseVariance(measurementParams.dpParams, measurementParams.noiseMechanism)
     return { relativeFrequencyMeasurementVarianceParams ->
       LiquidLegions.liquidLegionsFrequencyRelativeVariance(
         sketchParams = sketchParams,
@@ -351,7 +351,10 @@ object VariancesImpl : Variances {
   }
 
   /** Computes the noise variance based on the [DpParams] and the [NoiseMechanism]. */
-  private fun computeNoiseVariance(dpParams: DpParams, noiseMechanism: NoiseMechanism): Double {
+  private fun computeDirectNoiseVariance(
+    dpParams: DpParams,
+    noiseMechanism: NoiseMechanism,
+  ): Double {
     return when (noiseMechanism) {
       NoiseMechanism.NONE -> 0.0
       NoiseMechanism.LAPLACE -> {
@@ -376,7 +379,7 @@ object VariancesImpl : Variances {
       NoiseMechanism.GAUSSIAN -> {
         // By passing 1 to contributorCount, the function called below outputs the total distributed
         // sigma of the noiser as sigmaDistributed = sigma / sqrt(contributorCount).
-        AcdpParamsConverter.computeLlv2SigmaDistributedDiscreteGaussian(
+        AcdpParamsConverter.computeMpcSigmaDistributedDiscreteGaussian(
             dpParams,
             contributorCount = 1,
           )
@@ -465,6 +468,132 @@ object VariancesImpl : Variances {
       kPlusCountVariances,
     )
   }
+
+  /**
+   * Computes [ReachVariance] of a reach-and-frequency measurement that is computed using the Honest
+   * Majority Share Shuffle methodology.
+   */
+  private fun computeHonestMajorityShareShuffleVariance(
+    frequencyVectorSize: Long,
+    reachParams: ReachMeasurementVarianceParams,
+  ): Double {
+    val reachNoiseVariance: Double =
+      computeDistributedNoiseVariance(
+        reachParams.measurementParams.dpParams,
+        reachParams.measurementParams.noiseMechanism,
+      )
+
+    val variance =
+      HonestMajorityShareShuffle.reachVariance(
+        frequencyVectorSize = frequencyVectorSize,
+        vidSamplingIntervalWidth = reachParams.measurementParams.vidSamplingInterval.width,
+        reach = reachParams.reach,
+        reachNoiseVariance = reachNoiseVariance,
+      )
+    return max(0.0, variance)
+  }
+
+  /**
+   * Computes [FrequencyVariances] of a reach-and-frequency measurement that is computed using the
+   * Honest Majority Share Shuffle methodology.
+   */
+  private fun computeHonestMajorityShareShuffleVariance(
+    frequencyVectorSize: Long,
+    frequencyParams: FrequencyMeasurementVarianceParams,
+  ): FrequencyVariances {
+    require(frequencyParams.totalReach >= 0.0) { "The total reach value cannot be negative." }
+    require(frequencyParams.reachMeasurementVariance >= 0.0) {
+      "The reach variance value cannot be negative."
+    }
+
+    val maximumFrequency = frequencyParams.measurementParams.maximumFrequency
+
+    val frequencyNoiseVariance: Double =
+      computeDistributedNoiseVariance(
+        frequencyParams.measurementParams.dpParams,
+        frequencyParams.measurementParams.noiseMechanism,
+      )
+
+    var suffixSum = 0.0
+    // There is no estimate of zero-frequency reach
+    val kPlusRelativeFrequencyDistribution: Map<Int, Double> =
+      (maximumFrequency downTo 1).associateWith { frequency ->
+        suffixSum += frequencyParams.relativeFrequencyDistribution.getOrDefault(frequency, 0.0)
+        suffixSum
+      }
+
+    val countVariances: Map<Int, Double> =
+      (1..maximumFrequency).associateWith { frequency ->
+        HonestMajorityShareShuffle.frequencyCountVariance(
+          frequencyVectorSize,
+          frequency,
+          frequencyNoiseVariance,
+          RelativeFrequencyMeasurementVarianceParams(
+            frequencyParams.totalReach,
+            frequencyParams.reachMeasurementVariance,
+            frequencyParams.relativeFrequencyDistribution.getOrDefault(frequency, 0.0),
+            frequencyParams.measurementParams,
+            0,
+          ),
+        )
+      }
+
+    val kPlusCountVariances: Map<Int, Double> =
+      (1..maximumFrequency).associateWith { frequency ->
+        HonestMajorityShareShuffle.kPlusFrequencyCountVariance(
+          frequencyVectorSize,
+          frequency,
+          frequencyNoiseVariance,
+          RelativeFrequencyMeasurementVarianceParams(
+            frequencyParams.totalReach,
+            frequencyParams.reachMeasurementVariance,
+            kPlusRelativeFrequencyDistribution.getValue(frequency),
+            frequencyParams.measurementParams,
+            0,
+          ),
+        )
+      }
+
+    val relativeVariances: Map<Int, Double> =
+      (1..maximumFrequency).associateWith { frequency ->
+        HonestMajorityShareShuffle.frequencyRelativeVariance(
+          frequencyVectorSize,
+          frequency,
+          frequencyNoiseVariance,
+          RelativeFrequencyMeasurementVarianceParams(
+            frequencyParams.totalReach,
+            frequencyParams.reachMeasurementVariance,
+            frequencyParams.relativeFrequencyDistribution.getOrDefault(frequency, 0.0),
+            frequencyParams.measurementParams,
+            0,
+          ),
+        )
+      }
+
+    val kPlusRelativeVariances: Map<Int, Double> =
+      (1..maximumFrequency).associateWith { frequency ->
+        HonestMajorityShareShuffle.kPlusFrequencyRelativeVariance(
+          frequencyVectorSize,
+          frequency,
+          frequencyNoiseVariance,
+          RelativeFrequencyMeasurementVarianceParams(
+            frequencyParams.totalReach,
+            frequencyParams.reachMeasurementVariance,
+            kPlusRelativeFrequencyDistribution.getValue(frequency),
+            frequencyParams.measurementParams,
+            0,
+          ),
+        )
+      }
+
+    return FrequencyVariances(
+      relativeVariances,
+      kPlusRelativeVariances,
+      countVariances,
+      kPlusCountVariances,
+    )
+  }
+
   /**
    * Common function that computes [FrequencyVariances] with known [relativeVariances] and
    * [kPlusRelativeVariances].
@@ -601,6 +730,12 @@ object VariancesImpl : Variances {
           measurementVarianceParams,
         )
       }
+      is HonestMajorityShareShuffleMethodology -> {
+        computeHonestMajorityShareShuffleVariance(
+          methodology.frequencyVectorSize,
+          measurementVarianceParams,
+        )
+      }
     }
   }
 
@@ -666,6 +801,12 @@ object VariancesImpl : Variances {
       is LiquidLegionsV2Methodology -> {
         computeLiquidLegionsV2Variance(
           LiquidLegionsSketchParams(methodology.decayRate, methodology.sketchSize),
+          measurementVarianceParams,
+        )
+      }
+      is HonestMajorityShareShuffleMethodology -> {
+        computeHonestMajorityShareShuffleVariance(
+          methodology.frequencyVectorSize,
           measurementVarianceParams,
         )
       }
@@ -744,6 +885,12 @@ object VariancesImpl : Variances {
           IllegalArgumentException("Invalid methodology"),
         )
       }
+      is HonestMajorityShareShuffleMethodology -> {
+        throw UnsupportedMethodologyUsageException(
+          "Methodology HONEST_MAJORITY_SHARE_SHUFFLE is not supported for impression.",
+          IllegalArgumentException("Invalid methodology"),
+        )
+      }
     }
   }
 
@@ -798,6 +945,12 @@ object VariancesImpl : Variances {
       is LiquidLegionsV2Methodology -> {
         throw UnsupportedMethodologyUsageException(
           "Methodology LIQUID_LEGIONS_V2 is not supported for watch duration.",
+          IllegalArgumentException("Invalid methodology"),
+        )
+      }
+      is HonestMajorityShareShuffleMethodology -> {
+        throw UnsupportedMethodologyUsageException(
+          "Methodology HONEST_MAJORITY_SHARE_SHUFFLE is not supported for watch duration.",
           IllegalArgumentException("Invalid methodology"),
         )
       }

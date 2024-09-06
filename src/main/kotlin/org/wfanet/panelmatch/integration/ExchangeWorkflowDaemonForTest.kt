@@ -21,8 +21,10 @@ import java.time.Clock
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.apache.beam.sdk.options.PipelineOptionsFactory
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -36,6 +38,7 @@ import org.wfanet.panelmatch.client.deploy.ExchangeWorkflowDaemon
 import org.wfanet.panelmatch.client.deploy.ProductionExchangeTaskMapper
 import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessingParameters
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Party
 import org.wfanet.panelmatch.client.launcher.ApiClient
 import org.wfanet.panelmatch.client.launcher.GrpcApiClient
 import org.wfanet.panelmatch.client.storage.FileSystemStorageFactory
@@ -92,7 +95,13 @@ class ExchangeWorkflowDaemonForTest(
 
   override val certificateManager: CertificateManager = TestCertificateManager
 
-  override val identity: Identity = Identity.fromResourceKey(provider)
+  override val identity: Identity by lazy {
+    when (provider) {
+      is DataProviderKey -> Identity(provider.dataProviderId, Party.DATA_PROVIDER)
+      is ModelProviderKey -> Identity(provider.modelProviderId, Party.MODEL_PROVIDER)
+      else -> error("Invalid provider: $provider")
+    }
+  }
 
   override val maxParallelClaimedExchangeSteps = null
 
@@ -107,6 +116,8 @@ class ExchangeWorkflowDaemonForTest(
   }
 
   override val throttler: Throttler = MinimumIntervalThrottler(clock, pollingInterval)
+
+  override val runMode: RunMode = RunMode.DAEMON
 
   private val preprocessingParameters =
     PreprocessingParameters(maxByteSize = 1024 * 1024, fileCount = 1)

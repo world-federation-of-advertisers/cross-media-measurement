@@ -27,6 +27,7 @@ import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
+import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
@@ -42,7 +43,9 @@ import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerDa
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator.MeasurementInfo
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
+import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
+import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
@@ -71,6 +74,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
     InProcessCmmsComponents(
       kingdomDataServicesRule,
       duchyDependenciesRule,
+      SYNTHETIC_POPULATION_SPEC,
       SYNTHETIC_EVENT_GROUP_SPECS,
     )
 
@@ -107,7 +111,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventQuery =
       MetadataSyntheticGeneratorEventQuery(
-        SyntheticGenerationSpecs.POPULATION_SPEC,
+        SYNTHETIC_POPULATION_SPEC,
         InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
       )
     mcSimulator =
@@ -140,13 +144,11 @@ abstract class InProcessReachMeasurementAccuracyTest(
     inProcessCmmsComponents.stopDuchyDaemons()
   }
 
-  private fun getReachVariance(measurementInfo: MeasurementInfo, reach: Long): Double {
-    val liquidLegionsMethodology =
-      LiquidLegionsV2Methodology(
-        RoLlv2ProtocolConfig.protocolConfig.sketchParams.decayRate,
-        RoLlv2ProtocolConfig.protocolConfig.sketchParams.maxSize,
-        RoLlv2ProtocolConfig.protocolConfig.sketchParams.samplingIndicatorSize,
-      )
+  private fun getReachVariance(
+    methodology: Methodology,
+    measurementInfo: MeasurementInfo,
+    reach: Long,
+  ): Double {
     val reachMeasurementParams =
       ReachMeasurementParams(
         StatsVidSamplingInterval(
@@ -158,7 +160,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
       )
     val reachMeasurementVarianceParams =
       ReachMeasurementVarianceParams(reach, reachMeasurementParams)
-    return computeMeasurementVariance(liquidLegionsMethodology, reachMeasurementVarianceParams)
+    return computeMeasurementVariance(methodology, reachMeasurementVarianceParams)
   }
 
   private fun getStandardDeviation(nums: List<Double>): Double {
@@ -181,14 +183,24 @@ abstract class InProcessReachMeasurementAccuracyTest(
     val reachResults = mutableListOf<ReachResult>()
     var expectedReach = -1L
     var expectedStandardDeviation = 0.0
-
+    val liquidLegionsMethodology =
+      LiquidLegionsV2Methodology(
+        RoLlv2ProtocolConfig.protocolConfig.sketchParams.decayRate,
+        RoLlv2ProtocolConfig.protocolConfig.sketchParams.maxSize,
+        RoLlv2ProtocolConfig.protocolConfig.sketchParams.samplingIndicatorSize,
+      )
     var summary = ""
     for (round in 1..DEFAULT_TEST_ROUND_NUMBER) {
-      val executionResult = mcSimulator.executeReachOnly(round.toString())
+      val executionResult =
+        mcSimulator.executeReachOnly(
+          round.toString(),
+          DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+        )
 
       if (expectedReach == -1L) {
         expectedReach = executionResult.expectedResult.reach.value
-        val expectedVariance = getReachVariance(executionResult.measurementInfo, expectedReach)
+        val expectedVariance =
+          getReachVariance(liquidLegionsMethodology, executionResult.measurementInfo, expectedReach)
         expectedStandardDeviation = sqrt(expectedVariance)
       } else if (expectedReach != executionResult.expectedResult.reach.value) {
         logger.log(
@@ -201,7 +213,8 @@ abstract class InProcessReachMeasurementAccuracyTest(
       // The general formula for confidence interval is result +/- multiplier * sqrt(variance).
       // The multiplier for 95% confidence interval is 1.96.
       val reach = executionResult.actualResult.reach.value
-      val reachVariance = getReachVariance(executionResult.measurementInfo, reach)
+      val reachVariance =
+        getReachVariance(liquidLegionsMethodology, executionResult.measurementInfo, reach)
       val intervalLowerBound = reach - sqrt(reachVariance) * MULTIPLIER
       val intervalUpperBound = reach + sqrt(reachVariance) * MULTIPLIER
       val withinInterval = reach >= intervalLowerBound && reach <= intervalUpperBound
@@ -252,10 +265,201 @@ abstract class InProcessReachMeasurementAccuracyTest(
       .isLessThan(expectedStandardDeviation * STANDARD_DEVIATION_TEST_UPPER_THRESHOLD)
   }
 
+  @Test
+  fun `reach-only hmss results should be accurate with respect to the variance`() = runBlocking {
+    val reachResults = mutableListOf<ReachResult>()
+    var expectedReach = -1L
+    var expectedStandardDeviation = 0.0
+    var summary = ""
+    for (round in 1..DEFAULT_TEST_ROUND_NUMBER) {
+      val executionResult =
+        mcSimulator.executeReachOnly(
+          round.toString(),
+          DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+        )
+      val honestMajorityShareShuffleMethodology =
+        HonestMajorityShareShuffleMethodology(
+          frequencyVectorSize =
+            executionResult.actualResult.reach.honestMajorityShareShuffle.frequencyVectorSize
+        )
+
+      if (expectedReach == -1L) {
+        expectedReach = executionResult.expectedResult.reach.value
+        val expectedVariance =
+          getReachVariance(
+            honestMajorityShareShuffleMethodology,
+            executionResult.measurementInfo,
+            expectedReach,
+          )
+        expectedStandardDeviation = sqrt(expectedVariance)
+      } else if (expectedReach != executionResult.expectedResult.reach.value) {
+        logger.log(
+          Level.WARNING,
+          "expected result not consistent. round=$round, prev_expected_result=$expectedReach, " +
+            "current_expected_result=${executionResult.expectedResult.reach.value}",
+        )
+      }
+
+      // The general formula for confidence interval is result +/- multiplier * sqrt(variance).
+      // The multiplier for 95% confidence interval is 1.96.
+      val reach = executionResult.actualResult.reach.value
+      val reachVariance =
+        getReachVariance(
+          honestMajorityShareShuffleMethodology,
+          executionResult.measurementInfo,
+          reach,
+        )
+      val intervalLowerBound = reach - sqrt(reachVariance) * MULTIPLIER
+      val intervalUpperBound = reach + sqrt(reachVariance) * MULTIPLIER
+      val withinInterval = reach >= intervalLowerBound && reach <= intervalUpperBound
+
+      val reachResult =
+        ReachResult(reach, expectedReach, intervalLowerBound, intervalUpperBound, withinInterval)
+      reachResults += reachResult
+
+      val message =
+        "round=$round, actual_result=${reachResult.actualReach}, " +
+          "expected_result=${reachResult.expectedReach}, " +
+          "interval=(${"%.2f".format(reachResult.lowerBound)}, " +
+          "${"%.2f".format(reachResult.upperBound)}), accurate=${reachResult.withinInterval}"
+      summary += message + "\n"
+      logger.log(Level.INFO, message)
+    }
+
+    logger.log(Level.INFO, "Accuracy Test Complete.\n$summary")
+
+    val averageReach = reachResults.map { it.actualReach }.average()
+    val withinIntervalNumber = reachResults.map { if (it.withinInterval) 1 else 0 }.sum()
+    val withinIntervalPercentage = withinIntervalNumber.toDouble() / reachResults.size * 100
+    val offsetPercentage = (averageReach - expectedReach) / expectedReach * 100
+    val averageDispersionRatio =
+      abs(averageReach - expectedReach) * sqrt(DEFAULT_TEST_ROUND_NUMBER.toDouble()) /
+        expectedStandardDeviation
+
+    logger.log(
+      Level.INFO,
+      "average_reach=$averageReach, offset_percentage=${"%.2f".format(offsetPercentage)}%, " +
+        "number_of_rounds_within_interval=$withinIntervalNumber out of $DEFAULT_TEST_ROUND_NUMBER " +
+        "(${"%.2f".format(withinIntervalPercentage)}%) ",
+    )
+
+    val standardDeviation = getStandardDeviation(reachResults.map { it.actualReach.toDouble() })
+    logger.log(
+      Level.INFO,
+      "std=${"%.2f".format(standardDeviation)}, " +
+        "expected_std=${"%.2f".format(expectedStandardDeviation)}, " +
+        "ratio=${"%.2f".format(standardDeviation / expectedStandardDeviation)}",
+    )
+
+    assertThat(withinIntervalPercentage).isAtLeast(COVERAGE_TEST_THRESHOLD)
+    assertThat(averageDispersionRatio).isLessThan(AVERAGE_TEST_THRESHOLD)
+    assertThat(standardDeviation)
+      .isGreaterThan(expectedStandardDeviation * STANDARD_DEVIATION_TEST_LOWER_THRESHOLD)
+    assertThat(standardDeviation)
+      .isLessThan(expectedStandardDeviation * STANDARD_DEVIATION_TEST_UPPER_THRESHOLD)
+  }
+
+  @Test
+  fun `reach from reach-and-frequency hmss results should be accurate with respect to the variance`() =
+    runBlocking {
+      val reachResults = mutableListOf<ReachResult>()
+      var expectedReach = -1L
+      var expectedStandardDeviation = 0.0
+      var summary = ""
+      for (round in 1..DEFAULT_TEST_ROUND_NUMBER) {
+        val executionResult =
+          mcSimulator.executeReachAndFrequency(
+            round.toString(),
+            DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+          )
+        val honestMajorityShareShuffleMethodology =
+          HonestMajorityShareShuffleMethodology(
+            frequencyVectorSize =
+              executionResult.actualResult.reach.honestMajorityShareShuffle.frequencyVectorSize
+          )
+
+        if (expectedReach == -1L) {
+          expectedReach = executionResult.expectedResult.reach.value
+          val expectedVariance =
+            getReachVariance(
+              honestMajorityShareShuffleMethodology,
+              executionResult.measurementInfo,
+              expectedReach,
+            )
+          expectedStandardDeviation = sqrt(expectedVariance)
+        } else if (expectedReach != executionResult.expectedResult.reach.value) {
+          logger.log(
+            Level.WARNING,
+            "expected result not consistent. round=$round, prev_expected_result=$expectedReach, " +
+              "current_expected_result=${executionResult.expectedResult.reach.value}",
+          )
+        }
+
+        // The general formula for confidence interval is result +/- multiplier * sqrt(variance).
+        // The multiplier for 95% confidence interval is 1.96.
+        val reach = executionResult.actualResult.reach.value
+        val reachVariance =
+          getReachVariance(
+            honestMajorityShareShuffleMethodology,
+            executionResult.measurementInfo,
+            reach,
+          )
+        val intervalLowerBound = reach - sqrt(reachVariance) * MULTIPLIER
+        val intervalUpperBound = reach + sqrt(reachVariance) * MULTIPLIER
+        val withinInterval = reach >= intervalLowerBound && reach <= intervalUpperBound
+
+        val reachResult =
+          ReachResult(reach, expectedReach, intervalLowerBound, intervalUpperBound, withinInterval)
+        reachResults += reachResult
+
+        val message =
+          "round=$round, actual_result=${reachResult.actualReach}, " +
+            "expected_result=${reachResult.expectedReach}, " +
+            "interval=(${"%.2f".format(reachResult.lowerBound)}, " +
+            "${"%.2f".format(reachResult.upperBound)}), accurate=${reachResult.withinInterval}"
+        summary += message + "\n"
+        logger.log(Level.INFO, message)
+      }
+
+      logger.log(Level.INFO, "Accuracy Test Complete.\n$summary")
+
+      val averageReach = reachResults.map { it.actualReach }.average()
+      val withinIntervalNumber = reachResults.map { if (it.withinInterval) 1 else 0 }.sum()
+      val withinIntervalPercentage = withinIntervalNumber.toDouble() / reachResults.size * 100
+      val offsetPercentage = (averageReach - expectedReach) / expectedReach * 100
+      val averageDispersionRatio =
+        abs(averageReach - expectedReach) * sqrt(DEFAULT_TEST_ROUND_NUMBER.toDouble()) /
+          expectedStandardDeviation
+
+      logger.log(
+        Level.INFO,
+        "average_reach=$averageReach, offset_percentage=${"%.2f".format(offsetPercentage)}%, " +
+          "number_of_rounds_within_interval=$withinIntervalNumber out of $DEFAULT_TEST_ROUND_NUMBER " +
+          "(${"%.2f".format(withinIntervalPercentage)}%) ",
+      )
+
+      val standardDeviation = getStandardDeviation(reachResults.map { it.actualReach.toDouble() })
+      logger.log(
+        Level.INFO,
+        "std=${"%.2f".format(standardDeviation)}, " +
+          "expected_std=${"%.2f".format(expectedStandardDeviation)}, " +
+          "ratio=${"%.2f".format(standardDeviation / expectedStandardDeviation)}",
+      )
+
+      assertThat(withinIntervalPercentage).isAtLeast(COVERAGE_TEST_THRESHOLD)
+      assertThat(averageDispersionRatio).isLessThan(AVERAGE_TEST_THRESHOLD)
+      assertThat(standardDeviation)
+        .isGreaterThan(expectedStandardDeviation * STANDARD_DEVIATION_TEST_LOWER_THRESHOLD)
+      assertThat(standardDeviation)
+        .isLessThan(expectedStandardDeviation * STANDARD_DEVIATION_TEST_UPPER_THRESHOLD)
+    }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    private val SYNTHETIC_EVENT_GROUP_SPECS = SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_2M
+    private val SYNTHETIC_POPULATION_SPEC = SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL
+    private val SYNTHETIC_EVENT_GROUP_SPECS =
+      SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL_36K
 
     private const val DEFAULT_TEST_ROUND_NUMBER = 30
     // Multiplier for 95% confidence interval

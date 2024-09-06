@@ -1462,6 +1462,140 @@ class VariancesTest {
   }
 
   @Test
+  fun `computeMeasurementVariance returns a value for HonestMajorityShareShuffle reach when reach is small, sampling width is small`() {
+    val frequencyVectorSize = 10_000_000L
+    val reach = 2L
+    val vidSamplingIntervalWidth = 0.1
+    val dpParams = DpParams(0.1, 1e-9)
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        dpParams,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val reachMeasurementVarianceParams =
+      ReachMeasurementVarianceParams(reach, reachMeasurementParams)
+
+    val variance =
+      VariancesImpl.computeMeasurementVariance(
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
+        reachMeasurementVarianceParams,
+      )
+    // Expected variance = variance from DP noise + variance from Hmss sketch sampling.
+    val expected = 432791.13137641125 + 17.99999974
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
+  }
+
+  @Test
+  fun `computeMeasurementVariance returns a value for HonestMajorityShareShuffle reach when reach is small, sampling width is large`() {
+    val frequencyVectorSize = 10_000_000L
+    val reach = 2L
+    val vidSamplingIntervalWidth = 1.0
+    val dpParams = DpParams(0.1, 1e-9)
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        dpParams,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val reachMeasurementVarianceParams =
+      ReachMeasurementVarianceParams(reach, reachMeasurementParams)
+
+    val variance =
+      VariancesImpl.computeMeasurementVariance(
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
+        reachMeasurementVarianceParams,
+      )
+    // The variance of the measurement comes entirely from the reach DP noise when sampling interval
+    // width is equal to 1.
+    val expected = 4327.9113137641125
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
+  }
+
+  @Test
+  fun `computeMeasurementVariance returns a value for HonestMajorityShareShuffle reach when reach is large, sampling width is small`() {
+    val frequencyVectorSize = 10_000_000L
+    val reach = 90_000_000L
+    val vidSamplingIntervalWidth = 0.1
+    val dpParams = DpParams(0.1, 1e-9)
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        dpParams,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val reachMeasurementVarianceParams =
+      ReachMeasurementVarianceParams(reach, reachMeasurementParams)
+
+    val variance =
+      VariancesImpl.computeMeasurementVariance(
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
+        reachMeasurementVarianceParams,
+      )
+
+    // Expected variance = variance from DP noise + variance from Hmss sketch sampling.
+    val expected = 252102.58106484052 + 8.1E7
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
+  }
+
+  @Test
+  fun `computeMeasurementVariance returns a value for HonestMajorityShareShuffle reach when reach is large, sampling width is large`() {
+    val frequencyVectorSize = 10_000_000L
+    val reach = 9_000_000L
+    val vidSamplingIntervalWidth = 1.0
+    val dpParams = DpParams(0.1, 1e-9)
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        dpParams,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val reachMeasurementVarianceParams =
+      ReachMeasurementVarianceParams(reach, reachMeasurementParams)
+
+    val variance =
+      VariancesImpl.computeMeasurementVariance(
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
+        reachMeasurementVarianceParams,
+      )
+
+    // The variance of the measurement comes entirely from the reach DP noise when sampling interval
+    // width is equal to 1.
+    val expected = 4327.91131376411
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
+  }
+
+  @Test
+  fun `computeMeasurementVariance returns a value for HonestMajorityShareShuffle reach when reach is half, sampling width is half`() {
+    val frequencyVectorSize = 10_000_000L
+    val reach = 10_000_000L
+    val vidSamplingIntervalWidth = 0.5
+    val dpParams = DpParams(0.1, 1e-9)
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        dpParams,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val reachMeasurementVarianceParams =
+      ReachMeasurementVarianceParams(reach, reachMeasurementParams)
+
+    val variance =
+      VariancesImpl.computeMeasurementVariance(
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
+        reachMeasurementVarianceParams,
+      )
+    // Expected variance = variance from DP noise + variance from Hmss sketch sampling.
+    val expected = 17311.6452550564 + 5.0E6
+    val tolerance = computeErrorTolerance(variance, expected)
+    assertThat(variance).isWithin(tolerance).of(expected)
+  }
+
+  @Test
   fun `computeMeasurementVariance returns a value for LiquidLegionsV2 reach when reach is large, sampling width is large, and small decay rate`() {
     val decayRate = 1e-3
     val sketchSize = 100000L
@@ -3331,6 +3465,648 @@ class VariancesTest {
   }
 
   @Test
+  fun `computeMeasurementVariance returns for HonestMajorityShareShuffle reach-frequency when small total reach, small sampling width`() {
+    val frequencyVectorSize = 10_000_000L
+    val vidSamplingIntervalWidth = 0.1
+    val totalReach = 10_000L
+    val reachDpParams = DpParams(0.1, 1e-9)
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        reachDpParams,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val reachMeasurementVarianceParams =
+      ReachMeasurementVarianceParams(totalReach, reachMeasurementParams)
+    val reachMeasurementVariance =
+      VariancesImpl.computeMeasurementVariance(
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
+        reachMeasurementVarianceParams,
+      )
+
+    val maximumFrequency = 5
+    // FrequencyDistribution = {1/15, 2/15, 3/15, 4/15, 5/15}
+    val relativeFrequencyDistribution =
+      (1..maximumFrequency).associateWith { frequency -> frequency / 15.0 }
+    val frequencyDpParams = DpParams(0.3, 1e-9)
+    val frequencyMeasurementParams =
+      FrequencyMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        frequencyDpParams,
+        NoiseMechanism.GAUSSIAN,
+        maximumFrequency,
+      )
+    val frequencyMeasurementVarianceParams =
+      FrequencyMeasurementVarianceParams(
+        totalReach,
+        reachMeasurementVariance,
+        relativeFrequencyDistribution,
+        frequencyMeasurementParams,
+      )
+
+    val (relativeVariances, kPlusRelativeVariances, countVariances, kPlusCountVariances) =
+      VariancesImpl.computeMeasurementVariance(
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
+        frequencyMeasurementVarianceParams,
+      )
+
+    val expectedRelativeVariances =
+      listOf(
+        5.5611419682E-04,
+        6.6181968148E-04,
+        7.9799548885E-04,
+        9.6464161893E-04,
+        4.0470322809E-03,
+      )
+    val expectedKPlusRelativeVariances =
+      listOf(0.0, 5.5611419682E-04, 1.2788745237E-03, 2.3511029170E-03, 4.0470322809E-03)
+    val expectedCountVariances =
+      listOf(
+        5.4087863546E+04,
+        6.0087743606E+04,
+        6.6087543666E+04,
+        7.2087263726E+04,
+        6.5514174562E+05,
+      )
+    val expectedKPlusCountVariances =
+      listOf(
+        5.2278213228E+05,
+        5.6487119570E+05,
+        6.0096117907E+05,
+        6.3105160238E+05,
+        6.5514174562E+05,
+      )
+
+    for (frequency in 1..maximumFrequency) {
+      assertThat(relativeVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            relativeVariances.getValue(frequency),
+            expectedRelativeVariances[frequency - 1],
+          )
+        )
+        .of(expectedRelativeVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(kPlusRelativeVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            kPlusRelativeVariances.getValue(frequency),
+            expectedKPlusRelativeVariances[frequency - 1],
+          )
+        )
+        .of(expectedKPlusRelativeVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(countVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            countVariances.getValue(frequency),
+            expectedCountVariances[frequency - 1],
+          )
+        )
+        .of(expectedCountVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(kPlusCountVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            kPlusCountVariances.getValue(frequency),
+            expectedKPlusCountVariances[frequency - 1],
+          )
+        )
+        .of(expectedKPlusCountVariances[frequency - 1])
+    }
+  }
+
+  @Test
+  fun `computeMeasurementVariance returns for HonestMajorityShareShuffle reach-frequency when small total reach, large sampling width`() {
+    val frequencyVectorSize = 10_000_000L
+    val vidSamplingIntervalWidth = 1.0
+    val totalReach = 10_000L
+    val reachDpParams = DpParams(0.1, 1e-9)
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        reachDpParams,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val reachMeasurementVarianceParams =
+      ReachMeasurementVarianceParams(totalReach, reachMeasurementParams)
+    val reachMeasurementVariance =
+      VariancesImpl.computeMeasurementVariance(
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
+        reachMeasurementVarianceParams,
+      )
+
+    val maximumFrequency = 5
+    val relativeFrequencyDistribution =
+      (1..maximumFrequency).associateWith { frequency -> frequency / 15.0 }
+    val frequencyDpParams = DpParams(0.3, 1e-9)
+    val frequencyMeasurementParams =
+      FrequencyMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        frequencyDpParams,
+        NoiseMechanism.GAUSSIAN,
+        maximumFrequency,
+      )
+    val frequencyMeasurementVarianceParams =
+      FrequencyMeasurementVarianceParams(
+        totalReach,
+        reachMeasurementVariance,
+        relativeFrequencyDistribution,
+        frequencyMeasurementParams,
+      )
+
+    val (relativeVariances, kPlusRelativeVariances, countVariances, kPlusCountVariances) =
+      VariancesImpl.computeMeasurementVariance(
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
+        frequencyMeasurementVarianceParams,
+      )
+
+    val expectedRelativeVariances =
+      listOf(
+        5.0011419626E-06,
+        5.5781968044E-06,
+        6.5399548741E-06,
+        7.8864161717E-06,
+        3.8470322789E-05,
+      )
+    val expectedKPlusRelativeVariances =
+      listOf(0.0, 5.0011419626E-06, 1.1348745223E-05, 2.1351029148E-05, 3.8470322789E-05)
+    val expectedCountVariances =
+      listOf(
+        4.8087903486E+02,
+        4.8087903486E+02,
+        4.8087903486E+02,
+        4.8087903486E+02,
+        6.2514274532E+03,
+      )
+    val expectedKPlusCountVariances =
+      listOf(
+        4.3279113138E+03,
+        4.8087903486E+03,
+        5.2896693835E+03,
+        5.7705484184E+03,
+        6.2514274532E+03,
+      )
+
+    for (frequency in 1..maximumFrequency) {
+      assertThat(relativeVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            relativeVariances.getValue(frequency),
+            expectedRelativeVariances[frequency - 1],
+          )
+        )
+        .of(expectedRelativeVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(kPlusRelativeVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            kPlusRelativeVariances.getValue(frequency),
+            expectedKPlusRelativeVariances[frequency - 1],
+          )
+        )
+        .of(expectedKPlusRelativeVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(countVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            countVariances.getValue(frequency),
+            expectedCountVariances[frequency - 1],
+          )
+        )
+        .of(expectedCountVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(kPlusCountVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            kPlusCountVariances.getValue(frequency),
+            expectedKPlusCountVariances[frequency - 1],
+          )
+        )
+        .of(expectedKPlusCountVariances[frequency - 1])
+    }
+  }
+
+  @Test
+  fun `computeMeasurementVariance returns for HonestMajorityShareShuffle reach-frequency when large total reach, small sampling width`() {
+    val frequencyVectorSize = 10_000_000L
+    val vidSamplingIntervalWidth = 0.1
+    val totalReach = 90_000_000L
+    val reachDpParams = DpParams(0.1, 1e-9)
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        reachDpParams,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val reachMeasurementVarianceParams =
+      ReachMeasurementVarianceParams(totalReach, reachMeasurementParams)
+    val reachMeasurementVariance =
+      VariancesImpl.computeMeasurementVariance(
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
+        reachMeasurementVarianceParams,
+      )
+
+    val maximumFrequency = 5
+    val relativeFrequencyDistribution =
+      (1..maximumFrequency).associateWith { frequency -> frequency / 15.0 }
+    val frequencyDpParams = DpParams(0.3, 1e-9)
+    val frequencyMeasurementParams =
+      FrequencyMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        frequencyDpParams,
+        NoiseMechanism.GAUSSIAN,
+        maximumFrequency,
+      )
+    val frequencyMeasurementVarianceParams =
+      FrequencyMeasurementVarianceParams(
+        totalReach,
+        reachMeasurementVariance,
+        relativeFrequencyDistribution,
+        frequencyMeasurementParams,
+      )
+
+    val (relativeVariances, kPlusRelativeVariances, countVariances, kPlusCountVariances) =
+      VariancesImpl.computeMeasurementVariance(
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
+        frequencyMeasurementVarianceParams,
+      )
+
+    val expectedRelativeVariances =
+      listOf(
+        6.2283965338E-09,
+        1.1562442334E-08,
+        1.6008074178E-08,
+        1.9565292067E-08,
+        2.2269716670E-08,
+      )
+    val expectedKPlusRelativeVariances =
+      listOf(0.0, 6.2283965338E-09, 1.6014010957E-08, 2.4026359535E-08, 2.2269716670E-08)
+    val expectedCountVariances =
+      listOf(
+        5.0808088411E+07,
+        9.5088088854E+07,
+        1.3288808923E+08,
+        1.6420808955E+08,
+        1.8962514464E+08,
+      )
+    val expectedKPlusCountVariances =
+      listOf(
+        8.1432791941E+07,
+        1.2144088024E+08,
+        1.8196896875E+08,
+        2.2413705708E+08,
+        1.8962514464E+08,
+      )
+
+    for (frequency in 1..maximumFrequency) {
+      assertThat(relativeVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            relativeVariances.getValue(frequency),
+            expectedRelativeVariances[frequency - 1],
+          )
+        )
+        .of(expectedRelativeVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(kPlusRelativeVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            kPlusRelativeVariances.getValue(frequency),
+            expectedKPlusRelativeVariances[frequency - 1],
+          )
+        )
+        .of(expectedKPlusRelativeVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(countVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            countVariances.getValue(frequency),
+            expectedCountVariances[frequency - 1],
+          )
+        )
+        .of(expectedCountVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(kPlusCountVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            kPlusCountVariances.getValue(frequency),
+            expectedKPlusCountVariances[frequency - 1],
+          )
+        )
+        .of(expectedKPlusCountVariances[frequency - 1])
+    }
+  }
+
+  @Test
+  fun `computeMeasurementVariance returns for HonestMajorityShareShuffle reach-frequency when large total reach, large sampling width`() {
+    val frequencyVectorSize = 10_000_000L
+    val vidSamplingIntervalWidth = 1.0
+    val totalReach = 9_000_000L
+    val reachDpParams = DpParams(0.1, 1e-9)
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        reachDpParams,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val reachMeasurementVarianceParams =
+      ReachMeasurementVarianceParams(totalReach, reachMeasurementParams)
+    val reachMeasurementVariance =
+      VariancesImpl.computeMeasurementVariance(
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
+        reachMeasurementVarianceParams,
+      )
+
+    val maximumFrequency = 5
+    val relativeFrequencyDistribution =
+      (1..maximumFrequency).associateWith { frequency -> frequency / 15.0 }
+    val frequencyDpParams = DpParams(0.3, 1e-9)
+    val frequencyMeasurementParams =
+      FrequencyMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        frequencyDpParams,
+        NoiseMechanism.GAUSSIAN,
+        maximumFrequency,
+      )
+    val frequencyMeasurementVarianceParams =
+      FrequencyMeasurementVarianceParams(
+        totalReach,
+        reachMeasurementVariance,
+        relativeFrequencyDistribution,
+        frequencyMeasurementParams,
+      )
+
+    val (relativeVariances, kPlusRelativeVariances, countVariances, kPlusCountVariances) =
+      VariancesImpl.computeMeasurementVariance(
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
+        frequencyMeasurementVarianceParams,
+      )
+
+    val expectedRelativeVariances =
+      listOf(
+        6.1742493365E-12,
+        6.8866627215E-12,
+        8.0740183631E-12,
+        9.7363162614E-12,
+        4.7494225665E-11,
+      )
+    val expectedKPlusRelativeVariances =
+      listOf(0.0, 6.1742493365E-12, 1.4010796571E-11, 2.6359295244E-11, 4.7494225665E-11)
+    val expectedCountVariances =
+      listOf(
+        4.8087903486E+02,
+        4.8087903486E+02,
+        4.8087903486E+02,
+        4.8087903486E+02,
+        6.2514274532E+03,
+      )
+    val expectedKPlusCountVariances =
+      listOf(
+        4.3279113138E+03,
+        4.8087903486E+03,
+        5.2896693835E+03,
+        5.7705484184E+03,
+        6.2514274532E+03,
+      )
+
+    for (frequency in 1..maximumFrequency) {
+      assertThat(relativeVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            relativeVariances.getValue(frequency),
+            expectedRelativeVariances[frequency - 1],
+          )
+        )
+        .of(expectedRelativeVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(kPlusRelativeVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            kPlusRelativeVariances.getValue(frequency),
+            expectedKPlusRelativeVariances[frequency - 1],
+          )
+        )
+        .of(expectedKPlusRelativeVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(countVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            countVariances.getValue(frequency),
+            expectedCountVariances[frequency - 1],
+          )
+        )
+        .of(expectedCountVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(kPlusCountVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            kPlusCountVariances.getValue(frequency),
+            expectedKPlusCountVariances[frequency - 1],
+          )
+        )
+        .of(expectedKPlusCountVariances[frequency - 1])
+    }
+  }
+
+  @Test
+  fun `computeMeasurementVariance returns for HonestMajorityShareShuffle reach-frequency when maximum frequency is 1`() {
+    val frequencyVectorSize = 10_000_000L
+    val vidSamplingIntervalWidth = 0.1
+    val totalReach = 50_000_000L
+    val reachDpParams = DpParams(0.1, 1e-9)
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        reachDpParams,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val reachMeasurementVarianceParams =
+      ReachMeasurementVarianceParams(totalReach, reachMeasurementParams)
+    val reachMeasurementVariance =
+      VariancesImpl.computeMeasurementVariance(
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
+        reachMeasurementVarianceParams,
+      )
+
+    val maximumFrequency = 1
+    val relativeFrequencyDistribution = mapOf(1 to 1.0)
+    val frequencyDpParams = DpParams(0.3, 1e-9)
+    val frequencyMeasurementParams =
+      FrequencyMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        frequencyDpParams,
+        NoiseMechanism.GAUSSIAN,
+        maximumFrequency,
+      )
+    val frequencyMeasurementVarianceParams =
+      FrequencyMeasurementVarianceParams(
+        totalReach,
+        reachMeasurementVariance,
+        relativeFrequencyDistribution,
+        frequencyMeasurementParams,
+      )
+
+    val (relativeVariances, kPlusRelativeVariances, countVariances, kPlusCountVariances) =
+      VariancesImpl.computeMeasurementVariance(
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
+        frequencyMeasurementVarianceParams,
+      )
+
+    val expectedRelativeVariances = 0.0
+    val expectedKPlusRelativeVariances = 0.0
+    val expectedCountVariances = 2.2543279338E+08
+    val expectedKPlusCountVariances = 2.2543279338E+08
+
+    assertThat(relativeVariances.getValue(1))
+      .isWithin(computeErrorTolerance(relativeVariances.getValue(1), expectedRelativeVariances))
+      .of(expectedRelativeVariances)
+    assertThat(kPlusRelativeVariances.getValue(1))
+      .isWithin(
+        computeErrorTolerance(kPlusRelativeVariances.getValue(1), expectedKPlusRelativeVariances)
+      )
+      .of(expectedKPlusRelativeVariances)
+    assertThat(countVariances.getValue(1))
+      .isWithin(computeErrorTolerance(countVariances.getValue(1), expectedCountVariances))
+      .of(expectedCountVariances)
+    assertThat(kPlusCountVariances.getValue(1))
+      .isWithin(computeErrorTolerance(kPlusCountVariances.getValue(1), expectedKPlusCountVariances))
+      .of(expectedKPlusCountVariances)
+  }
+
+  @Test
+  fun `computeMeasurementVariance returns for HonestMajorityShareShuffle reach-frequency when reach is too small`() {
+    val frequencyVectorSize = 10_000_000L
+    val vidSamplingIntervalWidth = 1.0
+    val totalReach = 10L
+    val reachDpParams = DpParams(0.1, 1e-9)
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        reachDpParams,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val reachMeasurementVarianceParams =
+      ReachMeasurementVarianceParams(totalReach, reachMeasurementParams)
+    val reachMeasurementVariance =
+      VariancesImpl.computeMeasurementVariance(
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
+        reachMeasurementVarianceParams,
+      )
+
+    val maximumFrequency = 5
+    val relativeFrequencyDistribution =
+      (1..maximumFrequency).associateWith { frequency -> frequency / 15.0 }
+    val frequencyDpParams = DpParams(0.3, 1e-9)
+    val frequencyMeasurementParams =
+      FrequencyMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        frequencyDpParams,
+        NoiseMechanism.GAUSSIAN,
+        maximumFrequency,
+      )
+    val frequencyMeasurementVarianceParams =
+      FrequencyMeasurementVarianceParams(
+        totalReach,
+        reachMeasurementVariance,
+        relativeFrequencyDistribution,
+        frequencyMeasurementParams,
+      )
+
+    val (relativeVariances, kPlusRelativeVariances, countVariances, kPlusCountVariances) =
+      VariancesImpl.computeMeasurementVariance(
+        HonestMajorityShareShuffleMethodology(frequencyVectorSize),
+        frequencyMeasurementVarianceParams,
+      )
+
+    val expectedRelativeVariances =
+      listOf(
+        0.08333333333333336,
+        0.08333333333333336,
+        0.08333333333333336,
+        0.08333333333333336,
+        0.08333333333333336,
+      )
+    val expectedKPlusRelativeVariances =
+      listOf(
+        0.0,
+        0.08333333333333336,
+        0.08333333333333336,
+        0.08333333333333336,
+        0.08333333333333336,
+      )
+    val expectedCountVariances =
+      listOf(
+        4.8087903486E+02,
+        4.8087903486E+02,
+        4.8087903486E+02,
+        4.8087903486E+02,
+        6.2514274532E+03,
+      )
+    val expectedKPlusCountVariances =
+      listOf(
+        4.3279113138E+03,
+        4.8087903486E+03,
+        5.2896693835E+03,
+        5.7705484184E+03,
+        6.2514274532E+03,
+      )
+
+    for (frequency in 1..maximumFrequency) {
+      assertThat(relativeVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            relativeVariances.getValue(frequency),
+            expectedRelativeVariances[frequency - 1],
+          )
+        )
+        .of(expectedRelativeVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(kPlusRelativeVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            kPlusRelativeVariances.getValue(frequency),
+            expectedKPlusRelativeVariances[frequency - 1],
+          )
+        )
+        .of(expectedKPlusRelativeVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(countVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            countVariances.getValue(frequency),
+            expectedCountVariances[frequency - 1],
+          )
+        )
+        .of(expectedCountVariances[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(kPlusCountVariances.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(
+            kPlusCountVariances.getValue(frequency),
+            expectedKPlusCountVariances[frequency - 1],
+          )
+        )
+        .of(expectedKPlusCountVariances[frequency - 1])
+    }
+  }
+
+  @Test
   fun `computeMetricVariance returns a value for reach when sampling intervals are fully overlapped`() {
     val weightedReachMeasurementVarianceParams =
       WeightedReachMeasurementVarianceParams(
@@ -3857,6 +4633,33 @@ class VariancesTest {
   }
 
   @Test
+  fun `computeMetricVariance for impression throws UnsupportedMethodologyException when using HonestMajorityShareShuffle methodology`() {
+    val weightedImpressionMeasurementVarianceParams =
+      WeightedImpressionMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          ImpressionMeasurementVarianceParams(
+            impression = 2L,
+            measurementParams =
+              ImpressionMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumFrequencyPerUser = 10,
+              ),
+          ),
+        methodology = HonestMajorityShareShuffleMethodology(1000_000L),
+      )
+
+    assertFailsWith<UnsupportedMethodologyUsageException> {
+      VariancesImpl.computeMetricVariance(
+        ImpressionMetricVarianceParams(listOf(weightedImpressionMeasurementVarianceParams))
+      )
+    }
+  }
+
+  @Test
   fun `computeMetricVariance returns for watch duration`() {
     val watchDuration = 1.0
     val vidSamplingIntervalWidth = 1.0
@@ -4002,6 +4805,33 @@ class VariancesTest {
               ),
           ),
         methodology = LiquidLegionsV2Methodology(1.0, 1L, 1L),
+      )
+
+    assertFailsWith<UnsupportedMethodologyUsageException> {
+      VariancesImpl.computeMetricVariance(
+        WatchDurationMetricVarianceParams(listOf(weightedWatchDurationMeasurementVarianceParams))
+      )
+    }
+  }
+
+  @Test
+  fun `computeMetricVariance for watch duration throws UnsupportedMethodologyException when using HonestMajorityShareShuffle methodology`() {
+    val weightedWatchDurationMeasurementVarianceParams =
+      WeightedWatchDurationMeasurementVarianceParams(
+        binaryRepresentation = 1,
+        weight = 1,
+        measurementVarianceParams =
+          WatchDurationMeasurementVarianceParams(
+            duration = 1.0,
+            measurementParams =
+              WatchDurationMeasurementParams(
+                vidSamplingInterval = VidSamplingInterval(0.0, 0.9),
+                dpParams = DpParams(0.1, 1e-9),
+                noiseMechanism = NoiseMechanism.GAUSSIAN,
+                maximumDurationPerUser = 10.0,
+              ),
+          ),
+        methodology = HonestMajorityShareShuffleMethodology(1000_000L),
       )
 
     assertFailsWith<UnsupportedMethodologyUsageException> {

@@ -41,16 +41,21 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.populationSpec
+import org.wfanet.measurement.common.Health
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
-import org.wfanet.measurement.loadtest.dataprovider.EdpData
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
+import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 
 /** An in process EDP simulator. */
 class InProcessEdpSimulator(
@@ -61,9 +66,11 @@ class InProcessEdpSimulator(
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannelMap: Map<String, Channel>,
   trustedCertificates: Map<ByteString, X509Certificate>,
+  syntheticPopulationSpec: SyntheticPopulationSpec,
   private val syntheticDataSpec: SyntheticEventGroupSpec,
   coroutineContext: CoroutineContext = Dispatchers.Default,
-) {
+  honestMajorityShareShuffleSupported: Boolean = true,
+) : Health {
   private val loggingName = "${javaClass.simpleName} $displayName"
   private val backgroundScope =
     CoroutineScope(
@@ -74,52 +81,65 @@ class InProcessEdpSimulator(
         }
     )
 
-  // TODO(@ple13): Use the actual vidToIndexMap instead of an empty map when a smaller dataset is
-  // available.
-  private val delegate =
-    EdpSimulator(
-      edpData = createEdpData(displayName, resourceName),
-      measurementConsumerName = mcResourceName,
-      measurementConsumersStub =
-        MeasurementConsumersCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
-      certificatesStub =
-        CertificatesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
-      dataProvidersStub =
-        DataProvidersCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
-      eventGroupsStub =
-        EventGroupsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
-      eventGroupMetadataDescriptorsStub =
-        EventGroupMetadataDescriptorsCoroutineStub(kingdomPublicApiChannel)
-          .withPrincipalName(resourceName),
-      requisitionsStub =
-        RequisitionsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
-      requisitionFulfillmentStubsByDuchyName =
-        duchyPublicApiChannelMap.mapValues {
-          RequisitionFulfillmentCoroutineStub(it.value).withPrincipalName(resourceName)
-        },
-      eventQuery =
-        object :
-          SyntheticGeneratorEventQuery(
-            SyntheticGenerationSpecs.POPULATION_SPEC,
-            TestEvent.getDescriptor(),
-          ) {
-          override fun getSyntheticDataSpec(eventGroup: EventGroup) = syntheticDataSpec
-        },
-      throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-      privacyBudgetManager =
-        PrivacyBudgetManager(
-          PrivacyBucketFilter(TestPrivacyBucketMapper()),
-          InMemoryBackingStore(),
-          10.0f,
-          100.0f,
-        ),
-      trustedCertificates = trustedCertificates,
-      vidToIndexMap = emptyMap(),
-      knownEventGroupMetadataTypes = listOf(SyntheticEventGroupSpec.getDescriptor().file),
-      random = random,
-    )
+  private val delegate: EdpSimulator
+
+  init {
+    val populationSpec = syntheticPopulationSpec.toPopulationSpec()
+    val hmssVidIndexMap =
+      if (honestMajorityShareShuffleSupported) {
+        InMemoryVidIndexMap.build(populationSpec)
+      } else {
+        null
+      }
+
+    delegate =
+      EdpSimulator(
+        edpData = createEdpData(displayName, resourceName),
+        measurementConsumerName = mcResourceName,
+        measurementConsumersStub =
+          MeasurementConsumersCoroutineStub(kingdomPublicApiChannel)
+            .withPrincipalName(resourceName),
+        certificatesStub =
+          CertificatesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
+        dataProvidersStub =
+          DataProvidersCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
+        eventGroupsStub =
+          EventGroupsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
+        eventGroupMetadataDescriptorsStub =
+          EventGroupMetadataDescriptorsCoroutineStub(kingdomPublicApiChannel)
+            .withPrincipalName(resourceName),
+        requisitionsStub =
+          RequisitionsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
+        requisitionFulfillmentStubsByDuchyId =
+          duchyPublicApiChannelMap.mapValues {
+            RequisitionFulfillmentCoroutineStub(it.value).withPrincipalName(resourceName)
+          },
+        eventQuery =
+          object :
+            SyntheticGeneratorEventQuery(syntheticPopulationSpec, TestEvent.getDescriptor()) {
+            override fun getSyntheticDataSpec(eventGroup: EventGroup) = syntheticDataSpec
+          },
+        throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        privacyBudgetManager =
+          PrivacyBudgetManager(
+            PrivacyBucketFilter(TestPrivacyBucketMapper()),
+            InMemoryBackingStore(),
+            10.0f,
+            100.0f,
+          ),
+        trustedCertificates = trustedCertificates,
+        hmssVidIndexMap = hmssVidIndexMap,
+        knownEventGroupMetadataTypes = listOf(SyntheticEventGroupSpec.getDescriptor().file),
+        random = random,
+      )
+  }
 
   private lateinit var edpJob: Job
+
+  override val healthy: Boolean
+    get() = delegate.healthy
+
+  override suspend fun waitUntilHealthy() = delegate.waitUntilHealthy()
 
   fun start() {
     edpJob = backgroundScope.launch { delegate.run() }
@@ -131,10 +151,12 @@ class InProcessEdpSimulator(
 
   suspend fun ensureEventGroup() = delegate.ensureEventGroup(EVENT_TEMPLATES, syntheticDataSpec)
 
-  /** Builds a [EdpData] object for the Edp with a certain [displayName] and [resourceName]. */
+  /**
+   * Builds a [DataProviderData] object for the Edp with a certain [displayName] and [resourceName].
+   */
   @Blocking
   private fun createEdpData(displayName: String, resourceName: String) =
-    EdpData(
+    DataProviderData(
       name = resourceName,
       displayName = displayName,
       certificateKey = certificateKey,

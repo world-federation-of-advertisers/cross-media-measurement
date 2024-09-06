@@ -14,10 +14,9 @@
 
 package org.wfanet.panelmatch.client.storage
 
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.StorageType
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.StorageType.AMAZON_S3
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.StorageType.GOOGLE_CLOUD_STORAGE
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.common.ExchangeContext
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.StorageType
 import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.certificates.CertificateManager
@@ -54,15 +53,11 @@ class SharedStorageSelector(
     val storageDetails = storageDetailsProvider.get(context.recurringExchangeId)
     validateStorageType(storageType, storageDetails)
 
-    val storageFactory = getStorageFactory(storageDetails, context)
+    val storageFactory = getStorageFactory(storageDetails, context.exchangeDateKey)
     val storageClient = storageFactory.build()
     val namedSignature = storageClient.getBlobSignature(blobKey)
     val x509 =
-      certificateManager.getCertificate(
-        context.exchangeDateKey,
-        context.partnerName,
-        namedSignature.certificateName,
-      )
+      certificateManager.getCertificate(context.exchangeDateKey, namedSignature.certificateName)
     return VerifyingStorageClient(storageFactory, x509)
   }
 
@@ -77,31 +72,38 @@ class SharedStorageSelector(
     val storageDetails = storageDetailsProvider.get(context.recurringExchangeId)
     validateStorageType(storageType, storageDetails)
 
-    val storageFactory = getStorageFactory(storageDetails, context)
+    val storageFactory = getStorageFactory(storageDetails, context.exchangeDateKey)
     val (x509, privateKey, certName) =
       certificateManager.getExchangeKeyPair(context.exchangeDateKey)
     val signatureTemplate = namedSignature { certificateName = certName }
     return SigningStorageClient(storageFactory, x509, privateKey, signatureTemplate)
   }
 
+  /** Builds and returns a new [StorageClient] for reading and writing blobs in shared storage. */
+  suspend fun getStorageClient(exchangeDateKey: ExchangeDateKey): StorageClient {
+    val storageDetails = storageDetailsProvider.get(exchangeDateKey.recurringExchangeId)
+    val storageFactory = getStorageFactory(storageDetails, exchangeDateKey)
+    return storageFactory.build()
+  }
+
   private fun getStorageFactory(
     storageDetails: StorageDetails,
-    context: ExchangeContext,
+    exchangeDateKey: ExchangeDateKey,
   ): StorageFactory {
     val platform = storageDetails.platformCase
     val buildStorageFactory =
       requireNotNull(sharedStorageFactories[platform]) {
         "Missing private StorageFactory for $platform"
       }
-    return buildStorageFactory(storageDetails, context.exchangeDateKey)
+    return buildStorageFactory(storageDetails, exchangeDateKey)
   }
 
   private fun validateStorageType(storageType: StorageType, storageDetails: StorageDetails) {
     require(storageDetails.visibility == StorageDetails.Visibility.SHARED)
     val platform = storageDetails.platformCase
     when (storageType) {
-      GOOGLE_CLOUD_STORAGE -> require(platform == PlatformCase.GCS)
-      AMAZON_S3 -> require(platform == PlatformCase.AWS)
+      StorageType.GOOGLE_CLOUD_STORAGE -> require(platform == PlatformCase.GCS)
+      StorageType.AMAZON_S3 -> require(platform == PlatformCase.AWS)
       StorageType.STORAGE_TYPE_UNSPECIFIED,
       StorageType.UNRECOGNIZED -> require(platform !in EXPLICITLY_SUPPORTED_STORAGE_TYPES)
     // TODO(world-federation-of-advertisers/cross-media-measurement-api#73): throw

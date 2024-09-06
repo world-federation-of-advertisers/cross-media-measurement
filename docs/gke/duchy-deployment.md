@@ -35,29 +35,41 @@ For a Duchy named `worker1`, the cluster will be populated with the following:
     -   `certs-and-configs-<hash>`
 -   ConfigMap
     -   `config-files-<hash>`
+    -   `java`
 -   Deployment
     -   `worker1-async-computation-control-server-deployment`
-    -   `worker1-computation-control-server-deployment`
+    -   `worker1-computation-control-server-deployment` (System API server)
     -   `worker1-herald-daemon-deployment`
-    -   `worker1-liquid-legions-v2-mill-daemon-deployment`
-    -   `worker1-requisition-fulfillment-server-deployment`
-    -   `worker1-spanner-computations-server-deployment`
+    -   `worker1-requisition-fulfillment-server-deployment` (Public API server)
+    -   `worker1-spanner-computations-server-deployment` (Internal API server)
+    -   `worker1-mill-job-scheduler-deployment`
 -   Service
     -   `worker1-async-computation-control-server` (Cluster IP)
-    -   `worker1-spanner-computations-server`
+    -   `worker1-internal-api-server` (Cluster IP)
+    -   `worker1-computation-control-server` (External load balancer)
     -   `worker1-requisition-fulfillment-server` (External load balancer)
-    -   `v2alpha-public-api-server` (External load balancer)
+-   PodTemplate
+    -   `worker1-llv2-mill`
+    -   `worker1-hmss-mill`
 -   CronJob
     -   `worker1-computations-cleaner-cronjob`
 -   NetworkPolicy
-    -   `default-deny-ingress-and-egress`
+    -   `default-deny-network-policy`
+    -   `kube-dns-network-policy`
+    -   `gke-network-policy`
     -   `worker1-async-computation-controls-server-network-policy`
     -   `worker1-computation-control-server-network-policy`
     -   `worker1-computations-cleaner-network-policy`
     -   `worker1-herald-daemon-network-policy`
-    -   `worker1-liquid-legions-v2-mill-daemon-network-policy`
+    -   `worker1-mill-job-scheduler-network-policy`
+    -   `worker1-llv2-mill-network-policy`
+    -   `worker1-hmss-mill-network-policy`
     -   `worker1-requisition-fulfillment-server-network-policy`
     -   `worker1-spanner-computations-server-network-policy`
+-   Role
+    -   `worker1-mill-job-scheduler`
+-   RoleBinding
+    -   `worker1-mill-job-scheduler-binding`
 
 ## Before you start
 
@@ -212,6 +224,18 @@ files are required in a Duchy:
     -   This contains information about the protocols run in the duchy
     -   Set the role (aggregator or non_aggregator) in the config appropriately
     -   [Example](../../src/main/k8s/testing/secretfiles/aggregator_protocols_setup_config.textproto)
+
+1.  `worker1_kek.tink`
+
+    Key encryption key used in HMSS protocol to encrypt Tink key pairs.
+
+    -   One way to create the key is to use the Tinkey command line tool
+
+        ```shell
+        tinkey create-keyset --key-template AES128_GCM --out-format binary --out worker1_kek.tink
+        ```
+
+    -   [Example](../../src/main/k8s/testing/secretfiles/worker1_kek.tink)
 
 Place these files into the `src/main/k8s/dev/worker1_duchy_secret/` path within
 the Kustomization directory.

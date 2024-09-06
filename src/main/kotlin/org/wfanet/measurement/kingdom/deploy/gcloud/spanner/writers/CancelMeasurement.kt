@@ -15,14 +15,15 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.getEtag
 
 /**
  * Cancels a [Measurement], transitioning its state to [Measurement.State.CANCELLED].
@@ -50,7 +51,8 @@ class CancelMeasurement(
 
     when (val state = measurement.state) {
       Measurement.State.PENDING_REQUISITION_PARAMS,
-      Measurement.State.PENDING_REQUISITION_FULFILLMENT,
+      Measurement.State.PENDING_REQUISITION_FULFILLMENT ->
+        withdrawRequisitions(measurementConsumerId, measurementId)
       Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
       Measurement.State.PENDING_COMPUTATION -> {}
       Measurement.State.SUCCEEDED,
@@ -85,7 +87,7 @@ class CancelMeasurement(
   override fun ResultScope<Measurement>.buildResult(): Measurement {
     return checkNotNull(this.transactionResult).copy {
       updateTime = commitTimestamp.toProto()
-      etag = getEtag(commitTimestamp)
+      etag = ETags.computeETag(commitTimestamp)
     }
   }
 }

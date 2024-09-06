@@ -79,7 +79,7 @@ module "cluster" {
 
   aws_region               = var.aws_region
   cluster_name             = var.duchy_name
-  cluster_version          = "1.28"
+  cluster_version          = "1.29"
   kms_key_administrators   = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
   control_plane_subnet_ids = module.vpc.intra_subnets
   subnet_ids               = module.vpc.private_subnets
@@ -87,7 +87,7 @@ module "cluster" {
   default_instance_types   = ["m5.large"]
   default_max_node_count   = 2
   high_perf_instance_types = ["c5.xlarge"]
-  high_perf_max_node_count = 2
+  high_perf_max_node_count = 20
 }
 
 module "load_balancer_controller_irsa_role" {

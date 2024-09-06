@@ -141,6 +141,13 @@ EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG = struct(
     secret_name = "$(k8s_secret_name)",
 )
 
+# Config for Kingdom-less Panel Exchange Client Example Daemon.
+EXAMPLE_KINGDOMLESS_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG = struct(
+    edp_id = "$(edp_id)",
+    mp_id = "$(mp_id)",
+    recurring_exchange_ids = "$(recurring_exchange_ids)",
+)
+
 # Settings for deploying tests to Google Cloud.
 PANEL_EXCHANGE_CLIENT_TEST_GOOGLE_CLOUD_SETTINGS = struct(
     cloud_storage_project = "$(cloud_storage_project)",

@@ -54,3 +54,9 @@ message ReachOnlyLiquidLegionsV2 {
   // Parameters for sketch. REQUIRED.
   ReachOnlyLiquidLegionsSketchParams sketch_params = 1;
 }
+
+// Configuration for the Honest Majority Share Shuffle protocol.
+message HonestMajorityShareShuffle {
+  // The size of the sampled frequency vector. REQUIRED.
+  int64 frequency_vector_size = 1;
+}

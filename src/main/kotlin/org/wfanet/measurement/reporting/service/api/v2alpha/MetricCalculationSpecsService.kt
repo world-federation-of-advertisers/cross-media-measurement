@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import com.google.type.DayOfWeek
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.random.Random
 import org.projectnessie.cel.Env
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.base64UrlDecode
@@ -54,6 +55,7 @@ import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 class MetricCalculationSpecsService(
   private val internalMetricCalculationSpecsStub: MetricCalculationSpecsCoroutineStub,
   private val metricSpecConfig: MetricSpecConfig,
+  private val secureRandom: Random,
 ) : MetricCalculationSpecsCoroutineImplBase() {
   override suspend fun createMetricCalculationSpec(
     request: CreateMetricCalculationSpecRequest
@@ -240,7 +242,7 @@ class MetricCalculationSpecsService(
     val internalMetricSpecs =
       source.metricSpecsList.map { metricSpec ->
         try {
-          metricSpec.withDefaults(metricSpecConfig).toInternal()
+          metricSpec.withDefaults(metricSpecConfig, secureRandom).toInternal()
         } catch (e: MetricSpecDefaultsException) {
           failGrpc(Status.INVALID_ARGUMENT) {
             listOfNotNull("Invalid metric_spec.", e.message, e.cause?.message)

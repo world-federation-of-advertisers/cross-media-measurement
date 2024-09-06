@@ -93,7 +93,6 @@ import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.setMessage
-import org.wfanet.measurement.api.v2alpha.shareShuffleSketchParams
 import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.ProtoReflection
@@ -332,7 +331,7 @@ fun InternalProtocolConfig.toProtocolConfig(
                 }
             }
           } else {
-            buildMpcProtocolConfig(source)
+            buildMpcProtocolConfig(measurementTypeCase, source)
           }
       }
       ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY -> {
@@ -349,7 +348,7 @@ fun InternalProtocolConfig.toProtocolConfig(
                 }
             }
           } else {
-            buildMpcProtocolConfig(source)
+            buildMpcProtocolConfig(measurementTypeCase, source)
           }
       }
       ProtocolConfig.MeasurementType.IMPRESSION -> {
@@ -395,7 +394,8 @@ fun InternalProtocolConfig.toProtocolConfig(
  * Builds a public [ProtocolConfig.Protocol] for MPC only from an internal [InternalProtocolConfig].
  */
 private fun buildMpcProtocolConfig(
-  protocolConfig: InternalProtocolConfig
+  measurementType: MeasurementSpec.MeasurementTypeCase,
+  protocolConfig: InternalProtocolConfig,
 ): ProtocolConfig.Protocol {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
   return when (protocolConfig.protocolCase) {
@@ -461,10 +461,14 @@ private fun buildMpcProtocolConfig(
     InternalProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
       protocol {
         honestMajorityShareShuffle = honestMajorityShareShuffle {
-          sketchParams = shareShuffleSketchParams {
-            bytesPerRegister =
-              protocolConfig.honestMajorityShareShuffle.sketchParams.bytesPerRegister
-          }
+          ringModulus =
+            when (measurementType) {
+              MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
+                protocolConfig.honestMajorityShareShuffle.reachAndFrequencyRingModulus
+              MeasurementSpec.MeasurementTypeCase.REACH ->
+                protocolConfig.honestMajorityShareShuffle.reachRingModulus
+              else -> error("Unsupported measurement type for ring modulus.")
+            }
           noiseMechanism =
             protocolConfig.honestMajorityShareShuffle.noiseMechanism.toNoiseMechanism()
         }
@@ -1248,6 +1252,7 @@ fun InternalRequisition.State.toRequisitionState(): Requisition.State =
     InternalRequisition.State.UNFULFILLED -> Requisition.State.UNFULFILLED
     InternalRequisition.State.FULFILLED -> Requisition.State.FULFILLED
     InternalRequisition.State.REFUSED -> Requisition.State.REFUSED
+    InternalRequisition.State.WITHDRAWN -> Requisition.State.WITHDRAWN
     InternalRequisition.State.STATE_UNSPECIFIED,
     InternalRequisition.State.UNRECOGNIZED -> Requisition.State.STATE_UNSPECIFIED
   }
