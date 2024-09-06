@@ -17,11 +17,13 @@ package org.wfanet.measurement.duchy
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.computationStage
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage as HmssStage
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage as Llv2Stage
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.Stage as RoLlv2Stage
 import org.wfanet.measurement.system.v1alpha.ComputationStage as SystemComputationStage
+import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffleStage
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2Stage
 import org.wfanet.measurement.system.v1alpha.ReachOnlyLiquidLegionsV2Stage
 
@@ -91,7 +93,7 @@ fun SystemComputationStage.toComputationStage(): ComputationStage {
           Llv2Stage.EXECUTION_PHASE_THREE.toProtocolStage()
         LiquidLegionsV2Stage.Stage.COMPLETE -> Llv2Stage.COMPLETE.toProtocolStage()
         LiquidLegionsV2Stage.Stage.STAGE_UNSPECIFIED,
-        LiquidLegionsV2Stage.Stage.UNRECOGNIZED -> error("Invalid LLv2 Stage")
+        LiquidLegionsV2Stage.Stage.UNRECOGNIZED -> error("Invalid LLv2 stage")
       }
     }
     SystemComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_STAGE -> {
@@ -113,11 +115,29 @@ fun SystemComputationStage.toComputationStage(): ComputationStage {
           RoLlv2Stage.EXECUTION_PHASE.toProtocolStage()
         ReachOnlyLiquidLegionsV2Stage.Stage.COMPLETE -> Llv2Stage.COMPLETE.toProtocolStage()
         ReachOnlyLiquidLegionsV2Stage.Stage.STAGE_UNSPECIFIED,
-        ReachOnlyLiquidLegionsV2Stage.Stage.UNRECOGNIZED -> error("Invalid RoLLv2 Stage")
+        ReachOnlyLiquidLegionsV2Stage.Stage.UNRECOGNIZED -> error("Invalid RoLLv2 stage")
       }
     }
     SystemComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE_STAGE -> {
-      error("Invalid SystemComputationStage")
+      when (this.honestMajorityShareShuffleStage.stage) {
+        HonestMajorityShareShuffleStage.Stage.INITIALIZED -> HmssStage.INITIALIZED.toProtocolStage()
+        HonestMajorityShareShuffleStage.Stage.WAIT_TO_START ->
+          HmssStage.WAIT_TO_START.toProtocolStage()
+        HonestMajorityShareShuffleStage.Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE ->
+          HmssStage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE.toProtocolStage()
+        HonestMajorityShareShuffleStage.Stage.SETUP_PHASE -> HmssStage.SETUP_PHASE.toProtocolStage()
+        HonestMajorityShareShuffleStage.Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO ->
+          HmssStage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO.toProtocolStage()
+        HonestMajorityShareShuffleStage.Stage.WAIT_ON_AGGREGATION_INPUT ->
+          HmssStage.WAIT_ON_AGGREGATION_INPUT.toProtocolStage()
+        HonestMajorityShareShuffleStage.Stage.SHUFFLE_PHASE ->
+          HmssStage.SHUFFLE_PHASE.toProtocolStage()
+        HonestMajorityShareShuffleStage.Stage.AGGREGATION_PHASE ->
+          HmssStage.AGGREGATION_PHASE.toProtocolStage()
+        HonestMajorityShareShuffleStage.Stage.COMPLETE -> HmssStage.COMPLETE.toProtocolStage()
+        HonestMajorityShareShuffleStage.Stage.STAGE_UNSPECIFIED,
+        HonestMajorityShareShuffleStage.Stage.UNRECOGNIZED -> error("Invalid HMSS stage")
+      }
     }
     SystemComputationStage.StageCase.STAGE_NOT_SET -> error("Invalid SystemComputationStage")
   }
