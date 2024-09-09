@@ -74,22 +74,6 @@ class MeasurementSystemProber(
       }
     }
 
-    val measurementConsumer = runBlocking {
-      measurementConsumersService.withAuthenticationKey(apiAuthenticationKey)
-        .getMeasurementConsumer(
-          getMeasurementConsumerRequest { name = measurementConsumerName }
-        )
-    }
-    val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
-    val measurementConsumerPrivateKey =
-      readPrivateKey(
-        privateKeyDerFile.readByteString(),
-        measurementConsumerCertificate.publicKey.algorithm,
-      )
-    val measurementConsumerSigningKey =
-      SigningKeyHandle(measurementConsumerCertificate, measurementConsumerPrivateKey)
-    val packedMeasurementEncryptionPublicKey = measurementConsumer.publicKey.message
-
     val dataProviderNameToEventGroup = mutableMapOf<String, EventGroup>()
     for (dataProviderName in dataProviderNames) {
       val getDataProviderRequest = getDataProviderRequest { name = dataProviderName }
@@ -112,7 +96,6 @@ class MeasurementSystemProber(
 
       // TODO(@roaminggypsy): Implement QA event group logic using simulatorEventGroupName
       val listEventGroupsRequest = listEventGroupsRequest {
-        // TODO: look the impl, test, ask Sanjay and clarify parent and filter in the comment
         parent = dataProviderName
         filter = ListEventGroupsRequestKt.filter {
           measurementConsumers += measurementConsumerName
@@ -132,6 +115,22 @@ class MeasurementSystemProber(
 
       dataProviderNameToEventGroup[dataProviderName] = eventGroups[0]
     }
+
+    val measurementConsumer = runBlocking {
+      measurementConsumersService.withAuthenticationKey(apiAuthenticationKey)
+        .getMeasurementConsumer(
+          getMeasurementConsumerRequest { name = measurementConsumerName }
+        )
+    }
+    val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
+    val measurementConsumerPrivateKey =
+      readPrivateKey(
+        privateKeyDerFile.readByteString(),
+        measurementConsumerCertificate.publicKey.algorithm,
+      )
+    val measurementConsumerSigningKey =
+      SigningKeyHandle(measurementConsumerCertificate, measurementConsumerPrivateKey)
+    val packedMeasurementEncryptionPublicKey = measurementConsumer.publicKey.message
 
     val measurement = measurement {
       this.measurementConsumerCertificate = measurementConsumer.certificate
