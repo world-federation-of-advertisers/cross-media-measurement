@@ -14,11 +14,7 @@
 
 package k8s
 
-objectSets: [
-	openTelemetry.collectors,
-	openTelemetry.instrumentations,
-	openTelemetry.networkPolicies,
-]
+objectSets: [ for objectSet in openTelemetry {objectSet}]
 
 #OpenTelemetryCollector: {
 	spec: resources: requests: memory: "48Mi"

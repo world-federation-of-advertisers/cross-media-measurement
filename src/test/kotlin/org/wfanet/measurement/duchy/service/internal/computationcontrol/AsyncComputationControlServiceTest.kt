@@ -60,7 +60,6 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage as Llv2Stage
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
-import org.wfanet.measurement.internal.duchy.protocol.honestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.recordOutputBlobPathRequest
 
 private const val SHUFFLE_BLOB_ID = 1L

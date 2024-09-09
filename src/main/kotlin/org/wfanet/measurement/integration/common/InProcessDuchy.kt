@@ -180,7 +180,12 @@ class InProcessDuchy(
       logAllRequests = verboseGrpcLogging,
     ) {
       addService(
-        ComputationControlService(asyncComputationControlClient, duchyDependencies.storageClient)
+        ComputationControlService(
+            externalDuchyId,
+            computationsClient,
+            asyncComputationControlClient,
+            duchyDependencies.storageClient,
+          )
           .withMetadataDuchyIdentities()
       )
     }

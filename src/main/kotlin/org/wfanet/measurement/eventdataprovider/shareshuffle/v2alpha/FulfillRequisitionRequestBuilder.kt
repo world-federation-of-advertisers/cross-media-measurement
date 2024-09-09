@@ -30,6 +30,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig.HonestMajorityShareShuf
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.randomSeed
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.NativeLibraryLoader
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
@@ -95,7 +96,7 @@ class FulfillRequisitionRequestBuilder(
         ?: throw IllegalArgumentException(
           "Exactly one duchy entry is expected to have the encryption public key. Found: ${publicKeyList.size}"
         )
-    shareSeedEncryptionKey = EncryptionPublicKey.parseFrom(publicKeyBlob.message.value)
+    shareSeedEncryptionKey = publicKeyBlob.unpack()
   }
 
   private val shareVector: FrequencyVector

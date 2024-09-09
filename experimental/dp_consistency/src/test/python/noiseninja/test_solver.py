@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest import TestCase
+import unittest
 
-from src.main.python.noiseninja.noised_measurements import SetMeasurementsSpec, Measurement
-from src.main.python.noiseninja.solver import Solver
+from noiseninja.noised_measurements import SetMeasurementsSpec, Measurement
+from noiseninja.solver import Solver
 
 
-class Test(TestCase):
+class SolverTest(unittest.TestCase):
     def test_solve_same_sigma_one_constraint(self):
         spec = SetMeasurementsSpec()
         spec.add_subset_relation(1, 2)
@@ -45,3 +45,6 @@ class Test(TestCase):
         # set 3 has very small sigma, therefore should not change much.
         self.assertAlmostEqual(solution[3], 1, places=4, msg=solution)
         self.assertTrue(solution[1] <= solution[2] + solution[3])
+
+if __name__=="__main__":
+    unittest.main()

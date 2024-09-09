@@ -42,7 +42,7 @@ import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
-import org.wfanet.measurement.api.v2alpha.EncryptedMessage
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
@@ -1465,7 +1465,7 @@ class RequisitionsServiceTest {
                   setMessage(
                     protoAny {
                       value = TINK_PUBLIC_KEY_2
-                      typeUrl = ProtoReflection.getTypeUrl(EncryptedMessage.getDescriptor())
+                      typeUrl = ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
                     }
                   )
                   signature = TINK_PUBLIC_KEY_SIGNATURE_2
