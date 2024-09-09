@@ -18,9 +18,15 @@ package org.wfanet.measurement.kingdom.deploy.common.job
 
 import java.io.File
 import java.time.Duration
+import org.wfanet.measurement.api.v2alpha.*
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.kingdom.batch.MeasurementSystemProber
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withDefaultDeadline
+import org.wfanet.measurement.common.grpc.withVerboseLogging
+import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.kingdom.deploy.common.server.KingdomApiServerFlags
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
@@ -71,9 +77,9 @@ private class MeasurementSystemProberFlags {
   @Option(
     names = ["--simulator-event-group-name"],
     description =
-      [
-        "QA event group name to use for requisitions and measurements. This identifies that a prober is being launched in a QA environment"
-      ],
+    [
+      "QA event group name to use for requisitions and measurements. This identifies that a prober is being launched in a QA environment"
+    ],
     required = false,
   )
   lateinit var simulatorEventGroupName: String
@@ -82,9 +88,9 @@ private class MeasurementSystemProberFlags {
   @Option(
     names = ["--measurement-lookback-duration"],
     description =
-      [
-        "Subtracted from the current time, specifies the start time for the interval of event data collection"
-      ],
+    [
+      "Subtracted from the current time, specifies the start time for the interval of event data collection"
+    ],
     required = true,
     defaultValue = "1d",
   )
@@ -94,9 +100,9 @@ private class MeasurementSystemProberFlags {
   @Option(
     names = ["--duration-between-measurements"],
     description =
-      [
-        "Added to the update time of the most recently completed measurement, determines whether enough time has elapsed to request a new measurement"
-      ],
+    [
+      "Added to the update time of the most recently completed measurement, determines whether enough time has elapsed to request a new measurement"
+    ],
     required = true,
     defaultValue = "1d",
   )
@@ -110,7 +116,42 @@ private class MeasurementSystemProberFlags {
   showDefaultValues = true,
 )
 private fun run(@Mixin flags: MeasurementSystemProberFlags) {
-  val measurementSystemProber = MeasurementSystemProber()
+  val clientCerts =
+    SigningCerts.fromPemFiles(
+      certificateFile = flags.tlsFlags.certFile,
+      privateKeyFile = flags.tlsFlags.privateKeyFile,
+      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
+    )
+
+  val channel = buildMutualTlsChannel(
+    flags.kingdomApiServerFlags.internalApiFlags.target,
+    clientCerts,
+    flags.kingdomApiServerFlags.internalApiFlags.certHost,
+  )
+    .withVerboseLogging(flags.kingdomApiServerFlags.debugVerboseGrpcClientLogging)
+    .withDefaultDeadline(flags.kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
+
+  val publicMeasurementsService =
+    org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub(channel)
+  val internalMeasurementsService = MeasurementsGrpcKt.MeasurementsCoroutineStub(channel)
+  val measurementConsumersService =
+    MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(channel)
+  val dataProvidersService = DataProvidersGrpcKt.DataProvidersCoroutineStub(channel)
+  val eventGroupsService = EventGroupsGrpcKt.EventGroupsCoroutineStub(channel)
+
+  val measurementSystemProber = MeasurementSystemProber(
+    flags.measurementConsumer,
+    flags.dataProvider,
+    flags.apiAuthenticationKey,
+    flags.privateKeyDerFile,
+    flags.measurementLookbackDuration,
+    flags.durationBetweenMeasurement,
+    measurementConsumersService,
+    publicMeasurementsService,
+    internalMeasurementsService,
+    dataProvidersService,
+    eventGroupsService,
+  )
   measurementSystemProber.run()
 }
 
