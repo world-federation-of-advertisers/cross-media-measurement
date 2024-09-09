@@ -69,7 +69,7 @@ private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
 }
 
 @RunWith(JUnit4::class)
-@OptIn(ExperimentalCoroutinesApi::class) // For `runTest`
+@OptIn(ExperimentalCoroutinesApi::class) // For `advanceTimeBy`
 class CelEnvProviderTest {
   private val cmmsEventGroupMetadataDescriptorsServiceMock:
     EventGroupMetadataDescriptorsCoroutineImplBase =
