@@ -27,8 +27,10 @@ class RemoteExchangeTask(
   private val exchangeStepIndex: Int,
   private val exchangeStepAttempt: ExchangeStepAttemptKey,
   private val exchangeDate: LocalDate,
-): ExchangeTask {
-  override suspend fun execute(input: Map<String, StorageClient.Blob>): Map<String, Flow<ByteString>> {
+) : ExchangeTask {
+  override suspend fun execute(
+    input: Map<String, StorageClient.Blob>
+  ): Map<String, Flow<ByteString>> {
     try {
       remoteTaskOrchestrator.orchestrateTask(
         exchangeId,

@@ -31,14 +31,11 @@ import org.mockito.kotlin.eq
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
-import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.storage.StorageDetails
 
 private const val TEST_APPLICATION_ID = "test-application-id"
-private const val TEST_EXCHANGE_ATTEMPT =
-  "recurringExchanges/test-recurring-exchange/exchanges/" +
-    "test-exchange/steps/test-step/attempts/test-step-attempt"
 
 @RunWith(JUnit4::class)
 class EmrRemoteTaskOrchestratorTest {
@@ -87,7 +84,7 @@ class EmrRemoteTaskOrchestratorTest {
       emrExchangeTaskRunner.orchestrateTask(
         "",
         0,
-        CanonicalExchangeStepAttemptKey.fromName(TEST_EXCHANGE_ATTEMPT)!!,
+        ExchangeStepAttemptKey("", "", "", ""),
         LocalDate.now(),
       )
 
@@ -109,7 +106,7 @@ class EmrRemoteTaskOrchestratorTest {
       emrExchangeTaskRunner.orchestrateTask(
         "",
         0,
-        CanonicalExchangeStepAttemptKey.fromName(TEST_EXCHANGE_ATTEMPT)!!,
+        ExchangeStepAttemptKey("", "", "", ""),
         LocalDate.now(),
       )
     }
@@ -125,7 +122,7 @@ class EmrRemoteTaskOrchestratorTest {
       emrExchangeTaskRunner.orchestrateTask(
         "",
         0,
-        CanonicalExchangeStepAttemptKey.fromName(TEST_EXCHANGE_ATTEMPT)!!,
+        ExchangeStepAttemptKey("", "", "", ""),
         LocalDate.now(),
       )
     }
@@ -142,7 +139,7 @@ class EmrRemoteTaskOrchestratorTest {
       emrExchangeTaskRunner.orchestrateTask(
         "",
         0,
-        CanonicalExchangeStepAttemptKey.fromName(TEST_EXCHANGE_ATTEMPT)!!,
+        ExchangeStepAttemptKey("", "", "", ""),
         LocalDate.now(),
       )
     }
@@ -186,7 +183,7 @@ class EmrRemoteTaskOrchestratorTest {
       orchestrator.orchestrateTask(
         "",
         0,
-        CanonicalExchangeStepAttemptKey.fromName(TEST_EXCHANGE_ATTEMPT)!!,
+        ExchangeStepAttemptKey("", "", "", ""),
         LocalDate.now(),
       )
 

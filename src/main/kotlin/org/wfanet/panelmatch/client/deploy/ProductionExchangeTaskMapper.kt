@@ -185,7 +185,8 @@ open class ProductionExchangeTaskMapper(
       val exchangeId = exchangeDateKey.recurringExchangeId
       val date = exchangeDateKey.date
 
-      RemoteExchangeTask(remoteTaskOrchestrator,
+      RemoteExchangeTask(
+        remoteTaskOrchestrator,
         exchangeId,
         workflow.stepsList.indexOfFirst {
           it.stepCase == step.stepCase
@@ -196,7 +197,8 @@ open class ProductionExchangeTaskMapper(
     } else {
       val stepDetails = step.decryptPrivateMembershipQueryResultsStep
 
-      val outputManifests = mapOf("decrypted-event-data" to stepDetails.decryptEventDataSetFileCount)
+      val outputManifests =
+        mapOf("decrypted-event-data" to stepDetails.decryptEventDataSetFileCount)
 
       apacheBeamTaskFor(outputManifests, emptyList()) {
         decryptPrivateMembershipResults(stepDetails.parameters, JniQueryResultsDecryptor())
@@ -289,6 +291,7 @@ open class ProductionExchangeTaskMapper(
           destinationBlobKey = destinationBlobKey,
         )
       }
+
       CopyOptions.LabelType.MANIFEST -> {
         apacheBeamTaskFor(
           outputManifests = mapOf(),
@@ -304,6 +307,7 @@ open class ProductionExchangeTaskMapper(
           )
         }
       }
+
       else -> error("Unrecognized CopyOptions: $copyOptions")
     }
   }
@@ -328,6 +332,7 @@ open class ProductionExchangeTaskMapper(
           destinationBlobKey = destinationBlobKey,
         )
       }
+
       CopyOptions.LabelType.MANIFEST -> {
         apacheBeamTaskFor(outputManifests = emptyMap(), outputBlobs = emptyList()) {
           copyToSharedStorage(
@@ -339,6 +344,7 @@ open class ProductionExchangeTaskMapper(
           )
         }
       }
+
       else -> error("Unrecognized CopyOptions: $copyOptions")
     }
   }
@@ -373,11 +379,11 @@ open class ProductionExchangeTaskMapper(
     val pipelineOptions = makePipelineOptions()
     pipelineOptions.jobName =
       listOf(
-          exchangeDateKey.recurringExchangeId,
-          exchangeDateKey.date.format(DateTimeFormatter.ofPattern("yyyyMMdd")),
-          step.stepId,
-          attemptKey.attemptId,
-        )
+        exchangeDateKey.recurringExchangeId,
+        exchangeDateKey.date.format(DateTimeFormatter.ofPattern("yyyyMMdd")),
+        step.stepId,
+        attemptKey.attemptId,
+      )
         .joinToString("-")
         .replace('_', '-')
 
