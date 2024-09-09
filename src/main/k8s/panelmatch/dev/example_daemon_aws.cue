@@ -18,7 +18,6 @@ import "strings"
 
 #GCloudProject:           "halo-cmm-dev"
 #KingdomPublicApiTarget:  "public.kingdom.dev.halo-cmm.org:8443"
-#ContainerRegistryPrefix: "{account_id}.dkr.ecr.{region}.amazonaws.com"
 #DefaultResourceConfig: {
 	replicas:  1
 	resources: #ResourceRequirements & {
@@ -35,11 +34,15 @@ import "strings"
 #DebugVerboseGrpcLogging: true
 
 #ExchangeDaemonConfig: {
+	accountId:          string
+	region:             *"us-west-2" | string
 	secretName:         string
 	partyType:          "DATA_PROVIDER" | "MODEL_PROVIDER"
 	partyName:          string
 	cloudStorageBucket: string
 	serviceAccountName: string
+	caArn:              string
+	emrExecutorRoleArn: string
 
 	clientTls: {
 		certFile: string
@@ -66,19 +69,7 @@ import "strings"
 	]
 }
 
-#DefaultAwsConfig: {
-	region:          string
-	storageBucket:   string
-	certArn:         string
-	kingdomApi:      string
-	commonName:      string
-	orgName:         string
-	dns:             string
-	containerPrefix: string
-}
-
 _exchangeDaemonConfig: #ExchangeDaemonConfig
-_defaultAwsConfig:     #DefaultAwsConfig
 
 objectSets: [deployments, networkPolicies]
 
@@ -100,28 +91,27 @@ deployments: {
 			// nodeSelector: "iam.gke.io/gke-metadata-server-enabled": "true"
 		}
 		_podSpec: _container: {
-			image:           _defaultAwsConfig.containerPrefix + "panel-exchange/aws-example-daemon"
+			image:           "\(_exchangeDaemonConfig.accountId).dkr.ecr.\(_exchangeDaemonConfig.region).amazonaws.companel-exchange/aws-example-daemon"
 			imagePullPolicy: "Always"
 			args:            _exchangeDaemonConfig.args + [
 						"--cert-collection-file=/var/run/secrets/files/trusted_certs.pem",
 						"--blob-size-limit-bytes=1000000000",
-						"--storage-signing-algorithm=EC",
 						"--task-timeout=24h",
-						"--exchange-api-target=" + _defaultAwsConfig.kingdomApi,
+						"--exchange-api-target=\(#KingdomPublicApiTarget)",
 						"--exchange-api-cert-host=localhost",
 						"--debug-verbose-grpc-client-logging=\(#DebugVerboseGrpcLogging)",
 						"--channel-shutdown-timeout=3s",
 						"--polling-interval=1m",
 						"--preprocessing-max-byte-size=1000000",
 						"--preprocessing-file-count=1000",
-						"--max-parallel-claimed-exchange-steps=1",
-						"--x509-common-name=" + _defaultAwsConfig.commonName,
-						"--x509-organization=" + _defaultAwsConfig.orgName,
-						"--x509-dns-name=" + _defaultAwsConfig.dns,
+						"--x509-common-name=SomeCommonName",
+						"--x509-organization=SomeOrganization",
+						"--x509-dns-name=example.com",
 						"--x509-valid-days=365",
-						"--s3-region=" + _defaultAwsConfig.region,
-						"--s3-storage-bucket=" + _defaultAwsConfig.storageBucket,
-						"--certificate-authority-arn=" + _defaultAwsConfig.certArn,
+						"--s3-region=\(_exchangeDaemonConfig.region)",
+						"--s3-storage-bucket=\(_exchangeDaemonConfig.cloudStorageBucket)",
+						"--certificate-authority-arn=\(_exchangeDaemonConfig.caArn)",
+						"--emr-executor-role-arn=\(_exchangeDaemonConfig.emrExecutorRoleArn)",
 			]
 		}
 	}

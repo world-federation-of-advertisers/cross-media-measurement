@@ -33,6 +33,7 @@ import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.common.TaskParameters
 import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessingParameters
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
+import org.wfanet.panelmatch.client.exchangetasks.remote.RemoteTaskOrchestrator
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Party
 import org.wfanet.panelmatch.client.launcher.ApiClient
 import org.wfanet.panelmatch.client.launcher.GrpcApiClient
@@ -69,6 +70,8 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
 
   /** Apache Beam options. */
   protected abstract fun makePipelineOptions(): PipelineOptions
+
+  protected abstract fun makeRemoteTaskOrchestrator(): RemoteTaskOrchestrator?
 
   /** [CertificateAuthority] for use in [V2AlphaCertificateManager]. */
   protected abstract val certificateAuthority: CertificateAuthority
@@ -122,6 +125,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
       certificateManager = certificateManager,
       makePipelineOptions = ::makePipelineOptions,
       taskContext = taskContext,
+      makeRemoteTaskOrchestrator = ::makeRemoteTaskOrchestrator,
     )
   }
 

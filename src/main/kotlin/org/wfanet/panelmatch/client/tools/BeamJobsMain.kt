@@ -45,6 +45,7 @@ import org.wfanet.panelmatch.client.deploy.ProductionExchangeTaskMapper
 import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessingParameters
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
+import org.wfanet.panelmatch.client.exchangetasks.remote.RemoteTaskOrchestrator
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
 import org.wfanet.panelmatch.client.storage.FileSystemStorageFactory
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
@@ -73,23 +74,26 @@ import picocli.CommandLine.Spec
 )
 class BeamJobsMain : Runnable {
 
-  @Spec lateinit var spec: CommandSpec
+  @Spec
+  lateinit var spec: CommandSpec
 
   val commandLine: CommandLine
     get() = spec.commandLine()
 
-  @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
-  @CommandLine.Mixin private lateinit var s3Flags: S3Flags
+  @CommandLine.Mixin
+  private lateinit var gcsFlags: GcsFromFlags.Flags
+  @CommandLine.Mixin
+  private lateinit var s3Flags: S3Flags
 
   val clock: Clock = Clock.systemUTC()
 
   @Option(
     names = ["--root-directory"],
     description =
-      [
-        "Root filesystem path to read from. If using a filesystem storage client, " +
-          "will also be the root private storage directory."
-      ],
+    [
+      "Root filesystem path to read from. If using a filesystem storage client, " +
+        "will also be the root private storage directory."
+    ],
     required = false,
   )
   private lateinit var rootDirectory: File
@@ -97,10 +101,10 @@ class BeamJobsMain : Runnable {
   @Option(
     names = ["--exchange-workflow-blob-key"],
     description =
-      [
-        "The decrypt exchange step to run. Can be made manually, or serialized from " +
-          "an existing workflow."
-      ],
+    [
+      "The decrypt exchange step to run. Can be made manually, or serialized from " +
+        "an existing workflow."
+    ],
     required = true,
   )
   private lateinit var exchangeWorkflowBlobKey: String
@@ -131,11 +135,11 @@ class BeamJobsMain : Runnable {
   @Option(
     names = ["--exchange-step-attempt-resource-id"],
     description =
-      [
-        "Resource ID for the decrypt exchange step attempt. If not tied to an " +
-          "existing exchange, the only reason to set this is to keep track of your own " +
-          "attempt counts."
-      ],
+    [
+      "Resource ID for the decrypt exchange step attempt. If not tied to an " +
+        "existing exchange, the only reason to set this is to keep track of your own " +
+        "attempt counts."
+    ],
     required = true,
   )
   private lateinit var exchangeStepAttemptResourceId: String
@@ -179,6 +183,10 @@ class BeamJobsMain : Runnable {
     }
   }
 
+  private fun makeRemoteTaskOrchestrator(): RemoteTaskOrchestrator? {
+    return null
+  }
+
   /** [PrivateStorageSelector] for writing to local (non-shared) storage. */
   private val privateStorageSelector: PrivateStorageSelector by lazy {
     PrivateStorageSelector(supportedStorageFactories, privateStorageInfo)
@@ -197,9 +205,10 @@ class BeamJobsMain : Runnable {
       certificateManager = TestCertificateManager, // Not used here.
       makePipelineOptions = ::makePipelineOptions,
       taskContext =
-        TaskParameters( // Not used. Set to defaults for consistency.
-          setOf(PreprocessingParameters(maxByteSize = 1000000, fileCount = 1000))
-        ),
+      TaskParameters( // Not used. Set to defaults for consistency.
+        setOf(PreprocessingParameters(maxByteSize = 1000000, fileCount = 1000))
+      ),
+      makeRemoteTaskOrchestrator = ::makeRemoteTaskOrchestrator
     )
   }
 

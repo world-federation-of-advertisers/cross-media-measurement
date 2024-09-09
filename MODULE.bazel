@@ -18,6 +18,11 @@ APACHE_BEAM_VERSION = "2.45.0"
 
 K8S_CLIENT_VERSION = "21.0.1"
 
+# Note: The AWS SDK version needs to match with the EMR image version to avoid class conflicts at runtime.
+# Current version matches with the SDK version in EMR image 7.1.0
+# (https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-710-release.html).
+AWS_SDK_VERSION = "2.23.18"
+
 # Bazel Central Registry modules.
 bazel_dep(
     name = "platforms",
@@ -129,7 +134,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.89.0",
+    version = "0.90.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -211,12 +216,14 @@ maven.install(
         "io.kubernetes:client-java-extended:" + K8S_CLIENT_VERSION,
         "joda-time:joda-time:2.10.10",
         "org.apache.beam:beam-runners-direct-java:" + APACHE_BEAM_VERSION,
-        "org.apache.beam:beam-runners-spark:" + APACHE_BEAM_VERSION,
+        "org.apache.beam:beam-runners-spark-3:" + APACHE_BEAM_VERSION,
         "org.apache.beam:beam-sdks-java-core:" + APACHE_BEAM_VERSION,
         "org.projectnessie.cel:cel-core:" + PROJECTNESSIE_CEL_VERSION,
         "org.projectnessie.cel:cel-generated-pb:" + PROJECTNESSIE_CEL_VERSION,
         "org.slf4j:slf4j-simple:1.7.32",
-        "software.amazon.awssdk:acmpca:2.17.258",
+        "software.amazon.awssdk:acmpca:" + AWS_SDK_VERSION,
+        "software.amazon.awssdk:emrserverless:" + AWS_SDK_VERSION,
+        "org.bouncycastle:bcpkix-jdk15on:1.70",
     ],
     fail_if_repin_required = True,
     fetch_sources = True,  # For IDE integration.

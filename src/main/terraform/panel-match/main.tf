@@ -17,13 +17,13 @@ module "panel_exchange_client" {
 
   # EKS vars
   availability_zones_count = 2
-  project                  = "tftest"
+  project                  = "petest"
   vpc_cidr                 = "10.0.0.0/16"
   subnet_cidr_bits         = 8
 
   # General MP vars
-  bucket_name    = "tf-test-blob-storage"
-  kms_alias_name = "my-key-alias"
+  bucket_name    = "mp-blob-storage"
+  kms_alias_name = "mp-key-alias"
   ca_org_name    = "WFA"
   ca_common_name = "WFA AWS MP CA"
   ca_dns         = "example.com"
@@ -34,8 +34,8 @@ module "panel_exchange_client" {
   build_target_name        = "example_mp_daemon_aws"
   manifest_name            = "example_mp_daemon_aws.yaml"
   repository_name          = "panel-exchange/aws-example-daemon"
-  path_to_secrets          = "../k8s/testing/secretfiles"
-  path_to_cue              = "../k8s/dev/example_mp_daemon_aws.cue"
+  path_to_secrets          = "../../k8s/panelmatch/testing/secretfiles"
+  path_to_cue              = "../../k8s/panelmatch/dev/example_mp_daemon_aws.cue"
   k8s_account_service_name = "mp-workflow"
   kingdom_endpoint         = "public.kingdom.dev.halo-cmm.org:8443"
 }

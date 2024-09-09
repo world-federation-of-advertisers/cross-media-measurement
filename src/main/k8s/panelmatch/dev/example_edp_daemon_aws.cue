@@ -15,19 +15,18 @@
 package k8s
 
 _exchangeDaemonConfig: {
+	accountId:          string @tag("account_id")
+	region:             string @tag("region")
 	secretName:         string @tag("secret_name")
 	partyName:          string @tag("party_name")
+	tinkKeyUri:         string @tag("tink_key_uri")
+	caArn:              string @tag("ca_arn")
+	emrExecutorRoleArn: string @tag("emr_executor_role_arn")
 	partyType:          "DATA_PROVIDER"
-	cloudStorageBucket: "halo-edp-test-bucket"
+	cloudStorageBucket: "edp-blob-storage"
 	serviceAccountName: "edp-workflow"
 	clientTls: {
 		certFile: "/var/run/secrets/files/edp1_tls.pem"
 		keyFile:  "/var/run/secrets/files/edp1_tls.key"
-	}
-	tinkKeyUri: ""
-	privateCa: {
-		name:     "20220302-51i-yj4"
-		poolId:   "EdpTestPool"
-		location: "us-central1"
 	}
 }

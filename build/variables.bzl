@@ -138,6 +138,7 @@ GRAFANA_K8S_SETTINGS = struct(
 EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG = struct(
     edp_name = "$(edp_name)",
     mp_name = "$(mp_name)",
+    secret_name = "$(k8s_secret_name)",
 )
 
 # Config for Kingdom-less Panel Exchange Client Example Daemon.
@@ -149,7 +150,15 @@ EXAMPLE_KINGDOMLESS_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG = struct(
 
 # Settings for deploying tests to Google Cloud.
 PANEL_EXCHANGE_CLIENT_TEST_GOOGLE_CLOUD_SETTINGS = struct(
-    secret_name = "$(k8s_secret_name)",
     cloud_storage_project = "$(cloud_storage_project)",
     cloud_storage_bucket = "$(cloud_storage_bucket)",
+)
+
+# Settings for deploying panel exchange daemon to AWS Cloud.
+PANEL_EXCHANGE_CLIENT_TEST_AWS_CLOUD_SETTINGS = struct(
+    account_id = "$(aws_account_id)",
+    region = "$(aws_region)",
+    tink_key_uri = "$(aws_kms_key_arn)",
+    ca_arn = "$(aws_ca_arn)",
+    emr_executor_role_arn = "$(aws_emr_executor_role_arn)",
 )

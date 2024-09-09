@@ -50,6 +50,7 @@ class CertificateAuthority(
   private val certificateAuthorityArn: String,
   private val client: CreateCertificateClient,
   private val generateKeyPair: () -> KeyPair = { generateKeyPair("RSA") },
+  private val signingAlgorithm: SigningAlgorithm = AWS_CERTIFICATE_SIGNING_ALGORITHM,
 ) : CertificateAuthority {
 
   private val certificateParams =
@@ -84,7 +85,6 @@ class CertificateAuthority(
 
   override suspend fun generateX509CertificateAndPrivateKey(): Pair<X509Certificate, PrivateKey> {
     val keyPair: KeyPair = generateKeyPair()
-    val privateKey: PrivateKey = keyPair.private
 
     val issueRequest =
       IssueCertificateRequest.builder()
@@ -93,11 +93,16 @@ class CertificateAuthority(
         .certificateAuthorityArn(certificateAuthorityArn)
         .csr(
           SdkBytes.fromByteArray(
-            generateCsrFromPrivateKey(privateKey, context.commonName, context.organization)
+            generateCsrFromPrivateKey(
+                keyPair,
+                context.organization,
+                context.commonName,
+                signingAlgorithm.toString(),
+              )
               .toByteArray()
           )
         )
-        .signingAlgorithm(AWS_CERTIFICATE_SIGNING_ALGORITHM)
+        .signingAlgorithm(signingAlgorithm)
         .validity(certificateLifetime)
         .build()
 
@@ -113,6 +118,6 @@ class CertificateAuthority(
 
     val getResponse = client.getCertificate(getRequest)
 
-    return readCertificate(getResponse.certificate().byteInputStream()) to privateKey
+    return readCertificate(getResponse.certificate().byteInputStream()) to keyPair.private
   }
 }

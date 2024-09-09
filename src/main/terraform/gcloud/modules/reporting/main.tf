@@ -36,13 +36,13 @@ resource "google_sql_user" "reporting_internal" {
 }
 
 resource "google_project_iam_member" "sql_user" {
-  project = data.google_project.project.name
+  project = data.google_project.project.project_id
   role    = "roles/cloudsql.instanceUser"
   member  = module.reporting_internal.iam_service_account.member
 }
 
 resource "google_project_iam_member" "sql_client" {
-  project = data.google_project.project.name
+  project = data.google_project.project.project_id
   role    = "roles/cloudsql.client"
   member  = module.reporting_internal.iam_service_account.member
 }

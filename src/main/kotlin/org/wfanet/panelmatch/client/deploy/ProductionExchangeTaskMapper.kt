@@ -34,6 +34,7 @@ import org.wfanet.panelmatch.client.exchangetasks.CopyFromPreviousExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyFromSharedStorageTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyToSharedStorageTask
 import org.wfanet.panelmatch.client.exchangetasks.DeterministicCommutativeCipherTask
+import org.wfanet.panelmatch.client.exchangetasks.RemoteExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.exchangetasks.GenerateAsymmetricKeyPairTask
@@ -49,6 +50,7 @@ import org.wfanet.panelmatch.client.exchangetasks.copyFromSharedStorage
 import org.wfanet.panelmatch.client.exchangetasks.copyToSharedStorage
 import org.wfanet.panelmatch.client.exchangetasks.decryptPrivateMembershipResults
 import org.wfanet.panelmatch.client.exchangetasks.executePrivateMembershipQueries
+import org.wfanet.panelmatch.client.exchangetasks.remote.RemoteTaskOrchestrator
 import org.wfanet.panelmatch.client.exchangetasks.preprocessEvents
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Step.CopyOptions
@@ -77,6 +79,7 @@ open class ProductionExchangeTaskMapper(
   private val certificateManager: CertificateManager,
   private val makePipelineOptions: () -> PipelineOptions,
   private val taskContext: TaskParameters,
+  private val makeRemoteTaskOrchestrator: () -> RemoteTaskOrchestrator?,
 ) : ExchangeTaskMapper() {
   override suspend fun ExchangeContext.commutativeDeterministicEncrypt(): ExchangeTask {
     return DeterministicCommutativeCipherTask.forEncryption(JniDeterministicCommutativeCipher())
@@ -175,12 +178,31 @@ open class ProductionExchangeTaskMapper(
     check(
       step.stepCase == ExchangeWorkflow.Step.StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP
     )
-    val stepDetails = step.decryptPrivateMembershipQueryResultsStep
 
-    val outputManifests = mapOf("decrypted-event-data" to stepDetails.decryptEventDataSetFileCount)
+    val remoteTaskOrchestrator = makeRemoteTaskOrchestrator()
 
-    return apacheBeamTaskFor(outputManifests, emptyList()) {
-      decryptPrivateMembershipResults(stepDetails.parameters, JniQueryResultsDecryptor())
+    return if (remoteTaskOrchestrator != null) {
+      val exchangeId = exchangeDateKey.recurringExchangeId
+      val date = exchangeDateKey.date
+
+      RemoteExchangeTask(
+        remoteTaskOrchestrator,
+        exchangeId,
+        workflow.stepsList.indexOfFirst {
+          it.stepCase == step.stepCase
+        },
+        attemptKey,
+        date,
+      )
+    } else {
+      val stepDetails = step.decryptPrivateMembershipQueryResultsStep
+
+      val outputManifests =
+        mapOf("decrypted-event-data" to stepDetails.decryptEventDataSetFileCount)
+
+      apacheBeamTaskFor(outputManifests, emptyList()) {
+        decryptPrivateMembershipResults(stepDetails.parameters, JniQueryResultsDecryptor())
+      }
     }
   }
 
@@ -269,6 +291,7 @@ open class ProductionExchangeTaskMapper(
           destinationBlobKey = destinationBlobKey,
         )
       }
+
       CopyOptions.LabelType.MANIFEST -> {
         apacheBeamTaskFor(
           outputManifests = mapOf(),
@@ -284,6 +307,7 @@ open class ProductionExchangeTaskMapper(
           )
         }
       }
+
       else -> error("Unrecognized CopyOptions: $copyOptions")
     }
   }
@@ -308,6 +332,7 @@ open class ProductionExchangeTaskMapper(
           destinationBlobKey = destinationBlobKey,
         )
       }
+
       CopyOptions.LabelType.MANIFEST -> {
         apacheBeamTaskFor(outputManifests = emptyMap(), outputBlobs = emptyList()) {
           copyToSharedStorage(
@@ -319,6 +344,7 @@ open class ProductionExchangeTaskMapper(
           )
         }
       }
+
       else -> error("Unrecognized CopyOptions: $copyOptions")
     }
   }
@@ -353,11 +379,11 @@ open class ProductionExchangeTaskMapper(
     val pipelineOptions = makePipelineOptions()
     pipelineOptions.jobName =
       listOf(
-          exchangeDateKey.recurringExchangeId,
-          exchangeDateKey.date.format(DateTimeFormatter.ofPattern("yyyyMMdd")),
-          step.stepId,
-          attemptKey.attemptId,
-        )
+        exchangeDateKey.recurringExchangeId,
+        exchangeDateKey.date.format(DateTimeFormatter.ofPattern("yyyyMMdd")),
+        step.stepId,
+        attemptKey.attemptId,
+      )
         .joinToString("-")
         .replace('_', '-')
 

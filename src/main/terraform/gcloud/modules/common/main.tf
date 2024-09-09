@@ -44,7 +44,7 @@ resource "google_service_account" "gke_cluster" {
 }
 
 resource "google_project_iam_member" "node_service_account" {
-  project = data.google_project.project.name
+  project = data.google_project.project.project_id
   role    = "roles/container.nodeServiceAccount"
   member  = google_service_account.gke_cluster.member
 }

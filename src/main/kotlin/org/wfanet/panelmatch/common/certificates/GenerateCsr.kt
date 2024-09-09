@@ -14,36 +14,25 @@
 
 package org.wfanet.panelmatch.common.certificates
 
-import java.io.ByteArrayOutputStream
-import java.security.PrivateKey
-import org.wfanet.measurement.common.crypto.PemWriter
+import java.io.StringWriter
+import java.security.KeyPair
+import javax.security.auth.x500.X500Principal
+import org.bouncycastle.openssl.jcajce.JcaPEMWriter
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
+import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder
+
 
 /**
- * Generates a PEM format CSR through OpenSSL for a given private key, organization and common name.
+ * Generates a PEM format CSR through BouncyCastle API for a given private key, organization and common name.
  */
-fun generateCsrFromPrivateKey(key: PrivateKey, organization: String, commonName: String): String {
-  val outputStream = ByteArrayOutputStream()
-  PemWriter(outputStream).write(key)
-  return runProcessWithInputAndReturnOutput(
-    outputStream.toByteArray(),
-    "openssl",
-    "req",
-    "-new",
-    "-subj",
-    "/O=$organization/CN=$commonName",
-    "-key",
-    "/dev/stdin",
-  )
-}
-
-private fun runProcessWithInputAndReturnOutput(input: ByteArray, vararg args: String): String {
-  val process = ProcessBuilder(*args).redirectErrorStream(true).start()
-  process.outputStream.write(input)
-  process.outputStream.close()
-  val exitCode = process.waitFor()
-  val output = process.inputStream.use { it.bufferedReader().readText() }
-  check(exitCode == 0) {
-    "Command ${args.joinToString(" ")} failed with code $exitCode. Output:\n$output"
-  }
-  return output
+fun generateCsrFromPrivateKey(keyPair: KeyPair, organization: String, commonName: String, algorithm: String): String {
+  val pkcs10CsrBuilder = JcaPKCS10CertificationRequestBuilder(X500Principal("O=$organization, CN=$commonName"), keyPair.public)
+  val csBuilder = JcaContentSignerBuilder(algorithm)
+  val signer = csBuilder.build(keyPair.private)
+  val strWriter = StringWriter()
+  val pemWriter = JcaPEMWriter(strWriter)
+  pemWriter.writeObject(pkcs10CsrBuilder.build(signer))
+  pemWriter.close()
+  strWriter.close()
+  return strWriter.toString()
 }

@@ -84,7 +84,12 @@ variable "k8s_account_service_name" {
 
 variable "path_to_cue" {
   type = string
-  default = "../k8s/dev/example_mp_daemon_aws.cue"
+  default = "../../k8s/dev/panelmatch/example_mp_daemon_aws.cue"
+}
+
+variable "service_namespace" {
+  type = string
+  default = "mp-space"
 }
 
 variable "ca_common_name" {

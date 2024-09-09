@@ -66,11 +66,11 @@ resource "aws_s3_bucket_policy" "block_access_from_http" {
 }
 
 resource "aws_s3_bucket" "blob_storage_logging" {
-  bucket = "${var.bucket_name}_logging"
+  bucket = "${var.bucket_name}-logging"
 }
 
 resource "aws_s3_bucket_acl" "blob_storage_logging_acl" {
-  bucket = "${var.bucket_name}_logging"
+  bucket = "${var.bucket_name}-logging"
   acl    = "log-delivery-write"
 }
 

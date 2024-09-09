@@ -15,27 +15,18 @@
 package k8s
 
 _exchangeDaemonConfig: {
+	accountId:          string @tag("account_id")
+	region:             string @tag("region")
 	secretName:         string @tag("secret_name")
 	partyName:          string @tag("party_name")
+	tinkKeyUri:         string @tag("tink_key_uri")
+	caArn:              string @tag("ca_arn")
+	emrExecutorRoleArn: string @tag("emr_executor_role_arn")
 	partyType:          "MODEL_PROVIDER"
-	cloudStorageBucket: "halo-edp-test-bucket"
+	cloudStorageBucket: "mp-blob-storage"
 	serviceAccountName: "mp-workflow"
 	clientTls: {
-		certFile: ""
-		keyFile:  ""
+		certFile: "/var/run/secrets/files/mp1_tls.pem"
+		keyFile:  "/var/run/secrets/files/mp1_tls.key"
 	}
-	tinkKeyUri: ""
-}
-
-// Blank strings are populated by the Terraform-backed deployment supporting
-// the AWS daemon.
-_defaultAwsConfig: {
-	containerPrefix: ""
-	region:          ""
-	storageBucket:   ""
-	kingdomApi:      ""
-	certArn:         ""
-	commonName:      ""
-	orgName:         ""
-	dns:             ""
 }

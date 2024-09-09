@@ -59,12 +59,17 @@ variable "kms_key_id" {
 
 variable "path_to_edp_cue" {
   type = string
-  default = "../k8s/dev/example_edp_daemon_aws.cue"
+  default = "../../k8s/panelmatch/dev/example_edp_daemon_aws.cue"
 }
 
 variable "path_to_edp_cue_base" {
   type = string
-  default = "../k8s/dev/example_daemon_aws.cue"
+  default = "../../k8s/panelmatch/dev/example_daemon_aws.cue"
+}
+
+variable "service_namespace" {
+  type = string
+  default = "edp-space"
 }
 
 variable "ca_arn" {

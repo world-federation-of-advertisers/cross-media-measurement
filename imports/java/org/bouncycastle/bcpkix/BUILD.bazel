@@ -1,0 +1,6 @@
+package(default_visibility = ["//src/main/kotlin/org/wfanet/panelmatch/common/certificates:__subpackages__"])
+
+alias(
+    name = "bcpkix",
+    actual = "@maven//:org_bouncycastle_bcpkix_jdk15on",
+)

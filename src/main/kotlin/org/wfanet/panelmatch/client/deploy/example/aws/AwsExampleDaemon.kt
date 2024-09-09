@@ -27,8 +27,12 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.deploy.CertificateAuthorityFlags
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.deploy.example.ExampleDaemon
+import org.wfanet.panelmatch.client.exchangetasks.remote.RemoteTaskOrchestrator
+import org.wfanet.panelmatch.client.exchangetasks.remote.aws.EmrRemoteTaskOrchestrator
+import org.wfanet.panelmatch.client.exchangetasks.remote.aws.EmrServerlessClientImpl
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidatorImpl
 import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
+import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.common.beam.BeamOptions
 import org.wfanet.panelmatch.common.certificates.aws.CertificateAuthority
@@ -41,6 +45,7 @@ import picocli.CommandLine.Option
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider
 import software.amazon.awssdk.regions.Region
+import software.amazon.awssdk.services.emrserverless.EmrServerlessAsyncClient
 import software.amazon.awssdk.services.s3.S3AsyncClient
 
 @Command(
@@ -58,6 +63,14 @@ private class AwsExampleDaemon : ExampleDaemon() {
     required = true,
   )
   lateinit var certificateAuthorityArn: String
+    private set
+
+  @Option(
+    names = ["--emr-executor-role-arn"],
+    description = ["EMR executor role ARN"],
+    required = true,
+  )
+  lateinit var emrExecutorRoleArn: String
     private set
 
   @Option(
@@ -100,6 +113,27 @@ private class AwsExampleDaemon : ExampleDaemon() {
         awsSessionToken = awsCredentials.sessionToken()
       }
     }
+  }
+
+  override fun makeRemoteTaskOrchestrator(): RemoteTaskOrchestrator {
+    return EmrRemoteTaskOrchestrator(
+      exchangeTaskAppIdPath = "exchange-tasks/emr/application/${flags.id}",
+      exchangeWorkflowPrefix = "valid-exchange-workflows",
+      storageClient = rootStorageClient,
+      storageType = StorageDetails.PlatformCase.AWS,
+      storageBucket = s3Bucket,
+      storageRegion = s3Region,
+      emrServerlessClient =
+        EmrServerlessClientImpl(
+          s3ExchangeTaskJarPath = "s3://${s3Bucket}/exchange-tasks/jars/beam-exchange-tasks.jar",
+          s3ExchangeTaskLogPath = "s3://${s3Bucket}/exchange-tasks/logs",
+          emrJobExecutionRoleArn = emrExecutorRoleArn,
+          emrServerlessClient =
+            EmrServerlessAsyncClient.builder()
+              .credentialsProvider(DefaultCredentialsProvider.create())
+              .build(),
+        ),
+    )
   }
 
   override val rootStorageClient: StorageClient by lazy {

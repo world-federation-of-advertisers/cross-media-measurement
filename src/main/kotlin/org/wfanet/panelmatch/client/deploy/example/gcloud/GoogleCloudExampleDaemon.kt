@@ -29,6 +29,7 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.deploy.CertificateAuthorityFlags
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.deploy.example.ExampleDaemon
+import org.wfanet.panelmatch.client.exchangetasks.remote.RemoteTaskOrchestrator
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.common.beam.BeamOptions
 import org.wfanet.panelmatch.common.certificates.gcloud.CertificateAuthority
@@ -192,6 +193,10 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
         awsSessionToken = awsCredentials.sessionToken()
       }
     }
+  }
+
+  override fun makeRemoteTaskOrchestrator(): RemoteTaskOrchestrator? {
+    return null
   }
 
   override val rootStorageClient: StorageClient by lazy {
