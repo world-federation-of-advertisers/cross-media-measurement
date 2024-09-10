@@ -19,8 +19,10 @@ package wfa.measurement.internal.kingdom;
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/kingdom/certificate.proto";
 import "wfa/measurement/internal/kingdom/computation_participant.proto";
-import "wfa/measurement/internal/kingdom/duchy_protocol_config.proto";
+import "wfa/measurement/internal/kingdom/measurement_details.proto";
+import "wfa/measurement/internal/kingdom/participant_requisition_params.proto";
 import "wfa/measurement/internal/kingdom/protocol_config.proto";
+import "wfa/measurement/internal/kingdom/requisition_details.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -83,22 +85,6 @@ message Measurement {
   }
   State state = 8;
 
-  message Failure {
-    enum Reason {
-      REASON_UNSPECIFIED = 0;
-      // An associated certificate was revoked.
-      CERTIFICATE_REVOKED = 1;
-      // Requisition state was set to REFUSED.
-      REQUISITION_REFUSED = 2;
-      // ComputationParticipant state was set to FAILED.
-      COMPUTATION_PARTICIPANT_FAILED = 3;
-    }
-    Reason reason = 1;
-    // Human-readable message. This should not contain any sensitive
-    // information.
-    string message = 2;
-  }
-
   message DataProviderValue {
     fixed64 external_data_provider_certificate_id = 1;
 
@@ -116,23 +102,7 @@ message Measurement {
   // Only set for DEFAULT view.
   map<fixed64, DataProviderValue> data_providers = 9;
 
-  message Details {
-    // Version the public API for serialized message definitions.
-    string api_version = 1;
-
-    // Serialized `MeasurementSpec` from public API.
-    bytes measurement_spec = 2;
-    bytes measurement_spec_signature = 3;
-    string measurement_spec_signature_algorithm_oid = 9;
-
-    // The protocol config used in this measurement.
-    ProtocolConfig protocol_config = 6;
-    DuchyProtocolConfig duchy_protocol_config = 7;
-
-    // Set when the state is set to FAILED.
-    Failure failure = 8;
-  }
-  Details details = 10;
+  MeasurementDetails details = 10;
 
   message ResultInfo {
     oneof certificate_parent {
@@ -191,102 +161,22 @@ message Requisition {
   // to this Requisition as as `FULFILLED` or being assigned to fulfill.
   string external_fulfilling_duchy_id = 8;
 
-  message Refusal {
-    enum Justification {
-      // Default value if a `Justification` field has not been specified. Should
-      // never be used.
-      JUSTIFICATION_UNSPECIFIED = 0;
-
-      // At least one cryptographic consent signal (digital signature or
-      // encrypted value) in the `Requisition` is invalid.
-      //
-      // This means either that a digital signature cannot be verified using the
-      // specified certificate or an encrypted value cannot be decrypted using
-      // the specified key.
-      CONSENT_SIGNAL_INVALID = 1;
-
-      // The specification/configuration for the `Requisition` is invalid.
-      //
-      // For example, `encrypted_requisition_spec` includes an invalid
-      // `TimeInterval` (with `end_time` before `start_time`) or some
-      // configuration that the `DataProvider` does not support.
-      SPECIFICATION_INVALID = 2;
-
-      // There is insufficient remaining privacy budget to fulfill the
-      // `Requisition`.
-      INSUFFICIENT_PRIVACY_BUDGET = 3;
-
-      // The `Requisition` cannot be fulfilled by the `DataProvider` for a
-      // reason that is not more clearly indicated by another `Justification`.
-      //
-      // This implies that the `DataProvider` *should* be able to fulfill the
-      // `Requisition`, but something went irrecoverably wrong. For example, the
-      // `DataProvider` encountered corruption of the underlying data.
-      UNFULFILLABLE = 4;
-
-      // The `DataProvider` has declined to fulfill this `Requisition`
-      // regardless of whether any of the other `Justification` conditions
-      // apply.
-      DECLINED = 5;
-    }
-    Justification justification = 1;
-
-    // Human-readable string adding more context to the provided
-    // `Justification`. This should NOT include sensitive information.
-    //
-    // Example: "Data Provider X does not support Virtual ID model line Y".
-    string message = 2;
-  }
-
   message DuchyValue {
     // External ID of Certificate used to verify signatures in protocol field.
     fixed64 external_duchy_certificate_id = 1;
 
     oneof protocol {
-      ComputationParticipant.LiquidLegionsV2Details liquid_legions_v2 = 2;
+      LiquidLegionsV2Params liquid_legions_v2 = 2;
 
-      ComputationParticipant.LiquidLegionsV2Details
-          reach_only_liquid_legions_v2 = 3;
+      LiquidLegionsV2Params reach_only_liquid_legions_v2 = 3;
 
-      ComputationParticipant.HonestMajorityShareShuffleDetails
-          honest_majority_share_shuffle = 4;
+      HonestMajorityShareShuffleParams honest_majority_share_shuffle = 4;
     }
   }
   // Map of external Duchy ID to DuchyValue.
   map<string, DuchyValue> duchies = 9;
 
-  message Details {
-    // Serialized `EncryptionPublicKey` message from the public API.
-    bytes data_provider_public_key = 1;
-    bytes data_provider_public_key_signature = 2 [deprecated = true];
-    string data_provider_public_key_signature_algorithm_oid = 8
-        [deprecated = true];
-
-    bytes encrypted_requisition_spec = 3;
-    bytes nonce_hash = 4;
-
-    // Actual nonce value. Set when Requisition state is FULFILLED.
-    fixed64 nonce = 5;
-
-    // Refusal information. Set when Requisition state is REFUSED.
-    Refusal refusal = 6;
-
-    // Encrypted SignedData containing the Measurement.Result for this
-    // Requisition. Set when Requisition state is FULFILLED and the protocol is
-    // Direct.
-    bytes encrypted_data = 7;
-
-    // Version of the public API for `encrypted_data`.
-    //
-    // If not specified, assume "v2alpha".
-    string encrypted_data_api_version = 9;
-
-    // Used to verify the decrypted Measurement.Result. If not present,
-    // `data_provider_certificate` should be used. Set when Requisition
-    // state is FULFILLED and the protocol is Direct.
-    fixed64 external_certificate_id = 10;
-  }
-  Details details = 10;
+  RequisitionDetails details = 10;
 
   // Denormalized DataProvider Certificate. Output-only.
   Certificate data_provider_certificate = 11;

@@ -17,7 +17,8 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "wfa/measurement/internal/kingdom/duchy_measurement_log_entry.proto";
-import "wfa/measurement/internal/kingdom/measurement_log_entry.proto";
+import "wfa/measurement/internal/kingdom/duchy_measurement_log_entry_details.proto";
+import "wfa/measurement/internal/kingdom/measurement_log_entry_details.proto";
 import "wfa/measurement/internal/kingdom/state_transition_measurement_log_entry.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
@@ -43,8 +44,8 @@ message CreateDuchyMeasurementLogEntryRequest {
   fixed64 external_computation_id = 1;
   string external_duchy_id = 2;
 
-  MeasurementLogEntry.Details measurement_log_entry_details = 3;
-  DuchyMeasurementLogEntry.Details details = 4;
+  MeasurementLogEntryDetails measurement_log_entry_details = 3;
+  DuchyMeasurementLogEntryDetails details = 4;
 }
 
 message StreamStateTransitionMeasurementLogEntriesRequest {

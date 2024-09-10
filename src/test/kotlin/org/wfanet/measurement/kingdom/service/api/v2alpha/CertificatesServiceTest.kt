@@ -77,7 +77,6 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
-import org.wfanet.measurement.internal.kingdom.CertificateKt.details
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase as InternalCertificatesCoroutineService
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequest as InternalGetCertificateRequest
@@ -85,6 +84,7 @@ import org.wfanet.measurement.internal.kingdom.ReleaseCertificateHoldRequest as 
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest as InternalRevokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.StreamCertificatesRequestKt
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
+import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getCertificateRequest as internalGetCertificateRequest
 import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest as internalReleaseCertificateHoldRequest
@@ -1523,7 +1523,7 @@ class CertificatesServiceTest {
       subjectKeyIdentifier = SERVER_CERTIFICATE.subjectKeyIdentifier!!
       notValidBefore = SERVER_CERTIFICATE.notBefore.toInstant().toProtoTime()
       notValidAfter = SERVER_CERTIFICATE.notAfter.toInstant().toProtoTime()
-      details = details { x509Der = SERVER_CERTIFICATE_DER }
+      details = certificateDetails { x509Der = SERVER_CERTIFICATE_DER }
     }
     private val CERTIFICATE: Certificate = certificate {
       name = DATA_PROVIDER_CERTIFICATE_NAME

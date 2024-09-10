@@ -19,12 +19,14 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementKt
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
+import org.wfanet.measurement.internal.kingdom.MeasurementFailure
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.RefuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.measurementFailure
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryError
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundByDataProviderException
@@ -67,26 +69,22 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
 
     val updatedDetails = requisition.details.copy { refusal = request.refusal }
     updateRequisition(readResult, Requisition.State.REFUSED, updatedDetails)
-    val measurementLogEntryDetails =
-      MeasurementLogEntryKt.details {
-        logMessage = "Measurement failed due to a requisition refusal"
-        this.error =
-          MeasurementLogEntryKt.errorDetails {
-            this.type = MeasurementLogEntry.ErrorDetails.Type.PERMANENT
-            // TODO(@marcopremier): plumb in a clock instance dependency not to hardcode the system
-            // one
-            this.errorTime = Clock.systemUTC().protoTimestamp()
-          }
+    val measurementLogEntryDetails = measurementLogEntryDetails {
+      logMessage = "Measurement failed due to a requisition refusal"
+      this.error = measurementLogEntryError {
+        this.type = MeasurementLogEntryError.Type.PERMANENT
+        // TODO(@marcopremier): plumb in a clock instance dependency not to hardcode the system
+        // one
+        this.errorTime = Clock.systemUTC().protoTimestamp()
       }
+    }
 
     val updatedMeasurementDetails =
       measurementDetails.copy {
-        failure =
-          MeasurementKt.failure {
-            reason = Measurement.Failure.Reason.REQUISITION_REFUSED
-            message =
-              "ID of refused Requisition: " + externalIdToApiId(request.externalRequisitionId)
-          }
+        failure = measurementFailure {
+          reason = MeasurementFailure.Reason.REQUISITION_REFUSED
+          message = "ID of refused Requisition: " + externalIdToApiId(request.externalRequisitionId)
+        }
       }
 
     updateMeasurementState(

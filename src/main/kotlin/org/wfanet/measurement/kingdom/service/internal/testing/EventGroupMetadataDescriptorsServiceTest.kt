@@ -36,11 +36,11 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
-import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptor
+import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptorDetails
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptorKey
 import org.wfanet.measurement.internal.kingdom.getEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupMetadataDescriptorsRequest
@@ -48,11 +48,11 @@ import org.wfanet.measurement.internal.kingdom.updateEventGroupMetadataDescripto
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
-private val DETAILS = details {
+private val DETAILS = eventGroupMetadataDescriptorDetails {
   apiVersion = Version.V2_ALPHA.string
   descriptorSet = ProtoReflection.buildFileDescriptorSet(TestMetadataMessage.getDescriptor())
 }
-private val DETAILS_2 = details {
+private val DETAILS_2 = eventGroupMetadataDescriptorDetails {
   apiVersion = Version.V2_ALPHA.string
   descriptorSet = ProtoReflection.buildFileDescriptorSet(TestMetadataMessage2.getDescriptor())
 }
@@ -259,7 +259,7 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
 
     val modifyEventGroupMetadataDescriptor =
       createdEventGroupMetadataDescriptor.copy {
-        details = details { apiVersion = "alternate version" }
+        details = eventGroupMetadataDescriptorDetails { apiVersion = "alternate version" }
       }
 
     val updatedEventGroupMetadataDescriptor =
