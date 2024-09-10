@@ -627,7 +627,8 @@ class GcpSpannerComputationsDatabaseTransactor<
         listOf("BlobId", "PathToBlob", "DependencyType"),
       )
       .filter {
-        val dep = it.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
+        val dep: ComputationBlobDependency =
+          it.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
         dep == ComputationBlobDependency.OUTPUT
       }
       .toList()
@@ -640,7 +641,7 @@ class GcpSpannerComputationsDatabaseTransactor<
   ) {
     require(blobRef.key.isNotBlank()) { "Cannot insert blank path to blob. $blobRef" }
     runIfTokenFromLastUpdate(token) { txn ->
-      val type =
+      val type: ComputationBlobDependency =
         txn
           .readRow(
             "ComputationBlobReferences",

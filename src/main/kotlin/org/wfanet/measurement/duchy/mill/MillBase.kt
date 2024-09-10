@@ -30,7 +30,6 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.pow
 import kotlin.random.Random
-import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource
 import kotlin.time.toJavaDuration
 import kotlinx.coroutines.flow.Flow
@@ -814,7 +813,6 @@ abstract class MillBase(
     return systemStage.toComputationStage()
   }
 
-  @OptIn(ExperimentalTime::class)
   private inner class WallDurationLogger {
     private val timeMark = TimeSource.Monotonic.markNow()
 
