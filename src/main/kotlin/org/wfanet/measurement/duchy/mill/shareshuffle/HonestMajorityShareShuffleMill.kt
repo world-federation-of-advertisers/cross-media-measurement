@@ -276,18 +276,13 @@ class HonestMajorityShareShuffleMill(
       stub = peerDuchyStub(hmssDetails.role),
     )
 
-    val nextStage = nextStage(token).toProtocolStage()
     return dataClients.transitionComputationToStage(
       token,
       stage = nextStage(token).toProtocolStage(),
-      // For SECOND_NON_AGGREGATOR, the input of SETUP_PHASE is the ShufflePhaseInput from peer
-      // worker. It should be forwarded to SHUFFLE_PHASE.
-      inputsToNextStage =
-        if (nextStage == Stage.SHUFFLE_PHASE.toProtocolStage()) {
-          token.inputPathList()
-        } else {
-          emptyList()
-        },
+      // This is specifically for SECOND_NON_AGGREGATOR. The input of SETUP_PHASE is the
+      // ShufflePhaseInput from peer worker that should be forwarded to SHUFFLE_PHASE.
+      // For FIRST_NON_AGGREGATOR, this is empty.
+      inputsToNextStage = token.inputPathList(),
     )
   }
 
