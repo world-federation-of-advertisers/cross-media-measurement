@@ -170,12 +170,15 @@ import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.EXECUTI
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.SETUP_PHASE_INPUT
+import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2Stage
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.SetComputationResultRequest
 import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.system.v1alpha.computationParticipant
+import org.wfanet.measurement.system.v1alpha.computationStage
 import org.wfanet.measurement.system.v1alpha.confirmComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.copy
+import org.wfanet.measurement.system.v1alpha.liquidLegionsV2Stage
 import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
 
 private const val PUBLIC_API_VERSION = "v2alpha"
@@ -516,7 +519,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     ComputationStatsCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private lateinit var computationControlRequests: List<AdvanceComputationRequest>
+  private var computationControlRequests: List<AdvanceComputationRequest> = emptyList()
 
   // Just use the same workerStub for all other duchies, since it is not relevant to this test.
   private val workerStubs = mapOf(DUCHY_TWO_NAME to workerStub, DUCHY_THREE_NAME to workerStub)
@@ -1203,6 +1206,16 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
       blobs = listOf(newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)),
     )
+    mockLiquidLegionsComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            liquidLegionsV2Stage = liquidLegionsV2Stage {
+              stage = LiquidLegionsV2Stage.Stage.WAIT_SETUP_PHASE_INPUTS
+            }
+          }
+        )
+    }
 
     var cryptoRequest = CompleteSetupPhaseRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeSetupPhase(any())).thenAnswer {
@@ -1312,6 +1325,16 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         ),
       requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
     )
+    mockLiquidLegionsComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            liquidLegionsV2Stage = liquidLegionsV2Stage {
+              stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
+            }
+          }
+        )
+    }
 
     var cryptoRequest = CompleteSetupPhaseRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeSetupPhase(any())).thenAnswer {
@@ -1424,6 +1447,16 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         listOf(newInputBlobMetadata(0L, inputBlob0Context.blobKey), newEmptyOutputBlobMetadata(3L)),
       requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
     )
+    mockLiquidLegionsComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            liquidLegionsV2Stage = liquidLegionsV2Stage {
+              stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
+            }
+          }
+        )
+    }
 
     var cryptoRequest = CompleteSetupPhaseRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeSetupPhase(any())).thenAnswer {
@@ -1531,6 +1564,16 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         ),
       requisitions = REQUISITIONS,
     )
+    mockLiquidLegionsComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            liquidLegionsV2Stage = liquidLegionsV2Stage {
+              stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
+            }
+          }
+        )
+    }
 
     // Stage 1. Process the above computation
     nonAggregatorMill.claimAndProcessWork()
@@ -1590,6 +1633,16 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         ),
       requisitions = REQUISITIONS,
     )
+    mockLiquidLegionsComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            liquidLegionsV2Stage = liquidLegionsV2Stage {
+              stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
+            }
+          }
+        )
+    }
 
     var cryptoRequest = CompleteExecutionPhaseOneRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeExecutionPhaseOne(any())).thenAnswer {
@@ -1679,6 +1732,16 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         ),
       requisitions = REQUISITIONS,
     )
+    mockLiquidLegionsComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            liquidLegionsV2Stage = liquidLegionsV2Stage {
+              stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS
+            }
+          }
+        )
+    }
 
     var cryptoRequest = CompleteExecutionPhaseOneAtAggregatorRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeExecutionPhaseOneAtAggregator(any())).thenAnswer {
@@ -1890,6 +1953,16 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         .apply { flagCountTuples = cryptoRequest.flagCountTuples.concat(postFix) }
         .build()
     }
+    mockLiquidLegionsComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            liquidLegionsV2Stage = liquidLegionsV2Stage {
+              stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS
+            }
+          }
+        )
+    }
 
     // Stage 1. Process the above computation
     nonAggregatorMill.claimAndProcessWork()
@@ -2086,6 +2159,16 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         ),
       requisitions = REQUISITIONS,
     )
+    mockLiquidLegionsComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            liquidLegionsV2Stage = liquidLegionsV2Stage {
+              stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS
+            }
+          }
+        )
+    }
 
     val testReach = 123L
     var cryptoRequest = CompleteExecutionPhaseTwoAtAggregatorRequest.getDefaultInstance()
@@ -2211,6 +2294,16 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         ),
       requisitions = REQUISITIONS,
     )
+    mockLiquidLegionsComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            liquidLegionsV2Stage = liquidLegionsV2Stage {
+              stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS
+            }
+          }
+        )
+    }
 
     val testReach = 123L
     var cryptoRequest = CompleteExecutionPhaseTwoAtAggregatorRequest.getDefaultInstance()
@@ -2554,6 +2647,16 @@ class ReachFrequencyLiquidLegionsV2MillTest {
         ),
       requisitions = REQUISITIONS,
     )
+    mockLiquidLegionsComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            liquidLegionsV2Stage = liquidLegionsV2Stage {
+              stage = LiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS
+            }
+          }
+        )
+    }
 
     var cryptoRequest = CompleteExecutionPhaseThreeRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeExecutionPhaseThree(any())).thenAnswer {
@@ -2707,6 +2810,103 @@ class ReachFrequencyLiquidLegionsV2MillTest {
             }
           }
           .build()
+      )
+  }
+
+  @Test
+  fun `skip advancing when the next duchy is in a future phase`() = runBlocking {
+    // Stage 0. preparing the storage and set up mock
+    val partialToken =
+      FakeComputationsDatabase.newPartialToken(
+          localId = LOCAL_ID,
+          stage = EXECUTION_PHASE_ONE.toProtocolStage(),
+        )
+        .build()
+    val inputBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage(), 0L)
+    val calculatedBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage(), 1L)
+    computationStore.writeString(inputBlobContext, "data")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
+      blobs =
+        listOf(
+          inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId),
+        ),
+      requisitions = REQUISITIONS,
+    )
+    mockLiquidLegionsComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            liquidLegionsV2Stage = liquidLegionsV2Stage {
+              // A future stage
+              stage = LiquidLegionsV2Stage.Stage.EXECUTION_PHASE_TWO
+            }
+          }
+        )
+    }
+
+    var cryptoRequest = CompleteExecutionPhaseOneAtAggregatorRequest.getDefaultInstance()
+    whenever(mockCryptoWorker.completeExecutionPhaseOneAtAggregator(any())).thenAnswer {
+      cryptoRequest = it.getArgument(0)
+      val postFix = ByteString.copyFromUtf8("-completeExecutionPhaseOneAtAggregator-done")
+      CompleteExecutionPhaseOneAtAggregatorResponse.newBuilder()
+        .apply { flagCountTuples = cryptoRequest.combinedRegisterVector.concat(postFix) }
+        .build()
+    }
+
+    // Stage 1. Process the above computation
+    aggregatorMill.claimAndProcessWork()
+
+    // Stage 2. Check the status of the computation
+    val blobKey = calculatedBlobContext.blobKey
+    assertThat(fakeComputationDb[LOCAL_ID])
+      .isEqualTo(
+        ComputationToken.newBuilder()
+          .apply {
+            globalComputationId = GLOBAL_ID
+            localComputationId = LOCAL_ID
+            attempt = 1
+            computationStage = WAIT_EXECUTION_PHASE_TWO_INPUTS.toProtocolStage()
+            addBlobsBuilder().apply {
+              dependencyType = ComputationBlobDependency.INPUT
+              blobId = 0
+              path = blobKey
+            }
+            addBlobsBuilder().apply {
+              dependencyType = ComputationBlobDependency.OUTPUT
+              blobId = 1
+            }
+            version = 3 // claimTask + writeOutputBlob + transitionStage
+            computationDetails = AGGREGATOR_COMPUTATION_DETAILS
+            addAllRequisitions(REQUISITIONS)
+          }
+          .build()
+      )
+    assertThat(computationStore.get(blobKey)?.readToString())
+      .isEqualTo("data-completeExecutionPhaseOneAtAggregator-done")
+
+    assertThat(computationControlRequests).isEmpty()
+
+    assertThat(cryptoRequest)
+      .isEqualTo(
+        completeExecutionPhaseOneAtAggregatorRequest {
+          combinedRegisterVector = ByteString.copyFromUtf8("data")
+          localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
+          compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+          curveId = CURVE_ID
+          parallelism = PARALLELISM
+          noiseParameters = flagCountTupleNoiseGenerationParameters {
+            maximumFrequency = MAX_FREQUENCY
+            contributorsCount = WORKER_COUNT
+            dpParams = TEST_NOISE_CONFIG.frequencyNoiseConfig
+          }
+          totalSketchesCount = REQUISITIONS.size
+        }
       )
   }
 }
