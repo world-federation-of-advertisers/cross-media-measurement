@@ -115,7 +115,7 @@ private class MeasurementSystemProberFlags {
   mixinStandardHelpOptions = true,
   showDefaultValues = true,
 )
-private fun run(@Mixin flags: MeasurementSystemProberFlags) {
+private suspend fun run(@Mixin flags: MeasurementSystemProberFlags) {
   val clientCerts =
     SigningCerts.fromPemFiles(
       certificateFile = flags.tlsFlags.certFile,
