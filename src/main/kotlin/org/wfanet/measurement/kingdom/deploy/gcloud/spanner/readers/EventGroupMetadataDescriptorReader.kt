@@ -23,6 +23,7 @@ import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
+import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorDetails
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptor
 
 class EventGroupMetadataDescriptorReader :
@@ -120,7 +121,7 @@ class EventGroupMetadataDescriptorReader :
       }
       if (!struct.isNull("DescriptorDetails")) {
         details =
-          struct.getProtoMessage("DescriptorDetails", EventGroupMetadataDescriptor.Details.parser())
+          struct.getProtoMessage("DescriptorDetails", EventGroupMetadataDescriptorDetails.parser())
       }
     }
   }

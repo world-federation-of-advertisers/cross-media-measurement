@@ -25,7 +25,7 @@ import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.GetRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.RefuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.Requisition.Refusal
+import org.wfanet.measurement.internal.kingdom.RequisitionRefusal
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
@@ -117,10 +117,12 @@ class SpannerRequisitionsService(
     with(request) {
       grpcRequire(externalDataProviderId != 0L) { "external_data_provider_id not specified" }
       grpcRequire(externalRequisitionId != 0L) { "external_requisition_id not specified" }
-      grpcRequire(refusal.justification != Refusal.Justification.UNRECOGNIZED) {
+      grpcRequire(refusal.justification != RequisitionRefusal.Justification.UNRECOGNIZED) {
         "Unrecognized refusal justification ${refusal.justificationValue}"
       }
-      grpcRequire(refusal.justification != Refusal.Justification.JUSTIFICATION_UNSPECIFIED) {
+      grpcRequire(
+        refusal.justification != RequisitionRefusal.Justification.JUSTIFICATION_UNSPECIFIED
+      ) {
         "refusal justification not specified"
       }
     }

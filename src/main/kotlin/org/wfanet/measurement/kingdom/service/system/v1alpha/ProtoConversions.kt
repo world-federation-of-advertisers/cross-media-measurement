@@ -19,15 +19,17 @@ import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantDetails as InternalComputationParticipantDetails
 import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
-import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry.StageAttempt as InternalStageAttempt
+import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntryStageAttempt as InternalStageAttempt
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig as InternalDuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryError
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationKey
@@ -38,6 +40,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.l
 import org.wfanet.measurement.system.v1alpha.ComputationKt.mpcProtocolConfig
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntryKey
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntryKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
@@ -102,7 +105,7 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
     if (
       source.hasDuchyCertificate() ||
         source.details.protocolCase !=
-          InternalComputationParticipant.Details.ProtocolCase.PROTOCOL_NOT_SET
+          InternalComputationParticipantDetails.ProtocolCase.PROTOCOL_NOT_SET
     ) {
       requisitionParams =
         ComputationParticipantKt.requisitionParams {
@@ -120,7 +123,7 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
           }
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
           when (source.details.protocolCase) {
-            InternalComputationParticipant.Details.ProtocolCase.LIQUID_LEGIONS_V2 -> {
+            InternalComputationParticipantDetails.ProtocolCase.LIQUID_LEGIONS_V2 -> {
               liquidLegionsV2 =
                 ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
                   elGamalPublicKey = source.details.liquidLegionsV2.elGamalPublicKey
@@ -130,7 +133,7 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
                     source.details.liquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
                 }
             }
-            InternalComputationParticipant.Details.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+            InternalComputationParticipantDetails.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
               reachOnlyLiquidLegionsV2 =
                 ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2 {
                   elGamalPublicKey = source.details.reachOnlyLiquidLegionsV2.elGamalPublicKey
@@ -140,7 +143,7 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
                     source.details.reachOnlyLiquidLegionsV2.elGamalPublicKeySignatureAlgorithmOid
                 }
             }
-            InternalComputationParticipant.Details.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+            InternalComputationParticipantDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
               honestMajorityShareShuffle =
                 ComputationParticipantKt.RequisitionParamsKt.honestMajorityShareShuffle {
                   tinkPublicKey = source.details.honestMajorityShareShuffle.tinkPublicKey
@@ -150,7 +153,7 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
                     source.details.honestMajorityShareShuffle.tinkPublicKeySignatureAlgorithmOid
                 }
             }
-            InternalComputationParticipant.Details.ProtocolCase.PROTOCOL_NOT_SET -> Unit
+            InternalComputationParticipantDetails.ProtocolCase.PROTOCOL_NOT_SET -> Unit
           }
         }
     }
@@ -362,46 +365,36 @@ fun InternalMeasurement.State.toSystemComputationState(): Computation.State {
   }
 }
 
-/**
- * Converts an internal MeasurementLogEntry.ErrorDetails to system ComputationLogEntry.ErrorDetails.
- */
-fun MeasurementLogEntry.ErrorDetails.toSystemLogErrorDetails(): ComputationLogEntry.ErrorDetails {
-  return ComputationLogEntry.ErrorDetails.newBuilder()
-    .also {
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      it.type =
-        when (this.type) {
-          MeasurementLogEntry.ErrorDetails.Type.PERMANENT ->
-            ComputationLogEntry.ErrorDetails.Type.PERMANENT
-          MeasurementLogEntry.ErrorDetails.Type.TRANSIENT ->
-            ComputationLogEntry.ErrorDetails.Type.TRANSIENT
-          MeasurementLogEntry.ErrorDetails.Type.TYPE_UNSPECIFIED,
-          MeasurementLogEntry.ErrorDetails.Type.UNRECOGNIZED -> error("Invalid error type.")
-        }
-      it.errorTime = this.errorTime
-    }
-    .build()
+/** Converts an internal MeasurementLogEntryErrorto system ComputationLogEntry.ErrorDetails. */
+fun MeasurementLogEntryError.toSystemLogErrorDetails(): ComputationLogEntry.ErrorDetails {
+  val source = this
+  return ComputationLogEntryKt.errorDetails {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    type =
+      when (source.type) {
+        MeasurementLogEntryError.Type.PERMANENT -> ComputationLogEntry.ErrorDetails.Type.PERMANENT
+        MeasurementLogEntryError.Type.TRANSIENT -> ComputationLogEntry.ErrorDetails.Type.TRANSIENT
+        MeasurementLogEntryError.Type.TYPE_UNSPECIFIED,
+        MeasurementLogEntryError.Type.UNRECOGNIZED -> error("Invalid error type.")
+      }
+    errorTime = source.errorTime
+  }
 }
 
-/**
- * Converts a system ComputationLogEntry.ErrorDetails to internal MeasurementLogEntry.ErrorDetails.
- */
-fun ComputationLogEntry.ErrorDetails.toInternalLogErrorDetails(): MeasurementLogEntry.ErrorDetails {
-  return MeasurementLogEntry.ErrorDetails.newBuilder()
-    .also {
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      it.type =
-        when (this.type) {
-          ComputationLogEntry.ErrorDetails.Type.PERMANENT ->
-            MeasurementLogEntry.ErrorDetails.Type.PERMANENT
-          ComputationLogEntry.ErrorDetails.Type.TRANSIENT ->
-            MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
-          ComputationLogEntry.ErrorDetails.Type.TYPE_UNSPECIFIED,
-          ComputationLogEntry.ErrorDetails.Type.UNRECOGNIZED -> error("Invalid error type.")
-        }
-      it.errorTime = this.errorTime
-    }
-    .build()
+/** Converts a system ComputationLogEntry.ErrorDetails to internal MeasurementLogEntryError. */
+fun ComputationLogEntry.ErrorDetails.toInternalLogErrorDetails(): MeasurementLogEntryError {
+  val source = this
+  return measurementLogEntryError {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    type =
+      when (source.type) {
+        ComputationLogEntry.ErrorDetails.Type.PERMANENT -> MeasurementLogEntryError.Type.PERMANENT
+        ComputationLogEntry.ErrorDetails.Type.TRANSIENT -> MeasurementLogEntryError.Type.TRANSIENT
+        ComputationLogEntry.ErrorDetails.Type.TYPE_UNSPECIFIED,
+        ComputationLogEntry.ErrorDetails.Type.UNRECOGNIZED -> error("Invalid error type.")
+      }
+    errorTime = source.errorTime
+  }
 }
 
 /** Converts a kingdom internal DuchyMeasurementLogEntry to system ComputationLogEntry. */

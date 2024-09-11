@@ -37,6 +37,7 @@ import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryError
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntryKey
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
@@ -78,7 +79,7 @@ private val MEASUREMENT_LOG_ENTRY =
       detailsBuilder.apply {
         logMessage = DUCHY_ERROR_MESSAGE
         errorBuilder.apply {
-          type = MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
+          type = MeasurementLogEntryError.Type.TRANSIENT
           errorTimeBuilder.apply {
             seconds = 3
             nanos = 4
@@ -180,7 +181,7 @@ class ComputationLogEntriesServiceTest {
             measurementLogEntryDetailsBuilder.apply {
               logMessage = DUCHY_ERROR_MESSAGE
               errorBuilder.apply {
-                type = MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
+                type = MeasurementLogEntryError.Type.TRANSIENT
                 errorTimeBuilder.apply {
                   seconds = 3
                   nanos = 4

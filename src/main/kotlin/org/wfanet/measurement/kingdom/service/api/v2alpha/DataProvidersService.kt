@@ -46,8 +46,9 @@ import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
-import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
+import org.wfanet.measurement.internal.kingdom.DataProviderCapabilities as InternalDataProviderCapabilities
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.internal.kingdom.dataProviderCapabilities as internalDataProviderCapabilities
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderCapabilitiesRequest
@@ -245,16 +246,16 @@ private fun InternalDataProvider.toDataProvider(): DataProvider {
   }
 }
 
-private fun InternalDataProvider.Capabilities.toCapabilities(): DataProvider.Capabilities {
+private fun InternalDataProviderCapabilities.toCapabilities(): DataProvider.Capabilities {
   val source = this
   return DataProviderKt.capabilities {
     honestMajorityShareShuffleSupported = source.honestMajorityShareShuffleSupported
   }
 }
 
-private fun DataProvider.Capabilities.toInternal(): InternalDataProvider.Capabilities {
+private fun DataProvider.Capabilities.toInternal(): InternalDataProviderCapabilities {
   val source = this
-  return InternalDataProviderKt.capabilities {
+  return internalDataProviderCapabilities {
     honestMajorityShareShuffleSupported = source.honestMajorityShareShuffleSupported
   }
 }

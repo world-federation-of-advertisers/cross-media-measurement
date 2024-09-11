@@ -20,16 +20,16 @@ import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.getInternalId
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
 
 internal fun SpannerWriter.TransactionScope.updateRequisition(
   readResult: RequisitionReader.Result,
   state: Requisition.State,
-  details: Requisition.Details,
+  details: RequisitionDetails,
   fulfillingDuchyId: InternalId? = null,
 ) {
   transactionContext.bufferUpdateMutation("Requisitions") {

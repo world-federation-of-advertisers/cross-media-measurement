@@ -37,13 +37,13 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
 import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
-import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt
 import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
+import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.recurringExchange
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
@@ -202,12 +202,11 @@ class PanelMatchResourceSetup(
           dataProvider {
             certificate =
               parseCertificateDer(dataProviderContent.signingKey.certificate.encoded.toByteString())
-            details =
-              DataProviderKt.details {
-                apiVersion = API_VERSION.string
-                publicKey = signedPublicKey.message.value
-                publicKeySignature = signedPublicKey.signature
-              }
+            details = dataProviderDetails {
+              apiVersion = API_VERSION.string
+              publicKey = signedPublicKey.message.value
+              publicKeySignature = signedPublicKey.signature
+            }
           }
         )
       } catch (e: StatusException) {
