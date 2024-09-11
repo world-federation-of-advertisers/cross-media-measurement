@@ -20,6 +20,7 @@ import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.INPUT
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.OUTPUT
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.PASS_THROUGH
+import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.CreateComputationResponse
@@ -29,6 +30,7 @@ import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
 import org.wfanet.measurement.internal.duchy.RecordRequisitionFulfillmentResponse
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 
 fun String.toGetTokenRequest(): GetComputationTokenRequest =
   GetComputationTokenRequest.newBuilder().setGlobalComputationId(this).build()
@@ -74,6 +76,19 @@ fun ComputationToken.outputPathList(): List<String> =
 /** Extract the list of input blob paths from a [ComputationToken]. */
 fun ComputationToken.inputPathList(): List<String> =
   this.blobsList.filter { it.dependencyType == INPUT }.map { it.path }
+
+/** Extract */
+fun ComputationToken.role(): RoleInComputation {
+  return when (computationDetails.protocolCase) {
+    ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 -> computationDetails.liquidLegionsV2.role
+    ComputationDetails.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
+      computationDetails.reachOnlyLiquidLegionsV2.role
+    ComputationDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+      computationDetails.honestMajorityShareShuffle.role
+    ComputationDetails.ProtocolCase.PROTOCOL_NOT_SET ->
+      error("Invalid computation protocol to get role.")
+  }
+}
 
 /** Creates a [ComputationStageBlobMetadata] for an input blob. */
 fun newInputBlobMetadata(id: Long, key: String): ComputationStageBlobMetadata =
