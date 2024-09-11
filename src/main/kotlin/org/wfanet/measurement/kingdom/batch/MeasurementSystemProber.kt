@@ -26,14 +26,16 @@ import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.*
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.withAuthenticationKey
-import org.wfanet.measurement.common.crypto.*
+import org.wfanet.measurement.common.crypto.Hashing
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -44,15 +46,6 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 
-private val COMPLETED_MEASUREMENT_STATES =
-  listOf(
-    org.wfanet.measurement.internal.kingdom.Measurement.State.SUCCEEDED,
-    org.wfanet.measurement.internal.kingdom.Measurement.State.FAILED,
-    org.wfanet.measurement.internal.kingdom.Measurement.State.CANCELLED,
-  )
-
-private val secureRandom = SecureRandom.getInstance("SHA1PRNG")
-
 class MeasurementSystemProber(
   private val measurementConsumerName: String,
   private val dataProviderNames: List<String>,
@@ -60,77 +53,42 @@ class MeasurementSystemProber(
   private val privateKeyDerFile: File,
   private val measurementLookbackDuration: Duration,
   private val durationBetweenMeasurement: Duration,
-  private val measurementConsumersService:
+  private val measurementConsumersStub:
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub,
-  private val publicMeasurementsService:
+  private val publicMeasurementsStub:
     org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub,
-  private val internalMeasurementsService: MeasurementsGrpcKt.MeasurementsCoroutineStub,
-  private val dataProvidersService: DataProvidersGrpcKt.DataProvidersCoroutineStub,
-  private val eventGroupsService: EventGroupsGrpcKt.EventGroupsCoroutineStub,
+  private val internalMeasurementsStub: MeasurementsGrpcKt.MeasurementsCoroutineStub,
+  private val dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
+  private val eventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub,
   private val clock: Clock = Clock.systemUTC(),
 ) {
-  fun run() {
-    runBlocking {
-      if (!shouldCreateNewMeasurement()) {
-        return@runBlocking
-      }
+  suspend fun run() {
+    if (shouldCreateNewMeasurement()) {
+      createMeasurement()
+      // TODO(@roaminggypsy): Report measurement result with OpenTelemetry
     }
+  }
 
-    val dataProviderNameToEventGroup = mutableMapOf<String, EventGroup>()
-    for (dataProviderName in dataProviderNames) {
-      val getDataProviderRequest = getDataProviderRequest { name = dataProviderName }
-      val dataProvider = runBlocking {
-        try {
-          dataProvidersService
-            .withAuthenticationKey(apiAuthenticationKey)
-            .getDataProvider(getDataProviderRequest)
-        } catch (e: StatusException) {
-          throw when (e.status.code) {
-              Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-              Status.Code.CANCELLED -> Status.CANCELLED
-              Status.Code.NOT_FOUND -> Status.NOT_FOUND
-              else -> Status.UNKNOWN
-            }
-            .withCause(e)
-            .withDescription("Unable to get DataProvider with name $dataProviderName.")
-            .asRuntimeException()
-        }
-      }
+  private suspend fun createMeasurement() {
+    val dataProviderNameToEventGroup: Map<String, EventGroup> =
+      buildDataProviderNameToEventGroup(dataProviderNames, dataProvidersStub, apiAuthenticationKey)
 
-      // TODO(@roaminggypsy): Implement QA event group logic using simulatorEventGroupName
-      val listEventGroupsRequest = listEventGroupsRequest {
-        parent = dataProviderName
-        filter =
-          ListEventGroupsRequestKt.filter {
-            measurementConsumers += measurementConsumerName
-            dataProviders += dataProviderName
+    val measurementConsumer: MeasurementConsumer =
+      try {
+        measurementConsumersStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .getMeasurementConsumer(getMeasurementConsumerRequest { name = measurementConsumerName })
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.CANCELLED -> Status.CANCELLED
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND
+            else -> Status.UNKNOWN
           }
+          .withCause(e)
+          .withDescription("Unable to get measurement consumer $measurementConsumerName")
+          .asException()
       }
-
-      val eventGroups =
-        runBlocking {
-            eventGroupsService
-              .withAuthenticationKey(apiAuthenticationKey)
-              .listEventGroups(listEventGroupsRequest)
-          }
-          .eventGroupsList
-          .toList()
-
-      if (eventGroups.size != 1) {
-        logger.warning(
-          "There should be exactly 1:1 mapping between a data provider and an event group, but data provider $dataProvider is related to ${eventGroups.size} event groups"
-        )
-        return
-      }
-
-      dataProviderNameToEventGroup[dataProviderName] = eventGroups[0]
-    }
-
-    val measurementConsumer = runBlocking {
-      measurementConsumersService
-        .withAuthenticationKey(apiAuthenticationKey)
-        .getMeasurementConsumer(getMeasurementConsumerRequest { name = measurementConsumerName })
-    }
     val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
     val measurementConsumerPrivateKey =
       readPrivateKey(
@@ -177,19 +135,97 @@ class MeasurementSystemProber(
         signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
     }
 
-    val response = runBlocking {
-      publicMeasurementsService
-        .withAuthenticationKey(apiAuthenticationKey)
-        .createMeasurement(
-          createMeasurementRequest {
-            this.parent = parent
-            this.measurement = measurement
+    val response =
+      try {
+        publicMeasurementsStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .createMeasurement(
+            createMeasurementRequest {
+              this.parent = measurementConsumerName
+              this.measurement = measurement
+            }
+          )
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.CANCELLED -> Status.CANCELLED
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND
+            else -> Status.UNKNOWN
           }
-        )
-    }
-    logger.info("A new prober measurement is created: ${response.name}")
+          .withCause(e)
+          .withDescription("Unable to create a prober measurement.")
+          .asException()
+      }
+    logger.info(
+      "A new prober measurement for measurement consumer $measurementConsumerName is created: $response"
+    )
+  }
 
-    // TODO(@roaminggypsy): Report measurement result with OpenTelemetry
+  private suspend fun buildDataProviderNameToEventGroup(
+    dataProviderNames: List<String>,
+    dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
+    apiAuthenticationKey: String,
+  ): MutableMap<String, EventGroup> {
+    val dataProviderNameToEventGroup = mutableMapOf<String, EventGroup>()
+    for (dataProviderName in dataProviderNames) {
+      val getDataProviderRequest = getDataProviderRequest { name = dataProviderName }
+      val dataProvider: DataProvider =
+        try {
+          dataProvidersStub
+            .withAuthenticationKey(apiAuthenticationKey)
+            .getDataProvider(getDataProviderRequest)
+        } catch (e: StatusException) {
+          throw when (e.status.code) {
+              Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+              Status.Code.CANCELLED -> Status.CANCELLED
+              Status.Code.NOT_FOUND -> Status.NOT_FOUND
+              else -> Status.UNKNOWN
+            }
+            .withCause(e)
+            .withDescription("Unable to get DataProvider with name $dataProviderName.")
+            .asException()
+        }
+
+      // TODO(@roaminggypsy): Implement QA event group logic using simulatorEventGroupName
+      val listEventGroupsRequest = listEventGroupsRequest {
+        parent = dataProviderName
+        filter =
+          ListEventGroupsRequestKt.filter {
+            measurementConsumers += measurementConsumerName
+            dataProviders += dataProviderName
+          }
+      }
+
+      val eventGroups: List<EventGroup> =
+        try {
+          eventGroupsStub
+            .withAuthenticationKey(apiAuthenticationKey)
+            .listEventGroups(listEventGroupsRequest)
+            .eventGroupsList
+            .toList()
+        } catch (e: StatusException) {
+          throw when (e.status.code) {
+              Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+              Status.Code.CANCELLED -> Status.CANCELLED
+              Status.Code.NOT_FOUND -> Status.NOT_FOUND
+              else -> Status.UNKNOWN
+            }
+            .withCause(e)
+            .withDescription(
+              "Unable to get event groups associated with measurement consumer $measurementConsumerName and data provider $dataProviderName."
+            )
+            .asException()
+        }
+
+      if (eventGroups.size != 1) {
+        throw IllegalStateException(
+          "here should be exactly 1:1 mapping between a data provider and an event group, but data provider $dataProvider is related to ${eventGroups.size} event groups"
+        )
+      }
+
+      dataProviderNameToEventGroup[dataProviderName] = eventGroups[0]
+    }
+    return dataProviderNameToEventGroup
   }
 
   /**
@@ -201,14 +237,14 @@ class MeasurementSystemProber(
    */
   private suspend fun shouldCreateNewMeasurement(): Boolean {
     val previousMeasurements: List<Measurement> =
-      internalMeasurementsService.streamMeasurements(streamMeasurementsRequest {}).toList()
+      internalMeasurementsStub.streamMeasurements(streamMeasurementsRequest {}).toList()
 
     if (previousMeasurements.isEmpty()) {
       return true
     }
 
     val oldFinishedMeasurements: List<Measurement> =
-      internalMeasurementsService
+      internalMeasurementsStub
         .streamMeasurements(
           streamMeasurementsRequest {
             filter =
@@ -223,7 +259,7 @@ class MeasurementSystemProber(
     return oldFinishedMeasurements.isNotEmpty()
   }
 
-  private fun getDataProviderEntry(
+  private suspend fun getDataProviderEntry(
     dataProviderName: String,
     eventGroup: EventGroup,
     measurementConsumerSigningKey: SigningKeyHandle,
@@ -251,11 +287,24 @@ class MeasurementSystemProber(
       }
 
       key = dataProviderName
-      val dataProvider = runBlocking {
-        dataProvidersService
-          .withAuthenticationKey(apiAuthenticationKey)
-          .getDataProvider(getDataProviderRequest { name = dataProviderName })
-      }
+      val dataProvider =
+        try {
+          dataProvidersStub
+            .withAuthenticationKey(apiAuthenticationKey)
+            .getDataProvider(getDataProviderRequest { name = dataProviderName })
+        } catch (e: StatusException) {
+          throw when (e.status.code) {
+              Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+              Status.Code.CANCELLED -> Status.CANCELLED
+              Status.Code.NOT_FOUND -> Status.NOT_FOUND
+              else -> Status.UNKNOWN
+            }
+            .withCause(e)
+            .withDescription(
+              "Unable to get event groups associated with measurement consumer $measurementConsumerName and data provider $dataProviderName."
+            )
+            .asException()
+        }
 
       value =
         MeasurementKt.DataProviderEntryKt.value {
@@ -273,5 +322,14 @@ class MeasurementSystemProber(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private val secureRandom = SecureRandom.getInstance("SHA1PRNG")
+
+    private val COMPLETED_MEASUREMENT_STATES =
+      listOf(
+        org.wfanet.measurement.internal.kingdom.Measurement.State.SUCCEEDED,
+        org.wfanet.measurement.internal.kingdom.Measurement.State.FAILED,
+        org.wfanet.measurement.internal.kingdom.Measurement.State.CANCELLED,
+      )
   }
 }
