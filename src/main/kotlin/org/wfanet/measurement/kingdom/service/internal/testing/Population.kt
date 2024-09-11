@@ -40,9 +40,8 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProviders
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.MeasurementKt
+import org.wfanet.measurement.internal.kingdom.MeasurementDetails
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelLine
@@ -61,15 +60,19 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.internal.kingdom.activateAccountRequest
 import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
+import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.eventTemplate
 import org.wfanet.measurement.internal.kingdom.generateOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
+import org.wfanet.measurement.internal.kingdom.measurementConsumerDetails
+import org.wfanet.measurement.internal.kingdom.measurementDetails
 import org.wfanet.measurement.internal.kingdom.modelLine
 import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.modelRelease
@@ -107,7 +110,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     this.notValidBefore = notValidBefore.toProtoTime()
     this.notValidAfter = notValidAfter.toProtoTime()
     subjectKeyIdentifier = skidUtf8.toByteStringUtf8()
-    details = CertificateKt.details { x509Der = derUtf8.toByteStringUtf8() }
+    details = certificateDetails { x509Der = derUtf8.toByteStringUtf8() }
   }
 
   suspend fun createMeasurementConsumer(
@@ -130,13 +133,12 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
               notValidBefore,
               notValidAfter,
             )
-          details =
-            MeasurementConsumerKt.details {
-              apiVersion = API_VERSION
-              publicKey = "MC public key".toByteStringUtf8()
-              publicKeySignature = "MC public key signature".toByteStringUtf8()
-              publicKeySignatureAlgorithmOid = "2.9999"
-            }
+          details = measurementConsumerDetails {
+            apiVersion = API_VERSION
+            publicKey = "MC public key".toByteStringUtf8()
+            publicKeySignature = "MC public key signature".toByteStringUtf8()
+            publicKeySignatureAlgorithmOid = "2.9999"
+          }
         }
         externalAccountId = account.externalAccountId
         this.measurementConsumerCreationTokenHash = measurementConsumerCreationTokenHash
@@ -161,13 +163,12 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
             notValidBefore,
             notValidAfter,
           )
-        details =
-          DataProviderKt.details {
-            apiVersion = API_VERSION
-            publicKey = "EDP public key".toByteStringUtf8()
-            publicKeySignature = "EDP public key signature".toByteStringUtf8()
-            publicKeySignatureAlgorithmOid = "2.9999"
-          }
+        details = dataProviderDetails {
+          apiVersion = API_VERSION
+          publicKey = "EDP public key".toByteStringUtf8()
+          publicKeySignature = "EDP public key signature".toByteStringUtf8()
+          publicKeySignatureAlgorithmOid = "2.9999"
+        }
         requiredExternalDuchyIds += requiredDuchiesList
         customize?.invoke(this)
       }
@@ -186,7 +187,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     measurementConsumer: MeasurementConsumer,
     providedMeasurementId: String,
     dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf(),
-    details: Measurement.Details,
+    details: MeasurementDetails,
   ): Measurement {
     return measurementsService.createMeasurement(
       createMeasurementRequest {
@@ -293,17 +294,16 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     providedMeasurementId: String,
     dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf(),
   ): Measurement {
-    val details =
-      MeasurementKt.details {
-        apiVersion = API_VERSION
-        measurementSpec = "MeasurementSpec".toByteStringUtf8()
-        measurementSpecSignature = "MeasurementSpec signature".toByteStringUtf8()
-        measurementSpecSignatureAlgorithmOid = "2.9999"
-        duchyProtocolConfig = duchyProtocolConfig {
-          liquidLegionsV2 = DuchyProtocolConfigKt.liquidLegionsV2 {}
-        }
-        protocolConfig = protocolConfig { liquidLegionsV2 = ProtocolConfigKt.liquidLegionsV2 {} }
+    val details = measurementDetails {
+      apiVersion = API_VERSION
+      measurementSpec = "MeasurementSpec".toByteStringUtf8()
+      measurementSpecSignature = "MeasurementSpec signature".toByteStringUtf8()
+      measurementSpecSignatureAlgorithmOid = "2.9999"
+      duchyProtocolConfig = duchyProtocolConfig {
+        liquidLegionsV2 = DuchyProtocolConfigKt.liquidLegionsV2 {}
       }
+      protocolConfig = protocolConfig { liquidLegionsV2 = ProtocolConfigKt.liquidLegionsV2 {} }
+    }
     return createMeasurement(
       measurementsService,
       measurementConsumer,
@@ -333,17 +333,15 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     providedMeasurementId: String,
     dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf(),
   ): Measurement {
-    val details =
-      MeasurementKt.details {
-        apiVersion = API_VERSION
-        measurementSpec = "MeasurementSpec".toByteStringUtf8()
-        measurementSpecSignature = "MeasurementSpec signature".toByteStringUtf8()
-        measurementSpecSignatureAlgorithmOid = "2.9999"
-        protocolConfig = protocolConfig {
-          honestMajorityShareShuffle =
-            ProtocolConfig.HonestMajorityShareShuffle.getDefaultInstance()
-        }
+    val details = measurementDetails {
+      apiVersion = API_VERSION
+      measurementSpec = "MeasurementSpec".toByteStringUtf8()
+      measurementSpecSignature = "MeasurementSpec signature".toByteStringUtf8()
+      measurementSpecSignatureAlgorithmOid = "2.9999"
+      protocolConfig = protocolConfig {
+        honestMajorityShareShuffle = ProtocolConfig.HonestMajorityShareShuffle.getDefaultInstance()
       }
+    }
     return createMeasurement(
       measurementsService,
       measurementConsumer,
@@ -373,14 +371,13 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     providedMeasurementId: String,
     dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf(),
   ): Measurement {
-    val details =
-      MeasurementKt.details {
-        apiVersion = API_VERSION
-        measurementSpec = "MeasurementSpec".toByteStringUtf8()
-        measurementSpecSignature = "MeasurementSpec signature".toByteStringUtf8()
-        measurementSpecSignatureAlgorithmOid = "2.9999"
-        protocolConfig = protocolConfig { direct = ProtocolConfig.Direct.getDefaultInstance() }
-      }
+    val details = measurementDetails {
+      apiVersion = API_VERSION
+      measurementSpec = "MeasurementSpec".toByteStringUtf8()
+      measurementSpecSignature = "MeasurementSpec signature".toByteStringUtf8()
+      measurementSpecSignatureAlgorithmOid = "2.9999"
+      protocolConfig = protocolConfig { direct = ProtocolConfig.Direct.getDefaultInstance() }
+    }
     return createMeasurement(
       measurementsService,
       measurementConsumer,

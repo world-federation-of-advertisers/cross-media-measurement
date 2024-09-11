@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/kingdom/measurement_log_entry_details.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -33,24 +34,5 @@ message MeasurementLogEntry {
   fixed64 external_measurement_id = 2;
   google.protobuf.Timestamp create_time = 3;
 
-  message ErrorDetails {
-    enum Type {
-      TYPE_UNSPECIFIED = 0;
-      TRANSIENT = 1;
-      PERMANENT = 2;
-    }
-    Type type = 1;
-
-    // Time that the error occurred.
-    google.protobuf.Timestamp error_time = 2;
-  }
-
-  message Details {
-    // Human-readable log message. This should not include any sensitive info.
-    string log_message = 1;
-
-    // Details about an error. Only set if the log entry is for an error event.
-    ErrorDetails error = 2;
-  }
-  Details details = 4;
+  MeasurementLogEntryDetails details = 4;
 }

@@ -21,6 +21,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.DataProvider
+import org.wfanet.measurement.internal.kingdom.DataProviderDetails
 import org.wfanet.measurement.internal.kingdom.ReplaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
@@ -34,7 +35,7 @@ class ReplaceDataProviderCapabilities(private val request: ReplaceDataProviderCa
       DataProviderReader().readByExternalDataProviderId(transactionContext, externalDataProviderId)
         ?: throw DataProviderNotFoundException(externalDataProviderId)
 
-    val updatedDetails: DataProvider.Details =
+    val updatedDetails: DataProviderDetails =
       dataProviderResult.dataProvider.details.copy { capabilities = request.capabilities }
 
     transactionContext.bufferUpdateMutation("DataProviders") {

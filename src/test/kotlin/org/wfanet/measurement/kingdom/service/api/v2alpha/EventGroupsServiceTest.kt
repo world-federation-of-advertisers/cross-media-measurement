@@ -78,7 +78,6 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
-import org.wfanet.measurement.internal.kingdom.EventGroupKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
@@ -87,6 +86,7 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest as internalCreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest as internalDeleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
+import org.wfanet.measurement.internal.kingdom.eventGroupDetails
 import org.wfanet.measurement.internal.kingdom.eventGroupKey
 import org.wfanet.measurement.internal.kingdom.eventTemplate
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalGetEventGroupRequest
@@ -113,10 +113,8 @@ private val EVENT_GROUP_NAME_2 = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAJs"
 private val EVENT_GROUP_NAME_3 = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAKs"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_NAME_2 = "measurementConsumers/BBBBBBBBBHs"
-private val MEASUREMENT_CONSUMER_EVENT_GROUP_NAME =
+private const val MEASUREMENT_CONSUMER_EVENT_GROUP_NAME =
   "$MEASUREMENT_CONSUMER_NAME/eventGroups/AAAAAAAAAHs"
-private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
-  "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
 private val ENCRYPTED_METADATA = encryptedMessage {
   ciphertext = ByteString.copyFromUtf8("encryptedMetadata")
   typeUrl = ProtoReflection.getTypeUrl(EventGroup.Metadata.getDescriptor())
@@ -179,7 +177,7 @@ private val INTERNAL_EVENT_GROUP: InternalEventGroup = internalEventGroup {
   externalMeasurementConsumerId = MEASUREMENT_CONSUMER_EXTERNAL_ID
   providedEventGroupId = EVENT_GROUP.eventGroupReferenceId
   createTime = CREATE_TIME
-  details = details {
+  details = eventGroupDetails {
     apiVersion = API_VERSION.string
     measurementConsumerPublicKey = EVENT_GROUP.measurementConsumerPublicKey.value
     vidModelLines.addAll(VID_MODEL_LINES)

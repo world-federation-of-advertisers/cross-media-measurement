@@ -29,8 +29,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.internal.kingdom.CertificateKt
-import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Population
 import org.wfanet.measurement.internal.kingdom.PopulationKt.populationBlob
@@ -38,7 +36,9 @@ import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoro
 import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamPopulationsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.dataProvider
+import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.internal.kingdom.eventTemplate
 import org.wfanet.measurement.internal.kingdom.getPopulationRequest
 import org.wfanet.measurement.internal.kingdom.population
@@ -279,15 +279,15 @@ abstract class PopulationsServiceTest<T : PopulationsCoroutineImplBase> {
       certificate {
         notValidBefore = timestamp { seconds = 12345 }
         notValidAfter = timestamp { seconds = 23456 }
-        details =
-          CertificateKt.details { x509Der = ByteString.copyFromUtf8("This is a certificate der.") }
-      }
-      details =
-        DataProviderKt.details {
-          apiVersion = "v2alpha"
-          publicKey = ByteString.copyFromUtf8("This is a  public key.")
-          publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
+        details = certificateDetails {
+          x509Der = ByteString.copyFromUtf8("This is a certificate der.")
         }
+      }
+      details = dataProviderDetails {
+        apiVersion = "v2alpha"
+        publicKey = ByteString.copyFromUtf8("This is a  public key.")
+        publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
+      }
     }
   }
 }

@@ -39,12 +39,10 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
-import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt as InternalComputationParticipantKt
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
-import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as InternalMeasurementsCoroutineService
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
@@ -56,12 +54,15 @@ import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.computationKey
+import org.wfanet.measurement.internal.kingdom.computationParticipantDetails
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.differentialPrivacyParams as internalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams
+import org.wfanet.measurement.internal.kingdom.liquidLegionsV2Params
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
+import org.wfanet.measurement.internal.kingdom.measurementDetails
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
@@ -186,20 +187,18 @@ private val INTERNAL_COMPUTATION_PARTICIPANT =
 
 private val INTERNAL_RO_LLV2_COMPUTATION_PARTICIPANT =
   INTERNAL_COMPUTATION_PARTICIPANT.copy {
-    details =
-      InternalComputationParticipantKt.details {
-        reachOnlyLiquidLegionsV2 =
-          InternalComputationParticipantKt.liquidLegionsV2Details {
-            elGamalPublicKey = DUCHY_ELGAMAL_KEY
-            elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
-          }
+    details = computationParticipantDetails {
+      reachOnlyLiquidLegionsV2 = liquidLegionsV2Params {
+        elGamalPublicKey = DUCHY_ELGAMAL_KEY
+        elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
       }
+    }
   }
 
 private val INTERNAL_MEASUREMENT = internalMeasurement {
   externalComputationId = EXTERNAL_COMPUTATION_ID
   state = InternalMeasurement.State.FAILED
-  details = details {
+  details = measurementDetails {
     apiVersion = PUBLIC_API_VERSION
     measurementSpec = MEASUREMENT_SPEC
     duchyProtocolConfig = duchyProtocolConfig {
@@ -242,7 +241,7 @@ private val INTERNAL_MEASUREMENT = internalMeasurement {
 
 private val INTERNAL_RO_LLV2_MEASUREMENT =
   INTERNAL_MEASUREMENT.copy {
-    details = details {
+    details = measurementDetails {
       apiVersion = PUBLIC_API_VERSION
       measurementSpec = MEASUREMENT_SPEC
       duchyProtocolConfig = duchyProtocolConfig {

@@ -46,12 +46,12 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer as InternalMeasurementConsumer
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.addMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.measurementConsumer as internalMeasurementConsumer
+import org.wfanet.measurement.internal.kingdom.measurementConsumerDetails
 import org.wfanet.measurement.internal.kingdom.removeMeasurementConsumerOwnerRequest
 
 private val API_VERSION = Version.V2_ALPHA
@@ -86,7 +86,7 @@ class MeasurementConsumersService(
     val createRequest = createMeasurementConsumerRequest {
       this.measurementConsumer = internalMeasurementConsumer {
         certificate = parseCertificateDer(measurementConsumer.certificateDer)
-        details = details {
+        details = measurementConsumerDetails {
           apiVersion = API_VERSION.string
           publicKey = measurementConsumer.publicKey.message.value
           publicKeySignature = measurementConsumer.publicKey.signature

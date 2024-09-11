@@ -95,16 +95,15 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.honestMajorityShareShuffleDetails
-import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
+import org.wfanet.measurement.internal.kingdom.HonestMajorityShareShuffleParams
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
-import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
 import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
 import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisitionKt
+import org.wfanet.measurement.internal.kingdom.RequisitionRefusal as InternalRefusal
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
@@ -112,9 +111,13 @@ import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest as internalFulfillRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.honestMajorityShareShuffleParams
+import org.wfanet.measurement.internal.kingdom.liquidLegionsV2Params
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest as internalRefuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.requisition as internalRequisition
+import org.wfanet.measurement.internal.kingdom.requisitionDetails
+import org.wfanet.measurement.internal.kingdom.requisitionRefusal as internalRequisitionRefusal
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
@@ -178,13 +181,11 @@ class RequisitionsServiceTest {
       .thenReturn(
         INTERNAL_REQUISITION.copy {
           state = InternalState.REFUSED
-          details =
-            InternalRequisitionKt.details {
-              refusal =
-                InternalRequisitionKt.refusal {
-                  justification = InternalRefusal.Justification.UNFULFILLABLE
-                }
+          details = requisitionDetails {
+            refusal = internalRequisitionRefusal {
+              justification = InternalRefusal.Justification.UNFULFILLABLE
             }
+          }
         }
       )
   }
@@ -663,10 +664,9 @@ class RequisitionsServiceTest {
           state = InternalState.REFUSED
           details =
             details.copy {
-              refusal =
-                InternalRequisitionKt.refusal {
-                  justification = InternalRefusal.Justification.UNFULFILLABLE
-                }
+              refusal = internalRequisitionRefusal {
+                justification = InternalRefusal.Justification.UNFULFILLABLE
+              }
             }
         }
       )
@@ -691,10 +691,9 @@ class RequisitionsServiceTest {
       .comparingExpectedFieldsOnly()
       .isEqualTo(
         internalRefuseRequisitionRequest {
-          refusal =
-            InternalRequisitionKt.refusal {
-              justification = InternalRefusal.Justification.UNFULFILLABLE
-            }
+          refusal = internalRequisitionRefusal {
+            justification = InternalRefusal.Justification.UNFULFILLABLE
+          }
         }
       )
 
@@ -710,10 +709,9 @@ class RequisitionsServiceTest {
             state = InternalState.REFUSED
             details =
               details.copy {
-                refusal =
-                  InternalRequisitionKt.refusal {
-                    justification = InternalRefusal.Justification.UNFULFILLABLE
-                  }
+                refusal = internalRequisitionRefusal {
+                  justification = InternalRefusal.Justification.UNFULFILLABLE
+                }
               }
           }
         )
@@ -738,10 +736,9 @@ class RequisitionsServiceTest {
         .comparingExpectedFieldsOnly()
         .isEqualTo(
           internalRefuseRequisitionRequest {
-            refusal =
-              InternalRequisitionKt.refusal {
-                justification = InternalRefusal.Justification.UNFULFILLABLE
-              }
+            refusal = internalRequisitionRefusal {
+              justification = InternalRefusal.Justification.UNFULFILLABLE
+            }
           }
         )
 
@@ -1246,7 +1243,7 @@ class RequisitionsServiceTest {
     private val TINK_PUBLIC_KEY_1 = ByteString.copyFromUtf8("This is an Tink Public Key 1.")
     private val TINK_PUBLIC_KEY_SIGNATURE_1 =
       ByteString.copyFromUtf8("This is an Tink Public Key signature 1.")
-    private val TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID = "2.9999"
+    private const val TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID = "2.9999"
 
     private val TINK_PUBLIC_KEY_2 = ByteString.copyFromUtf8("This is an Tink Public Key 2.")
     private val TINK_PUBLIC_KEY_SIGNATURE_2 =
@@ -1295,7 +1292,7 @@ class RequisitionsServiceTest {
       duchies[DUCHY_ID] =
         InternalRequisitionKt.duchyValue {
           externalDuchyCertificateId = 6L
-          liquidLegionsV2 = liquidLegionsV2Details {
+          liquidLegionsV2 = liquidLegionsV2Params {
             elGamalPublicKey = SIGNED_EL_GAMAL_PUBLIC_KEY.message.value
             elGamalPublicKeySignature = SIGNED_EL_GAMAL_PUBLIC_KEY.signature
             elGamalPublicKeySignatureAlgorithmOid = SIGNED_EL_GAMAL_PUBLIC_KEY.signatureAlgorithmOid
@@ -1317,11 +1314,10 @@ class RequisitionsServiceTest {
           state = InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT
           dataProvidersCount = 1
         }
-      details =
-        InternalRequisitionKt.details {
-          dataProviderPublicKey = PACKED_DATA_PROVIDER_PUBLIC_KEY.value
-          encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC.ciphertext
-        }
+      details = requisitionDetails {
+        dataProviderPublicKey = PACKED_DATA_PROVIDER_PUBLIC_KEY.value
+        encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC.ciphertext
+      }
     }
 
     private val INTERNAL_HMSS_REQUISITION =
@@ -1333,12 +1329,12 @@ class RequisitionsServiceTest {
         duchies["aggregator"] =
           InternalRequisitionKt.duchyValue {
             externalDuchyCertificateId = 6L
-            honestMajorityShareShuffle = honestMajorityShareShuffleDetails {}
+            honestMajorityShareShuffle = HonestMajorityShareShuffleParams.getDefaultInstance()
           }
         duchies["worker1"] =
           InternalRequisitionKt.duchyValue {
             externalDuchyCertificateId = 6L
-            honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+            honestMajorityShareShuffle = honestMajorityShareShuffleParams {
               tinkPublicKey = TINK_PUBLIC_KEY_1
               tinkPublicKeySignature = TINK_PUBLIC_KEY_SIGNATURE_1
               tinkPublicKeySignatureAlgorithmOid = TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
@@ -1347,7 +1343,7 @@ class RequisitionsServiceTest {
         duchies["worker2"] =
           InternalRequisitionKt.duchyValue {
             externalDuchyCertificateId = 6L
-            honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+            honestMajorityShareShuffle = honestMajorityShareShuffleParams {
               tinkPublicKey = TINK_PUBLIC_KEY_2
               tinkPublicKeySignature = TINK_PUBLIC_KEY_SIGNATURE_2
               tinkPublicKeySignatureAlgorithmOid = TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID

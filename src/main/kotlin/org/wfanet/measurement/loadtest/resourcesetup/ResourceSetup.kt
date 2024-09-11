@@ -60,12 +60,12 @@ import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
-import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
+import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 import org.wfanet.measurement.loadtest.common.ConsoleOutput
@@ -256,13 +256,12 @@ class ResourceSetup(
         internalDataProvider {
           certificate =
             parseCertificateDer(dataProviderContent.signingKey.certificate.encoded.toByteString())
-          details =
-            InternalDataProviderKt.details {
-              apiVersion = API_VERSION.string
-              publicKey = signedPublicKey.message.value
-              publicKeySignature = signedPublicKey.signature
-              publicKeySignatureAlgorithmOid = signedPublicKey.signatureAlgorithmOid
-            }
+          details = dataProviderDetails {
+            apiVersion = API_VERSION.string
+            publicKey = signedPublicKey.message.value
+            publicKeySignature = signedPublicKey.signature
+            publicKeySignatureAlgorithmOid = signedPublicKey.signatureAlgorithmOid
+          }
           requiredExternalDuchyIds += requiredDuchies
         }
       )

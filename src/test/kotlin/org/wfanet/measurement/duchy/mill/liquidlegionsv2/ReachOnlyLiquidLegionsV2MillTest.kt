@@ -46,6 +46,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.whenever
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.combineElGamalPublicKeysResponse
@@ -151,13 +152,16 @@ import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.system.v1alpha.ReachOnlyLiquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.ReachOnlyLiquidLegionsV2.Description.EXECUTION_PHASE_INPUT
 import org.wfanet.measurement.system.v1alpha.ReachOnlyLiquidLegionsV2.Description.SETUP_PHASE_INPUT
+import org.wfanet.measurement.system.v1alpha.ReachOnlyLiquidLegionsV2Stage
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.SetComputationResultRequest
 import org.wfanet.measurement.system.v1alpha.advanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.computationParticipant
+import org.wfanet.measurement.system.v1alpha.computationStage
 import org.wfanet.measurement.system.v1alpha.confirmComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.reachOnlyLiquidLegionsV2
+import org.wfanet.measurement.system.v1alpha.reachOnlyLiquidLegionsV2Stage
 import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
 import org.wfanet.measurement.system.v1alpha.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.system.v1alpha.stageAttempt
@@ -455,7 +459,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
     ComputationStatsCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private lateinit var computationControlRequests: List<AdvanceComputationRequest>
+  private var computationControlRequests: List<AdvanceComputationRequest> = emptyList()
 
   // Just use the same workerStub for all other duchies, since it is not relevant to this test.
   private val workerStubs = mapOf(DUCHY_TWO_NAME to workerStub, DUCHY_THREE_NAME to workerStub)
@@ -1105,6 +1109,16 @@ class ReachOnlyLiquidLegionsV2MillTest {
       requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
       blobs = listOf(cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT)),
     )
+    mockReachOnlyLiquidLegionsComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            reachOnlyLiquidLegionsStage = reachOnlyLiquidLegionsV2Stage {
+              stage = ReachOnlyLiquidLegionsV2Stage.Stage.WAIT_SETUP_PHASE_INPUTS
+            }
+          }
+        )
+    }
 
     // Stage 1. Process the above computation
     nonAggregatorMill.claimAndProcessWork()
@@ -1172,6 +1186,16 @@ class ReachOnlyLiquidLegionsV2MillTest {
         combinedRegisterVector = cryptoRequest.combinedRegisterVector.concat(postFix)
         serializedExcessiveNoiseCiphertext = ByteString.copyFromUtf8("-encryptedNoise")
       }
+    }
+    mockReachOnlyLiquidLegionsComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            reachOnlyLiquidLegionsStage = reachOnlyLiquidLegionsV2Stage {
+              stage = ReachOnlyLiquidLegionsV2Stage.Stage.WAIT_SETUP_PHASE_INPUTS
+            }
+          }
+        )
     }
 
     // Stage 1. Process the above computation
@@ -1263,6 +1287,16 @@ class ReachOnlyLiquidLegionsV2MillTest {
       requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
       blobs = listOf(cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT)),
     )
+    mockReachOnlyLiquidLegionsComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            reachOnlyLiquidLegionsStage = reachOnlyLiquidLegionsV2Stage {
+              stage = ReachOnlyLiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_INPUTS
+            }
+          }
+        )
+    }
 
     // Stage 1. Process the above computation
     aggregatorMill.claimAndProcessWork()
@@ -1329,6 +1363,16 @@ class ReachOnlyLiquidLegionsV2MillTest {
         ),
       requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
     )
+    mockReachOnlyLiquidLegionsComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            reachOnlyLiquidLegionsStage = reachOnlyLiquidLegionsV2Stage {
+              stage = ReachOnlyLiquidLegionsV2Stage.Stage.WAIT_SETUP_PHASE_INPUTS
+            }
+          }
+        )
+    }
 
     var cryptoRequest = CompleteReachOnlySetupPhaseRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeReachOnlySetupPhaseAtAggregator(any())).thenAnswer {
@@ -1445,6 +1489,16 @@ class ReachOnlyLiquidLegionsV2MillTest {
         listOf(newInputBlobMetadata(0L, inputBlob0Context.blobKey), newEmptyOutputBlobMetadata(3L)),
       requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
     )
+    mockReachOnlyLiquidLegionsComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            reachOnlyLiquidLegionsStage = reachOnlyLiquidLegionsV2Stage {
+              stage = ReachOnlyLiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_INPUTS
+            }
+          }
+        )
+    }
 
     var cryptoRequest = CompleteReachOnlySetupPhaseRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeReachOnlySetupPhaseAtAggregator(any())).thenAnswer {
@@ -1633,6 +1687,16 @@ class ReachOnlyLiquidLegionsV2MillTest {
         ),
       requisitions = REQUISITIONS,
     )
+    mockReachOnlyLiquidLegionsComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            reachOnlyLiquidLegionsStage = reachOnlyLiquidLegionsV2Stage {
+              stage = ReachOnlyLiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_INPUTS
+            }
+          }
+        )
+    }
 
     // Stage 1. Process the above computation
     nonAggregatorMill.claimAndProcessWork()
@@ -1686,6 +1750,16 @@ class ReachOnlyLiquidLegionsV2MillTest {
         ),
       requisitions = REQUISITIONS,
     )
+    mockReachOnlyLiquidLegionsComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            reachOnlyLiquidLegionsStage = reachOnlyLiquidLegionsV2Stage {
+              stage = ReachOnlyLiquidLegionsV2Stage.Stage.WAIT_EXECUTION_PHASE_INPUTS
+            }
+          }
+        )
+    }
 
     var cryptoRequest = CompleteReachOnlyExecutionPhaseRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeReachOnlyExecutionPhase(any())).thenAnswer {
@@ -2047,6 +2121,71 @@ class ReachOnlyLiquidLegionsV2MillTest {
             }
         }
       )
+  }
+
+  @Test
+  fun `skip advancing when the next duchy is in a future phase`() = runBlocking {
+    // Stage 0. preparing the storage and set up mock
+    val partialToken =
+      FakeComputationsDatabase.newPartialToken(
+          localId = LOCAL_ID,
+          stage = SETUP_PHASE.toProtocolStage(),
+        )
+        .build()
+    val requisitionBlobContext =
+      RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId)
+    requisitionStore.writeString(requisitionBlobContext, "local_requisition")
+    val cachedBlobContext = ComputationBlobContext(GLOBAL_ID, SETUP_PHASE.toProtocolStage(), 1L)
+    computationStore.writeString(cachedBlobContext, "cached result")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
+      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
+      blobs = listOf(cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT)),
+    )
+    mockReachOnlyLiquidLegionsComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            reachOnlyLiquidLegionsStage = reachOnlyLiquidLegionsV2Stage {
+              stage = ReachOnlyLiquidLegionsV2Stage.Stage.SETUP_PHASE
+            }
+          }
+        )
+    }
+
+    // Stage 1. Process the above computation
+    nonAggregatorMill.claimAndProcessWork()
+
+    // Stage 2. Check the status of the computation
+    assertThat(fakeComputationDb[LOCAL_ID])
+      .isEqualTo(
+        computationToken {
+          globalComputationId = GLOBAL_ID
+          localComputationId = LOCAL_ID
+          attempt = 1
+          computationStage = WAIT_EXECUTION_PHASE_INPUTS.toProtocolStage()
+          blobs.addAll(
+            listOf(
+              computationStageBlobMetadata {
+                dependencyType = ComputationBlobDependency.INPUT
+                blobId = 0L
+                path = cachedBlobContext.blobKey
+              },
+              computationStageBlobMetadata {
+                dependencyType = ComputationBlobDependency.OUTPUT
+                blobId = 1L
+              },
+            )
+          )
+          version = 2 // claimTask + transitionStage
+          computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS
+          requisitions.addAll(listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3))
+        }
+      )
+
+    assertThat(computationControlRequests).isEmpty()
   }
 }
 

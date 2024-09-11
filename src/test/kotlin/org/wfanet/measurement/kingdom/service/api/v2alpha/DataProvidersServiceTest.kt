@@ -62,14 +62,14 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
-import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
-import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as InternalDataProvidersService
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersClient
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
+import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
+import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest as internalGetDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest as internalReplaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderCapabilitiesRequest as internalReplaceDataProviderCapabilitiesRequest
@@ -707,24 +707,23 @@ class DataProvidersServiceTest {
 
     private val INTERNAL_DATA_PROVIDER: InternalDataProvider = internalDataProvider {
       externalDataProviderId = DATA_PROVIDER_ID
-      details =
-        InternalDataProviderKt.details {
-          apiVersion = API_VERSION.string
-          publicKey = SIGNED_PUBLIC_KEY.message.value
-          publicKeySignature = SIGNED_PUBLIC_KEY.signature
-          publicKeySignatureAlgorithmOid = SIGNED_PUBLIC_KEY.signatureAlgorithmOid
-          dataAvailabilityInterval = interval {
-            startTime = timestamp { seconds = 100 }
-            endTime = timestamp { seconds = 200 }
-          }
+      details = dataProviderDetails {
+        apiVersion = API_VERSION.string
+        publicKey = SIGNED_PUBLIC_KEY.message.value
+        publicKeySignature = SIGNED_PUBLIC_KEY.signature
+        publicKeySignatureAlgorithmOid = SIGNED_PUBLIC_KEY.signatureAlgorithmOid
+        dataAvailabilityInterval = interval {
+          startTime = timestamp { seconds = 100 }
+          endTime = timestamp { seconds = 200 }
         }
+      }
       certificate = internalCertificate {
         externalDataProviderId = DATA_PROVIDER_ID
         externalCertificateId = CERTIFICATE_ID
         subjectKeyIdentifier = serverCertificate.subjectKeyIdentifier!!
         notValidBefore = serverCertificate.notBefore.toInstant().toProtoTime()
         notValidAfter = serverCertificate.notAfter.toInstant().toProtoTime()
-        details = CertificateKt.details { x509Der = SERVER_CERTIFICATE_DER }
+        details = certificateDetails { x509Der = SERVER_CERTIFICATE_DER }
       }
       requiredExternalDuchyIds += EXTERNAL_DUCHY_ID
     }

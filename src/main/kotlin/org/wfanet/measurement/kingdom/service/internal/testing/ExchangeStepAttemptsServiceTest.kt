@@ -37,8 +37,6 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
-import org.wfanet.measurement.internal.kingdom.CertificateKt
-import org.wfanet.measurement.internal.kingdom.DataProviderKt.details
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
@@ -55,10 +53,12 @@ import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvide
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
+import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.internal.kingdom.exchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.exchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
@@ -118,10 +118,9 @@ private val DATA_PROVIDER = dataProvider {
   certificate = certificate {
     notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
     notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-    details =
-      CertificateKt.details { x509Der = ByteString.copyFromUtf8("This is a certificate der.") }
+    details = certificateDetails { x509Der = ByteString.copyFromUtf8("This is a certificate der.") }
   }
-  details = details {
+  details = dataProviderDetails {
     apiVersion = Version.V2_ALPHA.string
     publicKey = ByteString.copyFromUtf8("This is a  public key.")
     publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")

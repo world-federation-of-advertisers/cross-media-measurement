@@ -62,18 +62,18 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
-import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer as InternalMeasurementConsumer
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as InternalMeasurementConsumersService
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersClient
 import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.internal.kingdom.addMeasurementConsumerOwnerRequest as internalAddMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest as internalCreateMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest as internalGetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.measurementConsumer as internalMeasurementConsumer
+import org.wfanet.measurement.internal.kingdom.measurementConsumerDetails
 import org.wfanet.measurement.internal.kingdom.removeMeasurementConsumerOwnerRequest as internalRemoveMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountActivationStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountNotFoundException
@@ -762,7 +762,7 @@ class MeasurementConsumersServiceTest {
     private val INTERNAL_MEASUREMENT_CONSUMER: InternalMeasurementConsumer =
       internalMeasurementConsumer {
         externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-        details = details {
+        details = measurementConsumerDetails {
           apiVersion = API_VERSION.string
           publicKey = SIGNED_PUBLIC_KEY.message.value
           publicKeySignature = SIGNED_PUBLIC_KEY.signature
@@ -774,7 +774,7 @@ class MeasurementConsumersServiceTest {
           subjectKeyIdentifier = serverCertificate.subjectKeyIdentifier!!
           notValidBefore = serverCertificate.notBefore.toInstant().toProtoTime()
           notValidAfter = serverCertificate.notAfter.toInstant().toProtoTime()
-          details = CertificateKt.details { x509Der = SERVER_CERTIFICATE_DER }
+          details = certificateDetails { x509Der = SERVER_CERTIFICATE_DER }
         }
       }
 
