@@ -33,20 +33,22 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.StateTransitionMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.createDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntryDetails
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntryStageAttempt
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.streamStateTransitionMeasurementLogEntriesRequest
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
@@ -105,13 +107,9 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
           createDuchyMeasurementLogEntryRequest {
             externalComputationId = 1234L // WrongID
             externalDuchyId = DUCHIES[0].externalDuchyId
-            measurementLogEntryDetails =
-              MeasurementLogEntryKt.details {
-                error =
-                  MeasurementLogEntryKt.errorDetails {
-                    type = MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
-                  }
-              }
+            measurementLogEntryDetails = measurementLogEntryDetails {
+              error = measurementLogEntryError { type = MeasurementLogEntryError.Type.TRANSIENT }
+            }
           }
         )
       }
@@ -140,13 +138,9 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
           createDuchyMeasurementLogEntryRequest {
             externalComputationId = measurement.externalComputationId
             externalDuchyId = "wrong duchy id" // WrongID
-            measurementLogEntryDetails =
-              MeasurementLogEntryKt.details {
-                error =
-                  MeasurementLogEntryKt.errorDetails {
-                    type = MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
-                  }
-              }
+            measurementLogEntryDetails = measurementLogEntryDetails {
+              error = measurementLogEntryError { type = MeasurementLogEntryError.Type.TRANSIENT }
+            }
           }
         )
       }
@@ -163,13 +157,9 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
           createDuchyMeasurementLogEntryRequest {
             externalComputationId = 1L
             externalDuchyId = DUCHIES[0].externalDuchyId
-            measurementLogEntryDetails =
-              MeasurementLogEntryKt.details {
-                error =
-                  MeasurementLogEntryKt.errorDetails {
-                    type = MeasurementLogEntry.ErrorDetails.Type.PERMANENT
-                  }
-              }
+            measurementLogEntryDetails = measurementLogEntryDetails {
+              error = measurementLogEntryError { type = MeasurementLogEntryError.Type.PERMANENT }
+            }
           }
         )
       }
@@ -191,20 +181,15 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
         dataProvider,
       )
 
-    val measurementLogEntryDetails =
-      MeasurementLogEntryKt.details {
-        error =
-          MeasurementLogEntryKt.errorDetails {
-            type = MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
-          }
-        logMessage = "some log message"
-      }
+    val measurementLogEntryDetails = measurementLogEntryDetails {
+      error = measurementLogEntryError { type = MeasurementLogEntryError.Type.TRANSIENT }
+      logMessage = "some log message"
+    }
 
-    val duchyMeasurementLogEntryDetails =
-      DuchyMeasurementLogEntryKt.details {
-        duchyChildReferenceId = "some child reference"
-        stageAttempt = DuchyMeasurementLogEntryKt.stageAttempt { stage = 1 }
-      }
+    val duchyMeasurementLogEntryDetails = duchyMeasurementLogEntryDetails {
+      duchyChildReferenceId = "some child reference"
+      stageAttempt = duchyMeasurementLogEntryStageAttempt { stage = 1 }
+    }
 
     val createdDuchyMeasurementLogEntry =
       measurementLogEntriesService.createDuchyMeasurementLogEntry(
@@ -247,13 +232,12 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
         dataProvider,
       )
 
-    val measurementLogEntryDetails = MeasurementLogEntryKt.details { logMessage = "This is a log." }
+    val measurementLogEntryDetails = measurementLogEntryDetails { logMessage = "This is a log." }
 
-    val duchyMeasurementLogEntryDetails =
-      DuchyMeasurementLogEntryKt.details {
-        duchyChildReferenceId = "some child reference"
-        stageAttempt = DuchyMeasurementLogEntryKt.stageAttempt { stage = 1 }
-      }
+    val duchyMeasurementLogEntryDetails = duchyMeasurementLogEntryDetails {
+      duchyChildReferenceId = "some child reference"
+      stageAttempt = duchyMeasurementLogEntryStageAttempt { stage = 1 }
+    }
 
     val createdDuchyMeasurementLogEntry =
       measurementLogEntriesService.createDuchyMeasurementLogEntry(
@@ -302,18 +286,13 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
       }
     )
 
-    val measurementLogEntryDetails =
-      MeasurementLogEntryKt.details {
-        error =
-          MeasurementLogEntryKt.errorDetails {
-            type = MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
-          }
-      }
-    val duchyMeasurementLogEntryDetails =
-      DuchyMeasurementLogEntryKt.details {
-        duchyChildReferenceId = "some child reference"
-        stageAttempt = DuchyMeasurementLogEntryKt.stageAttempt { stage = 1 }
-      }
+    val measurementLogEntryDetails = measurementLogEntryDetails {
+      error = measurementLogEntryError { type = MeasurementLogEntryError.Type.TRANSIENT }
+    }
+    val duchyMeasurementLogEntryDetails = duchyMeasurementLogEntryDetails {
+      duchyChildReferenceId = "some child reference"
+      stageAttempt = duchyMeasurementLogEntryStageAttempt { stage = 1 }
+    }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {

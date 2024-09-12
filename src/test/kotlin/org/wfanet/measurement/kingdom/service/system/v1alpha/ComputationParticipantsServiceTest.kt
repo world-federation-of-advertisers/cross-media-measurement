@@ -34,22 +34,25 @@ import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.internal.kingdom.CertificateKt as InternalCertificateKt
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
-import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt as InternalComputationParticipantKt
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase as InternalComputationParticipantsCoroutineService
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequest as InternalConfirmComputationParticipantRequest
-import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest as InternalFailComputationParticipantRequest
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest as InternalSetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
+import org.wfanet.measurement.internal.kingdom.certificateDetails
+import org.wfanet.measurement.internal.kingdom.computationParticipantDetails
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntryDetails
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntryStageAttempt
 import org.wfanet.measurement.internal.kingdom.getComputationParticipantRequest as internalGetComputationParticipantRequest
+import org.wfanet.measurement.internal.kingdom.liquidLegionsV2Params
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest as internalSetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt.RequisitionParamsKt.honestMajorityShareShuffle
@@ -84,7 +87,7 @@ private val DUCHY_ELGAMAL_KEY = ByteString.copyFromUtf8("an elgamal key.")
 private val DUCHY_ELGAMAL_KEY_SIGNATURE = ByteString.copyFromUtf8("an elgamal key signature.")
 private val DUCHY_TINK_KEY = ByteString.copyFromUtf8("a tink public key.")
 private val DUCHY_TINK_KEY_SIGNATURE = ByteString.copyFromUtf8("a tink public key signature.")
-private val DUCHY_TINK_KEY_SIGNATURE_ALGORITHEM_OID = "2.9999"
+private const val DUCHY_TINK_KEY_SIGNATURE_ALGORITHEM_OID = "2.9999"
 
 private val INTERNAL_COMPUTATION_PARTICIPANT =
   InternalComputationParticipant.newBuilder()
@@ -104,18 +107,16 @@ private val INTERNAL_COMPUTATION_PARTICIPANT =
 private val INTERNAL_COMPUTATION_PARTICIPANT_WITH_PARAMS =
   INTERNAL_COMPUTATION_PARTICIPANT.copy {
     state = InternalComputationParticipant.State.REQUISITION_PARAMS_SET
-    details =
-      InternalComputationParticipantKt.details {
-        liquidLegionsV2 =
-          InternalComputationParticipantKt.liquidLegionsV2Details {
-            elGamalPublicKey = DUCHY_ELGAMAL_KEY
-            elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
-          }
+    details = computationParticipantDetails {
+      liquidLegionsV2 = liquidLegionsV2Params {
+        elGamalPublicKey = DUCHY_ELGAMAL_KEY
+        elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
       }
+    }
     duchyCertificate = internalCertificate {
       externalDuchyId = DUCHY_ID
       externalCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
-      details = InternalCertificateKt.details { x509Der = DUCHY_CERTIFICATE_DER }
+      details = certificateDetails { x509Der = DUCHY_CERTIFICATE_DER }
     }
   }
 
@@ -125,33 +126,29 @@ private val INTERNAL_COMPUTATION_PARTICIPANT_WITH_FAILURE =
     failureLogEntry = duchyMeasurementLogEntry {
       externalDuchyId = DUCHY_ID
       logEntry = measurementLogEntry {
-        details =
-          MeasurementLogEntryKt.details {
-            logMessage = DUCHY_ERROR_MESSAGE
-            error =
-              MeasurementLogEntryKt.errorDetails {
-                type = MeasurementLogEntry.ErrorDetails.Type.PERMANENT
-                errorTime = timestamp {
-                  seconds = 1001
-                  nanos = 2002
-                }
-              }
-          }
-      }
-      details =
-        DuchyMeasurementLogEntryKt.details {
-          duchyChildReferenceId = MILL_ID
-          stageAttempt =
-            DuchyMeasurementLogEntryKt.stageAttempt {
-              stage = STAGE_ATTEMPT_STAGE
-              stageName = STAGE_ATTEMPT_STAGE_NAME
-              attemptNumber = STAGE_ATTEMPT_ATTEMPT_NUMBER
-              stageStartTime = timestamp {
-                seconds = 100
-                nanos = 200
-              }
+        details = measurementLogEntryDetails {
+          logMessage = DUCHY_ERROR_MESSAGE
+          error = measurementLogEntryError {
+            type = MeasurementLogEntryError.Type.PERMANENT
+            errorTime = timestamp {
+              seconds = 1001
+              nanos = 2002
             }
+          }
         }
+      }
+      details = duchyMeasurementLogEntryDetails {
+        duchyChildReferenceId = MILL_ID
+        stageAttempt = duchyMeasurementLogEntryStageAttempt {
+          stage = STAGE_ATTEMPT_STAGE
+          stageName = STAGE_ATTEMPT_STAGE_NAME
+          attemptNumber = STAGE_ATTEMPT_ATTEMPT_NUMBER
+          stageStartTime = timestamp {
+            seconds = 100
+            nanos = 200
+          }
+        }
+      }
     }
   }
 
@@ -259,14 +256,12 @@ class ComputationParticipantsServiceTest {
     runBlocking {
       val internalComputationParticipant =
         INTERNAL_COMPUTATION_PARTICIPANT_WITH_PARAMS.copy {
-          details =
-            InternalComputationParticipantKt.details {
-              reachOnlyLiquidLegionsV2 =
-                InternalComputationParticipantKt.liquidLegionsV2Details {
-                  elGamalPublicKey = DUCHY_ELGAMAL_KEY
-                  elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
-                }
+          details = computationParticipantDetails {
+            reachOnlyLiquidLegionsV2 = liquidLegionsV2Params {
+              elGamalPublicKey = DUCHY_ELGAMAL_KEY
+              elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
             }
+          }
         }
       whenever(internalComputationParticipantsServiceMock.setParticipantRequisitionParams(any()))
         .thenReturn(internalComputationParticipant)
@@ -382,9 +377,9 @@ class ComputationParticipantsServiceTest {
           .apply {
             externalComputationId = EXTERNAL_COMPUTATION_ID
             externalDuchyId = DUCHY_ID
-            errorMessage = DUCHY_ERROR_MESSAGE
+            logMessage = DUCHY_ERROR_MESSAGE
             duchyChildReferenceId = MILL_ID
-            errorDetails = failureLogEntry.logEntry.details.error
+            error = failureLogEntry.logEntry.details.error
             stageAttempt = failureLogEntry.details.stageAttempt
             etag = request.etag
           }

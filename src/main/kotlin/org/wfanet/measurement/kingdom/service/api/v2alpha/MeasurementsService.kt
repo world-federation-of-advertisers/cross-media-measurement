@@ -67,7 +67,7 @@ import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest as InternalCreateMeasurementRequest
-import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
+import org.wfanet.measurement.internal.kingdom.DataProviderCapabilities as InternalDataProviderCapabilities
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
@@ -161,7 +161,7 @@ class MeasurementsService(
           }
         ApiId(key.dataProviderId).externalId
       }
-    val dataProviderCapabilities: List<InternalDataProvider.Capabilities> =
+    val dataProviderCapabilities: List<InternalDataProviderCapabilities> =
       try {
           internalDataProvidersStub.batchGetDataProviders(
             batchGetDataProvidersRequest {
@@ -316,7 +316,7 @@ class MeasurementsService(
             }
           ApiId(key.dataProviderId).externalId
         }
-    val allDataProviderCapabilities: Map<ExternalId, InternalDataProvider.Capabilities> =
+    val allDataProviderCapabilities: Map<ExternalId, InternalDataProviderCapabilities> =
       try {
           internalDataProvidersStub.batchGetDataProviders(
             batchGetDataProvidersRequest {
@@ -470,7 +470,7 @@ class MeasurementsService(
 
   private fun buildInternalProtocolConfig(
     measurementSpec: MeasurementSpec,
-    dataProviderCapabilities: Collection<InternalDataProvider.Capabilities>,
+    dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
     measurementConsumerName: String,
   ): InternalProtocolConfig {
     val dataProvidersCount = dataProviderCapabilities.size
@@ -587,7 +587,7 @@ class MeasurementsService(
   }
 
   private fun CreateMeasurementRequest.buildInternalCreateMeasurementRequest(
-    dataProviderCapabilities: Collection<InternalDataProvider.Capabilities>,
+    dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
     parentKey: MeasurementConsumerKey,
   ): InternalCreateMeasurementRequest {
     val measurementConsumerCertificateKey =

@@ -17,8 +17,9 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "wfa/measurement/internal/kingdom/computation_participant.proto";
-import "wfa/measurement/internal/kingdom/duchy_measurement_log_entry.proto";
-import "wfa/measurement/internal/kingdom/measurement_log_entry.proto";
+import "wfa/measurement/internal/kingdom/duchy_measurement_log_entry_stage_attempt.proto";
+import "wfa/measurement/internal/kingdom/measurement_log_entry_error.proto";
+import "wfa/measurement/internal/kingdom/participant_requisition_params.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -56,13 +57,11 @@ message SetParticipantRequisitionParamsRequest {
   fixed64 external_duchy_certificate_id = 3;
 
   oneof protocol {
-    ComputationParticipant.LiquidLegionsV2Details liquid_legions_v2 = 4;
+    LiquidLegionsV2Params liquid_legions_v2 = 4;
 
-    ComputationParticipant.LiquidLegionsV2Details reach_only_liquid_legions_v2 =
-        5;
+    LiquidLegionsV2Params reach_only_liquid_legions_v2 = 5;
 
-    ComputationParticipant.HonestMajorityShareShuffleDetails
-        honest_majority_share_shuffle = 6;
+    HonestMajorityShareShuffleParams honest_majority_share_shuffle = 6;
   }
 
   // `etag` of the `ComputationParticipant`.
@@ -76,11 +75,11 @@ message FailComputationParticipantRequest {
   fixed64 external_computation_id = 1;
   string external_duchy_id = 2;
 
-  // Human-readable error message. This should not include any sensitive info.
-  string error_message = 3;
+  // Human-readable log message. This should not include any sensitive info.
+  string log_message = 3;
 
   // Details about an error.
-  MeasurementLogEntry.ErrorDetails error_details = 4;
+  MeasurementLogEntryError error = 4;
 
   // ID of some child of the Duchy from an external system.
   //
@@ -88,7 +87,7 @@ message FailComputationParticipantRequest {
   string duchy_child_reference_id = 5;
 
   // Details about the computation stage during which the error occurred.
-  DuchyMeasurementLogEntry.StageAttempt stage_attempt = 6;
+  DuchyMeasurementLogEntryStageAttempt stage_attempt = 6;
 
   // `etag` of the `ComputationParticipant`.
   //

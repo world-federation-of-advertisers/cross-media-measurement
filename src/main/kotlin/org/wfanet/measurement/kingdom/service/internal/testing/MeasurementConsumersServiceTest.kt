@@ -34,19 +34,19 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.Certificate
-import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.internal.kingdom.addMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.internal.kingdom.authenticateAccountRequest
 import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
+import org.wfanet.measurement.internal.kingdom.measurementConsumerDetails
 import org.wfanet.measurement.internal.kingdom.removeMeasurementConsumerOwnerRequest
 
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
@@ -60,9 +60,9 @@ private val MEASUREMENT_CONSUMER = measurementConsumer {
   certificate = certificate {
     notValidBefore = timestamp { seconds = 12345 }
     notValidAfter = timestamp { seconds = 23456 }
-    details = CertificateKt.details { x509Der = CERTIFICATE_DER }
+    details = certificateDetails { x509Der = CERTIFICATE_DER }
   }
-  details = details {
+  details = measurementConsumerDetails {
     apiVersion = "v2alpha"
     publicKey = PUBLIC_KEY
     publicKeySignature = PUBLIC_KEY_SIGNATURE

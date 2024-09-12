@@ -42,9 +42,7 @@ import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse
-import org.wfanet.measurement.internal.kingdom.DataProviderKt.details
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeDetails
@@ -62,11 +60,13 @@ import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.Recurrin
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt.orderedKey
 import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
+import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.internal.kingdom.exchange
 import org.wfanet.measurement.internal.kingdom.exchangeStep
 import org.wfanet.measurement.internal.kingdom.exchangeStepAttempt
@@ -153,10 +153,9 @@ private val DATA_PROVIDER = dataProvider {
   certificate = certificate {
     notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
     notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-    details =
-      CertificateKt.details { x509Der = ByteString.copyFromUtf8("This is a certificate der.") }
+    details = certificateDetails { x509Der = ByteString.copyFromUtf8("This is a certificate der.") }
   }
-  details = details {
+  details = dataProviderDetails {
     apiVersion = Version.V2_ALPHA.string
     publicKey = ByteString.copyFromUtf8("This is a  public key.")
     publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")

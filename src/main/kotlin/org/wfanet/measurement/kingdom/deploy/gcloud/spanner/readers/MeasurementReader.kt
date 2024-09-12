@@ -27,14 +27,14 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getInternalId
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementDetails
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
-import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
@@ -511,7 +511,7 @@ private fun MeasurementKt.Dsl.fillMeasurementCommon(struct: Struct) {
   createTime = struct.getTimestamp("CreateTime").toProto()
   updateTime = struct.getTimestamp("UpdateTime").toProto()
   state = struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
-  details = struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
+  details = struct.getProtoMessage("MeasurementDetails", MeasurementDetails.parser())
   if (state == Measurement.State.SUCCEEDED) {
     for (duchyResultStruct in struct.getStructList("DuchyResults")) {
       results += resultInfo {
@@ -535,7 +535,7 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
   val measurementSucceeded = state == Measurement.State.SUCCEEDED
   for (requisitionStruct in struct.getStructList("Requisitions")) {
     val requisitionDetails =
-      requisitionStruct.getProtoMessage("RequisitionDetails", Requisition.Details.parser())
+      requisitionStruct.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
     val externalDataProviderId = requisitionStruct.getLong("ExternalDataProviderId")
     val externalDataProviderCertificateId =
       requisitionStruct.getLong("ExternalDataProviderCertificateId")

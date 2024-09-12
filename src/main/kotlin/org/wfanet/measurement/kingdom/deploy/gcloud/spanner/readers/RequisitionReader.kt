@@ -21,11 +21,12 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
-import org.wfanet.measurement.internal.kingdom.ComputationParticipant
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantDetails
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementDetails
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.duchyValue
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.requisition
@@ -102,7 +103,7 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
     val measurementId: InternalId,
     val requisitionId: InternalId,
     val requisition: Requisition,
-    val measurementDetails: Measurement.Details,
+    val measurementDetails: MeasurementDetails,
   )
 
   override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
@@ -113,7 +114,7 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       InternalId(struct.getLong("MeasurementId")),
       InternalId(struct.getLong("RequisitionId")),
       buildRequisition(struct),
-      struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser()),
+      struct.getProtoMessage("MeasurementDetails", MeasurementDetails.parser()),
     )
   }
 
@@ -206,8 +207,7 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       for ((externalDuchyId, participantStruct) in participantStructs) {
         duchies[externalDuchyId] = buildDuchyValue(participantStruct)
       }
-      details =
-        requisitionStruct.getProtoMessage("RequisitionDetails", Requisition.Details.parser())
+      details = requisitionStruct.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
       dataProviderCertificate = CertificateReader.buildDataProviderCertificate(requisitionStruct)
 
       parentMeasurement = buildParentMeasurement(measurementStruct, dataProviderCount)
@@ -224,26 +224,26 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       }
 
       val participantDetails =
-        struct.getProtoMessage("ParticipantDetails", ComputationParticipant.Details.parser())
+        struct.getProtoMessage("ParticipantDetails", ComputationParticipantDetails.parser())
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (participantDetails.protocolCase) {
-        ComputationParticipant.Details.ProtocolCase.LIQUID_LEGIONS_V2 -> {
+        ComputationParticipantDetails.ProtocolCase.LIQUID_LEGIONS_V2 -> {
           liquidLegionsV2 = participantDetails.liquidLegionsV2
         }
-        ComputationParticipant.Details.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
+        ComputationParticipantDetails.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
           reachOnlyLiquidLegionsV2 = participantDetails.reachOnlyLiquidLegionsV2
         }
-        ComputationParticipant.Details.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+        ComputationParticipantDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
           honestMajorityShareShuffle = participantDetails.honestMajorityShareShuffle
         }
         // Protocol may only be set after computation participant sets requisition params.
-        ComputationParticipant.Details.ProtocolCase.PROTOCOL_NOT_SET -> Unit
+        ComputationParticipantDetails.ProtocolCase.PROTOCOL_NOT_SET -> Unit
       }
     }
 
     private fun buildParentMeasurement(struct: Struct, dataProviderCount: Int) = parentMeasurement {
       val measurementDetails =
-        struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
+        struct.getProtoMessage("MeasurementDetails", MeasurementDetails.parser())
       apiVersion = measurementDetails.apiVersion
       externalMeasurementConsumerCertificateId =
         struct.getLong("ExternalMeasurementConsumerCertificateId")

@@ -27,8 +27,8 @@ import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantETagMismatchException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationException
@@ -131,10 +131,9 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
       )
     ) {
 
-      val measurementLogEntryDetails =
-        MeasurementLogEntryKt.details {
-          logMessage = "All participants are in status == READY. Measurement.STATE is now PENDING"
-        }
+      val measurementLogEntryDetails = measurementLogEntryDetails {
+        logMessage = "All participants are in status == READY. Measurement.STATE is now PENDING"
+      }
 
       updateMeasurementState(
         measurementConsumerId = measurementConsumerId,

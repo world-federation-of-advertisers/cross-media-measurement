@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "google/protobuf/descriptor.proto";
+import "wfa/measurement/internal/kingdom/event_group_metadata_descriptor_details.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -27,13 +27,5 @@ message EventGroupMetadataDescriptor {
 
   string idempotency_key = 4;
 
-  message Details {
-    // Version of the public API for serialized message definitions.
-    string api_version = 1;
-
-    // FileDescriptorSet of the original metadata proto message.
-    google.protobuf.FileDescriptorSet descriptor_set = 2;
-  }
-
-  Details details = 3;
+  EventGroupMetadataDescriptorDetails details = 3;
 }
