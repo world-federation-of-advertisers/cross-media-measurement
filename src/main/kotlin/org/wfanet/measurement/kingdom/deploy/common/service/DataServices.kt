@@ -27,6 +27,7 @@ import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoro
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.IncidentsGrpcKt.IncidentsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
@@ -79,6 +80,7 @@ data class KingdomDataServices(
   val modelShardsService: ModelShardsCoroutineImplBase,
   val modelRolloutsService: ModelRolloutsCoroutineImplBase,
   val populationsService: PopulationsCoroutineImplBase,
+  val incidentsService: IncidentsCoroutineImplBase,
 )
 
 fun KingdomDataServices.toList(): List<BindableService> {

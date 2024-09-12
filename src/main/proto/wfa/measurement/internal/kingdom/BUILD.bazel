@@ -34,6 +34,7 @@ LIBS = [
     "exchange_step_attempt",
     "exchange_step",
     "exchange_workflow",
+    "incident",
     "measurement_consumer",
     "measurement_log_entry_error",
     "measurement_log_entry",
@@ -79,6 +80,7 @@ SERVICES = [
     "exchanges",
     "exchange_step_attempts",
     "exchange_steps",
+    "incidents",
     "measurement_consumers",
     "measurement_log_entries",
     "measurements",
@@ -776,6 +778,23 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":population_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "incident_proto",
+    srcs = ["incident.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = ["@com_google_protobuf//:timestamp_proto"],
+)
+
+proto_library(
+    name = "incidents_service_proto",
+    srcs = ["incidents_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":incident_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )

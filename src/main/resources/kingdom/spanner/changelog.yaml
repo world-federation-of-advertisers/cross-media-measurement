@@ -66,3 +66,6 @@ databaseChangeLog:
 - include:
     file: reorder-measurements-by-continuation-token.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-incidents-table.sql
+    relativeToChangeLogFile: true
