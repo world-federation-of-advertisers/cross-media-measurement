@@ -62,7 +62,8 @@ class CreateModelOutage(private val modelOutage: ModelOutage) :
       }
     }
 
-    val modelLineType = modelLineData.getProtoEnum("Type", ModelLine.Type::forNumber)
+    val modelLineType: ModelLine.Type =
+      modelLineData.getProtoEnum("Type", ModelLine.Type::forNumber)
     if (modelLineType != ModelLine.Type.PROD) {
       throw ModelOutageInvalidArgsException(
         ExternalId(modelOutage.externalModelProviderId),

@@ -25,12 +25,15 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.Certificate.RevocationState
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementKt
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
+import org.wfanet.measurement.internal.kingdom.MeasurementDetails
+import org.wfanet.measurement.internal.kingdom.MeasurementFailure
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.measurementFailure
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryError
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateRevocationStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundException
@@ -161,11 +164,10 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
         StreamMeasurements(Measurement.View.DEFAULT, filter).execute(transactionContext).collect {
           val details =
             it.measurement.details.copy {
-              failure =
-                MeasurementKt.failure {
-                  reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
-                  message = "The associated Measurement Consumer certificate has been revoked."
-                }
+              failure = measurementFailure {
+                reason = MeasurementFailure.Reason.CERTIFICATE_REVOKED
+                message = "The associated Measurement Consumer certificate has been revoked."
+              }
             }
 
           failMeasurement(it.measurementConsumerId, it.measurementId, details)
@@ -180,11 +182,10 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
           .collect {
             val details =
               it.measurementDetails.copy {
-                failure =
-                  MeasurementKt.failure {
-                    reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
-                    message = "An associated Data Provider certificate has been revoked."
-                  }
+                failure = measurementFailure {
+                  reason = MeasurementFailure.Reason.CERTIFICATE_REVOKED
+                  message = "An associated Data Provider certificate has been revoked."
+                }
               }
 
             failMeasurement(it.measurementConsumerId, it.measurementId, details)
@@ -199,11 +200,10 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
           .collect {
             val details =
               it.measurementDetails.copy {
-                failure =
-                  MeasurementKt.failure {
-                    reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
-                    message = "An associated Duchy certificate has been revoked."
-                  }
+                failure = measurementFailure {
+                  reason = MeasurementFailure.Reason.CERTIFICATE_REVOKED
+                  message = "An associated Duchy certificate has been revoked."
+                }
               }
 
             failMeasurement(it.measurementConsumerId, it.measurementId, details)
@@ -222,7 +222,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
   private suspend fun TransactionScope.failMeasurement(
     measurementConsumerId: InternalId,
     measurementId: InternalId,
-    details: Measurement.Details,
+    details: MeasurementDetails,
   ) {
 
     val measurementState =
@@ -232,17 +232,15 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
         measurementId,
       )
 
-    val measurementLogEntryDetails =
-      MeasurementLogEntryKt.details {
-        logMessage = "Measurement failed due to a certificate revoked"
-        this.error =
-          MeasurementLogEntryKt.errorDetails {
-            this.type = MeasurementLogEntry.ErrorDetails.Type.PERMANENT
-            // TODO(@marcopremier): plumb in a clock instance dependency not to hardcode the system
-            // one
-            this.errorTime = Clock.systemUTC().protoTimestamp()
-          }
+    val measurementLogEntryDetails = measurementLogEntryDetails {
+      logMessage = "Measurement failed due to a certificate revoked"
+      this.error = measurementLogEntryError {
+        this.type = MeasurementLogEntryError.Type.PERMANENT
+        // TODO(@marcopremier): plumb in a clock instance dependency not to hardcode the system
+        // one
+        this.errorTime = Clock.systemUTC().protoTimestamp()
       }
+    }
 
     updateMeasurementState(
       measurementConsumerId = measurementConsumerId,

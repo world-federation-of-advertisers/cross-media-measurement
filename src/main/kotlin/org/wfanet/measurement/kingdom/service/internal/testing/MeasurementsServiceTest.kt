@@ -43,6 +43,7 @@ import org.wfanet.measurement.internal.kingdom.CancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantDetails
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DeleteMeasurementRequest
@@ -50,14 +51,11 @@ import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.RequisitionKt.details
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
@@ -76,10 +74,13 @@ import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.measurement
+import org.wfanet.measurement.internal.kingdom.measurementDetails
 import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
+import org.wfanet.measurement.internal.kingdom.requisitionDetails
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.stateTransitionMeasurementLogEntry
@@ -101,19 +102,18 @@ private const val MAX_BATCH_CANCEL = 1000
 
 private val MEASUREMENT = measurement {
   providedMeasurementId = PROVIDED_MEASUREMENT_ID
-  details =
-    MeasurementKt.details {
-      apiVersion = API_VERSION
-      measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
-      measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
-      measurementSpecSignatureAlgorithmOid = "2.9999"
-      duchyProtocolConfig = duchyProtocolConfig {
-        liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-      }
-      protocolConfig = protocolConfig {
-        liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-      }
+  details = measurementDetails {
+    apiVersion = API_VERSION
+    measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
+    measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
+    measurementSpecSignatureAlgorithmOid = "2.9999"
+    duchyProtocolConfig = duchyProtocolConfig {
+      liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
     }
+    protocolConfig = protocolConfig {
+      liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+    }
+  }
 }
 
 private val REACH_ONLY_MEASUREMENT =
@@ -131,16 +131,15 @@ private val REACH_ONLY_MEASUREMENT =
 
 private val HMSS_MEASUREMENT = measurement {
   providedMeasurementId = PROVIDED_MEASUREMENT_ID
-  details =
-    MeasurementKt.details {
-      apiVersion = API_VERSION
-      measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
-      measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
-      measurementSpecSignatureAlgorithmOid = "2.9999"
-      protocolConfig = protocolConfig {
-        honestMajorityShareShuffle = ProtocolConfig.HonestMajorityShareShuffle.getDefaultInstance()
-      }
+  details = measurementDetails {
+    apiVersion = API_VERSION
+    measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
+    measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
+    measurementSpecSignatureAlgorithmOid = "2.9999"
+    protocolConfig = protocolConfig {
+      honestMajorityShareShuffle = ProtocolConfig.HonestMajorityShareShuffle.getDefaultInstance()
     }
+  }
 }
 
 private val INVALID_WORKER_DUCHY =
@@ -973,7 +972,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
               }
               dataProvidersCount = 1
             }
-            details = details {
+            details = requisitionDetails {
               dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
               encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
               nonceHash = dataProviderValue.nonceHash
@@ -1003,7 +1002,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         externalComputationId = createdMeasurement.externalComputationId
         updateTime = createdMeasurement.createTime
         state = ComputationParticipant.State.CREATED
-        details = ComputationParticipant.Details.getDefaultInstance()
+        details = ComputationParticipantDetails.getDefaultInstance()
         apiVersion = createdMeasurement.details.apiVersion
       }
       assertThat(measurement.computationParticipantsList)
@@ -1140,7 +1139,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
             externalMeasurementId = measurement.externalMeasurementId
             createTime = succeededMeasurement.updateTime
-            details = MeasurementLogEntryKt.details { logMessage = "Measurement succeeded" }
+            details = measurementLogEntryDetails { logMessage = "Measurement succeeded" }
           }
           previousState = measurement.state
           currentState = Measurement.State.SUCCEEDED

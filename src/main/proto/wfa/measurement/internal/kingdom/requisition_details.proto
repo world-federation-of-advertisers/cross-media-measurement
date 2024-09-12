@@ -1,0 +1,54 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+import "wfa/measurement/internal/kingdom/requisition_refusal.proto";
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+message RequisitionDetails {
+  // Serialized `EncryptionPublicKey` message from the public API.
+  bytes data_provider_public_key = 1;
+  bytes data_provider_public_key_signature = 2 [deprecated = true];
+  string data_provider_public_key_signature_algorithm_oid = 8
+      [deprecated = true];
+
+  bytes encrypted_requisition_spec = 3;
+  bytes nonce_hash = 4;
+
+  // Actual nonce value. Set when Requisition state is FULFILLED.
+  fixed64 nonce = 5;
+
+  // Refusal information. Set when Requisition state is REFUSED.
+  RequisitionRefusal refusal = 6;
+
+  // Encrypted SignedData containing the Measurement.Result for this
+  // Requisition. Set when Requisition state is FULFILLED and the protocol is
+  // Direct.
+  bytes encrypted_data = 7;
+
+  // Version of the public API for `encrypted_data`.
+  //
+  // If not specified, assume "v2alpha".
+  string encrypted_data_api_version = 9;
+
+  // Used to verify the decrypted Measurement.Result. If not present,
+  // `data_provider_certificate` should be used. Set when Requisition
+  // state is FULFILLED and the protocol is Direct.
+  fixed64 external_certificate_id = 10;
+}

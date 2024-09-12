@@ -19,7 +19,6 @@ import io.grpc.StatusException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.ExperimentalTime
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 import kotlinx.coroutines.currentCoroutineContext
@@ -55,7 +54,6 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
 import org.wfanet.measurement.system.v1alpha.streamActiveComputationsContinuationToken
 import org.wfanet.measurement.system.v1alpha.streamActiveComputationsResponse
 
-@OptIn(ExperimentalTime::class)
 class ComputationsService(
   private val measurementsClient: MeasurementsCoroutineStub,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,

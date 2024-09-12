@@ -24,6 +24,7 @@ import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumerDetails
 
 class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result>() {
   data class Result(val measurementConsumer: MeasurementConsumer, val measurementConsumerId: Long)
@@ -58,7 +59,7 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
       .apply {
         externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
         details =
-          struct.getProtoMessage("MeasurementConsumerDetails", MeasurementConsumer.Details.parser())
+          struct.getProtoMessage("MeasurementConsumerDetails", MeasurementConsumerDetails.parser())
         certificate = CertificateReader.buildMeasurementConsumerCertificate(struct)
       }
       .build()

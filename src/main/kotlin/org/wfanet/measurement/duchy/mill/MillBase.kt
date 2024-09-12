@@ -30,7 +30,6 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.pow
 import kotlin.random.Random
-import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource
 import kotlin.time.toJavaDuration
 import kotlinx.coroutines.flow.Flow
@@ -58,6 +57,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
+import org.wfanet.measurement.duchy.toComputationStage
 import org.wfanet.measurement.duchy.utils.ComputationResult
 import org.wfanet.measurement.duchy.utils.toV2AlphaEncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
@@ -85,10 +85,12 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
+import org.wfanet.measurement.system.v1alpha.StageKey
 import org.wfanet.measurement.system.v1alpha.computationLogEntry
 import org.wfanet.measurement.system.v1alpha.createComputationLogEntryRequest
 import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.getComputationParticipantRequest
+import org.wfanet.measurement.system.v1alpha.getComputationStageRequest
 import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
 import org.wfanet.measurement.system.v1alpha.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.system.v1alpha.stageAttempt
@@ -788,7 +790,29 @@ abstract class MillBase(
     return response.token
   }
 
-  @OptIn(ExperimentalTime::class)
+  protected suspend fun getComputationStageInOtherDuchy(
+    globalComputationId: String,
+    otherDuchyId: String,
+    stub: ComputationControlCoroutineStub,
+  ): ComputationStage {
+    val systemStage =
+      try {
+        stub.getComputationStage(
+          getComputationStageRequest { name = StageKey(globalComputationId, otherDuchyId).toName() }
+        )
+      } catch (e: StatusException) {
+        val message = "Error getting computation stage from other duchy."
+        throw when (e.status.code) {
+          Status.Code.UNAVAILABLE,
+          Status.Code.DEADLINE_EXCEEDED,
+          Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
+          else -> ComputationDataClients.PermanentErrorException(message, e)
+        }
+      }
+
+    return systemStage.toComputationStage()
+  }
+
   private inner class WallDurationLogger {
     private val timeMark = TimeSource.Monotonic.markNow()
 

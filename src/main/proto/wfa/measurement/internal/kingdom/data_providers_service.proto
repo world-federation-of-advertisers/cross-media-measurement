@@ -18,6 +18,7 @@ package wfa.measurement.internal.kingdom;
 
 import "google/type/interval.proto";
 import "wfa/measurement/internal/kingdom/data_provider.proto";
+import "wfa/measurement/internal/kingdom/data_provider_capabilities.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -67,5 +68,5 @@ message ReplaceDataProviderCapabilitiesRequest {
   fixed64 external_data_provider_id = 1;
 
   // New value for `capabilities`.
-  DataProvider.Capabilities capabilities = 2;
+  DataProviderCapabilities capabilities = 2;
 }
