@@ -67,7 +67,6 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -83,6 +82,7 @@ import org.wfanet.measurement.internal.kingdom.bigquerytables.requisitionsTableR
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.measurement
+import org.wfanet.measurement.internal.kingdom.measurementDetails
 import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
@@ -679,7 +679,7 @@ class OperationalMetricsExportTest {
       externalMeasurementConsumerId = 1234
       externalMeasurementConsumerCertificateId = 1234
       details =
-        MeasurementKt.details {
+        measurementDetails {
           apiVersion = API_VERSION
           measurementSpec = PUBLIC_API_MEASUREMENT_SPEC.toByteString()
           measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")

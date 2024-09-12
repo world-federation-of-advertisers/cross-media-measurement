@@ -659,7 +659,7 @@ private fun MeasurementKt.Dsl.fillFullView(struct: Struct) {
       )
 
     val requisitionDetails =
-      requisitionStruct.getProtoMessage("RequisitionDetails", Requisition.Details.parser())
+      requisitionStruct.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
     val externalDataProviderId = requisitionStruct.getLong("ExternalDataProviderId")
     val externalDataProviderCertificateId =
       requisitionStruct.getLong("ExternalDataProviderCertificateId")
