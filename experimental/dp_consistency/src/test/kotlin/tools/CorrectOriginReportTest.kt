@@ -14,20 +14,20 @@
 
 package experimental.dp_consistency.src.test.kotlin.tools
 
-import com.google.common.truth.Truth.assertThat
+import experimental.dp_consistency.src.main.kotlin.tools.CorrectOriginReport
+import java.io.File
+import kotlin.test.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import experimental.dp_consistency.src.main.kotlin.tools.CorrectOriginReport
-import kotlin.test.assertTrue
-import java.io.File
 
 @RunWith(JUnit4::class)
 class CorrectOriginReportTest {
   @Test
   fun `run correct_origin_report python binary from kotlin`() {
     val reportCorrector: CorrectOriginReport = CorrectOriginReport()
-    val outputPath = "experimental/dp_consistency/src/test/kotlin/tools/example_origin_corrected_report.xlsx"
+    val outputPath =
+      "experimental/dp_consistency/src/test/kotlin/tools/example_origin_corrected_report.xlsx"
 
     // Makes sure that the output file does not exist before the execution.
     File(outputPath).delete()
@@ -35,7 +35,7 @@ class CorrectOriginReportTest {
     reportCorrector.correctReport(
       "experimental/dp_consistency/src/test/kotlin/tools/example_origin_report.xlsx",
       "Linear TV",
-      outputPath
+      outputPath,
     )
 
     assertTrue(File(outputPath).exists())

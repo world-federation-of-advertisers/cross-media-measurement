@@ -15,7 +15,6 @@
 package experimental.dp_consistency.src.main.kotlin.tools
 
 import java.util.logging.Logger
-import java.io.File
 
 class CorrectOriginReport {
   fun correctReport(inputPath: String, unnoisedEdp: String, outputPath: String) {
@@ -23,16 +22,17 @@ class CorrectOriginReport {
     val pathToReport = "--path_to_report=" + inputPath
     val pathToCorrectedReport = "--path_to_corrected_report=" + outputPath
     val unnoisedEdp = "--unnoised_edps=" + unnoisedEdp
-    val processHandler = ProcessBuilder(
-      "experimental/dp_consistency/src/main/python/tools/correct_origin_report",
-      pathToReport,
-      unnoisedEdp,
-      pathToCorrectedReport,
-    )
-      .redirectOutput(ProcessBuilder.Redirect.INHERIT)
-      .redirectError(ProcessBuilder.Redirect.INHERIT)
-      .start()
-      .waitFor()
+    val processHandler =
+      ProcessBuilder(
+          "experimental/dp_consistency/src/main/python/tools/correct_origin_report",
+          pathToReport,
+          unnoisedEdp,
+          pathToCorrectedReport,
+        )
+        .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+        .redirectError(ProcessBuilder.Redirect.INHERIT)
+        .start()
+        .waitFor()
     logger.info { "Finished correcting report.." }
   }
 
