@@ -678,13 +678,12 @@ class OperationalMetricsExportTest {
     private val MEASUREMENT = measurement {
       externalMeasurementConsumerId = 1234
       externalMeasurementConsumerCertificateId = 1234
-      details =
-        measurementDetails {
-          apiVersion = API_VERSION
-          measurementSpec = PUBLIC_API_MEASUREMENT_SPEC.toByteString()
-          measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
-          measurementSpecSignatureAlgorithmOid = "2.9999"
-        }
+      details = measurementDetails {
+        apiVersion = API_VERSION
+        measurementSpec = PUBLIC_API_MEASUREMENT_SPEC.toByteString()
+        measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
+        measurementSpecSignatureAlgorithmOid = "2.9999"
+      }
     }
 
     private val COMPUTATION_MEASUREMENT =
