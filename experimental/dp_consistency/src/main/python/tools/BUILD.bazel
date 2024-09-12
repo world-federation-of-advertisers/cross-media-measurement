@@ -1,7 +1,7 @@
 load("@pip//:requirements.bzl", "requirement")
-load("@rules_python//python:defs.bzl", "py_library")
+load("@rules_python//python:defs.bzl", "py_binary")
 
-py_library(
+py_binary(
     name = "correct_origin_report",
     srcs = ["correct_origin_report.py"],
     imports = ["../"],

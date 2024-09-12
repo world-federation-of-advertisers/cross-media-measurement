@@ -212,9 +212,12 @@ def correctExcelFile(path_to_report, unnoised_edps):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Read an Excel file.")
+    parser = argparse.ArgumentParser(description="Read the input Excel file.")
     parser.add_argument(
         "--path_to_report", required=True, help="Path to the Excel file"
+    )
+    parser.add_argument(
+        "--path_to_corrected_report", required=True, help="Path to the corrected Excel file"
     )
     parser.add_argument(
         "--unnoised_edps",
@@ -232,7 +235,7 @@ def main():
     corrected_excel = correctExcelFile(args.path_to_report, args.unnoised_edps)
 
     writeCorrectedExcel(
-        f"{args.path_to_report.split('/')[-1].split('.')[0]}_corrected.xlsx",
+        args.path_to_corrected_report,
         corrected_excel,
     )
 

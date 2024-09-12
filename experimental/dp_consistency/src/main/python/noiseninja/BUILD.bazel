@@ -7,8 +7,8 @@ py_library(
     imports = ["../"],
     visibility = ["//visibility:public"],
     deps = [
+        requirement("highspy"),
         requirement("numpy"),
         requirement("qpsolvers"),
-        requirement("highspy"),
     ],
 )
