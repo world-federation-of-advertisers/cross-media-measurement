@@ -1,9 +1,4 @@
-load("@pip//:requirements.bzl", "requirement")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
-
-package(default_visibility = [
-    "//experimental:__subpackages__",
-])
 
 kt_jvm_library(
     name = "correct_origin_report",
@@ -11,4 +6,5 @@ kt_jvm_library(
     data = [
         "//experimental/dp_consistency/src/main/python/tools:correct_origin_report",
     ],
+    visibility = ["//visibility:public"],
 )
