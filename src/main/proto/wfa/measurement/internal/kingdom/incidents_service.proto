@@ -24,14 +24,11 @@ option java_multiple_files = true;
 
 // Internal service for persistence of Incident entities.
 service Incidents {
-   rpc CreateIncident(CreateIncidentRequest)
-       returns (Incident);
+  rpc CreateIncident(CreateIncidentRequest) returns (Incident);
 
-   rpc GetIncident(GetIncidentRequest)
-       returns (Incident);
+  rpc GetIncident(GetIncidentRequest) returns (Incident);
 
-   rpc ListIncidents(ListIncidentsRequest)
-       returns (ListIncidentsResponse);
+  rpc ListIncidents(ListIncidentsRequest) returns (ListIncidentsResponse);
 }
 
 message CreateIncidentRequest {
@@ -53,6 +50,6 @@ message ListIncidentsRequest {
 }
 
 message ListIncidentsResponse {
-// The `Incident` resources. Ordered by `create_time` descending.
+  // The `Incident` resources. Ordered by `create_time` descending.
   repeated Incident incidents = 1;
 }

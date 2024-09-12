@@ -27,16 +27,23 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 
-class CreateIncident(private val request: CreateIncidentRequest): SpannerWriter<Incident, Incident>() {
+class CreateIncident(private val request: CreateIncidentRequest) :
+  SpannerWriter<Incident, Incident>() {
   override suspend fun TransactionScope.runTransaction(): Incident {
     val incidentId: InternalId = idGenerator.generateInternalId()
     val externalIncidentId: ExternalId = idGenerator.generateExternalId()
 
     val dataProviderId: Long? =
       if (request.incident.externalDataProviderId != 0L) {
-        DataProviderReader().readByExternalDataProviderId(transactionContext, ExternalId(request.incident.externalDataProviderId))
+        DataProviderReader()
+          .readByExternalDataProviderId(
+            transactionContext,
+            ExternalId(request.incident.externalDataProviderId),
+          )
           ?.dataProviderId
-          ?: throw DataProviderNotFoundException(ExternalId(request.incident.externalDataProviderId))
+          ?: throw DataProviderNotFoundException(
+            ExternalId(request.incident.externalDataProviderId)
+          )
       } else {
         null
       }
@@ -51,14 +58,10 @@ class CreateIncident(private val request: CreateIncidentRequest): SpannerWriter<
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
 
-    return request.incident.copy {
-      this.externalIncidentId = externalIncidentId.value
-    }
+    return request.incident.copy { this.externalIncidentId = externalIncidentId.value }
   }
 
   override fun ResultScope<Incident>.buildResult(): Incident {
-    return transactionResult!!.copy {
-      createTime = commitTimestamp.toProto()
-    }
+    return transactionResult!!.copy { createTime = commitTimestamp.toProto() }
   }
 }

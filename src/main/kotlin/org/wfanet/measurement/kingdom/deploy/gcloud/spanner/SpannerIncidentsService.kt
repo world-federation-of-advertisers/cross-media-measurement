@@ -28,7 +28,7 @@ import org.wfanet.measurement.internal.kingdom.ListIncidentsResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateIncident
 
-class SpannerIncidentsService (
+class SpannerIncidentsService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
 ) : IncidentsCoroutineImplBase() {

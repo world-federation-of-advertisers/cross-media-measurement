@@ -25,9 +25,7 @@ import org.wfanet.measurement.kingdom.service.internal.testing.IncidentsServiceT
 class SpannerIncidentsServiceTest : IncidentsServiceTest<SpannerIncidentsService>() {
   @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.KINGDOM_CHANGELOG_PATH)
 
-  override fun newServices(
-    idGenerator: IdGenerator,
-  ): Services<SpannerIncidentsService> {
+  override fun newServices(idGenerator: IdGenerator): Services<SpannerIncidentsService> {
     val spannerServices =
       SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient).buildDataServices()
 
