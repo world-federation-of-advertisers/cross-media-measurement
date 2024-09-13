@@ -18,7 +18,6 @@ package org.wfanet.measurement.kingdom.batch
 
 import com.google.protobuf.Any
 import com.google.type.interval
-import io.grpc.Status
 import io.grpc.StatusException
 import java.io.File
 import java.security.SecureRandom
@@ -26,11 +25,29 @@ import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.api.v2alpha.*
+import org.wfanet.measurement.api.v2alpha.DataProvider
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
+import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
+import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
+import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
+import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.measurement
+import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -79,15 +96,7 @@ class MeasurementSystemProber(
           .withAuthenticationKey(apiAuthenticationKey)
           .getMeasurementConsumer(getMeasurementConsumerRequest { name = measurementConsumerName })
       } catch (e: StatusException) {
-        throw when (e.status.code) {
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            Status.Code.CANCELLED -> Status.CANCELLED
-            Status.Code.NOT_FOUND -> Status.NOT_FOUND
-            else -> Status.UNKNOWN
-          }
-          .withCause(e)
-          .withDescription("Unable to get measurement consumer $measurementConsumerName")
-          .asException()
+        throw Exception("Unable to get measurement consumer $measurementConsumerName", e)
       }
     val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
     val measurementConsumerPrivateKey =
@@ -146,15 +155,7 @@ class MeasurementSystemProber(
             }
           )
       } catch (e: StatusException) {
-        throw when (e.status.code) {
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            Status.Code.CANCELLED -> Status.CANCELLED
-            Status.Code.NOT_FOUND -> Status.NOT_FOUND
-            else -> Status.UNKNOWN
-          }
-          .withCause(e)
-          .withDescription("Unable to create a prober measurement.")
-          .asException()
+        throw Exception("Unable to create a prober measurement", e)
       }
     logger.info(
       "A new prober measurement for measurement consumer $measurementConsumerName is created: $response"
@@ -175,15 +176,7 @@ class MeasurementSystemProber(
             .withAuthenticationKey(apiAuthenticationKey)
             .getDataProvider(getDataProviderRequest)
         } catch (e: StatusException) {
-          throw when (e.status.code) {
-              Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-              Status.Code.CANCELLED -> Status.CANCELLED
-              Status.Code.NOT_FOUND -> Status.NOT_FOUND
-              else -> Status.UNKNOWN
-            }
-            .withCause(e)
-            .withDescription("Unable to get DataProvider with name $dataProviderName.")
-            .asException()
+          throw Exception("Unable to get DataProvider with name $dataProviderName", e)
         }
 
       // TODO(@roaminggypsy): Implement QA event group logic using simulatorEventGroupName
@@ -204,17 +197,10 @@ class MeasurementSystemProber(
             .eventGroupsList
             .toList()
         } catch (e: StatusException) {
-          throw when (e.status.code) {
-              Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-              Status.Code.CANCELLED -> Status.CANCELLED
-              Status.Code.NOT_FOUND -> Status.NOT_FOUND
-              else -> Status.UNKNOWN
-            }
-            .withCause(e)
-            .withDescription(
-              "Unable to get event groups associated with measurement consumer $measurementConsumerName and data provider $dataProviderName."
-            )
-            .asException()
+          throw Exception(
+            "Unable to get event groups associated with measurement consumer $measurementConsumerName and data provider $dataProviderName",
+            e,
+          )
         }
 
       if (eventGroups.size != 1) {
@@ -293,17 +279,10 @@ class MeasurementSystemProber(
             .withAuthenticationKey(apiAuthenticationKey)
             .getDataProvider(getDataProviderRequest { name = dataProviderName })
         } catch (e: StatusException) {
-          throw when (e.status.code) {
-              Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-              Status.Code.CANCELLED -> Status.CANCELLED
-              Status.Code.NOT_FOUND -> Status.NOT_FOUND
-              else -> Status.UNKNOWN
-            }
-            .withCause(e)
-            .withDescription(
-              "Unable to get event groups associated with measurement consumer $measurementConsumerName and data provider $dataProviderName."
-            )
-            .asException()
+          throw Exception(
+            "Unable to get event groups associated with measurement consumer $measurementConsumerName and data provider $dataProviderName",
+            e,
+          )
         }
 
       value =
