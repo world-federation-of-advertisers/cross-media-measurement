@@ -18,6 +18,7 @@ package org.wfanet.measurement.kingdom.deploy.common.job
 
 import java.io.File
 import java.time.Duration
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.*
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -115,7 +116,7 @@ private class MeasurementSystemProberFlags {
   mixinStandardHelpOptions = true,
   showDefaultValues = true,
 )
-private suspend fun run(@Mixin flags: MeasurementSystemProberFlags) {
+private fun run(@Mixin flags: MeasurementSystemProberFlags) {
   val clientCerts =
     SigningCerts.fromPemFiles(
       certificateFile = flags.tlsFlags.certFile,
@@ -154,7 +155,9 @@ private suspend fun run(@Mixin flags: MeasurementSystemProberFlags) {
       dataProvidersService,
       eventGroupsService,
     )
-  measurementSystemProber.run()
+  runBlocking {
+    measurementSystemProber.run()
+  }
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)
