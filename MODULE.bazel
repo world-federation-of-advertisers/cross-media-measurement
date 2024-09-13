@@ -211,6 +211,7 @@ maven.install(
         "org.slf4j:slf4j-simple:1.7.32",
 
         # Google Cloud
+        "com.google.cloud:google-cloud-bigquerystorage",
         "com.google.cloud:google-cloud-security-private-ca",
         # TODO(googleapis/java-cloud-bom#5279): Remove when managed by BOM.
         "com.google.apis:google-api-services-storage:v1-rev20240706-2.0.0",

@@ -1,0 +1,83 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom.bigquerytables;
+
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.wfanet.measurement.internal.kingdom.bigquerytables";
+option java_multiple_files = true;
+
+enum MeasurementType {
+  MEASUREMENT_TYPE_UNSPECIFIED = 0;
+  REACH_AND_FREQUENCY = 1;
+  REACH = 2;
+  IMPRESSION = 3;
+  DURATION = 4;
+  POPULATION = 5;
+}
+
+message MeasurementsTableRow {
+  string measurement_consumer_id = 1;
+  string measurement_id = 2;
+
+  bool is_direct = 3;
+  MeasurementType measurement_type = 4;
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    SUCCEEDED = 1;
+    FAILED = 2;
+  }
+  State state = 5;
+
+  google.protobuf.Timestamp create_time = 6;
+  google.protobuf.Timestamp update_time = 7;
+
+  int64 completion_duration_seconds = 8;
+  int64 completion_duration_seconds_squared = 9;
+}
+
+message RequisitionsTableRow {
+  string measurement_consumer_id = 1;
+  string measurement_id = 2;
+  string requisition_id = 3;
+  string data_provider_id = 4;
+
+  bool is_direct = 5;
+  MeasurementType measurement_type = 6;
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    FULFILLED = 1;
+    REFUSED = 2;
+  }
+  State state = 7;
+
+  google.protobuf.Timestamp create_time = 8;
+  google.protobuf.Timestamp update_time = 9;
+
+  int64 completion_duration_seconds = 10;
+  int64 completion_duration_seconds_squared = 11;
+}
+
+message LatestMeasurementReadTableRow {
+  // Since BigQuery timestamp is microsecond precision, this is in nanoseconds
+  // and is stored as an integer.
+  int64 update_time = 1;
+  int64 external_measurement_consumer_id = 2;
+  int64 external_measurement_id = 3;
+}
