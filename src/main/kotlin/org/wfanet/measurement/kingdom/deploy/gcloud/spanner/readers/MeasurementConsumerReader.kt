@@ -35,7 +35,6 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
       MeasurementConsumers.MeasurementConsumerId,
       MeasurementConsumers.ExternalMeasurementConsumerId,
       MeasurementConsumers.MeasurementConsumerDetails,
-      MeasurementConsumers.MeasurementConsumerDetailsJson,
       MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
       Certificates.SubjectKeyIdentifier,
       Certificates.NotValidBefore,

@@ -20,7 +20,6 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupMetadataDescriptorAlreadyExistsWithTypeException
@@ -85,7 +84,6 @@ class CreateEventGroupMetadataDescriptor(
       }
 
       set("DescriptorDetails" to eventGroupMetadataDescriptor.details)
-      setJson("DescriptorDetailsJson" to eventGroupMetadataDescriptor.details)
     }
 
     for (protobufTypeName in protobufTypeNames) {

@@ -99,7 +99,6 @@ class ExchangeReader : SpannerReader<ExchangeReader.Result>() {
         "Exchanges.Date",
         "Exchanges.State",
         "Exchanges.ExchangeDetails",
-        "Exchanges.ExchangeDetailsJson",
         "RecurringExchanges.ExternalRecurringExchangeId",
       )
 

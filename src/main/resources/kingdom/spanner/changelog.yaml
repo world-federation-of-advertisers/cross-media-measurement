@@ -69,3 +69,6 @@ databaseChangeLog:
 - include:
     file: create-proto-bundles.sql
     relativeToChangeLogFile: true
+- include:
+    file: drop-json-columns.sql
+    relativeToChangeLogFile: true
