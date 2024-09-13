@@ -20,11 +20,8 @@ import io.grpc.Status
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.CreateIncidentRequest
-import org.wfanet.measurement.internal.kingdom.GetIncidentRequest
 import org.wfanet.measurement.internal.kingdom.Incident
 import org.wfanet.measurement.internal.kingdom.IncidentsGrpcKt.IncidentsCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ListIncidentsRequest
-import org.wfanet.measurement.internal.kingdom.ListIncidentsResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateIncident
 
@@ -38,13 +35,5 @@ class SpannerIncidentsService(
     } catch (e: DataProviderNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "DataProvider not found.")
     }
-  }
-
-  override suspend fun getIncident(request: GetIncidentRequest): Incident {
-    TODO("Not yet implemented")
-  }
-
-  override suspend fun listIncidents(request: ListIncidentsRequest): ListIncidentsResponse {
-    TODO("Not yet implemented")
   }
 }

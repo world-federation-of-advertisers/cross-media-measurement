@@ -25,31 +25,8 @@ option java_multiple_files = true;
 // Internal service for persistence of Incident entities.
 service Incidents {
   rpc CreateIncident(CreateIncidentRequest) returns (Incident);
-
-  rpc GetIncident(GetIncidentRequest) returns (Incident);
-
-  rpc ListIncidents(ListIncidentsRequest) returns (ListIncidentsResponse);
 }
 
 message CreateIncidentRequest {
   Incident incident = 1;
-}
-
-message GetIncidentRequest {
-  fixed64 external_incident_id = 1;
-  fixed64 external_data_provider_id = 2;
-}
-
-message ListIncidentsRequest {
-  message Filter {
-    fixed64 external_data_provider_id = 1;
-    google.protobuf.Timestamp latest_association_after = 2;
-  }
-  Filter filter = 1;
-  int32 limit = 2;
-}
-
-message ListIncidentsResponse {
-  // The `Incident` resources. Ordered by `create_time` descending.
-  repeated Incident incidents = 1;
 }
