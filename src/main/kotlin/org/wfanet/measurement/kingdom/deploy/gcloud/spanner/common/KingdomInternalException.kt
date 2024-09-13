@@ -267,6 +267,19 @@ class MeasurementStateIllegalException(
       )
 }
 
+class MeasurementNotComputationException(
+  val externalMeasurementConsumerId: ExternalId,
+  val externalMeasurementId: ExternalId,
+  provideDescription: () -> String = { "Measurement not Computation" },
+) : KingdomInternalException(ErrorCode.MEASUREMENT_NOT_COMPUTATION, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_measurement_consumer_id" to externalMeasurementConsumerId.value.toString(),
+        "external_measurement_id" to externalMeasurementId.value.toString(),
+      )
+}
+
 class MeasurementEtagMismatchException(
   val requestedMeasurementEtag: String,
   val actualMeasurementEtag: String,

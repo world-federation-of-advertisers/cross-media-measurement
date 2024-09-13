@@ -693,6 +693,7 @@ fun Status.toExternalStatusRuntimeException(
         put("population", populationName)
         errorMessage = "Population $populationName not found."
       }
+      ErrorCode.MEASUREMENT_NOT_COMPUTATION,
       ErrorCode.UNKNOWN_ERROR -> {
         errorMessage = "Unknown exception."
       }
