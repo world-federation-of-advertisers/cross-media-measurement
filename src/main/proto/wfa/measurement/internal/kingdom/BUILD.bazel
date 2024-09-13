@@ -1,4 +1,4 @@
-load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_descriptor_set", "proto_library")
 load(
     "@wfa_rules_kotlin_jvm//kotlin:defs.bzl",
     "kt_jvm_grpc_proto_library",
@@ -28,9 +28,7 @@ LIBS = [
     "event_group_metadata_descriptor",
     "event_group",
     "event_template",
-    "exchange_details",
     "exchange",
-    "exchange_step_attempt_details",
     "exchange_step_attempt",
     "exchange_step",
     "exchange_workflow",
@@ -49,7 +47,6 @@ LIBS = [
     "population",
     "protocol_config_config",
     "protocol_config",
-    "recurring_exchange_details",
     "recurring_exchange",
     "requisition_refusal",
     "state_transition_measurement_log_entry",
@@ -60,8 +57,11 @@ DETAILS_LIBS = [
     "computation_participant",
     "data_provider",
     "duchy_measurement_log_entry",
+    "exchange",
     "event_group_metadata_descriptor",
     "event_group",
+    "exchange_step_attempt",
+    "recurring_exchange",
     "requisition",
     "measurement_consumer",
     "measurement_log_entry",
@@ -803,3 +803,11 @@ proto_library(
     )
     for name in SERVICES
 ]
+
+proto_descriptor_set(
+    name = "details_descriptor_set",
+    deps = [
+        ":{name}_details_proto".format(name = name)
+        for name in DETAILS_LIBS
+    ],
+)
