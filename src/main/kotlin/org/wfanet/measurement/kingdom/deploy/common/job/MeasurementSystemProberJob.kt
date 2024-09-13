@@ -19,7 +19,9 @@ package org.wfanet.measurement.kingdom.deploy.common.job
 import java.io.File
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.api.v2alpha.*
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
