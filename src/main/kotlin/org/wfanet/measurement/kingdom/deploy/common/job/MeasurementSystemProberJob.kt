@@ -155,9 +155,7 @@ private fun run(@Mixin flags: MeasurementSystemProberFlags) {
       dataProvidersService,
       eventGroupsService,
     )
-  runBlocking {
-    measurementSystemProber.run()
-  }
+  runBlocking { measurementSystemProber.run() }
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)
