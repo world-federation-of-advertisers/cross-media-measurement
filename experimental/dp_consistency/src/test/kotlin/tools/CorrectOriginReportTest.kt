@@ -30,7 +30,9 @@ class CorrectOriginReportTest {
     val inputPath =
       Path.of("experimental/dp_consistency/src/test/kotlin/tools/example_origin_report.xlsx")
     val outputPath =
-      Path.of("experimental/dp_consistency/src/test/kotlin/tools/example_origin_corrected_report.xlsx")
+      Path.of(
+        "experimental/dp_consistency/src/test/kotlin/tools/example_origin_corrected_report.xlsx"
+      )
 
     // Makes sure that the output file does not exist before the execution.
     if (Files.exists(outputPath)) {

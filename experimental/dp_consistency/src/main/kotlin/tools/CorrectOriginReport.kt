@@ -18,7 +18,6 @@ import java.nio.file.Path
 import java.util.logging.Logger
 
 /**
- *
  * This class corrects the noisy measurements of a report.
  *
  * This depends on the python library correct_origin_report for noise correction.
