@@ -795,6 +795,9 @@ private fun ListMeasurementsRequest.toListMeasurementsPageToken(): ListMeasureme
 
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
       states += measurementStatesList
+      updatedBefore = source.filter.updatedBefore
+      updatedAfter = source.filter.updatedAfter
+      createdBefore = source.filter.createdBefore
     }
   }
 }
