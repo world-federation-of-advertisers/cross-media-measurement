@@ -248,7 +248,7 @@ resource "google_bigquery_dataset_iam_member" "bigquery_writer" {
 }
 
 resource "google_project_iam_member" "bigquery_job_user" {
-  project = "halo-cmm-dev"
+  project = data.google_project.project.project_id
   role    = "roles/bigquery.jobUser"
   member  = module.kingdom_operational_metrics.iam_service_account.member
 }
