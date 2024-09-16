@@ -30,6 +30,12 @@ enum MeasurementType {
   POPULATION = 5;
 }
 
+enum MeasurementState {
+  STATE_UNSPECIFIED = 0;
+  SUCCEEDED = 1;
+  FAILED = 2;
+}
+
 message MeasurementsTableRow {
   string measurement_consumer_id = 1;
   string measurement_id = 2;
@@ -37,12 +43,7 @@ message MeasurementsTableRow {
   bool is_direct = 3;
   MeasurementType measurement_type = 4;
 
-  enum State {
-    STATE_UNSPECIFIED = 0;
-    SUCCEEDED = 1;
-    FAILED = 2;
-  }
-  State state = 5;
+  MeasurementState state = 5;
 
   google.protobuf.Timestamp create_time = 6;
   google.protobuf.Timestamp update_time = 7;
@@ -72,6 +73,28 @@ message RequisitionsTableRow {
 
   int64 completion_duration_seconds = 10;
   int64 completion_duration_seconds_squared = 11;
+}
+
+message ComputationParticipantStagesTableRow {
+  string measurement_consumer_id = 1;
+  string measurement_id = 2;
+  string computation_id = 3;
+  string duchy_id = 4;
+
+  MeasurementType measurement_type = 5;
+  MeasurementState measurement_state = 6;
+
+  enum Result {
+    RESULT_UNSPECIFIED = 0;
+    SUCCEEDED = 1;
+    FAILED = 2;
+  }
+  Result result = 7;
+
+  string stage = 8;
+
+  int64 completion_duration_seconds = 9;
+  int64 completion_duration_seconds_squared = 10;
 }
 
 message LatestMeasurementReadTableRow {

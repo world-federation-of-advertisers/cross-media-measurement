@@ -44,6 +44,7 @@ class SpannerComputationParticipantsServiceTest :
       spannerServices.certificatesService,
       spannerServices.requisitionsService,
       spannerServices.accountsService,
+      spannerServices.measurementLogEntriesService,
     )
   }
 }

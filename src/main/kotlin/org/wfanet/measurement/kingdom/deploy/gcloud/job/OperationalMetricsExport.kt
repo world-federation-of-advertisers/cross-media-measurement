@@ -42,14 +42,18 @@ import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
+import org.wfanet.measurement.internal.kingdom.bigquerytables.ComputationParticipantStagesTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestMeasurementReadTableRow
+import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementState
 import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementType
 import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.RequisitionsTableRow
+import org.wfanet.measurement.internal.kingdom.bigquerytables.computationParticipantStagesTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.latestMeasurementReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.measurementsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.requisitionsTableRow
@@ -66,6 +70,7 @@ class OperationalMetricsExport(
   private val latestMeasurementReadTableId: String,
   private val measurementsTableId: String,
   private val requisitionsTableId: String,
+  private val computationParticipantStagesTableId: String,
   private val streamWriterFactory: StreamWriterFactory = StreamWriterFactoryImpl(),
 ) {
   suspend fun execute() {
@@ -134,202 +139,278 @@ class OperationalMetricsExport(
           )
           .use { requisitionsDataWriter ->
             DataWriter(
-                projectId = projectId,
-                datasetId = datasetId,
-                tableId = latestMeasurementReadTableId,
-                client = bigQueryWriteClient,
-                protoSchema =
+              projectId = projectId,
+              datasetId = datasetId,
+              tableId = computationParticipantStagesTableId,
+              client = bigQueryWriteClient,
+              protoSchema =
+              ProtoSchema.newBuilder()
+                .setProtoDescriptor(ComputationParticipantStagesTableRow.getDescriptor().toProto())
+                .build(),
+              streamWriterFactory = streamWriterFactory,
+            )
+              .use { computationParticipantStagesDataWriter ->
+                DataWriter(
+                  projectId = projectId,
+                  datasetId = datasetId,
+                  tableId = latestMeasurementReadTableId,
+                  client = bigQueryWriteClient,
+                  protoSchema =
                   ProtoSchema.newBuilder()
                     .setProtoDescriptor(LatestMeasurementReadTableRow.getDescriptor().toProto())
                     .build(),
-                streamWriterFactory = streamWriterFactory,
-              )
-              .use { latestMeasurementReadDataWriter ->
-                do {
-                  measurementsQueryResponseSize = 0
+                  streamWriterFactory = streamWriterFactory,
+                )
+                  .use { latestMeasurementReadDataWriter ->
+                    do {
+                      measurementsQueryResponseSize = 0
 
-                  val measurementsProtoRowsBuilder: ProtoRows.Builder = ProtoRows.newBuilder()
-                  val requisitionsProtoRowsBuilder: ProtoRows.Builder = ProtoRows.newBuilder()
-                  ProtoRows.newBuilder()
-                  var latestUpdateTime: Timestamp = Timestamp.getDefaultInstance()
+                      val measurementsProtoRowsBuilder: ProtoRows.Builder = ProtoRows.newBuilder()
+                      val requisitionsProtoRowsBuilder: ProtoRows.Builder = ProtoRows.newBuilder()
+                      val computationParticipantStagesProtoRowsBuilder: ProtoRows.Builder = ProtoRows.newBuilder()
+                      var latestUpdateTime: Timestamp = Timestamp.getDefaultInstance()
 
-                  measurementsClient.streamMeasurements(streamMeasurementsRequest).collect {
-                    measurement ->
-                    measurementsQueryResponseSize++
-                    latestUpdateTime = measurement.updateTime
+                      measurementsClient.streamMeasurements(streamMeasurementsRequest)
+                        .collect { measurement ->
+                          measurementsQueryResponseSize++
+                          latestUpdateTime = measurement.updateTime
 
-                    val measurementSpec = signedMessage {
-                      setMessage(
-                        any {
-                          value = measurement.details.measurementSpec
-                          typeUrl =
-                            when (measurement.details.apiVersion) {
-                              Version.V2_ALPHA.toString() ->
-                                ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
-                              else -> ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
-                            }
-                        }
-                      )
-                      signature = measurement.details.measurementSpecSignature
-                      signatureAlgorithmOid =
-                        measurement.details.measurementSpecSignatureAlgorithmOid
-                    }
-                    val measurementTypeCase =
-                      measurementSpec.unpack<MeasurementSpec>().measurementTypeCase
-                    val measurementType =
-                      @Suppress(
-                        "WHEN_ENUM_CAN_BE_NULL_IN_JAVA"
-                      ) // Proto enum fields are never null.
-                      when (measurementTypeCase) {
-                        MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
-                          MeasurementType.REACH_AND_FREQUENCY
-                        MeasurementSpec.MeasurementTypeCase.IMPRESSION -> MeasurementType.IMPRESSION
-                        MeasurementSpec.MeasurementTypeCase.DURATION -> MeasurementType.DURATION
-                        MeasurementSpec.MeasurementTypeCase.REACH -> MeasurementType.REACH
-                        MeasurementSpec.MeasurementTypeCase.POPULATION -> MeasurementType.POPULATION
-                        MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
-                          MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
-                      }
+                          val measurementSpec = signedMessage {
+                            setMessage(
+                              any {
+                                value = measurement.details.measurementSpec
+                                typeUrl =
+                                  when (measurement.details.apiVersion) {
+                                    Version.V2_ALPHA.toString() ->
+                                      ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
 
-                    val measurementConsumerId =
-                      externalIdToApiId(measurement.externalMeasurementConsumerId)
-                    val measurementId = externalIdToApiId(measurement.externalMeasurementId)
-
-                    val measurementCompletionDurationSeconds =
-                      Durations.toSeconds(
-                        Timestamps.between(measurement.createTime, measurement.updateTime)
-                      )
-
-                    val measurementState =
-                      @Suppress(
-                        "WHEN_ENUM_CAN_BE_NULL_IN_JAVA"
-                      ) // Proto enum fields are never null.
-                      when (measurement.state) {
-                        // StreamMeasurements filter only returns SUCCEEDED and FAILED
-                        // Measurements.
-                        Measurement.State.PENDING_REQUISITION_PARAMS,
-                        Measurement.State.PENDING_REQUISITION_FULFILLMENT,
-                        Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
-                        Measurement.State.PENDING_COMPUTATION,
-                        Measurement.State.STATE_UNSPECIFIED,
-                        Measurement.State.CANCELLED,
-                        Measurement.State.UNRECOGNIZED -> MeasurementsTableRow.State.UNRECOGNIZED
-                        Measurement.State.SUCCEEDED -> MeasurementsTableRow.State.SUCCEEDED
-                        Measurement.State.FAILED -> MeasurementsTableRow.State.FAILED
-                      }
-
-                    measurementsProtoRowsBuilder.addSerializedRows(
-                      measurementsTableRow {
-                          this.measurementConsumerId = measurementConsumerId
-                          this.measurementId = measurementId
-                          isDirect = measurement.details.protocolConfig.hasDirect()
-                          this.measurementType = measurementType
-                          state = measurementState
-                          createTime = measurement.createTime
-                          updateTime = measurement.updateTime
-                          completionDurationSeconds = measurementCompletionDurationSeconds
-                          completionDurationSecondsSquared =
-                            measurementCompletionDurationSeconds *
-                              measurementCompletionDurationSeconds
-                        }
-                        .toByteString()
-                    )
-
-                    for (requisition in measurement.requisitionsList) {
-                      val requisitionState =
-                        @Suppress(
-                          "WHEN_ENUM_CAN_BE_NULL_IN_JAVA"
-                        ) // Proto enum fields are never null.
-                        when (requisition.state) {
-                          Requisition.State.STATE_UNSPECIFIED,
-                          Requisition.State.UNRECOGNIZED,
-                          Requisition.State.PENDING_PARAMS,
-                          Requisition.State.WITHDRAWN,
-                          Requisition.State.UNFULFILLED -> continue
-                          Requisition.State.FULFILLED -> RequisitionsTableRow.State.FULFILLED
-                          Requisition.State.REFUSED -> RequisitionsTableRow.State.REFUSED
-                        }
-
-                      val requisitionCompletionDurationSeconds =
-                        Durations.toSeconds(
-                          Timestamps.between(measurement.createTime, requisition.updateTime)
-                        )
-
-                      requisitionsProtoRowsBuilder.addSerializedRows(
-                        requisitionsTableRow {
-                            this.measurementConsumerId = measurementConsumerId
-                            this.measurementId = measurementId
-                            requisitionId = externalIdToApiId(requisition.externalRequisitionId)
-                            dataProviderId = externalIdToApiId(requisition.externalDataProviderId)
-                            isDirect = measurement.details.protocolConfig.hasDirect()
-                            this.measurementType = measurementType
-                            state = requisitionState
-                            createTime = measurement.createTime
-                            updateTime = requisition.updateTime
-                            completionDurationSeconds = requisitionCompletionDurationSeconds
-                            completionDurationSecondsSquared =
-                              requisitionCompletionDurationSeconds *
-                                requisitionCompletionDurationSeconds
-                          }
-                          .toByteString()
-                      )
-                    }
-                  }
-
-                  logger.info("Measurements read from the Kingdom Internal Server")
-
-                  if (measurementsProtoRowsBuilder.serializedRowsCount > 0) {
-                    coroutineScope {
-                      launch {
-                        measurementsDataWriter.appendRows(measurementsProtoRowsBuilder.build())
-                      }
-                      if (requisitionsProtoRowsBuilder.serializedRowsCount > 0) {
-                        launch {
-                          requisitionsDataWriter.appendRows(requisitionsProtoRowsBuilder.build())
-                        }
-                      }
-                    }
-                  } else {
-                    logger.info("No more Measurements to process")
-                    break
-                  }
-
-                  logger.info("Metrics written to BigQuery")
-
-                  val lastMeasurement =
-                    MeasurementsTableRow.parseFrom(
-                      measurementsProtoRowsBuilder.serializedRowsList.last()
-                    )
-                  val latestMeasurementReadTableRow = latestMeasurementReadTableRow {
-                    updateTime = Timestamps.toNanos(latestUpdateTime)
-                    externalMeasurementConsumerId =
-                      apiIdToExternalId(lastMeasurement.measurementConsumerId)
-                    externalMeasurementId = apiIdToExternalId(lastMeasurement.measurementId)
-                  }
-
-                  latestMeasurementReadDataWriter.appendRows(
-                    ProtoRows.newBuilder()
-                      .addSerializedRows(latestMeasurementReadTableRow.toByteString())
-                      .build()
-                  )
-
-                  streamMeasurementsRequest =
-                    streamMeasurementsRequest.copy {
-                      filter =
-                        filter.copy {
-                          after =
-                            StreamMeasurementsRequestKt.FilterKt.after {
-                              updateTime = latestUpdateTime
-                              measurement = measurementKey {
-                                externalMeasurementConsumerId =
-                                  latestMeasurementReadTableRow.externalMeasurementConsumerId
-                                externalMeasurementId =
-                                  latestMeasurementReadTableRow.externalMeasurementId
+                                    else -> ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
+                                  }
                               }
+                            )
+                            signature = measurement.details.measurementSpecSignature
+                            signatureAlgorithmOid =
+                              measurement.details.measurementSpecSignatureAlgorithmOid
+                          }
+                          val measurementTypeCase =
+                            measurementSpec.unpack<MeasurementSpec>().measurementTypeCase
+                          val measurementType =
+                            @Suppress(
+                              "WHEN_ENUM_CAN_BE_NULL_IN_JAVA"
+                            ) // Proto enum fields are never null.
+                            when (measurementTypeCase) {
+                              MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
+                                MeasurementType.REACH_AND_FREQUENCY
+
+                              MeasurementSpec.MeasurementTypeCase.IMPRESSION -> MeasurementType.IMPRESSION
+                              MeasurementSpec.MeasurementTypeCase.DURATION -> MeasurementType.DURATION
+                              MeasurementSpec.MeasurementTypeCase.REACH -> MeasurementType.REACH
+                              MeasurementSpec.MeasurementTypeCase.POPULATION -> MeasurementType.POPULATION
+                              MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
+                                MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
+                            }
+
+                          val measurementConsumerId =
+                            externalIdToApiId(measurement.externalMeasurementConsumerId)
+                          val measurementId = externalIdToApiId(measurement.externalMeasurementId)
+
+                          val measurementCompletionDurationSeconds =
+                            Durations.toSeconds(
+                              Timestamps.between(measurement.createTime, measurement.updateTime)
+                            )
+
+                          val measurementState =
+                            @Suppress(
+                              "WHEN_ENUM_CAN_BE_NULL_IN_JAVA"
+                            ) // Proto enum fields are never null.
+                            when (measurement.state) {
+                              // StreamMeasurements filter only returns SUCCEEDED and FAILED
+                              // Measurements.
+                              Measurement.State.PENDING_REQUISITION_PARAMS,
+                              Measurement.State.PENDING_REQUISITION_FULFILLMENT,
+                              Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+                              Measurement.State.PENDING_COMPUTATION,
+                              Measurement.State.STATE_UNSPECIFIED,
+                              Measurement.State.CANCELLED,
+                              Measurement.State.UNRECOGNIZED
+                              -> MeasurementState.UNRECOGNIZED
+
+                              Measurement.State.SUCCEEDED -> MeasurementState.SUCCEEDED
+                              Measurement.State.FAILED -> MeasurementState.FAILED
+                            }
+
+                          measurementsProtoRowsBuilder.addSerializedRows(
+                            measurementsTableRow {
+                              this.measurementConsumerId = measurementConsumerId
+                              this.measurementId = measurementId
+                              isDirect = measurement.details.protocolConfig.hasDirect()
+                              this.measurementType = measurementType
+                              state = measurementState
+                              createTime = measurement.createTime
+                              updateTime = measurement.updateTime
+                              completionDurationSeconds = measurementCompletionDurationSeconds
+                              completionDurationSecondsSquared =
+                                measurementCompletionDurationSeconds *
+                                  measurementCompletionDurationSeconds
+                            }
+                              .toByteString()
+                          )
+
+                          for (requisition in measurement.requisitionsList) {
+                            val requisitionState =
+                              @Suppress(
+                                "WHEN_ENUM_CAN_BE_NULL_IN_JAVA"
+                              ) // Proto enum fields are never null.
+                              when (requisition.state) {
+                                Requisition.State.STATE_UNSPECIFIED,
+                                Requisition.State.UNRECOGNIZED,
+                                Requisition.State.PENDING_PARAMS,
+                                Requisition.State.WITHDRAWN,
+                                Requisition.State.UNFULFILLED
+                                -> continue
+
+                                Requisition.State.FULFILLED -> RequisitionsTableRow.State.FULFILLED
+                                Requisition.State.REFUSED -> RequisitionsTableRow.State.REFUSED
+                              }
+
+                            val requisitionCompletionDurationSeconds =
+                              Durations.toSeconds(
+                                Timestamps.between(measurement.createTime, requisition.updateTime)
+                              )
+
+                            requisitionsProtoRowsBuilder.addSerializedRows(
+                              requisitionsTableRow {
+                                this.measurementConsumerId = measurementConsumerId
+                                this.measurementId = measurementId
+                                requisitionId = externalIdToApiId(requisition.externalRequisitionId)
+                                dataProviderId =
+                                  externalIdToApiId(requisition.externalDataProviderId)
+                                isDirect = measurement.details.protocolConfig.hasDirect()
+                                this.measurementType = measurementType
+                                state = requisitionState
+                                createTime = measurement.createTime
+                                updateTime = requisition.updateTime
+                                completionDurationSeconds = requisitionCompletionDurationSeconds
+                                completionDurationSecondsSquared =
+                                  requisitionCompletionDurationSeconds *
+                                    requisitionCompletionDurationSeconds
+                              }
+                                .toByteString()
+                            )
+                          }
+
+                          for (computationParticipant in measurement.computationParticipantsList) {
+                            var prevTimestamp: Timestamp = measurement.createTime
+                            for (successLogEntry in computationParticipant.successLogEntriesList.sortedBy { it.logEntry.createTime.toInstant() }) {
+                              val completionDurationSeconds =
+                                Durations.toSeconds(
+                                  Timestamps.between(prevTimestamp, successLogEntry.logEntry.createTime)
+                                )
+
+                              computationParticipantStagesProtoRowsBuilder.addSerializedRows(
+                                computationParticipantStagesTableRow {
+                                  this.measurementConsumerId = measurementConsumerId
+                                  this.measurementId = measurementId
+                                  computationId = externalIdToApiId(measurement.externalComputationId)
+                                  duchyId = computationParticipant.externalDuchyId
+                                  this.measurementType = measurementType
+                                  this.measurementState = measurementState
+                                  result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
+                                  stage = successLogEntry.details.stageAttempt.stageName
+                                  this.completionDurationSeconds = completionDurationSeconds
+                                  completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
+                                }.toByteString()
+                              )
+
+                              prevTimestamp = successLogEntry.logEntry.createTime
+                            }
+
+                            if (computationParticipant.hasFailureLogEntry() && measurementState == MeasurementState.FAILED) {
+                              val completionDurationSeconds =
+                                Durations.toSeconds(
+                                  Timestamps.between(prevTimestamp, computationParticipant.failureLogEntry.logEntry.createTime)
+                                )
+
+                              computationParticipantStagesProtoRowsBuilder.addSerializedRows(
+                                computationParticipantStagesTableRow {
+                                  this.measurementConsumerId = measurementConsumerId
+                                  this.measurementId = measurementId
+                                  computationId =
+                                    externalIdToApiId(measurement.externalComputationId)
+                                  duchyId = computationParticipant.externalDuchyId
+                                  this.measurementType = measurementType
+                                  this.measurementState = measurementState
+                                  result = ComputationParticipantStagesTableRow.Result.FAILED
+                                  stage = computationParticipant.failureLogEntry.details.stageAttempt.stageName
+                                  this.completionDurationSeconds = completionDurationSeconds
+                                  completionDurationSecondsSquared =
+                                    completionDurationSeconds * completionDurationSeconds
+                                }.toByteString()
+                              )
+                            }
+                          }
+                        }
+
+                      logger.info("Measurements read from the Kingdom Internal Server")
+
+                      if (measurementsProtoRowsBuilder.serializedRowsCount > 0) {
+                        coroutineScope {
+                          launch {
+                            measurementsDataWriter.appendRows(measurementsProtoRowsBuilder.build())
+                          }
+                          if (requisitionsProtoRowsBuilder.serializedRowsCount > 0) {
+                            launch {
+                              requisitionsDataWriter.appendRows(requisitionsProtoRowsBuilder.build())
+                            }
+                          }
+                          if (computationParticipantStagesProtoRowsBuilder.serializedRowsCount > 0) {
+                            launch {
+                              computationParticipantStagesDataWriter.appendRows(computationParticipantStagesProtoRowsBuilder.build())
+                            }
+                          }
+                        }
+                      } else {
+                        logger.info("No more Measurements to process")
+                        break
+                      }
+
+                      logger.info("Metrics written to BigQuery")
+
+                      val lastMeasurement =
+                        MeasurementsTableRow.parseFrom(
+                          measurementsProtoRowsBuilder.serializedRowsList.last()
+                        )
+                      val latestMeasurementReadTableRow = latestMeasurementReadTableRow {
+                        updateTime = Timestamps.toNanos(latestUpdateTime)
+                        externalMeasurementConsumerId =
+                          apiIdToExternalId(lastMeasurement.measurementConsumerId)
+                        externalMeasurementId = apiIdToExternalId(lastMeasurement.measurementId)
+                      }
+
+                      latestMeasurementReadDataWriter.appendRows(
+                        ProtoRows.newBuilder()
+                          .addSerializedRows(latestMeasurementReadTableRow.toByteString())
+                          .build()
+                      )
+
+                      streamMeasurementsRequest =
+                        streamMeasurementsRequest.copy {
+                          filter =
+                            filter.copy {
+                              after =
+                                StreamMeasurementsRequestKt.FilterKt.after {
+                                  updateTime = latestUpdateTime
+                                  measurement = measurementKey {
+                                    externalMeasurementConsumerId =
+                                      latestMeasurementReadTableRow.externalMeasurementConsumerId
+                                    externalMeasurementId =
+                                      latestMeasurementReadTableRow.externalMeasurementId
+                                  }
+                                }
                             }
                         }
-                    }
-                } while (measurementsQueryResponseSize == BATCH_SIZE)
+                    } while (measurementsQueryResponseSize == BATCH_SIZE)
+                  }
               }
           }
       }

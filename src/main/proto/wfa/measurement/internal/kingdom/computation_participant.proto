@@ -57,6 +57,7 @@ message ComputationParticipant {
   ComputationParticipantDetails details = 7;
 
   DuchyMeasurementLogEntry failure_log_entry = 8;
+  repeated DuchyMeasurementLogEntry success_log_entries = 12;
 
   // Version of the public API for serialized message definitions as well as
   // resource names, which is denormalized from the parent Measurement.
