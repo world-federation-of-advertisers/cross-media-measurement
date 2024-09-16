@@ -27,7 +27,6 @@ import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
@@ -128,7 +127,6 @@ class ClaimReadyExchangeStep(
       set("ExpirationTime" to (now + DEFAULT_EXPIRATION_DURATION).toGcloudTimestamp())
 
       set("ExchangeStepAttemptDetails" to details)
-      setJson("ExchangeStepAttemptDetailsJson" to details)
     }
 
     return attemptIndex
