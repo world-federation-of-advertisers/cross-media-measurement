@@ -360,9 +360,9 @@ class OperationalMetricsExport(
                                   stage =
                                     computationParticipant.failureLogEntry.details.stageAttempt
                                       .stageName
-                                logEntryCreateTime =
-                                  computationParticipant.failureLogEntry.logEntry.createTime
-                                this.completionDurationSeconds = completionDurationSeconds
+                                  logEntryCreateTime =
+                                    computationParticipant.failureLogEntry.logEntry.createTime
+                                  this.completionDurationSeconds = completionDurationSeconds
                                   completionDurationSecondsSquared =
                                     completionDurationSeconds * completionDurationSeconds
                                 }
