@@ -340,7 +340,10 @@ class OperationalMetricsExportTest {
               Durations.toSeconds(
                 Timestamps.between(
                   computationMeasurement.createTime,
-                  computationMeasurement.computationParticipantsList[0].successLogEntriesList[0].logEntry.createTime,
+                  computationMeasurement.computationParticipantsList[0]
+                    .successLogEntriesList[0]
+                    .logEntry
+                    .createTime,
                 )
               )
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
@@ -364,8 +367,14 @@ class OperationalMetricsExportTest {
             completionDurationSeconds =
               Durations.toSeconds(
                 Timestamps.between(
-                  computationMeasurement.computationParticipantsList[0].successLogEntriesList[0].logEntry.createTime,
-                  computationMeasurement.computationParticipantsList[0].successLogEntriesList[1].logEntry.createTime,
+                  computationMeasurement.computationParticipantsList[0]
+                    .successLogEntriesList[0]
+                    .logEntry
+                    .createTime,
+                  computationMeasurement.computationParticipantsList[0]
+                    .successLogEntriesList[1]
+                    .logEntry
+                    .createTime,
                 )
               )
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
@@ -394,38 +403,31 @@ class OperationalMetricsExportTest {
 
   @Test
   fun `job successfully creates protos for failed computation measurement`() = runBlocking {
-    val computationMeasurement = COMPUTATION_MEASUREMENT.copy {
-      state = Measurement.State.FAILED
-      computationParticipants.clear()
-      computationParticipants += COMPUTATION_MEASUREMENT.computationParticipantsList[0].copy {
-        successLogEntries.clear()
-        successLogEntries += duchyMeasurementLogEntry {
-          logEntry = measurementLogEntry {
-            createTime = timestamp { seconds = 300 }
-          }
-          details = duchyMeasurementLogEntryDetails {
-            stageAttempt = duchyMeasurementLogEntryStageAttempt {
-              stageName = STAGE_ONE
+    val computationMeasurement =
+      COMPUTATION_MEASUREMENT.copy {
+        state = Measurement.State.FAILED
+        computationParticipants.clear()
+        computationParticipants +=
+          COMPUTATION_MEASUREMENT.computationParticipantsList[0].copy {
+            successLogEntries.clear()
+            successLogEntries += duchyMeasurementLogEntry {
+              logEntry = measurementLogEntry { createTime = timestamp { seconds = 300 } }
+              details = duchyMeasurementLogEntryDetails {
+                stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = STAGE_ONE }
+              }
+            }
+            failureLogEntry = duchyMeasurementLogEntry {
+              logEntry = measurementLogEntry {
+                createTime = timestamp { seconds = 400 }
+                details = measurementLogEntryDetails { error = measurementLogEntryError {} }
+              }
+              details = duchyMeasurementLogEntryDetails {
+                stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = STAGE_TWO }
+              }
             }
           }
-        }
-        failureLogEntry = duchyMeasurementLogEntry {
-          logEntry = measurementLogEntry {
-            createTime = timestamp { seconds = 400 }
-            details = measurementLogEntryDetails {
-              error = measurementLogEntryError {}
-            }
-          }
-          details = duchyMeasurementLogEntryDetails {
-            stageAttempt = duchyMeasurementLogEntryStageAttempt {
-              stageName = STAGE_TWO
-            }
-          }
-        }
       }
-    }
-    whenever(measurementsMock.streamMeasurements(any()))
-      .thenReturn(flowOf(computationMeasurement))
+    whenever(measurementsMock.streamMeasurements(any())).thenReturn(flowOf(computationMeasurement))
 
     val tableResultMock: TableResult = mock { tableResult ->
       whenever(tableResult.iterateAll()).thenReturn(emptyList())
@@ -541,7 +543,10 @@ class OperationalMetricsExportTest {
               Durations.toSeconds(
                 Timestamps.between(
                   computationMeasurement.createTime,
-                  computationMeasurement.computationParticipantsList[0].successLogEntriesList[0].logEntry.createTime,
+                  computationMeasurement.computationParticipantsList[0]
+                    .successLogEntriesList[0]
+                    .logEntry
+                    .createTime,
                 )
               )
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
@@ -565,8 +570,14 @@ class OperationalMetricsExportTest {
             completionDurationSeconds =
               Durations.toSeconds(
                 Timestamps.between(
-                  computationMeasurement.computationParticipantsList[0].successLogEntriesList[0].logEntry.createTime,
-                  computationMeasurement.computationParticipantsList[0].failureLogEntry.logEntry.createTime,
+                  computationMeasurement.computationParticipantsList[0]
+                    .successLogEntriesList[0]
+                    .logEntry
+                    .createTime,
+                  computationMeasurement.computationParticipantsList[0]
+                    .failureLogEntry
+                    .logEntry
+                    .createTime,
                 )
               )
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
@@ -1006,36 +1017,24 @@ class OperationalMetricsExportTest {
           state = ComputationParticipant.State.READY
           updateTime = timestamp { seconds = 300 }
           successLogEntries += duchyMeasurementLogEntry {
-            logEntry = measurementLogEntry {
-              createTime = timestamp { seconds = 300 }
-            }
+            logEntry = measurementLogEntry { createTime = timestamp { seconds = 300 } }
             details = duchyMeasurementLogEntryDetails {
-              stageAttempt = duchyMeasurementLogEntryStageAttempt {
-                stageName = STAGE_ONE
-              }
+              stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = STAGE_ONE }
             }
           }
           successLogEntries += duchyMeasurementLogEntry {
-            logEntry = measurementLogEntry {
-              createTime = timestamp { seconds = 400 }
-            }
+            logEntry = measurementLogEntry { createTime = timestamp { seconds = 400 } }
             details = duchyMeasurementLogEntryDetails {
-              stageAttempt = duchyMeasurementLogEntryStageAttempt {
-                stageName = STAGE_TWO
-              }
+              stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = STAGE_TWO }
             }
           }
           failureLogEntry = duchyMeasurementLogEntry {
             logEntry = measurementLogEntry {
               createTime = timestamp { seconds = 350 }
-              details = measurementLogEntryDetails {
-                error = measurementLogEntryError {}
-              }
+              details = measurementLogEntryDetails { error = measurementLogEntryError {} }
             }
             details = duchyMeasurementLogEntryDetails {
-              stageAttempt = duchyMeasurementLogEntryStageAttempt {
-                stageName = STAGE_TWO
-              }
+              stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = STAGE_TWO }
             }
           }
         }

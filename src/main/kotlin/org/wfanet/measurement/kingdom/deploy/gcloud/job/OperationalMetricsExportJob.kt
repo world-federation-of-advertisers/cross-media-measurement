@@ -73,7 +73,8 @@ private fun run(
     val datasetId = operationalMetricsFlags.bigQueryDataSet
     val measurementsTableId = operationalMetricsFlags.measurementsTable
     val requisitionsTableId = operationalMetricsFlags.requisitionsTable
-    val computationParticipantStagesTableId = operationalMetricsFlags.computationParticipantStagesTable
+    val computationParticipantStagesTableId =
+      operationalMetricsFlags.computationParticipantStagesTable
     val latestMeasurementReadTableId = operationalMetricsFlags.latestMeasurementReadTable
 
     BigQueryWriteClient.create().use { bigQueryWriteClient ->

@@ -226,13 +226,9 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val successLogEntryRequest = createDuchyMeasurementLogEntryRequest {
       externalComputationId = measurement.externalComputationId
       externalDuchyId = DUCHIES.first().externalDuchyId
-      measurementLogEntryDetails = measurementLogEntryDetails {
-        logMessage = "good"
-      }
+      measurementLogEntryDetails = measurementLogEntryDetails { logMessage = "good" }
       details = duchyMeasurementLogEntryDetails {
-        stageAttempt = duchyMeasurementLogEntryStageAttempt {
-          stageName = stageOne
-        }
+        stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageOne }
       }
     }
     measurementLogEntriesService.createDuchyMeasurementLogEntry(successLogEntryRequest)
@@ -242,14 +238,10 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalDuchyId = DUCHIES.first().externalDuchyId
       measurementLogEntryDetails = measurementLogEntryDetails {
         logMessage = "bad"
-        error = measurementLogEntryError {
-          type = MeasurementLogEntryError.Type.TRANSIENT
-        }
+        error = measurementLogEntryError { type = MeasurementLogEntryError.Type.TRANSIENT }
       }
       details = duchyMeasurementLogEntryDetails {
-        stageAttempt = duchyMeasurementLogEntryStageAttempt {
-          stageName = stageTwo
-        }
+        stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageTwo }
       }
     }
     measurementLogEntriesService.createDuchyMeasurementLogEntry(failureLogEntryRequest)
@@ -264,7 +256,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       .ignoringFields(
         ComputationParticipant.ETAG_FIELD_NUMBER,
         ComputationParticipant.FAILURE_LOG_ENTRY_FIELD_NUMBER,
-        ComputationParticipant.SUCCESS_LOG_ENTRIES_FIELD_NUMBER
+        ComputationParticipant.SUCCESS_LOG_ENTRIES_FIELD_NUMBER,
       )
       .isEqualTo(
         computationParticipant {
@@ -279,35 +271,45 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         }
       )
     assertThat(response.successLogEntriesList[0])
-      .ignoringFields(DuchyMeasurementLogEntry.EXTERNAL_COMPUTATION_LOG_ENTRY_ID_FIELD_NUMBER,
-                      DuchyMeasurementLogEntry.LOG_ENTRY_FIELD_NUMBER)
-      .isEqualTo(duchyMeasurementLogEntry {
+      .ignoringFields(
+        DuchyMeasurementLogEntry.EXTERNAL_COMPUTATION_LOG_ENTRY_ID_FIELD_NUMBER,
+        DuchyMeasurementLogEntry.LOG_ENTRY_FIELD_NUMBER,
+      )
+      .isEqualTo(
+        duchyMeasurementLogEntry {
           externalDuchyId = request.externalDuchyId
           details = successLogEntryRequest.details
         }
       )
     assertThat(response.successLogEntriesList[0].logEntry)
       .ignoringFields(MeasurementLogEntry.CREATE_TIME_FIELD_NUMBER)
-      .isEqualTo(measurementLogEntry {
-        externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
-        externalMeasurementId = measurement.externalMeasurementId
-        details = successLogEntryRequest.measurementLogEntryDetails
-      })
+      .isEqualTo(
+        measurementLogEntry {
+          externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          externalMeasurementId = measurement.externalMeasurementId
+          details = successLogEntryRequest.measurementLogEntryDetails
+        }
+      )
     assertThat(response.failureLogEntry)
-      .ignoringFields(DuchyMeasurementLogEntry.EXTERNAL_COMPUTATION_LOG_ENTRY_ID_FIELD_NUMBER,
-                      DuchyMeasurementLogEntry.LOG_ENTRY_FIELD_NUMBER)
-      .isEqualTo(duchyMeasurementLogEntry {
-        externalDuchyId = request.externalDuchyId
-        details = failureLogEntryRequest.details
-      }
+      .ignoringFields(
+        DuchyMeasurementLogEntry.EXTERNAL_COMPUTATION_LOG_ENTRY_ID_FIELD_NUMBER,
+        DuchyMeasurementLogEntry.LOG_ENTRY_FIELD_NUMBER,
+      )
+      .isEqualTo(
+        duchyMeasurementLogEntry {
+          externalDuchyId = request.externalDuchyId
+          details = failureLogEntryRequest.details
+        }
       )
     assertThat(response.failureLogEntry.logEntry)
       .ignoringFields(MeasurementLogEntry.CREATE_TIME_FIELD_NUMBER)
-      .isEqualTo(measurementLogEntry {
-        externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
-        externalMeasurementId = measurement.externalMeasurementId
-        details = failureLogEntryRequest.measurementLogEntryDetails
-      })
+      .isEqualTo(
+        measurementLogEntry {
+          externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          externalMeasurementId = measurement.externalMeasurementId
+          details = failureLogEntryRequest.measurementLogEntryDetails
+        }
+      )
     assertThat(response.etag).isNotEmpty()
   }
 
