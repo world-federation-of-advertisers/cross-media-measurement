@@ -624,6 +624,8 @@ abstract class MillBase(
       val message = "Error advancing computation at other Duchy"
       throw when (e.status.code) {
         Status.Code.UNAVAILABLE,
+        // The mill will check the ComputationToken Stage in the target duchy before sending the
+        // request, so it is safe to retry DEADLINE_EXCEEDED cases.
         Status.Code.DEADLINE_EXCEEDED,
         Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
         else -> ComputationDataClients.PermanentErrorException(message, e)
@@ -738,6 +740,7 @@ abstract class MillBase(
         val message = "Error retrieving computation token"
         throw when (e.status.code) {
           Status.Code.UNAVAILABLE,
+          Status.Code.DEADLINE_EXCEEDED,
           Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
           else -> ComputationDataClients.PermanentErrorException(message, e)
         }
