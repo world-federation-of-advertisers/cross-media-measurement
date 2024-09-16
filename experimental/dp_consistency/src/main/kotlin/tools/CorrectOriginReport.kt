@@ -14,13 +14,27 @@
 
 package experimental.dp_consistency.src.main.kotlin.tools
 
+import java.nio.file.Path
 import java.util.logging.Logger
 
+/**
+ *
+ * This class corrects the noisy measurements of a report.
+ *
+ * This depends on the python library correct_origin_report for noise correction.
+ */
 class CorrectOriginReport {
-  fun correctReport(inputPath: String, unnoisedEdp: String, outputPath: String) {
+  /**
+   * Corrects the noisy report and write it to a file.
+   *
+   * @param inputPath The path to the input report.
+   * @param unnoisedEdp The list of EDPs that do not add noise to their measurements.
+   * @param outputPath The path to the corrected report.
+   */
+  fun correctReport(inputPath: Path, unnoisedEdp: String, outputPath: Path) {
     logger.info { "Start correcting report.." }
-    val pathToReport = "--path_to_report=" + inputPath
-    val pathToCorrectedReport = "--path_to_corrected_report=" + outputPath
+    val pathToReport = "--path_to_report=" + inputPath.toString()
+    val pathToCorrectedReport = "--path_to_corrected_report=" + outputPath.toString()
     val unnoisedEdp = "--unnoised_edps=" + unnoisedEdp
     val processHandler =
       ProcessBuilder(
