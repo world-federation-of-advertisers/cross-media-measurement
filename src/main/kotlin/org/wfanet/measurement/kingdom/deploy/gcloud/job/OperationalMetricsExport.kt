@@ -143,12 +143,7 @@ class OperationalMetricsExport(
                 datasetId = datasetId,
                 tableId = computationParticipantStagesTableId,
                 client = bigQueryWriteClient,
-                protoSchema =
-                  ProtoSchema.newBuilder()
-                    .setProtoDescriptor(
-                      ComputationParticipantStagesTableRow.getDescriptor().toProto()
-                    )
-                    .build(),
+                protoSchema = ProtoSchemaConverter.convert(ComputationParticipantStagesTableRow.getDescriptor()),
                 streamWriterFactory = streamWriterFactory,
               )
               .use { computationParticipantStagesDataWriter ->
