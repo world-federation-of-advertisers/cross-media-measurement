@@ -207,7 +207,7 @@ resource "google_bigquery_table" "computation_participant_stages" {
   deletion_protection = true
 
   time_partitioning {
-    field = "update_time"
+    field = "log_entry_create_time"
     type  = "MONTH"
   }
 
@@ -257,9 +257,15 @@ resource "google_bigquery_table" "computation_participant_stages" {
     "mode": "REQUIRED"
   },
   {
+    "name": "log_entry_create_time",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED"
+  },
+  {
     "name": "completion_duration_seconds",
     "type": "INTEGER",
     "mode": "REQUIRED",
+    "description": "Difference between measurement create_time and log_entry_create_time",
     "defaultValueExpression": "0"
   },
   {

@@ -324,6 +324,7 @@ class OperationalMetricsExport(
                                   this.measurementState = measurementState
                                   result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
                                   stage = successLogEntry.details.stageAttempt.stageName
+                                  logEntryCreateTime = successLogEntry.logEntry.createTime
                                   this.completionDurationSeconds = completionDurationSeconds
                                   completionDurationSecondsSquared =
                                     completionDurationSeconds * completionDurationSeconds
@@ -359,7 +360,9 @@ class OperationalMetricsExport(
                                   stage =
                                     computationParticipant.failureLogEntry.details.stageAttempt
                                       .stageName
-                                  this.completionDurationSeconds = completionDurationSeconds
+                                logEntryCreateTime =
+                                  computationParticipant.failureLogEntry.logEntry.createTime
+                                this.completionDurationSeconds = completionDurationSeconds
                                   completionDurationSecondsSquared =
                                     completionDurationSeconds * completionDurationSeconds
                                 }

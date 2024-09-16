@@ -336,6 +336,10 @@ class OperationalMetricsExportTest {
             measurementState = MeasurementState.SUCCEEDED
             result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
             stage = STAGE_ONE
+            logEntryCreateTime = computationMeasurement.computationParticipantsList[0]
+              .successLogEntriesList[0]
+              .logEntry
+              .createTime
             completionDurationSeconds =
               Durations.toSeconds(
                 Timestamps.between(
@@ -364,6 +368,10 @@ class OperationalMetricsExportTest {
             measurementState = MeasurementState.SUCCEEDED
             result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
             stage = STAGE_TWO
+            logEntryCreateTime = computationMeasurement.computationParticipantsList[0]
+              .successLogEntriesList[1]
+              .logEntry
+              .createTime
             completionDurationSeconds =
               Durations.toSeconds(
                 Timestamps.between(
@@ -539,6 +547,10 @@ class OperationalMetricsExportTest {
             measurementState = MeasurementState.FAILED
             result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
             stage = STAGE_ONE
+            logEntryCreateTime = computationMeasurement.computationParticipantsList[0]
+              .successLogEntriesList[0]
+              .logEntry
+              .createTime
             completionDurationSeconds =
               Durations.toSeconds(
                 Timestamps.between(
@@ -567,6 +579,10 @@ class OperationalMetricsExportTest {
             measurementState = MeasurementState.FAILED
             result = ComputationParticipantStagesTableRow.Result.FAILED
             stage = STAGE_TWO
+            logEntryCreateTime = computationMeasurement.computationParticipantsList[0]
+              .failureLogEntry
+              .logEntry
+              .createTime
             completionDurationSeconds =
               Durations.toSeconds(
                 Timestamps.between(
