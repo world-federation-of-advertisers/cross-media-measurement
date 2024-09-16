@@ -18,7 +18,6 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.UpdatePublicKeyRequest
@@ -80,7 +79,6 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
         set("MeasurementConsumerId" to measurementConsumerResult.measurementConsumerId)
         set("PublicKeyCertificateId" to certificateId)
         set("MeasurementConsumerDetails" to measurementConsumerDetails)
-        setJson("MeasurementConsumerDetailsJson" to measurementConsumerDetails)
       }
     } else if (request.externalDataProviderId != 0L) {
       val dataProviderResult =
@@ -114,7 +112,6 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
         set("DataProviderId" to dataProviderResult.dataProviderId)
         set("PublicKeyCertificateId" to certificateId)
         set("DataProviderDetails" to dataProviderDetails)
-        setJson("DataProviderDetailsJson" to dataProviderDetails)
       }
     }
   }

@@ -26,7 +26,6 @@ import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
@@ -129,7 +128,6 @@ class CreateExchangesAndSteps(
       set("Date" to date.toCloudDate())
       set("State" to Exchange.State.ACTIVE)
       set("ExchangeDetails" to exchangeDetails)
-      setJson("ExchangeDetailsJson" to exchangeDetails)
     }
   }
 

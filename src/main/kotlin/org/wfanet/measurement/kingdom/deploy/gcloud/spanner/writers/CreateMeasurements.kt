@@ -23,7 +23,6 @@ import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantDetails
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest
@@ -330,7 +329,6 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       set("CertificateId" to measurementConsumerCertificateId)
       set("State" to initialMeasurementState)
       set("MeasurementDetails" to createMeasurementRequest.measurement.details)
-      setJson("MeasurementDetailsJson" to createMeasurementRequest.measurement.details)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     }
@@ -349,7 +347,6 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("State" to ComputationParticipant.State.CREATED)
       set("ParticipantDetails" to participantDetails)
-      setJson("ParticipantDetailsJson" to participantDetails)
     }
   }
 
@@ -417,7 +414,6 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       set("State" to initialRequisitionState)
       fulfillingDuchyId?.let { set("FulfillingDuchyId" to it) }
       set("RequisitionDetails" to details)
-      setJson("RequisitionDetailsJson" to details)
     }
   }
 
