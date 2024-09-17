@@ -28,6 +28,10 @@ resource "google_container_node_pool" "node_pool" {
     shielded_instance_config {
       enable_secure_boot = true
     }
+    kubelet_config {
+      cpu_manager_policy = "none"
+      insecure_kubelet_readonly_port_enabled = "FALSE"
+    }
 
     dynamic "taint" {
       for_each = var.spot ? [{
