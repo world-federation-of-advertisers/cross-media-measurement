@@ -67,7 +67,7 @@ class UpdateEventGroupMetadataDescriptor(
           eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
       )
 
-      set("DescriptorDetails" to eventGroupMetadataDescriptor.details)
+      set("DescriptorDetails").to(eventGroupMetadataDescriptor.details)
     }
 
     transactionContext.buffer(

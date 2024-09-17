@@ -19,7 +19,7 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Struct
-import com.google.protobuf.Message
+import com.google.protobuf.AbstractMessage
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -42,8 +42,6 @@ import org.wfanet.measurement.gcloud.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.TransactionWork
 import org.wfanet.measurement.gcloud.spanner.getNullableString
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
@@ -56,8 +54,8 @@ import org.wfanet.measurement.internal.duchy.copy
 class GcpSpannerComputationsDatabaseTransactor<
   ProtocolT,
   StageT,
-  StageDT : Message,
-  ComputationDT : Message,
+  StageDT : AbstractMessage,
+  ComputationDT : AbstractMessage,
 >(
   private val databaseClient: AsyncDatabaseClient,
   private val computationMutations: ComputationMutations<ProtocolT, StageT, StageDT, ComputationDT>,
@@ -243,7 +241,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             Key.of(computationId, stage.toLongStage(), currentAttempt),
             listOf("Details"),
           )
-          ?.getProtoMessage("Details", ComputationStageAttemptDetails.parser())
+          ?.getProtoMessage("Details", ComputationStageAttemptDetails.getDefaultInstance())
           ?: error("Failed to claim computation $computationId. It does not exist.")
       // If the computation was locked, but that lock was expired we need to finish off the
       // current attempt of the stage.
@@ -517,7 +515,7 @@ class GcpSpannerComputationsDatabaseTransactor<
           Key.of(token.localId, token.stage.toLongStage(), token.attempt),
           listOf("Details"),
         )
-        ?.getProtoMessage("Details", ComputationStageAttemptDetails.parser())
+        ?.getProtoMessage("Details", ComputationStageAttemptDetails.getDefaultInstance())
         ?: error("No ComputationStageAttempt (${token.localId}, $newStage, ${token.attempt})")
     mutations.add(
       computationMutations.updateComputationStageAttempt(
@@ -702,7 +700,8 @@ class GcpSpannerComputationsDatabaseTransactor<
           ?: error("No row found for this requisition: $externalRequisitionKey")
       val localComputationId = row.getLong("ComputationId")
       val requisitionId = row.getLong("RequisitionId")
-      val details = row.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
+      val details =
+        row.getProtoMessage("RequisitionDetails", RequisitionDetails.getDefaultInstance())
       require(localComputationId == token.localId) {
         "The token doesn't match the computation owns the requisition."
       }

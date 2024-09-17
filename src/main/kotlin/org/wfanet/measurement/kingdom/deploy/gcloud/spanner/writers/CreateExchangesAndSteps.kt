@@ -127,7 +127,7 @@ class CreateExchangesAndSteps(
       set("RecurringExchangeId" to recurringExchangeId)
       set("Date" to date.toCloudDate())
       set("State" to Exchange.State.ACTIVE)
-      set("ExchangeDetails" to exchangeDetails)
+      set("ExchangeDetails").to(exchangeDetails)
     }
   }
 

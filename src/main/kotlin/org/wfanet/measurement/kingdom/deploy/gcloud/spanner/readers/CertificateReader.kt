@@ -24,7 +24,6 @@ import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getInternalId
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificateDetails
 import org.wfanet.measurement.internal.kingdom.CertificateKt
@@ -297,7 +296,8 @@ class CertificateReader(private val parentType: ParentType) :
       notValidAfter = struct.getTimestamp("NotValidAfter").toProto()
       revocationState =
         struct.getProtoEnum("RevocationState", Certificate.RevocationState::forNumber)
-      details = struct.getProtoMessage("CertificateDetails", CertificateDetails.parser())
+      details =
+        struct.getProtoMessage("CertificateDetails", CertificateDetails.getDefaultInstance())
     }
 
     /** Returns the internal Certificate ID for a Duchy Certificate, or `null` if not found. */

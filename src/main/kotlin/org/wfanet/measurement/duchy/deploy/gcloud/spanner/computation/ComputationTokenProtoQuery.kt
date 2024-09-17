@@ -21,7 +21,6 @@ import org.wfanet.measurement.duchy.deploy.gcloud.spanner.common.SqlBasedQuery
 import org.wfanet.measurement.gcloud.common.toEpochMilli
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails
@@ -158,14 +157,16 @@ class ComputationTokenProtoQuery(
             if (!it.isNull("PathToBlob")) {
               path = it.getString("PathToBlob")
             }
-            details = it.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
+            details =
+              it.getProtoMessage("RequisitionDetails", RequisitionDetails.getDefaultInstance())
           }
         }
         .sortedBy { it.externalKey.externalRequisitionId }
 
     val computationDetailsProto =
-      struct.getProtoMessage("ComputationDetails", ComputationDetails.parser())
-    val stageDetails = struct.getProtoMessage("StageDetails", ComputationStageDetails.parser())
+      struct.getProtoMessage("ComputationDetails", ComputationDetails.getDefaultInstance())
+    val stageDetails =
+      struct.getProtoMessage("StageDetails", ComputationStageDetails.getDefaultInstance())
     return computationToken {
       globalComputationId = struct.getString("GlobalComputationId")
       localComputationId = struct.getLong("ComputationId")
