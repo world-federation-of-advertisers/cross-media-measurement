@@ -95,6 +95,9 @@ message ComputationParticipantStagesTableRow {
 
   google.protobuf.Timestamp log_entry_create_time = 9;
 
+  // Difference between measurement create_time and log_entry_create_time, or
+  // log_entry_create_time for last successful stage attempt and
+  // log_entry_create_time.
   int64 completion_duration_seconds = 10;
   int64 completion_duration_seconds_squared = 11;
 }
