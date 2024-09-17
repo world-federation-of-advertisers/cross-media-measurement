@@ -181,6 +181,9 @@ private const val DUCHY_CERTIFICATE_NAME = "$DUCHY_NAME/certificates/AAAAAAAAAHs
 private val DATA_PROVIDER_NONCE_HASH: ByteString =
   HexString("97F76220FEB39EE6F262B1F0C8D40F221285EEDE105748AE98F7DC241198D69F").bytes
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
+private val CREATED_BEFORE: Timestamp = Instant.now().toProtoTime()
+private val UPDATED_AFTER: Timestamp = Instant.ofEpochSecond(0).toProtoTime()
+private val UPDATED_BEFORE: Timestamp = Instant.now().toProtoTime()
 
 @RunWith(JUnit4::class)
 class MeasurementsServiceTest {
@@ -1539,7 +1542,14 @@ class MeasurementsServiceTest {
 
   @Test
   fun `listMeasurements with no page token returns response`() {
-    val request = listMeasurementsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+    val request = listMeasurementsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      filter = filter {
+        createdBefore = CREATED_BEFORE
+        updatedBefore = UPDATED_BEFORE
+        updatedAfter = UPDATED_AFTER
+      }
+    }
 
     val result =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
@@ -1564,6 +1574,9 @@ class MeasurementsServiceTest {
           filter =
             StreamMeasurementsRequestKt.filter {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+              createdBefore = CREATED_BEFORE
+              updatedBefore = UPDATED_BEFORE
+              updatedAfter = UPDATED_AFTER
             }
         }
       )
@@ -1603,9 +1616,17 @@ class MeasurementsServiceTest {
           updateTime = UPDATE_TIME
           externalMeasurementId = EXTERNAL_MEASUREMENT_ID
         }
+        createdBefore = CREATED_BEFORE
+        updatedBefore = UPDATED_BEFORE
+        updatedAfter = UPDATED_AFTER
       }
       pageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
-      filter = filter { states += publicStates }
+      filter = filter {
+        states += publicStates
+        createdBefore = CREATED_BEFORE
+        updatedBefore = UPDATED_BEFORE
+        updatedAfter = UPDATED_AFTER
+      }
     }
 
     val result =
@@ -1624,6 +1645,9 @@ class MeasurementsServiceTest {
           externalMeasurementId =
             apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_2)!!.measurementId)
         }
+        createdBefore = CREATED_BEFORE
+        updatedBefore = UPDATED_BEFORE
+        updatedAfter = UPDATED_AFTER
       }
       nextPageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
     }
@@ -1641,6 +1665,9 @@ class MeasurementsServiceTest {
             StreamMeasurementsRequestKt.filter {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               states += internalStates
+              createdBefore = CREATED_BEFORE
+              updatedBefore = UPDATED_BEFORE
+              updatedAfter = UPDATED_AFTER
               after =
                 StreamMeasurementsRequestKt.FilterKt.after {
                   updateTime = UPDATE_TIME
@@ -1669,6 +1696,14 @@ class MeasurementsServiceTest {
           updateTime = UPDATE_TIME
           externalMeasurementId = EXTERNAL_MEASUREMENT_ID
         }
+        createdBefore = CREATED_BEFORE
+        updatedBefore = UPDATED_BEFORE
+        updatedAfter = UPDATED_AFTER
+      }
+      filter = filter {
+        createdBefore = CREATED_BEFORE
+        updatedBefore = UPDATED_BEFORE
+        updatedAfter = UPDATED_AFTER
       }
       pageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
     }
@@ -1689,6 +1724,9 @@ class MeasurementsServiceTest {
           filter =
             StreamMeasurementsRequestKt.filter {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+              createdBefore = CREATED_BEFORE
+              updatedBefore = UPDATED_BEFORE
+              updatedAfter = UPDATED_AFTER
               after =
                 StreamMeasurementsRequestKt.FilterKt.after {
                   updateTime = UPDATE_TIME
@@ -1714,6 +1752,14 @@ class MeasurementsServiceTest {
           updateTime = UPDATE_TIME
           externalMeasurementId = EXTERNAL_MEASUREMENT_ID
         }
+        createdBefore = CREATED_BEFORE
+        updatedBefore = UPDATED_BEFORE
+        updatedAfter = UPDATED_AFTER
+      }
+      filter = filter {
+        createdBefore = CREATED_BEFORE
+        updatedBefore = UPDATED_BEFORE
+        updatedAfter = UPDATED_AFTER
       }
       pageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
     }
@@ -1734,6 +1780,9 @@ class MeasurementsServiceTest {
           filter =
             StreamMeasurementsRequestKt.filter {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+              createdBefore = CREATED_BEFORE
+              updatedBefore = UPDATED_BEFORE
+              updatedAfter = UPDATED_AFTER
               after =
                 StreamMeasurementsRequestKt.FilterKt.after {
                   updateTime = UPDATE_TIME
