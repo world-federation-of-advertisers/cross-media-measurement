@@ -265,7 +265,7 @@ resource "google_bigquery_table" "computation_participant_stages" {
     "name": "completion_duration_seconds",
     "type": "INTEGER",
     "mode": "REQUIRED",
-    "description": "Difference between measurement create_time and log_entry_create_time",
+    "description": "Difference between measurement create_time and log_entry_create_time, or log_entry_create_time for last successful stage attempt and log_entry_create_time",
     "defaultValueExpression": "0"
   },
   {
