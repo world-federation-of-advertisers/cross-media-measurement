@@ -44,7 +44,6 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
       DataProviders.DataProviderId,
       DataProviders.ExternalDataProviderId,
       DataProviders.DataProviderDetails,
-      DataProviders.DataProviderDetailsJson,
       DataProviderCertificates.ExternalDataProviderCertificateId,
       Certificates.CertificateId,
       Certificates.SubjectKeyIdentifier,

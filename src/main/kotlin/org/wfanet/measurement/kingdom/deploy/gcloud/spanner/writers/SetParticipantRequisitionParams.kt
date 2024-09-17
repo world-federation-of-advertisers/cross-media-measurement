@@ -29,7 +29,6 @@ import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantDetails
@@ -171,7 +170,6 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("State" to nextState)
       set("ParticipantDetails" to participantDetails)
-      setJson("ParticipantDetailsJson" to participantDetails)
     }
 
     val otherComputationParticipants: List<ComputationParticipantResult> =
