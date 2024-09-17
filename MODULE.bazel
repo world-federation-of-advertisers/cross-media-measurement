@@ -336,6 +336,7 @@ single_version_override(
     version = BORINGSSL_VERSION,
 )
 
+# DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement-api#214): Use version
 git_override(
     module_name = "cross-media-measurement-api",
     remote = "https://github.com/world-federation-of-advertisers/cross-media-measurement-api",
