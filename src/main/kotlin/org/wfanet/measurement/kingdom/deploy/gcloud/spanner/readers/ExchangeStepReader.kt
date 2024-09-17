@@ -24,8 +24,6 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.getNullableLong
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
 import org.wfanet.measurement.internal.kingdom.exchangeStep
@@ -95,7 +93,10 @@ class ExchangeStepReader : SpannerReader<ExchangeStepReader.Result>() {
 
   private fun buildExchangeStep(struct: Struct): ExchangeStep {
     val recurringExchangeDetails =
-      struct.getProtoMessage("RecurringExchangeDetails", RecurringExchangeDetails.parser())
+      struct.getProtoMessage(
+        "RecurringExchangeDetails",
+        RecurringExchangeDetails.getDefaultInstance(),
+      )
     return exchangeStep {
       externalRecurringExchangeId = struct.getLong("ExternalRecurringExchangeId")
       date = struct.getDate("Date").toProtoDate()

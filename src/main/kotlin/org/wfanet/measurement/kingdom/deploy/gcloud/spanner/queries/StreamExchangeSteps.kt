@@ -18,7 +18,7 @@ import com.google.cloud.spanner.Statement
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.gcloud.spanner.toProtoEnumArray
+import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
 
@@ -58,7 +58,7 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
 
     if (filter.statesList.isNotEmpty()) {
       conjuncts.add("ExchangeSteps.State IN UNNEST(@${Params.STATES})")
-      bind(Params.STATES).toProtoEnumArray(filter.statesList)
+      bind(Params.STATES).toProtoEnumArray(filter.statesList, ExchangeStep.State.getDescriptor())
     }
 
     if (filter.externalDataProviderId != 0L) {

@@ -20,7 +20,6 @@ import com.google.cloud.spanner.Statement
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.ModelOutage
 import org.wfanet.measurement.internal.kingdom.StreamModelOutagesRequest.Filter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelOutageReader
@@ -67,7 +66,7 @@ class StreamModelOutages(private val requestFilter: Filter, limit: Int = 0) :
 
     if (!filter.showDeleted) {
       conjuncts.add("State != @${DELETED_STATE}")
-      bind(DELETED_STATE).toProtoEnum(ModelOutage.State.DELETED)
+      bind(DELETED_STATE).to(ModelOutage.State.DELETED)
     }
 
     if (filter.hasOutageInterval()) {

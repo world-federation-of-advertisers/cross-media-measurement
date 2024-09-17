@@ -16,8 +16,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.gcloud.spanner.toProtoEnum
-import org.wfanet.measurement.gcloud.spanner.toProtoEnumArray
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementDetailsReader
@@ -38,8 +36,8 @@ class StreamMeasurementsByDuchyCertificate(
           .trimIndent()
       )
       bind("duchyCertificateId").to(duchyCertificateId.value)
-      bind("computationParticipantState")
-        .toProtoEnum(ComputationParticipant.State.REQUISITION_PARAMS_SET)
-      bind("pendingStates").toProtoEnumArray(pendingMeasurementStates)
+      bind("computationParticipantState").to(ComputationParticipant.State.REQUISITION_PARAMS_SET)
+      bind("pendingStates")
+        .toProtoEnumArray(pendingMeasurementStates, Measurement.State.getDescriptor())
     }
 }

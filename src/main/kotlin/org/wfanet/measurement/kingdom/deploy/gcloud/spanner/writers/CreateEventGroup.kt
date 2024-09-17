@@ -81,7 +81,7 @@ class CreateEventGroup(private val request: CreateEventGroupRequest) :
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       if (request.eventGroup.hasDetails()) {
-        set("EventGroupDetails" to request.eventGroup.details)
+        set("EventGroupDetails").to(request.eventGroup.details)
       }
       set("State" to EventGroup.State.ACTIVE)
     }

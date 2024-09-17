@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.gcloud.spanner.toProtoEnumArray
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementDetailsReader
@@ -38,7 +37,11 @@ class StreamMeasurementsByDataProviderCertificate(
       )
       bind("dataProviderCertificateId").to(dataProviderCertificateId.value)
       bind("requisitionStates")
-        .toProtoEnumArray(listOf(Requisition.State.PENDING_PARAMS, Requisition.State.UNFULFILLED))
-      bind("pendingStates").toProtoEnumArray(pendingMeasurementStates)
+        .toProtoEnumArray(
+          listOf(Requisition.State.PENDING_PARAMS, Requisition.State.UNFULFILLED),
+          Requisition.State.getDescriptor(),
+        )
+      bind("pendingStates")
+        .toProtoEnumArray(pendingMeasurementStates, Measurement.State.getDescriptor())
     }
 }

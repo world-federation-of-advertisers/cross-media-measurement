@@ -76,7 +76,7 @@ class CreateMeasurementConsumer(
       set("MeasurementConsumerId" to internalMeasurementConsumerId)
       set("PublicKeyCertificateId" to internalCertificateId)
       set("ExternalMeasurementConsumerId" to externalMeasurementConsumerId)
-      set("MeasurementConsumerDetails" to measurementConsumer.details)
+      set("MeasurementConsumerDetails").to(measurementConsumer.details)
     }
 
     val externalMeasurementConsumerCertificateId = idGenerator.generateExternalId()
