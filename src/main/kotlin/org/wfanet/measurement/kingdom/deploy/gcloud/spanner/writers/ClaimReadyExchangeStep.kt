@@ -126,7 +126,7 @@ class ClaimReadyExchangeStep(
       // TODO(@efoxepstein): make this variable based on the step type or something.
       set("ExpirationTime" to (now + DEFAULT_EXPIRATION_DURATION).toGcloudTimestamp())
 
-      set("ExchangeStepAttemptDetails" to details)
+      set("ExchangeStepAttemptDetails").to(details)
     }
 
     return attemptIndex

@@ -57,7 +57,7 @@ class CreateRecurringExchange(private val recurringExchange: RecurringExchange) 
       set("DataProviderId" to dataProviderId)
       set("State" to INITIAL_STATE)
       set("NextExchangeDate" to recurringExchange.nextExchangeDate.toCloudDate())
-      set("RecurringExchangeDetails" to recurringExchange.details)
+      set("RecurringExchangeDetails").to(recurringExchange.details)
     }
 
     return recurringExchange.copy {

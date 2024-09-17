@@ -19,8 +19,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
-import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.CreateDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry

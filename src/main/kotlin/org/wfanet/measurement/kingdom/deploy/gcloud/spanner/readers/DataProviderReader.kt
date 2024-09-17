@@ -23,7 +23,6 @@ import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getInternalId
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProviderDetails
@@ -118,7 +117,8 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
     DataProvider.newBuilder()
       .apply {
         externalDataProviderId = struct.getLong("ExternalDataProviderId")
-        details = struct.getProtoMessage("DataProviderDetails", DataProviderDetails.parser())
+        details =
+          struct.getProtoMessage("DataProviderDetails", DataProviderDetails.getDefaultInstance())
         certificate = CertificateReader.buildDataProviderCertificate(struct)
         addAllRequiredExternalDuchyIds(buildExternalDuchyIdList(struct))
       }

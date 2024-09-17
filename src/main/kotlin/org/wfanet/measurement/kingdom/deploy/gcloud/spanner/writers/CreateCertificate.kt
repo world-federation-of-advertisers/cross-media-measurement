@@ -142,6 +142,6 @@ fun Certificate.toInsertMutation(internalId: InternalId): Mutation {
     set("NotValidBefore" to notValidBefore.toGcloudTimestamp())
     set("NotValidAfter" to notValidAfter.toGcloudTimestamp())
     set("RevocationState" to revocationState)
-    set("CertificateDetails" to details)
+    set("CertificateDetails").to(details)
   }
 }

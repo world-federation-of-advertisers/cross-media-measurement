@@ -230,7 +230,7 @@ class FinishExchangeStepAttempt(
       set("StepIndex" to stepIndex.toLong())
       set("AttemptIndex" to attemptNumber.toLong())
       set("State" to state)
-      set("ExchangeStepAttemptDetails" to details)
+      set("ExchangeStepAttemptDetails").to(details)
     }
 
     return exchangeStepAttempt.copy {
