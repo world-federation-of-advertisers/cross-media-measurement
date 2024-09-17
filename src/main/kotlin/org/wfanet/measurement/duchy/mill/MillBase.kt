@@ -786,6 +786,9 @@ abstract class MillBase(
         val message = "Error updating computation details"
         throw when (e.status.code) {
           Status.Code.UNAVAILABLE,
+          // The mill will get the latest ComputationToken before attempting to update the details.
+          // Updating only succeeds with the latest Computation version. So it is safe to retry for
+          // DEADLINE_EXCEEDED.
           Status.Code.DEADLINE_EXCEEDED,
           Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
           else -> ComputationDataClients.PermanentErrorException(message, e)
