@@ -61,6 +61,9 @@ _edpConfigs: [
 		certResourceName: _edpCertResourceNames[i]
 		displayName:      "edp\(Number)"
 		eventGroupSpec:   _eventGroupSpecs[SpecIndex]
+		if (i < len(_edpResourceNames)/2) {
+			supportHmss: true
+		}
 	},
 ]
 
@@ -85,6 +88,7 @@ edpSimulators: {
 			_additional_args: [
 				"--population-spec=\(_populationSpec)",
 				"--event-group-spec==\(edpConfig.eventGroupSpec)",
+				if (edpConfig.supportHmss) {"--support-hmss"},
 			]
 
 			deployment: spec: template: spec: {

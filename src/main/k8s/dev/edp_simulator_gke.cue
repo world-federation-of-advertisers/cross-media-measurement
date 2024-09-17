@@ -55,6 +55,9 @@ _edpConfigs: [
 		certResourceName: _edpCertResourceNames[i]
 		displayName:      "edp\(Number)"
 		publisherId:      Number
+		if (i < len(_edpResourceNames)/2) {
+			supportHmss: true
+		}
 	},
 ]
 
