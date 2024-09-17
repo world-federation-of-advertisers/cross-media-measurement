@@ -48,7 +48,6 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
       ExchangeStepAttempts.AttemptIndex,
       ExchangeStepAttempts.State,
       ExchangeStepAttempts.ExchangeStepAttemptDetails,
-      ExchangeStepAttempts.ExchangeStepAttemptDetailsJson,
       RecurringExchanges.ExternalRecurringExchangeId
     FROM ExchangeStepAttempts
     JOIN RecurringExchanges USING (RecurringExchangeId)

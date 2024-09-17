@@ -19,7 +19,6 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.copy
@@ -78,7 +77,6 @@ class CreateMeasurementConsumer(
       set("PublicKeyCertificateId" to internalCertificateId)
       set("ExternalMeasurementConsumerId" to externalMeasurementConsumerId)
       set("MeasurementConsumerDetails" to measurementConsumer.details)
-      setJson("MeasurementConsumerDetailsJson" to measurementConsumer.details)
     }
 
     val externalMeasurementConsumerCertificateId = idGenerator.generateExternalId()

@@ -98,7 +98,6 @@ class RecurringExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
         "RecurringExchanges.State",
         "RecurringExchanges.NextExchangeDate",
         "RecurringExchanges.RecurringExchangeDetails",
-        "RecurringExchanges.RecurringExchangeDetailsJson",
         "DataProviders.ExternalDataProviderId",
         "ModelProviders.ExternalModelProviderId",
       )
