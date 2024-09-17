@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryDetails
 import org.wfanet.measurement.internal.kingdom.StateTransitionMeasurementLogEntry
@@ -60,7 +59,10 @@ class StateTransitionMeasurementLogEntryReader :
         externalMeasurementId = struct.getLong("ExternalMeasurementId")
         externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
         details =
-          struct.getProtoMessage("MeasurementLogDetails", MeasurementLogEntryDetails.parser())
+          struct.getProtoMessage(
+            "MeasurementLogDetails",
+            MeasurementLogEntryDetails.getDefaultInstance(),
+          )
       }
     }
   }

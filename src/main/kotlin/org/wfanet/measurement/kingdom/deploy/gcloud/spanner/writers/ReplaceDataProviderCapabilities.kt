@@ -39,7 +39,7 @@ class ReplaceDataProviderCapabilities(private val request: ReplaceDataProviderCa
 
     transactionContext.bufferUpdateMutation("DataProviders") {
       set("DataProviderId" to dataProviderResult.dataProviderId)
-      set("DataProviderDetails" to updatedDetails)
+      set("DataProviderDetails").to(updatedDetails)
     }
 
     return dataProviderResult.dataProvider.copy { details = updatedDetails }

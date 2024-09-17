@@ -27,7 +27,6 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
@@ -169,7 +168,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       set("CertificateId" to duchyCertificateId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("State" to nextState)
-      set("ParticipantDetails" to participantDetails)
+      set("ParticipantDetails").to(participantDetails)
     }
 
     val otherComputationParticipants: List<ComputationParticipantResult> =
@@ -273,7 +272,8 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
 
     return transactionContext.executeQuery(statement).map {
       val duchyId = InternalId(it.getLong("DuchyId"))
-      val details = it.getProtoMessage("ParticipantDetails", ComputationParticipantDetails.parser())
+      val details =
+        it.getProtoMessage("ParticipantDetails", ComputationParticipantDetails.getDefaultInstance())
       ComputationParticipantResult(duchyId, details)
     }
   }

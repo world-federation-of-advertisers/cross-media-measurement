@@ -68,7 +68,7 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
       set("EventGroupId" to internalEventGroupResult.internalEventGroupId.value)
       set("ProvidedEventGroupId" to providedEventGroupId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      set("EventGroupDetails" to eventGroup.details)
+      set("EventGroupDetails").to(eventGroup.details)
     }
 
     return eventGroup

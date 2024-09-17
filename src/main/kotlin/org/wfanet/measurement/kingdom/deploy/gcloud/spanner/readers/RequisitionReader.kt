@@ -21,7 +21,6 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantDetails
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementDetails
@@ -114,7 +113,7 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       InternalId(struct.getLong("MeasurementId")),
       InternalId(struct.getLong("RequisitionId")),
       buildRequisition(struct),
-      struct.getProtoMessage("MeasurementDetails", MeasurementDetails.parser()),
+      struct.getProtoMessage("MeasurementDetails", MeasurementDetails.getDefaultInstance()),
     )
   }
 
@@ -207,7 +206,11 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       for ((externalDuchyId, participantStruct) in participantStructs) {
         duchies[externalDuchyId] = buildDuchyValue(participantStruct)
       }
-      details = requisitionStruct.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
+      details =
+        requisitionStruct.getProtoMessage(
+          "RequisitionDetails",
+          RequisitionDetails.getDefaultInstance(),
+        )
       dataProviderCertificate = CertificateReader.buildDataProviderCertificate(requisitionStruct)
 
       parentMeasurement = buildParentMeasurement(measurementStruct, dataProviderCount)
@@ -224,7 +227,10 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       }
 
       val participantDetails =
-        struct.getProtoMessage("ParticipantDetails", ComputationParticipantDetails.parser())
+        struct.getProtoMessage(
+          "ParticipantDetails",
+          ComputationParticipantDetails.getDefaultInstance(),
+        )
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (participantDetails.protocolCase) {
         ComputationParticipantDetails.ProtocolCase.LIQUID_LEGIONS_V2 -> {
@@ -243,7 +249,7 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
 
     private fun buildParentMeasurement(struct: Struct, dataProviderCount: Int) = parentMeasurement {
       val measurementDetails =
-        struct.getProtoMessage("MeasurementDetails", MeasurementDetails.parser())
+        struct.getProtoMessage("MeasurementDetails", MeasurementDetails.getDefaultInstance())
       apiVersion = measurementDetails.apiVersion
       externalMeasurementConsumerCertificateId =
         struct.getLong("ExternalMeasurementConsumerCertificateId")

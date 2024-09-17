@@ -78,7 +78,7 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
       transactionContext.bufferUpdateMutation("MeasurementConsumers") {
         set("MeasurementConsumerId" to measurementConsumerResult.measurementConsumerId)
         set("PublicKeyCertificateId" to certificateId)
-        set("MeasurementConsumerDetails" to measurementConsumerDetails)
+        set("MeasurementConsumerDetails").to(measurementConsumerDetails)
       }
     } else if (request.externalDataProviderId != 0L) {
       val dataProviderResult =
@@ -111,7 +111,7 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
       transactionContext.bufferUpdateMutation("DataProviders") {
         set("DataProviderId" to dataProviderResult.dataProviderId)
         set("PublicKeyCertificateId" to certificateId)
-        set("DataProviderDetails" to dataProviderDetails)
+        set("DataProviderDetails").to(dataProviderDetails)
       }
     }
   }
