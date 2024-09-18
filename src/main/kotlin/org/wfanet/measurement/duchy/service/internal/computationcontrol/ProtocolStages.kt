@@ -20,6 +20,7 @@ import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
@@ -41,7 +42,7 @@ sealed class ProtocolStages(val stageType: ComputationStage.StageCase) {
    *
    * @throws IllegalStageException if [stage] is illegal
    */
-  abstract fun nextStage(stage: ComputationStage): ComputationStage
+  abstract fun nextStage(stage: ComputationStage, role: RoleInComputation): ComputationStage
 
   companion object {
     fun forStageType(stageType: ComputationStage.StageCase): ProtocolStages? {
@@ -93,30 +94,45 @@ class LiquidLegionsV2Stages() :
         }
     }
 
-  override fun nextStage(stage: ComputationStage): ComputationStage {
+  override fun nextStage(stage: ComputationStage, role: RoleInComputation): ComputationStage {
     require(stage.stageCase == ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2)
 
     return when (val protocolStage = stage.liquidLegionsSketchAggregationV2) {
+      LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE ->
+        LiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET ->
+        LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE
+      LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE -> {
+        if (role == RoleInComputation.AGGREGATOR) {
+          LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS
+        } else {
+          LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
+        }
+      }
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START ->
+        LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
       LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS ->
         LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
+      LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE ->
+        LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
       LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS ->
         LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE
+      LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE ->
+        LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS
       LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS ->
         LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_TWO
+      LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_TWO ->
+        LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS
       LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS ->
         LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE
-      LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE,
-      LiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET,
-      LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE,
-      LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START,
-      LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE,
-      LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE,
-      LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_TWO,
-      LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE,
+      LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE ->
+        LiquidLegionsSketchAggregationV2.Stage.COMPLETE
       LiquidLegionsSketchAggregationV2.Stage.COMPLETE,
       LiquidLegionsSketchAggregationV2.Stage.STAGE_UNSPECIFIED,
       LiquidLegionsSketchAggregationV2.Stage.UNRECOGNIZED ->
-        throw IllegalStageException(stage) { "Next $stageType stage unknown for $protocolStage" }
+        throw IllegalStageException(stage) {
+          "Next $stageType stage unknown for $protocolStage, $role"
+        }
     }.toProtocolStage()
   }
 }
@@ -154,26 +170,39 @@ class ReachOnlyLiquidLegionsV2Stages() :
         }
     }
 
-  override fun nextStage(stage: ComputationStage): ComputationStage {
+  override fun nextStage(stage: ComputationStage, role: RoleInComputation): ComputationStage {
     require(
       stage.stageCase == ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
     )
 
     return when (val protocolStage = stage.reachOnlyLiquidLegionsSketchAggregationV2) {
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE ->
+        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET ->
+        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE -> {
+        if (role == RoleInComputation.AGGREGATOR) {
+          ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS
+        } else {
+          ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
+        }
+      }
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS ->
         ReachOnlyLiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START ->
+        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE ->
+        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_INPUTS
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_INPUTS ->
         ReachOnlyLiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE
-      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE,
-      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET,
-      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE,
-      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START,
-      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE,
-      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE,
+      ReachOnlyLiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE ->
+        ReachOnlyLiquidLegionsSketchAggregationV2.Stage.COMPLETE
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.COMPLETE,
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.STAGE_UNSPECIFIED,
       ReachOnlyLiquidLegionsSketchAggregationV2.Stage.UNRECOGNIZED ->
-        throw IllegalStageException(stage) { "Next $stageType stage unknown for $protocolStage" }
+        throw IllegalStageException(stage) {
+          "Next $stageType stage unknown for $protocolStage, $role"
+        }
     }.toProtocolStage()
   }
 }
@@ -213,27 +242,50 @@ class HonestMajorityShareShuffleStages() :
     }
   }
 
-  override fun nextStage(stage: ComputationStage): ComputationStage {
+  override fun nextStage(stage: ComputationStage, role: RoleInComputation): ComputationStage {
     require(stage.hasHonestMajorityShareShuffle())
     val protocolStage = stage.honestMajorityShareShuffle
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums fields cannot be null.
     return when (protocolStage) {
+      HonestMajorityShareShuffle.Stage.INITIALIZED -> {
+        when (role) {
+          RoleInComputation.FIRST_NON_AGGREGATOR -> HonestMajorityShareShuffle.Stage.WAIT_TO_START
+          RoleInComputation.SECOND_NON_AGGREGATOR ->
+            HonestMajorityShareShuffle.Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE
+          else ->
+            throw IllegalStageException(stage) {
+              "Next $stageType stage invalid for $protocolStage, $role"
+            }
+        }
+      }
+      HonestMajorityShareShuffle.Stage.WAIT_TO_START -> HonestMajorityShareShuffle.Stage.SETUP_PHASE
       HonestMajorityShareShuffle.Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE ->
-        HonestMajorityShareShuffle.Stage.SETUP_PHASE.toProtocolStage()
+        HonestMajorityShareShuffle.Stage.SETUP_PHASE
+      HonestMajorityShareShuffle.Stage.SETUP_PHASE -> {
+        when (role) {
+          RoleInComputation.FIRST_NON_AGGREGATOR ->
+            HonestMajorityShareShuffle.Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO
+          RoleInComputation.SECOND_NON_AGGREGATOR -> HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE
+          else ->
+            throw IllegalStageException(stage) {
+              "Next $stageType stage invalid for $protocolStage, $role"
+            }
+        }
+      }
       HonestMajorityShareShuffle.Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO ->
-        HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE.toProtocolStage()
+        HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE
+      HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE -> HonestMajorityShareShuffle.Stage.COMPLETE
       HonestMajorityShareShuffle.Stage.WAIT_ON_AGGREGATION_INPUT ->
-        HonestMajorityShareShuffle.Stage.AGGREGATION_PHASE.toProtocolStage()
-      HonestMajorityShareShuffle.Stage.INITIALIZED,
-      HonestMajorityShareShuffle.Stage.WAIT_TO_START,
-      HonestMajorityShareShuffle.Stage.SETUP_PHASE,
-      HonestMajorityShareShuffle.Stage.SHUFFLE_PHASE,
-      HonestMajorityShareShuffle.Stage.AGGREGATION_PHASE,
+        HonestMajorityShareShuffle.Stage.AGGREGATION_PHASE
+      HonestMajorityShareShuffle.Stage.AGGREGATION_PHASE ->
+        HonestMajorityShareShuffle.Stage.COMPLETE
       HonestMajorityShareShuffle.Stage.COMPLETE,
       HonestMajorityShareShuffle.Stage.STAGE_UNSPECIFIED,
       HonestMajorityShareShuffle.Stage.UNRECOGNIZED ->
-        throw IllegalStageException(stage) { "Next $stageType stage invalid for $protocolStage" }
-    }
+        throw IllegalStageException(stage) {
+          "Next $stageType stage invalid for $protocolStage, $role"
+        }
+    }.toProtocolStage()
   }
 }

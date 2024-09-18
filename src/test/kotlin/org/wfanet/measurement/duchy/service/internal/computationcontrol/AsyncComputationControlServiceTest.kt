@@ -24,8 +24,12 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -62,12 +66,14 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
 import org.wfanet.measurement.internal.duchy.recordOutputBlobPathRequest
 
-private const val SHUFFLE_BLOB_ID = 1L
-private val SHUFFLE_BLOB_PATH = "path"
+private const val SETUP_BLOB_ID = 1L
+private const val SETUP_BLOB_PATH = "setup_path"
+private const val SHUFFLE_PHASE_INPUT_BLOB_ID = 1L
+private const val SHUFFLE_PHASE_INPUT_BLOB_PATH = "shuffle_path"
 private const val AGGREGATION_BLOB_ID_1 = 1L
 private const val AGGREGATION_BLOB_ID_2 = 2L
-private val AGGREGATION_BLOB_PATH_1 = "path_1"
-private val AGGREGATION_BLOB_PATH_2 = "path_2"
+private const val AGGREGATION_BLOB_PATH_1 = "aggregation_path_1"
+private const val AGGREGATION_BLOB_PATH_2 = "aggregation_path_2"
 
 @RunWith(JUnit4::class)
 class AsyncComputationControlServiceTest {
@@ -368,6 +374,12 @@ class AsyncComputationControlServiceTest {
   fun `advanceComputation throws ABORTED when stage does not match for llv2`() = runBlocking {
     val actualStage = Llv2Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.toProtocolStage()
     val oldToken = computationToken {
+      computationDetails = computationDetails {
+        liquidLegionsV2 =
+          LiquidLegionsSketchAggregationV2Kt.computationDetails {
+            role = RoleInComputation.NON_AGGREGATOR
+          }
+      }
       computationStage = actualStage
       blobs += newEmptyOutputBlobMetadata(1L)
     }
@@ -453,7 +465,7 @@ class AsyncComputationControlServiceTest {
       computationDetails = computationDetails {
         honestMajorityShareShuffle =
           HonestMajorityShareShuffleKt.computationDetails {
-            role = RoleInComputation.SECOND_NON_AGGREGATOR
+            role = RoleInComputation.FIRST_NON_AGGREGATOR
           }
       }
     }
@@ -581,6 +593,112 @@ class AsyncComputationControlServiceTest {
           }
         )
       assertThat(advanceComputationRequests).isEmpty()
+    }
+
+  @Test
+  fun `advanceComputation catch up stage when request stage is one step ahead`(): Unit =
+    runBlocking {
+      val token = computationToken {
+        computationStage = HmssStage.SETUP_PHASE.toProtocolStage()
+        computationDetails = computationDetails {
+          honestMajorityShareShuffle =
+            HonestMajorityShareShuffleKt.computationDetails {
+              role = RoleInComputation.FIRST_NON_AGGREGATOR
+            }
+        }
+        blobs += newOutputBlobMetadata(SETUP_BLOB_ID, SETUP_BLOB_PATH)
+      }
+      val request = advanceComputationRequest {
+        globalComputationId = COMPUTATION_ID
+        computationStage = HmssStage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO.toProtocolStage()
+        blobId = 1L
+        blobPath = SHUFFLE_PHASE_INPUT_BLOB_PATH
+      }
+      val caughtUpToken =
+        token.copy {
+          computationStage = HmssStage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO.toProtocolStage()
+          blobs.clear()
+          blobs += newInputBlobMetadata(SETUP_BLOB_ID, SETUP_BLOB_PATH)
+          blobs += newEmptyOutputBlobMetadata(SHUFFLE_PHASE_INPUT_BLOB_ID)
+        }
+      val blobRecordedToken =
+        caughtUpToken.copy {
+          blobs.clear()
+          blobs += newOutputBlobMetadata(SHUFFLE_PHASE_INPUT_BLOB_ID, SHUFFLE_PHASE_INPUT_BLOB_PATH)
+        }
+      val updatedToken =
+        blobRecordedToken.copy {
+          computationStage = HmssStage.SHUFFLE_PHASE.toProtocolStage()
+          blobs.clear()
+          blobs += newInputBlobMetadata(SHUFFLE_PHASE_INPUT_BLOB_ID, SHUFFLE_PHASE_INPUT_BLOB_PATH)
+        }
+
+      mockComputationsService.stub {
+        onBlocking { getComputationToken(any()) }.thenReturn(token.toGetComputationTokenResponse())
+        onBlocking { advanceComputationStage(any()) }
+          .thenReturn(
+            caughtUpToken.toAdvanceComputationStageResponse(),
+            updatedToken.toAdvanceComputationStageResponse(),
+          )
+        onBlocking { recordOutputBlobPath(any()) }
+          .thenReturn(blobRecordedToken.toRecordOutputBlobPathResponse())
+      }
+
+      service.advanceComputation(request)
+
+      val computationsServiceCaptor: KArgumentCaptor<AdvanceComputationStageRequest> =
+        argumentCaptor()
+      verifyBlocking(mockComputationsService, times(2)) {
+        advanceComputationStage(computationsServiceCaptor.capture())
+      }
+      assertThat(computationsServiceCaptor.allValues)
+        .containsExactly(
+          advanceComputationStageRequest {
+            this.token = token
+            nextComputationStage = HmssStage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO.toProtocolStage()
+            inputBlobs += SETUP_BLOB_PATH
+            outputBlobs = 1
+            stageDetails = ComputationStageDetails.getDefaultInstance()
+            afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
+          },
+          advanceComputationStageRequest {
+            this.token = blobRecordedToken
+            nextComputationStage = HmssStage.SHUFFLE_PHASE.toProtocolStage()
+            inputBlobs += SHUFFLE_PHASE_INPUT_BLOB_PATH
+            stageDetails = ComputationStageDetails.getDefaultInstance()
+            afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
+          },
+        )
+    }
+
+  @Test
+  fun `advanceComputation fail to catch up stage when computation output blob path is not set`() =
+    runBlocking {
+      val token = computationToken {
+        computationStage = HmssStage.SETUP_PHASE.toProtocolStage()
+        computationDetails = computationDetails {
+          honestMajorityShareShuffle =
+            HonestMajorityShareShuffleKt.computationDetails {
+              role = RoleInComputation.FIRST_NON_AGGREGATOR
+            }
+        }
+        // Setup has not been done.
+        blobs += newEmptyOutputBlobMetadata(SETUP_BLOB_ID)
+      }
+      val request = advanceComputationRequest {
+        globalComputationId = COMPUTATION_ID
+        computationStage = HmssStage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO.toProtocolStage()
+        blobId = 1L
+        blobPath = SHUFFLE_PHASE_INPUT_BLOB_PATH
+      }
+
+      mockComputationsService.stub {
+        onBlocking { getComputationToken(any()) }.thenReturn(token.toGetComputationTokenResponse())
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.advanceComputation(request) }
+      assertThat(exception.status.code).isEqualTo(Status.FAILED_PRECONDITION.code)
     }
 
   @Test
