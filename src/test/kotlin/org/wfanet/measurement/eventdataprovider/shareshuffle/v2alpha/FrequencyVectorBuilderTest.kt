@@ -228,10 +228,17 @@ class FrequencyVectorBuilderTest {
   }
 
   @Test
+  fun `incrementBy fails when amount is 0`() {
+    val builder =
+      FrequencyVectorBuilder(SMALL_POPULATION_SPEC, PARTIAL_NON_WRAPPING_REACH_MEASUREMENT_SPEC)
+    assertFailsWith<IllegalArgumentException>("expected exception") { builder.incrementBy(5, 0) }
+  }
+
+  @Test
   fun `build returns a frequency vector for frequency over full interval`() {
     val frequencyMeasurementSpec = measurementSpec {
       vidSamplingInterval = FULL_SAMPLING_INTERVAL
-      reachAndFrequency = reachAndFrequency { maximumFrequency = 2 }
+      reachAndFrequency = reachAndFrequency { maximumFrequency = 3 }
     }
 
     val frequencyVector =
@@ -245,11 +252,11 @@ class FrequencyVectorBuilderTest {
             STARTING_VID + 8,
             STARTING_VID + 8,
           )
-          .map { increment(SMALL_POPULATION_VID_INDEX_MAP[it]) }
+          .map { incrementBy(SMALL_POPULATION_VID_INDEX_MAP[it], 2) }
       }
 
     assertThat(frequencyVector)
-      .isEqualTo(frequencyVector { data += listOf<Int>(2, 1, 0, 0, 0, 0, 0, 0, 2, 0) })
+      .isEqualTo(frequencyVector { data += listOf<Int>(3, 2, 0, 0, 0, 0, 0, 0, 3, 0) })
   }
 
   @Test
