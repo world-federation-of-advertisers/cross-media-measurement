@@ -38,9 +38,9 @@ internal fun SpannerWriter.TransactionScope.updateRequisition(
     set("RequisitionId" to readResult.requisitionId.value)
     set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     set("State" to state)
-    set("RequisitionDetails" to details)
+    set("RequisitionDetails").to(details)
     if (fulfillingDuchyId != null) {
-      set("FulfillingDuchyId" to fulfillingDuchyId.value)
+      set("FulfillingDuchyId" to fulfillingDuchyId)
     }
   }
 }

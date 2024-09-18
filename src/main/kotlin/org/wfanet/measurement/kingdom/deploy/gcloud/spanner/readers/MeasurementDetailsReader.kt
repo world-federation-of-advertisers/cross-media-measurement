@@ -17,7 +17,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.getInternalId
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.MeasurementDetails
 
 class MeasurementDetailsReader() : SpannerReader<MeasurementDetailsReader.Result>() {
@@ -43,6 +42,6 @@ class MeasurementDetailsReader() : SpannerReader<MeasurementDetailsReader.Result
     Result(
       struct.getInternalId("MeasurementConsumerId"),
       struct.getInternalId("MeasurementId"),
-      struct.getProtoMessage("MeasurementDetails", MeasurementDetails.parser()),
+      struct.getProtoMessage("MeasurementDetails", MeasurementDetails.getDefaultInstance()),
     )
 }

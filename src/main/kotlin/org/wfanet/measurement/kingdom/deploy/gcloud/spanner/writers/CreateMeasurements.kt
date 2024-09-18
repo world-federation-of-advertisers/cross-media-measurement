@@ -328,7 +328,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       }
       set("CertificateId" to measurementConsumerCertificateId)
       set("State" to initialMeasurementState)
-      set("MeasurementDetails" to createMeasurementRequest.measurement.details)
+      set("MeasurementDetails").to(createMeasurementRequest.measurement.details)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     }
@@ -346,7 +346,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       set("DuchyId" to duchyId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("State" to ComputationParticipant.State.CREATED)
-      set("ParticipantDetails" to participantDetails)
+      set("ParticipantDetails").to(participantDetails)
     }
   }
 
@@ -413,7 +413,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       set("DataProviderCertificateId" to dataProviderCertificateId)
       set("State" to initialRequisitionState)
       fulfillingDuchyId?.let { set("FulfillingDuchyId" to it) }
-      set("RequisitionDetails" to details)
+      set("RequisitionDetails").to(details)
     }
   }
 
