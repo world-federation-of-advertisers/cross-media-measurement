@@ -27,7 +27,11 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
   override val reader =
     RequisitionReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY ExternalDataProviderId ASC, ExternalRequisitionId ASC")
+      if (requestFilter.hasUpdatedAfter()) {
+        appendClause("ORDER BY UpdateTime ASC, ExternalDataProviderId ASC, ExternalRequisitionId ASC")
+      } else {
+        appendClause("ORDER BY ExternalDataProviderId ASC, ExternalRequisitionId ASC")
+      }
       if (limit > 0) {
         appendClause("LIMIT @$LIMIT")
         bind(LIMIT to limit.toLong())
@@ -59,21 +63,46 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
     }
 
     if (filter.hasUpdatedAfter()) {
-      conjuncts.add("Requisitions.UpdateTime > @$UPDATED_AFTER")
-      bind(UPDATED_AFTER to filter.updatedAfter.toGcloudTimestamp())
-    }
-
-    if (filter.externalRequisitionIdAfter != 0L && filter.externalDataProviderIdAfter != 0L) {
-      conjuncts.add(
+      if (filter.externalRequisitionIdAfter != 0L && filter.externalDataProviderIdAfter != 0L) {
+        // CASE implements short-circuiting.
+        conjuncts.add(
+          """
+          CASE
+            WHEN Requisitions.UpdateTime > @$UPDATED_AFTER THEN TRUE
+            WHEN Requisitions.UpdateTime = @$UPDATED_AFTER
+              AND ExternalDataProviderId > @$EXTERNAL_DATA_PROVIDER_ID_AFTER THEN TRUE
+            WHEN Requisitions.UpdateTime = @$UPDATED_AFTER
+              AND ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID_AFTER
+              AND ExternalRequisitionId > @$EXTERNAL_REQUISITION_ID_AFTER THEN TRUE
+            ELSE FALSE
+          END
         """
-          (ExternalDataProviderId > @$EXTERNAL_DATA_PROVIDER_ID_AFTER
-          OR (ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID_AFTER
-          AND ExternalRequisitionId > @$EXTERNAL_REQUISITION_ID_AFTER))
+            .trimIndent()
+        )
+        bind(UPDATED_AFTER to filter.updatedAfter.toGcloudTimestamp())
+        bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.externalDataProviderIdAfter)
+        bind(EXTERNAL_REQUISITION_ID_AFTER).to(filter.externalRequisitionIdAfter)
+      } else {
+        conjuncts.add("Requisitions.UpdateTime > @$UPDATED_AFTER")
+        bind(UPDATED_AFTER to filter.updatedAfter.toGcloudTimestamp())
+      }
+    } else {
+      if (filter.externalRequisitionIdAfter != 0L && filter.externalDataProviderIdAfter != 0L) {
+        // CASE implements short-circuiting.
+        conjuncts.add(
+          """
+          CASE
+            WHEN ExternalDataProviderId > @$EXTERNAL_DATA_PROVIDER_ID_AFTER THEN TRUE
+            WHEN ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID_AFTER
+              AND ExternalRequisitionId > @$EXTERNAL_REQUISITION_ID_AFTER THEN TRUE
+            ELSE FALSE
+          END
         """
-          .trimIndent()
-      )
-      bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.externalDataProviderIdAfter)
-      bind(EXTERNAL_REQUISITION_ID_AFTER).to(filter.externalRequisitionIdAfter)
+            .trimIndent()
+        )
+        bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.externalDataProviderIdAfter)
+        bind(EXTERNAL_REQUISITION_ID_AFTER).to(filter.externalRequisitionIdAfter)
+      }
     }
 
     if (conjuncts.isEmpty()) {

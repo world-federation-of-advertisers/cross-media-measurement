@@ -75,8 +75,7 @@ class StreamMeasurements(
       return when (view) {
         Measurement.View.COMPUTATION ->
           "ORDER BY Measurements.UpdateTime ASC, ExternalComputationId ASC"
-        Measurement.View.DEFAULT,
-        Measurement.View.FULL ->
+        Measurement.View.DEFAULT ->
           "ORDER BY Measurements.UpdateTime ASC, ExternalMeasurementConsumerId ASC, " +
             "ExternalMeasurementId ASC"
         Measurement.View.UNRECOGNIZED -> error("Unrecognized View")
