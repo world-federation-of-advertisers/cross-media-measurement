@@ -207,7 +207,7 @@ class FrequencyVectorBuilder(
    * described by [increment]
    */
   fun incrementAll(globalIndexes: Collection<Int>) {
-    globalIndexes.map { increment(it) }
+    globalIndexes.map { incrementBy(it, 1) }
   }
 
   /**
