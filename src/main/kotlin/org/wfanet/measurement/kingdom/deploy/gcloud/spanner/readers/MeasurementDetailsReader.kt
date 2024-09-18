@@ -17,15 +17,14 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.getInternalId
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
-import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementDetails
 
 class MeasurementDetailsReader() : SpannerReader<MeasurementDetailsReader.Result>() {
 
   data class Result(
     val measurementConsumerId: InternalId,
     val measurementId: InternalId,
-    val measurementDetails: Measurement.Details,
+    val measurementDetails: MeasurementDetails,
   )
 
   override val baseSql =
@@ -43,6 +42,6 @@ class MeasurementDetailsReader() : SpannerReader<MeasurementDetailsReader.Result
     Result(
       struct.getInternalId("MeasurementConsumerId"),
       struct.getInternalId("MeasurementId"),
-      struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser()),
+      struct.getProtoMessage("MeasurementDetails", MeasurementDetails.getDefaultInstance()),
     )
 }

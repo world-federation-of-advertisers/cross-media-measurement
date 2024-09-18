@@ -67,18 +67,19 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
+import org.wfanet.measurement.internal.kingdom.HonestMajorityShareShuffleParams
+import org.wfanet.measurement.internal.kingdom.LiquidLegionsV2Params
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
-import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
 import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
-import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisitionKt
+import org.wfanet.measurement.internal.kingdom.RequisitionRefusal as InternalRefusal
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.requisitionRefusal as internalRequisitionRefusal
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 
 private const val DEFAULT_PAGE_SIZE = 50
@@ -182,11 +183,10 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
     val refuseRequest = refuseRequisitionRequest {
       externalDataProviderId = apiIdToExternalId(key.dataProviderId)
       externalRequisitionId = apiIdToExternalId(key.requisitionId)
-      refusal =
-        InternalRequisitionKt.refusal {
-          justification = request.refusal.justification.toInternal()
-          message = request.refusal.message
-        }
+      refusal = internalRequisitionRefusal {
+        justification = request.refusal.justification.toInternal()
+        message = request.refusal.message
+      }
     }
 
     val result =
@@ -448,7 +448,7 @@ private fun DuchyValue.toDuchyEntryValue(
   }
 }
 
-private fun ComputationParticipant.LiquidLegionsV2Details.toLlv2DuchyEntry(
+private fun LiquidLegionsV2Params.toLlv2DuchyEntry(
   apiVersion: Version
 ): DuchyEntry.LiquidLegionsV2 {
   val source = this
@@ -469,7 +469,7 @@ private fun ComputationParticipant.LiquidLegionsV2Details.toLlv2DuchyEntry(
   }
 }
 
-private fun ComputationParticipant.HonestMajorityShareShuffleDetails.toHmssDuchyEntryWithPublicKey(
+private fun HonestMajorityShareShuffleParams.toHmssDuchyEntryWithPublicKey(
   apiVersion: Version
 ): DuchyEntry.HonestMajorityShareShuffle {
   val source = this

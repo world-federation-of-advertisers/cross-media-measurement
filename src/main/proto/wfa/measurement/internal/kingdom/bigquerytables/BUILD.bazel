@@ -1,0 +1,8 @@
+load("//src/main/proto/wfa/measurement/internal/common:macros.bzl", "proto_and_kt_jvm_proto_library")
+
+package(default_visibility = ["//:__subpackages__"])
+
+proto_and_kt_jvm_proto_library(
+    name = "operational_metrics_dataset",
+    deps = ["@com_google_protobuf//:timestamp_proto"],
+)

@@ -21,6 +21,9 @@ _systemApiAddressName: string @tag("system_api_address_name")
 // Name of K8s service account for the internal API server.
 #InternalServerServiceAccount: "internal-server"
 
+// Name of K8s service account for the operational metrics job.
+#OperationalMetricsServiceAccount: "operational-metrics"
+
 // Number of gRPC threads for the internal API server.
 #InternalServerGrpcThreads: 7
 
@@ -40,6 +43,16 @@ _systemApiAddressName: string @tag("system_api_address_name")
 	}
 }
 
+#OperationalMetricsJobResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "10m"
+		memory: "256Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+
 objectSets: [defaultNetworkPolicies] + [ for objectSet in kingdom {objectSet}]
 
 kingdom: #Kingdom & {
@@ -48,9 +61,29 @@ kingdom: #Kingdom & {
 
 	_verboseGrpcServerLogging: true
 
+	_imageSuffixes: [string]: string
+	_imageSuffixes: {
+		"operational-metrics": string | *"kingdom/bigquery-operational-metrics"
+	}
+	_imageConfigs: [string]: #ImageConfig
+	_imageConfigs: {
+		for name, suffix in _imageSuffixes {
+			"\(name)": {repoSuffix: suffix}
+		}
+	}
+	_images: [string]: string
+	_images: {
+		for name, config in _imageConfigs {
+			"\(name)": config.image
+		}
+	}
+
 	serviceAccounts: {
 		"\(#InternalServerServiceAccount)": #WorkloadIdentityServiceAccount & {
 			_iamServiceAccountName: "kingdom-internal"
+		}
+		"\(#OperationalMetricsServiceAccount)": #WorkloadIdentityServiceAccount & {
+			_iamServiceAccountName: "operational-metrics"
 		}
 	}
 
@@ -69,6 +102,45 @@ kingdom: #Kingdom & {
 		"system-api-server": {
 			_container: {
 				_grpcThreadPoolSize: #SystemServerGrpcThreads
+			}
+		}
+	}
+
+	cronJobs: {
+		"operational-metrics": {
+			_container: {
+				_javaOptions: maxHeapSize: "48M"
+				image:     _images["operational-metrics"]
+				resources: #OperationalMetricsJobResourceRequirements
+				args: [
+					"--bigquery-project=\(#GCloudProject)",
+					"--bigquery-dataset=operational_metrics",
+					"--measurements-table=measurements",
+					"--requisitions-table=requisitions",
+					"--latest-measurement-read-table=latest_measurement_read",
+					"--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem",
+					"--tls-key-file=/var/run/secrets/files/kingdom_tls.key",
+					"--cert-collection-file=/var/run/secrets/files/kingdom_root.pem",
+					"--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
+					"--internal-api-cert-host=localhost",
+				]
+			}
+			spec: {
+				concurrencyPolicy: "Forbid"
+				schedule:          "30 * * * *" // Hourly, 30 minutes past the hour
+				jobTemplate: spec: template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #OperationalMetricsServiceAccount
+				}
+			}
+		}
+	}
+
+	networkPolicies: {
+		"operational-metrics": {
+			_app_label: "operational-metrics-app"
+			_egresses: {
+				// Need to send external traffic to BigQuery.
+				any: {}
 			}
 		}
 	}

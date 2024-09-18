@@ -18,7 +18,6 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
@@ -38,8 +37,7 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
       set("DataProviderId" to internalDataProviderId)
       set("PublicKeyCertificateId" to internalCertificateId)
       set("ExternalDataProviderId" to externalDataProviderId)
-      set("DataProviderDetails" to dataProvider.details)
-      setJson("DataProviderDetailsJson" to dataProvider.details)
+      set("DataProviderDetails").to(dataProvider.details)
     }
 
     for (externalDuchyId in dataProvider.requiredExternalDuchyIdsList) {

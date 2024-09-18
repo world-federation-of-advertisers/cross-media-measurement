@@ -25,8 +25,6 @@ import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
@@ -48,7 +46,6 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
       ExchangeStepAttempts.AttemptIndex,
       ExchangeStepAttempts.State,
       ExchangeStepAttempts.ExchangeStepAttemptDetails,
-      ExchangeStepAttempts.ExchangeStepAttemptDetailsJson,
       RecurringExchanges.ExternalRecurringExchangeId
     FROM ExchangeStepAttempts
     JOIN RecurringExchanges USING (RecurringExchangeId)
@@ -68,7 +65,7 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
           details =
             struct.getProtoMessage(
               "ExchangeStepAttemptDetails",
-              ExchangeStepAttemptDetails.parser(),
+              ExchangeStepAttemptDetails.getDefaultInstance(),
             )
         },
       recurringExchangeId = struct.getLong("RecurringExchangeId"),

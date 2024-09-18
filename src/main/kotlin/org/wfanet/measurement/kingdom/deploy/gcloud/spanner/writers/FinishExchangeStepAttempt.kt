@@ -28,9 +28,7 @@ import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
@@ -232,8 +230,7 @@ class FinishExchangeStepAttempt(
       set("StepIndex" to stepIndex.toLong())
       set("AttemptIndex" to attemptNumber.toLong())
       set("State" to state)
-      set("ExchangeStepAttemptDetails" to details)
-      setJson("ExchangeStepAttemptDetailsJson" to details)
+      set("ExchangeStepAttemptDetails").to(details)
     }
 
     return exchangeStepAttempt.copy {

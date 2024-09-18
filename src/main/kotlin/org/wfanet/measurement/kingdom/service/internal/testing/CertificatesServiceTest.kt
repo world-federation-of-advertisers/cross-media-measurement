@@ -37,16 +37,15 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificateKt
-import org.wfanet.measurement.internal.kingdom.CertificateKt.details
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequestKt
+import org.wfanet.measurement.internal.kingdom.LiquidLegionsV2Params
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.MeasurementKt
+import org.wfanet.measurement.internal.kingdom.MeasurementFailure
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
@@ -58,9 +57,11 @@ import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getCertificateRequest
 import org.wfanet.measurement.internal.kingdom.measurement
+import org.wfanet.measurement.internal.kingdom.measurementFailure
 import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
@@ -82,7 +83,7 @@ private val CERTIFICATE = certificate {
   notValidBefore = timestamp { seconds = 12345 }
   notValidAfter = timestamp { seconds = 23456 }
   subjectKeyIdentifier = ByteString.copyFromUtf8("This is an SKID")
-  details = details { x509Der = CERTIFICATE_DER }
+  details = certificateDetails { x509Der = CERTIFICATE_DER }
 }
 
 @RunWith(JUnit4::class)
@@ -494,7 +495,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           this.externalDataProviderId = externalDataProviderId
           notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
           notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-          details = details { x509Der = X509_DER }
+          details = certificateDetails { x509Der = X509_DER }
         }
       )
 
@@ -522,7 +523,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           this.externalDataProviderId = externalDataProviderId
           notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
           notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-          details = details { x509Der = X509_DER }
+          details = certificateDetails { x509Der = X509_DER }
         }
       )
 
@@ -600,11 +601,10 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           externalMeasurementId = measurementOne.externalMeasurementId
           details =
             measurementOne.details.copy {
-              failure =
-                MeasurementKt.failure {
-                  reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
-                  message = "An associated Data Provider certificate has been revoked."
-                }
+              failure = measurementFailure {
+                reason = MeasurementFailure.Reason.CERTIFICATE_REVOKED
+                message = "An associated Data Provider certificate has been revoked."
+              }
             }
         }
       )
@@ -643,7 +643,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           this.externalMeasurementConsumerId = externalMeasurementConsumerId
           notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
           notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-          details = details { x509Der = X509_DER }
+          details = certificateDetails { x509Der = X509_DER }
         }
       )
 
@@ -671,7 +671,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
           notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
           notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-          details = details { x509Der = X509_DER }
+          details = certificateDetails { x509Der = X509_DER }
         }
       )
 
@@ -741,11 +741,10 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           externalMeasurementId = measurementOne.externalMeasurementId
           details =
             measurementOne.details.copy {
-              failure =
-                MeasurementKt.failure {
-                  reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
-                  message = "The associated Measurement Consumer certificate has been revoked."
-                }
+              failure = measurementFailure {
+                reason = MeasurementFailure.Reason.CERTIFICATE_REVOKED
+                message = "The associated Measurement Consumer certificate has been revoked."
+              }
             }
         }
       )
@@ -759,7 +758,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           externalDuchyId = DUCHIES[0].externalDuchyId
           notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
           notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-          details = details { x509Der = X509_DER }
+          details = certificateDetails { x509Der = X509_DER }
         }
       )
 
@@ -786,7 +785,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           this.externalDuchyId = externalDuchyId
           notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
           notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-          details = details { x509Der = X509_DER }
+          details = certificateDetails { x509Der = X509_DER }
         }
       )
 
@@ -832,7 +831,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           this.externalDuchyId = externalDuchyId
           notValidBefore = clock.instant().minusSeconds(1000L).toProtoTime()
           notValidAfter = clock.instant().plusSeconds(1000L).toProtoTime()
-          details = details { x509Der = X509_DER }
+          details = certificateDetails { x509Der = X509_DER }
         }
       )
     computationParticipantsService.setParticipantRequisitionParams(
@@ -840,7 +839,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         this.externalDuchyId = externalDuchyId
         externalDuchyCertificateId = certificate.externalCertificateId
         externalComputationId = measurementOne.externalComputationId
-        liquidLegionsV2 = ComputationParticipant.LiquidLegionsV2Details.getDefaultInstance()
+        liquidLegionsV2 = LiquidLegionsV2Params.getDefaultInstance()
       }
     )
     val request = revokeCertificateRequest {
@@ -869,11 +868,10 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           externalMeasurementId = measurementOne.externalMeasurementId
           details =
             measurementOne.details.copy {
-              failure =
-                MeasurementKt.failure {
-                  reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
-                  message = "An associated Duchy certificate has been revoked."
-                }
+              failure = measurementFailure {
+                reason = MeasurementFailure.Reason.CERTIFICATE_REVOKED
+                message = "An associated Duchy certificate has been revoked."
+              }
             }
         }
       )
@@ -890,7 +888,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           this.externalDataProviderId = externalDataProviderId
           notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
           notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-          details = details { x509Der = X509_DER }
+          details = certificateDetails { x509Der = X509_DER }
         }
       )
 
@@ -933,7 +931,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           this.externalDataProviderId = externalDataProviderId
           notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
           notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-          details = details { x509Der = X509_DER }
+          details = certificateDetails { x509Der = X509_DER }
         }
       )
 
@@ -962,7 +960,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           this.externalDataProviderId = externalDataProviderId
           notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
           notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-          details = details { x509Der = X509_DER }
+          details = certificateDetails { x509Der = X509_DER }
         }
       )
 
@@ -999,7 +997,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           this.externalDataProviderId = externalDataProviderId
           notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
           notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-          details = details { x509Der = X509_DER }
+          details = certificateDetails { x509Der = X509_DER }
         }
       )
 
@@ -1045,7 +1043,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           this.externalMeasurementConsumerId = externalMeasurementConsumerId
           notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
           notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-          details = details { x509Der = X509_DER }
+          details = certificateDetails { x509Der = X509_DER }
         }
       )
 
@@ -1077,7 +1075,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
             this.externalMeasurementConsumerId = externalMeasurementConsumerId
             notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
             notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-            details = details { x509Der = X509_DER }
+            details = certificateDetails { x509Der = X509_DER }
           }
         )
 
@@ -1116,7 +1114,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           this.externalMeasurementConsumerId = externalMeasurementConsumerId
           notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
           notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-          details = details { x509Der = X509_DER }
+          details = certificateDetails { x509Der = X509_DER }
         }
       )
 
@@ -1157,7 +1155,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           externalDuchyId = DUCHIES[0].externalDuchyId
           notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
           notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-          details = details { x509Der = X509_DER }
+          details = certificateDetails { x509Der = X509_DER }
         }
       )
 
@@ -1185,7 +1183,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           this.externalDuchyId = externalDuchyId
           notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
           notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-          details = details { x509Der = X509_DER }
+          details = certificateDetails { x509Der = X509_DER }
         }
       )
 

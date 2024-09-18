@@ -151,6 +151,11 @@ GKE_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/postgres/tools:update_schema_image",
         repository = _PREFIX + "/duchy/gcloud-postgres-update-schema",
     ),
+    struct(
+        name = "kingdom_operational_metrics_export_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/job:operational_metrics_export_job_image",
+        repository = _PREFIX + "/kingdom/bigquery-operational-metrics",
+    ),
 ]
 
 # List of specs for all Docker containers to push to a container registry.

@@ -19,25 +19,23 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
-import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntryDetails
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry.Details
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryDetails
 
 internal fun SpannerWriter.TransactionScope.insertMeasurementLogEntry(
   measurementId: InternalId,
   measurementConsumerId: InternalId,
-  logDetails: Details,
+  logDetails: MeasurementLogEntryDetails,
 ) {
 
-  require(logDetails.logMessage != null && !logDetails.logMessage.isEmpty())
+  require(logDetails.logMessage.isNotEmpty())
 
   transactionContext.bufferInsertMutation("MeasurementLogEntries") {
     set("MeasurementConsumerId" to measurementConsumerId)
     set("MeasurementId" to measurementId)
     set("CreateTime" to Value.COMMIT_TIMESTAMP)
-    set("MeasurementLogDetails" to logDetails)
-    setJson("MeasurementLogDetailsJson" to logDetails)
+    set("MeasurementLogDetails").to(logDetails)
   }
 }
 
@@ -63,7 +61,7 @@ internal fun SpannerWriter.TransactionScope.insertDuchyMeasurementLogEntry(
   measurementId: InternalId,
   measurementConsumerId: InternalId,
   duchyId: InternalId,
-  logDetails: DuchyMeasurementLogEntry.Details,
+  logDetails: DuchyMeasurementLogEntryDetails,
 ): ExternalId {
   val externalComputationLogEntryId = idGenerator.generateExternalId()
 
@@ -73,8 +71,7 @@ internal fun SpannerWriter.TransactionScope.insertDuchyMeasurementLogEntry(
     set("CreateTime" to Value.COMMIT_TIMESTAMP)
     set("DuchyId" to duchyId)
     set("ExternalComputationLogEntryId" to externalComputationLogEntryId)
-    set("DuchyMeasurementLogDetails" to logDetails)
-    setJson("DuchyMeasurementLogDetailsJson" to logDetails)
+    set("DuchyMeasurementLogDetails").to(logDetails)
   }
 
   return externalComputationLogEntryId
