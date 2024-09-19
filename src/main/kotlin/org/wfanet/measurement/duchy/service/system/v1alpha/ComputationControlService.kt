@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.service.system.v1alpha
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -143,35 +144,32 @@ class ComputationControlService(
 
   override suspend fun getComputationStage(request: GetComputationStageRequest): ComputationStage {
     logger.info("GetComputationStageRequest received.")
-//    val stageKey = grpcRequireNotNull(StageKey.fromName(request.name)) { "Invalid Stage name." }
-//    grpcRequire(stageKey.duchyId == duchyId) {
-//      "Unmatched duchyId. request_duchy_id=${stageKey.duchyId}, service_duchy_id=${duchyId}"
-//    }
-//    val computationToken =
-//      try {
-//        internalComputationsClient
-//          .getComputationToken(
-//            getComputationTokenRequest { globalComputationId = stageKey.computationId }
-//          )
-//          .token
-//      } catch (e: StatusException) {
-//        throw when (e.status.code) {
-//            Status.Code.UNAVAILABLE -> Status.UNAVAILABLE
-//            Status.Code.ABORTED -> Status.ABORTED
-//            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-//            Status.Code.NOT_FOUND -> Status.NOT_FOUND
-//            else -> Status.UNKNOWN
-//          }
-//          .withCause(e)
-//          .asRuntimeException()
-//      }
-//    return computationToken.toSystemStage(duchyId)
-
-    return computationStage {
-      honestMajorityShareShuffleStage = honestMajorityShareShuffleStage {
-        stage = HonestMajorityShareShuffleStage.Stage.SETUP_PHASE
-      }
+    val stageKey = grpcRequireNotNull(StageKey.fromName(request.name)) { "Invalid Stage name." }
+    grpcRequire(stageKey.duchyId == duchyId) {
+      "Unmatched duchyId. request_duchy_id=${stageKey.duchyId}, service_duchy_id=${duchyId}"
     }
+    val computationToken =
+      try {
+        internalComputationsClient
+          .getComputationToken(
+            getComputationTokenRequest { globalComputationId = stageKey.computationId }
+          )
+          .token
+      } catch (e: StatusException) {
+        logger.log(Level.WARNING, e) {
+          "Failed to get ComputationToken"
+        }
+        throw when (e.status.code) {
+            Status.Code.UNAVAILABLE -> Status.UNAVAILABLE
+            Status.Code.ABORTED -> Status.ABORTED
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND
+            else -> Status.UNKNOWN
+          }
+          .withCause(e)
+          .asRuntimeException()
+      }
+    return computationToken.toSystemStage(duchyId)
   }
 
   override suspend fun testConnection(request: TestConnectionRequest): TestConnectionResponse {
