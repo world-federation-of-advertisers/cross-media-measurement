@@ -81,14 +81,14 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #FulfillmentMaxHeapSize:             "320M"
 #ControlServiceResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "200m"
-		memory: "512Mi"
+		cpu:    "800m"
+		memory: "1024Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#ControlServiceMaxHeapSize: "320M"
+#ControlServiceMaxHeapSize: "700M"
 
 objectSets: [defaultNetworkPolicies] + [ for objectSet in duchy {objectSet}]
 
