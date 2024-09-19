@@ -89,6 +89,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
+import org.wfanet.measurement.system.v1alpha.GetComputationStageRequest
 import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffle.Description
 import org.wfanet.measurement.system.v1alpha.TestConnectionRequest
 
@@ -256,7 +257,7 @@ class HonestMajorityShareShuffleMill(
     val peerDuchyId = peerDuchyId(role)
     val peerDuchyStub = workerStubs[peerDuchyId] ?: error("$peerDuchyId stub not found")
 
-    peerDuchyStub.testConnection(TestConnectionRequest.getDefaultInstance())
+    peerDuchyStub.getComputationStage(GetComputationStageRequest.getDefaultInstance())
 
     val headerDescription =
       if (role == FIRST_NON_AGGREGATOR) Description.SHUFFLE_PHASE_INPUT_ONE
@@ -455,7 +456,7 @@ class HonestMajorityShareShuffleMill(
     val aggregatorId = protocolSetupConfig.aggregatorDuchyId
     val aggregatorStub = workerStubs[aggregatorId] ?: error("$aggregatorId stub not found")
 
-    aggregatorStub.testConnection(TestConnectionRequest.getDefaultInstance())
+    aggregatorStub.getComputationStage(GetComputationStageRequest.getDefaultInstance())
 
     logWallClockDuration(
       token,
