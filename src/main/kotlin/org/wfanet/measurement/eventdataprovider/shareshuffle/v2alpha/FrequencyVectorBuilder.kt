@@ -29,7 +29,7 @@ val PopulationSpec.size: Long
   get() =
     subpopulationsList.sumOf { subPop ->
       subPop.vidRangesList.sumOf { (it.startVid..it.endVidInclusive).count().toLong() }
-   }
+    }
 
 /**
  * A utility for building an appropriately sized [FrequencyVector] for a given [MeasurementSpec] and
