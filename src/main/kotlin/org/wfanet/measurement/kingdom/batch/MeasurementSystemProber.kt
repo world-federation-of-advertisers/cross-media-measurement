@@ -24,12 +24,13 @@ import java.security.SecureRandom
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
+import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequestKt
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
@@ -44,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
@@ -58,10 +60,6 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
-import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
-import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
-import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 
 class MeasurementSystemProber(
   private val measurementConsumerName: String,
@@ -72,9 +70,8 @@ class MeasurementSystemProber(
   private val durationBetweenMeasurement: Duration,
   private val measurementConsumersStub:
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub,
-  private val publicMeasurementsStub:
+  private val measurementsStub:
     org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub,
-  private val internalMeasurementsStub: MeasurementsGrpcKt.MeasurementsCoroutineStub,
   private val dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   private val eventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub,
   private val clock: Clock = Clock.systemUTC(),
@@ -146,7 +143,7 @@ class MeasurementSystemProber(
 
     val response =
       try {
-        publicMeasurementsStub
+        measurementsStub
           .withAuthenticationKey(apiAuthenticationKey)
           .createMeasurement(
             createMeasurementRequest {
@@ -217,32 +214,46 @@ class MeasurementSystemProber(
   /**
    * Check previous measurements and decide whether a new measurement needs to be created
    *
-   * case 1: no previous measurements -> YES case 2: previous measurements exist a) at least 1
-   * finished a long time ago -> Yes b) finished ones are finished too soon -> No c) no finished
-   * measurements -> no
+   * case 1: no previous measurements -> Yes. case 2a: previous measurements exist & no finished
+   * measurements -> No. case 2a: previous measurements exist & the most recent created one is
+   * finished long time ago -> Yes. case 2b: previous measurements exist & the most recent created
+   * one is finished recently -> No.
    */
   private suspend fun shouldCreateNewMeasurement(): Boolean {
     val previousMeasurements: List<Measurement> =
-      internalMeasurementsStub.streamMeasurements(streamMeasurementsRequest {}).toList()
+      measurementsStub.listMeasurements(listMeasurementsRequest {}).measurementsList
 
     if (previousMeasurements.isEmpty()) {
       return true
     }
 
+    val finishedMeasurements: List<Measurement> =
+      measurementsStub
+        .listMeasurements(
+          listMeasurementsRequest {
+            filter = ListMeasurementsRequestKt.filter { states += COMPLETED_MEASUREMENT_STATES }
+          }
+        )
+        .measurementsList
+
+    if (finishedMeasurements.isEmpty()) {
+      return false
+    }
+
     val oldFinishedMeasurements: List<Measurement> =
-      internalMeasurementsStub
-        .streamMeasurements(
-          streamMeasurementsRequest {
+      measurementsStub
+        .listMeasurements(
+          listMeasurementsRequest {
             filter =
-              StreamMeasurementsRequestKt.filter {
+              ListMeasurementsRequestKt.filter {
                 states += COMPLETED_MEASUREMENT_STATES
                 updatedBefore = clock.instant().minus(durationBetweenMeasurement).toProtoTime()
               }
           }
         )
-        .toList()
+        .measurementsList
 
-    return oldFinishedMeasurements.isNotEmpty()
+    return finishedMeasurements.size == oldFinishedMeasurements.size
   }
 
   private suspend fun getDataProviderEntry(
@@ -250,7 +261,7 @@ class MeasurementSystemProber(
     eventGroup: EventGroup,
     measurementConsumerSigningKey: SigningKeyHandle,
     packedMeasurementEncryptionPublicKey: Any,
-  ): org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry {
+  ): Measurement.DataProviderEntry {
     return dataProviderEntry {
       val requisitionSpec = requisitionSpec {
         events =
@@ -305,10 +316,6 @@ class MeasurementSystemProber(
     private val secureRandom = SecureRandom.getInstance("SHA1PRNG")
 
     private val COMPLETED_MEASUREMENT_STATES =
-      listOf(
-        org.wfanet.measurement.internal.kingdom.Measurement.State.SUCCEEDED,
-        org.wfanet.measurement.internal.kingdom.Measurement.State.FAILED,
-        org.wfanet.measurement.internal.kingdom.Measurement.State.CANCELLED,
-      )
+      listOf(Measurement.State.SUCCEEDED, Measurement.State.FAILED, Measurement.State.CANCELLED)
   }
 }
