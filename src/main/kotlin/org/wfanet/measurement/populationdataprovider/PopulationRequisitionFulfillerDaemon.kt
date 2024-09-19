@@ -127,9 +127,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
   @CommandLine.Option(
     names = ["--event-message-descriptor-set"],
     description =
-      [
-        "Serialized DescriptorSet for the event message and its dependencies.",
-      ],
+      ["Serialized DescriptorSet for the event message and its dependencies."],
     required = false,
   )
   private lateinit var eventMessageDescriptorSetFiles: List<File>
@@ -168,7 +166,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
         certificate,
         readPrivateKey(
           flags.pdpCsPrivateKeyDerFile.readByteString(),
-          certificate.publicKey.algorithm
+          certificate.publicKey.algorithm,
         )
       )
     val certificateKey =
@@ -248,7 +246,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
         PopulationInfo(
           parseTextProto(it.value[0], PopulationSpec.getDefaultInstance()),
           parseTextProto(it.value[1], DescriptorProtos.FileDescriptorSet.getDefaultInstance())
-            .descriptorForType
+            .descriptorForType,
         )
     }
   }
