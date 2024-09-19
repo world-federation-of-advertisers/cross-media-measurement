@@ -43,10 +43,10 @@ class PopulationRequisitionFulfillerFlags {
   @CommandLine.Option(
     names = ["--kingdom-system-api-cert-host"],
     description =
-    [
-      "Expected hostname (DNS-ID) in the Kingdom system API server's TLS certificate.",
-      "This overrides derivation of the TLS DNS-ID from --kingdom-system-api-target.",
-    ],
+      [
+        "Expected hostname (DNS-ID) in the Kingdom system API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --kingdom-system-api-target.",
+      ],
     required = false,
   )
   var certHost: String? = null
@@ -112,15 +112,14 @@ class PopulationRequisitionFulfillerFlags {
   )
   lateinit var throttlerMinimumInterval: Duration
     private set
-
 }
-class PopulationRequisitionFulfillerDaemon: Runnable {
+
+class PopulationRequisitionFulfillerDaemon : Runnable {
   @Command(
     name = "PopulationRequisitionFulfillerDaemon",
     mixinStandardHelpOptions = true,
     showDefaultValues = true,
   )
-
   @CommandLine.Mixin
   protected lateinit var flags: PopulationRequisitionFulfillerFlags
     private set
@@ -128,9 +127,9 @@ class PopulationRequisitionFulfillerDaemon: Runnable {
   @CommandLine.Option(
     names = ["--event-message-descriptor-set"],
     description =
-    [
-      "Serialized DescriptorSet for the event message and its dependencies.",
-    ],
+      [
+        "Serialized DescriptorSet for the event message and its dependencies.",
+      ],
     required = false,
   )
   private lateinit var eventMessageDescriptorSetFiles: List<File>
@@ -151,22 +150,27 @@ class PopulationRequisitionFulfillerDaemon: Runnable {
 
   @Option(
     names = ["--population-info-map"],
-    description = [
-      "Key-value pair of PopulationKey and list of file paths" +
-        "that represent the Population Info. The first element of the list is the Population Spec and " +
-                  "the second element is the descriptor"],
+    description =
+      [
+        "Key-value pair of PopulationKey and list of file paths" +
+          "that represent the Population Info. The first element of the list is the Population Spec and " +
+          "the second element is the descriptor"
+      ],
     required = true,
   )
   private lateinit var populationInfoFileMap: Map<String, List<File>>
 
-
   override fun run() {
     val certificate: X509Certificate =
       flags.pdpCsCertificateDerFile.inputStream().use { input -> readCertificate(input) }
-    val signingKeyHandle = SigningKeyHandle(
-      certificate,
-      readPrivateKey(flags.pdpCsPrivateKeyDerFile.readByteString(), certificate.publicKey.algorithm)
-    )
+    val signingKeyHandle =
+      SigningKeyHandle(
+        certificate,
+        readPrivateKey(
+          flags.pdpCsPrivateKeyDerFile.readByteString(),
+          certificate.publicKey.algorithm
+        )
+      )
     val certificateKey =
       DataProviderCertificateKey.fromName(flags.dataProviderCertificateResourceName)!!
     val pdpData =
@@ -206,18 +210,19 @@ class PopulationRequisitionFulfillerDaemon: Runnable {
 
     val populationInfoMap = buildPopulationInfoMap(populationInfoFileMap)
 
-    var populationRequisitionFulfiller = PopulationRequisitionFulfiller(
-      pdpData,
-      certificatesStub,
-      requisitionsStub,
-      throttler,
-      clientCerts.trustedCertificates,
-      measurementConsumerName,
-      modelRolloutsStub,
-      modelReleasesStub,
-      populationInfoMap,
-      typeRegistry,
-    )
+    var populationRequisitionFulfiller =
+      PopulationRequisitionFulfiller(
+        pdpData,
+        certificatesStub,
+        requisitionsStub,
+        throttler,
+        clientCerts.trustedCertificates,
+        measurementConsumerName,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationInfoMap,
+        typeRegistry,
+      )
 
     runBlocking { populationRequisitionFulfiller.run() }
   }
@@ -235,12 +240,18 @@ class PopulationRequisitionFulfillerDaemon: Runnable {
     return builder.build()
   }
 
-  private fun buildPopulationInfoMap(populationInfoFileMap: Map<String, List<File>>): Map<PopulationKey, PopulationInfo> {
+  private fun buildPopulationInfoMap(
+    populationInfoFileMap: Map<String, List<File>>
+  ): Map<PopulationKey, PopulationInfo> {
     return populationInfoFileMap.entries.associate {
-      grpcRequireNotNull(PopulationKey.fromName(it.key)) to PopulationInfo(parseTextProto(it.value[0], PopulationSpec.getDefaultInstance()), parseTextProto(it.value[1], DescriptorProtos.FileDescriptorSet.getDefaultInstance()).descriptorForType)
+      grpcRequireNotNull(PopulationKey.fromName(it.key)) to
+        PopulationInfo(
+          parseTextProto(it.value[0], PopulationSpec.getDefaultInstance()),
+          parseTextProto(it.value[1], DescriptorProtos.FileDescriptorSet.getDefaultInstance())
+            .descriptorForType
+        )
     }
   }
 }
 
 fun main(args: Array<String>) = commandLineMain(PopulationRequisitionFulfillerDaemon(), args)
-
