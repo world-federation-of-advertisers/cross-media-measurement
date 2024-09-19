@@ -28,7 +28,6 @@ import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withVerboseLogging
-import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.kingdom.batch.MeasurementSystemProber
 import org.wfanet.measurement.kingdom.deploy.common.server.KingdomApiServerFlags
 import picocli.CommandLine.Command
@@ -135,9 +134,8 @@ private fun run(@Mixin flags: MeasurementSystemProberFlags) {
       .withVerboseLogging(flags.kingdomApiServerFlags.debugVerboseGrpcClientLogging)
       .withDefaultDeadline(flags.kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
 
-  val publicMeasurementsService =
+  val measurementsService =
     org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub(channel)
-  val internalMeasurementsService = MeasurementsGrpcKt.MeasurementsCoroutineStub(channel)
   val measurementConsumersService =
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(channel)
   val dataProvidersService = DataProvidersGrpcKt.DataProvidersCoroutineStub(channel)
@@ -152,8 +150,7 @@ private fun run(@Mixin flags: MeasurementSystemProberFlags) {
       flags.measurementLookbackDuration,
       flags.durationBetweenMeasurement,
       measurementConsumersService,
-      publicMeasurementsService,
-      internalMeasurementsService,
+      measurementsService,
       dataProvidersService,
       eventGroupsService,
     )
