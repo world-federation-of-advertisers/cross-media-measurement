@@ -55,6 +55,7 @@ import org.wfanet.measurement.duchy.mill.MillBase
 import org.wfanet.measurement.duchy.mill.shareshuffle.crypto.HonestMajorityShareShuffleCryptor
 import org.wfanet.measurement.duchy.service.internal.computations.inputPathList
 import org.wfanet.measurement.duchy.service.system.v1alpha.advanceComputationHeader
+import org.wfanet.measurement.duchy.toComputationStage
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.duchy.utils.ReachAndFrequencyResult
 import org.wfanet.measurement.duchy.utils.ReachResult
@@ -91,7 +92,9 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.Compu
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
 import org.wfanet.measurement.system.v1alpha.GetComputationStageRequest
 import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffle.Description
+import org.wfanet.measurement.system.v1alpha.StageKey
 import org.wfanet.measurement.system.v1alpha.TestConnectionRequest
+import org.wfanet.measurement.system.v1alpha.getComputationStageRequest
 
 class HonestMajorityShareShuffleMill(
   millId: String,
@@ -257,7 +260,9 @@ class HonestMajorityShareShuffleMill(
     val peerDuchyId = peerDuchyId(role)
     val peerDuchyStub = workerStubs[peerDuchyId] ?: error("$peerDuchyId stub not found")
 
-    peerDuchyStub.getComputationStage(GetComputationStageRequest.getDefaultInstance())
+    peerDuchyStub.getComputationStage(getComputationStageRequest {
+      name = StageKey(token.globalComputationId, peerDuchyId).toName()
+      }).toComputationStage()
 
     val headerDescription =
       if (role == FIRST_NON_AGGREGATOR) Description.SHUFFLE_PHASE_INPUT_ONE
@@ -456,7 +461,9 @@ class HonestMajorityShareShuffleMill(
     val aggregatorId = protocolSetupConfig.aggregatorDuchyId
     val aggregatorStub = workerStubs[aggregatorId] ?: error("$aggregatorId stub not found")
 
-    aggregatorStub.getComputationStage(GetComputationStageRequest.getDefaultInstance())
+    aggregatorStub.getComputationStage(getComputationStageRequest {
+      name = StageKey(token.globalComputationId, aggregatorId).toName()
+    }).toComputationStage()
 
     logWallClockDuration(
       token,
