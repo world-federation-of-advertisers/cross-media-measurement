@@ -40,7 +40,10 @@ import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.Computatio
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationStage
 import org.wfanet.measurement.system.v1alpha.GetComputationStageRequest
+import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffleStage
 import org.wfanet.measurement.system.v1alpha.StageKey
+import org.wfanet.measurement.system.v1alpha.computationStage
+import org.wfanet.measurement.system.v1alpha.honestMajorityShareShuffleStage
 
 /**
  * Service for controlling inter-Duchy operations on Computation related resources.
@@ -136,28 +139,33 @@ class ComputationControlService(
   }
 
   override suspend fun getComputationStage(request: GetComputationStageRequest): ComputationStage {
-    val stageKey = grpcRequireNotNull(StageKey.fromName(request.name)) { "Invalid Stage name." }
-    grpcRequire(stageKey.duchyId == duchyId) {
-      "Unmatched duchyId. request_duchy_id=${stageKey.duchyId}, service_duchy_id=${duchyId}"
-    }
-    val computationToken =
-      try {
-        internalComputationsClient
-          .getComputationToken(
-            getComputationTokenRequest { globalComputationId = stageKey.computationId }
-          )
-          .token
-      } catch (e: StatusException) {
-        throw when (e.status.code) {
-            Status.Code.UNAVAILABLE -> Status.UNAVAILABLE
-            Status.Code.ABORTED -> Status.ABORTED
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            Status.Code.NOT_FOUND -> Status.NOT_FOUND
-            else -> Status.UNKNOWN
-          }
-          .withCause(e)
-          .asRuntimeException()
+//    val stageKey = grpcRequireNotNull(StageKey.fromName(request.name)) { "Invalid Stage name." }
+//    grpcRequire(stageKey.duchyId == duchyId) {
+//      "Unmatched duchyId. request_duchy_id=${stageKey.duchyId}, service_duchy_id=${duchyId}"
+//    }
+//    val computationToken =
+//      try {
+//        internalComputationsClient
+//          .getComputationToken(
+//            getComputationTokenRequest { globalComputationId = stageKey.computationId }
+//          )
+//          .token
+//      } catch (e: StatusException) {
+//        throw when (e.status.code) {
+//            Status.Code.UNAVAILABLE -> Status.UNAVAILABLE
+//            Status.Code.ABORTED -> Status.ABORTED
+//            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+//            Status.Code.NOT_FOUND -> Status.NOT_FOUND
+//            else -> Status.UNKNOWN
+//          }
+//          .withCause(e)
+//          .asRuntimeException()
+//      }
+//    return computationToken.toSystemStage(duchyId)
+    return computationStage {
+      honestMajorityShareShuffleStage = honestMajorityShareShuffleStage {
+        stage = HonestMajorityShareShuffleStage.Stage.SETUP_PHASE
       }
-    return computationToken.toSystemStage(duchyId)
+    }
   }
 }

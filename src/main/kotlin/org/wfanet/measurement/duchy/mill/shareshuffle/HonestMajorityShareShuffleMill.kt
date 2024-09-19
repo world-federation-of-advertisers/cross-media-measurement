@@ -264,18 +264,12 @@ class HonestMajorityShareShuffleMill(
       if (role == FIRST_NON_AGGREGATOR) Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE
       else Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO
 
-    if (peerDuchyStage.isSequencedAfter(peerDuchyExpectedStage)) {
-      logger.log(Level.WARNING) {
-        "Skipping advanceComputation for next duchy $peerDuchyId. " +
-          "expected_stage=${peerDuchyExpectedStage}, actual_stage=${peerDuchyStage}"
-      }
-    } else {
-      sendAdvanceComputationRequest(
-        header = advanceComputationHeader(headerDescription, token.globalComputationId),
-        content = addLoggingHook(token, flowOf(shufflePhaseInput.toByteString())),
-        stub = peerDuchyStub,
-      )
-    }
+
+    sendAdvanceComputationRequest(
+      header = advanceComputationHeader(headerDescription, token.globalComputationId),
+      content = addLoggingHook(token, flowOf(shufflePhaseInput.toByteString())),
+      stub = peerDuchyStub,
+    )
 
     val nextStage = nextStage(token).toProtocolStage()
     return dataClients.transitionComputationToStage(
@@ -462,27 +456,21 @@ class HonestMajorityShareShuffleMill(
     val aggregatorStage =
       getComputationStageInOtherDuchy(token.globalComputationId, aggregatorId, aggregatorStub)
         .honestMajorityShareShuffle
-    if (aggregatorStage.isSequencedAfter(Stage.WAIT_ON_AGGREGATION_INPUT)) {
-      logger.log(Level.WARNING) {
-        "Skipping advanceComputation for the aggregator " +
-          "expected_stage=${Stage.WAIT_ON_AGGREGATION_INPUT}, actual_stage=${aggregatorStage}"
-      }
-    } else {
-      logWallClockDuration(
-        token,
-        DATA_TRANSMISSION_RPC_WALL_CLOCK_DURATION,
-        stageDataTransmissionDurationHistogram,
-      ) {
-        sendAdvanceComputationRequest(
-          header =
-            advanceComputationHeader(
-              Description.AGGREGATION_PHASE_INPUT,
-              token.globalComputationId,
-            ),
-          content = addLoggingHook(token, flowOf(aggregationPhaseInput.toByteString())),
-          stub = aggregatorStub,
-        )
-      }
+
+    logWallClockDuration(
+      token,
+      DATA_TRANSMISSION_RPC_WALL_CLOCK_DURATION,
+      stageDataTransmissionDurationHistogram,
+    ) {
+      sendAdvanceComputationRequest(
+        header =
+          advanceComputationHeader(
+            Description.AGGREGATION_PHASE_INPUT,
+            token.globalComputationId,
+          ),
+        content = addLoggingHook(token, flowOf(aggregationPhaseInput.toByteString())),
+        stub = aggregatorStub,
+      )
     }
 
     return completeComputation(token, ComputationDetails.CompletedReason.SUCCEEDED)
