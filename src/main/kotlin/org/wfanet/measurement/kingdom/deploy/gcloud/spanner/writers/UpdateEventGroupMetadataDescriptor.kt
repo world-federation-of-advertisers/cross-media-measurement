@@ -23,7 +23,6 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupMetadataDescriptorAlreadyExistsWithTypeException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupMetadataDescriptorNotFoundException
@@ -68,8 +67,7 @@ class UpdateEventGroupMetadataDescriptor(
           eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
       )
 
-      set("DescriptorDetails" to eventGroupMetadataDescriptor.details)
-      setJson("DescriptorDetailsJson" to eventGroupMetadataDescriptor.details)
+      set("DescriptorDetails").to(eventGroupMetadataDescriptor.details)
     }
 
     transactionContext.buffer(

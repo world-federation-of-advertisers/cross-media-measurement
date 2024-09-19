@@ -15,10 +15,9 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
@@ -70,8 +69,9 @@ class CancelMeasurement(
       }
     }
 
-    val measurementLogEntryDetails =
-      MeasurementLogEntryKt.details { logMessage = "Measurement was cancelled" }
+    val measurementLogEntryDetails = measurementLogEntryDetails {
+      logMessage = "Measurement was cancelled"
+    }
 
     updateMeasurementState(
       measurementConsumerId = measurementConsumerId,

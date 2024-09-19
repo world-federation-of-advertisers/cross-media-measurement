@@ -116,7 +116,7 @@ import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow as InternalExcha
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
-import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
+import org.wfanet.measurement.internal.kingdom.MeasurementFailure as InternalMeasurementFailure
 import org.wfanet.measurement.internal.kingdom.ModelLine as InternalModelLine
 import org.wfanet.measurement.internal.kingdom.ModelOutage as InternalModelOutage
 import org.wfanet.measurement.internal.kingdom.ModelRelease as InternalModelRelease
@@ -132,6 +132,7 @@ import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTemplate
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
+import org.wfanet.measurement.internal.kingdom.measurementDetails as internalMeasurementDetails
 import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
 import org.wfanet.measurement.internal.kingdom.modelOutage as internalModelOutage
 import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRelease
@@ -250,15 +251,15 @@ fun State.toInternalState(): List<InternalMeasurement.State> {
   }
 }
 
-/** Converts an internal [InternalMeasurement.Failure.Reason] to a public [Failure.Reason]. */
-fun InternalMeasurement.Failure.Reason.toReason(): Failure.Reason =
+/** Converts an internal [InternalMeasurementFailure.Reason] to a public [Failure.Reason]. */
+fun InternalMeasurementFailure.Reason.toReason(): Failure.Reason =
   when (this) {
-    InternalMeasurement.Failure.Reason.CERTIFICATE_REVOKED -> Failure.Reason.CERTIFICATE_REVOKED
-    InternalMeasurement.Failure.Reason.REQUISITION_REFUSED -> Failure.Reason.REQUISITION_REFUSED
-    InternalMeasurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED ->
+    InternalMeasurementFailure.Reason.CERTIFICATE_REVOKED -> Failure.Reason.CERTIFICATE_REVOKED
+    InternalMeasurementFailure.Reason.REQUISITION_REFUSED -> Failure.Reason.REQUISITION_REFUSED
+    InternalMeasurementFailure.Reason.COMPUTATION_PARTICIPANT_FAILED ->
       Failure.Reason.COMPUTATION_PARTICIPANT_FAILED
-    InternalMeasurement.Failure.Reason.REASON_UNSPECIFIED,
-    InternalMeasurement.Failure.Reason.UNRECOGNIZED -> Failure.Reason.REASON_UNSPECIFIED
+    InternalMeasurementFailure.Reason.REASON_UNSPECIFIED,
+    InternalMeasurementFailure.Reason.UNRECOGNIZED -> Failure.Reason.REASON_UNSPECIFIED
   }
 
 fun InternalDifferentialPrivacyParams.toDifferentialPrivacyParams(): DifferentialPrivacyParams {
@@ -1010,7 +1011,7 @@ fun Measurement.toInternal(
     externalMeasurementConsumerCertificateId =
       apiIdToExternalId(measurementConsumerCertificateKey.certificateId)
     dataProviders.putAll(dataProviderValues.mapKeys { it.key.value })
-    details = details {
+    details = internalMeasurementDetails {
       apiVersion = Version.V2_ALPHA.string
       measurementSpec = source.measurementSpec.message.value
       measurementSpecSignature = source.measurementSpec.signature

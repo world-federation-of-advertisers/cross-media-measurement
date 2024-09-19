@@ -12,18 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest import TestCase
+import unittest
 
-from src.main.python.noiseninja.noised_measurements import Measurement
-from src.main.python.report.report import Report, MetricReport
+from noiseninja.noised_measurements import Measurement
+from report.report import Report, MetricReport
 
 EXPECTED_PRECISION = 3
 EDP_ONE = "EDP_ONE"
 EDP_TWO = "EDP_TWO"
 EDP_THREE = "EDP_THREE"
 
-
-class TestReport(TestCase):
+class TestReport(unittest.TestCase):
 
     def test_get_cover_relationships(self):
         metric_report = MetricReport(
@@ -745,3 +744,6 @@ class TestReport(TestCase):
                 actual.get_metric_report(metric),
                 msg,
             )
+
+if __name__=="__main__":
+    unittest.main()

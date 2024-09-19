@@ -23,9 +23,9 @@ import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getInternalId
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.DataProvider
+import org.wfanet.measurement.internal.kingdom.DataProviderDetails
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 
@@ -43,7 +43,6 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
       DataProviders.DataProviderId,
       DataProviders.ExternalDataProviderId,
       DataProviders.DataProviderDetails,
-      DataProviders.DataProviderDetailsJson,
       DataProviderCertificates.ExternalDataProviderCertificateId,
       Certificates.CertificateId,
       Certificates.SubjectKeyIdentifier,
@@ -118,7 +117,8 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
     DataProvider.newBuilder()
       .apply {
         externalDataProviderId = struct.getLong("ExternalDataProviderId")
-        details = struct.getProtoMessage("DataProviderDetails", DataProvider.Details.parser())
+        details =
+          struct.getProtoMessage("DataProviderDetails", DataProviderDetails.getDefaultInstance())
         certificate = CertificateReader.buildDataProviderCertificate(struct)
         addAllRequiredExternalDuchyIds(buildExternalDuchyIdList(struct))
       }

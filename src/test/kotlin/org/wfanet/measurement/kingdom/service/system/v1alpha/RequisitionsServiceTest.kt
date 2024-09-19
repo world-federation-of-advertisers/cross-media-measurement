@@ -34,15 +34,16 @@ import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.internal.kingdom.CertificateKt as InternalCertificateKt
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.computedRequisitionParams
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisitionKt
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase as InternalRequisitionsCoroutineService
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
+import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest as internalFulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.requisition as internalRequisition
+import org.wfanet.measurement.internal.kingdom.requisitionDetails
 import org.wfanet.measurement.system.v1alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.system.v1alpha.Requisition
 
@@ -71,16 +72,15 @@ private val INTERNAL_REQUISITION = internalRequisition {
   externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
   externalFulfillingDuchyId = DUCHY_ID
   state = InternalRequisition.State.FULFILLED
-  details =
-    InternalRequisitionKt.details {
-      encryptedRequisitionSpec = ByteString.copyFromUtf8("foo")
-      nonceHash = NONCE_HASH.bytes
-      nonce = NONCE
-    }
+  details = requisitionDetails {
+    encryptedRequisitionSpec = ByteString.copyFromUtf8("foo")
+    nonceHash = NONCE_HASH.bytes
+    nonce = NONCE
+  }
   dataProviderCertificate = internalCertificate {
     externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
     externalCertificateId = EXTERNAL_DATA_PROVIDER_CERTIFICATE_ID
-    details = InternalCertificateKt.details { x509Der = DATA_PROVIDER_CERTIFICATE_DER }
+    details = certificateDetails { x509Der = DATA_PROVIDER_CERTIFICATE_DER }
   }
   parentMeasurement = InternalRequisitionKt.parentMeasurement { apiVersion = PUBLIC_API_VERSION }
 }

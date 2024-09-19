@@ -21,9 +21,9 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.BatchCancelMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.BatchCancelMeasurementsResponse
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.batchCancelMeasurementsResponse
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementEtagMismatchException
@@ -91,8 +91,8 @@ class BatchCancelMeasurements(private val requests: BatchCancelMeasurementsReque
           )
         if (actualEtag != request.etag) {
           throw MeasurementEtagMismatchException(actualEtag, request.etag) {
-            "Requested Measurement etag ${request.etag} does not match actual measurement etag" +
-              "$actualEtag"
+            "Requested Measurement etag ${request.etag} does not match actual measurement etag " +
+              actualEtag
           }
         }
       }
@@ -100,8 +100,9 @@ class BatchCancelMeasurements(private val requests: BatchCancelMeasurementsReque
       resultsList.add(result)
     }
 
-    val measurementLogEntryDetails =
-      MeasurementLogEntryKt.details { logMessage = "Measurement was cancelled" }
+    val measurementLogEntryDetails = measurementLogEntryDetails {
+      logMessage = "Measurement was cancelled"
+    }
 
     for (result in resultsList) {
       updateMeasurementState(

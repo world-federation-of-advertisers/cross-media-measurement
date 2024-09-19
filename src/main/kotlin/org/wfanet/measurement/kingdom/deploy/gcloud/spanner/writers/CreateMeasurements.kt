@@ -23,15 +23,16 @@ import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantDetails
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.RequisitionKt
+import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.requisitionDetails
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
@@ -327,8 +328,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       }
       set("CertificateId" to measurementConsumerCertificateId)
       set("State" to initialMeasurementState)
-      set("MeasurementDetails" to createMeasurementRequest.measurement.details)
-      setJson("MeasurementDetailsJson" to createMeasurementRequest.measurement.details)
+      set("MeasurementDetails").to(createMeasurementRequest.measurement.details)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     }
@@ -339,15 +339,14 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     measurementId: InternalId,
     duchyId: InternalId,
   ) {
-    val participantDetails = ComputationParticipant.Details.getDefaultInstance()
+    val participantDetails = ComputationParticipantDetails.getDefaultInstance()
     transactionContext.bufferInsertMutation("ComputationParticipants") {
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)
       set("DuchyId" to duchyId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("State" to ComputationParticipant.State.CREATED)
-      set("ParticipantDetails" to participantDetails)
-      setJson("ParticipantDetailsJson" to participantDetails)
+      set("ParticipantDetails").to(participantDetails)
     }
   }
 
@@ -384,18 +383,17 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
   ) {
     val requisitionId = idGenerator.generateInternalId()
     val externalRequisitionId = idGenerator.generateExternalId()
-    val details: Requisition.Details =
-      RequisitionKt.details {
-        dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
-        encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
-        nonceHash = dataProviderValue.nonceHash
+    val details: RequisitionDetails = requisitionDetails {
+      dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
+      encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
+      nonceHash = dataProviderValue.nonceHash
 
-        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
-        // fields.
-        dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
-        dataProviderPublicKeySignatureAlgorithmOid =
-          dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
-      }
+      // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
+      // fields.
+      dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
+      dataProviderPublicKeySignatureAlgorithmOid =
+        dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
+    }
     val fulfillingDuchyId =
       if (fulfillingDuchies.isNotEmpty()) {
         // Requisitions for the same measurement might go to different duchies.
@@ -415,8 +413,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       set("DataProviderCertificateId" to dataProviderCertificateId)
       set("State" to initialRequisitionState)
       fulfillingDuchyId?.let { set("FulfillingDuchyId" to it) }
-      set("RequisitionDetails" to details)
-      setJson("RequisitionDetailsJson" to details)
+      set("RequisitionDetails").to(details)
     }
   }
 

@@ -27,16 +27,15 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantDetails
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantETagMismatchException
@@ -169,11 +168,10 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       set("CertificateId" to duchyCertificateId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("State" to nextState)
-      set("ParticipantDetails" to participantDetails)
-      setJson("ParticipantDetailsJson" to participantDetails)
+      set("ParticipantDetails").to(participantDetails)
     }
 
-    val otherComputationParticipants: List<ComputationParticipantDetails> =
+    val otherComputationParticipants: List<ComputationParticipantResult> =
       findComputationParticipants(externalComputationId)
         .filter { it.duchyId.value != duchyId }
         .toList()
@@ -187,8 +185,9 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         nextState,
       )
     ) {
-      val measurementLogEntryDetails =
-        MeasurementLogEntryKt.details { logMessage = "Pending requisition fulfillment" }
+      val measurementLogEntryDetails = measurementLogEntryDetails {
+        logMessage = "Pending requisition fulfillment"
+      }
       updateMeasurementState(
         measurementConsumerId = measurementConsumerId,
         measurementId = measurementId,
@@ -251,14 +250,14 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       }
   }
 
-  private data class ComputationParticipantDetails(
+  private data class ComputationParticipantResult(
     val duchyId: InternalId,
-    val details: ComputationParticipant.Details,
+    val details: ComputationParticipantDetails,
   )
 
   private fun TransactionScope.findComputationParticipants(
     externalComputationId: ExternalId
-  ): Flow<ComputationParticipantDetails> {
+  ): Flow<ComputationParticipantResult> {
     val sql =
       """
       SELECT
@@ -274,41 +273,8 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
     return transactionContext.executeQuery(statement).map {
       val duchyId = InternalId(it.getLong("DuchyId"))
       val details =
-        it.getProtoMessage("ParticipantDetails", ComputationParticipant.Details.parser())
-      ComputationParticipantDetails(duchyId, details)
+        it.getProtoMessage("ParticipantDetails", ComputationParticipantDetails.getDefaultInstance())
+      ComputationParticipantResult(duchyId, details)
     }
-  }
-
-  private fun selectFulfillingDuchyId(
-    requisitionId: Long,
-    currentDuchyId: Long,
-    currentParticipantDetails: ComputationParticipant.Details,
-    otherParticipantDetails: List<ComputationParticipantDetails>,
-  ): Long {
-    // TODO(@renjiez): Set the fulfullingDuchyId during Measurement creation by adding duchy roles
-    // into HMSS config.
-    val candidateDuchyIds = mutableListOf<Long>()
-
-    require(currentParticipantDetails.hasHonestMajorityShareShuffle()) {
-      "ComputationParticipantDetails does not have HonestMajorityShareShuffle."
-    }
-    if (!currentParticipantDetails.honestMajorityShareShuffle.tinkPublicKey.isEmpty) {
-      candidateDuchyIds += currentDuchyId
-    }
-    for (participant in otherParticipantDetails) {
-      require(participant.details.hasHonestMajorityShareShuffle()) {
-        "ComputationParticipantDetails does not have HonestMajorityShareShuffle."
-      }
-      if (!participant.details.honestMajorityShareShuffle.tinkPublicKey.isEmpty) {
-        candidateDuchyIds += participant.duchyId.value
-      }
-    }
-
-    require(candidateDuchyIds.size == 2) {
-      "Number of computation participant to fulfill requisition is ${candidateDuchyIds.size}."
-    }
-
-    candidateDuchyIds.sort()
-    return candidateDuchyIds[(requisitionId % candidateDuchyIds.size).toInt()]
   }
 }

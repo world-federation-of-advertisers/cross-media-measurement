@@ -22,9 +22,8 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.EventGroup
+import org.wfanet.measurement.internal.kingdom.EventGroupDetails
 import org.wfanet.measurement.internal.kingdom.eventGroup
 
 class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
@@ -124,7 +123,7 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
     createTime = struct.getTimestamp("CreateTime").toProto()
     updateTime = struct.getTimestamp("UpdateTime").toProto()
     if (!struct.isNull("EventGroupDetails")) {
-      details = struct.getProtoMessage("EventGroupDetails", EventGroup.Details.parser())
+      details = struct.getProtoMessage("EventGroupDetails", EventGroupDetails.getDefaultInstance())
     }
     state = struct.getProtoEnum("State", EventGroup.State::forNumber)
   }

@@ -12,5 +12,14 @@ kt_jvm_library(
     srcs = ["ComputationStage.kt"],
     deps = [
         "//src/main/proto/wfa/measurement/internal/duchy:computation_protocols_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_stage_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "etags",
+    srcs = ["ETags.kt"],
+    deps = [
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:hashing",
     ],
 )

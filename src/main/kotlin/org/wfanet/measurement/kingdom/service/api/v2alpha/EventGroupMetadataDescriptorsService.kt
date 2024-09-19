@@ -52,11 +52,11 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor as InternalEventGroupMetadataDescriptor
-import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptor as internalEventGroupMetadataDescriptor
+import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptorDetails
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptorKey
 import org.wfanet.measurement.internal.kingdom.getEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupMetadataDescriptorsRequest
@@ -375,7 +375,7 @@ private fun EventGroupMetadataDescriptor.toInternal(
       this.idempotencyKey = idempotencyKey
     }
 
-    details = details {
+    details = eventGroupMetadataDescriptorDetails {
       apiVersion = API_VERSION.string
       descriptorSet = this@toInternal.descriptorSet
     }

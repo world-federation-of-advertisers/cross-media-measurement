@@ -36,7 +36,6 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroup
-import org.wfanet.measurement.internal.kingdom.EventGroupKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -45,6 +44,7 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup
+import org.wfanet.measurement.internal.kingdom.eventGroupDetails
 import org.wfanet.measurement.internal.kingdom.eventGroupKey
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
@@ -55,7 +55,7 @@ private const val RANDOM_SEED = 1
 private const val EXTERNAL_EVENT_GROUP_ID = 123L
 private const val FIXED_EXTERNAL_ID = 6789L
 private const val PROVIDED_EVENT_GROUP_ID = "ProvidedEventGroupId"
-private val DETAILS = details {
+private val DETAILS = eventGroupDetails {
   apiVersion = Version.V2_ALPHA.string
   encryptedMetadata = ByteString.copyFromUtf8("somedata")
 }
@@ -358,7 +358,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
     val modifyEventGroup =
       createdEventGroup.copy {
-        details = details { encryptedMetadata = ByteString.copyFromUtf8("metadata") }
+        details = eventGroupDetails { encryptedMetadata = ByteString.copyFromUtf8("metadata") }
       }
 
     val updatedEventGroup =
@@ -833,7 +833,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
     val modifyEventGroup =
       deletedEventGroup.copy {
-        details = details { encryptedMetadata = ByteString.copyFromUtf8("metadata") }
+        details = eventGroupDetails { encryptedMetadata = ByteString.copyFromUtf8("metadata") }
       }
 
     val exception =

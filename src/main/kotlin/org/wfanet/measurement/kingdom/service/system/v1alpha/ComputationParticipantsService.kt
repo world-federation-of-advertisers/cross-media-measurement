@@ -25,17 +25,19 @@ import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
-import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.honestMajorityShareShuffleDetails
-import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequest as InternalConfirmComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest as InternalFailComputationParticipantRequest
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry as InternalMeasurementLogEntry
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt as InternalMeasurementLogEntryKt
+import org.wfanet.measurement.internal.kingdom.HonestMajorityShareShuffleParams
+import org.wfanet.measurement.internal.kingdom.LiquidLegionsV2Params
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryError as InternalMeasurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest as InternalSetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.confirmComputationParticipantRequest as internalConfirmComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.failComputationParticipantRequest as internalFailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.getComputationParticipantRequest as internalGetComputationParticipantRequest
+import org.wfanet.measurement.internal.kingdom.honestMajorityShareShuffleParams
+import org.wfanet.measurement.internal.kingdom.liquidLegionsV2Params
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryError as internalMeasurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest as internalSetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant.RequisitionParams.ProtocolCase
@@ -165,9 +167,9 @@ class ComputationParticipantsService(
   }
 
   private fun ComputationParticipant.RequisitionParams.LiquidLegionsV2.toLlV2Details():
-    InternalComputationParticipant.LiquidLegionsV2Details {
+    LiquidLegionsV2Params {
     val source = this
-    return liquidLegionsV2Details {
+    return liquidLegionsV2Params {
       elGamalPublicKey = source.elGamalPublicKey
       elGamalPublicKeySignature = source.elGamalPublicKeySignature
       elGamalPublicKeySignatureAlgorithmOid = source.elGamalPublicKeySignatureAlgorithmOid
@@ -175,9 +177,9 @@ class ComputationParticipantsService(
   }
 
   private fun ComputationParticipant.RequisitionParams.HonestMajorityShareShuffle.toHmssDetails():
-    InternalComputationParticipant.HonestMajorityShareShuffleDetails {
+    HonestMajorityShareShuffleParams {
     val source = this
-    return honestMajorityShareShuffleDetails {
+    return honestMajorityShareShuffleParams {
       tinkPublicKey = source.tinkPublicKey
       tinkPublicKeySignature = source.tinkPublicKeySignature
       tinkPublicKeySignatureAlgorithmOid = source.tinkPublicKeySignatureAlgorithmOid
@@ -204,15 +206,14 @@ class ComputationParticipantsService(
     return internalFailComputationParticipantRequest {
       externalComputationId = apiIdToExternalId(computationParticipantKey.computationId)
       externalDuchyId = computationParticipantKey.duchyId
-      errorMessage = failure.errorMessage
+      logMessage = failure.errorMessage
       duchyChildReferenceId = failure.participantChildReferenceId
       if (failure.hasStageAttempt()) {
         stageAttempt = failure.stageAttempt.toInternalStageAttempt()
-        errorDetails =
-          InternalMeasurementLogEntryKt.errorDetails {
-            type = InternalMeasurementLogEntry.ErrorDetails.Type.PERMANENT
-            errorTime = failure.errorTime
-          }
+        error = internalMeasurementLogEntryError {
+          type = InternalMeasurementLogEntryError.Type.PERMANENT
+          errorTime = failure.errorTime
+        }
       }
       etag = source.etag
     }

@@ -25,6 +25,7 @@ import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.computationStage
 import org.wfanet.measurement.internal.duchy.computationStageDetails
 import org.wfanet.measurement.internal.duchy.computationToken
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.stageDetails
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt.waitOnAggregationInputDetails
@@ -48,10 +49,27 @@ class HonestMajorityShareShuffleStagesTest {
   fun `next stages are valid for waiting stages`() {
     for (stage in Stage.values()) {
       when (stage) {
-        Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE,
-        Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO,
+        Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE -> {
+          val next =
+            stages
+              .nextStage(stage.toProtocolStage(), RoleInComputation.SECOND_NON_AGGREGATOR)
+              .honestMajorityShareShuffle
+          assertThat(HonestMajorityShareShuffleProtocol.EnumStages.validTransition(stage, next))
+            .isTrue()
+        }
+        Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO -> {
+          val next =
+            stages
+              .nextStage(stage.toProtocolStage(), RoleInComputation.FIRST_NON_AGGREGATOR)
+              .honestMajorityShareShuffle
+          assertThat(HonestMajorityShareShuffleProtocol.EnumStages.validTransition(stage, next))
+            .isTrue()
+        }
         Stage.WAIT_ON_AGGREGATION_INPUT -> {
-          val next = stages.nextStage(stage.toProtocolStage()).honestMajorityShareShuffle
+          val next =
+            stages
+              .nextStage(stage.toProtocolStage(), RoleInComputation.AGGREGATOR)
+              .honestMajorityShareShuffle
           assertThat(HonestMajorityShareShuffleProtocol.EnumStages.validTransition(stage, next))
             .isTrue()
         }

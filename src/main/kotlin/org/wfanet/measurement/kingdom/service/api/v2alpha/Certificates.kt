@@ -26,8 +26,8 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
 import org.wfanet.measurement.internal.kingdom.CertificateKt
-import org.wfanet.measurement.internal.kingdom.CertificateKt.details
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
+import org.wfanet.measurement.internal.kingdom.certificateDetails as internalCertificateDetails
 
 private const val CERTIFICATE_DER_FIELD_NAME = "certificate_der"
 
@@ -64,5 +64,7 @@ fun CertificateKt.Dsl.fillFromX509(x509Certificate: X509Certificate, encoded: By
   subjectKeyIdentifier = skid
   notValidBefore = x509Certificate.notBefore.toInstant().toProtoTime()
   notValidAfter = x509Certificate.notAfter.toInstant().toProtoTime()
-  details = details { x509Der = encoded ?: x509Certificate.encoded.toByteString() }
+  details = internalCertificateDetails {
+    x509Der = encoded ?: x509Certificate.encoded.toByteString()
+  }
 }

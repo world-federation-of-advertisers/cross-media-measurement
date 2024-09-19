@@ -41,17 +41,18 @@ import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineI
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
-import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.honestMajorityShareShuffleDetails
-import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantDetails
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.computedRequisitionParams
+import org.wfanet.measurement.internal.kingdom.HonestMajorityShareShuffleParams
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.MeasurementFailure
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -65,6 +66,8 @@ import org.wfanet.measurement.internal.kingdom.failComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.getComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
+import org.wfanet.measurement.internal.kingdom.honestMajorityShareShuffleParams
+import org.wfanet.measurement.internal.kingdom.liquidLegionsV2Params
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
@@ -83,7 +86,7 @@ private val EL_GAMAL_PUBLIC_KEY_SIGNATURE =
 private val TINK_PUBLIC_KEY = ByteString.copyFromUtf8("This is an Tink Public Key.")
 private val TINK_PUBLIC_KEY_SIGNATURE =
   ByteString.copyFromUtf8("This is an Tink Public Key signature.")
-private val TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID = "2.9999"
+private const val TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID = "2.9999"
 
 @RunWith(JUnit4::class)
 abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCoroutineImplBase> {
@@ -108,7 +111,6 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     private set
 
   private lateinit var duchyCertificates: Map<String, Certificate>
-    private set
 
   protected lateinit var measurementsService: MeasurementsCoroutineImplBase
     private set
@@ -182,7 +184,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           state = ComputationParticipant.State.CREATED
           updateTime = measurement.updateTime
           apiVersion = Version.V2_ALPHA.string
-          details = ComputationParticipant.Details.getDefaultInstance()
+          details = ComputationParticipantDetails.getDefaultInstance()
         }
       )
     assertThat(response.etag).isNotEmpty()
@@ -249,7 +251,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalDuchyId = "wrong_external_duchy_id"
       externalDuchyCertificateId =
         duchyCertificates[DUCHIES[0].externalDuchyId]!!.externalCertificateId
-      liquidLegionsV2 = liquidLegionsV2Details {
+      liquidLegionsV2 = liquidLegionsV2Params {
         elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
         elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
       }
@@ -283,7 +285,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalDuchyId = DUCHIES[0].externalDuchyId
       externalDuchyCertificateId =
         duchyCertificates[DUCHIES[0].externalDuchyId]!!.externalCertificateId
-      liquidLegionsV2 = liquidLegionsV2Details {
+      liquidLegionsV2 = liquidLegionsV2Params {
         elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
         elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
       }
@@ -317,7 +319,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         externalComputationId = measurement.externalComputationId
         externalDuchyId = DUCHIES[0].externalDuchyId
         externalDuchyCertificateId = 12345L // Wrong External Duchy Certificate Id
-        liquidLegionsV2 = liquidLegionsV2Details {
+        liquidLegionsV2 = liquidLegionsV2Params {
           elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
           elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
         }
@@ -351,7 +353,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalDuchyId = DUCHIES[0].externalDuchyId
       externalDuchyCertificateId =
         duchyCertificates[DUCHIES[0].externalDuchyId]!!.externalCertificateId
-      liquidLegionsV2 = liquidLegionsV2Details {
+      liquidLegionsV2 = liquidLegionsV2Params {
         elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
         elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
       }
@@ -399,7 +401,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalComputationId = measurement.externalComputationId
       externalDuchyId = certificate.externalDuchyId
       externalDuchyCertificateId = certificate.externalCertificateId
-      liquidLegionsV2 = liquidLegionsV2Details {
+      liquidLegionsV2 = liquidLegionsV2Params {
         elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
         elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
       }
@@ -439,7 +441,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalComputationId = measurement.externalComputationId
       externalDuchyId = certificate.externalDuchyId
       externalDuchyCertificateId = certificate.externalCertificateId
-      liquidLegionsV2 = liquidLegionsV2Details {
+      liquidLegionsV2 = liquidLegionsV2Params {
         elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
         elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
       }
@@ -480,7 +482,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalDuchyId = DUCHIES[0].externalDuchyId
       externalDuchyCertificateId =
         duchyCertificates[DUCHIES[0].externalDuchyId]!!.externalCertificateId
-      liquidLegionsV2 = liquidLegionsV2Details {
+      liquidLegionsV2 = liquidLegionsV2Params {
         elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
         elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
       }
@@ -525,7 +527,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalDuchyId = DUCHIES[0].externalDuchyId
       externalDuchyCertificateId =
         duchyCertificates[DUCHIES[0].externalDuchyId]!!.externalCertificateId
-      liquidLegionsV2 = liquidLegionsV2Details {
+      liquidLegionsV2 = liquidLegionsV2Params {
         elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
         elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
       }
@@ -584,7 +586,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalComputationId = measurement.externalComputationId
       this.externalDuchyId = externalDuchyId
       externalDuchyCertificateId = duchyCertificates[externalDuchyId]!!.externalCertificateId
-      liquidLegionsV2 = liquidLegionsV2Details {
+      liquidLegionsV2 = liquidLegionsV2Params {
         elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
         elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
       }
@@ -628,7 +630,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalDuchyId = DUCHIES[0].externalDuchyId
       externalDuchyCertificateId =
         duchyCertificates[DUCHIES[0].externalDuchyId]!!.externalCertificateId
-      honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+      honestMajorityShareShuffle = honestMajorityShareShuffleParams {
         tinkPublicKey = TINK_PUBLIC_KEY
         tinkPublicKeySignature = TINK_PUBLIC_KEY_SIGNATURE
         tinkPublicKeySignatureAlgorithmOid = TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
@@ -687,8 +689,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           externalDuchyId = DUCHIES[0].externalDuchyId
           externalDuchyCertificateId =
             duchyCertificates[DUCHIES[0].externalDuchyId]!!.externalCertificateId
-          honestMajorityShareShuffle =
-            ComputationParticipant.HonestMajorityShareShuffleDetails.getDefaultInstance()
+          honestMajorityShareShuffle = HonestMajorityShareShuffleParams.getDefaultInstance()
         }
       )
       // Set Participant Params for second computationParticipant.
@@ -698,7 +699,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           externalDuchyId = DUCHIES[1].externalDuchyId
           externalDuchyCertificateId =
             duchyCertificates[DUCHIES[1].externalDuchyId]!!.externalCertificateId
-          honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+          honestMajorityShareShuffle = honestMajorityShareShuffleParams {
             tinkPublicKey = TINK_PUBLIC_KEY
             tinkPublicKeySignature = TINK_PUBLIC_KEY_SIGNATURE
             tinkPublicKeySignatureAlgorithmOid = TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
@@ -712,7 +713,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           externalDuchyId = DUCHIES[2].externalDuchyId
           externalDuchyCertificateId =
             duchyCertificates[DUCHIES[2].externalDuchyId]!!.externalCertificateId
-          honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+          honestMajorityShareShuffle = honestMajorityShareShuffleParams {
             tinkPublicKey = TINK_PUBLIC_KEY
             tinkPublicKeySignature = TINK_PUBLIC_KEY_SIGNATURE
             tinkPublicKeySignatureAlgorithmOid = TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
@@ -772,7 +773,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           externalDuchyId = DUCHIES[0].externalDuchyId
           externalDuchyCertificateId =
             duchyCertificates[DUCHIES[0].externalDuchyId]!!.externalCertificateId
-          liquidLegionsV2 = liquidLegionsV2Details {
+          liquidLegionsV2 = liquidLegionsV2Params {
             elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
             elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
           }
@@ -785,7 +786,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           externalDuchyId = DUCHIES[1].externalDuchyId
           externalDuchyCertificateId =
             duchyCertificates[DUCHIES[1].externalDuchyId]!!.externalCertificateId
-          liquidLegionsV2 = liquidLegionsV2Details {
+          liquidLegionsV2 = liquidLegionsV2Params {
             elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
             elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
           }
@@ -798,7 +799,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           externalDuchyId = DUCHIES[2].externalDuchyId
           externalDuchyCertificateId =
             duchyCertificates[DUCHIES[2].externalDuchyId]!!.externalCertificateId
-          liquidLegionsV2 = liquidLegionsV2Details {
+          liquidLegionsV2 = liquidLegionsV2Params {
             elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
             elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
           }
@@ -840,7 +841,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         population.createDataProvider(dataProvidersService),
       )
 
-    val setParticipantRequisitionParamsDetails = liquidLegionsV2Details {
+    val setParticipantRequisitionParamsDetails = liquidLegionsV2Params {
       elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
       elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
     }
@@ -926,7 +927,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         population.createDataProvider(dataProvidersService),
         population.createDataProvider(dataProvidersService),
       )
-    val setParticipantRequisitionParamsDetails = liquidLegionsV2Details {
+    val setParticipantRequisitionParamsDetails = liquidLegionsV2Params {
       elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
       elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
     }
@@ -1005,7 +1006,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         ),
       )
 
-    val setParticipantRequisitionParamsDetails = liquidLegionsV2Details {
+    val setParticipantRequisitionParamsDetails = liquidLegionsV2Params {
       elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
       elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
     }
@@ -1082,7 +1083,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         population.createDataProvider(dataProvidersService),
         population.createDataProvider(dataProvidersService),
       )
-    val liquidLegionsV2Details = liquidLegionsV2Details {
+    val liquidLegionsV2Details = liquidLegionsV2Params {
       elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
       elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
     }
@@ -1160,7 +1161,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalDuchyId = DUCHIES[0].externalDuchyId
       externalDuchyCertificateId =
         duchyCertificates[DUCHIES[0].externalDuchyId]!!.externalCertificateId
-      liquidLegionsV2 = liquidLegionsV2Details {
+      liquidLegionsV2 = liquidLegionsV2Params {
         elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
         elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
       }
@@ -1212,7 +1213,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           externalDuchyId = DUCHIES[0].externalDuchyId
           externalDuchyCertificateId =
             duchyCertificates[DUCHIES[0].externalDuchyId]!!.externalCertificateId
-          liquidLegionsV2 = liquidLegionsV2Details {
+          liquidLegionsV2 = liquidLegionsV2Params {
             elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
             elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
           }
@@ -1224,7 +1225,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         failComputationParticipantRequest {
           externalComputationId = measurement.externalComputationId
           externalDuchyId = DUCHIES[0].externalDuchyId
-          errorMessage = "Failure message."
+          logMessage = "Failure message."
           etag = computationParticipant.etag
         }
       )
@@ -1238,7 +1239,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       )
     assertThat(failedMeasurement.state).isEqualTo(Measurement.State.FAILED)
     assertThat(failedMeasurement.details.failure.reason)
-      .isEqualTo(Measurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED)
+      .isEqualTo(MeasurementFailure.Reason.COMPUTATION_PARTICIPANT_FAILED)
     assertThat(failedMeasurement.details.failure.message)
       .contains("Computation Participant failed.")
     assertThat(failedMeasurement.details.failure.message).contains("Failure message.")
@@ -1272,7 +1273,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           failComputationParticipantRequest {
             externalComputationId = measurement.externalComputationId
             externalDuchyId = DUCHIES[0].externalDuchyId
-            errorMessage = "Failure message."
+            logMessage = "Failure message."
             etag = "invalid ETag"
           }
         )

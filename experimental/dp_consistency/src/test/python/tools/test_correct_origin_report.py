@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest import TestCase
-from src.main.python.tools.correctoriginreport import correctExcelFile
+import unittest
 
+from tools.correct_origin_report import correctExcelFile
 
 CUML_REACH_COL_NAME = "Cumulative Reach 1+"
 TOTAL_REACH_COL_NAME = "Total Reach (1+)"
@@ -24,10 +24,10 @@ AMI_FILTER = "AMI"
 MRC_FILTER = "MRC"
 
 
-class TestOriginSheetReport(TestCase):
+class TestOriginSheetReport(unittest.TestCase):
     def test_get_origin_report_corrected_successfully(self):
         correctedExcel = correctExcelFile(
-            "tests/tools/example_origin_report.xlsx", "Linear TV"
+            "experimental/dp_consistency/src/test/python/tools/example_origin_report.xlsx", "Linear TV"
         )
         (google_ami_rows, google_mrc_rows) = self.get_edp_rows(correctedExcel, "Google")
         (tv_ami_rows, tv_mrc_rows) = self.get_edp_rows(correctedExcel, "Linear TV")
@@ -90,3 +90,6 @@ class TestOriginSheetReport(TestCase):
         if len(list1) != len(list2):
             raise ValueError("Lists must have the same length")
         self.assertTrue(all(list1[i] >= list2[i] for i in range(len(list1))))
+
+if __name__=="__main__":
+    unittest.main()

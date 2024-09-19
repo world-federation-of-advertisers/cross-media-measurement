@@ -18,7 +18,6 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
@@ -58,8 +57,7 @@ class CreateRecurringExchange(private val recurringExchange: RecurringExchange) 
       set("DataProviderId" to dataProviderId)
       set("State" to INITIAL_STATE)
       set("NextExchangeDate" to recurringExchange.nextExchangeDate.toCloudDate())
-      set("RecurringExchangeDetails" to recurringExchange.details)
-      setJson("RecurringExchangeDetailsJson" to recurringExchange.details)
+      set("RecurringExchangeDetails").to(recurringExchange.details)
     }
 
     return recurringExchange.copy {

@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from src.main.python.noiseninja.noised_measurements import Measurement
-from src.main.python.report.report import Report, MetricReport
-import sys
 import argparse
+import math
 import pandas as pd
 from functools import partial
-import math
+from noiseninja.noised_measurements import Measurement
+from report.report import Report, MetricReport
 
 # This is a demo script that has the following assumptions :
 #   1. There are 2 EDPs one with Name Google, the other Linear TV.
@@ -27,7 +26,6 @@ import math
 #   4. The standard deviation for all Measurements are assumed to be 1
 #   5. Frequency results are not corrected.
 #   6. Impression results are not corrected.
-
 
 SIGMA = 1
 

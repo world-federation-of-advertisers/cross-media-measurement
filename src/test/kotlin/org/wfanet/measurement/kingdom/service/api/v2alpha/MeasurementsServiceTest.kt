@@ -106,11 +106,10 @@ import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.BatchGetDataProvidersRequest
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
-import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
-import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalState
+import org.wfanet.measurement.internal.kingdom.MeasurementFailure as InternalMeasurementFailure
 import org.wfanet.measurement.internal.kingdom.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
@@ -129,11 +128,14 @@ import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest as inter
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createMeasurementRequest as internalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
+import org.wfanet.measurement.internal.kingdom.dataProviderCapabilities as internalDataProviderCapabilities
 import org.wfanet.measurement.internal.kingdom.differentialPrivacyParams as internalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest as internalGetMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams as internalLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
+import org.wfanet.measurement.internal.kingdom.measurementDetails
+import org.wfanet.measurement.internal.kingdom.measurementFailure as internalMeasurementFailure
 import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
@@ -789,10 +791,9 @@ class MeasurementsServiceTest {
                 this.externalDataProviderId = externalDataProviderId.value
                 details =
                   details.copy {
-                    capabilities =
-                      InternalDataProviderKt.capabilities {
-                        honestMajorityShareShuffleSupported = true
-                      }
+                    capabilities = internalDataProviderCapabilities {
+                      honestMajorityShareShuffleSupported = true
+                    }
                   }
               }
             }
@@ -2933,20 +2934,18 @@ class MeasurementsServiceTest {
           },
         )
       )
-      details =
-        InternalMeasurementKt.details {
-          apiVersion = API_VERSION.string
-          measurementSpec = MEASUREMENT.measurementSpec.message.value
-          measurementSpecSignature = MEASUREMENT.measurementSpec.signature
-          measurementSpecSignatureAlgorithmOid = MEASUREMENT.measurementSpec.signatureAlgorithmOid
-          protocolConfig = LLV2_INTERNAL_PROTOCOL_CONFIG
-          duchyProtocolConfig = LLV2_DUCHY_PROTOCOL_CONFIG
-          failure =
-            InternalMeasurementKt.failure {
-              reason = InternalMeasurement.Failure.Reason.CERTIFICATE_REVOKED
-              message = MEASUREMENT.failure.message
-            }
+      details = measurementDetails {
+        apiVersion = API_VERSION.string
+        measurementSpec = MEASUREMENT.measurementSpec.message.value
+        measurementSpecSignature = MEASUREMENT.measurementSpec.signature
+        measurementSpecSignatureAlgorithmOid = MEASUREMENT.measurementSpec.signatureAlgorithmOid
+        protocolConfig = LLV2_INTERNAL_PROTOCOL_CONFIG
+        duchyProtocolConfig = LLV2_DUCHY_PROTOCOL_CONFIG
+        failure = internalMeasurementFailure {
+          reason = InternalMeasurementFailure.Reason.CERTIFICATE_REVOKED
+          message = MEASUREMENT.failure.message
         }
+      }
       results += resultInfo {
         externalAggregatorDuchyId = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!.duchyId
         externalCertificateId =
@@ -2984,21 +2983,19 @@ class MeasurementsServiceTest {
 
     private val REACH_ONLY_INTERNAL_MEASUREMENT =
       INTERNAL_MEASUREMENT.copy {
-        details =
-          InternalMeasurementKt.details {
-            apiVersion = API_VERSION.string
-            measurementSpec = REACH_ONLY_MEASUREMENT.measurementSpec.message.value
-            measurementSpecSignature = REACH_ONLY_MEASUREMENT.measurementSpec.signature
-            measurementSpecSignatureAlgorithmOid =
-              REACH_ONLY_MEASUREMENT.measurementSpec.signatureAlgorithmOid
-            protocolConfig = RO_LLV2_INTERNAL_PROTOCOL_CONFIG
-            duchyProtocolConfig = RO_LLV2_DUCHY_PROTOCOL_CONFIG
-            failure =
-              InternalMeasurementKt.failure {
-                reason = InternalMeasurement.Failure.Reason.CERTIFICATE_REVOKED
-                message = MEASUREMENT.failure.message
-              }
+        details = measurementDetails {
+          apiVersion = API_VERSION.string
+          measurementSpec = REACH_ONLY_MEASUREMENT.measurementSpec.message.value
+          measurementSpecSignature = REACH_ONLY_MEASUREMENT.measurementSpec.signature
+          measurementSpecSignatureAlgorithmOid =
+            REACH_ONLY_MEASUREMENT.measurementSpec.signatureAlgorithmOid
+          protocolConfig = RO_LLV2_INTERNAL_PROTOCOL_CONFIG
+          duchyProtocolConfig = RO_LLV2_DUCHY_PROTOCOL_CONFIG
+          failure = internalMeasurementFailure {
+            reason = InternalMeasurementFailure.Reason.CERTIFICATE_REVOKED
+            message = MEASUREMENT.failure.message
           }
+        }
       }
     private val DEFAULT_INTERNAL_DIRECT_NOISE_MECHANISMS: List<InternalNoiseMechanism> =
       listOf(
