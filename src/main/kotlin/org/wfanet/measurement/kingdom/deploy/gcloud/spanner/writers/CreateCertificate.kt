@@ -25,6 +25,7 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertSubjectKeyIdAlreadyExistsException
@@ -141,7 +142,7 @@ fun Certificate.toInsertMutation(internalId: InternalId): Mutation {
     set("SubjectKeyIdentifier" to subjectKeyIdentifier.toGcloudByteArray())
     set("NotValidBefore" to notValidBefore.toGcloudTimestamp())
     set("NotValidAfter" to notValidAfter.toGcloudTimestamp())
-    set("RevocationState" to revocationState)
+    set("RevocationState").toInt64(revocationState)
     set("CertificateDetails").to(details)
   }
 }

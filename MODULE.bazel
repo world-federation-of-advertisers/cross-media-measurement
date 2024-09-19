@@ -22,7 +22,7 @@ K8S_CLIENT_VERSION = "21.0.1"
 # See https://github.com/bazelbuild/bazel/discussions/23075.
 bazel_dep(
     name = "rules_kotlin_jvm",
-    version = "0.3.0",
+    version = "0.4.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
 bazel_dep(
@@ -37,7 +37,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.91.0",
+    version = "0.92.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -125,11 +125,11 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_java",
-    version = "7.9.1",
+    version = "7.11.1",
 )
 bazel_dep(
     name = "rules_jvm_external",
-    version = "6.2.bzlmod.1",
+    version = "6.4",
 )
 bazel_dep(
     name = "rules_python",

@@ -20,6 +20,7 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountKt.openIdConnectIdentity
 import org.wfanet.measurement.internal.kingdom.copy
@@ -79,7 +80,7 @@ class ActivateAccount(
 
     transactionContext.bufferUpdateMutation("Accounts") {
       set("AccountId" to readAccountResult.accountId)
-      set("ActivationState" to Account.ActivationState.ACTIVATED)
+      set("ActivationState").toInt64(Account.ActivationState.ACTIVATED)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     }
 
