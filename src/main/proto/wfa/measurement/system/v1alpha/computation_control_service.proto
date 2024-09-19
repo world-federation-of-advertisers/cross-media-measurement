@@ -37,6 +37,9 @@ service ComputationControl {
       returns (ComputationStage) {
     option (google.api.method_signature) = "name";
   }
+
+  rpc TestConnection(TestConnectionRequest)
+      returns (TestConnectionResponse) {}
 }
 
 // Request to advance the computation at the receiver.
@@ -153,4 +156,11 @@ message GetComputationStageRequest {
         "halo-system.wfanet.org/ComputationStage",
     (google.api.field_behavior) = REQUIRED
   ];
+}
+
+message TestConnectionRequest {
+}
+
+message TestConnectionResponse {
+
 }

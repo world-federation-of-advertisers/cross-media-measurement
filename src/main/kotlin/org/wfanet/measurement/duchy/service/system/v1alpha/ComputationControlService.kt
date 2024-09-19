@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.service.system.v1alpha
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.ConsumedFlowItem
@@ -42,6 +43,8 @@ import org.wfanet.measurement.system.v1alpha.ComputationStage
 import org.wfanet.measurement.system.v1alpha.GetComputationStageRequest
 import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffleStage
 import org.wfanet.measurement.system.v1alpha.StageKey
+import org.wfanet.measurement.system.v1alpha.TestConnectionRequest
+import org.wfanet.measurement.system.v1alpha.TestConnectionResponse
 import org.wfanet.measurement.system.v1alpha.computationStage
 import org.wfanet.measurement.system.v1alpha.honestMajorityShareShuffleStage
 
@@ -127,12 +130,12 @@ class ComputationControlService(
       asyncComputationControlClient.advanceComputation(request)
     } catch (e: StatusException) {
       throw when (e.status.code) {
-          Status.Code.UNAVAILABLE -> Status.UNAVAILABLE
-          Status.Code.ABORTED -> Status.ABORTED
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          Status.Code.NOT_FOUND -> Status.NOT_FOUND
-          else -> Status.UNKNOWN
-        }
+        Status.Code.UNAVAILABLE -> Status.UNAVAILABLE
+        Status.Code.ABORTED -> Status.ABORTED
+        Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        else -> Status.UNKNOWN
+      }
         .withCause(e)
         .asRuntimeException()
     }
@@ -162,10 +165,20 @@ class ComputationControlService(
 //          .asRuntimeException()
 //      }
 //    return computationToken.toSystemStage(duchyId)
+
     return computationStage {
       honestMajorityShareShuffleStage = honestMajorityShareShuffleStage {
         stage = HonestMajorityShareShuffleStage.Stage.SETUP_PHASE
       }
     }
+  }
+
+  override suspend fun testConnection(request: TestConnectionRequest): TestConnectionResponse {
+    logger.info("TestConnectionRequest received.")
+    return TestConnectionResponse.getDefaultInstance()
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
