@@ -4336,10 +4336,13 @@ class ReportsServiceTest {
           )
         )
       }
+
       val internalInitialReport =
         internalRequestingReport.copy {
           externalReportId = reportIdBase + "report-id"
           createTime = Instant.now().toProtoTime()
+
+          reportingMetricEntries.clear()
 
           val initialReportingMetrics =
             reportingMetrics.mapIndexed { requestId, request ->
@@ -4356,8 +4359,11 @@ class ReportsServiceTest {
             )
           )
         }
+
       val internalPendingReport =
         internalInitialReport.copy {
+          reportingMetricEntries.clear()
+
           val pendingReportingMetrics =
             reportingMetrics.mapIndexed { requestId, request ->
               request.copy {
