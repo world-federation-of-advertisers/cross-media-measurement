@@ -29,7 +29,9 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
+import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequestKt
+import org.wfanet.measurement.api.v2alpha.ListMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
@@ -60,6 +62,8 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
+
+private const val MAX_PAGE_SIZE = 1000
 
 class MeasurementSystemProber(
   private val measurementConsumerName: String,
@@ -227,33 +231,51 @@ class MeasurementSystemProber(
       return true
     }
 
-    val finishedMeasurements: List<Measurement> =
-      measurementsStub
-        .listMeasurements(
-          listMeasurementsRequest {
-            filter = ListMeasurementsRequestKt.filter { states += COMPLETED_MEASUREMENT_STATES }
-          }
-        )
-        .measurementsList
-
+    val finishedMeasurements =
+      listAllMeasurements(
+        filter = ListMeasurementsRequestKt.filter { states += COMPLETED_MEASUREMENT_STATES }
+      )
     if (finishedMeasurements.isEmpty()) {
       return false
     }
 
-    val oldFinishedMeasurements: List<Measurement> =
-      measurementsStub
-        .listMeasurements(
-          listMeasurementsRequest {
-            filter =
-              ListMeasurementsRequestKt.filter {
-                states += COMPLETED_MEASUREMENT_STATES
-                updatedBefore = clock.instant().minus(durationBetweenMeasurement).toProtoTime()
-              }
+    val oldFinishedMeasurements =
+      listAllMeasurements(
+        filter =
+          ListMeasurementsRequestKt.filter {
+            states += COMPLETED_MEASUREMENT_STATES
+            updatedBefore = clock.instant().minus(durationBetweenMeasurement).toProtoTime()
           }
-        )
-        .measurementsList
+      )
 
     return finishedMeasurements.size == oldFinishedMeasurements.size
+  }
+
+  private suspend fun listAllMeasurements(
+    filter: ListMeasurementsRequest.Filter
+  ): List<Measurement> {
+    val measurements = mutableListOf<Measurement>()
+    var nextPageToken = ""
+    var isFirstRequest = true
+
+    while (isFirstRequest || nextPageToken.isNotBlank()) {
+      val response: ListMeasurementsResponse =
+        measurementsStub.listMeasurements(
+          listMeasurementsRequest {
+            this.filter = filter
+            pageSize = MAX_PAGE_SIZE
+            pageToken = nextPageToken
+          }
+        )
+
+      if (isFirstRequest) {
+        isFirstRequest = false
+      }
+
+      nextPageToken = response.nextPageToken
+    }
+
+    return measurements
   }
 
   private suspend fun getDataProviderEntry(
