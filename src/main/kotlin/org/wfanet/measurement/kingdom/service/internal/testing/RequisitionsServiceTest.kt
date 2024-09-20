@@ -527,31 +527,38 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         dataServices.accountsService,
       )
     val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
-    val measurement = population.createLlv2Measurement(
-      dataServices.measurementsService,
-      measurementConsumer,
-      "measurement 1",
-      dataProvider,
-    )
+    val measurement =
+      population.createLlv2Measurement(
+        dataServices.measurementsService,
+        measurementConsumer,
+        "measurement 1",
+        dataProvider,
+      )
 
-    val measurement2 = population.createLlv2Measurement(
-      dataServices.measurementsService,
-      measurementConsumer,
-      "measurement 2",
-      dataProvider,
-    )
+    val measurement2 =
+      population.createLlv2Measurement(
+        dataServices.measurementsService,
+        measurementConsumer,
+        "measurement 2",
+        dataProvider,
+      )
 
-    val measurement3 = population.createLlv2Measurement(
-      dataServices.measurementsService,
-      measurementConsumer,
-      "measurement 3",
-      dataProvider,
-    )
+    val measurement3 =
+      population.createLlv2Measurement(
+        dataServices.measurementsService,
+        measurementConsumer,
+        "measurement 3",
+        dataProvider,
+      )
 
-    val requisition = dataServices.measurementsService.getMeasurementByComputationId(
-      getMeasurementByComputationIdRequest {
-        externalComputationId = measurement.externalComputationId
-      }).requisitionsList[0]
+    val requisition =
+      dataServices.measurementsService
+        .getMeasurementByComputationId(
+          getMeasurementByComputationIdRequest {
+            externalComputationId = measurement.externalComputationId
+          }
+        )
+        .requisitionsList[0]
 
     val requisitions: List<Requisition> =
       service
@@ -567,15 +574,23 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         )
         .toList()
 
-    val requisition2 = dataServices.measurementsService.getMeasurementByComputationId(
-      getMeasurementByComputationIdRequest {
-        externalComputationId = measurement2.externalComputationId
-      }).requisitionsList[0]
+    val requisition2 =
+      dataServices.measurementsService
+        .getMeasurementByComputationId(
+          getMeasurementByComputationIdRequest {
+            externalComputationId = measurement2.externalComputationId
+          }
+        )
+        .requisitionsList[0]
 
-    val requisition3 = dataServices.measurementsService.getMeasurementByComputationId(
-      getMeasurementByComputationIdRequest {
-        externalComputationId = measurement3.externalComputationId
-      }).requisitionsList[0]
+    val requisition3 =
+      dataServices.measurementsService
+        .getMeasurementByComputationId(
+          getMeasurementByComputationIdRequest {
+            externalComputationId = measurement3.externalComputationId
+          }
+        )
+        .requisitionsList[0]
 
     assertThat(requisitions)
       .comparingExpectedFieldsOnly()

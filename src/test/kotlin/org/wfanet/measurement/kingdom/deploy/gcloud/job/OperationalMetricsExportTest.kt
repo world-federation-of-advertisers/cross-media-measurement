@@ -65,7 +65,6 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
@@ -85,7 +84,6 @@ import org.wfanet.measurement.internal.kingdom.bigquerytables.latestMeasurementR
 import org.wfanet.measurement.internal.kingdom.bigquerytables.latestRequisitionReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.measurementsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.requisitionsTableRow
-import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementDetails
@@ -103,11 +101,11 @@ class OperationalMetricsExportTest {
   }
 
   private val requisitionsMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase = mockService {
-    onBlocking { streamRequisitions(any()) }
-      .thenReturn(flowOf(REQUISITION, REQUISITION_2))
+    onBlocking { streamRequisitions(any()) }.thenReturn(flowOf(REQUISITION, REQUISITION_2))
   }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule {
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
     addService(measurementsMock)
     addService(requisitionsMock)
   }
@@ -265,18 +263,14 @@ class OperationalMetricsExportTest {
       val protoRows: ProtoRows = allValues.first()
       assertThat(protoRows.serializedRowsList).hasSize(2)
 
-      val requisitionTableRow =
-        RequisitionsTableRow.parseFrom(protoRows.serializedRowsList[0])
+      val requisitionTableRow = RequisitionsTableRow.parseFrom(protoRows.serializedRowsList[0])
       assertThat(requisitionTableRow)
         .isEqualTo(
           requisitionsTableRow {
-            measurementConsumerId =
-              externalIdToApiId(REQUISITION.externalMeasurementConsumerId)
+            measurementConsumerId = externalIdToApiId(REQUISITION.externalMeasurementConsumerId)
             measurementId = externalIdToApiId(REQUISITION.externalMeasurementId)
-            requisitionId =
-              externalIdToApiId(REQUISITION.externalRequisitionId)
-            dataProviderId =
-              externalIdToApiId(REQUISITION.externalDataProviderId)
+            requisitionId = externalIdToApiId(REQUISITION.externalRequisitionId)
+            dataProviderId = externalIdToApiId(REQUISITION.externalDataProviderId)
             isDirect = false
             measurementType = MeasurementType.REACH_AND_FREQUENCY
             state = RequisitionsTableRow.State.FULFILLED
@@ -284,27 +278,20 @@ class OperationalMetricsExportTest {
             updateTime = REQUISITION.updateTime
             completionDurationSeconds =
               Durations.toSeconds(
-                Timestamps.between(
-                  REQUISITION.parentMeasurement.createTime,
-                  REQUISITION.updateTime,
-                )
+                Timestamps.between(REQUISITION.parentMeasurement.createTime, REQUISITION.updateTime)
               )
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
           }
         )
 
-      val requisition2TableRow =
-        RequisitionsTableRow.parseFrom(protoRows.serializedRowsList[1])
+      val requisition2TableRow = RequisitionsTableRow.parseFrom(protoRows.serializedRowsList[1])
       assertThat(requisition2TableRow)
         .isEqualTo(
           requisitionsTableRow {
-            measurementConsumerId =
-              externalIdToApiId(REQUISITION_2.externalMeasurementConsumerId)
+            measurementConsumerId = externalIdToApiId(REQUISITION_2.externalMeasurementConsumerId)
             measurementId = externalIdToApiId(REQUISITION_2.externalMeasurementId)
-            requisitionId =
-              externalIdToApiId(REQUISITION_2.externalRequisitionId)
-            dataProviderId =
-              externalIdToApiId(REQUISITION_2.externalDataProviderId)
+            requisitionId = externalIdToApiId(REQUISITION_2.externalRequisitionId)
+            dataProviderId = externalIdToApiId(REQUISITION_2.externalDataProviderId)
             isDirect = true
             measurementType = MeasurementType.REACH_AND_FREQUENCY
             state = RequisitionsTableRow.State.FULFILLED
@@ -454,10 +441,7 @@ class OperationalMetricsExportTest {
           "${Timestamps.toNanos(requisition.updateTime)}",
         )
       val externalDataProviderIdFieldValue: FieldValue =
-        FieldValue.of(
-          FieldValue.Attribute.PRIMITIVE,
-          "${requisition.externalDataProviderId}",
-        )
+        FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${requisition.externalDataProviderId}")
       val externalRequisitionIdFieldValue: FieldValue =
         FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${requisition.externalRequisitionId}")
 
@@ -787,18 +771,18 @@ class OperationalMetricsExportTest {
           }
       }
 
-    private val REQUISITION =
-      requisition {
-        externalMeasurementConsumerId = 1234
-        externalMeasurementId = 123
-        externalDataProviderId = 432
-        externalRequisitionId = 433
-        state = Requisition.State.FULFILLED
-        updateTime = timestamp {
-          seconds = 500
-          nanos = 100
-        }
-        parentMeasurement = RequisitionKt.parentMeasurement {
+    private val REQUISITION = requisition {
+      externalMeasurementConsumerId = 1234
+      externalMeasurementId = 123
+      externalDataProviderId = 432
+      externalRequisitionId = 433
+      state = Requisition.State.FULFILLED
+      updateTime = timestamp {
+        seconds = 500
+        nanos = 100
+      }
+      parentMeasurement =
+        RequisitionKt.parentMeasurement {
           measurementSpec = PUBLIC_API_MEASUREMENT_SPEC.toByteString()
           measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
           measurementSpecSignatureAlgorithmOid = "2.9999"
@@ -807,27 +791,27 @@ class OperationalMetricsExportTest {
           }
           createTime = timestamp { seconds = 200 }
         }
-      }
+    }
 
-    private val REQUISITION_2 =
-      requisition {
-        externalMeasurementConsumerId = 1234
-        externalMeasurementId = 123
-        externalDataProviderId = 432
-        externalRequisitionId = 437
-        state = Requisition.State.FULFILLED
-        updateTime = timestamp {
-          seconds = 600
-          nanos = 100
-        }
-        parentMeasurement = RequisitionKt.parentMeasurement {
+    private val REQUISITION_2 = requisition {
+      externalMeasurementConsumerId = 1234
+      externalMeasurementId = 123
+      externalDataProviderId = 432
+      externalRequisitionId = 437
+      state = Requisition.State.FULFILLED
+      updateTime = timestamp {
+        seconds = 600
+        nanos = 100
+      }
+      parentMeasurement =
+        RequisitionKt.parentMeasurement {
           measurementSpec = PUBLIC_API_MEASUREMENT_SPEC.toByteString()
           measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
           measurementSpecSignatureAlgorithmOid = "2.9999"
           protocolConfig = protocolConfig { direct = ProtocolConfig.Direct.getDefaultInstance() }
           createTime = timestamp { seconds = 200 }
         }
-      }
+    }
 
     private val LATEST_MEASUREMENT_FIELD_LIST: FieldList =
       FieldList.of(

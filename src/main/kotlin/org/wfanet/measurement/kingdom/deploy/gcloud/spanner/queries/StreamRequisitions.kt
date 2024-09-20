@@ -28,7 +28,9 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
     RequisitionReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
       if (requestFilter.hasUpdatedAfter()) {
-        appendClause("ORDER BY UpdateTime ASC, ExternalDataProviderId ASC, ExternalRequisitionId ASC")
+        appendClause(
+          "ORDER BY UpdateTime ASC, ExternalDataProviderId ASC, ExternalRequisitionId ASC"
+        )
       } else {
         appendClause("ORDER BY ExternalDataProviderId ASC, ExternalRequisitionId ASC")
       }
