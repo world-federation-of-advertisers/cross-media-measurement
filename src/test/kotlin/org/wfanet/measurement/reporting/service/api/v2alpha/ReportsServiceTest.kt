@@ -1140,7 +1140,7 @@ class ReportsServiceTest {
         reportEnd = date {
           year = 2024
           month = 1
-          day = 5
+          day = 12
         }
       }
 
@@ -1152,6 +1152,16 @@ class ReportsServiceTest {
           }
           endTime = timestamp {
             seconds = 1704268800 // January 3, 2024 at 12:00 AM, America/Los_Angeles
+          }
+        }
+      )
+      add(
+        interval {
+          startTime = timestamp {
+            seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+          }
+          endTime = timestamp {
+            seconds = 1704873600 // January 10, 2024 at 12:00 AM, America/Los_Angeles
           }
         }
       )
@@ -4236,6 +4246,7 @@ class ReportsServiceTest {
       }
 
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::createReport)
+      .ignoringRepeatedFieldOrder()
       .isEqualTo(
         internalCreateReportRequest {
           report = internalRequestingReport
