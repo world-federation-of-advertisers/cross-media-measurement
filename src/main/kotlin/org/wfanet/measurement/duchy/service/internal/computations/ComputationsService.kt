@@ -233,6 +233,7 @@ class ComputationsService(
   override suspend fun getComputationToken(
     request: GetComputationTokenRequest
   ): GetComputationTokenResponse {
+    logger.info("Receive GetComputationTokenRequest. $request")
     val computationToken =
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (request.keyCase) {
