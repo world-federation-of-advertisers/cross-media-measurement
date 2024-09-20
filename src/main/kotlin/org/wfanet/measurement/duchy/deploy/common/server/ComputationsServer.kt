@@ -14,12 +14,14 @@
 
 package org.wfanet.measurement.duchy.deploy.common.server
 
+import io.grpc.Channel
 import io.grpc.ManagedChannel
 import java.time.Duration
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
@@ -78,9 +80,10 @@ abstract class ComputationsServer : Runnable {
         privateKeyFile = flags.server.tlsFlags.privateKeyFile,
         trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile,
       )
-    val channel: ManagedChannel =
+    val channel: Channel =
       buildMutualTlsChannel(flags.systemApiFlags.target, clientCerts, flags.systemApiFlags.certHost)
         .withShutdownTimeout(flags.channelShutdownTimeout)
+        .withVerboseLogging(true)
 
     val computationLogEntriesClient =
       ComputationLogEntriesCoroutineStub(channel).withDuchyId(flags.duchy.duchyName)
