@@ -1128,45 +1128,43 @@ class ReportsServiceTest {
     }
 
   @Test
-  fun `createReport returns report without including interval past the report_end`() =
-    runBlocking {
-      val reportingInterval =
-        ReportKt.reportingInterval {
-          reportStart = dateTime {
-            year = 2024
-            month = 1
-            day = 1 // Monday
-            utcOffset = duration { seconds = 60 * 60 * -8 }
-          }
-          reportEnd = date {
-            year = 2024
-            month = 1
-            day = 5
-          }
+  fun `createReport returns report without including interval past the report_end`() = runBlocking {
+    val reportingInterval =
+      ReportKt.reportingInterval {
+        reportStart = dateTime {
+          year = 2024
+          month = 1
+          day = 1 // Monday
+          utcOffset = duration { seconds = 60 * 60 * -8 }
         }
-
-      val timeIntervals: List<Interval> = buildList {
-        add(
-          interval {
-            startTime = timestamp {
-              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
-            }
-            endTime = timestamp {
-              seconds = 1704268800 // January 3, 2024 at 12:00 AM, America/Los_Angeles
-            }
-          }
-        )
+        reportEnd = date {
+          year = 2024
+          month = 1
+          day = 5
+        }
       }
 
-      val frequencySpec =
-        MetricCalculationSpecKt.metricFrequencySpec {
-          weekly = MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-            dayOfWeek = DayOfWeek.WEDNESDAY
+    val timeIntervals: List<Interval> = buildList {
+      add(
+        interval {
+          startTime = timestamp {
+            seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+          }
+          endTime = timestamp {
+            seconds = 1704268800 // January 3, 2024 at 12:00 AM, America/Los_Angeles
           }
         }
-
-      assertReportCreatedWithReportingInterval(reportingInterval, timeIntervals, frequencySpec)
+      )
     }
+
+    val frequencySpec =
+      MetricCalculationSpecKt.metricFrequencySpec {
+        weekly =
+          MetricCalculationSpecKt.MetricFrequencySpecKt.weekly { dayOfWeek = DayOfWeek.WEDNESDAY }
+      }
+
+    assertReportCreatedWithReportingInterval(reportingInterval, timeIntervals, frequencySpec)
+  }
 
   @Test
   fun `createReport returns report with two metrics when multiple filters`() = runBlocking {
