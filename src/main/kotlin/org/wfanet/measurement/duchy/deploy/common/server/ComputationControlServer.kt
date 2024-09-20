@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.deploy.common.server
 
 import io.grpc.Channel
+import java.util.logging.Logger
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -66,6 +67,8 @@ abstract class ComputationControlServer : Runnable {
         )
         .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
 
+    logger.info("channel info target: ${flags.computationsServiceFlags.target}:${flags.computationsServiceFlags.certHost}")
+
     CommonServer.fromFlags(
         flags.server,
         javaClass.name,
@@ -100,6 +103,8 @@ abstract class ComputationControlServer : Runnable {
   }
 
   companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+
     const val SERVICE_NAME = "ComputationControl"
   }
 }

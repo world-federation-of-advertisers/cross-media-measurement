@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.deploy.common.server
 
 import io.grpc.Channel
+import java.util.logging.Logger
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
@@ -84,6 +85,9 @@ private fun run(@CommandLine.Mixin flags: AsyncComputationControlServiceFlags) {
         flags.computationsServiceFlags.certHost,
       )
       .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
+
+  Logger.getLogger("AsyncComputationControlServer")
+    .info("channel info target: ${flags.computationsServiceFlags.target}:${flags.computationsServiceFlags.certHost}")
 
   CommonServer.fromFlags(
       flags.server,
