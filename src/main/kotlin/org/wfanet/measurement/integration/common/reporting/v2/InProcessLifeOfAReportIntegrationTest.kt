@@ -910,15 +910,16 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               displayName = "union reach"
               metricSpecs +=
                 metricSpec {
-                  reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                  vidSamplingInterval = VID_SAMPLING_INTERVAL
-                }
+                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                    vidSamplingInterval = VID_SAMPLING_INTERVAL
+                  }
                   .withDefaults(reportingServer.metricSpecConfig, secureRandom)
               metricFrequencySpec =
                 MetricCalculationSpecKt.metricFrequencySpec {
-                  weekly = MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                    dayOfWeek = com.google.type.DayOfWeek.WEDNESDAY
-                  }
+                  weekly =
+                    MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                      dayOfWeek = com.google.type.DayOfWeek.WEDNESDAY
+                    }
                 }
               trailingWindow =
                 MetricCalculationSpecKt.trailingWindow {
@@ -970,27 +971,32 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
     assertThat(retrievedReport.metricCalculationResultsList[0].resultAttributesList).hasSize(2)
-    val sortedResults = retrievedReport.metricCalculationResultsList[0].resultAttributesList.sortedBy { it.timeInterval.startTime.seconds }
-    assertThat(sortedResults[0].timeInterval).isEqualTo(
-      interval {
-        startTime = timestamp {
-          seconds = 1704268800 // January 3, 2024 at 12:00 AM, America/Los_Angeles
-        }
-        endTime = timestamp {
-          seconds - 1704873600 // January 10, 2024 at 12:00 AM, America/Los_Angeles
-        }
+    val sortedResults =
+      retrievedReport.metricCalculationResultsList[0].resultAttributesList.sortedBy {
+        it.timeInterval.startTime.seconds
       }
-    )
-    assertThat(sortedResults[1].timeInterval).isEqualTo(
-      interval {
-        startTime = timestamp {
-          seconds = 1704873600 // January 10, 2024 at 12:00 AM, America/Los_Angeles
+    assertThat(sortedResults[0].timeInterval)
+      .isEqualTo(
+        interval {
+          startTime = timestamp {
+            seconds = 1704268800 // January 3, 2024 at 12:00 AM, America/Los_Angeles
+          }
+          endTime = timestamp {
+            seconds - 1704873600 // January 10, 2024 at 12:00 AM, America/Los_Angeles
+          }
         }
-        endTime = timestamp {
-          seconds = 1705478400 // January 17, 2024 at 12:00 AM, America/Los_Angeles
+      )
+    assertThat(sortedResults[1].timeInterval)
+      .isEqualTo(
+        interval {
+          startTime = timestamp {
+            seconds = 1704873600 // January 10, 2024 at 12:00 AM, America/Los_Angeles
+          }
+          endTime = timestamp {
+            seconds = 1705478400 // January 17, 2024 at 12:00 AM, America/Los_Angeles
+          }
         }
-      }
-    )
+      )
   }
 
   @Test
