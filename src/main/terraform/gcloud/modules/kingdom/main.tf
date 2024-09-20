@@ -239,7 +239,7 @@ resource "google_bigquery_table" "latest_requisition_read" {
   dataset_id = google_bigquery_dataset.operational_metrics.dataset_id
   table_id   = "latest_requisition_read"
 
-  deletion_protection = true
+  deletion_protection = false
 
   time_partitioning {
     expiration_ms = 3888000000 // 45 days
