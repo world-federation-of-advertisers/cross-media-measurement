@@ -20,6 +20,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.Certificate.RevocationState
 import org.wfanet.measurement.internal.kingdom.ReleaseCertificateHoldRequest
@@ -121,7 +122,7 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
       RevocationState.HOLD -> {
         transactionContext.bufferUpdateMutation("Certificates") {
           set("CertificateId" to certificateResult.certificateId.value)
-          set("RevocationState" to RevocationState.REVOCATION_STATE_UNSPECIFIED)
+          set("RevocationState").toInt64(RevocationState.REVOCATION_STATE_UNSPECIFIED)
         }
         certificateResult.certificate.copy {
           revocationState = RevocationState.REVOCATION_STATE_UNSPECIFIED

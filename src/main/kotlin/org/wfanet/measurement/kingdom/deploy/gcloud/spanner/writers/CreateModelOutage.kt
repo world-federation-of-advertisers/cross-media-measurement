@@ -28,6 +28,7 @@ import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelOutage
 import org.wfanet.measurement.internal.kingdom.copy
@@ -94,7 +95,7 @@ class CreateModelOutage(private val modelOutage: ModelOutage) :
       set("ExternalModelOutageId" to externalModelOutageId)
       set("OutageStartTime" to modelOutage.modelOutageStartTime.toGcloudTimestamp())
       set("OutageEndTime" to modelOutage.modelOutageEndTime.toGcloudTimestamp())
-      set("State" to ModelOutage.State.ACTIVE)
+      set("State").toInt64(ModelOutage.State.ACTIVE)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
 

@@ -30,6 +30,7 @@ import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineInvalidArgsException
@@ -93,7 +94,7 @@ class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock
       if (modelLine.hasActiveEndTime()) {
         set("ActiveEndTime" to modelLine.activeEndTime.toGcloudTimestamp())
       }
-      set("Type" to modelLine.type)
+      set("Type").toInt64(modelLine.type)
       if (modelLine.externalHoldbackModelLineId != 0L) {
         val holdbackModelLineResult =
           ModelLineReader()
