@@ -87,6 +87,7 @@ message ListMeasurementsPageToken {
   google.protobuf.Timestamp updated_after = 5;
   google.protobuf.Timestamp updated_before = 6;
   google.protobuf.Timestamp created_before = 7;
+  google.protobuf.Timestamp created_after = 8;
 }
 
 message ListRequisitionsPageToken {

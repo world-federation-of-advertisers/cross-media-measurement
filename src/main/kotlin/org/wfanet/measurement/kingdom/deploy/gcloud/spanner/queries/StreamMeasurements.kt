@@ -42,6 +42,7 @@ class StreamMeasurements(
     private const val UPDATED_AFTER = "updatedAfter"
     private const val UPDATED_BEFORE = "updatedBefore"
     private const val CREATED_BEFORE = "createdBefore"
+    private const val CREATED_AFTER = "createdAfter"
     private const val STATES_PARAM = "states"
     private const val DUCHY_ID_PARAM = "duchyId"
 
@@ -128,6 +129,11 @@ class StreamMeasurements(
       if (filter.hasCreatedBefore()) {
         conjuncts.add("Measurements.CreateTime < @$CREATED_BEFORE")
         bind(CREATED_BEFORE to filter.createdBefore.toGcloudTimestamp())
+      }
+
+      if (filter.hasCreatedAfter()) {
+        conjuncts.add("Measurements.CreateTime > @$CREATED_AFTER")
+        bind(CREATED_AFTER to filter.createdAfter.toGcloudTimestamp())
       }
 
       if (filter.externalDuchyId.isNotEmpty()) {
