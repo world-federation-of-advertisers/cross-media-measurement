@@ -58,7 +58,7 @@ class DeleteEventGroup(private val request: DeleteEventGroupRequest) :
       set("EventGroupId" to result.internalEventGroupId.value)
       set("MeasurementConsumerCertificateId" to null as Long?)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      set("EventGroupDetails" to null as EventGroupDetails?)
+      set("EventGroupDetails").to(null, EventGroupDetails.getDescriptor())
       set("State" to EventGroup.State.DELETED)
     }
 

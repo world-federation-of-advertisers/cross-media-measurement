@@ -43,7 +43,7 @@ class CreateExchange(private val exchange: Exchange) : SimpleSpannerWriter<Excha
       set("RecurringExchangeId" to recurringExchangeId)
       set("Date" to exchange.date.toCloudDate())
       set("State" to INITIAL_STATE)
-      set("ExchangeDetails" to exchange.details)
+      set("ExchangeDetails").to(exchange.details)
     }
 
     return exchange.toBuilder().apply { state = INITIAL_STATE }.build()

@@ -83,7 +83,7 @@ class CreateEventGroupMetadataDescriptor(
         set("IdempotencyKey" to eventGroupMetadataDescriptor.idempotencyKey)
       }
 
-      set("DescriptorDetails" to eventGroupMetadataDescriptor.details)
+      set("DescriptorDetails").to(eventGroupMetadataDescriptor.details)
     }
 
     for (protobufTypeName in protobufTypeNames) {

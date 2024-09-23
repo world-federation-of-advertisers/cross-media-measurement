@@ -38,7 +38,7 @@ internal fun SpannerWriter.TransactionScope.updateMeasurementState(
       set("State" to nextState)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       if (details != null) {
-        set("MeasurementDetails" to details)
+        set("MeasurementDetails").to(details)
       }
     }
     .bufferTo(transactionContext)

@@ -780,6 +780,18 @@ private fun ListMeasurementsRequest.toListMeasurementsPageToken(): ListMeasureme
         "Arguments must be kept the same when using a page token"
       }
 
+      grpcRequire(source.filter.createdBefore == this.createdBefore) {
+        "Arguments must be kept the same when using a page token"
+      }
+
+      grpcRequire(source.filter.updatedBefore == this.updatedBefore) {
+        "Arguments must be kept the same when using a page token"
+      }
+
+      grpcRequire(source.filter.updatedAfter == this.updatedAfter) {
+        "Arguments must be kept the same when using a page token"
+      }
+
       if (source.pageSize in 1..MAX_PAGE_SIZE) {
         pageSize = source.pageSize
       }
@@ -795,6 +807,9 @@ private fun ListMeasurementsRequest.toListMeasurementsPageToken(): ListMeasureme
 
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
       states += measurementStatesList
+      updatedBefore = source.filter.updatedBefore
+      updatedAfter = source.filter.updatedAfter
+      createdBefore = source.filter.createdBefore
     }
   }
 }
@@ -809,6 +824,9 @@ private fun ListMeasurementsPageToken.toStreamMeasurementsRequest(): StreamMeasu
     filter = filter {
       externalMeasurementConsumerId = source.externalMeasurementConsumerId
       states += source.statesList.map { it.toInternalState() }.flatten()
+      createdBefore = source.createdBefore
+      updatedBefore = source.updatedBefore
+      updatedAfter = source.updatedAfter
       if (source.hasLastMeasurement()) {
         after =
           StreamMeasurementsRequestKt.FilterKt.after {

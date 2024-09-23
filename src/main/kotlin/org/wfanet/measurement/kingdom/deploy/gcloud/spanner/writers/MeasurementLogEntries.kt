@@ -35,7 +35,7 @@ internal fun SpannerWriter.TransactionScope.insertMeasurementLogEntry(
     set("MeasurementConsumerId" to measurementConsumerId)
     set("MeasurementId" to measurementId)
     set("CreateTime" to Value.COMMIT_TIMESTAMP)
-    set("MeasurementLogDetails" to logDetails)
+    set("MeasurementLogDetails").to(logDetails)
   }
 }
 
@@ -71,7 +71,7 @@ internal fun SpannerWriter.TransactionScope.insertDuchyMeasurementLogEntry(
     set("CreateTime" to Value.COMMIT_TIMESTAMP)
     set("DuchyId" to duchyId)
     set("ExternalComputationLogEntryId" to externalComputationLogEntryId)
-    set("DuchyMeasurementLogDetails" to logDetails)
+    set("DuchyMeasurementLogDetails").to(logDetails)
   }
 
   return externalComputationLogEntryId
