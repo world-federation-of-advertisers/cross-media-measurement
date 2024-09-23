@@ -63,8 +63,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 
-private const val MAX_PAGE_SIZE = 1000
-
 class MeasurementSystemProber(
   private val measurementConsumerName: String,
   private val dataProviderNames: List<String>,
@@ -224,10 +222,10 @@ class MeasurementSystemProber(
    * one is finished recently -> No.
    */
   private suspend fun shouldCreateNewMeasurement(): Boolean {
-    val previousMeasurements: List<Measurement> =
-      measurementsStub.listMeasurements(listMeasurementsRequest {}).measurementsList
+    val allMeasurements: List<Measurement> =
+      listAllMeasurements(filter = ListMeasurementsRequestKt.filter{})
 
-    if (previousMeasurements.isEmpty()) {
+    if (allMeasurements.isEmpty()) {
       return true
     }
 
@@ -260,13 +258,18 @@ class MeasurementSystemProber(
 
     while (isFirstRequest || nextPageToken.isNotBlank()) {
       val response: ListMeasurementsResponse =
-        measurementsStub.listMeasurements(
-          listMeasurementsRequest {
-            this.filter = filter
-            pageSize = MAX_PAGE_SIZE
-            pageToken = nextPageToken
-          }
-        )
+        try {
+          measurementsStub.listMeasurements(
+            listMeasurementsRequest {
+              parent = measurementConsumerName
+              this.filter = filter
+              pageSize = LIST_MEASUREMENTS_PAGE_SIZE
+              pageToken = nextPageToken
+            }
+          )
+        } catch (e: StatusException) {
+          throw Exception("Unable to list measurements, filtered by $filter, for measurement consumer $measurementConsumerName ", e)
+        }
 
       if (isFirstRequest) {
         isFirstRequest = false
@@ -333,6 +336,8 @@ class MeasurementSystemProber(
   }
 
   companion object {
+    private const val LIST_MEASUREMENTS_PAGE_SIZE = 1000
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private val secureRandom = SecureRandom.getInstance("SHA1PRNG")
