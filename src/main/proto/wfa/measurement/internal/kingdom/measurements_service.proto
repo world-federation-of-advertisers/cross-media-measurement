@@ -91,6 +91,7 @@ message StreamMeasurementsRequest {
     string externalDuchyId = 7;
     google.protobuf.Timestamp updated_before = 8;
     google.protobuf.Timestamp created_before = 9;
+    google.protobuf.Timestamp created_after = 11;
 
     message After {
       google.protobuf.Timestamp update_time = 1;
