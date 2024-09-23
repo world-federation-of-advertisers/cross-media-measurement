@@ -22,31 +22,30 @@ import com.google.common.truth.extensions.proto.ProtoSubject
 import org.wfanet.measurement.api.v2alpha.Measurement
 
 class MeasurementResultSubject
-private constructor(failureMetadata: FailureMetadata, subject: Measurement.Result) :
-  ProtoSubject(failureMetadata, subject) {
-
-  private val actual: Measurement.Result = subject
+private constructor(failureMetadata: FailureMetadata, private val actual: Measurement.Result?) :
+  ProtoSubject(failureMetadata, actual) {
 
   fun reachValue(): FuzzyLongSubject {
-    return check("reach.value").about(FuzzyLongSubject.fuzzyLongs()).that(actual.reach.value)
+    return check("reach.value").about(FuzzyLongSubject.fuzzyLongs()).that(actual?.reach?.value)
   }
 
   fun frequencyDistribution(): FrequencyDistributionSubject {
     return check("frequency.relativeFrequencyDistribution")
       .about(FrequencyDistributionSubject.frequencyDistributions())
-      .that(actual.frequency.relativeFrequencyDistributionMap)
+      .that(actual?.frequency?.relativeFrequencyDistributionMap)
   }
 
   fun impressionValue(): FuzzyLongSubject {
     return check("impression.value")
       .about(FuzzyLongSubject.fuzzyLongs())
-      .that(actual.impression.value)
+      .that(actual?.impression?.value)
   }
 
   companion object {
-    fun measurementResults():
-      (failureMetadata: FailureMetadata, subject: Measurement.Result) -> MeasurementResultSubject =
-      ::MeasurementResultSubject
+    fun measurementResults() =
+      Factory<MeasurementResultSubject, Measurement.Result> { metadata, actual ->
+        MeasurementResultSubject(metadata, actual)
+      }
 
     fun assertThat(subject: Measurement.Result): MeasurementResultSubject =
       assertAbout(measurementResults()).that(subject)
