@@ -223,7 +223,7 @@ class MeasurementSystemProber(
    */
   private suspend fun shouldCreateNewMeasurement(): Boolean {
     val allMeasurements: List<Measurement> =
-      listAllMeasurements(filter = ListMeasurementsRequestKt.filter{})
+      listAllMeasurements(filter = ListMeasurementsRequestKt.filter {})
 
     if (allMeasurements.isEmpty()) {
       return true
@@ -268,7 +268,10 @@ class MeasurementSystemProber(
             }
           )
         } catch (e: StatusException) {
-          throw Exception("Unable to list measurements, filtered by $filter, for measurement consumer $measurementConsumerName ", e)
+          throw Exception(
+            "Unable to list measurements, filtered by $filter, for measurement consumer $measurementConsumerName ",
+            e,
+          )
         }
 
       if (isFirstRequest) {
