@@ -17,6 +17,8 @@ package org.wfanet.measurement.duchy.service.system.v1alpha
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
+import java.util.logging.Level
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.ConsumedFlowItem
@@ -148,6 +150,9 @@ class ComputationControlService(
           )
           .token
       } catch (e: StatusException) {
+        logger.log(Level.WARNING) {
+          "Fail to get computation token. global_computation_id=${stageKey.computationId}"
+        }
         throw when (e.status.code) {
             Status.Code.UNAVAILABLE -> Status.UNAVAILABLE
             Status.Code.ABORTED -> Status.ABORTED
@@ -159,5 +164,9 @@ class ComputationControlService(
           .asRuntimeException()
       }
     return computationToken.toSystemStage(duchyId)
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

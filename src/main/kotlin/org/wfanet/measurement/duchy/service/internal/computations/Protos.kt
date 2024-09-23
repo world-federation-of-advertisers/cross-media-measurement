@@ -79,6 +79,7 @@ fun ComputationToken.inputPathList(): List<String> =
 
 /** Extract the [RoleInComputation] from a [ComputationToken]. */
 fun ComputationToken.role(): RoleInComputation {
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   return when (computationDetails.protocolCase) {
     ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 -> computationDetails.liquidLegionsV2.role
     ComputationDetails.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
