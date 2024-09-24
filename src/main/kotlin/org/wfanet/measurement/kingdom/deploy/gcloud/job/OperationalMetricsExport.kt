@@ -156,7 +156,10 @@ class OperationalMetricsExport(
                 latestUpdateTime = measurement.updateTime
 
                 val measurementType =
-                  getMeasurementType(measurement.details.measurementSpec, measurement.details.apiVersion)
+                  getMeasurementType(
+                    measurement.details.measurementSpec,
+                    measurement.details.apiVersion,
+                  )
 
                 val measurementConsumerId =
                   externalIdToApiId(measurement.externalMeasurementConsumerId)
@@ -319,7 +322,10 @@ class OperationalMetricsExport(
                 latestUpdateTime = requisition.updateTime
 
                 val measurementType =
-                  getMeasurementType(requisition.parentMeasurement.measurementSpec, requisition.parentMeasurement.apiVersion)
+                  getMeasurementType(
+                    requisition.parentMeasurement.measurementSpec,
+                    requisition.parentMeasurement.apiVersion,
+                  )
 
                 val measurementConsumerId =
                   externalIdToApiId(requisition.externalMeasurementConsumerId)
@@ -411,7 +417,10 @@ class OperationalMetricsExport(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val BATCH_SIZE = 3000
 
-    private fun getMeasurementType(measurementSpecByteString: com.google.protobuf.ByteString, apiVersion: String): MeasurementType {
+    private fun getMeasurementType(
+      measurementSpecByteString: com.google.protobuf.ByteString,
+      apiVersion: String,
+    ): MeasurementType {
       val measurementSpec = signedMessage {
         setMessage(
           any {
@@ -426,8 +435,7 @@ class OperationalMetricsExport(
         )
       }
 
-      val measurementTypeCase =
-        measurementSpec.unpack<MeasurementSpec>().measurementTypeCase
+      val measurementTypeCase = measurementSpec.unpack<MeasurementSpec>().measurementTypeCase
 
       val measurementType =
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
