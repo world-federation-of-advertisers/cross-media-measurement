@@ -30,7 +30,6 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.DeterministicCount
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.Measurement
-import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ModelRelease
@@ -74,7 +73,6 @@ class PopulationRequisitionFulfiller(
   requisitionsStub: RequisitionsCoroutineStub,
   throttler: Throttler,
   trustedCertificates: Map<ByteString, X509Certificate>,
-  measurementConsumerName: String,
   private val modelRolloutsStub: ModelRolloutsCoroutineStub,
   private val modelReleasesStub: ModelReleasesCoroutineStub,
   private val populationInfoMap: Map<PopulationKey, PopulationInfo>,
@@ -86,7 +84,6 @@ class PopulationRequisitionFulfiller(
     requisitionsStub,
     throttler,
     trustedCertificates,
-    measurementConsumerName,
   ) {
 
   /** A sequence of operations done in the simulator. */
@@ -96,11 +93,7 @@ class PopulationRequisitionFulfiller(
   /** Executes the requisition fulfillment workflow. */
   override suspend fun executeRequisitionFulfillingWorkflow() {
     logger.info("Executing requisitionFulfillingWorkflow...")
-    val requisitions =
-      getRequisitions().filter {
-        checkNotNull(MeasurementKey.fromName(it.measurement)).measurementConsumerId ==
-          measurementConsumerKey.measurementConsumerId
-      }
+    val requisitions = getRequisitions()
 
     if (requisitions.isEmpty()) {
       logger.fine("No unfulfilled requisition. Polling again later...")

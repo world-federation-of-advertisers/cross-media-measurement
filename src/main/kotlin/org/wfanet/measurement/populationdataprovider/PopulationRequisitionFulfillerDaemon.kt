@@ -140,36 +140,33 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
 
   @CommandLine.Option(
     names = ["--event-message-descriptor-set"],
-    description = ["Serialized DescriptorSet for the event message and its dependencies."],
+    description = ["Serialized FileDescriptorSet for the event message and its dependencies."],
     required = false,
   )
   private lateinit var eventMessageDescriptorSetFiles: List<File>
 
-  @Option(
-    names = ["--pdp-data"],
-    description = ["The Population DataProvider's public API resource name."],
-    required = true,
-  )
-  private lateinit var pdpDataFile: File
+  @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*")
+  lateinit var populationKeyAndInfo: List<PopulationKeyAndInfo>
+    private set
 
-  @Option(
-    names = ["--measurement-consumer-name"],
-    description = ["The Measurement Consumer's public API resource name."],
-    required = true,
-  )
-  private lateinit var measurementConsumerName: String
+  class PopulationKeyAndInfo {
+    @Option(names = ["--population-key"], required = true)
+    lateinit var populationKey: String
+      private set
 
-  @Option(
-    names = ["--population-info-map"],
-    description =
-      [
-        "Key-value pair of PopulationKey and list of file paths" +
-          "that represent the Population Info. The first element of the list is the Population Spec and " +
-          "the second element is the descriptor"
-      ],
-    required = true,
-  )
-  private lateinit var populationInfoFileMap: Map<String, List<File>>
+    @CommandLine.ArgGroup(exclusive = false, multiplicity = "1")
+    lateinit var populationInfo: PopulationInfo
+      private set
+  }
+
+  class PopulationInfo {
+    @Option(names = ["--population-spec"], required = true)
+    lateinit var populationSpecFile: File
+      private set
+    @Option(names = ["--event-message-descriptor"], required = true)
+    lateinit var eventMessageDescriptorFile: File
+      private set
+  }
 
   override fun run() {
     val certificate: X509Certificate =
@@ -219,7 +216,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
 
     val typeRegistry = buildTypeRegistry()
 
-    val populationInfoMap = buildPopulationInfoMap(populationInfoFileMap)
+    val populationInfoMap = buildPopulationInfoMap(populationKeyAndInfo)
 
     var populationRequisitionFulfiller =
       PopulationRequisitionFulfiller(
@@ -228,7 +225,6 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
         requisitionsStub,
         throttler,
         clientCerts.trustedCertificates,
-        measurementConsumerName,
         modelRolloutsStub,
         modelReleasesStub,
         populationInfoMap,
@@ -252,13 +248,16 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
   }
 
   private fun buildPopulationInfoMap(
-    populationInfoFileMap: Map<String, List<File>>
-  ): Map<PopulationKey, PopulationInfo> {
-    return populationInfoFileMap.entries.associate {
-      grpcRequireNotNull(PopulationKey.fromName(it.key)) to
+    populationKeyAndInfoList: List<PopulationKeyAndInfo>
+  ): Map<PopulationKey, org.wfanet.measurement.populationdataprovider.PopulationInfo> {
+    return populationKeyAndInfoList.associate {
+      grpcRequireNotNull(PopulationKey.fromName(it.populationKey)) to
         PopulationInfo(
-          parseTextProto(it.value[0], PopulationSpec.getDefaultInstance()),
-          parseTextProto(it.value[1], DescriptorProtos.FileDescriptorSet.getDefaultInstance())
+          parseTextProto(it.populationInfo.populationSpecFile, PopulationSpec.getDefaultInstance()),
+          parseTextProto(
+              it.populationInfo.eventMessageDescriptorFile,
+              DescriptorProtos.FileDescriptorSet.getDefaultInstance()
+            )
             .descriptorForType,
         )
     }
