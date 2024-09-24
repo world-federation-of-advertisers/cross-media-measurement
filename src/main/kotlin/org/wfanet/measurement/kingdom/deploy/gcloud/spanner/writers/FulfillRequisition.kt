@@ -21,6 +21,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -197,7 +198,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
         statement(sql) {
           bind(Params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
           bind(Params.MEASUREMENT_ID to measurementId)
-          bind(Params.REQUISITION_STATE to state)
+          bind(Params.REQUISITION_STATE).toInt64(state)
         }
       return transactionContext.executeQuery(query).map { struct ->
         InternalId(struct.getLong("RequisitionId"))

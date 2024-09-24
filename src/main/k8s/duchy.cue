@@ -350,6 +350,7 @@ import ("strings")
 				_object_prefix + "llv2-mill-app",
 				_object_prefix + "hmss-mill-app",
 				_object_prefix + "async-computation-control-server-app",
+				_object_prefix + "computation-control-server-app",
 				_object_prefix + "requisition-fulfillment-server-app",
 				_object_prefix + "computations-cleaner-app",
 			]
