@@ -61,6 +61,7 @@ _edpConfigs: [
 		certResourceName: _edpCertResourceNames[i]
 		displayName:      "edp\(Number)"
 		eventGroupSpec:   _eventGroupSpecs[SpecIndex]
+		// Support HMSS on the first half of the EDPs so that we have one EDP with each event source supporting the protocol.
 		if (i < len(_edpResourceNames)/2) {
 			supportHmss: true
 		}
