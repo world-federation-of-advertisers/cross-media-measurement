@@ -56,8 +56,8 @@ import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.struct
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
 import org.wfanet.measurement.gcloud.spanner.testing.assertQueryReturns
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.gcloud.spanner.toProtoBytes
-import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.gcloud.spanner.toProtoJson
 import org.wfanet.measurement.internal.db.gcp.FakeComputationDetails
 import org.wfanet.measurement.internal.db.gcp.FakeProtocolStageDetails
@@ -1250,7 +1250,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
             set("ComputationStage").toFakeStage(token.stage)
             set("BlobId").to(1234L)
             set("PathToBlob").to("/wrote/something/there")
-            set("DependencyType").toProtoEnum(ComputationBlobDependency.OUTPUT)
+            set("DependencyType").toInt64(ComputationBlobDependency.OUTPUT)
             set("UpdateTime").to(testClock["write-blob-ref"].toGcloudTimestamp())
           }
           .build(),
@@ -1260,7 +1260,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
             set("ComputationStage").toFakeStage(token.stage)
             set("BlobId").to(5678L)
             set("PathToBlob").to("/path/to/input/blob")
-            set("DependencyType").toProtoEnum(ComputationBlobDependency.INPUT)
+            set("DependencyType").toInt64(ComputationBlobDependency.INPUT)
             set("UpdateTime").to(testClock["write-blob-ref"].toGcloudTimestamp())
           }
           .build(),
