@@ -155,35 +155,8 @@ class OperationalMetricsExport(
                 measurementsQueryResponseSize++
                 latestUpdateTime = measurement.updateTime
 
-                val measurementSpec = signedMessage {
-                  setMessage(
-                    any {
-                      value = measurement.details.measurementSpec
-                      typeUrl =
-                        when (measurement.details.apiVersion) {
-                          Version.V2_ALPHA.toString() ->
-                            ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
-                          else -> ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
-                        }
-                    }
-                  )
-                  signature = measurement.details.measurementSpecSignature
-                  signatureAlgorithmOid = measurement.details.measurementSpecSignatureAlgorithmOid
-                }
-                val measurementTypeCase =
-                  measurementSpec.unpack<MeasurementSpec>().measurementTypeCase
                 val measurementType =
-                  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-                  when (measurementTypeCase) {
-                    MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
-                      MeasurementType.REACH_AND_FREQUENCY
-                    MeasurementSpec.MeasurementTypeCase.IMPRESSION -> MeasurementType.IMPRESSION
-                    MeasurementSpec.MeasurementTypeCase.DURATION -> MeasurementType.DURATION
-                    MeasurementSpec.MeasurementTypeCase.REACH -> MeasurementType.REACH
-                    MeasurementSpec.MeasurementTypeCase.POPULATION -> MeasurementType.POPULATION
-                    MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
-                      MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
-                  }
+                  getMeasurementType(measurement.details.measurementSpec, measurement.details.apiVersion)
 
                 val measurementConsumerId =
                   externalIdToApiId(measurement.externalMeasurementConsumerId)
@@ -345,36 +318,8 @@ class OperationalMetricsExport(
                 requisitionsQueryResponseSize++
                 latestUpdateTime = requisition.updateTime
 
-                val measurementSpec = signedMessage {
-                  setMessage(
-                    any {
-                      value = requisition.parentMeasurement.measurementSpec
-                      typeUrl =
-                        when (requisition.parentMeasurement.apiVersion) {
-                          Version.V2_ALPHA.toString() ->
-                            ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
-                          else -> ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
-                        }
-                    }
-                  )
-                  signature = requisition.parentMeasurement.measurementSpecSignature
-                  signatureAlgorithmOid =
-                    requisition.parentMeasurement.measurementSpecSignatureAlgorithmOid
-                }
-                val measurementTypeCase =
-                  measurementSpec.unpack<MeasurementSpec>().measurementTypeCase
                 val measurementType =
-                  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-                  when (measurementTypeCase) {
-                    MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
-                      MeasurementType.REACH_AND_FREQUENCY
-                    MeasurementSpec.MeasurementTypeCase.IMPRESSION -> MeasurementType.IMPRESSION
-                    MeasurementSpec.MeasurementTypeCase.DURATION -> MeasurementType.DURATION
-                    MeasurementSpec.MeasurementTypeCase.REACH -> MeasurementType.REACH
-                    MeasurementSpec.MeasurementTypeCase.POPULATION -> MeasurementType.POPULATION
-                    MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
-                      MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
-                  }
+                  getMeasurementType(requisition.parentMeasurement.measurementSpec, requisition.parentMeasurement.apiVersion)
 
                 val measurementConsumerId =
                   externalIdToApiId(requisition.externalMeasurementConsumerId)
@@ -465,6 +410,40 @@ class OperationalMetricsExport(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val BATCH_SIZE = 3000
+
+    private fun getMeasurementType(measurementSpecByteString: com.google.protobuf.ByteString, apiVersion: String): MeasurementType {
+      val measurementSpec = signedMessage {
+        setMessage(
+          any {
+            value = measurementSpecByteString
+            typeUrl =
+              when (apiVersion) {
+                Version.V2_ALPHA.toString() ->
+                  ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
+                else -> ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
+              }
+          }
+        )
+      }
+
+      val measurementTypeCase =
+        measurementSpec.unpack<MeasurementSpec>().measurementTypeCase
+
+      val measurementType =
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+        when (measurementTypeCase) {
+          MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
+            MeasurementType.REACH_AND_FREQUENCY
+          MeasurementSpec.MeasurementTypeCase.IMPRESSION -> MeasurementType.IMPRESSION
+          MeasurementSpec.MeasurementTypeCase.DURATION -> MeasurementType.DURATION
+          MeasurementSpec.MeasurementTypeCase.REACH -> MeasurementType.REACH
+          MeasurementSpec.MeasurementTypeCase.POPULATION -> MeasurementType.POPULATION
+          MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
+            MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
+        }
+
+      return measurementType
+    }
   }
 
   private class DataWriter(
