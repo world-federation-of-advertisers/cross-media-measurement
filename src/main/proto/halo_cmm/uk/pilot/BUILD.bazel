@@ -34,3 +34,13 @@ kt_jvm_proto_library(
     name = "event_kt_jvm_proto",
     deps = [":event_proto"],
 )
+
+alias(
+    name = "common_template-proto",
+    actual = "@uk_pilot_event_templates//src/main/proto/halo_cmm/uk/pilot:common_template_proto",
+)
+
+kt_jvm_proto_library(
+    name = "common_template_kt_jvm_proto",
+    deps = [":common_template-proto"],
+)

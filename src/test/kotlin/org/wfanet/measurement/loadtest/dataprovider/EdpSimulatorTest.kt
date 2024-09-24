@@ -70,6 +70,7 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
+import com.google.protobuf.Any as ProtoAny
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -167,6 +168,14 @@ import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup as PrivacyLandscapeAge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyLandscapeGender
+import com.google.protobuf.TextFormat
+import com.google.protobuf.any
+import com.google.protobuf.kotlin.unpack
+import java.io.StringReader
+import org.halo_cmm.uk.pilot.Common
+import org.halo_cmm.uk.pilot.common
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
@@ -2900,6 +2909,183 @@ class EdpSimulatorTest {
     assertThat(refuseRequest.refusal.message).contains("No valid methodologies")
     assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
     verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
+  }
+
+  @Test
+  fun `generate population spec textproto file`() {
+    val populationSpec = populationSpec {
+      // FEMALE,16-34,7_819_000,0,7_818_999
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 0
+          endVidInclusive = 7_818_999
+        }
+        attributes += common {
+          sex = Common.Sex.FEMALE
+          ageGroup = Common.AgeGroup.YEARS_16_TO_34
+        }.toAny()
+      }
+      // FEMALE,35-54,9_229_000,7_819_000,17_047_999
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 7_819_000
+          endVidInclusive = 17_047_999
+        }
+        attributes += common {
+          sex = Common.Sex.FEMALE
+          ageGroup = Common.AgeGroup.YEARS_35_TO_54
+        }.toAny()
+      }
+      // FEMALE,55+,11,328_000,17_048_000,28_375_999
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 17_048_000
+          endVidInclusive = 28_375_999
+        }
+        attributes += common {
+          sex = Common.Sex.FEMALE
+          ageGroup = Common.AgeGroup.YEARS_55_PLUS
+        }.toAny()
+      }
+      // MALE,16-34,8_163_000,28_376_000,36_538_999
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 28_376_000
+          endVidInclusive = 36_538_999
+        }
+        attributes += common {
+          sex = Common.Sex.MALE
+          ageGroup = Common.AgeGroup.YEARS_16_TO_34
+        }.toAny()
+      }
+      // MALE,35-54,8_292_000,36_539_000,44_830_999
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 36_539_000
+          endVidInclusive = 44_830_999
+        }
+        attributes += common {
+          sex = Common.Sex.MALE
+          ageGroup = Common.AgeGroup.YEARS_35_TO_54
+        }.toAny()
+      }
+      // MALE,55+,10_136_000,44_831_000,54_966_999
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 44_831_000
+          endVidInclusive = 54_966_999
+        }
+        attributes += common {
+          sex = Common.Sex.MALE
+          ageGroup = Common.AgeGroup.YEARS_55_PLUS
+        }.toAny()
+      }
+    }
+    val textFormat = TextFormat.printer()
+    val output = textFormat.printToString(populationSpec)
+    print(output)
+    print("")
+  }
+
+  @Test
+  fun `parse population spec`() {
+    val textProto =
+      """
+        subpopulations {
+          attributes {
+            type_url: "type.googleapis.com/halo_cmm.uk.pilot.Common"
+            value: "\b\002\020\001"
+          }
+          vid_ranges {
+            end_vid_inclusive: 7818999
+          }
+        }
+        subpopulations {
+          attributes {
+            type_url: "type.googleapis.com/halo_cmm.uk.pilot.Common"
+            value: "\b\002\020\002"
+          }
+          vid_ranges {
+            start_vid: 7819000
+            end_vid_inclusive: 17047999
+          }
+        }
+        subpopulations {
+          attributes {
+            type_url: "type.googleapis.com/halo_cmm.uk.pilot.Common"
+            value: "\b\002\020\003"
+          }
+          vid_ranges {
+            start_vid: 17048000
+            end_vid_inclusive: 28375999
+          }
+        }
+        subpopulations {
+          attributes {
+            type_url: "type.googleapis.com/halo_cmm.uk.pilot.Common"
+            value: "\b\001\020\001"
+          }
+          vid_ranges {
+            start_vid: 28376000
+            end_vid_inclusive: 36538999
+          }
+        }
+        subpopulations {
+          attributes {
+            type_url: "type.googleapis.com/halo_cmm.uk.pilot.Common"
+            value: "\b\001\020\002"
+          }
+          vid_ranges {
+            start_vid: 36539000
+            end_vid_inclusive: 44830999
+          }
+        }
+        subpopulations {
+          attributes {
+            type_url: "type.googleapis.com/halo_cmm.uk.pilot.Common"
+            value: "\b\001\020\003"
+          }
+          vid_ranges {
+            start_vid: 44831000
+            end_vid_inclusive: 54966999
+          }
+        }
+
+      """.trimIndent()
+
+    val reader = StringReader(textProto)
+    val populationSpec = PopulationSpec.newBuilder().apply {
+      TextFormat.Parser.newBuilder().build().merge(reader, this)
+    }.build()
+
+    for (sub in populationSpec.subpopulationsList) {
+      print(sub.vidRangesList)
+      val attribute: Common = sub.attributesList[0].unpack()
+      print(attribute)
+    }
+    print(" ")
+  }
+
+  @Test
+  fun `generate all adults population spec textproto file`() {
+    val populationSpec = populationSpec {
+      // All Adults,16+,54_967_000,0,54_966_999
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 0
+          endVidInclusive = 54_966_999
+        }
+      }
+    }
+    print(populationSpec)
+    print(" ")
+  }
+
+  private fun Common.toAny(): ProtoAny {
+    return any {
+      typeUrl = ProtoReflection.getTypeUrl(Common.getDescriptor())
+      value = this@toAny.toByteString()
+    }
   }
 
   private class FakeRequisitionFulfillmentService : RequisitionFulfillmentCoroutineImplBase() {

@@ -325,9 +325,9 @@ http_archive(
 
 http_archive(
     name = "uk_pilot_event_templates",
-    sha256 = "e5d9cb0f6087b6286f5bfeb053a968870c88c27fa7a5dc40055ae7681dad9b2c",
-    strip_prefix = "uk-pilot-event-templates-0.2.0",
-    url = "https://github.com/world-federation-of-advertisers/uk-pilot-event-templates/archive/refs/tags/v0.2.0.tar.gz",
+    sha256 = "a639131832e1d5340cffc6d08e787cb0f9b501c2f367f88cbf5bdd3097f2e3c4",
+    strip_prefix = "uk-pilot-event-templates-afc38f5073cdd95acb4dcc64b81dc8920820e40d",
+    url = "https://github.com/world-federation-of-advertisers/uk-pilot-event-templates/archive/afc38f5073cdd95acb4dcc64b81dc8920820e40d.tar.gz",
 )
 
 # Force use of newer version of boringssl.
