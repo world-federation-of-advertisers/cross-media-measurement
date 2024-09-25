@@ -20,6 +20,7 @@ import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.ModelOutage
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -69,7 +70,7 @@ class DeleteModelOutage(private val modelOutage: ModelOutage) :
       set("ModelSuiteId" to internalModelOutageResult.modelSuiteId.value)
       set("ModelLineId" to internalModelOutageResult.modelLineId.value)
       set("ModelOutageId" to internalModelOutageResult.modelOutageId.value)
-      set("State" to ModelOutage.State.DELETED)
+      set("State").toInt64(ModelOutage.State.DELETED)
       set("DeleteTime" to Value.COMMIT_TIMESTAMP)
     }
 

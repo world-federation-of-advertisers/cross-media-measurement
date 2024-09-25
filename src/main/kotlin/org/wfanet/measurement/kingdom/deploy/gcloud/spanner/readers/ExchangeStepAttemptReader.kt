@@ -25,7 +25,7 @@ import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.gcloud.spanner.toProtoEnum
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
@@ -120,8 +120,8 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
             "ExchangeStepAttempts.State = @${Params.EXCHANGE_STEP_ATTEMPT_STATE}",
             "ExchangeStepAttempts.ExpirationTime <= @${Params.NOW}",
           )
-        bind(Params.EXCHANGE_STEP_STATE).toProtoEnum(ExchangeStep.State.IN_PROGRESS)
-        bind(Params.EXCHANGE_STEP_ATTEMPT_STATE).toProtoEnum(ExchangeStepAttempt.State.ACTIVE)
+        bind(Params.EXCHANGE_STEP_STATE).toInt64(ExchangeStep.State.IN_PROGRESS)
+        bind(Params.EXCHANGE_STEP_ATTEMPT_STATE).toInt64(ExchangeStepAttempt.State.ACTIVE)
         // Due to the fact that we set ExpirationTime using the application clock, we should to be
         // consistent and use the application clock for comparisons rather than DB time.
         bind(Params.NOW).to(clock.instant().toGcloudTimestamp())
