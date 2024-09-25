@@ -339,12 +339,12 @@ single_version_override(
     version = BORINGSSL_VERSION,
 )
 
-# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#276): Use version.
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#279): Use version.
 archive_override(
     module_name = "common-jvm",
-    integrity = "sha256-7JprEpGX1yUt8vrDURZAdtx2+RdSLFze8jBA+mSEeqw=",
-    strip_prefix = "common-jvm-f0167901a700820be80a53760800ff53b5bbbc4a",
+    integrity = "sha256-ikMJ3LQa0RfRPAUta5HOLRck7iDk8mo0a+CJDWeS9Ww=",
+    strip_prefix = "common-jvm-023eaeb3fbdd3a20f2681417e6e5bafc7d176c60",
     urls = [
-        "https://github.com/world-federation-of-advertisers/common-jvm/archive/f0167901a700820be80a53760800ff53b5bbbc4a.tar.gz",
+        "https://github.com/world-federation-of-advertisers/common-jvm/archive/023eaeb3fbdd3a20f2681417e6e5bafc7d176c60.tar.gz",
     ],
 )
