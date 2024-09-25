@@ -1128,6 +1128,55 @@ class ReportsServiceTest {
     }
 
   @Test
+  fun `createReport returns report without including interval past the report_end`() = runBlocking {
+    val reportingInterval =
+      ReportKt.reportingInterval {
+        reportStart = dateTime {
+          year = 2024
+          month = 1
+          day = 1 // Monday
+          utcOffset = duration { seconds = 60 * 60 * -8 }
+        }
+        reportEnd = date {
+          year = 2024
+          month = 1
+          day = 12
+        }
+      }
+
+    val timeIntervals: List<Interval> = buildList {
+      add(
+        interval {
+          startTime = timestamp {
+            seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+          }
+          endTime = timestamp {
+            seconds = 1704268800 // January 3, 2024 at 12:00 AM, America/Los_Angeles
+          }
+        }
+      )
+      add(
+        interval {
+          startTime = timestamp {
+            seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+          }
+          endTime = timestamp {
+            seconds = 1704873600 // January 10, 2024 at 12:00 AM, America/Los_Angeles
+          }
+        }
+      )
+    }
+
+    val frequencySpec =
+      MetricCalculationSpecKt.metricFrequencySpec {
+        weekly =
+          MetricCalculationSpecKt.MetricFrequencySpecKt.weekly { dayOfWeek = DayOfWeek.WEDNESDAY }
+      }
+
+    assertReportCreatedWithReportingInterval(reportingInterval, timeIntervals, frequencySpec)
+  }
+
+  @Test
   fun `createReport returns report with two metrics when multiple filters`() = runBlocking {
     val targetReportingSet = PRIMITIVE_REPORTING_SETS.first()
 
@@ -4197,6 +4246,7 @@ class ReportsServiceTest {
       }
 
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::createReport)
+      .ignoringRepeatedFieldOrder()
       .isEqualTo(
         internalCreateReportRequest {
           report = internalRequestingReport
@@ -4295,10 +4345,13 @@ class ReportsServiceTest {
           )
         )
       }
+
       val internalInitialReport =
         internalRequestingReport.copy {
           externalReportId = reportIdBase + "report-id"
           createTime = Instant.now().toProtoTime()
+
+          reportingMetricEntries.clear()
 
           val initialReportingMetrics =
             reportingMetrics.mapIndexed { requestId, request ->
@@ -4315,8 +4368,11 @@ class ReportsServiceTest {
             )
           )
         }
+
       val internalPendingReport =
         internalInitialReport.copy {
+          reportingMetricEntries.clear()
+
           val pendingReportingMetrics =
             reportingMetrics.mapIndexed { requestId, request ->
               request.copy {
