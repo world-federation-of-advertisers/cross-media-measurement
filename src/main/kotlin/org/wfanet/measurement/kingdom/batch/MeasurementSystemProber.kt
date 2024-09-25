@@ -29,9 +29,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
-import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequestKt
-import org.wfanet.measurement.api.v2alpha.ListMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
@@ -213,75 +211,57 @@ class MeasurementSystemProber(
     return dataProviderNameToEventGroup
   }
 
-  /**
-   * Check previous measurements and decide whether a new measurement needs to be created
-   *
-   * case 1: no previous measurements -> Yes. case 2a: previous measurements exist & no finished
-   * measurements -> No. case 2a: previous measurements exist & the most recent created one is
-   * finished long time ago -> Yes. case 2b: previous measurements exist & the most recent created
-   * one is finished recently -> No.
-   */
   private suspend fun shouldCreateNewMeasurement(): Boolean {
-    val allMeasurements: List<Measurement> =
-      listAllMeasurements(filter = ListMeasurementsRequestKt.filter {})
+    val lastMeasurement: Measurement? =
+      try {
+        measurementsStub
+          .listMeasurements(
+            listMeasurementsRequest {
+              parent = measurementConsumerName
+              this.pageSize = 1
+            }
+          )
+          .measurementsList
+          .firstOrNull()
+      } catch (e: StatusException) {
+        throw Exception(
+          "Unable to list measurements for measurement consumer $measurementConsumerName",
+          e,
+        )
+      }
 
-    if (allMeasurements.isEmpty()) {
+    if (lastMeasurement == null) {
       return true
     }
 
-    val finishedMeasurements =
-      listAllMeasurements(
-        filter = ListMeasurementsRequestKt.filter { states += COMPLETED_MEASUREMENT_STATES }
-      )
-    if (finishedMeasurements.isEmpty()) {
+    if (lastMeasurement.state !in COMPLETED_MEASUREMENT_STATES) {
       return false
     }
 
-    val oldFinishedMeasurements =
-      listAllMeasurements(
-        filter =
-          ListMeasurementsRequestKt.filter {
-            states += COMPLETED_MEASUREMENT_STATES
-            updatedBefore = clock.instant().minus(durationBetweenMeasurement).toProtoTime()
-          }
-      )
-
-    return finishedMeasurements.size == oldFinishedMeasurements.size
-  }
-
-  private suspend fun listAllMeasurements(
-    filter: ListMeasurementsRequest.Filter
-  ): List<Measurement> {
-    val measurements = mutableListOf<Measurement>()
-    var nextPageToken = ""
-    var isFirstRequest = true
-
-    while (isFirstRequest || nextPageToken.isNotBlank()) {
-      val response: ListMeasurementsResponse =
-        try {
-          measurementsStub.listMeasurements(
+    val lastFinishedMeasurementWithinWindow: Measurement? =
+      try {
+        measurementsStub
+          .listMeasurements(
             listMeasurementsRequest {
               parent = measurementConsumerName
-              this.filter = filter
-              pageSize = LIST_MEASUREMENTS_PAGE_SIZE
-              pageToken = nextPageToken
+              this.pageSize = 1
+              filter =
+                ListMeasurementsRequestKt.filter {
+                  states += COMPLETED_MEASUREMENT_STATES
+                  updatedAfter = clock.instant().minus(durationBetweenMeasurement).toProtoTime()
+                }
             }
           )
-        } catch (e: StatusException) {
-          throw Exception(
-            "Unable to list measurements, filtered by $filter, for measurement consumer $measurementConsumerName ",
-            e,
-          )
-        }
-
-      if (isFirstRequest) {
-        isFirstRequest = false
+          .measurementsList
+          .firstOrNull()
+      } catch (e: StatusException) {
+        throw Exception(
+          "Unable to list recent completed measurements for measurement consumer $measurementConsumerName ",
+          e,
+        )
       }
 
-      nextPageToken = response.nextPageToken
-    }
-
-    return measurements
+    return lastFinishedMeasurementWithinWindow == null
   }
 
   private suspend fun getDataProviderEntry(
@@ -339,8 +319,6 @@ class MeasurementSystemProber(
   }
 
   companion object {
-    private const val LIST_MEASUREMENTS_PAGE_SIZE = 1000
-
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private val secureRandom = SecureRandom.getInstance("SHA1PRNG")
