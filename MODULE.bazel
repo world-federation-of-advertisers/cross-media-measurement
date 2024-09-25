@@ -37,7 +37,6 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.92.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -142,19 +141,23 @@ bazel_dep(
 )
 bazel_dep(
     name = "aspect_rules_ts",
-    version = "1.4.0",
+    version = "3.1.0",
 )
 bazel_dep(
     name = "aspect_rules_js",
-    version = "1.35.0",
+    version = "2.0.0",
 )
 bazel_dep(
     name = "aspect_rules_webpack",
-    version = "0.13.0",
+    version = "0.16.0",
 )
 bazel_dep(
     name = "aspect_rules_jest",
-    version = "0.19.6",
+    version = "0.22.0",
+)
+bazel_dep(
+    name = "aspect_bazel_lib",
+    version = "2.7.7",
 )
 bazel_dep(
     name = "abseil-cpp",
@@ -334,4 +337,14 @@ http_archive(
 single_version_override(
     module_name = "boringssl",
     version = BORINGSSL_VERSION,
+)
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#276): Use version.
+archive_override(
+    module_name = "common-jvm",
+    integrity = "sha256-7JprEpGX1yUt8vrDURZAdtx2+RdSLFze8jBA+mSEeqw=",
+    strip_prefix = "common-jvm-f0167901a700820be80a53760800ff53b5bbbc4a",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/common-jvm/archive/f0167901a700820be80a53760800ff53b5bbbc4a.tar.gz",
+    ],
 )
