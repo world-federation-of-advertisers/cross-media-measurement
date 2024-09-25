@@ -33,10 +33,23 @@ _systemApiAddressName: string @tag("system_api_address_name")
 // a thread, so this should be greater than the number of Heralds.
 #SystemServerGrpcThreads: 5
 
+#ApiServerReplicas: 2
+
 #InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
-		memory: "352Mi"
+		memory: "1024Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+
+
+#PublicServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "500m"
+		memory: "1024Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -45,8 +58,8 @@ _systemApiAddressName: string @tag("system_api_address_name")
 
 #OperationalMetricsJobResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "10m"
-		memory: "256Mi"
+		cpu:    "500m"
+		memory: "1024Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -95,13 +108,24 @@ kingdom: #Kingdom & {
 				_grpcThreadPoolSize: #InternalServerGrpcThreads
 				resources:           #InternalServerResourceRequirements
 			}
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #InternalServerServiceAccount
+			spec: {
+				replicas: #ApiServerReplicas
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #InternalServerServiceAccount
+					_javaOptions: maxHeapSize: "800M"
+				}
 			}
 		}
 		"system-api-server": {
 			_container: {
 				_grpcThreadPoolSize: #SystemServerGrpcThreads
+			}
+		}
+		"v2alpha-public-api-server": {
+			spec: replicas: #ApiServerReplicas
+			_container: {
+				resources: #PublicServerResourceRequirements
+				_javaOptions: maxHeapSize: "800M"
 			}
 		}
 	}

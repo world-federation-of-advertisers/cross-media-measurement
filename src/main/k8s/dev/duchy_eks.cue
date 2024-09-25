@@ -33,12 +33,12 @@ _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 #StorageServiceAccount:              "storage"
 #InternalServerResourceRequirements: #ResourceRequirements & {
 	requests: {
-		cpu: "75m"
+		cpu: "500m"
 	}
 }
 #HeraldResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "25m"
+		cpu:    "200m"
 		memory: "512Mi"
 	}
 	limits: {
@@ -68,26 +68,27 @@ _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 }
 #HmssMillMaxHeapSize:             "5G"
 #HmssMillMaxConcurrency:          5
+#ApiServerReplicas: 4
 #FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "200m"
-		memory: "576Mi"
+		cpu:    "500m"
+		memory: "2000Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#FulfillmentMaxHeapSize:             "320M"
+#FulfillmentMaxHeapSize:             "1500M"
 #ControlServiceResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "200m"
-		memory: "512Mi"
+		cpu:    "500m"
+		memory: "3000Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#ControlServiceMaxHeapSize: "320M"
+#ControlServiceMaxHeapSize: "2500M"
 
 objectSets: [defaultNetworkPolicies] + [ for objectSet in duchy {objectSet}]
 
@@ -144,8 +145,11 @@ duchy: #PostgresDuchy & {
 				_javaOptions: maxHeapSize: #ControlServiceMaxHeapSize
 				resources: #ControlServiceResourceRequirements
 			}
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #StorageServiceAccount
+			spec: {
+				replicas: #ApiServerReplicas
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #StorageServiceAccount
+				}
 			}
 		}
 		"requisition-fulfillment-server-deployment": {
@@ -153,16 +157,22 @@ duchy: #PostgresDuchy & {
 				_javaOptions: maxHeapSize: #FulfillmentMaxHeapSize
 				resources: #FulfillmentResourceRequirements
 			}
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #StorageServiceAccount
+			spec: {
+				replicas: #ApiServerReplicas
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #StorageServiceAccount
+				}
 			}
 		}
 		"internal-api-server-deployment": {
 			_container: {
 				resources: #InternalServerResourceRequirements
 			}
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #InternalServerServiceAccount
+			spec: {
+				replicas: #ApiServerReplicas
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #InternalServerServiceAccount
+				}
 			}
 		}
 	}
