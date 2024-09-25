@@ -56,7 +56,7 @@ _edpConfigs: [
 		displayName:      "edp\(Number)"
 		publisherId:      Number
 		// Support HMSS on the first half of the EDPs so that we have one EDP with each event source supporting the protocol.
-		if (i < len(_edpResourceNames)/2) {
+		if (name == _edp1_name || name == _edp2_name || name == _edp3_name) {
 			supportHmss: true
 		}
 	},
