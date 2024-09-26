@@ -16,15 +16,13 @@
 
 package org.wfanet.measurement.kingdom.batch
 
-import io.opentelemetry.api.GlobalOpenTelemetry
-import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.metrics.LongCounter
-import io.opentelemetry.api.metrics.Meter
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.internal.kingdom.DeleteExchangeRequest
 import org.wfanet.measurement.internal.kingdom.Exchange
@@ -34,18 +32,16 @@ import org.wfanet.measurement.internal.kingdom.batchDeleteExchangesRequest
 import org.wfanet.measurement.internal.kingdom.deleteExchangeRequest
 import org.wfanet.measurement.internal.kingdom.streamExchangesRequest
 
-private val MAX_BATCH_DELETE = 1000
+private const val MAX_BATCH_DELETE = 1000
 
 class ExchangesDeletion(
   private val exchangesService: ExchangesGrpcKt.ExchangesCoroutineStub,
   private val daysToLive: Long,
   private val dryRun: Boolean = false,
-  openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get(),
 ) {
-  private val meter: Meter = openTelemetry.getMeter(this::class.qualifiedName!!)
   private val exchangeDeletionCounter: LongCounter =
-    meter
-      .counterBuilder("halo_cmm.retention.deleted_exchanges")
+    Instrumentation.meter
+      .counterBuilder("${Instrumentation.ROOT_NAMESPACE}.retention.deleted_exchanges")
       .setUnit("{exchange}")
       .setDescription("Total number of exchanges deleted under retention policy")
       .build()
