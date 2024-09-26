@@ -87,7 +87,7 @@ class FrequencyVectorBuilder(
    * this is the range of indexes that correspond to the sub-interval [start, 1.0)
    */
   private val primaryRange: IntRange
-  private val primateRangeCount: Int
+  private val primaryRangeCount: Int
 
   /**
    * For a wrapping VidSamplingInterval this is the part of the range than spans [0, width-start)
@@ -115,7 +115,7 @@ class FrequencyVectorBuilder(
     val globalEndIndex =
       (populationSize * (vidSamplingInterval.start + vidSamplingInterval.width)).toInt() - 1
     primaryRange = globalStartIndex..minOf(globalEndIndex, populationSize - 1)
-    primateRangeCount = primaryRange.count()
+    primaryRangeCount = primaryRange.count()
     wrappedRange =
       if (globalEndIndex >= populationSize) {
         0..(globalEndIndex - populationSize)
@@ -133,7 +133,7 @@ class FrequencyVectorBuilder(
 
   init {
     // Initialize the frequency vector
-    val frequencyVectorSize = primateRangeCount + wrappedRange.count()
+    val frequencyVectorSize = primaryRangeCount + wrappedRange.count()
     frequencyData = IntArray(frequencyVectorSize)
   }
 
@@ -199,7 +199,7 @@ class FrequencyVectorBuilder(
       if (globalIndex in primaryRange) {
         globalIndex - primaryRange.first
       } else {
-        primaryRange.count() + globalIndex
+        primaryRangeCount + globalIndex
       }
     frequencyData[localIndex] = minOf(frequencyData[localIndex] + amount, maxFrequency)
   }
