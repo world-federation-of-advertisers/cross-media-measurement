@@ -1175,7 +1175,7 @@ class EdpSimulator(
     for (eventGroupSpec in eventGroupSpecs) {
       var count = 0
       eventQuery.getUserVirtualIds(eventGroupSpec).forEach {
-        if (count % 100_000 == 0) {
+        if (count % 1000 == 0) {
           logger.log(Level.INFO) { "Adding events into FV. count=$count" }
         }
         frequencyVectorBuilder.increment(hmssVidIndexMap[it])
