@@ -23,7 +23,6 @@ import java.io.File
 import java.security.SecureRandom
 import java.time.Clock
 import java.time.Duration
-import java.time.Instant
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
