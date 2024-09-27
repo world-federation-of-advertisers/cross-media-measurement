@@ -56,6 +56,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
@@ -212,27 +213,7 @@ class MeasurementSystemProber(
   }
 
   private suspend fun shouldCreateNewMeasurement(): Boolean {
-    var lastMeasurement: Measurement? = null
-    try {
-      var nextPageToken = ""
-      while (lastMeasurement == null && nextPageToken.isNotBlank()) {
-        val response =
-          measurementsStub.listMeasurements(
-            listMeasurementsRequest {
-              parent = measurementConsumerName
-              this.pageSize = 1
-              pageToken = nextPageToken
-            }
-          )
-        lastMeasurement = response.measurementsList[0]
-        nextPageToken = response.nextPageToken
-      }
-    } catch (e: StatusException) {
-      throw Exception(
-        "Unable to list measurements for measurement consumer $measurementConsumerName",
-        e,
-      )
-    }
+    val lastMeasurement = getLastCreatedMeasurement()
 
     if (lastMeasurement == null) {
       return true
@@ -242,13 +223,35 @@ class MeasurementSystemProber(
       return false
     }
 
-    val updateInstant =
-      Instant.ofEpochSecond(
-        lastMeasurement.updateTime.seconds,
-        lastMeasurement.updateTime.nanos.toLong(),
-      )
+    val updateInstant = lastMeasurement.updateTime.toInstant()
     val nextMeasurementEarliestInstant = updateInstant.plus(durationBetweenMeasurement)
     return clock.instant() >= nextMeasurementEarliestInstant
+  }
+
+  private suspend fun getLastCreatedMeasurement(): Measurement? {
+    var lastCreatedMeasurement: Measurement? = null
+    try {
+      var nextPageToken = ""
+      while (lastCreatedMeasurement == null && nextPageToken.isNotBlank()) {
+        val response =
+          measurementsStub.listMeasurements(
+            listMeasurementsRequest {
+              parent = measurementConsumerName
+              this.pageSize = 1
+              pageToken = nextPageToken
+            }
+          )
+        lastCreatedMeasurement = response.measurementsList[0]
+        nextPageToken = response.nextPageToken
+      }
+    } catch (e: StatusException) {
+      throw Exception(
+        "Unable to list measurements for measurement consumer $measurementConsumerName",
+        e,
+      )
+    }
+
+    return lastCreatedMeasurement
   }
 
   private suspend fun getDataProviderEntry(
