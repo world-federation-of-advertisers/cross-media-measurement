@@ -231,7 +231,7 @@ class MeasurementSystemProber(
   private suspend fun getLastUpdatedMeasurement(): Measurement? {
     var nextPageToken: String? = ""
     while (nextPageToken != null) {
-      val response: ListMeasurementsResponse  =
+      val response: ListMeasurementsResponse =
         try {
           measurementsStub.listMeasurements(
             listMeasurementsRequest {
