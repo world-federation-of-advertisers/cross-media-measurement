@@ -45,7 +45,6 @@ _systemApiAddressName: string @tag("system_api_address_name")
 	}
 }
 
-
 #PublicServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
@@ -107,12 +106,12 @@ kingdom: #Kingdom & {
 			_container: {
 				_grpcThreadPoolSize: #InternalServerGrpcThreads
 				resources:           #InternalServerResourceRequirements
+				_javaOptions: maxHeapSize: "800M"
 			}
 			spec: {
 				replicas: #ApiServerReplicas
 				template: spec: #ServiceAccountPodSpec & {
 					serviceAccountName: #InternalServerServiceAccount
-					_javaOptions: maxHeapSize: "800M"
 				}
 			}
 		}
