@@ -16,8 +16,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.common.job
 
-import io.opentelemetry.api.GlobalOpenTelemetry
-import io.opentelemetry.api.OpenTelemetry
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -86,15 +84,8 @@ private fun run(@CommandLine.Mixin flags: ExchangesRetentionFlags) {
 
   val internalExchangesClient = ExchangesCoroutineStub(channel)
 
-  val openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get()
-
   val exchangesDeletion =
-    ExchangesDeletion(
-      internalExchangesClient,
-      flags.exchangesDaysToLive,
-      flags.dryRun,
-      openTelemetry,
-    )
+    ExchangesDeletion(internalExchangesClient, flags.exchangesDaysToLive, flags.dryRun)
   exchangesDeletion.run()
 }
 
