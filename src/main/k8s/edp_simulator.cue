@@ -21,6 +21,7 @@ import "list"
 	resourceName:     string
 	certResourceName: string
 	publisherId:      int
+	supportHmss:      bool | *false
 }
 
 #RequisitionFulfillmentServiceConfig: {

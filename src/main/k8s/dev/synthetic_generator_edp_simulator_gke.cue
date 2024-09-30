@@ -42,6 +42,7 @@ edp_simulators: {
 			_additional_args: [
 				"--population-spec=\(_populationSpec)",
 				"--event-group-spec==\(EventGroupSpec)",
+				if (edp.supportHmss) {"--support-hmss"},
 			]
 			deployment: {
 				_container: {

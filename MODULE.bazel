@@ -37,7 +37,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.92.0",
+    version = "0.93.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -47,7 +47,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.66.0",
+    version = "0.67.0",
     repo_name = "wfa_measurement_proto",
 )
 bazel_dep(
@@ -142,19 +142,23 @@ bazel_dep(
 )
 bazel_dep(
     name = "aspect_rules_ts",
-    version = "1.4.0",
+    version = "3.1.0",
 )
 bazel_dep(
     name = "aspect_rules_js",
-    version = "1.35.0",
+    version = "2.0.0",
 )
 bazel_dep(
     name = "aspect_rules_webpack",
-    version = "0.13.0",
+    version = "0.16.0",
 )
 bazel_dep(
     name = "aspect_rules_jest",
-    version = "0.19.6",
+    version = "0.22.0",
+)
+bazel_dep(
+    name = "aspect_bazel_lib",
+    version = "2.7.7",
 )
 bazel_dep(
     name = "abseil-cpp",
