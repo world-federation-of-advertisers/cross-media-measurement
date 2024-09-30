@@ -229,15 +229,15 @@ class MeasurementSystemProber(
   }
 
   private suspend fun getLastUpdatedMeasurement(): Measurement? {
-    var nextPageToken: String? = ""
-    while (nextPageToken != null) {
+    var nextPageToken = ""
+    do {
       val response: ListMeasurementsResponse =
         try {
           measurementsStub.listMeasurements(
             listMeasurementsRequest {
               parent = measurementConsumerName
               this.pageSize = 1
-              pageToken = nextPageToken as String
+              pageToken = nextPageToken
             }
           )
         } catch (e: StatusException) {
@@ -250,7 +250,7 @@ class MeasurementSystemProber(
         return response.measurementsList.single()
       }
       nextPageToken = response.nextPageToken
-    }
+    } while (nextPageToken.isNotEmpty())
     return null
   }
 
