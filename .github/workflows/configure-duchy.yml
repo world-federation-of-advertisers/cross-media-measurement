@@ -116,26 +116,13 @@ jobs:
         build --define duchy_storage_bucket=$STORAGE_BUCKET
         EOF
 
-    - name: Get Bazel cache params
-      id: get-cache-params
-      run: |
-        cache_path="$(bazelisk info output_base)"
-        echo "cache-path=${cache_path}" >> "$GITHUB_OUTPUT"
-
-        tree_hash="$(git rev-parse HEAD:)"
-        restore_key="duchy-bazel-"
-        echo "restore-key=${restore_key}" >> "$GITHUB_OUTPUT"
-
-        cache_key="${restore_key}${tree_hash}"
-        echo "cache-key=${cache_key}" >> "$GITHUB_OUTPUT"
-
-    - name: Restore Bazel cache
-      uses: actions/cache/restore@v4
+    - uses: ./.github/actions/setup-bazel-remote
       with:
-        path: ${{ steps.get-cache-params.outputs.cache-path }}
-        key: ${{ steps.get-cache-params.outputs.cache-key }}
-        restore-keys: |
-          ${{ steps.get-cache-params.outputs.restore-key }}
+        host: ${{ vars.BAZEL_REMOTE_CACHE_HOST }}
+        port: ${{ vars.BAZEL_REMOTE_CACHE_PORT }}
+        certificate: ${{ vars.BAZEL_REMOTE_CACHE_CERT }}
+        username: ${{ vars.BAZEL_REMOTE_CACHE_USER }}
+        password: ${{ secrets.BAZEL_REMOTE_CACHE_PASSWORD }}
 
     - name: Export BAZEL_BIN
       run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
@@ -155,13 +142,6 @@ jobs:
         bazelisk build 
         "//src/main/k8s/dev:${DUCHY_NAME}_duchy.tar"
         //src/main/k8s/testing/secretfiles:archive
-
-    - name: Save Bazel cache
-      continue-on-error: true
-      uses: actions/cache/save@v4
-      with:
-        path: ${{ steps.get-cache-params.outputs.cache-path }}
-        key: ${{ steps.get-cache-params.outputs.cache-key }}
 
     - name: Make Kustomization dir
       run: mkdir -p "$KUSTOMIZATION_PATH"

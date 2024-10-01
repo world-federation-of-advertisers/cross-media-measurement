@@ -142,7 +142,10 @@ maven_export(
     name = "maven",
     lib_name = "api_kt_jvm_proto",
     maven_coordinates = MAVEN_COORDINATES,
-    tags = ["no-javadocs"],
+    tags = [
+        "no-javadocs",
+        "no-remote-cache",
+    ],
     visibility = ["//visibility:private"],
 )
 
@@ -159,6 +162,9 @@ maven_export(
     name = "grpc_maven",
     lib_name = "api_kt_jvm_grpc_proto",
     maven_coordinates = GRPC_MAVEN_COORDINATES,
-    tags = ["no-javadocs"],
+    tags = [
+        "no-javadocs",
+        "no-remote-cache",
+    ],
     visibility = ["//visibility:private"],
 )
