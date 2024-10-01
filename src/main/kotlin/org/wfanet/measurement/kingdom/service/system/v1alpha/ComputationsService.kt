@@ -210,7 +210,7 @@ class ComputationsService(
      * Default limit for [org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest]
      * messages.
      */
-    const val DEFAULT_STREAMING_LIMIT = 50
+    const val DEFAULT_STREAMING_LIMIT = 10
 
     private val STATES_SUBSCRIBED =
       listOf(
