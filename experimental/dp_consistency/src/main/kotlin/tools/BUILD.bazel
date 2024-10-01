@@ -1,10 +1,32 @@
-load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_binary", "kt_jvm_library")
 
-kt_jvm_library(
+IMPORT_PREFIX = "/src/main/proto"
+
+kt_jvm_binary(
     name = "correct_origin_report",
     srcs = ["CorrectOriginReport.kt"],
+    main_class = "experimental.dp_consistency.src.main.kotlin.tools.CorrectOriginReport",
     resources = [
         "//experimental/dp_consistency/src/main/python/tools:correct_origin_report",
+        "//experimental/dp_consistency/src/main/python/tools:correct_origin_report_pyzip",
     ],
     visibility = ["//visibility:public"],
+    deps = [
+        ":report_converter",
+        "//experimental/dp_consistency/src/main/proto/reporting:report_summary_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "report_converter",
+    srcs = ["ReportConverter.kt"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//experimental/dp_consistency/src/main/proto/reporting:report_summary_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
+        "@maven//:com_google_protobuf_protobuf_java_util",
+        "@wfa_common_jvm//imports/java/com/google/gson",
+    ],
 )

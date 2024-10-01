@@ -14,42 +14,149 @@
 
 package experimental.dp_consistency.src.main.kotlin.tools
 
+import com.google.gson.GsonBuilder
+import com.google.protobuf.util.JsonFormat
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import java.nio.file.Path
 import java.util.logging.Logger
+import org.wfanet.measurement.common.getJarResourcePath
+import org.wfanet.measurement.common.load
+import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.reporting.v2alpha.Report
+import org.wfanet.measurement.reporting.v2alpha.copy
+import org.wfanet.measurement.reporting.v2alpha.report
 
-/**
- * This class corrects the noisy measurements of a report.
- *
- * This depends on the python library correct_origin_report for noise correction.
- */
+/** Corrects noisy measurements in a report using the Python library `correct_origin_report`. */
 class CorrectOriginReport {
   /**
-   * Corrects the noisy report and write it to a file.
-   *
-   * @param inputPath The path to the input report.
-   * @param unnoisedEdp The list of EDPs that do not add noise to their measurements.
-   * @param outputPath The path to the corrected report.
+   * Corrects the noisy measurements in the [reportAsJsonString] and returns a corrected report in
+   * JSON format.
    */
-  fun correctReport(inputPath: Path, unnoisedEdp: String, outputPath: Path) {
+  fun correctReport(reportAsJsonString: String): String {
+    val report = getReportFromJsonString(reportAsJsonString)
+    val correctedMeasurementsMap =
+      correctReportSummary(JsonFormat.printer().print(report.toReportSummary()))
+    val correctedReport = updateReport(report, correctedMeasurementsMap)
+    return correctedReport.toJson()
+  }
+
+  /**
+   * Corrects the noisy measurements in the [reportSummaryAsJsonString] and returns a map of metric
+   * names to corrected reach values.
+   *
+   * Each metric name is tied to a measurement.
+   */
+  private fun correctReportSummary(reportSummaryAsJsonString: String): Map<String, Long> {
     logger.info { "Start correcting report.." }
-    val pathToReport = "--path_to_report=" + inputPath.toString()
-    val pathToCorrectedReport = "--path_to_corrected_report=" + outputPath.toString()
-    val unnoisedEdp = "--unnoised_edps=" + unnoisedEdp
-    val processHandler =
+
+    val process =
       ProcessBuilder(
-          "experimental/dp_consistency/src/main/python/tools/correct_origin_report",
-          pathToReport,
-          unnoisedEdp,
-          pathToCorrectedReport,
+          "$PYTHON_LIBRARY_RESOURCE_NAME",
+          "--report_summary=$reportSummaryAsJsonString",
         )
-        .redirectOutput(ProcessBuilder.Redirect.INHERIT)
-        .redirectError(ProcessBuilder.Redirect.INHERIT)
+        // .redirectOutput(ProcessBuilder.Redirect.INHERIT)
         .start()
-        .waitFor()
+
+    // Reads the output of the above process.
+    val processOutput = BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }
+
+    val exitCode = process.waitFor()
+    require(exitCode == 0) { "Failed to correct the report with exitCode $exitCode." }
+
     logger.info { "Finished correcting report.." }
+
+    // Converts the process' output to the correction map.
+    val gson = GsonBuilder().create()
+    val correctedMeasurementsMap = mutableMapOf<String, Long>()
+    gson.fromJson(processOutput, Map::class.java).forEach { (key, value) ->
+      correctedMeasurementsMap[key as String] = (value as Double).toLong()
+    }
+
+    return correctedMeasurementsMap
+  }
+
+  /**
+   * Updates a [MetricCalculationResult] with corrected reach values from the
+   * [correctedMeasurementsMap].
+   *
+   * Only the reach-only and reach-and-frequency resultAttributes in the [MetricCalculationResult]
+   * will be updated.
+   */
+  private fun updateMetricCalculationResult(
+    metricCalculationResult: Report.MetricCalculationResult,
+    correctedMeasurementsMap: Map<String, Long>
+  ): Report.MetricCalculationResult {
+    val updatedMetricCalculationResult =
+      metricCalculationResult.copy {
+        resultAttributes.clear()
+        resultAttributes +=
+          metricCalculationResult.resultAttributesList.map { entry ->
+            entry.copy {
+              // The result attribute is updated only if its metric is in the correction map.
+              if (entry.metric in correctedMeasurementsMap) {
+                val correctedReach = correctedMeasurementsMap.getValue(entry.metric)
+                when {
+                  entry.metricResult.hasReach() -> {
+                    metricResult =
+                      metricResult.copy { reach = reach.copy { value = correctedReach } }
+                  }
+                  entry.metricResult.hasReachAndFrequency() -> {
+                    val scale: Double =
+                      correctedReach / entry.metricResult.reachAndFrequency.reach.value.toDouble()
+                    metricResult =
+                      metricResult.copy {
+                        reachAndFrequency =
+                          reachAndFrequency.copy {
+                            reach = reach.copy { value = correctedReach }
+                            frequencyHistogram =
+                              frequencyHistogram.copy {
+                                bins.clear()
+                                bins +=
+                                  entry.metricResult.reachAndFrequency.frequencyHistogram.binsList
+                                    .map { bin ->
+                                      bin.copy {
+                                        binResult =
+                                          binResult.copy { value = bin.binResult.value * scale }
+                                      }
+                                    }
+                              }
+                          }
+                      }
+                  }
+                  else -> {}
+                }
+              }
+            }
+          }
+      }
+    return updatedMetricCalculationResult
+  }
+
+  /** Returns a corrected [Report] with updated reach values from the [correctedMeasurementsMap]. */
+  private fun updateReport(report: Report, correctedMeasurementsMap: Map<String, Long>): Report {
+    val correctedMetricCalculationResults =
+      report.metricCalculationResultsList.map { result ->
+        updateMetricCalculationResult(result, correctedMeasurementsMap)
+      }
+    val correctedReport =
+      report.copy {
+        metricCalculationResults.clear()
+        metricCalculationResults += correctedMetricCalculationResults
+      }
+    return correctedReport
   }
 
   companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
+    val logger: Logger = Logger.getLogger(this::class.java.name)
+    const val PYTHON_LIBRARY_RESOURCE_NAME =
+      "experimental/dp_consistency/src/main/python/tools/correct_origin_report"
+
+    init {
+      val resourcePath: Path =
+        this::class.java.classLoader.getJarResourcePath(PYTHON_LIBRARY_RESOURCE_NAME)
+          ?: error("$PYTHON_LIBRARY_RESOURCE_NAME not found in JAR")
+      Runtime.getRuntime().load(resourcePath)
+    }
   }
 }

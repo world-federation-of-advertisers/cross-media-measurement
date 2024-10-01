@@ -13,9 +13,14 @@
 # limitations under the License.
 
 import argparse
+import json
 import math
 import pandas as pd
+
+from experimental.dp_consistency.src.main.proto.reporting import \
+  report_summary_pb2
 from functools import partial
+from google.protobuf import json_format
 from noiseninja.noised_measurements import Measurement
 from report.report import Report, MetricReport
 
@@ -31,7 +36,6 @@ SIGMA = 1
 
 AMI_FILTER = "AMI"
 MRC_FILTER = "MRC"
-
 
 # TODO(uakyol) : Read the EDP names dynamically from the excel sheet
 # TODO(uakyol) : Make this work for 3 EDPs
@@ -56,189 +60,258 @@ ami = "ami"
 mrc = "mrc"
 
 
-def createMeasurements(rows, reach_col_name, sigma):
-    # These rows are already sorted by timestamp.
-    return [
-        Measurement(measured_value, sigma)
-        for measured_value in list(rows[reach_col_name])
-    ]
+def createMeasurements(rows, reach_col_name, sigma, metric=""):
+  # These rows are already sorted by timestamp.
+  return [
+      Measurement(measured_value, sigma, metric)
+      for measured_value in list(rows[reach_col_name])
+  ]
 
 
 def getMeasurements(df, reach_col_name, sigma):
-    ami_rows = df[df[FILTER_COL_NAME] == AMI_FILTER]
-    mrc_rows = df[df[FILTER_COL_NAME] == MRC_FILTER]
+  ami_rows = df[df[FILTER_COL_NAME] == AMI_FILTER]
+  mrc_rows = df[df[FILTER_COL_NAME] == MRC_FILTER]
 
-    ami_measurements = createMeasurements(ami_rows, reach_col_name, sigma)
-    mrc_measurements = createMeasurements(mrc_rows, reach_col_name, sigma)
+  ami_measurements = createMeasurements(ami_rows, reach_col_name, sigma)
+  mrc_measurements = createMeasurements(mrc_rows, reach_col_name, sigma)
 
-    return (ami_measurements, mrc_measurements)
+  return (ami_measurements, mrc_measurements)
 
 
 def readExcel(excel_file_path, unnoised_edps):
-    measurements = {}
-    dfs = pd.read_excel(excel_file_path, sheet_name=None)
-    for edp in EDP_MAP:
-        sigma = 0 if edp in unnoised_edps else SIGMA
+  measurements = {}
+  dfs = pd.read_excel(excel_file_path, sheet_name=None)
+  for edp in EDP_MAP:
+    sigma = 0 if edp in unnoised_edps else SIGMA
 
-        cumilative_sheet_name = EDP_MAP[edp]["sheet"]
-        (cumilative_ami_measurements, cumilative_mrc_measurements) = getMeasurements(
-            dfs[cumilative_sheet_name], CUML_REACH_COL_NAME, sigma
-        )
+    cumilative_sheet_name = EDP_MAP[edp]["sheet"]
+    (
+        cumilative_ami_measurements,
+        cumilative_mrc_measurements) = getMeasurements(
+        dfs[cumilative_sheet_name], CUML_REACH_COL_NAME, sigma
+    )
 
-        (total_ami_measurements, total_mrc_measurements) = getMeasurements(
-            dfs[edp], TOTAL_REACH_COL_NAME, sigma
-        )
+    (total_ami_measurements, total_mrc_measurements) = getMeasurements(
+        dfs[edp], TOTAL_REACH_COL_NAME, sigma
+    )
 
-        # There has to be 1 row for AMI and MRC metrics in the total reach sheet.
-        assert len(total_mrc_measurements) == 1 and len(total_ami_measurements) == 1
+    # There has to be 1 row for AMI and MRC metrics in the total reach sheet.
+    assert len(total_mrc_measurements) == 1 and len(total_ami_measurements) == 1
 
-        measurements[edp] = {
-            AMI_FILTER: cumilative_ami_measurements + total_ami_measurements,
-            MRC_FILTER: cumilative_mrc_measurements + total_mrc_measurements,
-        }
+    measurements[edp] = {
+        AMI_FILTER: cumilative_ami_measurements + total_ami_measurements,
+        MRC_FILTER: cumilative_mrc_measurements + total_mrc_measurements,
+    }
+  return (measurements, dfs)
 
-    return (measurements, dfs)
+
+# Processes a report summary and returns a corrected one.
+#
+# Currently, the function only supports ami and mrc measurements and primitive
+# set operations (cumulative and union).
+# TODO(@ple13): Extend the function to support custom measurements and composite
+#  set operations such as difference, incremental.
+def correctReportSummary(report_summary: report_summary_pb2.ReportSummary()):
+  ami_measurements: Dict[FrozenSet[str], List[Measurement]] = {}
+  mrc_measurements: Dict[FrozenSet[str], List[Measurement]] = {}
+
+  # Processes cumulative measurements first.
+  for entry in report_summary.measurement_details:
+    if entry.set_operation == "cumulative":
+      data_providers = frozenset(entry.data_providers)
+      measurements = [
+          Measurement(result.reach, result.standard_deviation,
+                      result.metric)
+          for result in entry.measurement_results
+      ]
+      if entry.measurement_policy == "ami":
+        ami_measurements[data_providers] = measurements
+      elif entry.measurement_policy == "mrc":
+        mrc_measurements[data_providers] = measurements
+
+  edp_comb_list = ami_measurements.keys()
+  if len(edp_comb_list) == 0:
+    edp_comb_list = mrc_measurements.keys()
+
+  # Processes non-cumulative union measurements.
+  for entry in report_summary.measurement_details:
+    if (entry.set_operation == "union") and (
+        entry.is_cumulative == False) and (
+        frozenset(entry.data_providers) in edp_comb_list):
+      measurements = [
+          Measurement(result.reach, result.standard_deviation,
+                      result.metric)
+          for result in entry.measurement_results
+      ]
+      if entry.measurement_policy == "ami":
+        ami_measurements[frozenset(entry.data_providers)].extend(
+            measurements)
+      elif entry.measurement_policy == "mrc":
+        mrc_measurements[frozenset(entry.data_providers)].extend(
+            measurements)
+
+  # Builds the report based on the above measurements.
+  report = Report(
+      {
+          policy: MetricReport(measurements)
+          for policy, measurements in
+          [("ami", ami_measurements), ("mrc", mrc_measurements)]
+          if measurements  # Only include if measurements is not empty
+      },
+      metric_subsets_by_parent={ami: [mrc]},
+      cumulative_inconsistency_allowed_edp_combs={},
+  )
+
+  # Gets the corrected report.
+  corrected_report = report.get_corrected_report()
+
+  # Gets the mapping between a measurement and its corrected value.
+  metric_name_to_value: dict[str][int] = {}
+  measurements_policies = corrected_report.get_metrics()
+  for policy in measurements_policies:
+    metric_report = corrected_report.get_metric_report(policy)
+    for edp in metric_report.get_edp_combs():
+      for index in range(metric_report.get_number_of_periods()):
+        entry = metric_report.get_edp_comb_measurement(edp, index)
+        metric_name_to_value.update(
+            {entry.metric_name: int(entry.value)})
+
+  return metric_name_to_value
 
 
 def getCorrectedReport(measurements):
-    report = Report(
-        {
-            ami: MetricReport(
-                reach_time_series_by_edp_combination={
-                    frozenset({EDP_ONE, EDP_TWO}): measurements[TOTAL_CAMPAIGN][
-                        AMI_FILTER
-                    ],
-                    frozenset({EDP_ONE}): measurements[EDP_ONE][AMI_FILTER],
-                    frozenset({EDP_TWO}): measurements[EDP_TWO][AMI_FILTER],
-                }
-            ),
-            mrc: MetricReport(
-                reach_time_series_by_edp_combination={
-                    frozenset({EDP_ONE, EDP_TWO}): measurements[TOTAL_CAMPAIGN][
-                        MRC_FILTER
-                    ],
-                    frozenset({EDP_ONE}): measurements[EDP_ONE][MRC_FILTER],
-                    frozenset({EDP_TWO}): measurements[EDP_TWO][MRC_FILTER],
-                }
-            ),
-        },
-        # AMI is a parent of MRC
-        metric_subsets_by_parent={ami: [mrc]},
-        cumulative_inconsistency_allowed_edp_combs={},
-    )
+  report = Report(
+      {
+          ami: MetricReport(
+              reach_time_series_by_edp_combination={
+                  frozenset({EDP_ONE, EDP_TWO}): measurements[TOTAL_CAMPAIGN][
+                    AMI_FILTER
+                  ],
+                  frozenset({EDP_ONE}): measurements[EDP_ONE][AMI_FILTER],
+                  frozenset({EDP_TWO}): measurements[EDP_TWO][AMI_FILTER],
+              }
+          ),
+          mrc: MetricReport(
+              reach_time_series_by_edp_combination={
+                  frozenset({EDP_ONE, EDP_TWO}): measurements[TOTAL_CAMPAIGN][
+                    MRC_FILTER
+                  ],
+                  frozenset({EDP_ONE}): measurements[EDP_ONE][MRC_FILTER],
+                  frozenset({EDP_TWO}): measurements[EDP_TWO][MRC_FILTER],
+              }
+          ),
+      },
+      # AMI is a parent of MRC
+      metric_subsets_by_parent={ami: [mrc]},
+      cumulative_inconsistency_allowed_edp_combs={},
+  )
 
-    return report.get_corrected_report()
+  return report.get_corrected_report()
 
 
 def correctSheetMetric(df, rows, func):
-    for period, (index, row) in enumerate(rows.iterrows()):
-        df.at[index, CUML_REACH_COL_NAME] = math.ceil(func(period).value)
+  for period, (index, row) in enumerate(rows.iterrows()):
+    df.at[index, CUML_REACH_COL_NAME] = math.ceil(func(period).value)
 
 
 def correctCumSheet(df, ami_func, mrc_func):
-    ami_rows = df[df[FILTER_COL_NAME] == AMI_FILTER]
-    mrc_rows = df[df[FILTER_COL_NAME] == MRC_FILTER]
-    correctSheetMetric(df, ami_rows, ami_func)
-    correctSheetMetric(df, mrc_rows, mrc_func)
-    return df
+  ami_rows = df[df[FILTER_COL_NAME] == AMI_FILTER]
+  mrc_rows = df[df[FILTER_COL_NAME] == MRC_FILTER]
+  correctSheetMetric(df, ami_rows, ami_func)
+  correctSheetMetric(df, mrc_rows, mrc_func)
+  return df
 
 
 def correctTotSheet(df, ami_val, mrc_val):
-    ami_rows = df[df[FILTER_COL_NAME] == AMI_FILTER]
-    mrc_rows = df[df[FILTER_COL_NAME] == MRC_FILTER]
+  ami_rows = df[df[FILTER_COL_NAME] == AMI_FILTER]
+  mrc_rows = df[df[FILTER_COL_NAME] == MRC_FILTER]
 
-    # There has to be 1 row for AMI and MRC metrics in the total reach sheet.
-    assert ami_rows.shape[0] == 1 and mrc_rows.shape[0] == 1
-    df.at[ami_rows.index[0], TOTAL_REACH_COL_NAME] = math.ceil(ami_val)
-    df.at[mrc_rows.index[0], TOTAL_REACH_COL_NAME] = math.ceil(mrc_val)
-    return df
+  # There has to be 1 row for AMI and MRC metrics in the total reach sheet.
+  assert ami_rows.shape[0] == 1 and mrc_rows.shape[0] == 1
+  df.at[ami_rows.index[0], TOTAL_REACH_COL_NAME] = math.ceil(ami_val)
+  df.at[mrc_rows.index[0], TOTAL_REACH_COL_NAME] = math.ceil(mrc_val)
+  return df
 
 
 def buildCorrectedExcel(correctedReport, excel):
-    ami_metric_report = correctedReport.get_metric_report(ami)
-    mrc_metric_report = correctedReport.get_metric_report(mrc)
+  ami_metric_report = correctedReport.get_metric_report(ami)
+  mrc_metric_report = correctedReport.get_metric_report(mrc)
 
-    
-    for edp in EDP_MAP:
-        edp_index = EDP_MAP[edp]["ind"]
-        amiFunc = (
-            partial(ami_metric_report.get_edp_comb_measurement, frozenset({EDP_ONE, EDP_TWO}))
-            if (edp == TOTAL_CAMPAIGN)
-            else partial(ami_metric_report.get_edp_comb_measurement, frozenset({edp}))
-        )
-        mrcFunc = (
-            partial(mrc_metric_report.get_edp_comb_measurement, frozenset({EDP_ONE, EDP_TWO}))
-            if (edp == TOTAL_CAMPAIGN)
-            else partial(mrc_metric_report.get_edp_comb_measurement, frozenset({edp}))
-        )
+  for edp in EDP_MAP:
+    edp_index = EDP_MAP[edp]["ind"]
+    amiFunc = (
+        partial(ami_metric_report.get_edp_comb_measurement,
+                frozenset({EDP_ONE, EDP_TWO}))
+        if (edp == TOTAL_CAMPAIGN)
+        else partial(ami_metric_report.get_edp_comb_measurement,
+                     frozenset({edp}))
+    )
+    mrcFunc = (
+        partial(mrc_metric_report.get_edp_comb_measurement,
+                frozenset({EDP_ONE, EDP_TWO}))
+        if (edp == TOTAL_CAMPAIGN)
+        else partial(mrc_metric_report.get_edp_comb_measurement,
+                     frozenset({edp}))
+    )
 
-        cumilative_sheet_name = EDP_MAP[edp]["sheet"]
-        excel[cumilative_sheet_name] = correctCumSheet(
-            excel[cumilative_sheet_name], amiFunc, mrcFunc
-        )
+    cumilative_sheet_name = EDP_MAP[edp]["sheet"]
+    excel[cumilative_sheet_name] = correctCumSheet(
+        excel[cumilative_sheet_name], amiFunc, mrcFunc
+    )
 
-
-        # The last value of the corrected measurement series is the total reach.
-        totAmiVal = (
-            ami_metric_report.get_edp_comb_measurement(frozenset({EDP_ONE, EDP_TWO}), -1).value
-            if (edp == TOTAL_CAMPAIGN)
-            else ami_metric_report.get_edp_comb_measurement(frozenset({edp}), -1).value
-        )
-        totMrcVal = (
-            mrc_metric_report.get_edp_comb_measurement(frozenset({EDP_ONE, EDP_TWO}), -1).value
-            if (edp == TOTAL_CAMPAIGN)
-            else mrc_metric_report.get_edp_comb_measurement(frozenset({edp}), -1).value
-        )
-        total_sheet_name = edp
-        excel[total_sheet_name] = correctTotSheet(
-            excel[total_sheet_name], totAmiVal, totMrcVal
-        )
-    return excel
+    # The last value of the corrected measurement series is the total reach.
+    totAmiVal = (
+        ami_metric_report.get_edp_comb_measurement(
+            frozenset({EDP_ONE, EDP_TWO}), -1).value
+        if (edp == TOTAL_CAMPAIGN)
+        else ami_metric_report.get_edp_comb_measurement(frozenset({edp}),
+                                                        -1).value
+    )
+    totMrcVal = (
+        mrc_metric_report.get_edp_comb_measurement(
+            frozenset({EDP_ONE, EDP_TWO}), -1).value
+        if (edp == TOTAL_CAMPAIGN)
+        else mrc_metric_report.get_edp_comb_measurement(frozenset({edp}),
+                                                        -1).value
+    )
+    total_sheet_name = edp
+    excel[total_sheet_name] = correctTotSheet(
+        excel[total_sheet_name], totAmiVal, totMrcVal
+    )
+  return excel
 
 
 def writeCorrectedExcel(path, corrected_excel):
-    with pd.ExcelWriter(path) as writer:
-        # Write each dataframe to a different sheet
-        for sheet_name in corrected_excel:
-            corrected_excel[sheet_name].to_excel(
-                writer, sheet_name=sheet_name, index=False
-            )
+  with pd.ExcelWriter(path) as writer:
+    # Write each dataframe to a different sheet
+    for sheet_name in corrected_excel:
+      corrected_excel[sheet_name].to_excel(
+          writer, sheet_name=sheet_name, index=False
+      )
 
 
 def correctExcelFile(path_to_report, unnoised_edps):
-    (measurements, excel) = readExcel(path_to_report, unnoised_edps)
-    correctedReport = getCorrectedReport(measurements)
-    return buildCorrectedExcel(correctedReport, excel)
+  (measurements, excel) = readExcel(path_to_report, unnoised_edps)
+  correctedReport = getCorrectedReport(measurements)
+  return buildCorrectedExcel(correctedReport, excel)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Read the input Excel file.")
-    parser.add_argument(
-        "--path_to_report", required=True, help="Path to the Excel file"
-    )
-    parser.add_argument(
-        "--path_to_corrected_report", required=True, help="Path to the corrected Excel file"
-    )
-    parser.add_argument(
-        "--unnoised_edps",
-        nargs="+",
-        type=str,
-        help="List of EDPs that didnt add noise to their measurements",
-    )
-    args = parser.parse_args()
+  parser = argparse.ArgumentParser(
+      description="Read the report summary as json string.")
+  parser.add_argument(
+      "--report_summary", required=True,
+      help="The report summary as json string."
+  )
+  args = parser.parse_args()
+  report_summary = report_summary_pb2.ReportSummary()
+  json_format.Parse(args.report_summary, report_summary)
+  corrected_measurements_dict = correctReportSummary(report_summary)
 
-    # Check if any of the unnoised EDPs are not recognized
-    for unnoised_edp in args.unnoised_edps:
-        if unnoised_edp not in edp_names:
-            raise ValueError(f"Unnoised Edp '{unnoised_edp}' is not a known Edp")
-
-    corrected_excel = correctExcelFile(args.path_to_report, args.unnoised_edps)
-
-    writeCorrectedExcel(
-        args.path_to_corrected_report,
-        corrected_excel,
-    )
+  # Sends the JSON representation of corrected_measurements_dict to the parent
+  # program.
+  print(json.dumps(corrected_measurements_dict))
 
 
 if __name__ == "__main__":
-    main()
+  main()

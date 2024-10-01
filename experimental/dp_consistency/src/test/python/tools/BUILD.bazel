@@ -7,6 +7,7 @@ py_test(
         "//experimental/dp_consistency/src/test/python/tools:example_origin_report.xlsx",
     ],
     deps = [
+        "//experimental/dp_consistency/src/main/proto/reporting:report_summary_py_pb2",
         "//experimental/dp_consistency/src/main/python/tools:correct_origin_report",
     ],
 )

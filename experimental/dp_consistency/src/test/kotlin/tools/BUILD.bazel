@@ -9,9 +9,32 @@ kt_jvm_test(
         "//experimental/dp_consistency/src/main/python/tools:correct_origin_report",
         "//experimental/dp_consistency/src/test/kotlin/tools:example_origin_report.xlsx",
     ],
+    jvm_flags = [
+        "-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false",
+        "-Djava.security.manager=allow",
+    ],
     test_class = "experimental.dp_consistency.src.test.kotlin.tools.CorrectOriginReportTest",
     deps = [
         "//experimental/dp_consistency/src/main/kotlin/tools:correct_origin_report",
+        "//experimental/dp_consistency/src/main/proto/reporting:report_summary_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "report_converter_test",
+    srcs = ["ReportConverterTest.kt"],
+    test_class = "experimental.dp_consistency.src.test.kotlin.tools.ReportConverterTest",
+    deps = [
+        "//experimental/dp_consistency/src/main/kotlin/tools:correct_origin_report",
+        "//experimental/dp_consistency/src/main/kotlin/tools:report_converter",
+        "//experimental/dp_consistency/src/main/proto/reporting:report_summary_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",

@@ -194,12 +194,12 @@ class Report:
         """
         spec = self.to_set_measurement_spec()
         solution = Solver(spec).solve_and_translate()
-        return self.report_from_solution(solution)
+        return self.report_from_solution(solution, spec)
 
-    def report_from_solution(self, solution):
+    def report_from_solution(self, solution, spec):
         return Report(
             metric_reports={
-                metric: self.__metric_report_from_solution(metric, solution)
+                metric: self.__metric_report_from_solution(metric, solution, spec)
                 for metric in self.__metric_reports
             },
             metric_subsets_by_parent=self.__metric_subsets_by_parent,
@@ -340,7 +340,7 @@ class Report:
             + period
         )
 
-    def __metric_report_from_solution(self, metric, solution):
+    def __metric_report_from_solution(self, metric, solution, spec):
         solution_time_series = {}
         for edp_comb in self.__edp_comb_index:
             edp_comb_ind = self.__edp_comb_index[edp_comb]
@@ -352,6 +352,11 @@ class Report:
                         )
                     ],
                     0,
+                    spec.get_measurement_metric(
+                        self.__get_var_index(
+                            period, self.__metric_index[metric], edp_comb_ind
+                        )
+                    ),
                 )
                 for period in range(0, self.__num_periods)
             ]
