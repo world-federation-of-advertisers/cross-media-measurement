@@ -67,24 +67,7 @@ class CorrectOriginReportTest {
         .updateReportWithCumulativeReachMeasurements(
           "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1",
           "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative",
-          listOf(
-            0L,
-            2196L,
-            2014L,
-            0L,
-            129L,
-            0L,
-            2018L,
-            81L,
-            0L,
-            0L,
-            288L,
-            0L,
-            0L,
-            0L,
-            0L,
-            0L,
-          ),
+          listOf(0L, 2196L, 2014L, 0L, 129L, 0L, 2018L, 81L, 0L, 0L, 288L, 0L, 0L, 0L, 0L, 0L),
         )
         .updateReportWithCumulativeReachMeasurements(
           "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2",

@@ -51,11 +51,7 @@ class CorrectOriginReport {
     logger.info { "Start correcting report.." }
 
     val process =
-      ProcessBuilder(
-          "$PYTHON_LIBRARY_RESOURCE_NAME",
-          "--report_summary=$reportSummaryAsJsonString",
-        )
-        // .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+      ProcessBuilder("$PYTHON_LIBRARY_RESOURCE_NAME", "--report_summary=$reportSummaryAsJsonString")
         .start()
 
     // Reads the output of the above process.
@@ -85,7 +81,7 @@ class CorrectOriginReport {
    */
   private fun updateMetricCalculationResult(
     metricCalculationResult: Report.MetricCalculationResult,
-    correctedMeasurementsMap: Map<String, Long>
+    correctedMeasurementsMap: Map<String, Long>,
   ): Report.MetricCalculationResult {
     val updatedMetricCalculationResult =
       metricCalculationResult.copy {

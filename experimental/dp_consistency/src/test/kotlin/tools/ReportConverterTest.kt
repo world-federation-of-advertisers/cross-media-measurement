@@ -16,9 +16,7 @@ package experimental.dp_consistency.src.test.kotlin.tools
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import experimental.dp_consistency.src.main.kotlin.tools.CorrectOriginReport
 import experimental.dp_consistency.src.main.kotlin.tools.convertJsonToReportSummary
-import experimental.dp_consistency.src.main.kotlin.tools.getReportFromJsonString
 import experimental.dp_consistency.src.main.proto.reporting.MeasurementDetailKt.measurementResult
 import experimental.dp_consistency.src.main.proto.reporting.measurementDetail
 import experimental.dp_consistency.src.main.proto.reporting.reportSummary
