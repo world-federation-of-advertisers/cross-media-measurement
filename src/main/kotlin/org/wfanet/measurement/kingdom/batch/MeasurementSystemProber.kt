@@ -259,7 +259,7 @@ class MeasurementSystemProber(
     return clock.instant() >= nextMeasurementEarliestInstant
   }
 
-  private suspend fun getLastUpdatedMeasurement(): Measurement? {
+  suspend fun getLastUpdatedMeasurement(): Measurement? {
     var nextPageToken = ""
     do {
       val response: ListMeasurementsResponse =
