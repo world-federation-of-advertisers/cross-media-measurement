@@ -33,7 +33,7 @@ _systemApiAddressName: string @tag("system_api_address_name")
 // a thread, so this should be greater than the number of Heralds.
 #SystemServerGrpcThreads: 5
 
-#ApiServerReplicas: 2
+#ApiServerReplicas: 8
 
 #InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
