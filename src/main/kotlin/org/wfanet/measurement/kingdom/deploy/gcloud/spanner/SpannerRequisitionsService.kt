@@ -61,7 +61,7 @@ class SpannerRequisitionsService(
       }
     }
 
-    return StreamRequisitions(requestFilter, request.limit).execute(client.singleUse()).map {
+    return StreamRequisitions(request).execute(client.singleUse()).map {
       it.requisition
     }
   }

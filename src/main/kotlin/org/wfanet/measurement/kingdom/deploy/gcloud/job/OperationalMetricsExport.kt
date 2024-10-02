@@ -45,6 +45,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
+import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestMeasurementReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestRequisitionReadTableRow
@@ -289,6 +290,7 @@ class OperationalMetricsExport(
               latestRequisitionReadFromPreviousJob.get("external_requisition_id").longValue
           }
         }
+      orderBy = StreamRequisitionsRequest.OrderBy.UPDATE_TIME
     }
 
     DataWriter(

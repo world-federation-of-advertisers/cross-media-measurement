@@ -477,6 +477,7 @@ class OperationalMetricsExportTest {
                   externalRequisitionIdAfter = requisition.externalRequisitionId
                 }
               limit = 3000
+              orderBy = StreamRequisitionsRequest.OrderBy.UPDATE_TIME
             }
           )
         flowOf(REQUISITION_2)
