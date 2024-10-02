@@ -102,8 +102,7 @@ fun Report.toReportSummaries(): List<ReportSummary> {
     }
 
   val filterGroupByMetricCalculationSpec =
-    metricCalculationSpecs.associate {
-      spec ->
+    metricCalculationSpecs.associate { spec ->
       val tag = this.tags.getValue(spec)
       spec to tag.split(", ").find { it.startsWith("grouping=") }
     }
