@@ -54,9 +54,11 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.RequisitionRefusal
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase as RequisitionsCoroutineService
+import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.getRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.protocolConfig
@@ -517,6 +519,87 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     assertThat(requisitions2[0].externalRequisitionId)
       .isGreaterThan(requisitions[0].externalRequisitionId)
   }
+
+  @Test
+  fun `streamRequisitions orders by update time when order_by set to UPDATE_TIME`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(
+          dataServices.measurementConsumersService,
+          dataServices.accountsService,
+        )
+      val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
+      val measurement =
+        population.createLlv2Measurement(
+          dataServices.measurementsService,
+          measurementConsumer,
+          "measurement 1",
+          dataProvider,
+        )
+
+      val measurement2 =
+        population.createLlv2Measurement(
+          dataServices.measurementsService,
+          measurementConsumer,
+          "measurement 2",
+          dataProvider,
+        )
+
+      val measurement3 =
+        population.createLlv2Measurement(
+          dataServices.measurementsService,
+          measurementConsumer,
+          "measurement 3",
+          dataProvider,
+        )
+
+      val requisition =
+        dataServices.measurementsService
+          .getMeasurementByComputationId(
+            getMeasurementByComputationIdRequest {
+              externalComputationId = measurement.externalComputationId
+            }
+          )
+          .requisitionsList[0]
+
+      val requisitions: List<Requisition> =
+        service
+          .streamRequisitions(
+            streamRequisitionsRequest {
+              filter = filter {
+                updatedAfter = requisition.updateTime
+                externalDataProviderIdAfter = requisition.externalDataProviderId
+                externalRequisitionIdAfter = requisition.externalRequisitionId
+              }
+              limit = 2
+              orderBy = StreamRequisitionsRequest.OrderBy.UPDATE_TIME
+            }
+          )
+          .toList()
+
+      val requisition2 =
+        dataServices.measurementsService
+          .getMeasurementByComputationId(
+            getMeasurementByComputationIdRequest {
+              externalComputationId = measurement2.externalComputationId
+            }
+          )
+          .requisitionsList[0]
+
+      val requisition3 =
+        dataServices.measurementsService
+          .getMeasurementByComputationId(
+            getMeasurementByComputationIdRequest {
+              externalComputationId = measurement3.externalComputationId
+            }
+          )
+          .requisitionsList[0]
+
+      assertThat(requisitions)
+        .comparingExpectedFieldsOnly()
+        .containsExactly(requisition2, requisition3)
+        .inOrder()
+    }
 
   @Test
   fun `getRequisition returns expected requisition`() = runBlocking {
