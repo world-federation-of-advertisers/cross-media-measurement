@@ -21,7 +21,7 @@ import com.google.type.copy
 import com.google.type.interval
 import experimental.dp_consistency.src.main.kotlin.tools.CorrectOriginReport
 import experimental.dp_consistency.src.main.kotlin.tools.getReportFromJsonString
-import experimental.dp_consistency.src.main.kotlin.tools.toReportSummary
+import experimental.dp_consistency.src.main.kotlin.tools.toReportSummaries
 import experimental.dp_consistency.src.main.proto.reporting.measurementDetail
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -1060,20 +1060,21 @@ class CorrectOriginReportTest {
     }
 
     private fun Report.hasConsistentMeasurements(): Boolean {
-      this.toReportSummary().measurementDetailsList.map { measurementDetail ->
-        if (measurementDetail.isCumulative) {
-          val reachMeasurements =
-            measurementDetail.measurementResultsList.map { result -> result.reach }.toList()
-          if (reachMeasurements.size >= 2) {
-            for (i in 0 until (reachMeasurements.size - 1)) {
-              if (reachMeasurements[i] > reachMeasurements[i + 1]) {
-                return false
+      this.toReportSummaries().forEach {
+        it.measurementDetailsList.map { measurementDetail ->
+          if (measurementDetail.isCumulative) {
+            val reachMeasurements =
+              measurementDetail.measurementResultsList.map { result -> result.reach }.toList()
+            if (reachMeasurements.size >= 2) {
+              for (i in 0 until (reachMeasurements.size - 1)) {
+                if (reachMeasurements[i] > reachMeasurements[i + 1]) {
+                  return false
+                }
               }
             }
           }
         }
       }
-
       return true
     }
   }

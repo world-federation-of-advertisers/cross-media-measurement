@@ -18,10 +18,7 @@ import com.google.gson.GsonBuilder
 import com.google.protobuf.util.JsonFormat
 import java.io.BufferedReader
 import java.io.InputStreamReader
-import java.nio.file.Path
 import java.util.logging.Logger
-import org.wfanet.measurement.common.getJarResourcePath
-import org.wfanet.measurement.common.load
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.copy
@@ -35,8 +32,13 @@ class CorrectOriginReport {
    */
   fun correctReport(reportAsJsonString: String): String {
     val report = getReportFromJsonString(reportAsJsonString)
-    val correctedMeasurementsMap =
-      correctReportSummary(JsonFormat.printer().print(report.toReportSummary()))
+    val reportSummaries = report.toReportSummaries()
+    val correctedMeasurementsMap = mutableMapOf<String, Long>()
+    for (reportSummary in reportSummaries) {
+      correctedMeasurementsMap.putAll(
+        correctReportSummary(JsonFormat.printer().print(reportSummary))
+      )
+    }
     val correctedReport = updateReport(report, correctedMeasurementsMap)
     return correctedReport.toJson()
   }
@@ -147,12 +149,5 @@ class CorrectOriginReport {
     val logger: Logger = Logger.getLogger(this::class.java.name)
     const val PYTHON_LIBRARY_RESOURCE_NAME =
       "experimental/dp_consistency/src/main/python/tools/correct_origin_report"
-
-    init {
-      val resourcePath: Path =
-        this::class.java.classLoader.getJarResourcePath(PYTHON_LIBRARY_RESOURCE_NAME)
-          ?: error("$PYTHON_LIBRARY_RESOURCE_NAME not found in JAR")
-      Runtime.getRuntime().load(resourcePath)
-    }
   }
 }

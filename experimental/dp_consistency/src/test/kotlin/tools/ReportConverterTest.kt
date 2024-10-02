@@ -16,7 +16,7 @@ package experimental.dp_consistency.src.test.kotlin.tools
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import experimental.dp_consistency.src.main.kotlin.tools.convertJsonToReportSummary
+import experimental.dp_consistency.src.main.kotlin.tools.convertJsontoReportSummaries
 import experimental.dp_consistency.src.main.proto.reporting.MeasurementDetailKt.measurementResult
 import experimental.dp_consistency.src.main.proto.reporting.measurementDetail
 import experimental.dp_consistency.src.main.proto.reporting.reportSummary
@@ -29,7 +29,7 @@ import org.junit.runners.JUnit4
 class ReportConverterTest {
   @Test
   fun `report as json string is successfully converted to report summary proto`() {
-    val reportSummary = convertJsonToReportSummary(REPORT_SAMPLE)
+    val reportSummary = convertJsontoReportSummaries(REPORT_SAMPLE)
     val expectedReportSummary = reportSummary {
       measurementDetails += measurementDetail {
         measurementPolicy = "ami"
@@ -64,14 +64,15 @@ class ReportConverterTest {
         }
       }
     }
-    assertThat(reportSummary).isEqualTo(expectedReportSummary)
+    assertThat(reportSummary).hasSize(1)
+    assertThat(reportSummary[0]).isEqualTo(expectedReportSummary)
   }
 
   @Test
   fun `report with unsuccessful state fails to be converted to report summary proto`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        convertJsonToReportSummary(REPORT_WITH_UNSPECIFIED_STATE)
+        convertJsontoReportSummaries(REPORT_WITH_UNSPECIFIED_STATE)
       }
 
     assertThat(exception).hasMessageThat().contains("not supported")
@@ -81,7 +82,7 @@ class ReportConverterTest {
   fun `report with failed measurement fails to be converted to report summary proto`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        convertJsonToReportSummary(REPORT_WITH_FAILED_MEASUREMENT)
+        convertJsontoReportSummaries(REPORT_WITH_FAILED_MEASUREMENT)
       }
 
     assertThat(exception).hasMessageThat().contains("not supported")

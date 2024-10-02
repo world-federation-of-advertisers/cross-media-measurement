@@ -40,7 +40,7 @@ fun getReportFromJsonString(reportAsJsonString: String): Report {
   return report
 }
 
-fun convertJsonToReportSummary(reportAsJsonString: String): ReportSummary {
+fun convertJsontoReportSummaries(reportAsJsonString: String): List<ReportSummary> {
   val report =
     try {
       val protoBuilder = Report.newBuilder()
@@ -50,7 +50,7 @@ fun convertJsonToReportSummary(reportAsJsonString: String): ReportSummary {
       Report.getDefaultInstance()
     }
 
-  return report.toReportSummary()
+  return report.toReportSummaries()
 }
 
 fun getMeasurementPolicy(tag: String): String {
@@ -80,8 +80,9 @@ fun getTargets(tag: String): List<String> {
     ?: error("There must be at least one target.")
 }
 
-fun Report.toReportSummary(): ReportSummary {
+fun Report.toReportSummaries(): List<ReportSummary> {
   require(this.state == Report.State.SUCCEEDED) { "Unsucceeded report is not supported." }
+
   val measurementPoliciesByReportingSet =
     this.reportingMetricEntriesList.associate { entry ->
       val reportingSet = entry.key
@@ -100,46 +101,58 @@ fun Report.toReportSummary(): ReportSummary {
       spec to SetOperationSummary(isCumulative(tag), getSetOperation(tag))
     }
 
-  // Groups measurements by metic calculation spec.
-  val metricCalculationResults =
-    this.metricCalculationResultsList.groupBy { it.metricCalculationSpec }
+  val filterGroupByMetricCalculationSpec =
+    metricCalculationSpecs.associate {
+      spec ->
+      val tag = this.tags.getValue(spec)
+      spec to tag.split(", ").find { it.startsWith("grouping=") }
+    }
+
+  val filterGroups = filterGroupByMetricCalculationSpec.values.toSet()
 
   // Groups results by (reporting set x metric calculation spec).
   val measurementSets =
     this.metricCalculationResultsList.groupBy { Pair(it.metricCalculationSpec, it.reportingSet) }
 
-  return reportSummary {
-    measurementSets.forEach { (key, value) ->
-      measurementDetails += measurementDetail {
-        measurementPolicy = measurementPoliciesByReportingSet[key.second]!!.measurementPolicy
-        dataProviders += measurementPoliciesByReportingSet[key.second]!!.dataProviders
-        isCumulative = setOperationByMetricCalculationSpec[key.first]!!.isCumulative
-        setOperation = setOperationByMetricCalculationSpec[key.first]!!.setOperation
-        var measurementList =
-          value
-            .flatMap { it.resultAttributesList }
-            .sortedBy { it.timeInterval.endTime.seconds }
-            .filter { it.metricResult.hasReach() || it.metricResult.hasReachAndFrequency() }
-            .map { resultAttribute ->
-              require(resultAttribute.state == Metric.State.SUCCEEDED) {
-                "Unsucceeded measurement result is not supported."
-              }
-              MeasurementDetailKt.measurementResult {
-                if (resultAttribute.metricResult.hasReach()) {
-                  reach = resultAttribute.metricResult.reach.value
-                  standardDeviation =
-                    resultAttribute.metricResult.reach.univariateStatistics.standardDeviation
-                } else {
-                  reach = resultAttribute.metricResult.reachAndFrequency.reach.value
-                  standardDeviation =
-                    resultAttribute.metricResult.reachAndFrequency.reach.univariateStatistics
-                      .standardDeviation
+  val reportSummaries = mutableListOf<ReportSummary>()
+  for (group in filterGroups) {
+    val reportSummary = reportSummary {
+      measurementSets.forEach { (key, value) ->
+        if (filterGroupByMetricCalculationSpec.getValue(key.first) == group) {
+          measurementDetails += measurementDetail {
+            measurementPolicy = measurementPoliciesByReportingSet[key.second]!!.measurementPolicy
+            dataProviders += measurementPoliciesByReportingSet[key.second]!!.dataProviders
+            isCumulative = setOperationByMetricCalculationSpec[key.first]!!.isCumulative
+            setOperation = setOperationByMetricCalculationSpec[key.first]!!.setOperation
+            var measurementList =
+              value
+                .flatMap { it.resultAttributesList }
+                .sortedBy { it.timeInterval.endTime.seconds }
+                .filter { it.metricResult.hasReach() || it.metricResult.hasReachAndFrequency() }
+                .map { resultAttribute ->
+                  require(resultAttribute.state == Metric.State.SUCCEEDED) {
+                    "Unsucceeded measurement result is not supported."
+                  }
+                  MeasurementDetailKt.measurementResult {
+                    if (resultAttribute.metricResult.hasReach()) {
+                      reach = resultAttribute.metricResult.reach.value
+                      standardDeviation =
+                        resultAttribute.metricResult.reach.univariateStatistics.standardDeviation
+                    } else {
+                      reach = resultAttribute.metricResult.reachAndFrequency.reach.value
+                      standardDeviation =
+                        resultAttribute.metricResult.reachAndFrequency.reach.univariateStatistics
+                          .standardDeviation
+                    }
+                    metric = resultAttribute.metric
+                  }
                 }
-                metric = resultAttribute.metric
-              }
-            }
-        measurementResults.addAll(measurementList)
+            measurementResults.addAll(measurementList)
+          }
+        }
       }
     }
+    reportSummaries.add(reportSummary)
   }
+  return reportSummaries
 }
