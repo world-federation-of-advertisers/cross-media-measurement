@@ -28,10 +28,12 @@ class StreamRequisitions(request: StreamRequisitionsRequest) :
     RequisitionReader().apply {
       val orderByClause =
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-        when(request.orderBy) {
-          StreamRequisitionsRequest.OrderBy.UPDATE_TIME -> "ORDER BY UpdateTime ASC, ExternalDataProviderId ASC, ExternalRequisitionId ASC"
+        when (request.orderBy) {
+          StreamRequisitionsRequest.OrderBy.UPDATE_TIME ->
+            "ORDER BY UpdateTime ASC, ExternalDataProviderId ASC, ExternalRequisitionId ASC"
           StreamRequisitionsRequest.OrderBy.DEFAULT,
-          StreamRequisitionsRequest.OrderBy.UNRECOGNIZED -> "ORDER BY ExternalDataProviderId ASC, ExternalRequisitionId ASC"
+          StreamRequisitionsRequest.OrderBy.UNRECOGNIZED ->
+            "ORDER BY ExternalDataProviderId ASC, ExternalRequisitionId ASC"
         }
       this.orderByClause = orderByClause
 
