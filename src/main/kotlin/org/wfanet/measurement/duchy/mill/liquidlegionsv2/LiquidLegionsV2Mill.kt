@@ -15,7 +15,6 @@
 package org.wfanet.measurement.duchy.mill.liquidlegionsv2
 
 import com.google.protobuf.ByteString
-import io.opentelemetry.api.OpenTelemetry
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
@@ -83,7 +82,6 @@ abstract class LiquidLegionsV2Mill(
   computationType: ComputationType,
   private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   workLockDuration: Duration,
-  openTelemetry: OpenTelemetry,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
   clock: Clock = Clock.systemUTC(),
@@ -103,7 +101,6 @@ abstract class LiquidLegionsV2Mill(
     requestChunkSizeBytes,
     maximumAttempts,
     clock,
-    openTelemetry,
   ) {
 
   /**

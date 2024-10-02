@@ -24,7 +24,6 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
-import io.opentelemetry.api.GlobalOpenTelemetry
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.time.Clock
@@ -127,7 +126,6 @@ import org.wfanet.measurement.internal.duchy.protocol.completeAggregationPhaseRe
 import org.wfanet.measurement.internal.duchy.protocol.completeAggregationPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseResponse
-import org.wfanet.measurement.internal.duchy.protocol.copy
 import org.wfanet.measurement.internal.duchy.protocol.shareShuffleFrequencyVectorParams
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
@@ -477,13 +475,12 @@ class HonestMajorityShareShuffleMillTest {
       systemComputationsClient = systemComputationStub,
       systemComputationLogEntriesClient = systemComputationLogEntriesStub,
       computationStatsClient = computationStatsStub,
-      privateKeyStore = privateKeyStore,
       certificateClient = certificateStub,
       workerStubs = workerStubs,
-      protocolSetupConfig = PROTOCOL_SETUP_CONFIG,
       cryptoWorker = mockCryptoWorker,
+      protocolSetupConfig = PROTOCOL_SETUP_CONFIG,
       workLockDuration = Duration.ofMinutes(5),
-      openTelemetry = GlobalOpenTelemetry.get(),
+      privateKeyStore = privateKeyStore,
       requestChunkSizeBytes = 20,
       maximumAttempts = 2,
     )

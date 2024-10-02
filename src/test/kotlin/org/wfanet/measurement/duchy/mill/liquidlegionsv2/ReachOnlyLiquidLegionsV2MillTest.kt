@@ -29,7 +29,6 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
-import io.opentelemetry.api.GlobalOpenTelemetry
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
@@ -522,7 +521,6 @@ class ReachOnlyLiquidLegionsV2MillTest {
         workerStubs = workerStubs,
         cryptoWorker = mockCryptoWorker,
         workLockDuration = Duration.ofMinutes(5),
-        openTelemetry = GlobalOpenTelemetry.get(),
         requestChunkSizeBytes = 20,
         maximumAttempts = 2,
         parallelism = PARALLELISM,
@@ -542,7 +540,6 @@ class ReachOnlyLiquidLegionsV2MillTest {
         workerStubs = workerStubs,
         cryptoWorker = mockCryptoWorker,
         workLockDuration = Duration.ofMinutes(5),
-        openTelemetry = GlobalOpenTelemetry.get(),
         requestChunkSizeBytes = 20,
         maximumAttempts = 2,
         parallelism = PARALLELISM,
