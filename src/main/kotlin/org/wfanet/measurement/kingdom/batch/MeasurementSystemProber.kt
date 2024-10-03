@@ -19,6 +19,12 @@ package org.wfanet.measurement.kingdom.batch
 import com.google.protobuf.Any
 import com.google.type.interval
 import io.grpc.StatusException
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.metrics.Meter
+import io.opentelemetry.api.metrics.ObservableLongMeasurement
 import java.io.File
 import java.security.SecureRandom
 import java.time.Clock
@@ -30,6 +36,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsResponse
+import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
@@ -37,15 +44,18 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
+import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
@@ -75,8 +85,28 @@ class MeasurementSystemProber(
     org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub,
   private val dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   private val eventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub,
+  private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
   private val clock: Clock = Clock.systemUTC(),
+  openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get(),
 ) {
+  private val meter: Meter = openTelemetry.getMeter(this::class.qualifiedName!!)
+  private val lastTerminalMeasurementTimeObserver: ObservableLongMeasurement =
+    meter
+      .gaugeBuilder("halo_cmm.prober.last.terminal.measurement.time")
+      .setUnit("{millisecond}")
+      .setDescription("Update time for the most recently issued and completed prober Measurement")
+      .ofLongs()
+      .buildObserver()
+  private val lastTerminalRequisitionTimeObserver: ObservableLongMeasurement =
+    meter
+      .gaugeBuilder("halo_cmm.prober.last.terminal.requisition.time")
+      .setUnit("{millisecond}")
+      .setDescription(
+        "Update time of requisition associated with a particular EDP for the most recently issued Measurement"
+      )
+      .ofLongs()
+      .buildObserver()
+
   suspend fun run() {
     if (shouldCreateNewMeasurement()) {
       createMeasurement()
@@ -219,9 +249,21 @@ class MeasurementSystemProber(
       return true
     }
 
+    val requisitions = getRequisitionsForMeasurement(lastUpdatedMeasurement.name)
+    for (requisition in requisitions) {
+      if (requisition.state == Requisition.State.FULFILLED) {
+        val attributes = Attributes.of(AttributeKey.stringKey("data_provider"), "NAME")
+        // lastTerminalRequisitionTimeObserver.record(requisition.updateTime, attributes)
+      }
+    }
+
     if (lastUpdatedMeasurement.state !in COMPLETED_MEASUREMENT_STATES) {
       return false
     }
+
+    lastTerminalMeasurementTimeObserver.record(
+      lastUpdatedMeasurement.updateTime.toInstant().toEpochMilli()
+    )
 
     val updateInstant = lastUpdatedMeasurement.updateTime.toInstant()
     val nextMeasurementEarliestInstant = updateInstant.plus(durationBetweenMeasurement)
@@ -252,6 +294,27 @@ class MeasurementSystemProber(
       nextPageToken = response.nextPageToken
     } while (nextPageToken.isNotEmpty())
     return null
+  }
+
+  private suspend fun getRequisitionsForMeasurement(measurementName: String): List<Requisition> {
+    var nextPageToken = ""
+    val requisitions = mutableListOf<Requisition>()
+    do {
+      val response: ListRequisitionsResponse =
+        try {
+          requisitionsStub.listRequisitions(
+            listRequisitionsRequest {
+              parent = measurementName
+              pageToken = nextPageToken
+            }
+          )
+        } catch (e: StatusException) {
+          throw Exception("Unable to list requisitions for measurement $measurementName", e)
+        }
+      requisitions.addAll(response.requisitionsList)
+      nextPageToken = response.nextPageToken
+    } while (nextPageToken.isNotEmpty())
+    return requisitions
   }
 
   private suspend fun getDataProviderEntry(

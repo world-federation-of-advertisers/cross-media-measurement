@@ -22,6 +22,7 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
@@ -140,6 +141,7 @@ private fun run(@Mixin flags: MeasurementSystemProberFlags) {
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(channel)
   val dataProvidersService = DataProvidersGrpcKt.DataProvidersCoroutineStub(channel)
   val eventGroupsService = EventGroupsGrpcKt.EventGroupsCoroutineStub(channel)
+  val requisitionsService = RequisitionsGrpcKt.RequisitionsCoroutineStub(channel)
 
   val measurementSystemProber =
     MeasurementSystemProber(
@@ -153,6 +155,7 @@ private fun run(@Mixin flags: MeasurementSystemProberFlags) {
       measurementsService,
       dataProvidersService,
       eventGroupsService,
+      requisitionsService,
     )
   runBlocking { measurementSystemProber.run() }
 }
