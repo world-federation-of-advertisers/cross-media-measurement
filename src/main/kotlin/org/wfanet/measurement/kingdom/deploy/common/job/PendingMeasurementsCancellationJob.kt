@@ -16,8 +16,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.common.job
 
-import io.opentelemetry.api.GlobalOpenTelemetry
-import io.opentelemetry.api.OpenTelemetry
 import java.time.Clock
 import java.time.Duration
 import kotlin.properties.Delegates
@@ -90,15 +88,12 @@ private fun run(@CommandLine.Mixin flags: Flags) {
 
   val internalMeasurementsClient = MeasurementsCoroutineStub(channel)
 
-  val openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get()
-
   val pendingMeasurementsCancellation =
     PendingMeasurementsCancellation(
       internalMeasurementsClient,
       flags.measurementsTimeToLive,
       flags.dryRun,
       Clock.systemUTC(),
-      openTelemetry,
     )
   pendingMeasurementsCancellation.run()
 }
