@@ -18,8 +18,16 @@ package org.wfanet.measurement.kingdom.deploy.common.job
 
 import java.io.File
 import java.time.Duration
+import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withDefaultDeadline
+import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.kingdom.batch.MeasurementSystemProber
 import org.wfanet.measurement.kingdom.deploy.common.server.KingdomApiServerFlags
 import picocli.CommandLine.Command
@@ -110,8 +118,43 @@ private class MeasurementSystemProberFlags {
   showDefaultValues = true,
 )
 private fun run(@Mixin flags: MeasurementSystemProberFlags) {
-  val measurementSystemProber = MeasurementSystemProber()
-  measurementSystemProber.run()
+  val clientCerts =
+    SigningCerts.fromPemFiles(
+      certificateFile = flags.tlsFlags.certFile,
+      privateKeyFile = flags.tlsFlags.privateKeyFile,
+      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
+    )
+
+  val channel =
+    buildMutualTlsChannel(
+        flags.kingdomApiServerFlags.internalApiFlags.target,
+        clientCerts,
+        flags.kingdomApiServerFlags.internalApiFlags.certHost,
+      )
+      .withVerboseLogging(flags.kingdomApiServerFlags.debugVerboseGrpcClientLogging)
+      .withDefaultDeadline(flags.kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
+
+  val measurementsService =
+    org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub(channel)
+  val measurementConsumersService =
+    MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(channel)
+  val dataProvidersService = DataProvidersGrpcKt.DataProvidersCoroutineStub(channel)
+  val eventGroupsService = EventGroupsGrpcKt.EventGroupsCoroutineStub(channel)
+
+  val measurementSystemProber =
+    MeasurementSystemProber(
+      flags.measurementConsumer,
+      flags.dataProvider,
+      flags.apiAuthenticationKey,
+      flags.privateKeyDerFile,
+      flags.measurementLookbackDuration,
+      flags.durationBetweenMeasurement,
+      measurementConsumersService,
+      measurementsService,
+      dataProvidersService,
+      eventGroupsService,
+    )
+  runBlocking { measurementSystemProber.run() }
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)
