@@ -86,6 +86,14 @@ jobs:
         build --define reporting_public_api_address_name=reporting-v2alpha
         EOF
 
+    - uses: ./.github/actions/setup-bazel-remote
+      with:
+        host: ${{ vars.BAZEL_REMOTE_CACHE_HOST }}
+        port: ${{ vars.BAZEL_REMOTE_CACHE_PORT }}
+        certificate: ${{ vars.BAZEL_REMOTE_CACHE_CERT }}
+        username: ${{ vars.BAZEL_REMOTE_CACHE_USER }}
+        password: ${{ secrets.BAZEL_REMOTE_CACHE_PASSWORD }}
+
     - name: Export BAZEL_BIN
       run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 

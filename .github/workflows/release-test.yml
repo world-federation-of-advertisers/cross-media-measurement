@@ -23,8 +23,6 @@ jobs:
   build-test:
     name: Build and test
     runs-on: ubuntu-22.04
-    permissions:
-      id-token: write
     env:
       CLUSTER_LOGS_PATH: cluster-logs
     steps:
@@ -33,19 +31,19 @@ jobs:
 
     - uses: ./.github/actions/free-disk-space
 
-    # Authenticate to Google Cloud for access to remote cache.
-    - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
-      with:
-        workload_identity_provider: ${{ vars.BAZEL_BUILD_WORKLOAD_IDENTITY_PROVIDER }}
-        service_account: ${{ vars.BAZEL_BUILD_SERVICE_ACCOUNT }}
-
     - name: Write ~/.bazelrc
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
-        common --config=remote-cache
         EOF
+
+    - uses: ./.github/actions/setup-bazel-remote
+      with:
+        host: ${{ vars.BAZEL_REMOTE_CACHE_HOST }}
+        port: ${{ vars.BAZEL_REMOTE_CACHE_PORT }}
+        certificate: ${{ vars.BAZEL_REMOTE_CACHE_CERT }}
+        username: ${{ vars.BAZEL_REMOTE_CACHE_USER }}
+        password: ${{ secrets.BAZEL_REMOTE_CACHE_PASSWORD }}
 
     - name: Get Bazel cache params
       id: get-cache-params
