@@ -18,8 +18,8 @@ from experimental.dp_consistency.src.main.proto.reporting import \
 
 from noiseninja.noised_measurements import Measurement
 from report.report import Report, MetricReport
-from tools.correct_origin_report import correctExcelFile, readExcel, \
-  correctReportSummary
+from tools.post_process_origin_report import correctExcelFile, readExcel, \
+  processReportSummary
 
 CUML_REACH_COL_NAME = "Cumulative Reach 1+"
 TOTAL_REACH_COL_NAME = "Total Reach (1+)"
@@ -103,7 +103,7 @@ class TestOriginSheetReport(unittest.TestCase):
       mrc_result.metric = "metric_" + edp + "_mrc_" + str(
         len(measurements[edp]["MRC"]) - 1).zfill(5)
 
-    correctReportSummary(report_summary)
+    processReportSummary(report_summary)
 
   def test_get_origin_report_corrected_successfully(self):
     correctedExcel = correctExcelFile(

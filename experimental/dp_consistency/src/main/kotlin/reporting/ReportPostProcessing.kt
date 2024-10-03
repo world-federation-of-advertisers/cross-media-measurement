@@ -12,62 +12,68 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package experimental.dp_consistency.src.main.kotlin.tools
+package experimental.dp_consistency.src.main.kotlin.reporting
 
 import com.google.gson.GsonBuilder
 import com.google.protobuf.util.JsonFormat
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.nio.file.StandardCopyOption
 import java.util.logging.Logger
+import kotlin.io.path.name
+import org.wfanet.measurement.common.getJarResourcePath
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.report
 
-/** Corrects noisy measurements in a report using the Python library `correct_origin_report`. */
-class CorrectOriginReport {
+/** Corrects noisy measurements in a report. */
+class ReportPostProcessing {
   /**
-   * Corrects the noisy measurements in the [reportAsJsonString] and returns a corrected report in
+   * Corrects the inconsistent measurements in the [reportAsJsonString] and returns a corrected report in
    * JSON format.
    */
-  fun correctReport(reportAsJsonString: String): String {
-    val report = getReportFromJsonString(reportAsJsonString)
+  fun processReport(reportAsJsonString: String): String {
+    val report = ReportConversion.getReportFromJsonString(reportAsJsonString)
     val reportSummaries = report.toReportSummaries()
     val correctedMeasurementsMap = mutableMapOf<String, Long>()
     for (reportSummary in reportSummaries) {
       correctedMeasurementsMap.putAll(
-        correctReportSummary(JsonFormat.printer().print(reportSummary))
+        processReportSummary(JsonFormat.printer().print(reportSummary))
       )
     }
-    val correctedReport = updateReport(report, correctedMeasurementsMap)
-    return correctedReport.toJson()
+    val updatedReport = updateReport(report, correctedMeasurementsMap)
+    return updatedReport.toJson()
   }
 
   /**
-   * Corrects the noisy measurements in the [reportSummaryAsJsonString] and returns a map of metric
+   * Corrects the inconsistent measurements in the [reportSummaryAsJsonString] and returns a map of metric
    * names to corrected reach values.
    *
    * Each metric name is tied to a measurement.
    */
-  private fun correctReportSummary(reportSummaryAsJsonString: String): Map<String, Long> {
-    logger.info { "Start correcting report.." }
+  private fun processReportSummary(reportSummaryAsJsonString: String): Map<String, Long> {
+    logger.info { "Start processing report.." }
+    val processBuilder =
+      ProcessBuilder("python3", resourcePath.name, "--report_summary=$reportSummaryAsJsonString")
 
-    val process =
-      ProcessBuilder("$PYTHON_LIBRARY_RESOURCE_NAME", "--report_summary=$reportSummaryAsJsonString")
-        .start()
+    val process = processBuilder.start()
 
     // Reads the output of the above process.
     val processOutput = BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }
 
     val exitCode = process.waitFor()
-    require(exitCode == 0) { "Failed to correct the report with exitCode $exitCode." }
+    require(exitCode == 0) { "Failed to process the report with exitCode $exitCode." }
 
-    logger.info { "Finished correcting report.." }
+    logger.info { "Finished processing report.." }
 
-    // Converts the process' output to the correction map.
-    val gson = GsonBuilder().create()
+    // Converts the process output to the correction map.
     val correctedMeasurementsMap = mutableMapOf<String, Long>()
-    gson.fromJson(processOutput, Map::class.java).forEach { (key, value) ->
+    GsonBuilder().create().fromJson(processOutput, Map::class.java).forEach { (key, value) ->
       correctedMeasurementsMap[key as String] = (value as Double).toLong()
     }
 
@@ -131,23 +137,34 @@ class CorrectOriginReport {
     return updatedMetricCalculationResult
   }
 
-  /** Returns a corrected [Report] with updated reach values from the [correctedMeasurementsMap]. */
+  /** Returns a [Report] with updated reach values from the [correctedMeasurementsMap]. */
   private fun updateReport(report: Report, correctedMeasurementsMap: Map<String, Long>): Report {
     val correctedMetricCalculationResults =
       report.metricCalculationResultsList.map { result ->
         updateMetricCalculationResult(result, correctedMeasurementsMap)
       }
-    val correctedReport =
+    val updatedReport =
       report.copy {
         metricCalculationResults.clear()
         metricCalculationResults += correctedMetricCalculationResults
       }
-    return correctedReport
+    return updatedReport
   }
 
   companion object {
     val logger: Logger = Logger.getLogger(this::class.java.name)
     const val PYTHON_LIBRARY_RESOURCE_NAME =
-      "experimental/dp_consistency/src/main/python/tools/correct_origin_report"
+      "experimental/dp_consistency/src/main/python/tools/post_process_origin_report.zip"
+    val resourcePath: Path =
+      this::class.java.classLoader.getJarResourcePath(PYTHON_LIBRARY_RESOURCE_NAME)
+        ?: error("$PYTHON_LIBRARY_RESOURCE_NAME not found in JAR")
+    init {
+      // Copies python zip package from JAR to local directory.
+      Files.copy(
+        resourcePath,
+        File(File(Paths.get("").toAbsolutePath().toString()), resourcePath.name).toPath(),
+        StandardCopyOption.REPLACE_EXISTING,
+      )
+    }
   }
 }

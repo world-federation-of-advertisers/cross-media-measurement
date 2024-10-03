@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package experimental.dp_consistency.src.main.kotlin.tools
+package experimental.dp_consistency.src.main.kotlin.reporting
 
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
@@ -28,29 +28,31 @@ data class ReportingSetSummary(val measurementPolicy: String, val dataProviders:
 
 data class SetOperationSummary(val isCumulative: Boolean, val setOperation: String)
 
-fun getReportFromJsonString(reportAsJsonString: String): Report {
-  val report =
-    try {
-      val protoBuilder = Report.newBuilder()
-      JsonFormat.parser().ignoringUnknownFields().merge(reportAsJsonString, protoBuilder)
-      protoBuilder.build()
-    } catch (e: InvalidProtocolBufferException) {
-      Report.getDefaultInstance()
-    }
-  return report
-}
+object ReportConversion {
+  fun getReportFromJsonString(reportAsJsonString: String): Report {
+    val report =
+      try {
+        val protoBuilder = Report.newBuilder()
+        JsonFormat.parser().ignoringUnknownFields().merge(reportAsJsonString, protoBuilder)
+        protoBuilder.build()
+      } catch (e: InvalidProtocolBufferException) {
+        Report.getDefaultInstance()
+      }
+    return report
+  }
 
-fun convertJsontoReportSummaries(reportAsJsonString: String): List<ReportSummary> {
-  val report =
-    try {
-      val protoBuilder = Report.newBuilder()
-      JsonFormat.parser().ignoringUnknownFields().merge(reportAsJsonString, protoBuilder)
-      protoBuilder.build()
-    } catch (e: InvalidProtocolBufferException) {
-      Report.getDefaultInstance()
-    }
+  fun convertJsontoReportSummaries(reportAsJsonString: String): List<ReportSummary> {
+    val report =
+      try {
+        val protoBuilder = Report.newBuilder()
+        JsonFormat.parser().ignoringUnknownFields().merge(reportAsJsonString, protoBuilder)
+        protoBuilder.build()
+      } catch (e: InvalidProtocolBufferException) {
+        Report.getDefaultInstance()
+      }
 
-  return report.toReportSummaries()
+    return report.toReportSummaries()
+  }
 }
 
 fun getMeasurementPolicy(tag: String): String {
@@ -104,7 +106,7 @@ fun Report.toReportSummaries(): List<ReportSummary> {
   val filterGroupByMetricCalculationSpec =
     metricCalculationSpecs.associate { spec ->
       val tag = this.tags.getValue(spec)
-      spec to tag.split(", ").find { it.startsWith("grouping=") }
+      spec to tag.split(", ").find { it.startsWith("common_filter=") }
     }
 
   val filterGroups = filterGroupByMetricCalculationSpec.values.toSet()
@@ -114,10 +116,10 @@ fun Report.toReportSummaries(): List<ReportSummary> {
     this.metricCalculationResultsList.groupBy { Pair(it.metricCalculationSpec, it.reportingSet) }
 
   val reportSummaries = mutableListOf<ReportSummary>()
-  for (group in filterGroups) {
+  for (filter in filterGroups) {
     val reportSummary = reportSummary {
       measurementSets.forEach { (key, value) ->
-        if (filterGroupByMetricCalculationSpec.getValue(key.first) == group) {
+        if (filterGroupByMetricCalculationSpec.getValue(key.first) == filter) {
           measurementDetails += measurementDetail {
             measurementPolicy = measurementPoliciesByReportingSet[key.second]!!.measurementPolicy
             dataProviders += measurementPoliciesByReportingSet[key.second]!!.dataProviders

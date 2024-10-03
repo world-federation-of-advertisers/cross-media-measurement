@@ -105,13 +105,13 @@ def readExcel(excel_file_path, unnoised_edps):
   return (measurements, dfs)
 
 
-# Processes a report summary and returns a corrected one.
+# Processes a report summary and returns a consistent one.
 #
 # Currently, the function only supports ami and mrc measurements and primitive
 # set operations (cumulative and union).
 # TODO(@ple13): Extend the function to support custom measurements and composite
 #  set operations such as difference, incremental.
-def correctReportSummary(report_summary: report_summary_pb2.ReportSummary()):
+def processReportSummary(report_summary: report_summary_pb2.ReportSummary()):
   ami_measurements: Dict[FrozenSet[str], List[Measurement]] = {}
   mrc_measurements: Dict[FrozenSet[str], List[Measurement]] = {}
 
@@ -305,8 +305,9 @@ def main():
   )
   args = parser.parse_args()
   report_summary = report_summary_pb2.ReportSummary()
+  print(report_summary)
   json_format.Parse(args.report_summary, report_summary)
-  corrected_measurements_dict = correctReportSummary(report_summary)
+  corrected_measurements_dict = processReportSummary(report_summary)
 
   # Sends the JSON representation of corrected_measurements_dict to the parent
   # program.

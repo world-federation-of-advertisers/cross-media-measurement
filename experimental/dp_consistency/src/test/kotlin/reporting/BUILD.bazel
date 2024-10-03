@@ -3,19 +3,15 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 package(default_testonly = True)
 
 kt_jvm_test(
-    name = "correct_origin_report_test",
-    srcs = ["CorrectOriginReportTest.kt"],
+    name = "report_post_processing_test",
+    srcs = ["ReportPostProcessingTest.kt"],
     data = [
-        "//experimental/dp_consistency/src/main/python/tools:correct_origin_report",
-        "//experimental/dp_consistency/src/test/kotlin/tools:example_origin_report.xlsx",
+        "//experimental/dp_consistency/src/test/kotlin/reporting:example_origin_report.xlsx",
+        "//experimental/dp_consistency/src/test/kotlin/reporting:sample_report.json",
     ],
-    jvm_flags = [
-        "-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false",
-        "-Djava.security.manager=allow",
-    ],
-    test_class = "experimental.dp_consistency.src.test.kotlin.tools.CorrectOriginReportTest",
+    test_class = "experimental.dp_consistency.src.test.kotlin.reporting.ReportPostProcessingTest",
     deps = [
-        "//experimental/dp_consistency/src/main/kotlin/tools:correct_origin_report",
+        "//experimental/dp_consistency/src/main/kotlin/reporting:report_post_processing",
         "//experimental/dp_consistency/src/main/proto/reporting:report_summary_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
@@ -29,10 +25,9 @@ kt_jvm_test(
 kt_jvm_test(
     name = "report_converter_test",
     srcs = ["ReportConverterTest.kt"],
-    test_class = "experimental.dp_consistency.src.test.kotlin.tools.ReportConverterTest",
+    test_class = "experimental.dp_consistency.src.test.kotlin.reporting.ReportConverterTest",
     deps = [
-        "//experimental/dp_consistency/src/main/kotlin/tools:correct_origin_report",
-        "//experimental/dp_consistency/src/main/kotlin/tools:report_converter",
+        "//experimental/dp_consistency/src/main/kotlin/reporting:report_converter",
         "//experimental/dp_consistency/src/main/proto/reporting:report_summary_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",

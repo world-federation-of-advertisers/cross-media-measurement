@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package experimental.dp_consistency.src.test.kotlin.tools
+package experimental.dp_consistency.src.test.kotlin.reporting
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import experimental.dp_consistency.src.main.kotlin.tools.convertJsontoReportSummaries
+import experimental.dp_consistency.src.main.kotlin.reporting.ReportConversion
 import experimental.dp_consistency.src.main.proto.reporting.MeasurementDetailKt.measurementResult
 import experimental.dp_consistency.src.main.proto.reporting.measurementDetail
 import experimental.dp_consistency.src.main.proto.reporting.reportSummary
@@ -29,7 +29,7 @@ import org.junit.runners.JUnit4
 class ReportConverterTest {
   @Test
   fun `report as json string is successfully converted to report summary proto`() {
-    val reportSummary = convertJsontoReportSummaries(REPORT_SAMPLE)
+    val reportSummary = ReportConversion.convertJsontoReportSummaries(REPORT_SAMPLE)
     val expectedReportSummary = reportSummary {
       measurementDetails += measurementDetail {
         measurementPolicy = "ami"
@@ -72,7 +72,7 @@ class ReportConverterTest {
   fun `report with unsuccessful state fails to be converted to report summary proto`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        convertJsontoReportSummaries(REPORT_WITH_UNSPECIFIED_STATE)
+        ReportConversion.convertJsontoReportSummaries(REPORT_WITH_UNSPECIFIED_STATE)
       }
 
     assertThat(exception).hasMessageThat().contains("not supported")
@@ -82,7 +82,7 @@ class ReportConverterTest {
   fun `report with failed measurement fails to be converted to report summary proto`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        convertJsontoReportSummaries(REPORT_WITH_FAILED_MEASUREMENT)
+        ReportConversion.convertJsontoReportSummaries(REPORT_WITH_FAILED_MEASUREMENT)
       }
 
     assertThat(exception).hasMessageThat().contains("not supported")

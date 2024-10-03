@@ -3,12 +3,11 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_binary", "kt_jvm_library"
 package(default_visibility = ["//visibility:public"])
 
 kt_jvm_binary(
-    name = "correct_origin_report",
-    srcs = ["CorrectOriginReport.kt"],
-    main_class = "experimental.dp_consistency.src.main.kotlin.tools.CorrectOriginReport",
+    name = "report_post_processing",
+    srcs = ["ReportPostProcessing.kt"],
+    main_class = "experimental.dp_consistency.src.main.kotlin.reporting.ReportPostProcessing",
     resources = [
-        "//experimental/dp_consistency/src/main/python/tools:correct_origin_report",
-        "//experimental/dp_consistency/src/main/python/tools:correct_origin_report_pyzip",
+        "//experimental/dp_consistency/src/main/python/tools:post_process_origin_report_pyzip",
     ],
     deps = [
         ":report_converter",
