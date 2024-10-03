@@ -547,11 +547,12 @@ private fun buildInternalStreamRequisitionsRequest(
               )
               .asRuntimeException()
           }
-          after = StreamRequisitionsRequestKt.FilterKt.after {
-            updateTime = pageToken.lastRequisition.updateTime
-            externalDataProviderId = pageToken.lastRequisition.externalDataProviderId
-            externalRequisitionId = pageToken.lastRequisition.externalRequisitionId
-          }
+          after =
+            StreamRequisitionsRequestKt.FilterKt.after {
+              updateTime = pageToken.lastRequisition.updateTime
+              externalDataProviderId = pageToken.lastRequisition.externalDataProviderId
+              externalRequisitionId = pageToken.lastRequisition.externalRequisitionId
+            }
         }
       }
     // Fetch one extra to determine if we need to set next_page_token in response.
@@ -577,8 +578,7 @@ private fun buildNextPageToken(
     states += filter.statesList
     measurementStates += filter.measurementStatesList
     lastRequisition = previousPageEnd {
-      updateTime =
-        internalRequisitions[internalRequisitions.lastIndex - 1].updateTime
+      updateTime = internalRequisitions[internalRequisitions.lastIndex - 1].updateTime
       externalDataProviderId =
         internalRequisitions[internalRequisitions.lastIndex - 1].externalDataProviderId
       externalRequisitionId =

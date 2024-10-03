@@ -27,7 +27,7 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
   override val reader =
     RequisitionReader().apply {
       val orderByClause =
-            "ORDER BY UpdateTime ASC, ExternalDataProviderId ASC, ExternalRequisitionId ASC"
+        "ORDER BY UpdateTime ASC, ExternalDataProviderId ASC, ExternalRequisitionId ASC"
       this.orderByClause = orderByClause
 
       fillStatementBuilder {

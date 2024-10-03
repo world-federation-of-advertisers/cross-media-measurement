@@ -23,6 +23,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.any as protoAny
 import com.google.protobuf.kotlin.toByteStringUtf8
+import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -118,7 +119,6 @@ import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest as inter
 import org.wfanet.measurement.internal.kingdom.requisition as internalRequisition
 import org.wfanet.measurement.internal.kingdom.requisitionDetails
 import org.wfanet.measurement.internal.kingdom.requisitionRefusal as internalRequisitionRefusal
-import com.google.protobuf.timestamp
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
@@ -298,16 +298,17 @@ class RequisitionsServiceTest {
 
   @Test
   fun `listRequisitions with page token returns next page`() {
-    whenever(internalRequisitionMock.streamRequisitions(any()))
-      .thenAnswer {
-        val request: StreamRequisitionsRequest = it.getArgument(0)
-        if (request.filter.hasAfter()) {
-          assertThat(request.filter.after.updateTime).isEqualTo(INTERNAL_REQUISITION.updateTime)
-          assertThat(request.filter.after.externalDataProviderId).isEqualTo(INTERNAL_REQUISITION.externalDataProviderId)
-          assertThat(request.filter.after.externalRequisitionId).isEqualTo(INTERNAL_REQUISITION.externalRequisitionId)
-        }
-        flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION)
+    whenever(internalRequisitionMock.streamRequisitions(any())).thenAnswer {
+      val request: StreamRequisitionsRequest = it.getArgument(0)
+      if (request.filter.hasAfter()) {
+        assertThat(request.filter.after.updateTime).isEqualTo(INTERNAL_REQUISITION.updateTime)
+        assertThat(request.filter.after.externalDataProviderId)
+          .isEqualTo(INTERNAL_REQUISITION.externalDataProviderId)
+        assertThat(request.filter.after.externalRequisitionId)
+          .isEqualTo(INTERNAL_REQUISITION.externalRequisitionId)
       }
+      flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION)
+    }
 
     val initialRequest = listRequisitionsRequest {
       parent = DATA_PROVIDER_NAME
@@ -325,11 +326,14 @@ class RequisitionsServiceTest {
         runBlocking { service.listRequisitions(request) }
       }
 
-    assertThat(response).isEqualTo(listRequisitionsResponse {
-      requisitions += REQUISITION
-      requisitions += REQUISITION
-      nextPageToken = initialResponse.nextPageToken
-    })
+    assertThat(response)
+      .isEqualTo(
+        listRequisitionsResponse {
+          requisitions += REQUISITION
+          requisitions += REQUISITION
+          nextPageToken = initialResponse.nextPageToken
+        }
+      )
   }
 
   @Test
@@ -389,13 +393,11 @@ class RequisitionsServiceTest {
 
   @Test
   fun `listRequisitions with more results remaining returns response with next page token`() {
-    val laterUpdateTime = timestamp {
-      seconds = INTERNAL_REQUISITION.updateTime.seconds + 100
-    }
+    val laterUpdateTime = timestamp { seconds = INTERNAL_REQUISITION.updateTime.seconds + 100 }
     whenever(internalRequisitionMock.streamRequisitions(any()))
-      .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION.copy {
-        updateTime = laterUpdateTime
-      }))
+      .thenReturn(
+        flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION.copy { updateTime = laterUpdateTime })
+      )
     val request = listRequisitionsRequest {
       parent = DATA_PROVIDER_NAME
       pageSize = 1
