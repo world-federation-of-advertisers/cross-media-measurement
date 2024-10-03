@@ -15,7 +15,6 @@
 package org.wfanet.measurement.duchy.mill.liquidlegionsv2
 
 import com.google.protobuf.ByteString
-import io.opentelemetry.api.OpenTelemetry
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
@@ -109,7 +108,6 @@ class ReachOnlyLiquidLegionsV2Mill(
   private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   private val cryptoWorker: ReachOnlyLiquidLegionsV2Encryption,
   workLockDuration: Duration,
-  openTelemetry: OpenTelemetry,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
   clock: Clock = Clock.systemUTC(),
@@ -129,7 +127,6 @@ class ReachOnlyLiquidLegionsV2Mill(
     ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
     workerStubs,
     workLockDuration,
-    openTelemetry,
     requestChunkSizeBytes,
     maximumAttempts,
     clock,
