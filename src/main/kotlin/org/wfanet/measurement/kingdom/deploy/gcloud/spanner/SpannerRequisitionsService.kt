@@ -61,7 +61,9 @@ class SpannerRequisitionsService(
       }
     }
 
-    return StreamRequisitions(request).execute(client.singleUse()).map { it.requisition }
+    return StreamRequisitions(requestFilter, request.limit).execute(client.singleUse()).map {
+      it.requisition
+    }
   }
 
   override suspend fun fulfillRequisition(request: FulfillRequisitionRequest): Requisition {
