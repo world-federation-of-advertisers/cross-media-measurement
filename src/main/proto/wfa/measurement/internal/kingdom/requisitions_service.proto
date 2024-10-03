@@ -27,7 +27,7 @@ option java_multiple_files = true;
 service Requisitions {
   rpc GetRequisition(GetRequisitionRequest) returns (Requisition);
 
-  // Streams Requisitions with order dependent on order_by.
+  // Streams Requisitions ordered by update time, ascending.
   rpc StreamRequisitions(StreamRequisitionsRequest)
       returns (stream Requisition);
 
@@ -62,15 +62,6 @@ message StreamRequisitionsRequest {
   // The maximum number of results to return. If not specified or 0, it implies
   // unlimited.
   int32 limit = 2;
-
-  enum OrderBy {
-    // Order by external_data_provider_id asc, external_requisition_id asc.
-    DEFAULT = 0;
-    // Order by update_time asc, external_data_provider_id asc,
-    // external_requisition_id asc.
-    UPDATE_TIME = 1;
-  }
-  OrderBy order_by = 3;
 }
 
 message FulfillRequisitionRequest {
