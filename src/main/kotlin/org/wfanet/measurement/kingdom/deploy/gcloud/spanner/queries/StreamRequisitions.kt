@@ -58,7 +58,10 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
       conjuncts.add("Requisitions.State IN UNNEST(@$STATES)")
       bind(STATES).toInt64Array(filter.statesValueList.map { it.toLong() })
     }
-
+    if (filter.hasUpdatedAfter()) {
+      conjuncts.add("Requisitions.UpdateTime > @$UPDATED_AFTER")
+      bind(UPDATED_AFTER to filter.updatedAfter.toGcloudTimestamp())
+    }
     if (filter.measurementStatesValueList.isNotEmpty()) {
       conjuncts.add("Measurements.State IN UNNEST(@$MEASUREMENT_STATES)")
       bind(MEASUREMENT_STATES).toInt64Array(filter.measurementStatesValueList.map { it.toLong() })

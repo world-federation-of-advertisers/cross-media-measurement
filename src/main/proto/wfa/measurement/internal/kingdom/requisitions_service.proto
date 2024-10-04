@@ -27,7 +27,7 @@ option java_multiple_files = true;
 service Requisitions {
   rpc GetRequisition(GetRequisitionRequest) returns (Requisition);
 
-  // Streams Requisitions response rdered by update_time asc,
+  // Streams Requisitions response ordered by update_time asc,
   // external_data_provider_id asc, external_requisition_id asc.
   rpc StreamRequisitions(StreamRequisitionsRequest)
       returns (stream Requisition);
@@ -48,12 +48,13 @@ message StreamRequisitionsRequest {
   // Filter criteria as a conjunction of specified fields. Repeated fields are
   // disjunctions of their items.
   message Filter {
-    reserved 5, 6, 7;
+    reserved 6, 7;
 
     int64 external_measurement_consumer_id = 1;
     int64 external_measurement_id = 2;
     int64 external_data_provider_id = 3;
     repeated Requisition.State states = 4;
+    google.protobuf.Timestamp updated_after = 5;
     repeated Measurement.State measurement_states = 8;
 
     message After {

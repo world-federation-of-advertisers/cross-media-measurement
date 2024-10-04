@@ -31,12 +31,6 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
-private object Params {
-  const val EXTERNAL_COMPUTATION_ID = "externalComputationId"
-  const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
-  const val EXTERNAL_REQUISITION_ID = "externalRequisitionId"
-}
-
 class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
   data class Result(
     val measurementConsumerId: InternalId,
@@ -48,34 +42,6 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
 
   override val baseSql: String
     get() = BASE_SQL
-
-  private val BASE_SQL =
-    """
-      @{spanner_emulator.disable_query_null_filtered_index_check=true}
-      WITH FilteredRequisitions AS (
-        SELECT
-          Requisitions.MeasurementConsumerId,
-          Requisitions.MeasurementId,
-          Requisitions.RequisitionId,
-          Requisitions.UpdateTime,
-          Requisitions.ExternalRequisitionId,
-          Requisitions.State,
-          Requisitions.FulfillingDuchyId,
-          Requisitions.RequisitionDetails,
-          Requisitions.DataProviderCertificateId,
-          ExternalMeasurementConsumerId,
-          ExternalMeasurementId,
-          ExternalDataProviderId,
-          Measurements.State AS MeasurementState,
-          ExternalComputationId,
-          CertificateId,
-          MeasurementDetails
-        FROM
-          MeasurementConsumers JOIN Measurements USING (MeasurementConsumerId)
-          JOIN Requisitions USING (MeasurementConsumerId, MeasurementId)
-          JOIN DataProviders USING (DataProviderId)
-      """
-      .trimIndent()
 
   private var filled = false
 
@@ -127,13 +93,13 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
         appendClause(
           """
           WHERE
-            ExternalRequisitionId = @${Params.EXTERNAL_REQUISITION_ID}
-            AND ExternalDataProviderId = @${Params.EXTERNAL_DATA_PROVIDER_ID}
+            ExternalRequisitionId = @${EXTERNAL_REQUISITION_ID}
+            AND ExternalDataProviderId = @${EXTERNAL_DATA_PROVIDER_ID}
           """
             .trimIndent()
         )
-        bind(Params.EXTERNAL_DATA_PROVIDER_ID to externalDataProviderId)
-        bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)
+        bind(EXTERNAL_DATA_PROVIDER_ID to externalDataProviderId)
+        bind(EXTERNAL_REQUISITION_ID to externalRequisitionId)
       }
       .execute(readContext)
       .singleOrNull()
@@ -148,19 +114,51 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
         appendClause(
           """
           WHERE
-            ExternalComputationId = @${Params.EXTERNAL_COMPUTATION_ID}
-            AND ExternalRequisitionId = @${Params.EXTERNAL_REQUISITION_ID}
+            ExternalComputationId = @${EXTERNAL_COMPUTATION_ID}
+            AND ExternalRequisitionId = @${EXTERNAL_REQUISITION_ID}
           """
             .trimIndent()
         )
-        bind(Params.EXTERNAL_COMPUTATION_ID to externalComputationId)
-        bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)
+        bind(EXTERNAL_COMPUTATION_ID to externalComputationId)
+        bind(EXTERNAL_REQUISITION_ID to externalRequisitionId)
       }
       .execute(readContext)
       .singleOrNull()
   }
 
   companion object {
+    private const val EXTERNAL_COMPUTATION_ID = "externalComputationId"
+    private const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
+    private const val EXTERNAL_REQUISITION_ID = "externalRequisitionId"
+
+    private val BASE_SQL =
+      """
+      @{spanner_emulator.disable_query_null_filtered_index_check=true}
+      WITH FilteredRequisitions AS (
+        SELECT
+          Requisitions.MeasurementConsumerId,
+          Requisitions.MeasurementId,
+          Requisitions.RequisitionId,
+          Requisitions.UpdateTime,
+          Requisitions.ExternalRequisitionId,
+          Requisitions.State,
+          Requisitions.FulfillingDuchyId,
+          Requisitions.RequisitionDetails,
+          Requisitions.DataProviderCertificateId,
+          ExternalMeasurementConsumerId,
+          ExternalMeasurementId,
+          ExternalDataProviderId,
+          Measurements.State AS MeasurementState,
+          ExternalComputationId,
+          CertificateId,
+          MeasurementDetails
+        FROM
+          MeasurementConsumers JOIN Measurements USING (MeasurementConsumerId)
+          JOIN Requisitions USING (MeasurementConsumerId, MeasurementId)
+          JOIN DataProviders USING (DataProviderId)
+      """
+        .trimIndent()
+
     private val DEFAULT_SQL =
       """
   SELECT

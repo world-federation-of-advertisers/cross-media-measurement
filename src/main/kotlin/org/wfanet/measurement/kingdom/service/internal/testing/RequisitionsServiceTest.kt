@@ -375,6 +375,57 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     }
 
   @Test
+  fun `streamRequisitions respects updated_after`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(
+        dataServices.measurementConsumersService,
+        dataServices.accountsService,
+      )
+    val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
+    val measurement1 =
+      population.createLlv2Measurement(
+        dataServices.measurementsService,
+        measurementConsumer,
+        "measurement 1",
+        dataProvider,
+      )
+    val measurement2 =
+      population.createLlv2Measurement(
+        dataServices.measurementsService,
+        measurementConsumer,
+        "measurement 2",
+        dataProvider,
+      )
+    population.createLlv2Measurement(
+      dataServices.measurementsService,
+      measurementConsumer,
+      "measurement 3",
+      population.createDataProvider(dataServices.dataProvidersService),
+    )
+
+    val requisitions: List<Requisition> =
+      service
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter = filter {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              updatedAfter = measurement1.updateTime
+            }
+          }
+        )
+        .toList()
+
+    assertThat(requisitions)
+      .comparingExpectedFieldsOnly()
+      .containsExactly(
+        requisition {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalMeasurementId = measurement2.externalMeasurementId
+        }
+      )
+  }
+
+  @Test
   fun `streamRequisitions respects limit`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(
