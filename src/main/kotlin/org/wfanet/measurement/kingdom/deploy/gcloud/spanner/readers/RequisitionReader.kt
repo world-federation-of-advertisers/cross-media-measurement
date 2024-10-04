@@ -41,7 +41,7 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
   )
 
   override val baseSql: String
-    get() = BASE_SQL
+    get() = WITH_SQL
 
   private var filled = false
 
@@ -131,7 +131,7 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
     private const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
     private const val EXTERNAL_REQUISITION_ID = "externalRequisitionId"
 
-    private val BASE_SQL =
+    private val WITH_SQL =
       """
       @{spanner_emulator.disable_query_null_filtered_index_check=true}
       WITH FilteredRequisitions AS (
