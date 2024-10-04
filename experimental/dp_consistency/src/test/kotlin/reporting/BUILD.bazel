@@ -6,7 +6,6 @@ kt_jvm_test(
     name = "report_post_processing_test",
     srcs = ["ReportPostProcessingTest.kt"],
     data = [
-        "//experimental/dp_consistency/src/test/kotlin/reporting:example_origin_report.xlsx",
         "//experimental/dp_consistency/src/test/kotlin/reporting:sample_report.json",
     ],
     test_class = "experimental.dp_consistency.src.test.kotlin.reporting.ReportPostProcessingTest",

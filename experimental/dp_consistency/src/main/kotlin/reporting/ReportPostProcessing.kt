@@ -34,8 +34,8 @@ import org.wfanet.measurement.reporting.v2alpha.report
 /** Corrects noisy measurements in a report. */
 class ReportPostProcessing {
   /**
-   * Corrects the inconsistent measurements in the [reportAsJsonString] and returns a corrected report in
-   * JSON format.
+   * Corrects the inconsistent measurements in the [reportAsJsonString] and returns a corrected
+   * report in JSON format.
    */
   fun processReport(reportAsJsonString: String): String {
     val report = ReportConversion.getReportFromJsonString(reportAsJsonString)
@@ -51,8 +51,8 @@ class ReportPostProcessing {
   }
 
   /**
-   * Corrects the inconsistent measurements in the [reportSummaryAsJsonString] and returns a map of metric
-   * names to corrected reach values.
+   * Corrects the inconsistent measurements in the [reportSummaryAsJsonString] and returns a map of
+   * metric names to corrected reach values.
    *
    * Each metric name is tied to a measurement.
    */
@@ -158,6 +158,7 @@ class ReportPostProcessing {
     val resourcePath: Path =
       this::class.java.classLoader.getJarResourcePath(PYTHON_LIBRARY_RESOURCE_NAME)
         ?: error("$PYTHON_LIBRARY_RESOURCE_NAME not found in JAR")
+
     init {
       // Copies python zip package from JAR to local directory.
       Files.copy(
