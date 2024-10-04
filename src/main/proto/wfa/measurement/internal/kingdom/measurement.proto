@@ -36,6 +36,9 @@ message Measurement {
     // View for computation, which includes child Requisitions and
     // ComputationParticipants.
     COMPUTATION = 1;
+
+    // Denormalized view, which includes all fields.
+    FULL = 2;
   }
 
   fixed64 external_measurement_consumer_id = 1;

@@ -25,6 +25,7 @@ import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutput
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 
 @RunWith(JUnit4::class)
@@ -53,9 +54,12 @@ class LiquidLegionsV2StagesTest {
         Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS,
         Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS,
         Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS -> {
-          val next = stages.nextStage(stage.toProtocolStage()).liquidLegionsSketchAggregationV2
-          assertTrue("$next is not a valid successor of $stage") {
-            LiquidLegionsSketchAggregationV2Protocol.EnumStages.validTransition(stage, next)
+          for (role in listOf(RoleInComputation.AGGREGATOR, RoleInComputation.NON_AGGREGATOR)) {
+            val next =
+              stages.nextStage(stage.toProtocolStage(), role).liquidLegionsSketchAggregationV2
+            assertTrue("$next is not a valid successor of $stage") {
+              LiquidLegionsSketchAggregationV2Protocol.EnumStages.validTransition(stage, next)
+            }
           }
         }
         else -> assertContextThrowsErrorWhenCallingNextStage(stage)

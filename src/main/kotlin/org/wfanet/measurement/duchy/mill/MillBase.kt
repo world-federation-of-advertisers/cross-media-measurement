@@ -17,11 +17,9 @@ package org.wfanet.measurement.duchy.mill
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
-import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.DoubleHistogram
-import io.opentelemetry.api.metrics.Meter
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
@@ -42,6 +40,7 @@ import kotlinx.coroutines.time.delay
 import kotlinx.coroutines.yield
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.ExponentialBackoff
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
@@ -132,38 +131,35 @@ abstract class MillBase(
   private val requestChunkSizeBytes: Int,
   private val maximumAttempts: Int,
   private val clock: Clock,
-  openTelemetry: OpenTelemetry,
   private val rpcRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
   private val rpcMaxAttempts: Int = 3,
 ) {
   abstract val endingStage: ComputationStage
 
-  private val meter: Meter = openTelemetry.getMeter(this::class.qualifiedName!!)
-
   protected val cryptoWallClockDurationHistogram: DoubleHistogram =
-    meter
-      .histogramBuilder("halo_cmm.computation.stage.crypto.time")
+    Instrumentation.meter
+      .histogramBuilder("$COMPUTATION_STAGE_NAMESPACE.crypto.time")
       .setDescription("Wall time spent in crypto operations for a computation stage")
       .setUnit("s")
       .build()
 
   protected val cryptoCpuDurationHistogram: DoubleHistogram =
-    meter
-      .histogramBuilder("halo_cmm.computation.stage.crypto.cpu.time")
+    Instrumentation.meter
+      .histogramBuilder("$COMPUTATION_STAGE_NAMESPACE.crypto.cpu.time")
       .setDescription("CPU time spent in crypto operations for a computation stage")
       .setUnit("s")
       .build()
 
   private val stageWallClockDurationHistogram: DoubleHistogram =
-    meter
-      .histogramBuilder("halo_cmm.computation.stage.time")
+    Instrumentation.meter
+      .histogramBuilder("$COMPUTATION_STAGE_NAMESPACE.time")
       .setDescription("Wall time for a computation stage")
       .setUnit("s")
       .build()
 
   protected val stageDataTransmissionDurationHistogram: DoubleHistogram =
-    meter
-      .histogramBuilder("halo_cmm.computation.stage.transmission.time")
+    Instrumentation.meter
+      .histogramBuilder("$COMPUTATION_STAGE_NAMESPACE.transmission.time")
       .setDescription("Wall time for data transmission")
       .setUnit("s")
       .build()
@@ -624,6 +620,9 @@ abstract class MillBase(
       val message = "Error advancing computation at other Duchy"
       throw when (e.status.code) {
         Status.Code.UNAVAILABLE,
+        // The mill will check the ComputationToken Stage in the target duchy before sending the
+        // request, so it is safe to retry DEADLINE_EXCEEDED cases.
+        Status.Code.DEADLINE_EXCEEDED,
         Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
         else -> ComputationDataClients.PermanentErrorException(message, e)
       }
@@ -737,6 +736,7 @@ abstract class MillBase(
         val message = "Error retrieving computation token"
         throw when (e.status.code) {
           Status.Code.UNAVAILABLE,
+          Status.Code.DEADLINE_EXCEEDED,
           Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
           else -> ComputationDataClients.PermanentErrorException(message, e)
         }
@@ -782,6 +782,10 @@ abstract class MillBase(
         val message = "Error updating computation details"
         throw when (e.status.code) {
           Status.Code.UNAVAILABLE,
+          // The mill will get the latest ComputationToken before attempting to update the details.
+          // Updating only succeeds with the latest Computation version. So it is safe to retry for
+          // DEADLINE_EXCEEDED.
+          Status.Code.DEADLINE_EXCEEDED,
           Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
           else -> ComputationDataClients.PermanentErrorException(message, e)
         }
@@ -843,9 +847,12 @@ abstract class MillBase(
   }
 
   companion object {
-    private val COMPUTATION_TYPE_ATTRIBUTE_KEY = AttributeKey.stringKey("halo_cmm.computation.type")
+    private const val COMPUTATION_NAMESPACE = "${Instrumentation.ROOT_NAMESPACE}.computation"
+    private const val COMPUTATION_STAGE_NAMESPACE = "$COMPUTATION_NAMESPACE.stage"
+    private val COMPUTATION_TYPE_ATTRIBUTE_KEY =
+      AttributeKey.stringKey("$COMPUTATION_NAMESPACE.type")
     private val COMPUTATION_STAGE_ATTRIBUTE_KEY =
-      AttributeKey.stringKey("halo_cmm.computation.stage")
+      AttributeKey.stringKey("$COMPUTATION_NAMESPACE.stage")
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }

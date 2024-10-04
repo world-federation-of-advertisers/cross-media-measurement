@@ -891,6 +891,115 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   @Test
+  fun `report with reporting interval doesn't create metric beyond report_end`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroup = eventGroups.first()
+    val eventGroupEntries: List<Pair<EventGroup, String>> =
+      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+    val createdPrimitiveReportingSet: ReportingSet =
+      createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
+
+    val createdMetricCalculationSpec =
+      publicMetricCalculationSpecsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createMetricCalculationSpec(
+          createMetricCalculationSpecRequest {
+            parent = measurementConsumerData.name
+            metricCalculationSpec = metricCalculationSpec {
+              displayName = "union reach"
+              metricSpecs +=
+                metricSpec {
+                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                    vidSamplingInterval = VID_SAMPLING_INTERVAL
+                  }
+                  .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+              metricFrequencySpec =
+                MetricCalculationSpecKt.metricFrequencySpec {
+                  weekly =
+                    MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                      dayOfWeek = com.google.type.DayOfWeek.WEDNESDAY
+                    }
+                }
+              trailingWindow =
+                MetricCalculationSpecKt.trailingWindow {
+                  count = 1
+                  increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                }
+            }
+            metricCalculationSpecId = "fed"
+          }
+        )
+
+    val report = report {
+      reportingMetricEntries +=
+        ReportKt.reportingMetricEntry {
+          key = createdPrimitiveReportingSet.name
+          value =
+            ReportKt.reportingMetricCalculationSpec {
+              metricCalculationSpecs += createdMetricCalculationSpec.name
+            }
+        }
+      reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = dateTime {
+            year = 2024
+            month = 1
+            day = 3
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2024
+            month = 1
+            day = 18
+          }
+        }
+    }
+
+    val createdReport =
+      publicReportsClient
+        .withPrincipalName(measurementConsumerData.name)
+        .createReport(
+          createReportRequest {
+            parent = measurementConsumerData.name
+            this.report = report
+            reportId = "report"
+          }
+        )
+
+    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
+    assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+
+    assertThat(retrievedReport.metricCalculationResultsList[0].resultAttributesList).hasSize(2)
+    val sortedResults =
+      retrievedReport.metricCalculationResultsList[0].resultAttributesList.sortedBy {
+        it.timeInterval.startTime.seconds
+      }
+    assertThat(sortedResults[0].timeInterval)
+      .isEqualTo(
+        interval {
+          startTime = timestamp {
+            seconds = 1704268800 // January 3, 2024 at 12:00 AM, America/Los_Angeles
+          }
+          endTime = timestamp {
+            seconds - 1704873600 // January 10, 2024 at 12:00 AM, America/Los_Angeles
+          }
+        }
+      )
+    assertThat(sortedResults[1].timeInterval)
+      .isEqualTo(
+        interval {
+          startTime = timestamp {
+            seconds = 1704873600 // January 10, 2024 at 12:00 AM, America/Los_Angeles
+          }
+          endTime = timestamp {
+            seconds = 1705478400 // January 17, 2024 at 12:00 AM, America/Los_Angeles
+          }
+        }
+      )
+  }
+
+  @Test
   fun `report with group by has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()

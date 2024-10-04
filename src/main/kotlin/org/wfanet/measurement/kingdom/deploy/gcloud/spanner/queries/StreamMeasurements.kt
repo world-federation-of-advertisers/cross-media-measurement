@@ -42,6 +42,7 @@ class StreamMeasurements(
     private const val UPDATED_AFTER = "updatedAfter"
     private const val UPDATED_BEFORE = "updatedBefore"
     private const val CREATED_BEFORE = "createdBefore"
+    private const val CREATED_AFTER = "createdAfter"
     private const val STATES_PARAM = "states"
     private const val DUCHY_ID_PARAM = "duchyId"
 
@@ -75,7 +76,8 @@ class StreamMeasurements(
       return when (view) {
         Measurement.View.COMPUTATION ->
           "ORDER BY Measurements.UpdateTime ASC, ExternalComputationId ASC"
-        Measurement.View.DEFAULT ->
+        Measurement.View.DEFAULT,
+        Measurement.View.FULL ->
           "ORDER BY Measurements.UpdateTime ASC, ExternalMeasurementConsumerId ASC, " +
             "ExternalMeasurementId ASC"
         Measurement.View.UNRECOGNIZED -> error("Unrecognized View")
@@ -129,6 +131,11 @@ class StreamMeasurements(
         bind(CREATED_BEFORE to filter.createdBefore.toGcloudTimestamp())
       }
 
+      if (filter.hasCreatedAfter()) {
+        conjuncts.add("Measurements.CreateTime > @$CREATED_AFTER")
+        bind(CREATED_AFTER to filter.createdAfter.toGcloudTimestamp())
+      }
+
       if (filter.externalDuchyId.isNotEmpty()) {
         val duchyId: Long =
           DuchyIds.getInternalId(filter.externalDuchyId)
@@ -152,22 +159,18 @@ class StreamMeasurements(
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf case fields cannot be null.
         when (filter.after.keyCase) {
           StreamMeasurementsRequest.Filter.After.KeyCase.MEASUREMENT -> {
+            // CASE implements short-circuiting, which fixes performance issues with this filter.
             conjuncts.add(
               """
-              (
-                Measurements.UpdateTime > @${AfterParams.UPDATE_TIME}
-                OR (
-                  Measurements.UpdateTime = @${AfterParams.UPDATE_TIME}
-                  AND ExternalMeasurementConsumerId >
-                    @${AfterParams.EXTERNAL_MEASUREMENT_CONSUMER_ID}
-                )
-                OR (
-                  Measurements.UpdateTime = @${AfterParams.UPDATE_TIME}
-                  AND ExternalMeasurementConsumerId =
-                    @${AfterParams.EXTERNAL_MEASUREMENT_CONSUMER_ID}
-                  AND ExternalMeasurementId > @${AfterParams.EXTERNAL_MEASUREMENT_ID}
-                )
-              )
+              CASE
+                WHEN Measurements.UpdateTime > @${AfterParams.UPDATE_TIME} THEN TRUE
+                WHEN Measurements.UpdateTime = @${AfterParams.UPDATE_TIME}
+                  AND ExternalMeasurementConsumerId > @${AfterParams.EXTERNAL_MEASUREMENT_CONSUMER_ID} THEN TRUE
+                WHEN Measurements.UpdateTime = @${AfterParams.UPDATE_TIME}
+                  AND ExternalMeasurementConsumerId = @${AfterParams.EXTERNAL_MEASUREMENT_CONSUMER_ID}
+                  AND ExternalMeasurementId > @${AfterParams.EXTERNAL_MEASUREMENT_ID} THEN TRUE
+                ELSE FALSE
+              END
               """
                 .trimIndent()
             )

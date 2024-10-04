@@ -20,8 +20,6 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
@@ -84,7 +82,10 @@ class RecurringExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
       state = struct.getProtoEnum("State", RecurringExchange.State::forNumber)
       nextExchangeDate = struct.getDate("NextExchangeDate").toProtoDate()
       details =
-        struct.getProtoMessage("RecurringExchangeDetails", RecurringExchangeDetails.parser())
+        struct.getProtoMessage(
+          "RecurringExchangeDetails",
+          RecurringExchangeDetails.getDefaultInstance(),
+        )
     }
   }
 
@@ -98,7 +99,6 @@ class RecurringExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
         "RecurringExchanges.State",
         "RecurringExchanges.NextExchangeDate",
         "RecurringExchanges.RecurringExchangeDetails",
-        "RecurringExchanges.RecurringExchangeDetailsJson",
         "DataProviders.ExternalDataProviderId",
         "ModelProviders.ExternalModelProviderId",
       )

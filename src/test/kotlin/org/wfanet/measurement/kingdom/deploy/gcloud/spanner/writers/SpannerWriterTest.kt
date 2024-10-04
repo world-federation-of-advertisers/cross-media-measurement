@@ -70,8 +70,6 @@ class SpannerWriterTest : KingdomDatabaseTestBase() {
               .to(1)
               .set("CertificateDetails")
               .to(ByteArray.copyFrom(""))
-              .set("CertificateDetailsJson")
-              .to("irrelevant-certificate-details-json")
               .build()
           )
           return internalId

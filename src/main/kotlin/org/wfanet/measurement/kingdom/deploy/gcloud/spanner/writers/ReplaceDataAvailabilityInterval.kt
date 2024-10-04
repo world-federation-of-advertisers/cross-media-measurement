@@ -19,7 +19,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.ReplaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.internal.kingdom.copy
@@ -42,8 +41,7 @@ class ReplaceDataAvailabilityInterval(private val request: ReplaceDataAvailabili
 
     transactionContext.bufferUpdateMutation("DataProviders") {
       set("DataProviderId" to dataProviderId)
-      set("DataProviderDetails" to updatedDetails)
-      setJson("DataProviderDetailsJson" to updatedDetails)
+      set("DataProviderDetails").to(updatedDetails)
     }
 
     return dataProvider.copy { details = updatedDetails }

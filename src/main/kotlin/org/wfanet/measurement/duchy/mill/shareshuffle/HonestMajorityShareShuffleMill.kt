@@ -16,7 +16,6 @@ package org.wfanet.measurement.duchy.mill.shareshuffle
 
 import com.google.protobuf.ByteString
 import io.grpc.StatusException
-import io.opentelemetry.api.OpenTelemetry
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
@@ -107,7 +106,6 @@ class HonestMajorityShareShuffleMill(
   private val cryptoWorker: HonestMajorityShareShuffleCryptor,
   private val protocolSetupConfig: HonestMajorityShareShuffleSetupConfig,
   workLockDuration: Duration,
-  openTelemetry: OpenTelemetry,
   private val privateKeyStore: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>? = null,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
@@ -128,7 +126,6 @@ class HonestMajorityShareShuffleMill(
     requestChunkSizeBytes = requestChunkSizeBytes,
     maximumAttempts = maximumAttempts,
     clock = clock,
-    openTelemetry = openTelemetry,
   ) {
   init {
     if (protocolSetupConfig.role != AGGREGATOR) {
@@ -277,18 +274,13 @@ class HonestMajorityShareShuffleMill(
       )
     }
 
-    val nextStage = nextStage(token).toProtocolStage()
     return dataClients.transitionComputationToStage(
       token,
       stage = nextStage(token).toProtocolStage(),
-      // For SECOND_NON_AGGREGATOR, the input of SETUP_PHASE is the ShufflePhaseInput from peer
-      // worker. It should be forwarded to SHUFFLE_PHASE.
-      inputsToNextStage =
-        if (nextStage == Stage.SHUFFLE_PHASE.toProtocolStage()) {
-          token.inputPathList()
-        } else {
-          emptyList()
-        },
+      // This is specifically for SECOND_NON_AGGREGATOR. The input of SETUP_PHASE is the
+      // ShufflePhaseInput from peer worker that should be forwarded to SHUFFLE_PHASE.
+      // For FIRST_NON_AGGREGATOR, this is empty.
+      inputsToNextStage = token.inputPathList(),
     )
   }
 

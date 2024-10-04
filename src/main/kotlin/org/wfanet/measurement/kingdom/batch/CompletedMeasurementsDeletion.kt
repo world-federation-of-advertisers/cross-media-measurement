@@ -16,15 +16,13 @@
 
 package org.wfanet.measurement.kingdom.batch
 
-import io.opentelemetry.api.GlobalOpenTelemetry
-import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.metrics.LongCounter
-import io.opentelemetry.api.metrics.Meter
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.DeleteMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
@@ -43,12 +41,10 @@ class CompletedMeasurementsDeletion(
   private val timeToLive: Duration,
   private val dryRun: Boolean = false,
   private val clock: Clock = Clock.systemUTC(),
-  openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get(),
 ) {
-  private val meter: Meter = openTelemetry.getMeter(this::class.qualifiedName!!)
   private val completedMeasurementDeletionCounter: LongCounter =
-    meter
-      .counterBuilder("halo_cmm.retention.deleted_measurements")
+    Instrumentation.meter
+      .counterBuilder("${Instrumentation.ROOT_NAMESPACE}.retention.deleted_measurements")
       .setUnit("{measurement}")
       .setDescription("Total number of completed measurements deleted under retention policy")
       .build()

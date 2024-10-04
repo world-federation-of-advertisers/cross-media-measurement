@@ -22,7 +22,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.parseTextProto
@@ -67,6 +66,12 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
   )
   private lateinit var eventGroupSpecFileByReferenceIdSuffix: Map<String, File>
 
+  @CommandLine.Option(
+    names = ["--support-hmss"],
+    description = ["Whether to support HMSS protocol requisitions."],
+  )
+  private var supportHmss: Boolean = false
+
   override fun run() {
     val syntheticPopulationSpec =
       parseTextProto(populationSpecFile, SyntheticPopulationSpec.getDefaultInstance())
@@ -87,7 +92,7 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
         }
       }
     val populationSpec = syntheticPopulationSpec.toPopulationSpec()
-    val hmssVidIndexMap = InMemoryVidIndexMap.build(populationSpec)
+    val hmssVidIndexMap = if (supportHmss) InMemoryVidIndexMap.build(populationSpec) else null
 
     run(
       eventQuery,
