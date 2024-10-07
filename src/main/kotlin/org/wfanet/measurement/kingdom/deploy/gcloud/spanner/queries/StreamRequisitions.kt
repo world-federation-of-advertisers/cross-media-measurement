@@ -59,8 +59,8 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
       bind(STATES).toInt64Array(filter.statesValueList.map { it.toLong() })
     }
     if (filter.hasUpdatedAfter()) {
-      conjuncts.add("Requisitions.UpdateTime > @$UPDATED_AFTER")
-      bind(UPDATED_AFTER to filter.updatedAfter.toGcloudTimestamp())
+      conjuncts.add("Requisitions.UpdateTime > @$UPDATE_TIME")
+      bind(UPDATE_TIME to filter.updatedAfter.toGcloudTimestamp())
     }
     if (filter.measurementStatesValueList.isNotEmpty()) {
       conjuncts.add("Measurements.State IN UNNEST(@$MEASUREMENT_STATES)")
@@ -102,6 +102,7 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
     const val EXTERNAL_MEASUREMENT_ID = "externalMeasurementId"
     const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
     const val STATES = "states"
+    const val UPDATE_TIME = "updateTime"
     const val UPDATED_AFTER = "updatedAfter"
     const val EXTERNAL_REQUISITION_ID_AFTER = "externalRequisitionIdAfter"
     const val EXTERNAL_DATA_PROVIDER_ID_AFTER = "externalDataProviderIdAfter"

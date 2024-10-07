@@ -41,7 +41,7 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
   )
 
   override val baseSql: String
-    get() = WITH_SQL
+    get() = BASE_SQL
 
   private var filled = false
 
@@ -75,7 +75,7 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
       block()
       append(")\n")
 
-      appendClause(DEFAULT_SQL)
+      appendClause(SUBQUERY_SQL)
 
       val orderByClause = orderByClause
       if (orderByClause != null) {
@@ -93,13 +93,13 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
         appendClause(
           """
           WHERE
-            ExternalRequisitionId = @${EXTERNAL_REQUISITION_ID}
-            AND ExternalDataProviderId = @${EXTERNAL_DATA_PROVIDER_ID}
+            ExternalRequisitionId = @${Params.EXTERNAL_REQUISITION_ID}
+            AND ExternalDataProviderId = @${Params.EXTERNAL_DATA_PROVIDER_ID}
           """
             .trimIndent()
         )
-        bind(EXTERNAL_DATA_PROVIDER_ID to externalDataProviderId)
-        bind(EXTERNAL_REQUISITION_ID to externalRequisitionId)
+        bind(Params.EXTERNAL_DATA_PROVIDER_ID to externalDataProviderId)
+        bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)
       }
       .execute(readContext)
       .singleOrNull()
@@ -114,24 +114,26 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
         appendClause(
           """
           WHERE
-            ExternalComputationId = @${EXTERNAL_COMPUTATION_ID}
-            AND ExternalRequisitionId = @${EXTERNAL_REQUISITION_ID}
+            ExternalComputationId = @${Params.EXTERNAL_COMPUTATION_ID}
+            AND ExternalRequisitionId = @${Params.EXTERNAL_REQUISITION_ID}
           """
             .trimIndent()
         )
-        bind(EXTERNAL_COMPUTATION_ID to externalComputationId)
-        bind(EXTERNAL_REQUISITION_ID to externalRequisitionId)
+        bind(Params.EXTERNAL_COMPUTATION_ID to externalComputationId)
+        bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)
       }
       .execute(readContext)
       .singleOrNull()
   }
 
   companion object {
-    private const val EXTERNAL_COMPUTATION_ID = "externalComputationId"
-    private const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
-    private const val EXTERNAL_REQUISITION_ID = "externalRequisitionId"
+    private object Params {
+      const val EXTERNAL_COMPUTATION_ID = "externalComputationId"
+      const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
+      const val EXTERNAL_REQUISITION_ID = "externalRequisitionId"
+    }
 
-    private val WITH_SQL =
+    private val BASE_SQL =
       """
       @{spanner_emulator.disable_query_null_filtered_index_check=true}
       WITH FilteredRequisitions AS (
@@ -159,7 +161,7 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
       """
         .trimIndent()
 
-    private val DEFAULT_SQL =
+    private val SUBQUERY_SQL =
       """
   SELECT
     MeasurementConsumerId,
