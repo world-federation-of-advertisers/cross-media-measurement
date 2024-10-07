@@ -40,6 +40,7 @@ object ReportConversion {
       }
     return report
   }
+
   fun convertJsontoReportSummaries(reportAsJsonString: String): List<ReportSummary> {
     val report =
       try {
@@ -91,7 +92,7 @@ fun Report.toReportSummaries(): List<ReportSummary> {
       reportingSet to
         ReportingSetSummary(
           ReportConversion.getMeasurementPolicy(tag),
-          ReportConversion.getTargets(tag)
+          ReportConversion.getTargets(tag),
         )
     }
 
@@ -106,7 +107,7 @@ fun Report.toReportSummaries(): List<ReportSummary> {
       spec to
         SetOperationSummary(
           ReportConversion.isCumulative(tag),
-          ReportConversion.getSetOperation(tag)
+          ReportConversion.getSetOperation(tag),
         )
     }
 

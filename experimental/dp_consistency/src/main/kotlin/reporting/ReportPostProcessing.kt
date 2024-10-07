@@ -86,7 +86,7 @@ object ReportPostProcessing {
       ProcessBuilder(
         "python3",
         tempFile.toPath().toString(),
-        "--report_summary=$reportSummaryAsJsonString"
+        "--report_summary=$reportSummaryAsJsonString",
       )
 
     val process = processBuilder.start()
