@@ -14,11 +14,11 @@
 
 syntax = "proto3";
 
-package experimental.dp_consistency.src.main.proto.reporting;
+package wfa.measurement.internal.reporting;
 
-option java_package = "experimental.dp_consistency.src.main.proto.reporting";
+option java_package = "org.wfanet.measurement.internal.reporting";
 option java_multiple_files = true;
-option java_outer_classname = "MeasurementsProto";
+option java_outer_classname = "ReportSummaryProto";
 
 message MeasurementDetail {
   string measurement_policy = 1;

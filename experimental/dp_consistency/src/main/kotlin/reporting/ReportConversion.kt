@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package experimental.dp_consistency.src.main.kotlin.reporting
+package org.wfanet.measurement.reporting.postprocessing
 
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
-import experimental.dp_consistency.src.main.proto.reporting.MeasurementDetailKt
-import experimental.dp_consistency.src.main.proto.reporting.ReportSummary
-import experimental.dp_consistency.src.main.proto.reporting.measurementDetail
-import experimental.dp_consistency.src.main.proto.reporting.reportSummary
+import org.wfanet.measurement.internal.reporting.MeasurementDetailKt
+import org.wfanet.measurement.internal.reporting.ReportSummary
+import org.wfanet.measurement.internal.reporting.measurementDetail
+import org.wfanet.measurement.internal.reporting.reportSummary
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.report
@@ -40,7 +40,6 @@ object ReportConversion {
       }
     return report
   }
-
   fun convertJsontoReportSummaries(reportAsJsonString: String): List<ReportSummary> {
     val report =
       try {
@@ -53,33 +52,33 @@ object ReportConversion {
 
     return report.toReportSummaries()
   }
-}
 
-fun getMeasurementPolicy(tag: String): String {
-  when {
-    "measurement_policy=AMI" in tag -> return "ami"
-    "measurement_policy=MRC" in tag -> return "mrc"
-    "measurement_policy=CUSTOM" in tag -> return "custom"
-    else -> error("Measurement policy not specified in the tag.")
+  fun getMeasurementPolicy(tag: String): String {
+    when {
+      "measurement_policy=AMI" in tag -> return "ami"
+      "measurement_policy=MRC" in tag -> return "mrc"
+      "measurement_policy=CUSTOM" in tag -> return "custom"
+      else -> error("Measurement policy must be ami, or mrc, or custom.")
+    }
   }
-}
 
-fun getSetOperation(tag: String): String {
-  val parts = tag.split(", ")
-  val setOperationPart = parts.find { it.startsWith("set_operation=") }
-  return setOperationPart?.let { it.substringAfter("set_operation=") }
-    ?: error("Set operation must be specified.")
-}
+  fun getSetOperation(tag: String): String {
+    val parts = tag.split(", ")
+    val setOperationPart = parts.find { it.startsWith("set_operation=") }
+    return setOperationPart?.let { it.substringAfter("set_operation=") }
+      ?: error("Set operation must be specified.")
+  }
 
-fun isCumulative(tag: String): Boolean {
-  return tag.contains("cumulative=true")
-}
+  fun isCumulative(tag: String): Boolean {
+    return tag.contains("cumulative=true")
+  }
 
-fun getTargets(tag: String): List<String> {
-  val parts = tag.split(", ")
-  val targetPart = parts.find { it.startsWith("target=") }
-  return targetPart?.let { it.substringAfter("target=").split(",") }
-    ?: error("There must be at least one target.")
+  fun getTargets(tag: String): List<String> {
+    val parts = tag.split(", ")
+    val targetPart = parts.find { it.startsWith("target=") }
+    return targetPart?.let { it.substringAfter("target=").split(",") }
+      ?: error("There must be at least one target.")
+  }
 }
 
 fun Report.toReportSummaries(): List<ReportSummary> {
@@ -89,7 +88,11 @@ fun Report.toReportSummaries(): List<ReportSummary> {
     this.reportingMetricEntriesList.associate { entry ->
       val reportingSet = entry.key
       val tag = this.tags.getValue(reportingSet)
-      reportingSet to ReportingSetSummary(getMeasurementPolicy(tag), getTargets(tag))
+      reportingSet to
+        ReportingSetSummary(
+          ReportConversion.getMeasurementPolicy(tag),
+          ReportConversion.getTargets(tag)
+        )
     }
 
   val metricCalculationSpecs =
@@ -100,7 +103,11 @@ fun Report.toReportSummaries(): List<ReportSummary> {
   val setOperationByMetricCalculationSpec =
     metricCalculationSpecs.associate { spec ->
       val tag = this.tags.getValue(spec)
-      spec to SetOperationSummary(isCumulative(tag), getSetOperation(tag))
+      spec to
+        SetOperationSummary(
+          ReportConversion.isCumulative(tag),
+          ReportConversion.getSetOperation(tag)
+        )
     }
 
   val filterGroupByMetricCalculationSpec =

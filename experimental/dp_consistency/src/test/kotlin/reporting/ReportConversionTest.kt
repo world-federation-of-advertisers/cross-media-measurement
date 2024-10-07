@@ -12,21 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package experimental.dp_consistency.src.test.kotlin.reporting
+package org.wfanet.measurement.reporting.postprocessing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import experimental.dp_consistency.src.main.kotlin.reporting.ReportConversion
-import experimental.dp_consistency.src.main.proto.reporting.MeasurementDetailKt.measurementResult
-import experimental.dp_consistency.src.main.proto.reporting.measurementDetail
-import experimental.dp_consistency.src.main.proto.reporting.reportSummary
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.internal.reporting.MeasurementDetailKt.measurementResult
+import org.wfanet.measurement.internal.reporting.measurementDetail
+import org.wfanet.measurement.internal.reporting.reportSummary
 
 @RunWith(JUnit4::class)
-class ReportConverterTest {
+class ReportConversionTest {
   @Test
   fun `report as json string is successfully converted to report summary proto`() {
     val reportSummary = ReportConversion.convertJsontoReportSummaries(REPORT_SAMPLE)

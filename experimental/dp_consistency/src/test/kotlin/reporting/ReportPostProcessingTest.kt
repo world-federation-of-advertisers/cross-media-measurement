@@ -12,18 +12,15 @@
  * the License.
  */
 
-package experimental.dp_consistency.src.test.kotlin.reporting
+package org.wfanet.measurement.reporting.postprocessing
 
 import com.google.common.truth.Truth.assertThat
-import experimental.dp_consistency.src.main.kotlin.reporting.ReportConversion
-import experimental.dp_consistency.src.main.kotlin.reporting.ReportPostProcessing
-import experimental.dp_consistency.src.main.kotlin.reporting.toReportSummaries
-import experimental.dp_consistency.src.main.proto.reporting.measurementDetail
 import java.io.File
 import java.nio.file.Files
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.internal.reporting.measurementDetail
 import org.wfanet.measurement.reporting.v2alpha.Report
 
 @RunWith(JUnit4::class)
@@ -36,7 +33,7 @@ class ReportPostProcessingTest {
       )
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
     assertThat(report.hasConsistentMeasurements()).isEqualTo(false)
-    val updatedReportAsJson = ReportPostProcessing().processReport(reportAsJson)
+    val updatedReportAsJson = ReportPostProcessing.processReportJson(reportAsJson)
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
     assertThat(updatedReport.hasConsistentMeasurements()).isEqualTo(true)
   }

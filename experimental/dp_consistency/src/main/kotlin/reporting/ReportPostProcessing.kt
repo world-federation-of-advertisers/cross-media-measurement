@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package experimental.dp_consistency.src.main.kotlin.reporting
+package org.wfanet.measurement.reporting.postprocessing
 
 import com.google.gson.GsonBuilder
 import com.google.protobuf.util.JsonFormat
@@ -21,7 +21,6 @@ import java.io.File
 import java.io.InputStreamReader
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 import java.util.logging.Logger
 import kotlin.io.path.name
@@ -32,13 +31,38 @@ import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.report
 
 /** Corrects noisy measurements in a report. */
-class ReportPostProcessing {
+object ReportPostProcessing {
+  val logger: Logger = Logger.getLogger(this::class.java.name)
+  const val PYTHON_LIBRARY_RESOURCE_NAME =
+    "experimental/dp_consistency/src/main/python/tools/post_process_origin_report.zip"
+  val resourcePath: Path =
+    this::class.java.classLoader.getJarResourcePath(PYTHON_LIBRARY_RESOURCE_NAME)
+      ?: error("$PYTHON_LIBRARY_RESOURCE_NAME not found in JAR")
+  val tempFile = File.createTempFile(resourcePath.name, "").apply { deleteOnExit() }
+
+  init {
+    // Copies python zip package from JAR to local directory.
+    Files.copy(resourcePath, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+  }
+
   /**
-   * Corrects the inconsistent measurements in the [reportAsJsonString] and returns a corrected
-   * report in JSON format.
+   * Corrects the inconsistent measurements in the [report] and returns a corrected report in JSON
+   * format.
+   *
+   * @param report standard JSON serialization of a Report message.
+   * @return a corrected report, serialized as a standard JSON string.
    */
-  fun processReport(reportAsJsonString: String): String {
-    val report = ReportConversion.getReportFromJsonString(reportAsJsonString)
+  fun processReportJson(report: String): String {
+    return processReport(ReportConversion.getReportFromJsonString(report)).toJson()
+  }
+
+  /**
+   * Corrects the inconsistent measurements in the [report] and returns a corrected report .
+   *
+   * @param report a Report message.
+   * @return a corrected Report.
+   */
+  private fun processReport(report: Report): Report {
     val reportSummaries = report.toReportSummaries()
     val correctedMeasurementsMap = mutableMapOf<String, Long>()
     for (reportSummary in reportSummaries) {
@@ -47,7 +71,7 @@ class ReportPostProcessing {
       )
     }
     val updatedReport = updateReport(report, correctedMeasurementsMap)
-    return updatedReport.toJson()
+    return updatedReport
   }
 
   /**
@@ -59,7 +83,11 @@ class ReportPostProcessing {
   private fun processReportSummary(reportSummaryAsJsonString: String): Map<String, Long> {
     logger.info { "Start processing report.." }
     val processBuilder =
-      ProcessBuilder("python3", resourcePath.name, "--report_summary=$reportSummaryAsJsonString")
+      ProcessBuilder(
+        "python3",
+        tempFile.toPath().toString(),
+        "--report_summary=$reportSummaryAsJsonString"
+      )
 
     val process = processBuilder.start()
 
@@ -149,23 +177,5 @@ class ReportPostProcessing {
         metricCalculationResults += correctedMetricCalculationResults
       }
     return updatedReport
-  }
-
-  companion object {
-    val logger: Logger = Logger.getLogger(this::class.java.name)
-    const val PYTHON_LIBRARY_RESOURCE_NAME =
-      "experimental/dp_consistency/src/main/python/tools/post_process_origin_report.zip"
-    val resourcePath: Path =
-      this::class.java.classLoader.getJarResourcePath(PYTHON_LIBRARY_RESOURCE_NAME)
-        ?: error("$PYTHON_LIBRARY_RESOURCE_NAME not found in JAR")
-
-    init {
-      // Copies python zip package from JAR to local directory.
-      Files.copy(
-        resourcePath,
-        File(File(Paths.get("").toAbsolutePath().toString()), resourcePath.name).toPath(),
-        StandardCopyOption.REPLACE_EXISTING,
-      )
-    }
   }
 }

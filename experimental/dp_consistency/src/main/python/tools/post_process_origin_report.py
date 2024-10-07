@@ -305,7 +305,6 @@ def main():
   )
   args = parser.parse_args()
   report_summary = report_summary_pb2.ReportSummary()
-  print(report_summary)
   json_format.Parse(args.report_summary, report_summary)
   corrected_measurements_dict = processReportSummary(report_summary)
 
