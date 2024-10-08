@@ -85,11 +85,7 @@ object ReportPostProcessing {
     logger.info { "Start processing report.." }
 
     // TODO(bazelbuild/bazel#17629): Execute the Python zip directly once this bug is fixed.
-    val processBuilder =
-      ProcessBuilder(
-          "python3",
-          tempFile.toPath().toString(),
-        )
+    val processBuilder = ProcessBuilder("python3", tempFile.toPath().toString())
 
     val process = processBuilder.start()
 

@@ -29,7 +29,10 @@ class ReportPostProcessingTest {
   fun `run correct report successfully`() {
     val reportAsJson =
       Files.readString(
-        File("experimental/dp_consistency/src/test/kotlin/org/wfanet/measurement/reporting/postprocess/sample_report.json").toPath()
+        File(
+            "experimental/dp_consistency/src/test/kotlin/org/wfanet/measurement/reporting/postprocess/sample_report.json"
+          )
+          .toPath()
       )
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
     assertThat(report.hasConsistentMeasurements()).isEqualTo(false)
