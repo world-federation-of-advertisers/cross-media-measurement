@@ -40,6 +40,7 @@ import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -166,9 +167,8 @@ class OperationalMetricsExport(
                 val measurementId = externalIdToApiId(measurement.externalMeasurementId)
 
                 val measurementCompletionDurationSeconds =
-                  Durations.toSeconds(
-                    Timestamps.between(measurement.createTime, measurement.updateTime)
-                  )
+                    measurement.updateTime.toInstant()
+                      .minusSeconds(measurement.createTime.toInstant().epochSecond).epochSecond
 
                 val measurementState =
                   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -279,14 +279,16 @@ class OperationalMetricsExport(
           states += Requisition.State.FULFILLED
           states += Requisition.State.REFUSED
           if (latestRequisitionReadFromPreviousJob != null) {
-            updatedAfter =
-              Timestamps.fromNanos(
-                latestRequisitionReadFromPreviousJob.get("update_time").longValue
-              )
-            externalDataProviderIdAfter =
-              latestRequisitionReadFromPreviousJob.get("external_data_provider_id").longValue
-            externalRequisitionIdAfter =
-              latestRequisitionReadFromPreviousJob.get("external_requisition_id").longValue
+            after = StreamRequisitionsRequestKt.FilterKt.after {
+              updateTime =
+                Timestamps.fromNanos(
+                  latestRequisitionReadFromPreviousJob.get("update_time").longValue
+                )
+              externalDataProviderId =
+                latestRequisitionReadFromPreviousJob.get("external_data_provider_id").longValue
+              externalRequisitionId =
+                latestRequisitionReadFromPreviousJob.get("external_requisition_id").longValue
+            }
           }
         }
     }
@@ -344,12 +346,8 @@ class OperationalMetricsExport(
                   }
 
                 val requisitionCompletionDurationSeconds =
-                  Durations.toSeconds(
-                    Timestamps.between(
-                      requisition.parentMeasurement.createTime,
-                      requisition.updateTime,
-                    )
-                  )
+                    requisition.updateTime.toInstant()
+                      .minusSeconds(requisition.parentMeasurement.createTime.toInstant().epochSecond).epochSecond
 
                 requisitionsProtoRowsBuilder.addSerializedRows(
                   requisitionsTableRow {
@@ -401,11 +399,13 @@ class OperationalMetricsExport(
                 streamRequisitionsRequest.copy {
                   filter =
                     filter.copy {
-                      updatedAfter = latestUpdateTime
-                      externalDataProviderIdAfter =
-                        latestRequisitionReadTableRow.externalDataProviderId
-                      externalRequisitionIdAfter =
-                        latestRequisitionReadTableRow.externalRequisitionId
+                      after = StreamRequisitionsRequestKt.FilterKt.after {
+                        updateTime = latestUpdateTime
+                        externalDataProviderId =
+                          latestRequisitionReadTableRow.externalDataProviderId
+                        externalRequisitionId =
+                          latestRequisitionReadTableRow.externalRequisitionId
+                      }
                     }
                 }
             } while (requisitionsQueryResponseSize == BATCH_SIZE)

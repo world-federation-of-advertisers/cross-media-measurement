@@ -65,6 +65,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
@@ -225,12 +226,8 @@ class OperationalMetricsExportTest {
             createTime = COMPUTATION_MEASUREMENT.createTime
             updateTime = COMPUTATION_MEASUREMENT.updateTime
             completionDurationSeconds =
-              Durations.toSeconds(
-                Timestamps.between(
-                  COMPUTATION_MEASUREMENT.createTime,
-                  COMPUTATION_MEASUREMENT.updateTime,
-                )
-              )
+              COMPUTATION_MEASUREMENT.updateTime.toInstant()
+                .minusSeconds(COMPUTATION_MEASUREMENT.createTime.toInstant().epochSecond).epochSecond
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
           }
         )
@@ -249,6 +246,8 @@ class OperationalMetricsExportTest {
             createTime = DIRECT_MEASUREMENT.createTime
             updateTime = DIRECT_MEASUREMENT.updateTime
             completionDurationSeconds =
+              DIRECT_MEASUREMENT.updateTime.toInstant()
+                .minusSeconds(DIRECT_MEASUREMENT.createTime.toInstant().epochSecond).epochSecond
               Durations.toSeconds(
                 Timestamps.between(DIRECT_MEASUREMENT.createTime, DIRECT_MEASUREMENT.updateTime)
               )
@@ -277,9 +276,8 @@ class OperationalMetricsExportTest {
             createTime = REQUISITION.parentMeasurement.createTime
             updateTime = REQUISITION.updateTime
             completionDurationSeconds =
-              Durations.toSeconds(
-                Timestamps.between(REQUISITION.parentMeasurement.createTime, REQUISITION.updateTime)
-              )
+              REQUISITION.updateTime.toInstant()
+                .minusSeconds(REQUISITION.parentMeasurement.createTime.toInstant().epochSecond).epochSecond
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
           }
         )
@@ -298,12 +296,8 @@ class OperationalMetricsExportTest {
             createTime = REQUISITION_2.parentMeasurement.createTime
             updateTime = REQUISITION_2.updateTime
             completionDurationSeconds =
-              Durations.toSeconds(
-                Timestamps.between(
-                  REQUISITION_2.parentMeasurement.createTime,
-                  REQUISITION_2.updateTime,
-                )
-              )
+              REQUISITION_2.updateTime.toInstant()
+                .minusSeconds(REQUISITION_2.parentMeasurement.createTime.toInstant().epochSecond).epochSecond
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
           }
         )
@@ -381,8 +375,35 @@ class OperationalMetricsExportTest {
           .thenReturn(emptyList())
       }
 
-      whenever(measurementsMock.streamMeasurements(any())).thenAnswer {
-        val streamMeasurementsRequest: StreamMeasurementsRequest = it.getArgument(0)
+      whenever(measurementsMock.streamMeasurements(any())).thenReturn(
+        flowOf(COMPUTATION_MEASUREMENT)
+      )
+
+      val bigQueryMock: BigQuery = mock { bigQuery ->
+        whenever(bigQuery.query(any())).thenReturn(tableResultMock)
+      }
+
+      val operationalMetricsExport =
+        OperationalMetricsExport(
+          measurementsClient = measurementsClient,
+          requisitionsClient = requisitionsClient,
+          bigQuery = bigQueryMock,
+          bigQueryWriteClient = bigQueryWriteClientMock,
+          projectId = PROJECT_ID,
+          datasetId = DATASET_ID,
+          latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
+          measurementsTableId = MEASUREMENTS_TABLE_ID,
+          latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
+          requisitionsTableId = REQUISITIONS_TABLE_ID,
+          streamWriterFactory = streamWriterFactoryTestImpl,
+        )
+
+      operationalMetricsExport.execute()
+
+      with(argumentCaptor<StreamMeasurementsRequest>()) {
+        verify(measurementsMock).streamMeasurements(capture())
+        val streamMeasurementsRequest = allValues.first()
+
         assertThat(streamMeasurementsRequest)
           .ignoringRepeatedFieldOrder()
           .isEqualTo(
@@ -405,29 +426,7 @@ class OperationalMetricsExportTest {
               limit = 3000
             }
           )
-        flowOf(COMPUTATION_MEASUREMENT)
       }
-
-      val bigQueryMock: BigQuery = mock { bigQuery ->
-        whenever(bigQuery.query(any())).thenReturn(tableResultMock)
-      }
-
-      val operationalMetricsExport =
-        OperationalMetricsExport(
-          measurementsClient = measurementsClient,
-          requisitionsClient = requisitionsClient,
-          bigQuery = bigQueryMock,
-          bigQueryWriteClient = bigQueryWriteClientMock,
-          projectId = PROJECT_ID,
-          datasetId = DATASET_ID,
-          latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
-          measurementsTableId = MEASUREMENTS_TABLE_ID,
-          latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
-          requisitionsTableId = REQUISITIONS_TABLE_ID,
-          streamWriterFactory = streamWriterFactoryTestImpl,
-        )
-
-      operationalMetricsExport.execute()
     }
 
   @Test
@@ -462,25 +461,7 @@ class OperationalMetricsExportTest {
           )
       }
 
-      whenever(requisitionsMock.streamRequisitions(any())).thenAnswer {
-        val streamRequisitionsRequest: StreamRequisitionsRequest = it.getArgument(0)
-        assertThat(streamRequisitionsRequest)
-          .ignoringRepeatedFieldOrder()
-          .isEqualTo(
-            streamRequisitionsRequest {
-              filter =
-                StreamRequisitionsRequestKt.filter {
-                  states += Requisition.State.FULFILLED
-                  states += Requisition.State.REFUSED
-                  updatedAfter = requisition.updateTime
-                  externalDataProviderIdAfter = requisition.externalDataProviderId
-                  externalRequisitionIdAfter = requisition.externalRequisitionId
-                }
-              limit = 3000
-            }
-          )
-        flowOf(REQUISITION_2)
-      }
+      whenever(requisitionsMock.streamRequisitions(any())).thenReturn(flowOf(REQUISITION_2))
 
       val bigQueryMock: BigQuery = mock { bigQuery ->
         whenever(bigQuery.query(any())).thenReturn(tableResultMock)
@@ -502,6 +483,29 @@ class OperationalMetricsExportTest {
         )
 
       operationalMetricsExport.execute()
+
+      with(argumentCaptor<StreamRequisitionsRequest>()) {
+        verify(requisitionsMock).streamRequisitions(capture())
+        val streamRequisitionsRequest = allValues.first()
+
+        assertThat(streamRequisitionsRequest)
+          .ignoringRepeatedFieldOrder()
+          .isEqualTo(
+            streamRequisitionsRequest {
+              filter =
+                StreamRequisitionsRequestKt.filter {
+                  states += Requisition.State.FULFILLED
+                  states += Requisition.State.REFUSED
+                  after = StreamRequisitionsRequestKt.FilterKt.after {
+                    updateTime = requisition.updateTime
+                    externalDataProviderId = requisition.externalDataProviderId
+                    externalRequisitionId = requisition.externalRequisitionId
+                  }
+                }
+              limit = 3000
+            }
+          )
+      }
     }
 
   @Test
