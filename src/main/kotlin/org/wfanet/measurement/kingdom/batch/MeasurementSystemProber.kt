@@ -19,17 +19,15 @@ package org.wfanet.measurement.kingdom.batch
 import com.google.protobuf.Any
 import com.google.type.interval
 import io.grpc.StatusException
-import io.opentelemetry.api.GlobalOpenTelemetry
-import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
-import io.opentelemetry.api.metrics.Meter
-import io.opentelemetry.api.metrics.ObservableLongMeasurement
+import io.opentelemetry.api.metrics.LongGauge
 import java.io.File
 import java.security.SecureRandom
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
+import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup
@@ -61,6 +59,7 @@ import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -87,30 +86,27 @@ class MeasurementSystemProber(
   private val eventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub,
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
   private val clock: Clock = Clock.systemUTC(),
-  openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get(),
 ) {
-  private val meter: Meter = openTelemetry.getMeter(this::class.qualifiedName!!)
-  private val lastTerminalMeasurementTimeObserver: ObservableLongMeasurement =
-    meter
-      .gaugeBuilder("halo_cmm.prober.last.terminal.measurement.time")
+  private val lastTerminalMeasurementTimeGauge: LongGauge =
+    Instrumentation.meter
+      .gaugeBuilder("${Instrumentation.ROOT_NAMESPACE}.prober.last_terminal_measurement_time")
       .setUnit("{millisecond}")
       .setDescription("Update time for the most recently issued and completed prober Measurement")
       .ofLongs()
-      .buildObserver()
-  private val lastTerminalRequisitionTimeObserver: ObservableLongMeasurement =
-    meter
-      .gaugeBuilder("halo_cmm.prober.last.terminal.requisition.time")
+      .build()
+  private val lastTerminalRequisitionTimeGauge: LongGauge =
+    Instrumentation.meter
+      .gaugeBuilder("${Instrumentation.ROOT_NAMESPACE}.prober.last_terminal_requisition_time")
       .setUnit("{millisecond}")
       .setDescription(
         "Update time of requisition associated with a particular EDP for the most recently issued Measurement"
       )
       .ofLongs()
-      .buildObserver()
+      .build()
 
   suspend fun run() {
     if (shouldCreateNewMeasurement()) {
       createMeasurement()
-      // TODO(@roaminggypsy): Report measurement result with OpenTelemetry
     }
   }
 
@@ -252,8 +248,13 @@ class MeasurementSystemProber(
     val requisitions = getRequisitionsForMeasurement(lastUpdatedMeasurement.name)
     for (requisition in requisitions) {
       if (requisition.state == Requisition.State.FULFILLED) {
-        val attributes = Attributes.of(AttributeKey.stringKey("data_provider"), "NAME")
-        // lastTerminalRequisitionTimeObserver.record(requisition.updateTime, attributes)
+        val dataProviderName: String =
+          CanonicalRequisitionKey.fromName(requisition.name)?.dataProviderId ?: ""
+        val attributes = Attributes.of(AttributeKey.stringKey("data_provider"), dataProviderName)
+        lastTerminalRequisitionTimeGauge.set(
+          requisition.updateTime.toInstant().toEpochMilli(),
+          attributes,
+        )
       }
     }
 
@@ -261,7 +262,7 @@ class MeasurementSystemProber(
       return false
     }
 
-    lastTerminalMeasurementTimeObserver.record(
+    lastTerminalMeasurementTimeGauge.set(
       lastUpdatedMeasurement.updateTime.toInstant().toEpochMilli()
     )
 
