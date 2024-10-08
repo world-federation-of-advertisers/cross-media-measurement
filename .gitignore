@@ -17,4 +17,7 @@
 # Terraform directories
 .terraform/
 
+# Authentication credentials
+/auth.bazelrc
+
 **/node_modules
