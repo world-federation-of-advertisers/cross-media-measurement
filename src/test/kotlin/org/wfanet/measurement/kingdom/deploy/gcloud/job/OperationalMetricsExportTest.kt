@@ -226,8 +226,10 @@ class OperationalMetricsExportTest {
             createTime = COMPUTATION_MEASUREMENT.createTime
             updateTime = COMPUTATION_MEASUREMENT.updateTime
             completionDurationSeconds =
-              COMPUTATION_MEASUREMENT.updateTime.toInstant()
-                .minusSeconds(COMPUTATION_MEASUREMENT.createTime.toInstant().epochSecond).epochSecond
+              COMPUTATION_MEASUREMENT.updateTime
+                .toInstant()
+                .minusSeconds(COMPUTATION_MEASUREMENT.createTime.toInstant().epochSecond)
+                .epochSecond
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
           }
         )
@@ -246,11 +248,13 @@ class OperationalMetricsExportTest {
             createTime = DIRECT_MEASUREMENT.createTime
             updateTime = DIRECT_MEASUREMENT.updateTime
             completionDurationSeconds =
-              DIRECT_MEASUREMENT.updateTime.toInstant()
-                .minusSeconds(DIRECT_MEASUREMENT.createTime.toInstant().epochSecond).epochSecond
-              Durations.toSeconds(
-                Timestamps.between(DIRECT_MEASUREMENT.createTime, DIRECT_MEASUREMENT.updateTime)
-              )
+              DIRECT_MEASUREMENT.updateTime
+                .toInstant()
+                .minusSeconds(DIRECT_MEASUREMENT.createTime.toInstant().epochSecond)
+                .epochSecond
+            Durations.toSeconds(
+              Timestamps.between(DIRECT_MEASUREMENT.createTime, DIRECT_MEASUREMENT.updateTime)
+            )
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
           }
         )
@@ -276,8 +280,10 @@ class OperationalMetricsExportTest {
             createTime = REQUISITION.parentMeasurement.createTime
             updateTime = REQUISITION.updateTime
             completionDurationSeconds =
-              REQUISITION.updateTime.toInstant()
-                .minusSeconds(REQUISITION.parentMeasurement.createTime.toInstant().epochSecond).epochSecond
+              REQUISITION.updateTime
+                .toInstant()
+                .minusSeconds(REQUISITION.parentMeasurement.createTime.toInstant().epochSecond)
+                .epochSecond
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
           }
         )
@@ -296,8 +302,10 @@ class OperationalMetricsExportTest {
             createTime = REQUISITION_2.parentMeasurement.createTime
             updateTime = REQUISITION_2.updateTime
             completionDurationSeconds =
-              REQUISITION_2.updateTime.toInstant()
-                .minusSeconds(REQUISITION_2.parentMeasurement.createTime.toInstant().epochSecond).epochSecond
+              REQUISITION_2.updateTime
+                .toInstant()
+                .minusSeconds(REQUISITION_2.parentMeasurement.createTime.toInstant().epochSecond)
+                .epochSecond
             completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
           }
         )
@@ -375,9 +383,8 @@ class OperationalMetricsExportTest {
           .thenReturn(emptyList())
       }
 
-      whenever(measurementsMock.streamMeasurements(any())).thenReturn(
-        flowOf(COMPUTATION_MEASUREMENT)
-      )
+      whenever(measurementsMock.streamMeasurements(any()))
+        .thenReturn(flowOf(COMPUTATION_MEASUREMENT))
 
       val bigQueryMock: BigQuery = mock { bigQuery ->
         whenever(bigQuery.query(any())).thenReturn(tableResultMock)
@@ -496,11 +503,12 @@ class OperationalMetricsExportTest {
                 StreamRequisitionsRequestKt.filter {
                   states += Requisition.State.FULFILLED
                   states += Requisition.State.REFUSED
-                  after = StreamRequisitionsRequestKt.FilterKt.after {
-                    updateTime = requisition.updateTime
-                    externalDataProviderId = requisition.externalDataProviderId
-                    externalRequisitionId = requisition.externalRequisitionId
-                  }
+                  after =
+                    StreamRequisitionsRequestKt.FilterKt.after {
+                      updateTime = requisition.updateTime
+                      externalDataProviderId = requisition.externalDataProviderId
+                      externalRequisitionId = requisition.externalRequisitionId
+                    }
                 }
               limit = 3000
             }

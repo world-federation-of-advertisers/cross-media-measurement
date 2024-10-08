@@ -27,7 +27,6 @@ import com.google.cloud.bigquery.storage.v1.ProtoSchemaConverter
 import com.google.cloud.bigquery.storage.v1.StreamWriter
 import com.google.protobuf.Timestamp
 import com.google.protobuf.any
-import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
 import com.google.rpc.Code
 import java.util.logging.Logger
@@ -167,8 +166,10 @@ class OperationalMetricsExport(
                 val measurementId = externalIdToApiId(measurement.externalMeasurementId)
 
                 val measurementCompletionDurationSeconds =
-                    measurement.updateTime.toInstant()
-                      .minusSeconds(measurement.createTime.toInstant().epochSecond).epochSecond
+                  measurement.updateTime
+                    .toInstant()
+                    .minusSeconds(measurement.createTime.toInstant().epochSecond)
+                    .epochSecond
 
                 val measurementState =
                   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -279,16 +280,17 @@ class OperationalMetricsExport(
           states += Requisition.State.FULFILLED
           states += Requisition.State.REFUSED
           if (latestRequisitionReadFromPreviousJob != null) {
-            after = StreamRequisitionsRequestKt.FilterKt.after {
-              updateTime =
-                Timestamps.fromNanos(
-                  latestRequisitionReadFromPreviousJob.get("update_time").longValue
-                )
-              externalDataProviderId =
-                latestRequisitionReadFromPreviousJob.get("external_data_provider_id").longValue
-              externalRequisitionId =
-                latestRequisitionReadFromPreviousJob.get("external_requisition_id").longValue
-            }
+            after =
+              StreamRequisitionsRequestKt.FilterKt.after {
+                updateTime =
+                  Timestamps.fromNanos(
+                    latestRequisitionReadFromPreviousJob.get("update_time").longValue
+                  )
+                externalDataProviderId =
+                  latestRequisitionReadFromPreviousJob.get("external_data_provider_id").longValue
+                externalRequisitionId =
+                  latestRequisitionReadFromPreviousJob.get("external_requisition_id").longValue
+              }
           }
         }
     }
@@ -346,8 +348,10 @@ class OperationalMetricsExport(
                   }
 
                 val requisitionCompletionDurationSeconds =
-                    requisition.updateTime.toInstant()
-                      .minusSeconds(requisition.parentMeasurement.createTime.toInstant().epochSecond).epochSecond
+                  requisition.updateTime
+                    .toInstant()
+                    .minusSeconds(requisition.parentMeasurement.createTime.toInstant().epochSecond)
+                    .epochSecond
 
                 requisitionsProtoRowsBuilder.addSerializedRows(
                   requisitionsTableRow {
@@ -399,13 +403,14 @@ class OperationalMetricsExport(
                 streamRequisitionsRequest.copy {
                   filter =
                     filter.copy {
-                      after = StreamRequisitionsRequestKt.FilterKt.after {
-                        updateTime = latestUpdateTime
-                        externalDataProviderId =
-                          latestRequisitionReadTableRow.externalDataProviderId
-                        externalRequisitionId =
-                          latestRequisitionReadTableRow.externalRequisitionId
-                      }
+                      after =
+                        StreamRequisitionsRequestKt.FilterKt.after {
+                          updateTime = latestUpdateTime
+                          externalDataProviderId =
+                            latestRequisitionReadTableRow.externalDataProviderId
+                          externalRequisitionId =
+                            latestRequisitionReadTableRow.externalRequisitionId
+                        }
                     }
                 }
             } while (requisitionsQueryResponseSize == BATCH_SIZE)
