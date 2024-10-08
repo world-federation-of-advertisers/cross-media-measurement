@@ -19,6 +19,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
@@ -111,7 +112,7 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       set("MeasurementId" to measurementId)
       set("DuchyId" to duchyId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      set("State" to NEXT_COMPUTATION_PARTICIPANT_STATE)
+      set("State").toInt64(NEXT_COMPUTATION_PARTICIPANT_STATE)
     }
 
     val updatedMeasurementDetails =

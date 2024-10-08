@@ -41,7 +41,7 @@ class ReplaceDataAvailabilityInterval(private val request: ReplaceDataAvailabili
 
     transactionContext.bufferUpdateMutation("DataProviders") {
       set("DataProviderId" to dataProviderId)
-      set("DataProviderDetails" to updatedDetails)
+      set("DataProviderDetails").to(updatedDetails)
     }
 
     return dataProvider.copy { details = updatedDetails }

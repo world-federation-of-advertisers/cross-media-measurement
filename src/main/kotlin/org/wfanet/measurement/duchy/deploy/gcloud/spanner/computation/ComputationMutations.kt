@@ -17,16 +17,15 @@ package org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
+import com.google.protobuf.AbstractMessage
 import com.google.protobuf.ByteString
-import com.google.protobuf.Message
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
-import org.wfanet.measurement.gcloud.spanner.toProtoBytes
-import org.wfanet.measurement.gcloud.spanner.toProtoEnum
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.gcloud.spanner.toProtoJson
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
@@ -53,7 +52,12 @@ private fun nonNullValueTimestamp(t: Timestamp) = requireNotNull(timestampOrNull
 typealias MutationBuilderFunction = (String) -> Mutation.WriteBuilder
 
 /** Creates spanner [Mutation]s for writing to the tables in the computations database. */
-class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT : Message>(
+class ComputationMutations<
+  ProtocolT,
+  StageT,
+  StageDT : AbstractMessage,
+  ComputationDT : AbstractMessage,
+>(
   computationTypeEnumHelper: ComputationTypeEnumHelper<ProtocolT>,
   computationProtocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
   computationProtocolStageDetailsHelper:
@@ -90,7 +94,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     lockOwner?.let { m.set("LockOwner").to(stringOrNull(it)) }
     lockExpirationTime?.let { m.set("LockExpirationTime").to(timestampOrNull(it)) }
     details?.let {
-      m.set("ComputationDetails").toProtoBytes(details)
+      m.set("ComputationDetails").to(details)
       m.set("ComputationDetailsJSON").toProtoJson(details)
     }
     return m.build()
@@ -175,7 +179,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     endTime?.let { m.set("EndTime").to(nonNullValueTimestamp(it)) }
     previousStage?.let { m.set("PreviousStage").to(computationStageEnumToLongValues(it).stage) }
     followingStage?.let { m.set("FollowingStage").to(computationStageEnumToLongValues(it).stage) }
-    details?.let { m.set("Details").toProtoBytes(details).set("DetailsJSON").toProtoJson(details) }
+    details?.let { m.set("Details").to(details).set("DetailsJSON").toProtoJson(details) }
     return m.build()
   }
 
@@ -253,7 +257,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     m.set("Attempt").to(attempt)
     beginTime?.let { m.set("BeginTime").to(nonNullValueTimestamp(it)) }
     endTime?.let { m.set("EndTime").to(nonNullValueTimestamp(it)) }
-    details?.let { m.set("Details").toProtoBytes(details).set("DetailsJSON").toProtoJson(details) }
+    details?.let { m.set("Details").to(details).set("DetailsJSON").toProtoJson(details) }
     return m.build()
   }
 
@@ -321,7 +325,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     m.set("ComputationStage").to(computationStageEnumToLongValues(stage).stage)
     m.set("BlobId").to(blobId)
     pathToBlob?.let { m.set("PathToBlob").to(nonNullValueString(it)) }
-    dependencyType?.let { m.set("DependencyType").toProtoEnum(it) }
+    dependencyType?.let { m.set("DependencyType").toInt64(it) }
     return m.build()
   }
 
@@ -433,7 +437,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
         set("RequisitionFingerprint" to requisitionFingerprint.toGcloudByteArray())
         pathToBlob?.let { set("PathToBlob" to nonNullValueString(it)) }
         requisitionDetails?.let {
-          set("RequisitionDetails" to it)
+          set("RequisitionDetails").to(it)
           setJson("RequisitionDetailsJSON" to it)
         }
       }

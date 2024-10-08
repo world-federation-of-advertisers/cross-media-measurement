@@ -26,6 +26,7 @@ import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
@@ -96,8 +97,8 @@ class CreateExchangesAndSteps(
             """
               .trimIndent(),
           )
-        bind(Params.RECURRING_EXCHANGE_STATE to RecurringExchange.State.ACTIVE)
-        bind(Params.EXCHANGE_STATE to Exchange.State.FAILED)
+        bind(Params.RECURRING_EXCHANGE_STATE).toInt64(RecurringExchange.State.ACTIVE)
+        bind(Params.EXCHANGE_STATE).toInt64(Exchange.State.FAILED)
 
         when (party) {
           ExchangeWorkflow.Party.MODEL_PROVIDER -> {
@@ -126,8 +127,8 @@ class CreateExchangesAndSteps(
     transactionContext.bufferInsertMutation("Exchanges") {
       set("RecurringExchangeId" to recurringExchangeId)
       set("Date" to date.toCloudDate())
-      set("State" to Exchange.State.ACTIVE)
-      set("ExchangeDetails" to exchangeDetails)
+      set("State").toInt64(Exchange.State.ACTIVE)
+      set("ExchangeDetails").to(exchangeDetails)
     }
   }
 
@@ -153,7 +154,7 @@ class CreateExchangesAndSteps(
         set("RecurringExchangeId" to recurringExchangeId)
         set("Date" to date.toCloudDate())
         set("StepIndex" to step.stepIndex.toLong())
-        set("State" to ExchangeStep.State.BLOCKED)
+        set("State").toInt64(ExchangeStep.State.BLOCKED)
         set("UpdateTime" to Value.COMMIT_TIMESTAMP)
         set(
           "ModelProviderId" to

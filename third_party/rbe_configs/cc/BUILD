@@ -56,7 +56,8 @@ filegroup(
 
 filegroup(
     name = "compiler_deps",
-    srcs = glob(["extra_tools/**"], allow_empty = True) + [":builtin_include_directory_paths"],
+    srcs = glob(["extra_tools/**"], allow_empty = True) + [":builtin_include_directory_paths",
+    ":cc_wrapper"],
 )
 
 # This is the entry point for --crosstool_top.  Toolchains are found
@@ -84,6 +85,7 @@ cc_toolchain(
     linker_files = ":compiler_deps",
     objcopy_files = ":empty",
     strip_files = ":empty",
+    supports_header_parsing = 1,
     supports_param_files = 1,
     module_map = ":module.modulemap",
 )
@@ -118,7 +120,8 @@ cc_toolchain_config(
         "nm": "/usr/bin/nm",
         "objcopy": "/usr/bin/objcopy",
         "objdump": "/usr/bin/objdump",
-        "strip": "/usr/bin/strip"},
+        "strip": "/usr/bin/strip",
+        "parse_headers": "cc_wrapper.sh"},
     compile_flags = ["-fstack-protector",
     "-Wall",
     "-Wthread-safety",
@@ -155,6 +158,7 @@ cc_toolchain_config(
     coverage_compile_flags = ["--coverage"],
     coverage_link_flags = ["--coverage"],
     supports_start_end_lib = True,
+    extra_flags_per_feature = {"use_module_maps": ["-Xclang", "-fno-cxx-modules"]},
 )
 
 # Android tooling requires a default toolchain for the armeabi-v7a cpu.

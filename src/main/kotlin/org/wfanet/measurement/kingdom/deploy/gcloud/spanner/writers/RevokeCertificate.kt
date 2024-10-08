@@ -22,6 +22,7 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.Certificate.RevocationState
 import org.wfanet.measurement.internal.kingdom.Measurement
@@ -148,7 +149,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
 
     transactionContext.bufferUpdateMutation("Certificates") {
       set("CertificateId" to certificateResult.certificateId.value)
-      set("RevocationState" to request.revocationState)
+      set("RevocationState").toInt64(request.revocationState)
     }
 
     when (request.parentCase) {

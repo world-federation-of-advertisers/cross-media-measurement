@@ -30,6 +30,7 @@ import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
@@ -203,7 +204,7 @@ class FinishExchangeStepAttempt(
     transactionContext.bufferUpdateMutation("Exchanges") {
       set("RecurringExchangeId" to recurringExchangeId)
       set("Date" to exchangeDate.toCloudDate())
-      set("State" to state)
+      set("State").toInt64(state)
     }
   }
 
@@ -229,8 +230,8 @@ class FinishExchangeStepAttempt(
       set("Date" to exchangeDate.toCloudDate())
       set("StepIndex" to stepIndex.toLong())
       set("AttemptIndex" to attemptNumber.toLong())
-      set("State" to state)
-      set("ExchangeStepAttemptDetails" to details)
+      set("State").toInt64(state)
+      set("ExchangeStepAttemptDetails").to(details)
     }
 
     return exchangeStepAttempt.copy {
@@ -254,7 +255,7 @@ class FinishExchangeStepAttempt(
       statement(sql) {
         bind("recurring_exchange_id" to recurringExchangeId)
         bind("date" to exchangeDate.toCloudDate())
-        bind("state" to ExchangeStep.State.SUCCEEDED)
+        bind("state").toInt64(ExchangeStep.State.SUCCEEDED)
       }
     val row: Struct = transactionContext.executeQuery(statement).single()
 

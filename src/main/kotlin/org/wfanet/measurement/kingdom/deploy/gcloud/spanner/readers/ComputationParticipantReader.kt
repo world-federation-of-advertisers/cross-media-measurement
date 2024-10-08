@@ -27,7 +27,6 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.getInternalId
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantDetails
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
@@ -146,7 +145,7 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
       struct.getInternalId("MeasurementId"),
       struct.getInternalId("MeasurementConsumerId"),
       struct.getProtoEnum("MeasurementState", Measurement.State::forNumber),
-      struct.getProtoMessage("MeasurementDetails", MeasurementDetails.parser()),
+      struct.getProtoMessage("MeasurementDetails", MeasurementDetails.getDefaultInstance()),
     )
 
   private fun buildComputationParticipant(struct: Struct): ComputationParticipant {
@@ -154,7 +153,7 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
     val externalMeasurementId = ExternalId(struct.getLong("ExternalMeasurementId"))
     val externalComputationId = ExternalId(struct.getLong("ExternalComputationId"))
     val measurementDetails =
-      struct.getProtoMessage("MeasurementDetails", MeasurementDetails.parser())
+      struct.getProtoMessage("MeasurementDetails", MeasurementDetails.getDefaultInstance())
 
     val duchyId = struct.getLong("DuchyId")
     val externalDuchyId =
@@ -207,7 +206,10 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
         this.etag = etag
         state = struct.getProtoEnum("State", ComputationParticipant.State::forNumber)
         details =
-          struct.getProtoMessage("ParticipantDetails", ComputationParticipantDetails.parser())
+          struct.getProtoMessage(
+            "ParticipantDetails",
+            ComputationParticipantDetails.getDefaultInstance(),
+          )
         apiVersion = measurementDetails.apiVersion
 
         if (failureLogEntry != null) {
@@ -226,7 +228,11 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
       return logEntryStructs
         .asSequence()
         .map {
-          it to it.getProtoMessage("MeasurementLogDetails", MeasurementLogEntryDetails.parser())
+          it to
+            it.getProtoMessage(
+              "MeasurementLogDetails",
+              MeasurementLogEntryDetails.getDefaultInstance(),
+            )
         }
         .find { (_, logEntryDetails) -> logEntryDetails.hasError() }
         ?.let { (struct, logEntryDetails) ->
@@ -242,7 +248,7 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
             details =
               struct.getProtoMessage(
                 "DuchyMeasurementLogDetails",
-                DuchyMeasurementLogEntryDetails.parser(),
+                DuchyMeasurementLogEntryDetails.getDefaultInstance(),
               )
           }
         }

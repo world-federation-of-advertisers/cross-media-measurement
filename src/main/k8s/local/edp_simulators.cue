@@ -61,6 +61,10 @@ _edpConfigs: [
 		certResourceName: _edpCertResourceNames[i]
 		displayName:      "edp\(Number)"
 		eventGroupSpec:   _eventGroupSpecs[SpecIndex]
+		// Support HMSS on the first half of the EDPs so that we have one EDP with each event source supporting the protocol.
+		if (name == _edp1_name || name == _edp2_name || name == _edp3_name) {
+			supportHmss: true
+		}
 	},
 ]
 
@@ -85,6 +89,7 @@ edpSimulators: {
 			_additional_args: [
 				"--population-spec=\(_populationSpec)",
 				"--event-group-spec==\(edpConfig.eventGroupSpec)",
+				if (edpConfig.supportHmss) {"--support-hmss"},
 			]
 
 			deployment: spec: template: spec: {

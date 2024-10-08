@@ -37,7 +37,7 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
       set("DataProviderId" to internalDataProviderId)
       set("PublicKeyCertificateId" to internalCertificateId)
       set("ExternalDataProviderId" to externalDataProviderId)
-      set("DataProviderDetails" to dataProvider.details)
+      set("DataProviderDetails").to(dataProvider.details)
     }
 
     for (externalDuchyId in dataProvider.requiredExternalDuchyIdsList) {

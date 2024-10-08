@@ -23,6 +23,7 @@ import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantDetails
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest
@@ -327,8 +328,8 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         set("ProvidedMeasurementId" to createMeasurementRequest.measurement.providedMeasurementId)
       }
       set("CertificateId" to measurementConsumerCertificateId)
-      set("State" to initialMeasurementState)
-      set("MeasurementDetails" to createMeasurementRequest.measurement.details)
+      set("State").toInt64(initialMeasurementState)
+      set("MeasurementDetails").to(createMeasurementRequest.measurement.details)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     }
@@ -345,8 +346,8 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       set("MeasurementId" to measurementId)
       set("DuchyId" to duchyId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      set("State" to ComputationParticipant.State.CREATED)
-      set("ParticipantDetails" to participantDetails)
+      set("State").toInt64(ComputationParticipant.State.CREATED)
+      set("ParticipantDetails").to(participantDetails)
     }
   }
 
@@ -411,9 +412,9 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("ExternalRequisitionId" to externalRequisitionId)
       set("DataProviderCertificateId" to dataProviderCertificateId)
-      set("State" to initialRequisitionState)
+      set("State").toInt64(initialRequisitionState)
       fulfillingDuchyId?.let { set("FulfillingDuchyId" to it) }
-      set("RequisitionDetails" to details)
+      set("RequisitionDetails").to(details)
     }
   }
 

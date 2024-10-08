@@ -22,7 +22,7 @@ K8S_CLIENT_VERSION = "21.0.1"
 # See https://github.com/bazelbuild/bazel/discussions/23075.
 bazel_dep(
     name = "rules_kotlin_jvm",
-    version = "0.3.0",
+    version = "0.4.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
 bazel_dep(
@@ -37,7 +37,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.91.0",
+    version = "0.94.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -47,7 +47,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.65.0",
+    version = "0.68.0",
     repo_name = "wfa_measurement_proto",
 )
 bazel_dep(
@@ -125,11 +125,11 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_java",
-    version = "7.9.1",
+    version = "7.11.1",
 )
 bazel_dep(
     name = "rules_jvm_external",
-    version = "6.2.bzlmod.1",
+    version = "6.4",
 )
 bazel_dep(
     name = "rules_python",
@@ -142,19 +142,23 @@ bazel_dep(
 )
 bazel_dep(
     name = "aspect_rules_ts",
-    version = "1.4.0",
+    version = "3.1.0",
 )
 bazel_dep(
     name = "aspect_rules_js",
-    version = "1.35.0",
+    version = "2.0.0",
 )
 bazel_dep(
     name = "aspect_rules_webpack",
-    version = "0.13.0",
+    version = "0.16.0",
 )
 bazel_dep(
     name = "aspect_rules_jest",
-    version = "0.19.6",
+    version = "0.22.0",
+)
+bazel_dep(
+    name = "aspect_bazel_lib",
+    version = "2.7.7",
 )
 bazel_dep(
     name = "abseil-cpp",

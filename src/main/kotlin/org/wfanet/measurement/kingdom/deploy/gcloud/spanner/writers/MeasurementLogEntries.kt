@@ -19,6 +19,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntryDetails
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryDetails
@@ -35,7 +36,7 @@ internal fun SpannerWriter.TransactionScope.insertMeasurementLogEntry(
     set("MeasurementConsumerId" to measurementConsumerId)
     set("MeasurementId" to measurementId)
     set("CreateTime" to Value.COMMIT_TIMESTAMP)
-    set("MeasurementLogDetails" to logDetails)
+    set("MeasurementLogDetails").to(logDetails)
   }
 }
 
@@ -52,8 +53,8 @@ internal fun SpannerWriter.TransactionScope.insertStateTransitionMeasurementLogE
     set("MeasurementConsumerId" to measurementConsumerId)
     set("MeasurementId" to measurementId)
     set("CreateTime" to Value.COMMIT_TIMESTAMP)
-    set("CurrentMeasurementState" to currentMeasurementState)
-    set("PreviousMeasurementState" to previousMeasurementState)
+    set("CurrentMeasurementState").toInt64(currentMeasurementState)
+    set("PreviousMeasurementState").toInt64(previousMeasurementState)
   }
 }
 
@@ -71,7 +72,7 @@ internal fun SpannerWriter.TransactionScope.insertDuchyMeasurementLogEntry(
     set("CreateTime" to Value.COMMIT_TIMESTAMP)
     set("DuchyId" to duchyId)
     set("ExternalComputationLogEntryId" to externalComputationLogEntryId)
-    set("DuchyMeasurementLogDetails" to logDetails)
+    set("DuchyMeasurementLogDetails").to(logDetails)
   }
 
   return externalComputationLogEntryId
