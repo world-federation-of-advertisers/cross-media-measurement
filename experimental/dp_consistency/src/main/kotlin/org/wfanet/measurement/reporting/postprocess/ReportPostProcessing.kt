@@ -15,13 +15,14 @@
 package org.wfanet.measurement.reporting.postprocessing
 
 import com.google.gson.GsonBuilder
-import com.google.protobuf.util.JsonFormat
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
+import java.io.OutputStreamWriter
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.util.Base64
 import java.util.logging.Logger
 import kotlin.io.path.name
 import org.wfanet.measurement.common.getJarResourcePath
@@ -32,13 +33,13 @@ import org.wfanet.measurement.reporting.v2alpha.report
 
 /** Corrects noisy measurements in a report. */
 object ReportPostProcessing {
-  val logger: Logger = Logger.getLogger(this::class.java.name)
-  const val PYTHON_LIBRARY_RESOURCE_NAME =
-    "experimental/dp_consistency/src/main/python/tools/post_process_origin_report.zip"
-  val resourcePath: Path =
+  private val logger: Logger = Logger.getLogger(this::class.java.name)
+  const private val PYTHON_LIBRARY_RESOURCE_NAME =
+    "experimental/dp_consistency/src/main/python/wfa/measurement/reporting/postprocess/tools/post_process_origin_report.zip"
+  private val resourcePath: Path =
     this::class.java.classLoader.getJarResourcePath(PYTHON_LIBRARY_RESOURCE_NAME)
       ?: error("$PYTHON_LIBRARY_RESOURCE_NAME not found in JAR")
-  val tempFile = File.createTempFile(resourcePath.name, "").apply { deleteOnExit() }
+  private val tempFile = File.createTempFile(resourcePath.name, "").apply { deleteOnExit() }
 
   init {
     // Copies python zip package from JAR to local directory.
@@ -67,7 +68,7 @@ object ReportPostProcessing {
     val correctedMeasurementsMap = mutableMapOf<String, Long>()
     for (reportSummary in reportSummaries) {
       correctedMeasurementsMap.putAll(
-        processReportSummary(JsonFormat.printer().print(reportSummary))
+        processReportSummary(Base64.getEncoder().encodeToString(reportSummary.toByteArray()))
       )
     }
     val updatedReport = updateReport(report, correctedMeasurementsMap)
@@ -80,16 +81,23 @@ object ReportPostProcessing {
    *
    * Each metric name is tied to a measurement.
    */
-  private fun processReportSummary(reportSummaryAsJsonString: String): Map<String, Long> {
+  private fun processReportSummary(reportSummary: String): Map<String, Long> {
     logger.info { "Start processing report.." }
+
+    // TODO(bazelbuild/bazel#17629): Execute the Python zip directly once this bug is fixed.
     val processBuilder =
       ProcessBuilder(
-        "python3",
-        tempFile.toPath().toString(),
-        "--report_summary=$reportSummaryAsJsonString",
-      )
+          "python3",
+          tempFile.toPath().toString(),
+        )
 
     val process = processBuilder.start()
+
+    // Write the process' argument to its stdin.
+    val writer = OutputStreamWriter(process.outputStream)
+    writer.write(reportSummary)
+    writer.flush()
+    writer.close()
 
     // Reads the output of the above process.
     val processOutput = BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }

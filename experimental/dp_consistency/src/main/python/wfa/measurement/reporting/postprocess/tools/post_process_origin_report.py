@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import argparse
+import base64
 import json
 import math
 import pandas as pd
+import sys
 
-from experimental.dp_consistency.src.main.proto.reporting import \
+from experimental.dp_consistency.src.main.proto.wfa.measurement.internal.reporting import \
   report_summary_pb2
 from functools import partial
 from google.protobuf import json_format
@@ -297,15 +299,10 @@ def correctExcelFile(path_to_report, unnoised_edps):
 
 
 def main():
-  parser = argparse.ArgumentParser(
-      description="Read the report summary as json string.")
-  parser.add_argument(
-      "--report_summary", required=True,
-      help="The report summary as json string."
-  )
-  args = parser.parse_args()
   report_summary = report_summary_pb2.ReportSummary()
-  json_format.Parse(args.report_summary, report_summary)
+  # Read the encoded serialized report summary from stdin and convert it back to
+  # ReportSummary proto.
+  report_summary.ParseFromString(base64.b64decode(input()))
   corrected_measurements_dict = processReportSummary(report_summary)
 
   # Sends the JSON representation of corrected_measurements_dict to the parent

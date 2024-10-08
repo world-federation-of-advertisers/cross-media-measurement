@@ -6,7 +6,7 @@ package(default_visibility = ["//visibility:public"])
 filegroup(
     name = "post_process_origin_report_pyzip",
     srcs = [
-        "//experimental/dp_consistency/src/main/python/tools:post_process_origin_report",
+        "//experimental/dp_consistency/src/main/python/wfa/measurement/reporting/postprocess/tools:post_process_origin_report",
     ],
     output_group = "python_zip_file",
 )
@@ -15,8 +15,8 @@ py_binary(
     name = "post_process_origin_report",
     srcs = ["post_process_origin_report.py"],
     deps = [
-        "//experimental/dp_consistency/src/main/proto/reporting:report_summary_py_pb2",
-        "//experimental/dp_consistency/src/main/python/report",
+        "//experimental/dp_consistency/src/main/proto/wfa/measurement/internal/reporting:report_summary_py_pb2",
+        "//experimental/dp_consistency/src/main/python/wfa/measurement/reporting/postprocess/report",
         requirement("openpyxl"),
         requirement("pandas"),
     ],

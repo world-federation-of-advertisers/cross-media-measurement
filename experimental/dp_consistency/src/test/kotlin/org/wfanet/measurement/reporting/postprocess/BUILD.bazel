@@ -6,12 +6,12 @@ kt_jvm_test(
     name = "report_post_processing_test",
     srcs = ["ReportPostProcessingTest.kt"],
     data = [
-        "//experimental/dp_consistency/src/test/kotlin/reporting:sample_report.json",
+        "//experimental/dp_consistency/src/test/kotlin/org/wfanet/measurement/reporting/postprocess:sample_report.json",
     ],
     test_class = "org.wfanet.measurement.reporting.postprocessing.ReportPostProcessingTest",
     deps = [
-        "//experimental/dp_consistency/src/main/kotlin/reporting:report_post_processing",
-        "//experimental/dp_consistency/src/main/proto/reporting:report_summary_kt_jvm_proto",
+        "//experimental/dp_consistency/src/main/kotlin/org/wfanet/measurement/reporting/postprocess:report_post_processing",
+        "//experimental/dp_consistency/src/main/proto/wfa/measurement/internal/reporting:report_summary_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
@@ -26,8 +26,8 @@ kt_jvm_test(
     srcs = ["ReportConversionTest.kt"],
     test_class = "org.wfanet.measurement.reporting.postprocessing.ReportConversionTest",
     deps = [
-        "//experimental/dp_consistency/src/main/kotlin/reporting:report_conversion",
-        "//experimental/dp_consistency/src/main/proto/reporting:report_summary_kt_jvm_proto",
+        "//experimental/dp_consistency/src/main/kotlin/org/wfanet/measurement/reporting/postprocess:report_conversion",
+        "//experimental/dp_consistency/src/main/proto/wfa/measurement/internal/reporting:report_summary_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",

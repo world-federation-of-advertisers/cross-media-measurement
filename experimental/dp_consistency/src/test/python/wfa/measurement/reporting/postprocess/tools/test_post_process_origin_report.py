@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import unittest
-from experimental.dp_consistency.src.main.proto.reporting import \
+from experimental.dp_consistency.src.main.proto.wfa.measurement.internal.reporting import \
   report_summary_pb2
 
 from noiseninja.noised_measurements import Measurement
@@ -48,8 +48,8 @@ def generateMeasurements(input, sigma, name):
 class TestOriginSheetReport(unittest.TestCase):
   def test_report_summary_is_corrected_successfully(self):
     (measurements, excel) = readExcel(
-      "experimental/dp_consistency/src/test/python/tools/example_origin_report.xlsx",
-      "Linear TV")
+        "experimental/dp_consistency/src/test/python/wfa/measurement/reporting/postprocess/tools/example_origin_report.xlsx",
+        "Linear TV")
     report_summary = report_summary_pb2.ReportSummary()
     for edp in EDP_MAP:
       ami_measurement_detail = report_summary.measurement_details.add()
@@ -88,7 +88,7 @@ class TestOriginSheetReport(unittest.TestCase):
       ami_result.reach = ami_measurement.value
       ami_result.standard_deviation = ami_measurement.sigma
       ami_result.metric = "metric_" + edp + "_ami_" + str(
-        len(measurements[edp]["AMI"]) - 1).zfill(5)
+          len(measurements[edp]["AMI"]) - 1).zfill(5)
 
       mrc_measurement_detail = report_summary.measurement_details.add()
       mrc_measurement_detail.measurement_policy = "mrc"
@@ -101,13 +101,13 @@ class TestOriginSheetReport(unittest.TestCase):
       mrc_result.reach = mrc_measurement.value
       mrc_result.standard_deviation = mrc_measurement.sigma
       mrc_result.metric = "metric_" + edp + "_mrc_" + str(
-        len(measurements[edp]["MRC"]) - 1).zfill(5)
+          len(measurements[edp]["MRC"]) - 1).zfill(5)
 
     processReportSummary(report_summary)
 
   def test_get_origin_report_corrected_successfully(self):
     correctedExcel = correctExcelFile(
-        "experimental/dp_consistency/src/test/python/tools/example_origin_report.xlsx",
+        "experimental/dp_consistency/src/test/python/wfa/measurement/reporting/postprocess/tools/example_origin_report.xlsx",
         "Linear TV"
     )
     (google_ami_rows, google_mrc_rows) = self.get_edp_rows(correctedExcel,
@@ -168,7 +168,7 @@ class TestOriginSheetReport(unittest.TestCase):
     if len(list1) != len(list2) or len(list1) != len(list3):
       raise ValueError("Lists must have the same length")
     self.assertTrue(
-      all(list1[i] + list2[i] >= list3[i] for i in range(len(list1))))
+        all(list1[i] + list2[i] >= list3[i] for i in range(len(list1))))
 
   def __assert_pairwise_greater(self, list1, list2):
     """Checks if the first list is pairwise greater than the second list."""

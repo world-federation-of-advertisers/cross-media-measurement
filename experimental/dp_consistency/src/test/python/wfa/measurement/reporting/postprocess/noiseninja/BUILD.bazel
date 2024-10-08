@@ -5,6 +5,6 @@ py_test(
     size = "small",
     srcs = ["test_solver.py"],
     deps = [
-        "//experimental/dp_consistency/src/main/python/noiseninja",
+        "//experimental/dp_consistency/src/main/python/wfa/measurement/reporting/postprocess/noiseninja",
     ],
 )
