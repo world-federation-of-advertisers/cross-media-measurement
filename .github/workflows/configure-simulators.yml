@@ -68,6 +68,14 @@ jobs:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
 
+    - name: Write auth.bazelrc
+      env:
+        BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+      run: |
+        cat << EOF > auth.bazelrc
+        build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+        EOF
+
     - name: Write ~/.bazelrc
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
