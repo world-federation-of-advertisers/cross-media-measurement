@@ -54,6 +54,7 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.RequisitionRefusal
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase as RequisitionsCoroutineService
+import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.FilterKt.after
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
@@ -488,14 +489,10 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         .streamRequisitions(
           streamRequisitionsRequest {
             filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
-            limit = 1
+            limit = 2
           }
         )
         .toList()
-
-    assertThat(requisitions)
-      .comparingExpectedFieldsOnly()
-      .containsExactly(requisition { externalDataProviderId = dataProvider.externalDataProviderId })
 
     val requisitions2: List<Requisition> =
       service
@@ -503,19 +500,18 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           streamRequisitionsRequest {
             filter = filter {
               externalDataProviderId = dataProvider.externalDataProviderId
-              externalRequisitionIdAfter = requisitions[0].externalRequisitionId
-              externalDataProviderIdAfter = requisitions[0].externalDataProviderId
+              after = after {
+                updateTime = requisitions[0].updateTime
+                externalDataProviderId = requisitions[0].externalDataProviderId
+                externalRequisitionId = requisitions[0].externalRequisitionId
+              }
             }
             limit = 1
           }
         )
         .toList()
 
-    assertThat(requisitions2)
-      .comparingExpectedFieldsOnly()
-      .containsExactly(requisition { externalDataProviderId = dataProvider.externalDataProviderId })
-    assertThat(requisitions2[0].externalRequisitionId)
-      .isGreaterThan(requisitions[0].externalRequisitionId)
+    assertThat(requisitions2).containsExactly(requisitions[1])
   }
 
   @Test

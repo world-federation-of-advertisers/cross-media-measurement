@@ -25,12 +25,18 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
   SimpleSpannerQuery<RequisitionReader.Result>() {
 
   override val reader =
-    RequisitionReader().fillStatementBuilder {
-      appendWhereClause(requestFilter)
-      appendClause("ORDER BY ExternalDataProviderId ASC, ExternalRequisitionId ASC")
-      if (limit > 0) {
-        appendClause("LIMIT @$LIMIT")
-        bind(LIMIT to limit.toLong())
+    RequisitionReader().apply {
+      val orderByClause =
+        "ORDER BY UpdateTime ASC, ExternalDataProviderId ASC, ExternalRequisitionId ASC"
+      this.orderByClause = orderByClause
+
+      fillStatementBuilder {
+        appendWhereClause(requestFilter)
+        appendClause(orderByClause)
+        if (limit > 0) {
+          appendClause("LIMIT @$LIMIT")
+          bind(LIMIT to limit.toLong())
+        }
       }
     }
 
@@ -52,28 +58,34 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
       conjuncts.add("Requisitions.State IN UNNEST(@$STATES)")
       bind(STATES).toInt64Array(filter.statesValueList.map { it.toLong() })
     }
-
+    if (filter.hasUpdatedAfter()) {
+      conjuncts.add("Requisitions.UpdateTime > @$UPDATE_TIME")
+      bind(UPDATE_TIME to filter.updatedAfter.toGcloudTimestamp())
+    }
     if (filter.measurementStatesValueList.isNotEmpty()) {
       conjuncts.add("Measurements.State IN UNNEST(@$MEASUREMENT_STATES)")
       bind(MEASUREMENT_STATES).toInt64Array(filter.measurementStatesValueList.map { it.toLong() })
     }
 
-    if (filter.hasUpdatedAfter()) {
-      conjuncts.add("Requisitions.UpdateTime > @$UPDATED_AFTER")
-      bind(UPDATED_AFTER to filter.updatedAfter.toGcloudTimestamp())
-    }
-
-    if (filter.externalRequisitionIdAfter != 0L && filter.externalDataProviderIdAfter != 0L) {
+    if (filter.hasAfter()) {
       conjuncts.add(
         """
-          (ExternalDataProviderId > @$EXTERNAL_DATA_PROVIDER_ID_AFTER
-          OR (ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID_AFTER
-          AND ExternalRequisitionId > @$EXTERNAL_REQUISITION_ID_AFTER))
+          CASE
+            WHEN Requisitions.UpdateTime > @$UPDATED_AFTER THEN TRUE
+            WHEN Requisitions.UpdateTime = @$UPDATED_AFTER
+              AND ExternalDataProviderId > @$EXTERNAL_DATA_PROVIDER_ID_AFTER THEN TRUE
+            WHEN Requisitions.UpdateTime = @$UPDATED_AFTER
+              AND ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID_AFTER
+              AND ExternalRequisitionId > @$EXTERNAL_REQUISITION_ID_AFTER THEN TRUE
+            ELSE FALSE
+          END
         """
           .trimIndent()
       )
-      bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.externalDataProviderIdAfter)
-      bind(EXTERNAL_REQUISITION_ID_AFTER).to(filter.externalRequisitionIdAfter)
+
+      bind(UPDATED_AFTER to filter.after.updateTime.toGcloudTimestamp())
+      bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.after.externalDataProviderId)
+      bind(EXTERNAL_REQUISITION_ID_AFTER).to(filter.after.externalRequisitionId)
     }
 
     if (conjuncts.isEmpty()) {
@@ -90,6 +102,7 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
     const val EXTERNAL_MEASUREMENT_ID = "externalMeasurementId"
     const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
     const val STATES = "states"
+    const val UPDATE_TIME = "updateTime"
     const val UPDATED_AFTER = "updatedAfter"
     const val EXTERNAL_REQUISITION_ID_AFTER = "externalRequisitionIdAfter"
     const val EXTERNAL_DATA_PROVIDER_ID_AFTER = "externalDataProviderIdAfter"
