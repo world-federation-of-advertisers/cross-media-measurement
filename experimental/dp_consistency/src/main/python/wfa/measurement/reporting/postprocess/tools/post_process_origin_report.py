@@ -12,17 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import base64
 import json
 import math
 import pandas as pd
-import sys
 
 from experimental.dp_consistency.src.main.proto.wfa.measurement.internal.reporting import \
   report_summary_pb2
 from functools import partial
-from google.protobuf import json_format
 from noiseninja.noised_measurements import Measurement
 from report.report import Report, MetricReport
 
