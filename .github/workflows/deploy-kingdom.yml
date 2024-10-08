@@ -29,6 +29,6 @@ jobs:
     uses: ./.github/workflows/configure-kingdom.yml
     secrets: inherit
     with:
-      image-tag: 3f5e8e3264d51be0e0cf4962d6e5947538a84260
+      image-tag: b6fce65915b3b1b0ab40e663f6a857de69f029e9
       environment: dev
       apply: true
