@@ -75,6 +75,7 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
@@ -144,7 +145,7 @@ import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults.computeIm
 /** A simulator handling EDP businesses. */
 class EdpSimulator(
   private val edpData: DataProviderData,
-  measurementConsumerName: String,
+  private val measurementConsumerName: String,
   private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
   certificatesStub: CertificatesCoroutineStub,
   private val dataProvidersStub: DataProvidersCoroutineStub,
@@ -183,7 +184,6 @@ class EdpSimulator(
     requisitionsStub,
     throttler,
     trustedCertificates,
-    measurementConsumerName,
   ),
   Health by health {
   val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
@@ -195,6 +195,9 @@ class EdpSimulator(
       add(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
     }
   }
+
+  val measurementConsumerKey =
+    checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
 
   /** A sequence of operations done in the simulator. */
   override suspend fun run() {
