@@ -122,6 +122,14 @@ jobs:
         build --define duchy_system_api_eip_allocs=$DUCHY_SYSTEM_API_EIP_ALLOCS
         EOF
 
+    - uses: ./.github/actions/setup-bazel-remote
+      with:
+        host: ${{ vars.BAZEL_REMOTE_CACHE_HOST }}
+        port: ${{ vars.BAZEL_REMOTE_CACHE_PORT }}
+        certificate: ${{ vars.BAZEL_REMOTE_CACHE_CERT }}
+        username: ${{ vars.BAZEL_REMOTE_CACHE_USER }}
+        password: ${{ secrets.BAZEL_REMOTE_CACHE_PASSWORD }}
+
     - name: Get EKS cluster credentials
       run: aws eks update-kubeconfig --region $AWS_REGION --name ${DUCHY_NAME}-duchy
 

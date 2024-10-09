@@ -264,6 +264,7 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/debug",
     ],
 )
 
