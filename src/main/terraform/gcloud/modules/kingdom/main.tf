@@ -202,6 +202,85 @@ EOF
 
 }
 
+resource "google_bigquery_table" "computation_participant_stages" {
+  dataset_id = google_bigquery_dataset.operational_metrics.dataset_id
+  table_id   = "computation_participant_stages"
+
+  deletion_protection = true
+
+  time_partitioning {
+    field = "log_entry_create_time"
+    type  = "MONTH"
+  }
+
+  schema = <<EOF
+[
+  {
+    "name": "measurement_consumer_id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "measurement_id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "computation_id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "duchy_id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "measurement_type",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "REACH_AND_FREQUENCY, REACH, IMPRESSION, DURATION, or POPULATION"
+  },
+  {
+    "name": "measurement_state",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "SUCCEEDED or FAILED"
+  },
+  {
+    "name": "result",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "SUCCEEDED or FAILED"
+  },
+  {
+    "name": "stage",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "log_entry_create_time",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "completion_duration_seconds",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "description": "Difference between measurement create_time and log_entry_create_time, or log_entry_create_time for last successful stage attempt and log_entry_create_time",
+    "defaultValueExpression": "0"
+  },
+  {
+    "name": "completion_duration_seconds_squared",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "defaultValueExpression": "0"
+  }
+]
+EOF
+
+}
+
 resource "google_bigquery_table" "latest_measurement_read" {
   dataset_id = google_bigquery_dataset.operational_metrics.dataset_id
   table_id   = "latest_measurement_read"

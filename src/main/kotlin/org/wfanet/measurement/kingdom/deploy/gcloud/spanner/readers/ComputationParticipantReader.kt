@@ -185,6 +185,13 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
           externalDuchyId,
           struct.getStructList("DuchyMeasurementLogEntries"),
         )
+      val successLogEntries: Collection<DuchyMeasurementLogEntry> =
+        buildSuccessLogEntries(
+          externalMeasurementConsumerId,
+          externalMeasurementId,
+          externalDuchyId,
+          struct.getStructList("DuchyMeasurementLogEntries"),
+        )
       val updateTime = struct.getTimestamp("UpdateTime")
       val etag = ETags.computeETag(updateTime)
       return computationParticipant {
@@ -208,6 +215,7 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
         if (failureLogEntry != null) {
           this.failureLogEntry = failureLogEntry
         }
+        this.successLogEntries += successLogEntries
       }
     }
 
@@ -244,6 +252,38 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
               )
           }
         }
+    }
+
+    private fun buildSuccessLogEntries(
+      externalMeasurementConsumerId: ExternalId,
+      externalMeasurementId: ExternalId,
+      externalDuchyId: String,
+      logEntryStructs: Iterable<Struct>,
+    ): Collection<DuchyMeasurementLogEntry> {
+      return logEntryStructs
+        .asSequence()
+        .map {
+          it to it.getProtoMessage("MeasurementLogDetails", MeasurementLogEntryDetails.parser())
+        }
+        .filter { (_, logEntryDetails) -> !logEntryDetails.hasError() }
+        .map { (struct, logEntryDetails) ->
+          duchyMeasurementLogEntry {
+            logEntry = measurementLogEntry {
+              this.externalMeasurementConsumerId = externalMeasurementConsumerId.value
+              this.externalMeasurementId = externalMeasurementId.value
+              createTime = struct.getTimestamp("CreateTime").toProto()
+              details = logEntryDetails
+            }
+            this.externalDuchyId = externalDuchyId
+            externalComputationLogEntryId = struct.getLong("ExternalComputationLogEntryId")
+            details =
+              struct.getProtoMessage(
+                "DuchyMeasurementLogDetails",
+                DuchyMeasurementLogEntryDetails.parser(),
+              )
+          }
+        }
+        .toList()
     }
   }
 }
