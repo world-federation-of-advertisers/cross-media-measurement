@@ -94,6 +94,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
         when (view) {
           Measurement.View.DEFAULT -> DEFAULT_VIEW_SQL
           Measurement.View.COMPUTATION -> COMPUTATION_VIEW_SQL
+          Measurement.View.FULL -> FULL_VIEW_SQL
           Measurement.View.UNRECOGNIZED -> error("Invalid view $view")
         }
       appendClause(sql)
@@ -171,6 +172,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
       when (view) {
         Measurement.View.DEFAULT -> fillDefaultView(struct)
         Measurement.View.COMPUTATION -> fillComputationView(struct)
+        Measurement.View.FULL -> fillFullView(struct)
         Measurement.View.UNRECOGNIZED ->
           throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
       }
@@ -396,6 +398,101 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
         JOIN MeasurementConsumerCertificates USING (MeasurementConsumerId, CertificateId)
       """
         .trimIndent()
+
+    private val FULL_VIEW_SQL =
+      """
+      SELECT
+        ExternalMeasurementConsumerId,
+        ExternalMeasurementConsumerCertificateId,
+        Measurements.MeasurementId,
+        Measurements.MeasurementConsumerId,
+        Measurements.ExternalMeasurementId,
+        Measurements.ExternalComputationId,
+        Measurements.ProvidedMeasurementId,
+        Measurements.CreateRequestId,
+        Measurements.MeasurementDetails,
+        Measurements.CreateTime,
+        Measurements.UpdateTime,
+        Measurements.State AS MeasurementState,
+        ARRAY(
+          SELECT AS STRUCT
+            ExternalDataProviderId,
+            Requisitions.UpdateTime,
+            Requisitions.ExternalRequisitionId,
+            Requisitions.State AS RequisitionState,
+            Requisitions.FulfillingDuchyId,
+            Requisitions.RequisitionDetails,
+            ExternalDataProviderCertificateId,
+            SubjectKeyIdentifier,
+            NotValidBefore,
+            NotValidAfter,
+            RevocationState,
+            CertificateDetails,
+          FROM
+            Requisitions
+            JOIN DataProviders USING (DataProviderId)
+            JOIN DataProviderCertificates ON (
+              DataProviderCertificates.DataProviderId = Requisitions.DataProviderId
+              AND DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId
+            )
+            JOIN Certificates USING (CertificateId)
+          WHERE
+            Requisitions.MeasurementConsumerId = Measurements.MeasurementConsumerId
+            AND Requisitions.MeasurementId = Measurements.MeasurementId
+        ) AS Requisitions,
+        ARRAY(
+          SELECT AS STRUCT
+            ExternalDuchyCertificateId,
+            ComputationParticipants.DuchyId,
+            ComputationParticipants.UpdateTime,
+            ComputationParticipants.State,
+            ComputationParticipants.ParticipantDetails,
+            Certificates.SubjectKeyIdentifier,
+            Certificates.NotValidBefore,
+            Certificates.NotValidAfter,
+            Certificates.RevocationState,
+            Certificates.CertificateDetails,
+            ARRAY(
+              SELECT AS STRUCT
+                DuchyMeasurementLogEntries.CreateTime,
+                DuchyMeasurementLogEntries.ExternalComputationLogEntryId,
+                DuchyMeasurementLogEntries.DuchyMeasurementLogDetails,
+                MeasurementLogEntries.MeasurementLogDetails
+              FROM
+                DuchyMeasurementLogEntries
+                JOIN MeasurementLogEntries USING (MeasurementConsumerId, MeasurementId, CreateTime)
+              WHERE
+                DuchyMeasurementLogEntries.DuchyId = ComputationParticipants.DuchyId
+                AND DuchyMeasurementLogEntries.MeasurementConsumerId = ComputationParticipants.MeasurementConsumerId
+                AND DuchyMeasurementLogEntries.MeasurementId = ComputationParticipants.MeasurementId
+              ORDER BY MeasurementLogEntries.CreateTime DESC
+            ) AS DuchyMeasurementLogEntries
+          FROM
+            ComputationParticipants
+            LEFT JOIN (DuchyCertificates JOIN Certificates USING (CertificateId))
+              USING (DuchyId, CertificateId)
+          WHERE
+            ComputationParticipants.MeasurementConsumerId = Measurements.MeasurementConsumerId
+            AND ComputationParticipants.MeasurementId = Measurements.MeasurementId
+        ) AS ComputationParticipants,
+        ARRAY(
+          SELECT AS STRUCT
+            DuchyMeasurementResults.DuchyId,
+            ExternalDuchyCertificateId,
+            EncryptedResult,
+            PublicApiVersion
+          FROM
+            DuchyMeasurementResults
+            JOIN DuchyCertificates USING (CertificateId)
+          WHERE
+            Measurements.MeasurementConsumerId = DuchyMeasurementResults.MeasurementConsumerId
+            AND Measurements.MeasurementId = DuchyMeasurementResults.MeasurementId
+        ) AS DuchyResults
+      FROM
+        FilteredMeasurements AS Measurements
+        JOIN MeasurementConsumerCertificates USING (MeasurementConsumerId, CertificateId)
+      """
+        .trimIndent()
   }
 }
 
@@ -517,5 +614,85 @@ private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
         participantStructs,
         dataProvidersCount,
       )
+  }
+}
+
+private fun MeasurementKt.Dsl.fillFullView(struct: Struct) {
+  fillMeasurementCommon(struct)
+  val requisitionsStructs = struct.getStructList("Requisitions")
+  val dataProvidersCount = requisitionsStructs.size
+  val measurementSucceeded = state == Measurement.State.SUCCEEDED
+
+  // Map of external Duchy ID to ComputationParticipant struct.
+  var participantStructs: Map<String, Struct> = mapOf()
+  if (!struct.isNull("ExternalComputationId")) {
+    val externalMeasurementId = ExternalId(struct.getLong("ExternalMeasurementId"))
+    val externalMeasurementConsumerId = ExternalId(struct.getLong("ExternalMeasurementConsumerId"))
+    val externalComputationId = ExternalId(struct.getLong("ExternalComputationId"))
+
+    participantStructs =
+      struct.getStructList("ComputationParticipants").associateBy {
+        val duchyId = it.getLong("DuchyId")
+        checkNotNull(DuchyIds.getExternalId(duchyId)) {
+          "Duchy with internal ID $duchyId not found"
+        }
+      }
+
+    for ((externalDuchyId, participantStruct) in participantStructs) {
+      computationParticipants +=
+        ComputationParticipantReader.buildComputationParticipant(
+          externalMeasurementConsumerId = externalMeasurementConsumerId,
+          externalMeasurementId = externalMeasurementId,
+          externalDuchyId = externalDuchyId,
+          externalComputationId = externalComputationId,
+          measurementDetails = details,
+          struct = participantStruct,
+        )
+    }
+  }
+
+  for (requisitionStruct in struct.getStructList("Requisitions")) {
+    requisitions +=
+      RequisitionReader.buildRequisition(
+        struct,
+        requisitionStruct,
+        participantStructs,
+        dataProvidersCount,
+      )
+
+    val requisitionDetails =
+      requisitionStruct.getProtoMessage(
+        "RequisitionDetails",
+        RequisitionDetails.getDefaultInstance(),
+      )
+    val externalDataProviderId = requisitionStruct.getLong("ExternalDataProviderId")
+    val externalDataProviderCertificateId =
+      requisitionStruct.getLong("ExternalDataProviderCertificateId")
+    dataProviders[externalDataProviderId] = dataProviderValue {
+      this.externalDataProviderCertificateId = externalDataProviderCertificateId
+      dataProviderPublicKey = requisitionDetails.dataProviderPublicKey
+      encryptedRequisitionSpec = requisitionDetails.encryptedRequisitionSpec
+      nonceHash = requisitionDetails.nonceHash
+
+      // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
+      // fields.
+      dataProviderPublicKeySignature = requisitionDetails.dataProviderPublicKeySignature
+      dataProviderPublicKeySignatureAlgorithmOid =
+        requisitionDetails.dataProviderPublicKeySignatureAlgorithmOid
+    }
+
+    if (measurementSucceeded && !requisitionDetails.encryptedData.isEmpty) {
+      results += resultInfo {
+        this.externalDataProviderId = externalDataProviderId
+        externalCertificateId =
+          if (requisitionDetails.externalCertificateId != 0L) {
+            requisitionDetails.externalCertificateId
+          } else {
+            externalDataProviderCertificateId
+          }
+        encryptedResult = requisitionDetails.encryptedData
+        apiVersion = requisitionDetails.encryptedDataApiVersion.ifEmpty { Version.V2_ALPHA.string }
+      }
+    }
   }
 }
