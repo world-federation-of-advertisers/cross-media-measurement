@@ -122,18 +122,25 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
     private fun createReportingTestHarness(): ReportingUserSimulator {
       val publicApiChannel =
         buildMutualTlsChannel(
-          TEST_CONFIG.reportingPublicApiTarget,
-          MEASUREMENT_CONSUMER_SIGNING_CERTS,
-          null,
-        )
+            TEST_CONFIG.reportingPublicApiTarget,
+            MEASUREMENT_CONSUMER_SIGNING_CERTS,
+            null,
+          )
           .also { channels.add(it) }
           .withDefaultDeadline(RPC_DEADLINE_DURATION)
 
       return ReportingUserSimulator(
         measurementConsumerName = TEST_CONFIG.measurementConsumer,
-        eventGroupsClient = org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub(publicApiChannel),
-        reportingSetsClient = org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub(publicApiChannel),
-        metricCalculationSpecsClient = MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub(publicApiChannel),
+        eventGroupsClient =
+          org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub(
+            publicApiChannel
+          ),
+        reportingSetsClient =
+          org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub(
+            publicApiChannel
+          ),
+        metricCalculationSpecsClient =
+          MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub(publicApiChannel),
         reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
       )
     }

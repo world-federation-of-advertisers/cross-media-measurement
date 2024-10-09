@@ -49,12 +49,11 @@ class ReportingUserSimulator(
   private val measurementConsumerName: String,
   private val eventGroupsClient: EventGroupsGrpcKt.EventGroupsCoroutineStub,
   private val reportingSetsClient: ReportingSetsGrpcKt.ReportingSetsCoroutineStub,
-  private val metricCalculationSpecsClient: MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub,
+  private val metricCalculationSpecsClient:
+    MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub,
   private val reportsClient: ReportsGrpcKt.ReportsCoroutineStub,
 ) {
-  suspend fun testCreateReport(
-    runId: String,
-  ) {
+  suspend fun testCreateReport(runId: String) {
     val eventGroup = listEventGroups().first()
     val createdPrimitiveReportingSet = createPrimitiveReportingSet(eventGroup)
     val createdMetricCalculationSpec = createMetricCalculationSpec()
@@ -85,17 +84,15 @@ class ReportingUserSimulator(
     }
 
     val createdReport =
-      reportsClient
-        .createReport(
-          createReportRequest {
-            parent = measurementConsumerName
-            this.report = report
-            reportId = runId
-          }
-        )
+      reportsClient.createReport(
+        createReportRequest {
+          parent = measurementConsumerName
+          this.report = report
+          reportId = runId
+        }
+      )
 
-    val completedReport =
-      pollForCompletedReport(createdReport.name)
+    val completedReport = pollForCompletedReport(createdReport.name)
 
     assertThat(completedReport.state).isEqualTo(Report.State.SUCCEEDED)
   }
@@ -111,59 +108,51 @@ class ReportingUserSimulator(
       .eventGroupsList
   }
 
-  private suspend fun createPrimitiveReportingSet(
-    eventGroup: EventGroup,
-  ): ReportingSet {
-    val primitiveReportingSet =
-      reportingSet {
-        primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
-      }
+  private suspend fun createPrimitiveReportingSet(eventGroup: EventGroup): ReportingSet {
+    val primitiveReportingSet = reportingSet {
+      primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
+    }
 
-    return reportingSetsClient
-      .createReportingSet(
-        createReportingSetRequest {
-          parent = measurementConsumerName
-          reportingSet = primitiveReportingSet
-        }
-      )
+    return reportingSetsClient.createReportingSet(
+      createReportingSetRequest {
+        parent = measurementConsumerName
+        reportingSet = primitiveReportingSet
+      }
+    )
   }
 
   private suspend fun createMetricCalculationSpec(): MetricCalculationSpec {
-    return metricCalculationSpecsClient
-      .createMetricCalculationSpec(
-        createMetricCalculationSpecRequest {
-          parent = measurementConsumerName
-          metricCalculationSpec = metricCalculationSpec {
-            displayName = "union reach"
-            metricSpecs +=
-              metricSpec {
-                reach = MetricSpecKt.reachParams {
-                  singleDataProviderParams = MetricSpecKt.samplingAndPrivacyParams {}
-                }
-              }
-            metricFrequencySpec =
-              MetricCalculationSpecKt.metricFrequencySpec {
-                weekly =
-                  MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                    dayOfWeek = DayOfWeek.WEDNESDAY
-                  }
-              }
-            trailingWindow =
-              MetricCalculationSpecKt.trailingWindow {
-                count = 1
-                increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+    return metricCalculationSpecsClient.createMetricCalculationSpec(
+      createMetricCalculationSpecRequest {
+        parent = measurementConsumerName
+        metricCalculationSpec = metricCalculationSpec {
+          displayName = "union reach"
+          metricSpecs += metricSpec {
+            reach =
+              MetricSpecKt.reachParams {
+                singleDataProviderParams = MetricSpecKt.samplingAndPrivacyParams {}
               }
           }
+          metricFrequencySpec =
+            MetricCalculationSpecKt.metricFrequencySpec {
+              weekly =
+                MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                  dayOfWeek = DayOfWeek.WEDNESDAY
+                }
+            }
+          trailingWindow =
+            MetricCalculationSpecKt.trailingWindow {
+              count = 1
+              increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+            }
         }
-      )
+      }
+    )
   }
 
-  private suspend fun pollForCompletedReport(
-    reportName: String,
-  ): Report {
+  private suspend fun pollForCompletedReport(reportName: String): Report {
     while (true) {
-      val retrievedReport =
-        reportsClient.getReport(getReportRequest { name = reportName })
+      val retrievedReport = reportsClient.getReport(getReportRequest { name = reportName })
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (retrievedReport.state) {
