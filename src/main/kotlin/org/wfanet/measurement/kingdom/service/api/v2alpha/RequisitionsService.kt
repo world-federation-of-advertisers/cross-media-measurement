@@ -359,6 +359,7 @@ private fun InternalRequisition.toRequisition(): Requisition {
       }
     }
     measurementState = this@toRequisition.parentMeasurement.state.toState()
+    updateTime = this@toRequisition.updateTime
   }
 }
 
