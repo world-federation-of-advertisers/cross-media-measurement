@@ -64,7 +64,7 @@ abstract class SpannerWriter<T, R> {
     idGenerator: IdGenerator,
   ): T? {
     return try {
-      runner.execute { txn -> TransactionScope(txn, idGenerator).runTransaction() }
+      runner.run { txn -> TransactionScope(txn, idGenerator).runTransaction() }
     } catch (e: SpannerException) {
       handleSpannerException(e)
     }
