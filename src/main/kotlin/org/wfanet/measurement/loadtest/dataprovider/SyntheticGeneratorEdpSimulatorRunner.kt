@@ -108,7 +108,7 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
     if (::eventMessageDescriptorSetFiles.isInitialized) {
       val fileDescriptorSets: List<DescriptorProtos.FileDescriptorSet> =
         eventMessageDescriptorSetFiles.map {
-          parseTextProto(it, DescriptorProtos.FileDescriptorSet.getDefaultInstance())
+          it.inputStream().use { input -> DescriptorProtos.FileDescriptorSet.parseFrom(input) }
         }
       builder.add(ProtoReflection.buildDescriptors(fileDescriptorSets))
     }

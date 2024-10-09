@@ -1,0 +1,21 @@
+load("@rules_jvm_external//:defs.bzl", "maven_export")
+load("@wfa_common_jvm//build/maven:defs.bzl", "artifact_version")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+MAVEN_COORDINATES = "org.wfanet.measurement.reporting:postprocessing-v2alpha:" + artifact_version()
+
+kt_jvm_library(
+    name = "postprocessing",
+    srcs = glob(["*.kt"]),
+    tags = ["maven_coordinates=" + MAVEN_COORDINATES],
+)
+
+maven_export(
+    name = "postprocessing_maven",
+    lib_name = "postprocessing",
+    maven_coordinates = MAVEN_COORDINATES,
+    tags = ["no-javadocs"],
+    visibility = ["//visibility:private"],
+)
