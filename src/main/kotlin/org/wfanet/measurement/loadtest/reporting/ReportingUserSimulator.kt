@@ -21,6 +21,7 @@ import com.google.type.DayOfWeek
 import com.google.type.date
 import com.google.type.dateTime
 import com.google.type.timeZone
+import java.util.logging.Logger
 import kotlinx.coroutines.delay
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt
@@ -54,6 +55,8 @@ class ReportingUserSimulator(
   private val reportsClient: ReportsGrpcKt.ReportsCoroutineStub,
 ) {
   suspend fun testCreateReport(runId: String) {
+    logger.info("Creating report...")
+
     val eventGroup = listEventGroups().first()
     val createdPrimitiveReportingSet = createPrimitiveReportingSet(eventGroup)
     val createdMetricCalculationSpec = createMetricCalculationSpec()
@@ -95,6 +98,7 @@ class ReportingUserSimulator(
     val completedReport = pollForCompletedReport(createdReport.name)
 
     assertThat(completedReport.state).isEqualTo(Report.State.SUCCEEDED)
+    logger.info("Report creation succeeded")
   }
 
   private suspend fun listEventGroups(): List<EventGroup> {
@@ -163,5 +167,9 @@ class ReportingUserSimulator(
         Report.State.STATE_UNSPECIFIED -> delay(5000)
       }
     }
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
