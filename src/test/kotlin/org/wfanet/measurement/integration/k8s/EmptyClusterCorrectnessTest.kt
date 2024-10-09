@@ -69,6 +69,7 @@ import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
+import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
@@ -173,6 +174,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private lateinit var _testHarness: MeasurementConsumerSimulator
     override val testHarness: MeasurementConsumerSimulator
       get() = _testHarness
+
+    override val reportingTestHarness: ReportingUserSimulator?
+      get() = null
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
