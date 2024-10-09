@@ -20,9 +20,9 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.internal.reporting.MeasurementDetailKt.measurementResult
-import org.wfanet.measurement.internal.reporting.measurementDetail
-import org.wfanet.measurement.internal.reporting.reportSummary
+import org.wfanet.measurement.reporting.MeasurementDetailKt.measurementResult
+import org.wfanet.measurement.reporting.measurementDetail
+import org.wfanet.measurement.reporting.reportSummary
 
 @RunWith(JUnit4::class)
 class ReportConversionTest {

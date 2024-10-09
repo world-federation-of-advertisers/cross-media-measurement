@@ -20,7 +20,7 @@ import java.nio.file.Files
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.internal.reporting.measurementDetail
+import org.wfanet.measurement.reporting.measurementDetail
 import org.wfanet.measurement.reporting.v2alpha.Report
 
 @RunWith(JUnit4::class)

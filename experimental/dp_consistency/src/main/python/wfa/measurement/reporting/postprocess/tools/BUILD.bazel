@@ -15,7 +15,7 @@ py_binary(
     name = "post_process_origin_report",
     srcs = ["post_process_origin_report.py"],
     deps = [
-        "//experimental/dp_consistency/src/main/proto/wfa/measurement/internal/reporting:report_summary_py_pb2",
+        "//experimental/dp_consistency/src/main/proto/wfa/measurement/reporting/postprocess:report_summary_py_pb2",
         "//experimental/dp_consistency/src/main/python/wfa/measurement/reporting/postprocess/report",
         requirement("openpyxl"),
         requirement("pandas"),

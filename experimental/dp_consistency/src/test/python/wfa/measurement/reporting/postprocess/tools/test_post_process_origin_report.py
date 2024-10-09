@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import unittest
-from experimental.dp_consistency.src.main.proto.wfa.measurement.internal.reporting import \
+from experimental.dp_consistency.src.main.proto.wfa.measurement.reporting.postprocess import \
   report_summary_pb2
 
 from noiseninja.noised_measurements import Measurement

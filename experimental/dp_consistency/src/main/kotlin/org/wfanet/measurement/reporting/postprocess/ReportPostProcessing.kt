@@ -27,6 +27,7 @@ import java.util.logging.Logger
 import kotlin.io.path.name
 import org.wfanet.measurement.common.getJarResourcePath
 import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.reporting.ReportSummary
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.report
@@ -67,21 +68,19 @@ object ReportPostProcessing {
     val reportSummaries = report.toReportSummaries()
     val correctedMeasurementsMap = mutableMapOf<String, Long>()
     for (reportSummary in reportSummaries) {
-      correctedMeasurementsMap.putAll(
-        processReportSummary(Base64.getEncoder().encodeToString(reportSummary.toByteArray()))
-      )
+      correctedMeasurementsMap.putAll(processReportSummary(reportSummary))
     }
     val updatedReport = updateReport(report, correctedMeasurementsMap)
     return updatedReport
   }
 
   /**
-   * Corrects the inconsistent measurements in the [reportSummaryAsJsonString] and returns a map of
-   * metric names to corrected reach values.
+   * Corrects the inconsistent measurements in the [reportSummary] and returns a map of metric names
+   * to corrected reach values.
    *
    * Each metric name is tied to a measurement.
    */
-  private fun processReportSummary(reportSummary: String): Map<String, Long> {
+  private fun processReportSummary(reportSummary: ReportSummary): Map<String, Long> {
     logger.info { "Start processing report.." }
 
     // TODO(bazelbuild/bazel#17629): Execute the Python zip directly once this bug is fixed.
@@ -90,10 +89,10 @@ object ReportPostProcessing {
     val process = processBuilder.start()
 
     // Write the process' argument to its stdin.
-    val writer = OutputStreamWriter(process.outputStream)
-    writer.write(reportSummary)
-    writer.flush()
-    writer.close()
+    OutputStreamWriter(process.outputStream).use { writer ->
+      writer.write(Base64.getEncoder().encodeToString(reportSummary.toByteArray()))
+      writer.flush()
+    }
 
     // Reads the output of the above process.
     val processOutput = BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }

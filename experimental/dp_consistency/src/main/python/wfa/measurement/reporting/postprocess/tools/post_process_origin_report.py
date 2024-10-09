@@ -17,7 +17,7 @@ import json
 import math
 import pandas as pd
 
-from experimental.dp_consistency.src.main.proto.wfa.measurement.internal.reporting import \
+from experimental.dp_consistency.src.main.proto.wfa.measurement.reporting.postprocess import \
   report_summary_pb2
 from functools import partial
 from noiseninja.noised_measurements import Measurement

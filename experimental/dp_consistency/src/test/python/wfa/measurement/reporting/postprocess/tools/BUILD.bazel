@@ -7,7 +7,7 @@ py_test(
         "//experimental/dp_consistency/src/test/python/wfa/measurement/reporting/postprocess/tools:example_origin_report.xlsx",
     ],
     deps = [
-        "//experimental/dp_consistency/src/main/proto/wfa/measurement/internal/reporting:report_summary_py_pb2",
+        "//experimental/dp_consistency/src/main/proto/wfa/measurement/reporting/postprocess:report_summary_py_pb2",
         "//experimental/dp_consistency/src/main/python/wfa/measurement/reporting/postprocess/tools:post_process_origin_report",
     ],
 )

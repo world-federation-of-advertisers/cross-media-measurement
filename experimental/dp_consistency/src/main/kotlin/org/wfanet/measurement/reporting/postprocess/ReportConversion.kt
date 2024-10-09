@@ -16,17 +16,26 @@ package org.wfanet.measurement.reporting.postprocessing
 
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
-import org.wfanet.measurement.internal.reporting.MeasurementDetailKt
-import org.wfanet.measurement.internal.reporting.ReportSummary
-import org.wfanet.measurement.internal.reporting.measurementDetail
-import org.wfanet.measurement.internal.reporting.reportSummary
+import org.wfanet.measurement.reporting.MeasurementDetailKt
+import org.wfanet.measurement.reporting.ReportSummary
+import org.wfanet.measurement.reporting.measurementDetail
+import org.wfanet.measurement.reporting.reportSummary
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.report
 
-data class ReportingSetSummary(val measurementPolicy: String, val dataProviders: List<String>)
+data class ReportingSetSummary(
+  /** The measurement policy (e.g. AMI, MRC, or CUSTOM) used for this reporting set. */
+  val measurementPolicy: String,
+  /** The data providers associated with the reporting set. */
+  val dataProviders: List<String>,
+)
 
-data class SetOperationSummary(val isCumulative: Boolean, val setOperation: String)
+data class SetOperationSummary(
+  val isCumulative: Boolean,
+  /** The type of set operation which is one of cumulative, union, difference, or incremental. */
+  val setOperation: String,
+)
 
 object ReportConversion {
   fun getReportFromJsonString(reportAsJsonString: String): Report {
