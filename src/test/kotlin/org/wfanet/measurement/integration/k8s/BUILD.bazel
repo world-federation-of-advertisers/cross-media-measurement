@@ -94,7 +94,7 @@ expand_template(
         "{kingdom_public_api_cert_host}": "localhost",
         "{mc_name}": TEST_K8S_SETTINGS.mc_name,
         "{mc_api_key}": TEST_K8S_SETTINGS.mc_api_key,
-        "{reporting_public_api_target}": "${reporting_public_api_target}",
+        "{reporting_public_api_target}": "$(reporting_public_api_target)",
     },
     tags = ["manual"],
     template = "correctness_test_config.tmpl.textproto",
