@@ -94,7 +94,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
       val publicApiChannel =
         buildMutualTlsChannel(
             TEST_CONFIG.kingdomPublicApiTarget,
-            REPORTING_SIGNING_CERTS,
+            MEASUREMENT_CONSUMER_SIGNING_CERTS,
             TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
           )
           .also { channels.add(it) }
@@ -123,7 +123,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
       val publicApiChannel =
         buildMutualTlsChannel(
             TEST_CONFIG.reportingPublicApiTarget,
-            MEASUREMENT_CONSUMER_SIGNING_CERTS,
+            REPORTING_SIGNING_CERTS,
             null,
           )
           .also { channels.add(it) }
