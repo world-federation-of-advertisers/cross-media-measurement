@@ -586,6 +586,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
         }
         dataProvidersCount = 1
+        createTime = measurement.createTime
       }
     }
     assertThat(requisition)
@@ -667,6 +668,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         state = Measurement.State.PENDING_REQUISITION_FULFILLMENT
         protocolConfig = protocolConfig { direct = ProtocolConfig.Direct.getDefaultInstance() }
         dataProvidersCount = 1
+        createTime = measurement.createTime
       }
     }
     assertThat(requisition)

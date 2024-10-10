@@ -151,6 +151,7 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
           ExternalMeasurementId,
           ExternalDataProviderId,
           Measurements.State AS MeasurementState,
+          CreateTime,
           ExternalComputationId,
           CertificateId,
           MeasurementDetails
@@ -185,6 +186,7 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
     CertificateDetails,
     MeasurementState,
     MeasurementDetails,
+    FilteredRequisitions.CreateTime,
     (
       SELECT
         count(ExternalDataProviderId),
@@ -308,6 +310,7 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
       protocolConfig = measurementDetails.protocolConfig
       state = struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
       dataProvidersCount = dataProviderCount
+      createTime = struct.getTimestamp("CreateTime").toProto()
     }
   }
 }

@@ -202,6 +202,8 @@ message Requisition {
     Measurement.State state = 6;
 
     int32 data_providers_count = 7;
+
+    google.protobuf.Timestamp create_time = 9;
   }
   // Denormalized fields from the parent Measurement. Output-only.
   ParentMeasurement parent_measurement = 12;
