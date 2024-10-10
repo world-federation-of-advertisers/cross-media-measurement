@@ -15,7 +15,6 @@
 package org.wfanet.measurement.reporting.postprocessing
 
 import com.google.common.truth.Truth.assertThat
-import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import org.junit.Test
@@ -30,7 +29,7 @@ class ReportPostProcessingTest {
   @Test
   fun `run correct report successfully`() {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_large.json").toFile()
-    val reportAsJson = Files.readString(reportFile.toPath())
+    val reportAsJson = reportFile.readText()
 
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
     assertThat(report.hasConsistentMeasurements()).isEqualTo(false)

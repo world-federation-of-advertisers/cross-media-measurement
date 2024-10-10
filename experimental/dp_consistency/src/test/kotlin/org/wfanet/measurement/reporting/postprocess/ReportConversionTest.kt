@@ -16,7 +16,6 @@ package org.wfanet.measurement.reporting.postprocessing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.test.assertFailsWith
@@ -33,7 +32,7 @@ class ReportConversionTest {
   @Test
   fun `report as json string is successfully converted to report summary proto`() {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_small.json").toFile()
-    val reportAsJson = Files.readString(reportFile.toPath())
+    val reportAsJson = reportFile.readText()
     val reportSummary = ReportConversion.convertJsontoReportSummaries(reportAsJson)
     val expectedReportSummary = reportSummary {
       measurementDetails += measurementDetail {
@@ -76,7 +75,7 @@ class ReportConversionTest {
   @Test
   fun `report with unsuccessful state fails to be converted to report summary proto`() {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("report_with_unspecified_state.json").toFile()
-    val reportAsJson = Files.readString(reportFile.toPath())
+    val reportAsJson = reportFile.readText()
     val exception =
       assertFailsWith<IllegalArgumentException> {
         ReportConversion.convertJsontoReportSummaries(reportAsJson)
@@ -88,7 +87,7 @@ class ReportConversionTest {
   @Test
   fun `report with failed measurement fails to be converted to report summary proto`() {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("report_with_failed_measurement.json").toFile()
-    val reportAsJson = Files.readString(reportFile.toPath())
+    val reportAsJson = reportFile.readText()
     val exception =
       assertFailsWith<IllegalArgumentException> {
         ReportConversion.convertJsontoReportSummaries(reportAsJson)
