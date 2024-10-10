@@ -1,0 +1,10 @@
+load("@rules_python//python:defs.bzl", "py_test")
+
+py_test(
+    name = "test_post_process_origin_report",
+    srcs = ["test_post_process_origin_report.py"],
+    deps = [
+        "//experimental/dp_consistency/src/main/proto/wfa/measurement/reporting/postprocess:report_summary_py_pb2",
+        "//experimental/dp_consistency/src/main/python/wfa/measurement/reporting/postprocess/tools:post_process_origin_report",
+    ],
+)

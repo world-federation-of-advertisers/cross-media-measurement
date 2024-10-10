@@ -1,0 +1,46 @@
+{
+  "name": "Sample report",
+  "reportingMetricEntries": [
+    {
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/f4fee2bcb73a4cf08a6bd1ad33a61e48",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/ami/cumulative",
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/ami/union"
+        ]
+      }
+    }
+  ],
+  "state": "STATE_UNSPECIFIED",
+  "metricCalculationResults": [],
+  "reportSchedule": "",
+  "tags": {
+    "campaign_name": "dc5s1",
+    "media_types": "DISPLAY VIDEO",
+    "report_name": "DC5SEP1_incremental",
+    "start_date": "2024-01-01T00:00:00Z",
+    "end_date": "2024-01-08T10:00:00Z",
+    "brands": "'Cloud' 'Global'",
+    "target": "'dataProviders/LkJlb3UZkY8' 'dataProviders/TbsgjIrmbj0'",
+    "measurementConsumers/TjyUnormbAg/reportingSets/f4fee2bcb73a4cf08a6bd1ad33a61e48": "{measured_entity=dataProviders/LkJlb3UZkY8, viewability=, set_operation=union,incrementality,cumulative,marked unions for reach only, position_in_incrementality=, version=1.0, lhs_reporting_set_ids=, rhs_reporting_set_ids=, target=dataProviders/LkJlb3UZkY8, incrementality_type=ENTITY, video_completion=, channels=, unique_Reach_Target=, media_type=DISPLAY, anchor=dataProviders/TbsgjIrmbj0, primitive_egroup_id=aDnfoB_curE, measurement_entities=dataProviders/LkJlb3UZkY8, measurement_policy_incrementality=AMI, campaign_id=0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy=AMI}",
+    "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/ami/union": "{metrics=impressions,reach, grouping=-, cumulative=false, common_filter=-, set_operation=union, metric_frequency=-}",
+    "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/ami/cumulative": "{metrics=reach, grouping=-, cumulative=true, common_filter=-, set_operation=cumulative, metric_frequency=weekly1}"
+  },
+  "reportingInterval": {
+    "reportStart": {
+      "year": 2024,
+      "month": 1,
+      "day": 1,
+      "hours": 0,
+      "minutes": 0,
+      "seconds": 0,
+      "nanos": 0,
+      "utcOffset": "0s"
+    },
+    "reportEnd": {
+      "year": 2024,
+      "month": 1,
+      "day": 8
+    }
+  }
+}

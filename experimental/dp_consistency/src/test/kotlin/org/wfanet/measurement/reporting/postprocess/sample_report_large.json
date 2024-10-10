@@ -1,0 +1,2386 @@
+{
+  "name": "measurementConsumers/TjyUnormbAg/reports/c1acdfb43b3476998977072c89efcc9",
+  "reportingMetricEntries": [
+    {
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative",
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
+        ]
+      }
+    },
+    {
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative",
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
+        ]
+      }
+    },
+    {
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/ami/union",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative",
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
+        ]
+      }
+    },
+    {
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative",
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
+        ]
+      }
+    },
+    {
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative",
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
+        ]
+      }
+    },
+    {
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative",
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
+        ]
+      }
+    }
+  ],
+  "state": "SUCCEEDED",
+  "createTime": "2024-07-23T16:03:10.726577Z",
+  "metricCalculationResults": [
+    {
+      "displayName": "METRICS_frequency_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/ami/union",
+      "resultAttributes": [
+        {
+          "metricSpec": {
+          },
+          "timeInterval": {
+            "startTime": "2024-03-11T00:00:00Z",
+            "endTime": "2024-06-30T00:00:00Z"
+          },
+          "metricResult": {
+            "reachAndFrequency": {
+              "reach": {
+                "value": "31477620",
+                "univariateStatistics": {
+                  "standardDeviation": 1.0
+                }
+              },
+              "frequencyHistogram": {
+                "bins": [
+                  {
+                    "label": "1",
+                    "binResult": {
+                      "value": 6917769.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 102011.27564649425
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                    }
+                  },
+                  {
+                    "label": "2",
+                    "binResult": {
+                      "value": 4048567.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  },
+                  {
+                    "label": "3",
+                    "binResult": {
+                      "value": 2996233.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  },
+                  {
+                    "label": "4",
+                    "binResult": {
+                      "value": 2051362.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  },
+                  {
+                    "label": "5",
+                    "binResult": {
+                      "value": 1.5463689E7
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  }
+                ]
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/G0UtIeBVF48"
+            ]
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/ami/union/",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
+    },
+    {
+      "displayName": "METRICS_frequency_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union",
+      "resultAttributes": [
+        {
+          "metricSpec": {
+          },
+          "timeInterval": {
+            "startTime": "2024-03-11T00:00:00Z",
+            "endTime": "2024-06-30T00:00:00Z"
+          },
+          "metricResult": {
+            "reachAndFrequency": {
+              "reach": {
+                "value": "31542065",
+                "univariateStatistics": {
+                  "standardDeviation": 1.0
+                }
+              },
+              "frequencyHistogram": {
+                "bins": [
+                  {
+                    "label": "1",
+                    "binResult": {
+                      "value": 6685968.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 102011.27564649425
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                    }
+                  },
+                  {
+                    "label": "2",
+                    "binResult": {
+                      "value": 4089515.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  },
+                  {
+                    "label": "3",
+                    "binResult": {
+                      "value": 3214415.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  },
+                  {
+                    "label": "4",
+                    "binResult": {
+                      "value": 1940715.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  },
+                  {
+                    "label": "5",
+                    "binResult": {
+                      "value": 1.5611452E7
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  }
+                ]
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/G0UtIeBVF48"
+            ]
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/mrc/union",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
+    },
+    {
+      "displayName": "METRICS_frequency_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1",
+      "resultAttributes": [
+        {
+          "metricSpec": {
+          },
+          "timeInterval": {
+            "startTime": "2024-03-11T00:00:00Z",
+            "endTime": "2024-06-30T00:00:00Z"
+          },
+          "metricResult": {
+            "reachAndFrequency": {
+              "reach": {
+                "value": "1",
+                "univariateStatistics": {
+                  "standardDeviation": 1.0
+                }
+              },
+              "frequencyHistogram": {
+                "bins": [
+                  {
+                    "label": "1",
+                    "binResult": {
+                      "value": 1.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 102011.27564649425
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                    }
+                  },
+                  {
+                    "label": "2",
+                    "binResult": {
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  },
+                  {
+                    "label": "3",
+                    "binResult": {
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  },
+                  {
+                    "label": "4",
+                    "binResult": {
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  },
+                  {
+                    "label": "5",
+                    "binResult": {
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  }
+                ]
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/G0UtIeBVF48"
+            ]
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/ami/edp1",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
+    },
+    {
+      "displayName": "METRICS_frequency_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1",
+      "resultAttributes": [
+        {
+          "metricSpec": {
+          },
+          "timeInterval": {
+            "startTime": "2024-03-11T00:00:00Z",
+            "endTime": "2024-06-30T00:00:00Z"
+          },
+          "metricResult": {
+            "reachAndFrequency": {
+              "reach": {
+                "value": "1",
+                "univariateStatistics": {
+                  "standardDeviation": 1.0
+                }
+              },
+              "frequencyHistogram": {
+                "bins": [
+                  {
+                    "label": "1",
+                    "binResult": {
+                      "value": 1.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 102011.27564649425
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                    }
+                  },
+                  {
+                    "label": "2",
+                    "binResult": {
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  },
+                  {
+                    "label": "3",
+                    "binResult": {
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  },
+                  {
+                    "label": "4",
+                    "binResult": {
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  },
+                  {
+                    "label": "5",
+                    "binResult": {
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  }
+                ]
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/G0UtIeBVF48"
+            ]
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/mrc/edp1",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
+    },
+    {
+      "displayName": "METRICS_frequency_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2",
+      "resultAttributes": [
+        {
+          "metricSpec": {
+          },
+          "timeInterval": {
+            "startTime": "2024-03-11T00:00:00Z",
+            "endTime": "2024-06-30T00:00:00Z"
+          },
+          "metricResult": {
+            "reachAndFrequency": {
+              "reach": {
+                "value": "31569000",
+                "univariateStatistics": {
+                  "standardDeviation": 102011.27564649425
+                }
+              },
+              "frequencyHistogram": {
+                "bins": [
+                  {
+                    "label": "1",
+                    "binResult": {
+                      "value": 6966000.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 102011.27564649425
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                    }
+                  },
+                  {
+                    "label": "2",
+                    "binResult": {
+                      "value": 4029000.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  },
+                  {
+                    "label": "3",
+                    "binResult": {
+                      "value": 3084000.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  },
+                  {
+                    "label": "4",
+                    "binResult": {
+                      "value": 2043000.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  },
+                  {
+                    "label": "5",
+                    "binResult": {
+                      "value": 1.5463689E7
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  }
+                ]
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/G0UtIeBVF48"
+            ]
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/ami/edp2",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
+    },
+    {
+      "displayName": "METRICS_frequency_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2",
+      "resultAttributes": [
+        {
+          "metricSpec": {
+          },
+          "timeInterval": {
+            "startTime": "2024-03-11T00:00:00Z",
+            "endTime": "2024-06-30T00:00:00Z"
+          },
+          "metricResult": {
+            "reachAndFrequency": {
+              "reach": {
+                "value": "31569000",
+                "univariateStatistics": {
+                  "standardDeviation": 102011.27564649425
+                }
+              },
+              "frequencyHistogram": {
+                "bins": [
+                  {
+                    "label": "1",
+                    "binResult": {
+                      "value": 6966000.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 102011.27564649425
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                    }
+                  },
+                  {
+                    "label": "2",
+                    "binResult": {
+                      "value": 4029000.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  },
+                  {
+                    "label": "3",
+                    "binResult": {
+                      "value": 3084000.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  },
+                  {
+                    "label": "4",
+                    "binResult": {
+                      "value": 2043000.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 29448.118727440287
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  },
+                  {
+                    "label": "5",
+                    "binResult": {
+                      "value": 1.5463689E7
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 106176.70203773731
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.28867513459481287
+                    }
+                  }
+                ]
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/TjyUnormbAg/measurements/G0UtIeBVF48"
+            ]
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/mrc/edp2",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
+    },
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_true",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1",
+      "resultAttributes": [
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-03-18T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "6333",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1_cumulative_00000",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-03-25T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "3585",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1_cumulative_00001",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-01T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "7511",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1_cumulative_00002",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-08T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "1037",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1_cumulative_00003",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-15T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1_cumulative_00004",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-22T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "10040",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1_cumulative_00005",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-29T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1_cumulative_00006",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-06T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "2503",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1_cumulative_00007",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-13T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "7907",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1_cumulative_00008",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-20T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1_cumulative_00009",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-27T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1_cumulative_00010",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-03T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1_cumulative_00011",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-10T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1_cumulative_00012",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-17T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "1729",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1_cumulative_00013",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-24T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1_cumulative_00014",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-07-01T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "1322",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1_cumulative_00015",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
+    },
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_true",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1",
+      "resultAttributes": [
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-03-18T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1_cumulative_00000",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-03-25T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "2196",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1_cumulative_00001",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-01T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "2014",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1_cumulative_00002",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-08T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1_cumulative_00003",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-15T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "129",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1_cumulative_00004",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-22T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1_cumulative_00005",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-29T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "2018",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1_cumulative_00006",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-06T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "81",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1_cumulative_00007",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-13T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1_cumulative_00008",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-20T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1_cumulative_00009",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-27T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "288",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1_cumulative_00010",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-03T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1_cumulative_00011",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-10T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1_cumulative_00012",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-17T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1_cumulative_00013",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-24T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1_cumulative_00014",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-07-01T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1_cumulative_00015",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
+    },
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_true",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2",
+      "resultAttributes": [
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-03-18T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "24062000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2_cumulative_00000",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-03-25T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "29281000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2_cumulative_00001",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-01T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2_cumulative_00002",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-08T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2_cumulative_00003",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-15T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2_cumulative_00004",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-22T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2_cumulative_00005",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-29T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2_cumulative_00006",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-06T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2_cumulative_00007",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-13T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2_cumulative_00008",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-20T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2_cumulative_00009",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-27T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2_cumulative_00010",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-03T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2_cumulative_00011",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-10T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2_cumulative_00012",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-17T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2_cumulative_00013",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-24T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2_cumulative_00014",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-07-01T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2_cumulative_00015",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
+    },
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_true",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2",
+      "resultAttributes": [
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-03-18T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "24062000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2_cumulative_00000",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-03-25T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "29281000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2_cumulative_00001",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-01T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2_cumulative_00002",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-08T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2_cumulative_00003",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-15T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2_cumulative_00004",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-22T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2_cumulative_00005",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-29T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2_cumulative_00006",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-06T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2_cumulative_00007",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-13T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2_cumulative_00008",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-20T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2_cumulative_00009",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-27T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2_cumulative_00010",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-03T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2_cumulative_00011",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-10T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2_cumulative_00012",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-17T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2_cumulative_00013",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-24T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2_cumulative_00014",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-07-01T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31569000",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2_cumulative_00015",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
+    },
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_true",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/ami/union",
+      "resultAttributes": [
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-03-18T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "24129432",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/union_cumulative_00000",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-03-25T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "29152165",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/union_cumulative_00001",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-01T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31474050",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/union_cumulative_00002",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-08T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31352346",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/union_cumulative_00003",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-15T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31685183",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/union_cumulative_00004",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-22T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31425302",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/union_cumulative_00005",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-29T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31655739",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/union_cumulative_00006",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-06T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31643458",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/union_cumulative_00007",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-13T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31438532",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/union_cumulative_00008",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-20T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31600739",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/union_cumulative_00009",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-27T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31386917",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/union_cumulative_00010",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-03T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31785206",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/union_cumulative_00011",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-10T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31627169",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/union_cumulative_00012",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-17T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31453865",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/union_cumulative_00013",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-24T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31582783",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/union_cumulative_00014",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-07-01T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31806702",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/ami/union_cumulative_00015",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
+    },
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_true",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union",
+      "resultAttributes": [
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-03-18T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "24299684",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union_cumulative_00000",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-03-25T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "29107595",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union_cumulative_00001",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-01T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31680517",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union_cumulative_00002",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-08T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31513613",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union_cumulative_00003",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-15T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "32127776",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union_cumulative_00004",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-22T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31517198",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union_cumulative_00005",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-04-29T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31786057",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union_cumulative_00006",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-06T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31225783",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union_cumulative_00007",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-13T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31237872",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union_cumulative_00008",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-20T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31901620",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union_cumulative_00009",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-05-27T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31720183",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union_cumulative_00010",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-03T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31263524",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union_cumulative_00011",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-10T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31775635",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union_cumulative_00012",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-17T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31917650",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union_cumulative_00013",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-06-24T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31478465",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union_cumulative_00014",
+          "state": "SUCCEEDED"
+        },
+        {
+          "timeInterval": {
+            "startTime": "2023-03-11T02:40:00Z",
+            "endTime": "2023-07-01T02:40:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "31784354",
+              "univariateStatistics": {
+                "standardDeviation": 1.0
+              }
+            }
+          },
+          "metric": "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union_cumulative_00015",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
+    }
+  ],
+  "tags": {
+    "brands": "\u0027DOVE SELF ESTEEM PROJECT\u0027 \u0027Juci\u0027 \u0027Juci\u0027 \u0027LYNX EPIC FRESH\u0027 \u0027POT NOODLE\u0027",
+    "campaign_name": "DC-3edp-cross-3m",
+    "end_date": "2024-06-30T00:00:00Z",
+    "filter_display_viewability_mrc": "display.viewable_50_percent_plus",
+    "filter_video_viewability_mrc": "video.viewable_100_percent",
+    "media_types": "DISPLAY OTHER VIDEO",
+    "report_name": "DC-3edp-cross-3media",
+    "start_date": "2024-03-11T00:00:00Z",
+    "target": "\u0027edp1\u0027 \u0027edp2\u0027",
+    "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1": "{measured_entity\u003dedp1, viewability\u003d, set_operation\u003dunion,cumulative, position_in_incrementality\u003d, version\u003d1.0, lhs_reporting_set_ids\u003d, rhs_reporting_set_ids\u003d, target\u003dedp1, incrementality_type\u003dENTITY, video_completion\u003d, channels\u003d, unique_Reach_Target\u003d, media_type\u003dVIDEO, anchor\u003d, primitive_egroup_id\u003dHnCIGKw-5bQ, measurement_entities\u003d, measurement_policy_incrementality\u003d, campaign_id\u003d0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy\u003dAMI}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2": "{measured_entity\u003dedp2, viewability\u003d, set_operation\u003dunion,cumulative, position_in_incrementality\u003d, version\u003d1.0, lhs_reporting_set_ids\u003d, rhs_reporting_set_ids\u003d, target\u003dedp2, incrementality_type\u003dENTITY, video_completion\u003d, channels\u003d, unique_Reach_Target\u003d, media_type\u003dVIDEO, anchor\u003d, primitive_egroup_id\u003dHnCIGKw-5bQ, measurement_entities\u003d, measurement_policy_incrementality\u003d, campaign_id\u003d0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy\u003dAMI}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/ami/union": "{measured_entity\u003dedp1,edp2, viewability\u003d, set_operation\u003dunion,cumulative, position_in_incrementality\u003d, version\u003d1.0, lhs_reporting_set_ids\u003d, rhs_reporting_set_ids\u003d, target\u003dedp1,edp2, incrementality_type\u003dENTITY, video_completion\u003d, channels\u003d, unique_Reach_Target\u003d, media_type\u003dVIDEO, anchor\u003d, primitive_egroup_id\u003dHnCIGKw-5bQ, measurement_entities\u003d, measurement_policy_incrementality\u003d, campaign_id\u003d0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy\u003dAMI}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1": "{measured_entity\u003dedp1, viewability\u003d, set_operation\u003dunion,cumulative, position_in_incrementality\u003d, version\u003d1.0, lhs_reporting_set_ids\u003d, rhs_reporting_set_ids\u003d, target\u003dedp1, incrementality_type\u003dENTITY, video_completion\u003d, channels\u003d, unique_Reach_Target\u003d, media_type\u003dVIDEO, anchor\u003d, primitive_egroup_id\u003dHnCIGKw-5bQ, measurement_entities\u003d, measurement_policy_incrementality\u003d, campaign_id\u003d0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy\u003dMRC}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2": "{measured_entity\u003dedp2, viewability\u003d, set_operation\u003dunion,cumulative, position_in_incrementality\u003d, version\u003d1.0, lhs_reporting_set_ids\u003d, rhs_reporting_set_ids\u003d, target\u003dedp2, incrementality_type\u003dENTITY, video_completion\u003d, channels\u003d, unique_Reach_Target\u003d, media_type\u003dVIDEO, anchor\u003d, primitive_egroup_id\u003dHnCIGKw-5bQ, measurement_entities\u003d, measurement_policy_incrementality\u003d, campaign_id\u003d0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy\u003dMRC}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union": "{measured_entity\u003dedp1,edp2, viewability\u003d, set_operation\u003dunion,cumulative, position_in_incrementality\u003d, version\u003d1.0, lhs_reporting_set_ids\u003d, rhs_reporting_set_ids\u003d, target\u003dedp1,edp2, incrementality_type\u003dENTITY, video_completion\u003d, channels\u003d, unique_Reach_Target\u003d, media_type\u003dVIDEO, anchor\u003d, primitive_egroup_id\u003dHnCIGKw-5bQ, measurement_entities\u003d, measurement_policy_incrementality\u003d, campaign_id\u003d0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy\u003dMRC}",
+    "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative": "{metrics\u003dreach, grouping\u003d-, cumulative\u003dtrue, common_filter\u003d-, set_operation\u003dcumulative, metric_frequency\u003dweekly1}",
+    "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union": "{metrics\u003dfrequency, grouping\u003d-, cumulative\u003dfalse, common_filter\u003d-, set_operation\u003dunion, metric_frequency\u003d-}"
+  },
+  "reportingInterval": {
+    "reportStart": {
+      "year": 2024,
+      "month": 3,
+      "day": 11,
+      "utcOffset": "0s"
+    },
+    "reportEnd": {
+      "year": 2024,
+      "month": 6,
+      "day": 30
+    }
+  }
+}

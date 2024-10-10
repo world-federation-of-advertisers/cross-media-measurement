@@ -3450,7 +3450,7 @@
         "bzlTransitiveDigest": "MTb5v4rETjE0t0kEfRAxlFmWV6omfPv2i/i887n5Qx4=",
         "usagesDigest": "WPiBQi4Zs7aerqHVmgM76TWokNwERkQOVCmgNkFbPX0=",
         "recordedFileInputs": {
-          "@@//requirements.txt": "233ebd5529ba03a49909f5916717fe7c193da25bdf0d00d5c8139fceba25cc76"
+          "@@//requirements.txt": "7614a8cf868bde39c08809eefe8c9a944ed537850cc7538087e6cf051d05cd24"
         },
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -3695,6 +3695,30 @@
               "group_deps": []
             }
           },
+          "pip_311_googleapis_common_protos": {
+            "bzlFile": "@@rules_python~//python/pip_install:pip_repository.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "requirement": "googleapis-common-protos~=1.65.0",
+              "repo": "pip_311",
+              "repo_prefix": "pip_311_",
+              "whl_patches": {},
+              "experimental_target_platforms": [],
+              "python_interpreter": "",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "quiet": true,
+              "timeout": 600,
+              "isolated": true,
+              "extra_pip_args": [],
+              "download_only": false,
+              "pip_data_exclude": [],
+              "enable_implicit_namespace_pkgs": false,
+              "environment": {},
+              "envsubst": [],
+              "group_name": "",
+              "group_deps": []
+            }
+          },
           "pip_311_black": {
             "bzlFile": "@@rules_python~//python/pip_install:pip_repository.bzl",
             "ruleClassName": "whl_library",
@@ -3790,10 +3814,16 @@
                 "et_xmlfile": [
                   "3.11"
                 ],
+                "googleapis_common_protos": [
+                  "3.11"
+                ],
                 "highs": [
                   "3.11"
                 ],
                 "highspy": [
+                  "3.11"
+                ],
+                "lxml": [
                   "3.11"
                 ],
                 "numpy": [
@@ -3835,6 +3865,30 @@
             "ruleClassName": "whl_library",
             "attributes": {
               "requirement": "dateutil~=2.9.0",
+              "repo": "pip_311",
+              "repo_prefix": "pip_311_",
+              "whl_patches": {},
+              "experimental_target_platforms": [],
+              "python_interpreter": "",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "quiet": true,
+              "timeout": 600,
+              "isolated": true,
+              "extra_pip_args": [],
+              "download_only": false,
+              "pip_data_exclude": [],
+              "enable_implicit_namespace_pkgs": false,
+              "environment": {},
+              "envsubst": [],
+              "group_name": "",
+              "group_deps": []
+            }
+          },
+          "pip_311_lxml": {
+            "bzlFile": "@@rules_python~//python/pip_install:pip_repository.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "requirement": "lxml~=5.3.0",
               "repo": "pip_311",
               "repo_prefix": "pip_311_",
               "whl_patches": {},
