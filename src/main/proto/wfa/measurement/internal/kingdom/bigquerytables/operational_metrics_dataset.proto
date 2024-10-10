@@ -81,3 +81,11 @@ message LatestMeasurementReadTableRow {
   int64 external_measurement_consumer_id = 2;
   int64 external_measurement_id = 3;
 }
+
+message LatestRequisitionReadTableRow {
+  // Since BigQuery timestamp is microsecond precision, this is in nanoseconds
+  // and is stored as an integer.
+  int64 update_time = 1;
+  int64 external_data_provider_id = 2;
+  int64 external_requisition_id = 3;
+}

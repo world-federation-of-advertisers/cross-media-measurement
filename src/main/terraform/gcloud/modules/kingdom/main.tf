@@ -235,6 +235,39 @@ EOF
 
 }
 
+resource "google_bigquery_table" "latest_requisition_read" {
+  dataset_id = google_bigquery_dataset.operational_metrics.dataset_id
+  table_id   = "latest_requisition_read"
+
+  deletion_protection = true
+
+  time_partitioning {
+    expiration_ms = 3888000000 // 45 days
+    type          = "MONTH"
+  }
+
+  schema = <<EOF
+[
+  {
+    "name": "update_time",
+    "type": "INTEGER",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "external_data_provider_id",
+    "type": "INTEGER",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "external_requisition_id",
+    "type": "INTEGER",
+    "mode": "REQUIRED"
+  }
+]
+EOF
+
+}
+
 module "kingdom_operational_metrics" {
   source = "../workload-identity-user"
 
