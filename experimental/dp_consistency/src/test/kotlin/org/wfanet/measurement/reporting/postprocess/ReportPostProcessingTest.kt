@@ -15,8 +15,9 @@
 package org.wfanet.measurement.reporting.postprocessing
 
 import com.google.common.truth.Truth.assertThat
-import java.io.File
+import java.io.FileNotFoundException
 import java.nio.file.Files
+import java.nio.file.Paths
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -27,13 +28,14 @@ import org.wfanet.measurement.reporting.v2alpha.Report
 class ReportPostProcessingTest {
   @Test
   fun `run correct report successfully`() {
-    val reportAsJson =
-      Files.readString(
-        File(
-            "experimental/dp_consistency/src/test/kotlin/org/wfanet/measurement/reporting/postprocess/sample_report.json"
-          )
-          .toPath()
-      )
+    val runfilesRootPath = System.getenv("RUNFILES_DIR") ?: "."
+    val reportFile =
+      Paths.get(runfilesRootPath).toFile().walkTopDown().find {
+        it.isFile && it.name == "sample_report.json"
+      }
+        ?: throw FileNotFoundException("sample_report.json not found in runfiles.")
+    val reportAsJson = Files.readString(reportFile.toPath())
+
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
     assertThat(report.hasConsistentMeasurements()).isEqualTo(false)
     val updatedReportAsJson = ReportPostProcessing.processReportJson(reportAsJson)

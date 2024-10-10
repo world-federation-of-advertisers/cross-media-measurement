@@ -16,6 +16,7 @@ import base64
 import json
 import math
 import pandas as pd
+import sys
 
 from experimental.dp_consistency.src.main.proto.wfa.measurement.reporting.postprocess import \
   report_summary_pb2
@@ -299,7 +300,7 @@ def main():
   report_summary = report_summary_pb2.ReportSummary()
   # Read the encoded serialized report summary from stdin and convert it back to
   # ReportSummary proto.
-  report_summary.ParseFromString(base64.b64decode(input()))
+  report_summary.ParseFromString(sys.stdin.buffer.read())
   corrected_measurements_dict = processReportSummary(report_summary)
 
   # Sends the JSON representation of corrected_measurements_dict to the parent

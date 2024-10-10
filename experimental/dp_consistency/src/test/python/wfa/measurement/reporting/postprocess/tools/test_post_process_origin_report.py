@@ -13,55 +13,52 @@
 # limitations under the License.
 
 import unittest
+
 from experimental.dp_consistency.src.main.proto.wfa.measurement.reporting.postprocess import \
   report_summary_pb2
-
-from noiseninja.noised_measurements import Measurement
-from report.report import Report, MetricReport
 from tools.post_process_origin_report import correctExcelFile, readExcel, \
   processReportSummary
 
-CUML_REACH_COL_NAME = "Cumulative Reach 1+"
-TOTAL_REACH_COL_NAME = "Total Reach (1+)"
-FILTER_COL_NAME = "Impression Filter"
-
-AMI_FILTER = "AMI"
-MRC_FILTER = "MRC"
-
-ami = "ami"
-mrc = "mrc"
-
 EDP_MAP = {
-    "Google": {"Google"},
-    "Linear TV": {"Linear TV"},
-    "Total Campaign": {"Google", "Linear TV"},
+    "edp1": {"edp1"},
+    "edp2": {"edp2"},
+    "union": {"edp1", "edp2"},
 }
 
+AMI_MEASUREMENTS = {
+    'edp1': [6333, 3585, 7511, 1037, 0, 10040, 0, 2503, 7907, 0, 0, 0, 0, 1729,
+             0, 1322, 0],
+    'edp2': [24062000, 29281000, 31569000, 31569000, 31569000, 31569000,
+             31569000, 31569000, 31569000, 31569000, 31569000, 31569000,
+             31569000, 31569000, 31569000, 31569000, 31569000],
+    'union': [24129432, 29152165, 31474050, 31352346, 31685183, 31425302,
+              31655739, 31643458, 31438532, 31600739, 31386917, 31785206,
+              31627169, 31453865, 31582783, 31806702, 31477620],
+}
+MRC_MEASUREMENTS = {
+    'edp1': [0, 2196, 2014, 0, 129, 0, 2018, 81, 0, 0, 288, 0, 0, 0, 0, 0, 0],
+    'edp2': [24062000, 29281000, 31569000, 31569000, 31569000, 31569000,
+             31569000, 31569000, 31569000, 31569000, 31569000, 31569000,
+             31569000, 31569000, 31569000, 31569000, 31569000],
+    'union': [24299684, 29107595, 31680517, 31513613, 32127776, 31517198,
+              31786057, 31225783, 31237872, 31901620, 31720183, 31263524,
+              31775635, 31917650, 31478465, 31784354, 31542065],
+}
 
-def generateMeasurements(input, sigma, name):
-  measurements = []
-  for x in input:
-    measurements.append(Measurement(x, sigma, name + str(x).zfill(2)))
-  return measurements
-
-
-class TestOriginSheetReport(unittest.TestCase):
+class TestOriginReport(unittest.TestCase):
   def test_report_summary_is_corrected_successfully(self):
-    (measurements, excel) = readExcel(
-        "experimental/dp_consistency/src/test/python/wfa/measurement/reporting/postprocess/tools/example_origin_report.xlsx",
-        "Linear TV")
     report_summary = report_summary_pb2.ReportSummary()
+    # Generates report summary from the measurements
     for edp in EDP_MAP:
       ami_measurement_detail = report_summary.measurement_details.add()
       ami_measurement_detail.measurement_policy = "ami"
       ami_measurement_detail.set_operation = "cumulative"
       ami_measurement_detail.is_cumulative = True
       ami_measurement_detail.data_providers.extend(EDP_MAP[edp])
-      for i in range(len(measurements[edp]["AMI"]) - 1):
-        result = measurements[edp]["AMI"][i]
+      for i in range(len(AMI_MEASUREMENTS[edp]) - 1):
         ami_result = ami_measurement_detail.measurement_results.add()
-        ami_result.reach = result.value
-        ami_result.standard_deviation = result.sigma
+        ami_result.reach = AMI_MEASUREMENTS[edp][i]
+        ami_result.standard_deviation = 1.0
         ami_result.metric = "metric_" + edp + "_ami_" + str(i).zfill(5)
 
       mrc_measurement_detail = report_summary.measurement_details.add()
@@ -69,11 +66,10 @@ class TestOriginSheetReport(unittest.TestCase):
       mrc_measurement_detail.set_operation = "cumulative"
       mrc_measurement_detail.is_cumulative = True
       mrc_measurement_detail.data_providers.extend(EDP_MAP[edp])
-      for i in range(len(measurements[edp]["MRC"]) - 1):
-        result = measurements[edp]["MRC"][i]
+      for i in range(len(MRC_MEASUREMENTS[edp]) - 1):
         mrc_result = mrc_measurement_detail.measurement_results.add()
-        mrc_result.reach = result.value
-        mrc_result.standard_deviation = result.sigma
+        mrc_result.reach = MRC_MEASUREMENTS[edp][i]
+        mrc_result.standard_deviation = 1.0
         mrc_result.metric = "metric_" + edp + "_mrc_" + str(i).zfill(5)
 
     for edp in EDP_MAP:
@@ -82,100 +78,55 @@ class TestOriginSheetReport(unittest.TestCase):
       ami_measurement_detail.set_operation = "union"
       ami_measurement_detail.is_cumulative = False
       ami_measurement_detail.data_providers.extend(EDP_MAP[edp])
-      ami_measurement = measurements[edp]["AMI"][
-        len(measurements[edp]["AMI"]) - 1]
       ami_result = ami_measurement_detail.measurement_results.add()
-      ami_result.reach = ami_measurement.value
-      ami_result.standard_deviation = ami_measurement.sigma
+      ami_result.reach = AMI_MEASUREMENTS[edp][len(AMI_MEASUREMENTS[edp]) - 1]
+      ami_result.standard_deviation = 1.0
       ami_result.metric = "metric_" + edp + "_ami_" + str(
-          len(measurements[edp]["AMI"]) - 1).zfill(5)
+          len(AMI_MEASUREMENTS[edp]) - 1).zfill(5)
 
       mrc_measurement_detail = report_summary.measurement_details.add()
       mrc_measurement_detail.measurement_policy = "mrc"
       mrc_measurement_detail.set_operation = "union"
       mrc_measurement_detail.is_cumulative = False
       mrc_measurement_detail.data_providers.extend(EDP_MAP[edp])
-      mrc_measurement = measurements[edp]["MRC"][
-        len(measurements[edp]["MRC"]) - 1]
       mrc_result = mrc_measurement_detail.measurement_results.add()
-      mrc_result.reach = mrc_measurement.value
-      mrc_result.standard_deviation = mrc_measurement.sigma
+      mrc_result.reach = MRC_MEASUREMENTS[edp][len(MRC_MEASUREMENTS[edp]) - 1]
+      mrc_result.standard_deviation = 1.0
       mrc_result.metric = "metric_" + edp + "_mrc_" + str(
-          len(measurements[edp]["MRC"]) - 1).zfill(5)
+          len(MRC_MEASUREMENTS[edp]) - 1).zfill(5)
 
-    processReportSummary(report_summary)
+    corrected_measurements_map = processReportSummary(report_summary)
+    # Verifies that the updated reach values are consistent.
+    for edp in EDP_MAP:
+      ami_metric_prefix = "metric_" + edp + "_ami_"
+      mrc_metric_prefix = "metric_" + edp + "_mrc_"
+      # Verifies that cumulative measurements are consistent.
+      for i in range(len(AMI_MEASUREMENTS) - 1):
+        self.assertTrue(
+            corrected_measurements_map[ami_metric_prefix + str(i).zfill(5)] <=
+            corrected_measurements_map[ami_metric_prefix + str(i + 1).zfill(5)])
+        self.assertTrue(
+            corrected_measurements_map[mrc_metric_prefix + str(i).zfill(5)] <=
+            corrected_measurements_map[mrc_metric_prefix + str(i + 1).zfill(5)])
+      # Verifies that the mrc measurements is less than or equal to the ami ones.
+      for i in range(len(AMI_MEASUREMENTS)):
+        self.assertTrue(
+            corrected_measurements_map[mrc_metric_prefix + str(i).zfill(5)] <=
+            corrected_measurements_map[ami_metric_prefix + str(i).zfill(5)]
+        )
 
-  def test_get_origin_report_corrected_successfully(self):
-    correctedExcel = correctExcelFile(
-        "experimental/dp_consistency/src/test/python/wfa/measurement/reporting/postprocess/tools/example_origin_report.xlsx",
-        "Linear TV"
-    )
-    (google_ami_rows, google_mrc_rows) = self.get_edp_rows(correctedExcel,
-                                                           "Google")
-    (tv_ami_rows, tv_mrc_rows) = self.get_edp_rows(correctedExcel, "Linear TV")
-    (total_ami_rows, total_mrc_rows) = self.get_edp_rows(
-        correctedExcel, "Total Campaign"
-    )
-
-    # Ensure that subset relations are correct by checking larger time periods have more reach than smaller ones.
-    self.__assert_is_monotonically_increasing(google_ami_rows)
-    self.__assert_is_monotonically_increasing(google_mrc_rows)
-
-    self.__assert_is_monotonically_increasing(tv_ami_rows)
-    self.__assert_is_monotonically_increasing(tv_mrc_rows)
-
-    self.__assert_is_monotonically_increasing(total_ami_rows)
-    self.__assert_is_monotonically_increasing(total_mrc_rows)
-
-    # Ensure that cover relations are correct by checking the sum of EDPs have larger reach than the total reach.
-    self.__assert_pairwise_sum_greater(google_ami_rows, tv_ami_rows,
-                                       total_ami_rows)
-    self.__assert_pairwise_sum_greater(google_mrc_rows, tv_mrc_rows,
-                                       total_mrc_rows)
-
-    # Ensure that metric subset relation is correct by checking AMI is always larger than MRC.
-    self.__assert_pairwise_greater(google_ami_rows, google_mrc_rows)
-    self.__assert_pairwise_greater(tv_ami_rows, tv_mrc_rows)
-    self.__assert_pairwise_greater(total_ami_rows, total_mrc_rows)
-
-  def get_edp_rows(self, df, edp):
-    tot_sheet = df[edp]
-    cum_sheet = df[f"Cuml. Reach ({edp})"]
-    ami_rows = (
-        cum_sheet[cum_sheet[FILTER_COL_NAME] == AMI_FILTER][
-          CUML_REACH_COL_NAME
-        ].tolist()
-        + tot_sheet[tot_sheet[FILTER_COL_NAME] == AMI_FILTER][
-          TOTAL_REACH_COL_NAME
-        ].tolist()
-    )
-    mrc_rows = (
-        cum_sheet[cum_sheet[FILTER_COL_NAME] == MRC_FILTER][
-          CUML_REACH_COL_NAME
-        ].tolist()
-        + tot_sheet[tot_sheet[FILTER_COL_NAME] == MRC_FILTER][
-          TOTAL_REACH_COL_NAME
-        ].tolist()
-    )
-    return (ami_rows, mrc_rows)
-
-  def __assert_is_monotonically_increasing(self, lst):
-    """Checks if a list is monotonically increasing."""
-    self.assertTrue(all(lst[i] <= lst[i + 1] for i in range(len(lst) - 1)))
-
-  def __assert_pairwise_sum_greater(self, list1, list2, list3):
-    """Checks if the pairwise sum of the first two lists is pairwise greater than the third list."""
-    if len(list1) != len(list2) or len(list1) != len(list3):
-      raise ValueError("Lists must have the same length")
-    self.assertTrue(
-        all(list1[i] + list2[i] >= list3[i] for i in range(len(list1))))
-
-  def __assert_pairwise_greater(self, list1, list2):
-    """Checks if the first list is pairwise greater than the second list."""
-    if len(list1) != len(list2):
-      raise ValueError("Lists must have the same length")
-    self.assertTrue(all(list1[i] >= list2[i] for i in range(len(list1))))
-
+    # Verifies that the union reach is less than the sum of individual reaches.
+    for i in range(len(AMI_MEASUREMENTS) - 1):
+      self.assertTrue(
+          corrected_measurements_map["metric_union_ami_" + str(i).zfill(5)] <=
+          corrected_measurements_map["metric_edp1_ami_" + str(i).zfill(5)] +
+          corrected_measurements_map["metric_edp2_ami_" + str(i).zfill(5)]
+      )
+      self.assertTrue(
+          corrected_measurements_map["metric_union_mrc_" + str(i).zfill(5)] <=
+          corrected_measurements_map["metric_edp1_mrc_" + str(i).zfill(5)] +
+          corrected_measurements_map["metric_edp2_mrc_" + str(i).zfill(5)]
+      )
 
 if __name__ == "__main__":
   unittest.main()

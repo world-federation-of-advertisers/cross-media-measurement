@@ -89,9 +89,9 @@ object ReportPostProcessing {
     val process = processBuilder.start()
 
     // Write the process' argument to its stdin.
-    OutputStreamWriter(process.outputStream).use { writer ->
-      writer.write(Base64.getEncoder().encodeToString(reportSummary.toByteArray()))
-      writer.flush()
+    process.outputStream.use { outputStream ->
+      reportSummary.writeTo(outputStream)
+      outputStream.flush()
     }
 
     // Reads the output of the above process.
