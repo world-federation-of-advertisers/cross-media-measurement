@@ -107,14 +107,15 @@ class MeasurementSystemProber(
       .ofLongs()
       .buildObserver()
 
-  suspend fun run() {
+  suspend fun run(): Measurement? {
     if (shouldCreateNewMeasurement()) {
-      createMeasurement()
+      return createMeasurement()
       // TODO(@roaminggypsy): Report measurement result with OpenTelemetry
     }
+    return null
   }
 
-  private suspend fun createMeasurement() {
+  private suspend fun createMeasurement(): Measurement {
     val dataProviderNameToEventGroup: Map<String, EventGroup> =
       buildDataProviderNameToEventGroup(dataProviderNames, dataProvidersStub, apiAuthenticationKey)
 
@@ -188,6 +189,7 @@ class MeasurementSystemProber(
     logger.info(
       "A new prober measurement for measurement consumer $measurementConsumerName is created: $response"
     )
+    return response
   }
 
   private suspend fun buildDataProviderNameToEventGroup(
