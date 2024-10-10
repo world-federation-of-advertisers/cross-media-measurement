@@ -89,18 +89,8 @@ jobs:
       - name: Get Bazel cache params
         id: get-cache-params
         run: |
-          cache_path="$(bazel info output_base)"
-          echo "cache-path=${cache_path}" >> $GITHUB_OUTPUT
-
           repo_cache_path="$(bazel info repository_cache)"
           echo "repo-cache-path=${repo_cache_path}" >> $GITHUB_OUTPUT
-
-      # Hack to work around disk space consumed by bazel-contrib/rules_oci#439.
-      # The alternative is to use a runner with more disk space.
-      - name: Mount scratch disk
-        uses: ./.github/actions/mount-scratch-disk
-        with:
-          mount-path: ${{ steps.get-cache-params.outputs.cache-path }}
 
       - name: Restore repository cache
         uses: actions/cache/restore@v4
