@@ -23,6 +23,7 @@ import com.google.type.dateTime
 import com.google.type.timeZone
 import java.util.logging.Logger
 import kotlinx.coroutines.delay
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
@@ -48,6 +49,7 @@ import org.wfanet.measurement.reporting.v2alpha.reportingSet
 /** Simulator for Reporting operations on the Reporting public API. */
 class ReportingUserSimulator(
   private val measurementConsumerName: String,
+  private val apiAuthenticationKey: String,
   private val eventGroupsClient: EventGroupsGrpcKt.EventGroupsCoroutineStub,
   private val reportingSetsClient: ReportingSetsGrpcKt.ReportingSetsCoroutineStub,
   private val metricCalculationSpecsClient:
@@ -87,7 +89,9 @@ class ReportingUserSimulator(
     }
 
     val createdReport =
-      reportsClient.createReport(
+      reportsClient
+        .withAuthenticationKey(apiAuthenticationKey)
+        .createReport(
         createReportRequest {
           parent = measurementConsumerName
           this.report = report
@@ -103,6 +107,7 @@ class ReportingUserSimulator(
 
   private suspend fun listEventGroups(): List<EventGroup> {
     return eventGroupsClient
+      .withAuthenticationKey(apiAuthenticationKey)
       .listEventGroups(
         listEventGroupsRequest {
           parent = measurementConsumerName
@@ -117,7 +122,9 @@ class ReportingUserSimulator(
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
     }
 
-    return reportingSetsClient.createReportingSet(
+    return reportingSetsClient
+      .withAuthenticationKey(apiAuthenticationKey)
+      .createReportingSet(
       createReportingSetRequest {
         parent = measurementConsumerName
         reportingSet = primitiveReportingSet
@@ -126,7 +133,9 @@ class ReportingUserSimulator(
   }
 
   private suspend fun createMetricCalculationSpec(): MetricCalculationSpec {
-    return metricCalculationSpecsClient.createMetricCalculationSpec(
+    return metricCalculationSpecsClient
+      .withAuthenticationKey(apiAuthenticationKey)
+      .createMetricCalculationSpec(
       createMetricCalculationSpecRequest {
         parent = measurementConsumerName
         metricCalculationSpec = metricCalculationSpec {
@@ -156,7 +165,9 @@ class ReportingUserSimulator(
 
   private suspend fun pollForCompletedReport(reportName: String): Report {
     while (true) {
-      val retrievedReport = reportsClient.getReport(getReportRequest { name = reportName })
+      val retrievedReport = reportsClient
+        .withAuthenticationKey(apiAuthenticationKey)
+        .getReport(getReportRequest { name = reportName })
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (retrievedReport.state) {
