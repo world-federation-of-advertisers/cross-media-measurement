@@ -111,7 +111,7 @@ class ReportConversionTest {
           "wfanet",
           "measurement",
           "reporting",
-          "postprocess"
+          "postprocess",
         )
       )!!
   }

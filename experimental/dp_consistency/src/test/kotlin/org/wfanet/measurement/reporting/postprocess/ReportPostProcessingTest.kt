@@ -53,7 +53,7 @@ class ReportPostProcessingTest {
           "wfanet",
           "measurement",
           "reporting",
-          "postprocess"
+          "postprocess",
         )
       )!!
 
