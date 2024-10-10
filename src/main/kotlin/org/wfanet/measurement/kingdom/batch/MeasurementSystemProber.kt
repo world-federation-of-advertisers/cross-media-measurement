@@ -89,7 +89,7 @@ class MeasurementSystemProber(
 ) {
   private val lastTerminalMeasurementTimeGauge: DoubleGauge =
     Instrumentation.meter
-      .gaugeBuilder("${PROBER_NAMESPACE}.last_terminal_measurement_timestamp")
+      .gaugeBuilder("${PROBER_NAMESPACE}.last_terminal_measurement.timestamp")
       .setUnit("s")
       .setDescription(
         "Unix epoch timestamp (in seconds) of the update time of the most recently issued and completed prober Measurement"
@@ -97,7 +97,7 @@ class MeasurementSystemProber(
       .build()
   private val lastTerminalRequisitionTimeGauge: DoubleGauge =
     Instrumentation.meter
-      .gaugeBuilder("${PROBER_NAMESPACE}.last_terminal_requisition_timestamp")
+      .gaugeBuilder("${PROBER_NAMESPACE}.last_terminal_requisition.timestamp")
       .setUnit("s")
       .setDescription(
         "Unix epoch timestamp (in seconds) of the update time of requisition associated with a particular EDP for the most recently issued Measurement"
@@ -389,6 +389,6 @@ class MeasurementSystemProber(
 
     private const val PROBER_NAMESPACE = "${Instrumentation.ROOT_NAMESPACE}.prober"
     private val PROBER_DATA_PROVIDER_ATTRIBUTE_KEY =
-      AttributeKey.stringKey("$PROBER_NAMESPACE.data_provider")
+      AttributeKey.stringKey("${Instrumentation.ROOT_NAMESPACE}.data_provider")
   }
 }
