@@ -15,6 +15,7 @@ kt_jvm_library(
     srcs = ["AbstractCorrectnessTest.kt"],
     data = [
         "//src/main/k8s/testing/secretfiles:mc_trusted_certs.pem",
+        "//src/main/k8s/testing/secretfiles:reporting_root.pem",
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],
     deps = [
