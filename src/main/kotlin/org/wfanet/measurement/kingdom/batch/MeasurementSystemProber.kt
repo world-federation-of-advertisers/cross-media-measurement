@@ -21,7 +21,7 @@ import com.google.type.interval
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
-import io.opentelemetry.api.metrics.LongGauge
+import io.opentelemetry.api.metrics.DoubleGauge
 import java.io.File
 import java.security.SecureRandom
 import java.time.Clock
@@ -87,25 +87,30 @@ class MeasurementSystemProber(
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
   private val clock: Clock = Clock.systemUTC(),
 ) {
-  private val lastTerminalMeasurementTimeGauge: LongGauge =
+  private val lastTerminalMeasurementTimeGauge: DoubleGauge =
     Instrumentation.meter
-      .gaugeBuilder("${Instrumentation.ROOT_NAMESPACE}.prober.last_terminal_measurement_time")
-      .setUnit("{millisecond}")
-      .setDescription("Update time for the most recently issued and completed prober Measurement")
-      .ofLongs()
-      .build()
-  private val lastTerminalRequisitionTimeGauge: LongGauge =
-    Instrumentation.meter
-      .gaugeBuilder("${Instrumentation.ROOT_NAMESPACE}.prober.last_terminal_requisition_time")
-      .setUnit("{millisecond}")
+      .gaugeBuilder("${PROBER_NAMESPACE}.last_terminal_measurement_timestamp")
+      .setUnit("s")
       .setDescription(
-        "Update time of requisition associated with a particular EDP for the most recently issued Measurement"
+        "Unix epoch timestamp (in seconds) of the update time of the most recently issued and completed prober Measurement"
       )
-      .ofLongs()
+      .build()
+  private val lastTerminalRequisitionTimeGauge: DoubleGauge =
+    Instrumentation.meter
+      .gaugeBuilder("${PROBER_NAMESPACE}.last_terminal_requisition_timestamp")
+      .setUnit("s")
+      .setDescription(
+        "Unix epoch timestamp (in seconds) of the update time of requisition associated with a particular EDP for the most recently issued Measurement"
+      )
       .build()
 
   suspend fun run() {
-    if (shouldCreateNewMeasurement()) {
+    val lastUpdatedMeasurement = getLastUpdatedMeasurement()
+    updateLastTerminalRequisitionGauge(lastUpdatedMeasurement)
+    if (shouldCreateNewMeasurement(lastUpdatedMeasurement)) {
+      lastTerminalMeasurementTimeGauge.set(
+        lastUpdatedMeasurement!!.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
+      )
       createMeasurement()
     }
   }
@@ -238,33 +243,14 @@ class MeasurementSystemProber(
     return dataProviderNameToEventGroup
   }
 
-  private suspend fun shouldCreateNewMeasurement(): Boolean {
-    val lastUpdatedMeasurement = getLastUpdatedMeasurement()
-
+  private fun shouldCreateNewMeasurement(lastUpdatedMeasurement: Measurement?): Boolean {
     if (lastUpdatedMeasurement == null) {
       return true
-    }
-
-    val requisitions = getRequisitionsForMeasurement(lastUpdatedMeasurement.name)
-    for (requisition in requisitions) {
-      if (requisition.state == Requisition.State.FULFILLED) {
-        val dataProviderName: String =
-          CanonicalRequisitionKey.fromName(requisition.name)?.dataProviderId ?: ""
-        val attributes = Attributes.of(AttributeKey.stringKey("data_provider"), dataProviderName)
-        lastTerminalRequisitionTimeGauge.set(
-          requisition.updateTime.toInstant().toEpochMilli(),
-          attributes,
-        )
-      }
     }
 
     if (lastUpdatedMeasurement.state !in COMPLETED_MEASUREMENT_STATES) {
       return false
     }
-
-    lastTerminalMeasurementTimeGauge.set(
-      lastUpdatedMeasurement.updateTime.toInstant().toEpochMilli()
-    )
 
     val updateInstant = lastUpdatedMeasurement.updateTime.toInstant()
     val nextMeasurementEarliestInstant = updateInstant.plus(durationBetweenMeasurement)
@@ -372,12 +358,37 @@ class MeasurementSystemProber(
     }
   }
 
+  private suspend fun updateLastTerminalRequisitionGauge(lastUpdatedMeasurement: Measurement?) {
+    if (lastUpdatedMeasurement == null) {
+      return
+    }
+    val requisitions = getRequisitionsForMeasurement(lastUpdatedMeasurement.name)
+    for (requisition in requisitions) {
+      if (requisition.state == Requisition.State.FULFILLED) {
+        val requisitionKey = CanonicalRequisitionKey.fromName(requisition.name)
+        require(requisitionKey != null) { "CanonicalRequisitionKey cannot be null" }
+        val dataProviderName: String = requisitionKey.dataProviderId
+        val attributes = Attributes.of(PROBER_DATA_PROVIDER_ATTRIBUTE_KEY, dataProviderName)
+        lastTerminalRequisitionTimeGauge.set(
+          requisition.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND,
+          attributes,
+        )
+      }
+    }
+  }
+
   companion object {
+    private const val MILLISECONDS_PER_SECOND = 1000.0
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private val secureRandom = SecureRandom.getInstance("SHA1PRNG")
 
     private val COMPLETED_MEASUREMENT_STATES =
       listOf(Measurement.State.SUCCEEDED, Measurement.State.FAILED, Measurement.State.CANCELLED)
+
+    private const val PROBER_NAMESPACE = "${Instrumentation.ROOT_NAMESPACE}.prober"
+    private val PROBER_DATA_PROVIDER_ATTRIBUTE_KEY =
+      AttributeKey.stringKey("$PROBER_NAMESPACE.data_provider")
   }
 }
