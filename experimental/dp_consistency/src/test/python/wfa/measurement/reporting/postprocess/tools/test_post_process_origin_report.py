@@ -115,7 +115,8 @@ class TestOriginReport(unittest.TestCase):
             corrected_measurements_map[ami_metric_prefix + str(i).zfill(5)]
         )
 
-    # Verifies that the union reach is less than the sum of individual reaches.
+    # Verifies that the union reach is less than or equal to the sum of
+    # individual reaches.
     for i in range(len(AMI_MEASUREMENTS) - 1):
       self.assertTrue(
           corrected_measurements_map["metric_union_ami_" + str(i).zfill(5)] <=

@@ -32,8 +32,7 @@ class ReportPostProcessingTest {
     val reportFile =
       Paths.get(runfilesRootPath).toFile().walkTopDown().find {
         it.isFile && it.name == "sample_report.json"
-      }
-        ?: throw FileNotFoundException("sample_report.json not found in runfiles.")
+      } ?: throw FileNotFoundException("sample_report.json not found in runfiles.")
     val reportAsJson = Files.readString(reportFile.toPath())
 
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
