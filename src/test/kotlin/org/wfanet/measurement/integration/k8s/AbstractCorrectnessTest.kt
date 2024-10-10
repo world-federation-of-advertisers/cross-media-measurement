@@ -111,7 +111,7 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
 
     val REPORTING_SIGNING_CERTS: SigningCerts by lazy {
       val secretFiles = getRuntimePath(SECRET_FILES_PATH)
-      val trustedCerts = secretFiles.resolve("reporting_root.pem").toFile()
+      val trustedCerts = secretFiles.resolve("all_root_certs.pem").toFile()
       val cert = secretFiles.resolve("mc_tls.pem").toFile()
       val key = secretFiles.resolve("mc_tls.key").toFile()
       SigningCerts.fromPemFiles(cert, key, trustedCerts)
