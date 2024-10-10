@@ -22,7 +22,6 @@ import org.wfanet.measurement.reporting.measurementDetail
 import org.wfanet.measurement.reporting.reportSummary
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.Report
-import org.wfanet.measurement.reporting.v2alpha.report
 
 data class ReportingSetSummary(
   /** The measurement policy (e.g. AMI, MRC, or CUSTOM) used for this reporting set. */
@@ -39,28 +38,17 @@ data class SetOperationSummary(
 
 object ReportConversion {
   fun getReportFromJsonString(reportAsJsonString: String): Report {
-    val report =
-      try {
-        val protoBuilder = Report.newBuilder()
-        JsonFormat.parser().ignoringUnknownFields().merge(reportAsJsonString, protoBuilder)
-        protoBuilder.build()
-      } catch (e: InvalidProtocolBufferException) {
-        Report.getDefaultInstance()
-      }
-    return report
+    val protoBuilder = Report.newBuilder()
+    try {
+      JsonFormat.parser().merge(reportAsJsonString, protoBuilder)
+    } catch (e: InvalidProtocolBufferException) {
+      throw IllegalArgumentException("Failed to parse Report from JSON string", e)
+    }
+    return protoBuilder.build()
   }
 
   fun convertJsontoReportSummaries(reportAsJsonString: String): List<ReportSummary> {
-    val report =
-      try {
-        val protoBuilder = Report.newBuilder()
-        JsonFormat.parser().ignoringUnknownFields().merge(reportAsJsonString, protoBuilder)
-        protoBuilder.build()
-      } catch (e: InvalidProtocolBufferException) {
-        Report.getDefaultInstance()
-      }
-
-    return report.toReportSummaries()
+    return getReportFromJsonString(reportAsJsonString).toReportSummaries()
   }
 
   fun getMeasurementPolicy(tag: String): String {
@@ -92,12 +80,12 @@ object ReportConversion {
 }
 
 fun Report.toReportSummaries(): List<ReportSummary> {
-  require(this.state == Report.State.SUCCEEDED) { "Unsucceeded report is not supported." }
+  require(state == Report.State.SUCCEEDED) { "Unsucceeded report is not supported." }
 
   val measurementPoliciesByReportingSet =
-    this.reportingMetricEntriesList.associate { entry ->
+    reportingMetricEntriesList.associate { entry ->
       val reportingSet = entry.key
-      val tag = this.tags.getValue(reportingSet)
+      val tag = tags.getValue(reportingSet)
       reportingSet to
         ReportingSetSummary(
           ReportConversion.getMeasurementPolicy(tag),
@@ -106,13 +94,11 @@ fun Report.toReportSummaries(): List<ReportSummary> {
     }
 
   val metricCalculationSpecs =
-    this.reportingMetricEntriesList.flatMapTo(mutableSetOf()) {
-      it.value.metricCalculationSpecsList
-    }
+    reportingMetricEntriesList.flatMapTo(mutableSetOf()) { it.value.metricCalculationSpecsList }
 
   val setOperationByMetricCalculationSpec =
     metricCalculationSpecs.associate { spec ->
-      val tag = this.tags.getValue(spec)
+      val tag = tags.getValue(spec)
       spec to
         SetOperationSummary(
           ReportConversion.isCumulative(tag),
@@ -122,7 +108,7 @@ fun Report.toReportSummaries(): List<ReportSummary> {
 
   val filterGroupByMetricCalculationSpec =
     metricCalculationSpecs.associate { spec ->
-      val tag = this.tags.getValue(spec)
+      val tag = tags.getValue(spec)
       spec to tag.split(", ").find { it.startsWith("common_filter=") }
     }
 
@@ -130,7 +116,7 @@ fun Report.toReportSummaries(): List<ReportSummary> {
 
   // Groups results by (reporting set x metric calculation spec).
   val measurementSets =
-    this.metricCalculationResultsList.groupBy { Pair(it.metricCalculationSpec, it.reportingSet) }
+    metricCalculationResultsList.groupBy { Pair(it.metricCalculationSpec, it.reportingSet) }
 
   val reportSummaries = mutableListOf<ReportSummary>()
   for (filter in filterGroups) {

@@ -15,12 +15,13 @@
 package org.wfanet.measurement.reporting.postprocessing
 
 import com.google.common.truth.Truth.assertThat
-import java.io.FileNotFoundException
 import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.Paths
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.reporting.measurementDetail
 import org.wfanet.measurement.reporting.v2alpha.Report
 
@@ -28,11 +29,7 @@ import org.wfanet.measurement.reporting.v2alpha.Report
 class ReportPostProcessingTest {
   @Test
   fun `run correct report successfully`() {
-    val runfilesRootPath = System.getenv("RUNFILES_DIR") ?: "."
-    val reportFile =
-      Paths.get(runfilesRootPath).toFile().walkTopDown().find {
-        it.isFile && it.name == "sample_report.json"
-      } ?: throw FileNotFoundException("sample_report.json not found in runfiles.")
+    val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_large.json").toFile()
     val reportAsJson = Files.readString(reportFile.toPath())
 
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
@@ -43,6 +40,23 @@ class ReportPostProcessingTest {
   }
 
   companion object {
+    private val TEST_DATA_RUNTIME_DIR: Path =
+      getRuntimePath(
+        Paths.get(
+          "wfa_measurement_system",
+          "experimental",
+          "dp_consistency",
+          "src",
+          "test",
+          "kotlin",
+          "org",
+          "wfanet",
+          "measurement",
+          "reporting",
+          "postprocess"
+        )
+      )!!
+
     private fun Report.hasConsistentMeasurements(): Boolean {
       this.toReportSummaries().forEach {
         it.measurementDetailsList.map { measurementDetail ->
