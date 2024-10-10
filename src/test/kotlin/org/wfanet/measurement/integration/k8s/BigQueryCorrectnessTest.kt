@@ -43,6 +43,7 @@ import org.wfanet.measurement.loadtest.dataprovider.BigQueryEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataBigQueryEventQuery
+import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 
 /**
  * Test for correctness of an existing CMMS on Kubernetes where the EDP simulators use
@@ -58,6 +59,9 @@ class BigQueryCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private lateinit var _testHarness: MeasurementConsumerSimulator
     override val testHarness: MeasurementConsumerSimulator
       get() = _testHarness
+
+    override val reportingTestHarness: ReportingUserSimulator?
+      get() = null
 
     private val channels = mutableListOf<ManagedChannel>()
 

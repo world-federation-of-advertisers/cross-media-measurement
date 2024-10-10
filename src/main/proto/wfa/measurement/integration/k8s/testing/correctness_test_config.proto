@@ -38,4 +38,7 @@ message CorrectnessTestConfig {
 
   // Authentication key for the CMMS public API.
   string api_authentication_key = 4;
+
+  // gRPC target of Reporting public API server.
+  string reporting_public_api_target = 5;
 }
