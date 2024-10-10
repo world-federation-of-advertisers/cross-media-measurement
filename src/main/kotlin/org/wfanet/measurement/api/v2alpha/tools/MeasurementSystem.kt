@@ -36,6 +36,7 @@ import java.time.Clock
 import java.time.Duration as JavaDuration
 import java.time.Instant
 import java.time.LocalDate
+import kotlin.properties.Delegates
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -82,6 +83,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
+import org.wfanet.measurement.api.v2alpha.batchCreateMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
@@ -536,6 +538,7 @@ private class MeasurementConsumers {
     [
       CommandLine.HelpCommand::class,
       CreateMeasurement::class,
+      BatchCreateMeasurements::class,
       ListMeasurements::class,
       GetMeasurement::class,
       CancelMeasurement::class,
@@ -784,6 +787,231 @@ class CreateMeasurement : Runnable {
           )
       }
     println("Measurement Name: ${response.name}")
+  }
+}
+
+@Command(name = "batch-create", description = ["Creates multiple Measurements in a batch"])
+class BatchCreateMeasurements : Runnable {
+  @ParentCommand private lateinit var parentCommand: Measurements
+
+  @ArgGroup(exclusive = false, multiplicity = "1", heading = "Create Measurement Flags\n")
+  lateinit var createMeasurementFlags: CreateMeasurementFlags
+
+  @set:Option(
+    names = ["--batch-count"],
+    description = ["Number of measurement to create"],
+    required = false,
+    defaultValue = "50",
+  )
+  var batchCount by Delegates.notNull<Int>()
+    private set
+
+  private val secureRandom = SecureRandom.getInstance("SHA1PRNG")
+
+  private fun getPopulationDataProviderEntry(
+    populationDataProviderInput:
+      CreateMeasurementFlags.MeasurementParams.PopulationMeasurementParams.PopulationDataProviderInput,
+    populationMeasurementParams:
+      CreateMeasurementFlags.MeasurementParams.PopulationMeasurementParams,
+    measurementConsumerSigningKey: SigningKeyHandle,
+    packedMeasurementEncryptionPublicKey: ProtoAny,
+  ): Measurement.DataProviderEntry {
+    return dataProviderEntry {
+      val requisitionSpec = requisitionSpec {
+        population =
+          RequisitionSpecKt.population {
+            interval = interval {
+              startTime = populationMeasurementParams.populationInputs.startTime.toProtoTime()
+              endTime = populationMeasurementParams.populationInputs.endTime.toProtoTime()
+            }
+            if (populationMeasurementParams.populationInputs.filter.isNotEmpty())
+              filter = eventFilter {
+                expression = populationMeasurementParams.populationInputs.filter
+              }
+          }
+        measurementPublicKey = packedMeasurementEncryptionPublicKey
+        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+        // field.
+        serializedMeasurementPublicKey = packedMeasurementEncryptionPublicKey.value
+
+        nonce = secureRandom.nextLong()
+      }
+
+      key = populationDataProviderInput.name
+      val dataProvider =
+        runBlocking(parentCommand.parentCommand.rpcDispatcher) {
+          parentCommand.dataProviderStub
+            .withAuthenticationKey(parentCommand.apiAuthenticationKey)
+            .getDataProvider(getDataProviderRequest { name = populationDataProviderInput.name })
+        }
+      value =
+        DataProviderEntries.value {
+          dataProviderCertificate = dataProvider.certificate
+          dataProviderPublicKey = dataProvider.publicKey.message
+          encryptedRequisitionSpec =
+            encryptRequisitionSpec(
+              signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
+              dataProvider.publicKey.unpack(),
+            )
+          nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
+        }
+    }
+  }
+
+  private fun getEventDataProviderEntry(
+    eventDataProviderInput:
+      CreateMeasurementFlags.MeasurementParams.EventMeasurementParams.EventDataProviderInput,
+    measurementConsumerSigningKey: SigningKeyHandle,
+    packedMeasurementEncryptionPublicKey: ProtoAny,
+  ): Measurement.DataProviderEntry {
+    return dataProviderEntry {
+      val requisitionSpec = requisitionSpec {
+        val eventGroups =
+          eventDataProviderInput.eventGroupInputs.map {
+            eventGroupEntry {
+              key = it.name
+              value =
+                EventGroupEntries.value {
+                  collectionInterval = interval {
+                    startTime = it.eventStartTime.toProtoTime()
+                    endTime = it.eventEndTime.toProtoTime()
+                  }
+                  if (it.eventFilter.isNotEmpty())
+                    filter = eventFilter { expression = it.eventFilter }
+                }
+            }
+          }
+        events = RequisitionSpecKt.events { this.eventGroups += eventGroups }
+        this.measurementPublicKey = packedMeasurementEncryptionPublicKey
+        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+        // field.
+        serializedMeasurementPublicKey = packedMeasurementEncryptionPublicKey.value
+        nonce = secureRandom.nextLong()
+      }
+
+      key = eventDataProviderInput.name
+      val dataProvider =
+        runBlocking(parentCommand.parentCommand.rpcDispatcher) {
+          parentCommand.dataProviderStub
+            .withAuthenticationKey(parentCommand.apiAuthenticationKey)
+            .getDataProvider(getDataProviderRequest { name = eventDataProviderInput.name })
+        }
+      value =
+        DataProviderEntries.value {
+          dataProviderCertificate = dataProvider.certificate
+          dataProviderPublicKey = dataProvider.publicKey.message
+          encryptedRequisitionSpec =
+            encryptRequisitionSpec(
+              signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
+              dataProvider.publicKey.unpack(),
+            )
+          nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
+        }
+    }
+  }
+
+  private fun getMeasurement(measurementReferenceId: String): Measurement {
+    val measurementParams = createMeasurementFlags.measurementParams
+    val measurementConsumer =
+      runBlocking(parentCommand.parentCommand.rpcDispatcher) {
+        parentCommand.measurementConsumerStub
+          .withAuthenticationKey(parentCommand.apiAuthenticationKey)
+          .getMeasurementConsumer(
+            getMeasurementConsumerRequest { name = createMeasurementFlags.measurementConsumer }
+          )
+      }
+    val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
+    val measurementConsumerPrivateKey =
+      readPrivateKey(
+        createMeasurementFlags.privateKeyDerFile.readByteString(),
+        measurementConsumerCertificate.publicKey.algorithm,
+      )
+    val measurementConsumerSigningKey =
+      SigningKeyHandle(measurementConsumerCertificate, measurementConsumerPrivateKey)
+    val packedMeasurementEncryptionPublicKey = measurementConsumer.publicKey.message
+
+    return measurement {
+      this.measurementConsumerCertificate = measurementConsumer.certificate
+      dataProviders +=
+        if (measurementParams.populationMeasurementParams.selected) {
+          listOf(
+            getPopulationDataProviderEntry(
+              measurementParams.populationMeasurementParams.populationDataProviderInput,
+              measurementParams.populationMeasurementParams,
+              measurementConsumerSigningKey,
+              packedMeasurementEncryptionPublicKey,
+            )
+          )
+        } else {
+          measurementParams.eventMeasurementParams.eventDataProviderInputs.map {
+            getEventDataProviderEntry(
+              it,
+              measurementConsumerSigningKey,
+              packedMeasurementEncryptionPublicKey,
+            )
+          }
+        }
+      val unsignedMeasurementSpec = measurementSpec {
+        measurementPublicKey = packedMeasurementEncryptionPublicKey
+        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+        // field.
+        serializedMeasurementPublicKey = packedMeasurementEncryptionPublicKey.value
+        nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
+        if (!measurementParams.populationMeasurementParams.selected) {
+          vidSamplingInterval = vidSamplingInterval {
+            start = measurementParams.eventMeasurementParams.vidSamplingStart
+            width = measurementParams.eventMeasurementParams.vidSamplingWidth
+          }
+          if (measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reach.selected) {
+            reach = createMeasurementFlags.getReach()
+          } else if (
+            measurementParams.eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency
+              .selected
+          ) {
+            reachAndFrequency = createMeasurementFlags.getReachAndFrequency()
+          } else if (
+            measurementParams.eventMeasurementParams.eventMeasurementTypeParams.impression.selected
+          ) {
+            impression = createMeasurementFlags.getImpression()
+          } else if (
+            measurementParams.eventMeasurementParams.eventMeasurementTypeParams.duration.selected
+          ) {
+            duration = createMeasurementFlags.getDuration()
+          }
+        } else if (measurementParams.populationMeasurementParams.selected) {
+          population = createMeasurementFlags.getPopulation()
+        }
+        if (createMeasurementFlags.modelLine.isNotEmpty())
+          this.modelLine = createMeasurementFlags.modelLine
+      }
+
+      this.measurementSpec =
+        signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
+      this.measurementReferenceId = measurementReferenceId
+    }
+  }
+
+  override fun run() {
+    val request = batchCreateMeasurementsRequest {
+      parent = createMeasurementFlags.measurementConsumer
+      for (i in 1..batchCount) {
+        val providedMeasurementName = "${createMeasurementFlags.measurementReferenceId}-$i"
+        requests += createMeasurementRequest {
+          parent = createMeasurementFlags.measurementConsumer
+          this.measurement = getMeasurement(providedMeasurementName)
+        }
+      }
+    }
+
+    val response =
+      runBlocking(parentCommand.parentCommand.rpcDispatcher) {
+        parentCommand.measurementStub
+          .withAuthenticationKey(parentCommand.apiAuthenticationKey)
+          .batchCreateMeasurements(request)
+      }
+
+    response.measurementsList.forEach { println("Measurement Name: ${it.name}") }
+    println("Created Measurement count: ${response.measurementsCount}")
   }
 }
 
