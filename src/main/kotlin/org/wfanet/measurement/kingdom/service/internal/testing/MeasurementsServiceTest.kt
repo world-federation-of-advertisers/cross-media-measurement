@@ -971,6 +971,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
                 liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
               }
               dataProvidersCount = 1
+              createTime = createdMeasurement.createTime
             }
             details = requisitionDetails {
               dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
