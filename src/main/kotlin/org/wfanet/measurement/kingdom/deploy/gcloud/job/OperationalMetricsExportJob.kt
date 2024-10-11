@@ -73,6 +73,8 @@ private fun run(
     val datasetId = operationalMetricsFlags.bigQueryDataSet
     val measurementsTableId = operationalMetricsFlags.measurementsTable
     val requisitionsTableId = operationalMetricsFlags.requisitionsTable
+    val computationParticipantStagesTableId =
+      operationalMetricsFlags.computationParticipantStagesTable
     val latestMeasurementReadTableId = operationalMetricsFlags.latestMeasurementReadTable
 
     BigQueryWriteClient.create().use { bigQueryWriteClient ->
@@ -86,6 +88,7 @@ private fun run(
           latestMeasurementReadTableId = latestMeasurementReadTableId,
           measurementsTableId = measurementsTableId,
           requisitionsTableId = requisitionsTableId,
+          computationParticipantStagesTableId = computationParticipantStagesTableId,
         )
 
       operationalMetricsExport.execute()
@@ -126,6 +129,14 @@ class OperationalMetricsFlags {
     required = true,
   )
   lateinit var requisitionsTable: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--computation-participant-stages-table"],
+    description = ["Computation Participant Stages table ID"],
+    required = true,
+  )
+  lateinit var computationParticipantStagesTable: String
     private set
 
   @CommandLine.Option(
