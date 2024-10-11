@@ -14,16 +14,17 @@
 
 syntax = "proto3";
 
-package wfa.controlplane;
+package wfa.controlplane.v1alpha;
 
 import "google/protobuf/any.proto";
+import "wfa/controlplane/v1alpha/queue.proto";
 
-option java_package = "org.wfanet.controlplane";
+option java_package = "org.wfanet.securecomputation.controlplane.v1alpha";
 option java_multiple_files = true;
 
 message WorkItem {
     option (google.api.resource) = {
-        type: "halo.wfanet.org/WorkItem"
+        type: "control-plane.secure-computation.halo-cmm.org/WorkItem"
         pattern: "workItems/{work_item}"
         singular: "workItem"
         plural: "workItems"
@@ -32,9 +33,9 @@ message WorkItem {
     // Resource name.
     string name = 1;
 
-    // The queue identifier into which this `WorkItem` must be enqueued.
-    // Available queue identifiers are specified in a configuration file.
-    string queue_identifier = 2;
+    // The queue into which this `WorkItem` must be enqueued.
+    // Available queues are specified in a configuration file.
+    Queue queue = 2;
     // The parameters to be delivered to the TEE application.
     google.protobuf.Any work_item_params = 3;
 }
