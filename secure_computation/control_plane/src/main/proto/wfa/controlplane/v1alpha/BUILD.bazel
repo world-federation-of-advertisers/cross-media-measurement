@@ -1,0 +1,57 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load(
+    "@wfa_rules_kotlin_jvm//kotlin:defs.bzl",
+    "kt_jvm_grpc_proto_library",
+    "kt_jvm_proto_library",
+)
+
+package(default_visibility = ["//visibility:public"])
+
+IMPORT_PREFIX = "/secure_computation/control_plane/src/main/proto"
+
+# Resources and shared message types.
+
+proto_library(
+    name = "queue_proto",
+    srcs = ["queue.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = ["@com_google_googleapis//google/api:resource_proto"]
+)
+
+kt_jvm_proto_library(
+    name = "queue_kt_jvm_proto",
+    deps = [":queue_proto"],
+)
+
+proto_library(
+    name = "work_item_proto",
+    srcs = ["work_item.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":queue_proto",
+        "@com_google_protobuf//:any_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "work_item_kt_jvm_proto",
+    deps = [":work_item_proto"],
+)
+
+# Services.
+
+proto_library(
+    name = "work_items_service_proto",
+    srcs = ["work_items_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":work_item_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "work_items_service_kt_jvm_grpc_proto",
+    deps = [":work_items_service_proto"],
+)

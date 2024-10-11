@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.controlplane.v1alpha;
 
+import "google/api/field_behavior.proto";
 import "wfa/controlplane/v1alpha/work_item.proto";
 
 option java_package = "org.wfanet.securecomputation.controlplane.v1alpha";
@@ -28,7 +29,7 @@ service WorkItems {
     // Enqueues the `WorkItem` into the appropriate queue.
     // Results in PERMISSION_DENIED if the queue_identifier specified in the `WorkItem`
     // is not listed in the configuration file.
-    rpc CreateWorkItem(CreateWorkItemRequest) return (WorkItem)
+    rpc CreateWorkItem(CreateWorkItemRequest) returns (WorkItem);
 }
 
 // Request message for `CreateWorkItem` method.
