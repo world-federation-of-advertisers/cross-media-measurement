@@ -19,17 +19,22 @@ package org.wfanet.measurement.kingdom.batch
 import com.google.protobuf.Any
 import com.google.type.interval
 import io.grpc.StatusException
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.metrics.DoubleGauge
 import java.io.File
 import java.security.SecureRandom
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
+import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsResponse
+import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
@@ -37,20 +42,24 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
+import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -75,12 +84,36 @@ class MeasurementSystemProber(
     org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub,
   private val dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   private val eventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub,
+  private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
   private val clock: Clock = Clock.systemUTC(),
 ) {
+  private val lastTerminalMeasurementTimeGauge: DoubleGauge =
+    Instrumentation.meter
+      .gaugeBuilder("${PROBER_NAMESPACE}.last_terminal_measurement.timestamp")
+      .setUnit("s")
+      .setDescription(
+        "Unix epoch timestamp (in seconds) of the update time of the most recently issued and completed prober Measurement"
+      )
+      .build()
+  private val lastTerminalRequisitionTimeGauge: DoubleGauge =
+    Instrumentation.meter
+      .gaugeBuilder("${PROBER_NAMESPACE}.last_terminal_requisition.timestamp")
+      .setUnit("s")
+      .setDescription(
+        "Unix epoch timestamp (in seconds) of the update time of requisition associated with a particular EDP for the most recently issued Measurement"
+      )
+      .build()
+
   suspend fun run() {
-    if (shouldCreateNewMeasurement()) {
+    val lastUpdatedMeasurement = getLastUpdatedMeasurement()
+    if (lastUpdatedMeasurement != null) {
+      updateLastTerminalRequisitionGauge(lastUpdatedMeasurement)
+      lastTerminalMeasurementTimeGauge.set(
+        lastUpdatedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
+      )
+    }
+    if (shouldCreateNewMeasurement(lastUpdatedMeasurement)) {
       createMeasurement()
-      // TODO(@roaminggypsy): Report measurement result with OpenTelemetry
     }
   }
 
@@ -212,9 +245,7 @@ class MeasurementSystemProber(
     return dataProviderNameToEventGroup
   }
 
-  private suspend fun shouldCreateNewMeasurement(): Boolean {
-    val lastUpdatedMeasurement = getLastUpdatedMeasurement()
-
+  private fun shouldCreateNewMeasurement(lastUpdatedMeasurement: Measurement?): Boolean {
     if (lastUpdatedMeasurement == null) {
       return true
     }
@@ -252,6 +283,27 @@ class MeasurementSystemProber(
       nextPageToken = response.nextPageToken
     } while (nextPageToken.isNotEmpty())
     return null
+  }
+
+  private suspend fun getRequisitionsForMeasurement(measurementName: String): List<Requisition> {
+    var nextPageToken = ""
+    val requisitions = mutableListOf<Requisition>()
+    do {
+      val response: ListRequisitionsResponse =
+        try {
+          requisitionsStub.listRequisitions(
+            listRequisitionsRequest {
+              parent = measurementName
+              pageToken = nextPageToken
+            }
+          )
+        } catch (e: StatusException) {
+          throw Exception("Unable to list requisitions for measurement $measurementName", e)
+        }
+      requisitions.addAll(response.requisitionsList)
+      nextPageToken = response.nextPageToken
+    } while (nextPageToken.isNotEmpty())
+    return requisitions
   }
 
   private suspend fun getDataProviderEntry(
@@ -308,12 +360,34 @@ class MeasurementSystemProber(
     }
   }
 
+  private suspend fun updateLastTerminalRequisitionGauge(lastUpdatedMeasurement: Measurement) {
+    val requisitions = getRequisitionsForMeasurement(lastUpdatedMeasurement.name)
+    for (requisition in requisitions) {
+      if (requisition.state == Requisition.State.FULFILLED) {
+        val requisitionKey = CanonicalRequisitionKey.fromName(requisition.name)
+        require(requisitionKey != null) { "CanonicalRequisitionKey cannot be null" }
+        val dataProviderName: String = requisitionKey.dataProviderId
+        val attributes = Attributes.of(DATA_PROVIDER_ATTRIBUTE_KEY, dataProviderName)
+        lastTerminalRequisitionTimeGauge.set(
+          requisition.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND,
+          attributes,
+        )
+      }
+    }
+  }
+
   companion object {
+    private const val MILLISECONDS_PER_SECOND = 1000.0
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private val secureRandom = SecureRandom.getInstance("SHA1PRNG")
 
     private val COMPLETED_MEASUREMENT_STATES =
       listOf(Measurement.State.SUCCEEDED, Measurement.State.FAILED, Measurement.State.CANCELLED)
+
+    private const val PROBER_NAMESPACE = "${Instrumentation.ROOT_NAMESPACE}.prober"
+    private val DATA_PROVIDER_ATTRIBUTE_KEY =
+      AttributeKey.stringKey("${Instrumentation.ROOT_NAMESPACE}.data_provider")
   }
 }
