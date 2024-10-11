@@ -106,11 +106,13 @@ class MeasurementSystemProber(
 
   suspend fun run() {
     val lastUpdatedMeasurement = getLastUpdatedMeasurement()
-    updateLastTerminalRequisitionGauge(lastUpdatedMeasurement)
-    if (shouldCreateNewMeasurement(lastUpdatedMeasurement)) {
+    if (lastUpdatedMeasurement != null) {
+      updateLastTerminalRequisitionGauge(lastUpdatedMeasurement)
       lastTerminalMeasurementTimeGauge.set(
-        lastUpdatedMeasurement!!.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
+        lastUpdatedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
       )
+    }
+    if (shouldCreateNewMeasurement(lastUpdatedMeasurement)) {
       createMeasurement()
     }
   }
@@ -358,17 +360,14 @@ class MeasurementSystemProber(
     }
   }
 
-  private suspend fun updateLastTerminalRequisitionGauge(lastUpdatedMeasurement: Measurement?) {
-    if (lastUpdatedMeasurement == null) {
-      return
-    }
+  private suspend fun updateLastTerminalRequisitionGauge(lastUpdatedMeasurement: Measurement) {
     val requisitions = getRequisitionsForMeasurement(lastUpdatedMeasurement.name)
     for (requisition in requisitions) {
       if (requisition.state == Requisition.State.FULFILLED) {
         val requisitionKey = CanonicalRequisitionKey.fromName(requisition.name)
         require(requisitionKey != null) { "CanonicalRequisitionKey cannot be null" }
         val dataProviderName: String = requisitionKey.dataProviderId
-        val attributes = Attributes.of(PROBER_DATA_PROVIDER_ATTRIBUTE_KEY, dataProviderName)
+        val attributes = Attributes.of(DATA_PROVIDER_ATTRIBUTE_KEY, dataProviderName)
         lastTerminalRequisitionTimeGauge.set(
           requisition.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND,
           attributes,
@@ -388,7 +387,7 @@ class MeasurementSystemProber(
       listOf(Measurement.State.SUCCEEDED, Measurement.State.FAILED, Measurement.State.CANCELLED)
 
     private const val PROBER_NAMESPACE = "${Instrumentation.ROOT_NAMESPACE}.prober"
-    private val PROBER_DATA_PROVIDER_ATTRIBUTE_KEY =
+    private val DATA_PROVIDER_ATTRIBUTE_KEY =
       AttributeKey.stringKey("${Instrumentation.ROOT_NAMESPACE}.data_provider")
   }
 }
