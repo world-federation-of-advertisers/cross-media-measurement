@@ -1447,6 +1447,7 @@ class RequisitionsServiceTest {
 
       state = State.FULFILLED
       measurementState = Measurement.State.AWAITING_REQUISITION_FULFILLMENT
+      updateTime = UPDATE_TIME
     }
 
     private val HMSS_REQUISITION =
