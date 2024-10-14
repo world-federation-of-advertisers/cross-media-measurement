@@ -25,7 +25,6 @@ import java.util.logging.Logger
 import kotlin.io.path.name
 import org.wfanet.measurement.common.getJarResourcePath
 import org.wfanet.measurement.common.toJson
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportSummary
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.report
@@ -34,7 +33,20 @@ import org.wfanet.measurement.reporting.v2alpha.report
  * An implementation of [ReportProcessor] that takes a serialized [Report] in JSON format and
  * returns the a [Report] of which all measurements are consistent.
  */
-class ReportProcessorImpl : ReportProcessor {
+object ReportProcessorImpl : ReportProcessor {
+  private val logger: Logger = Logger.getLogger(this::class.java.name)
+  const private val PYTHON_LIBRARY_RESOURCE_NAME =
+    "src/main/python/wfa/measurement/reporting/postprocessing/tools/post_process_origin_report.zip"
+  private val resourcePath: Path =
+    this::class.java.classLoader.getJarResourcePath(PYTHON_LIBRARY_RESOURCE_NAME)
+      ?: error("$PYTHON_LIBRARY_RESOURCE_NAME not found in JAR")
+  private val tempFile = File.createTempFile(resourcePath.name, "").apply { deleteOnExit() }
+
+  init {
+    // Copies python zip package from JAR to local directory.
+    Files.copy(resourcePath, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+  }
+
   /**
    * Corrects the inconsistent measurements in the [report] and returns a corrected report in JSON
    * format.
@@ -168,20 +180,5 @@ class ReportProcessorImpl : ReportProcessor {
         metricCalculationResults += correctedMetricCalculationResults
       }
     return updatedReport
-  }
-
-  companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
-    const private val PYTHON_LIBRARY_RESOURCE_NAME =
-      "src/main/python/wfa/measurement/reporting/postprocessing/tools/post_process_origin_report.zip"
-    private val resourcePath: Path =
-      this::class.java.classLoader.getJarResourcePath(PYTHON_LIBRARY_RESOURCE_NAME)
-        ?: error("$PYTHON_LIBRARY_RESOURCE_NAME not found in JAR")
-    private val tempFile = File.createTempFile(resourcePath.name, "").apply { deleteOnExit() }
-
-    init {
-      // Copies python zip package from JAR to local directory.
-      Files.copy(resourcePath, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
-    }
   }
 }

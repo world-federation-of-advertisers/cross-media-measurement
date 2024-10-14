@@ -15,7 +15,6 @@ kt_jvm_library(
     deps = [
         "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_summary_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
-        "@maven//:com_google_protobuf_protobuf_java_util",
         "@wfa_common_jvm//imports/java/com/google/gson",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],

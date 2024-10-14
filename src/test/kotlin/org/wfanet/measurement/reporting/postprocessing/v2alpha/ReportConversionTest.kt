@@ -24,8 +24,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.reporting.postprocessing.v2alpha.MeasurementDetailKt.measurementResult
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.measurementDetail
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.reportSummary
 
 @RunWith(JUnit4::class)
 class ReportConversionTest {

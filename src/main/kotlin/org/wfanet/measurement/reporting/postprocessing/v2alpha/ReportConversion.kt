@@ -16,10 +16,6 @@ package org.wfanet.measurement.reporting.postprocessing.v2alpha
 
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.MeasurementDetailKt
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportSummary
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.measurementDetail
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.reportSummary
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.Report
 
@@ -51,6 +47,7 @@ object ReportConversion {
     return getReportFromJsonString(reportAsJsonString).toReportSummaries()
   }
 
+  // TODO(@ple13): Move this function to a separate package that handles the tags.
   fun getMeasurementPolicy(tag: String): String {
     when {
       "measurement_policy=AMI" in tag -> return "ami"
@@ -60,6 +57,7 @@ object ReportConversion {
     }
   }
 
+  // TODO(@ple13): Move this function to a separate package that handles the tags.
   fun getSetOperation(tag: String): String {
     val parts = tag.split(", ")
     val setOperationPart = parts.find { it.startsWith("set_operation=") }
@@ -67,10 +65,12 @@ object ReportConversion {
       ?: error("Set operation must be specified.")
   }
 
+  // TODO(@ple13): Move this function to a separate package that handles the tags.
   fun isCumulative(tag: String): Boolean {
     return tag.contains("cumulative=true")
   }
 
+  // TODO(@ple13): Move this function to a separate package that handles the tags.
   fun getTargets(tag: String): List<String> {
     val parts = tag.split(", ")
     val targetPart = parts.find { it.startsWith("target=") }

@@ -21,7 +21,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.getRuntimePath
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.measurementDetail
 import org.wfanet.measurement.reporting.v2alpha.Report
 
 @RunWith(JUnit4::class)
@@ -33,8 +32,7 @@ class ReportProcessorImplTest {
 
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
     assertThat(report.hasConsistentMeasurements()).isEqualTo(false)
-    val reportProcessor = ReportProcessorImpl()
-    val updatedReportAsJson = reportProcessor.processReportJson(reportAsJson)
+    val updatedReportAsJson = ReportProcessorImpl.processReportJson(reportAsJson)
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
     assertThat(updatedReport.hasConsistentMeasurements()).isEqualTo(true)
   }
