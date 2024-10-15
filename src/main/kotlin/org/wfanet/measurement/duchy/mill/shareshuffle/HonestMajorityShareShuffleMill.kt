@@ -336,6 +336,8 @@ class HonestMajorityShareShuffleMill(
       } catch (e: StatusException) {
         val message = "Fail to get certificate for $dataProviderCertificateName"
         when (e.status.code) {
+          // TODO(@renjiezh): immediately retry for UNAVAILABLE and DEADLINE_EXCEEDED based on
+          // gRPC service config.
           Status.Code.UNAVAILABLE,
           Status.Code.DEADLINE_EXCEEDED,
           Status.Code.ABORTED -> throw TransientErrorException(message, e)
