@@ -27,6 +27,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt
 import org.wfanet.measurement.kingdom.deploy.common.server.KingdomApiServerFlags
 import picocli.CommandLine
 
@@ -61,6 +62,7 @@ private fun run(
       .withDefaultDeadline(kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
 
   val measurementsClient = MeasurementsGrpcKt.MeasurementsCoroutineStub(channel)
+  val requisitionsClient = RequisitionsGrpcKt.RequisitionsCoroutineStub(channel)
 
   val bigQuery: BigQuery =
     BigQueryOptions.newBuilder()
@@ -74,16 +76,19 @@ private fun run(
     val measurementsTableId = operationalMetricsFlags.measurementsTable
     val requisitionsTableId = operationalMetricsFlags.requisitionsTable
     val latestMeasurementReadTableId = operationalMetricsFlags.latestMeasurementReadTable
+    val latestRequisitionReadTableId = operationalMetricsFlags.latestRequisitionReadTable
 
     BigQueryWriteClient.create().use { bigQueryWriteClient ->
       val operationalMetricsExport =
         OperationalMetricsExport(
           measurementsClient = measurementsClient,
+          requisitionsClient = requisitionsClient,
           bigQuery = bigQuery,
           bigQueryWriteClient = bigQueryWriteClient,
           projectId = projectId,
           datasetId = datasetId,
           latestMeasurementReadTableId = latestMeasurementReadTableId,
+          latestRequisitionReadTableId = latestRequisitionReadTableId,
           measurementsTableId = measurementsTableId,
           requisitionsTableId = requisitionsTableId,
         )
@@ -134,5 +139,13 @@ class OperationalMetricsFlags {
     required = true,
   )
   lateinit var latestMeasurementReadTable: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--latest-requisition-read-table"],
+    description = ["Latest Requisition Read table ID"],
+    required = true,
+  )
+  lateinit var latestRequisitionReadTable: String
     private set
 }
