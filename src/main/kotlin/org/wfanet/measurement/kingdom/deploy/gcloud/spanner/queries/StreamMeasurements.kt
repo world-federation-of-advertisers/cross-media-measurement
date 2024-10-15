@@ -206,6 +206,11 @@ class StreamMeasurements(
         }
       }
 
+      if (filter.hasAfter() || filter.hasUpdatedAfter()) {
+        // Include shard ID to use sharded index on UpdateTime appropriately.
+        conjuncts.add("MeasurementIndexShardId != -1")
+      }
+
       if (conjuncts.isEmpty()) {
         return
       }
