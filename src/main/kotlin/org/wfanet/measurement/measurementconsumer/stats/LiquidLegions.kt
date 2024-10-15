@@ -128,6 +128,13 @@ object LiquidLegions {
     overlapSamplingWidth: Double,
     inflation: Double = 0.0,
   ): Double {
+    require (sketchParams.sketchSize > 0) {
+      "Sketch size must be positive, but got ${sketchParams.sketchSize}."
+    }
+    require (sketchParams.decayRate > 0) {
+      "Decay rate must be positive, but got ${sketchParams.decayRate}."
+    }
+
     val y1 = max(1.0, reach * samplingWidth)
     val y2 = max(1.0, otherReach * otherSamplingWidth)
     val y12 = max(1.0, overlapReach * overlapSamplingWidth)

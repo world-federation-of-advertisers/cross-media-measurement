@@ -402,7 +402,7 @@ object VariancesImpl : Variances {
   ): FrequencyVariances {
     require(params.totalReach >= 0.0) { "The total reach value cannot be negative." }
     require(params.reachMeasurementVariance >= 0.0) {
-      "The reach variance value cannot be negative."
+      "The reach variance value (${params.reachMeasurementVariance}) cannot be negative."
     }
 
     val maximumFrequency = params.measurementParams.maximumFrequency
@@ -503,7 +503,7 @@ object VariancesImpl : Variances {
   ): FrequencyVariances {
     require(frequencyParams.totalReach >= 0.0) { "The total reach value cannot be negative." }
     require(frequencyParams.reachMeasurementVariance >= 0.0) {
-      "The reach variance value cannot be negative."
+      "The reach variance value (${frequencyParams.reachMeasurementVariance}) cannot be negative."
     }
 
     val maximumFrequency = frequencyParams.measurementParams.maximumFrequency
@@ -609,7 +609,7 @@ object VariancesImpl : Variances {
   ): FrequencyVariances {
     require(params.totalReach >= 0.0) { "The total reach value cannot be negative." }
     require(params.reachMeasurementVariance >= 0.0) {
-      "The reach variance value cannot be negative."
+      "The reach variance value (${params.reachMeasurementVariance}) cannot be negative."
     }
 
     val maximumFrequency = params.measurementParams.maximumFrequency
