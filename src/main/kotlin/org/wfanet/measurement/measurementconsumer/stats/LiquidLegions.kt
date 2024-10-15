@@ -128,10 +128,10 @@ object LiquidLegions {
     overlapSamplingWidth: Double,
     inflation: Double = 0.0,
   ): Double {
-    require (sketchParams.sketchSize > 0) {
+    require(sketchParams.sketchSize > 0) {
       "Sketch size must be positive, but got ${sketchParams.sketchSize}."
     }
-    require (sketchParams.decayRate > 0) {
+    require(sketchParams.decayRate > 0) {
       "Decay rate must be positive, but got ${sketchParams.decayRate}."
     }
 
