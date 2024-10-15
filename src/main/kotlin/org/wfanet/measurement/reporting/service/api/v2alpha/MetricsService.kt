@@ -34,6 +34,7 @@ import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.util.concurrent.TimeUnit
+import java.util.logging.Logger
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
@@ -157,7 +158,6 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
-import java.util.logging.Logger
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -1674,9 +1674,9 @@ class MetricsService(
     return metric {
       name =
         MetricKey(
-          cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId,
-          metricId = source.externalMetricId,
-        )
+            cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId,
+            metricId = source.externalMetricId,
+          )
           .toName()
       reportingSet =
         ReportingSetKey(source.cmmsMeasurementConsumerId, source.externalReportingSetId).toName()
@@ -1690,11 +1690,13 @@ class MetricsService(
         try {
           result = buildMetricResult(source, variances)
         } catch (e: Exception) {
-          if (e is StatusException || e is StatusRuntimeException) {
-            throw e
-          } else {
+          if (e is IllegalArgumentException || e is IllegalStateException) {
             state = Metric.State.FAILED
-            logger.warning("Failed to process metric result for metric with ID ${source.externalMetricId}: ${e.message}")
+            logger.warning(
+              "Failed to process metric result for metric with ID ${source.externalMetricId}: ${e.message}"
+            )
+          } else {
+            throw e
           }
         }
       }
@@ -2002,7 +2004,9 @@ fun buildStatsMethodology(
           CustomDirectScalarMethodology(watchDurationResult.customDirectMethodology.variance.scalar)
         }
         CustomDirectMethodology.Variance.TypeCase.FREQUENCY -> {
-          throw IllegalStateException("Custom direct methodology for frequency is not supported for watch duration.")
+          throw IllegalStateException(
+            "Custom direct methodology for frequency is not supported for watch duration."
+          )
         }
         CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
           throw MeasurementVarianceNotComputableException(
@@ -2143,7 +2147,9 @@ fun buildStatsMethodology(impressionResult: InternalMeasurement.Result.Impressio
           CustomDirectScalarMethodology(impressionResult.customDirectMethodology.variance.scalar)
         }
         CustomDirectMethodology.Variance.TypeCase.FREQUENCY -> {
-          throw IllegalStateException("Custom direct methodology for frequency is not supported for impression.")
+          throw IllegalStateException(
+            "Custom direct methodology for frequency is not supported for impression."
+          )
         }
         CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
           throw MeasurementVarianceNotComputableException(
@@ -2151,7 +2157,9 @@ fun buildStatsMethodology(impressionResult: InternalMeasurement.Result.Impressio
           )
         }
         CustomDirectMethodology.Variance.TypeCase.TYPE_NOT_SET -> {
-          throw IllegalStateException("Variance case in CustomDirectMethodology should've been set.")
+          throw IllegalStateException(
+            "Variance case in CustomDirectMethodology should've been set."
+          )
         }
       }
     }
@@ -2308,7 +2316,9 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
     if (weightedMeasurement.measurement.details.resultsList.size == 1) {
       weightedMeasurement.measurement.details.resultsList.single().frequency
     } else if (weightedMeasurement.measurement.details.resultsList.size > 1) {
-      throw IllegalStateException("No supported methodology generates more than one frequency result.")
+      throw IllegalStateException(
+        "No supported methodology generates more than one frequency result."
+      )
     } else {
       throw IllegalStateException("Frequency measurement should've had frequency results.")
     }
@@ -2356,7 +2366,9 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (frequencyResult.customDirectMethodology.variance.typeCase) {
         CustomDirectMethodology.Variance.TypeCase.SCALAR -> {
-          throw IllegalStateException("Custom direct methodology for scalar is not supported for frequency.")
+          throw IllegalStateException(
+            "Custom direct methodology for scalar is not supported for frequency."
+          )
         }
         CustomDirectMethodology.Variance.TypeCase.FREQUENCY -> {
           CustomDirectFrequencyMethodology(
@@ -2374,7 +2386,9 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
           )
         }
         CustomDirectMethodology.Variance.TypeCase.TYPE_NOT_SET -> {
-          throw IllegalStateException("Variance case in CustomDirectMethodology should've been set.")
+          throw IllegalStateException(
+            "Variance case in CustomDirectMethodology should've been set."
+          )
         }
       }
     }
@@ -2585,7 +2599,9 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
           CustomDirectScalarMethodology(reachResult.customDirectMethodology.variance.scalar)
         }
         CustomDirectMethodology.Variance.TypeCase.FREQUENCY -> {
-          throw IllegalStateException("Custom direct methodology for frequency is not supported for reach.")
+          throw IllegalStateException(
+            "Custom direct methodology for frequency is not supported for reach."
+          )
         }
         CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
           throw MeasurementVarianceNotComputableException(
@@ -2593,7 +2609,9 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
           )
         }
         CustomDirectMethodology.Variance.TypeCase.TYPE_NOT_SET -> {
-          throw IllegalStateException("Variance case in CustomDirectMethodology should've been set.")
+          throw IllegalStateException(
+            "Variance case in CustomDirectMethodology should've been set."
+          )
         }
       }
     }
