@@ -21,7 +21,7 @@ START BATCH DDL;
 
 ALTER TABLE Measurements
 ADD COLUMN MeasurementIndexShardId INT64 NOT NULL AS (
-  MOD(FARM_FINGERPRINT(CAST(MeasurementId AS STRING)), 64)
+  ABS(MOD(FARM_FINGERPRINT(CAST(MeasurementId AS STRING)), 64))
 ) STORED;
 
 DROP INDEX MeasurementsByContinuationToken;
