@@ -1,7 +1,8 @@
 package org.wfanet.measurement.kingdom.batch
 
 import com.google.common.truth.Truth
-import java.io.File
+import java.nio.file.Path
+import java.nio.file.Paths
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -30,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
+import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 
@@ -38,7 +40,7 @@ class MeasurementSystemProberTest {
   private val measurementConsumerName = "measurementConsumers/some-mc"
   private val dataProviderNames = listOf("dataProviders/some-dp")
   private val apiAuthenticationKey = "some-api-key"
-  private val privateKeyDerFile = File("some-private-key.der")
+  private val privateKeyDerFile = SECRET_FILES_PATH.resolve("${MC_ID}_cs_private.der").toFile()
   private val measurementLookbackDuration = Duration.ofDays(1)
   private val durationBetweenMeasurement = Duration.ofDays(1)
 
@@ -130,6 +132,13 @@ class MeasurementSystemProberTest {
   }
 
   companion object {
+    private const val MC_ID = "mc"
+    private val SECRET_FILES_PATH: Path =
+      checkNotNull(
+        getRuntimePath(
+          Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+        )
+      )
     private val MEASUREMENT_CONSUMER: MeasurementConsumer = measurementConsumer {}
     private val LIST_MEASUREMENTS_RESPONSE: ListMeasurementsResponse = listMeasurementsResponse {}
     private val DATA_PROVIDER: DataProvider = dataProvider {}
