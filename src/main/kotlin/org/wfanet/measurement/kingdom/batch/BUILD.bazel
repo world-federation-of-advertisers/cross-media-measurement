@@ -49,7 +49,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/io/opentelemetry/api",
