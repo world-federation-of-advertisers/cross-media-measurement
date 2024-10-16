@@ -2403,10 +2403,9 @@ private fun calculateFrequencyHistogramResults(
  *
  * @return null when measurement noise mechanism is not specified or measurement methodology is not
  *   set.
- *
  * @throws MeasurementVarianceNotComputableException when measurement variance computation fails.
- * @throws MetricResultNotComputableException when measurement has no frequency result or has
- *   more than 1 frequency result.
+ * @throws MetricResultNotComputableException when measurement has no frequency result or has more
+ *   than 1 frequency result.
  */
 fun buildWeightedFrequencyMeasurementVarianceParams(
   weightedMeasurement: WeightedMeasurement,
@@ -2686,8 +2685,8 @@ private fun calculateReachResult(
  *
  * @return null when measurement noise mechanism is not specified or measurement methodology is not
  *   set.
- * @throws MetricResultNotComputableException when reach measurement result is missing or
- *   more than one reach result is found.
+ * @throws MetricResultNotComputableException when reach measurement result is missing or more than
+ *   one reach result is found.
  */
 private fun buildWeightedReachMeasurementVarianceParams(
   weightedMeasurement: WeightedMeasurement,
