@@ -124,7 +124,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         buildMutualTlsChannel(
             TEST_CONFIG.reportingPublicApiTarget,
             REPORTING_SIGNING_CERTS,
-            null,
+            TEST_CONFIG.reportingPublicApiCertHost,
           )
           .also { channels.add(it) }
           .withDefaultDeadline(RPC_DEADLINE_DURATION)
