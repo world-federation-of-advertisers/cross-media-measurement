@@ -7,28 +7,15 @@ load(
 
 package(default_visibility = ["//visibility:public"])
 
-IMPORT_PREFIX = "/secure_computation/control_plane/src/main/proto"
+IMPORT_PREFIX = "/src/main/proto"
 
 # Resources and shared message types.
-
-proto_library(
-    name = "queue_proto",
-    srcs = ["queue.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = ["@com_google_googleapis//google/api:resource_proto"]
-)
-
-kt_jvm_proto_library(
-    name = "queue_kt_jvm_proto",
-    deps = [":queue_proto"],
-)
 
 proto_library(
     name = "work_item_proto",
     srcs = ["work_item.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":queue_proto",
         "@com_google_protobuf//:any_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
