@@ -1768,8 +1768,7 @@ private fun buildMetricResult(metric: InternalMetric): MetricResult {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (metric.metricSpec.typeCase) {
       InternalMetricSpec.TypeCase.REACH -> {
-        reach =
-          calculateReachResult(metric.weightedMeasurementsList, metric.metricSpec.reach)
+        reach = calculateReachResult(metric.weightedMeasurementsList, metric.metricSpec.reach)
       }
       InternalMetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
         reachAndFrequency = reachAndFrequencyResult {
@@ -2289,15 +2288,16 @@ private fun calculateFrequencyHistogramResults(
         weightedMeasurements.mapNotNull { weightedMeasurement ->
           if (
             weightedMeasurement.measurement.details.dataProviderCount == 1 &&
-            reachAndFrequencyParams.hasSingleDataProviderParams()
+              reachAndFrequencyParams.hasSingleDataProviderParams()
           ) {
             buildWeightedFrequencyMeasurementVarianceParams(
               weightedMeasurement = weightedMeasurement,
               vidSamplingInterval =
-              reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval,
-              reachPrivacyParams = reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams,
+                reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval,
+              reachPrivacyParams =
+                reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams,
               frequencyPrivacyParams =
-              reachAndFrequencyParams.singleDataProviderParams.frequencyPrivacyParams,
+                reachAndFrequencyParams.singleDataProviderParams.frequencyPrivacyParams,
               maximumFrequency = reachAndFrequencyParams.maximumFrequency,
               variances = variances,
             )
@@ -2305,11 +2305,11 @@ private fun calculateFrequencyHistogramResults(
             buildWeightedFrequencyMeasurementVarianceParams(
               weightedMeasurement = weightedMeasurement,
               vidSamplingInterval =
-              reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval,
+                reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval,
               reachPrivacyParams =
-              reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams,
+                reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams,
               frequencyPrivacyParams =
-              reachAndFrequencyParams.multipleDataProviderParams.frequencyPrivacyParams,
+                reachAndFrequencyParams.multipleDataProviderParams.frequencyPrivacyParams,
               maximumFrequency = reachAndFrequencyParams.maximumFrequency,
               variances = variances,
             )
@@ -2318,12 +2318,12 @@ private fun calculateFrequencyHistogramResults(
 
       if (
         weightedMeasurementVarianceParamsList.size == weightedMeasurements.size &&
-        weightedMeasurementVarianceParamsList.size == 1 &&
-        weightedMeasurementVarianceParamsList
-          .first()
-          .measurementVarianceParams
-          .reachMeasurementVariance >= 0.0 &&
-        weightedMeasurementVarianceParamsList.first().measurementVarianceParams.totalReach > 0.0
+          weightedMeasurementVarianceParamsList.size == 1 &&
+          weightedMeasurementVarianceParamsList
+            .first()
+            .measurementVarianceParams
+            .reachMeasurementVariance >= 0.0 &&
+          weightedMeasurementVarianceParamsList.first().measurementVarianceParams.totalReach > 0.0
       ) {
         try {
           variances.computeMetricVariance(
@@ -2530,7 +2530,7 @@ private fun calculateReachResult(
         weightedMeasurements.mapNotNull { weightedMeasurement ->
           if (
             weightedMeasurement.measurement.details.dataProviderCount == 1 &&
-            reachParams.hasSingleDataProviderParams()
+              reachParams.hasSingleDataProviderParams()
           ) {
             buildWeightedReachMeasurementVarianceParams(
               weightedMeasurement,
@@ -2546,11 +2546,12 @@ private fun calculateReachResult(
           }
         }
 
-      // If any measurement contains insufficient data for variance calculation, univariate statistics
+      // If any measurement contains insufficient data for variance calculation, univariate
+      // statistics
       // won't be computed.
       if (
         weightedMeasurementVarianceParamsList.size == weightedMeasurements.size &&
-        weightedMeasurementVarianceParamsList.all { it.measurementVarianceParams.reach >= 0.0 }
+          weightedMeasurementVarianceParamsList.all { it.measurementVarianceParams.reach >= 0.0 }
       ) {
         univariateStatistics = univariateStatistics {
           standardDeviation =
@@ -2593,7 +2594,7 @@ private fun calculateReachResult(
         weightedMeasurements.mapNotNull { weightedMeasurement ->
           if (
             weightedMeasurement.measurement.details.dataProviderCount == 1 &&
-            reachAndFrequencyParams.hasSingleDataProviderParams()
+              reachAndFrequencyParams.hasSingleDataProviderParams()
           ) {
             buildWeightedReachMeasurementVarianceParams(
               weightedMeasurement,
@@ -2609,11 +2610,12 @@ private fun calculateReachResult(
           }
         }
 
-      // If any measurement contains insufficient data for variance calculation, univariate statistics
+      // If any measurement contains insufficient data for variance calculation, univariate
+      // statistics
       // won't be computed.
       if (
         weightedMeasurementVarianceParamsList.size == weightedMeasurements.size &&
-        weightedMeasurementVarianceParamsList.all { it.measurementVarianceParams.reach >= 0.0 }
+          weightedMeasurementVarianceParamsList.all { it.measurementVarianceParams.reach >= 0.0 }
       ) {
         univariateStatistics = univariateStatistics {
           standardDeviation =

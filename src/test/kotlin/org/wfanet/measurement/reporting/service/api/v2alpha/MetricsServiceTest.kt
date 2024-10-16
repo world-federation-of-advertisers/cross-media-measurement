@@ -7275,15 +7275,20 @@ class MetricsServiceTest {
         runBlocking { service.getMetric(request) }
       }
 
-    assertThat(response).isEqualTo(SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
-      result = result.copy {
-        cmmsMeasurements += SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.name
-        reach = reach.copy {
-          value += UNION_ALL_REACH_VALUE
-          clearUnivariateStatistics()
+    assertThat(response)
+      .isEqualTo(
+        SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+          result =
+            result.copy {
+              cmmsMeasurements += SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.name
+              reach =
+                reach.copy {
+                  value += UNION_ALL_REACH_VALUE
+                  clearUnivariateStatistics()
+                }
+            }
         }
-      }
-    })
+      )
   }
 
   @Test
@@ -8283,15 +8288,22 @@ class MetricsServiceTest {
                       INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.details.copy {
                         results.clear()
                         results +=
-                          INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.details.resultsList.first()
+                          INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.details
+                            .resultsList
+                            .first()
                             .copy {
                               frequency =
-                                INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.details.resultsList.first().frequency.copy {
-                                  customDirectMethodology = internalCustomDirectMethodology {
-                                    variance =
-                                      InternalCustomDirectMethodologyKt.variance { scalar = 10.0 }
+                                INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT
+                                  .details
+                                  .resultsList
+                                  .first()
+                                  .frequency
+                                  .copy {
+                                    customDirectMethodology = internalCustomDirectMethodology {
+                                      variance =
+                                        InternalCustomDirectMethodologyKt.variance { scalar = 10.0 }
+                                    }
                                   }
-                                }
                             }
                       }
                   }
@@ -8307,26 +8319,34 @@ class MetricsServiceTest {
         runBlocking { service.getMetric(request) }
       }
 
-    assertThat(response).isEqualTo(SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
-      result = result.copy {
-        reachAndFrequency = reachAndFrequency.copy {
-          reach = reach.copy {
-            clearUnivariateStatistics()
-          }
-          frequencyHistogram = frequencyHistogram.copy {
-            bins.clear()
-            SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.result.reachAndFrequency.frequencyHistogram.binsList.forEach {
-              bins += it.copy {
-                clearKPlusUnivariateStatistics()
-                clearResultUnivariateStatistics()
-                clearRelativeUnivariateStatistics()
-                clearRelativeKPlusUnivariateStatistics()
-              }
+    assertThat(response)
+      .isEqualTo(
+        SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+          result =
+            result.copy {
+              reachAndFrequency =
+                reachAndFrequency.copy {
+                  reach = reach.copy { clearUnivariateStatistics() }
+                  frequencyHistogram =
+                    frequencyHistogram.copy {
+                      bins.clear()
+                      SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.result.reachAndFrequency
+                        .frequencyHistogram
+                        .binsList
+                        .forEach {
+                          bins +=
+                            it.copy {
+                              clearKPlusUnivariateStatistics()
+                              clearResultUnivariateStatistics()
+                              clearRelativeUnivariateStatistics()
+                              clearRelativeKPlusUnivariateStatistics()
+                            }
+                        }
+                    }
+                }
             }
-          }
         }
-      }
-    })
+      )
   }
 
   @Test
@@ -9118,13 +9138,13 @@ class MetricsServiceTest {
         runBlocking { service.getMetric(request) }
       }
 
-    assertThat(response).isEqualTo(SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-      result = result.copy {
-        impressionCount = impressionCount.copy {
-          clearUnivariateStatistics()
+    assertThat(response)
+      .isEqualTo(
+        SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+          result =
+            result.copy { impressionCount = impressionCount.copy { clearUnivariateStatistics() } }
         }
-      }
-    })
+      )
   }
 
   @Test
@@ -9442,13 +9462,13 @@ class MetricsServiceTest {
         runBlocking { service.getMetric(request) }
       }
 
-    assertThat(response).isEqualTo(SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
-      result = result.copy {
-        watchDuration = watchDuration.copy {
-          clearUnivariateStatistics()
+    assertThat(response)
+      .isEqualTo(
+        SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+          result =
+            result.copy { watchDuration = watchDuration.copy { clearUnivariateStatistics() } }
         }
-      }
-    })
+      )
   }
 
   @Test
@@ -9789,13 +9809,10 @@ class MetricsServiceTest {
         .ignoringRepeatedFieldOrder()
         .isEqualTo(
           batchGetMetricsResponse {
-            metrics += SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
-              result = result.copy {
-                reach = reach.copy {
-                  clearUnivariateStatistics()
-                }
+            metrics +=
+              SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+                result = result.copy { reach = reach.copy { clearUnivariateStatistics() } }
               }
-            }
             metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
           }
         )
