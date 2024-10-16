@@ -14,12 +14,12 @@
 
 syntax = "proto3";
 
-package wfa.measurement.secure_computation.control_plane.v1alpha;
+package wfa.measurement.securecomputation.controlplane.v1alpha;
 
 import "google/protobuf/any.proto";
 import "google/api/resource.proto";
 
-option java_package = "org.wfanet.measurement.secure_computation.control_plane.v1alpha";
+option java_package = "org.wfanet.measurement.securecomputation.controlplane.v1alpha";
 option java_multiple_files = true;
 
 message WorkItem {
