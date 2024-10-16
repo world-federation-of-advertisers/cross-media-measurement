@@ -972,7 +972,7 @@ class MetricsService(
                 listOfNotNull("Unrecognized noise mechanism.", e.message, e.cause?.message)
                   .joinToString(separator = "\n")
               }
-            } catch (e: Throwable) {
+            } catch (e: Exception) {
               failGrpc(Status.UNKNOWN) {
                 listOfNotNull("Unable to read measurement result.", e.message, e.cause?.message)
                   .joinToString(separator = "\n")
@@ -1868,7 +1868,12 @@ private fun buildMetricResult(metric: InternalMetric, variances: Variances): Met
   }
 }
 
-/** Aggregates a list of [InternalMeasurement.Result]s to a [InternalMeasurement.Result] */
+/**
+ * Aggregates a list of [InternalMeasurement.Result]s to a [InternalMeasurement.Result]
+ *
+ * @throws MetricResultNotComputableException when no measurement result or reach-frequency
+ *   measurement missing reach measurement result.
+ */
 private fun aggregateResults(
   internalMeasurementResults: List<InternalMeasurement.Result>
 ): InternalMeasurement.Result {
@@ -1937,7 +1942,12 @@ private fun aggregateResults(
   }
 }
 
-/** Calculates the watch duration result from [WeightedMeasurement]s. */
+/**
+ * Calculates the watch duration result from [WeightedMeasurement]s.
+ *
+ * @throws MeasurementVarianceNotComputableException when metric variance computation fails.
+ * @throws MetricResultNotComputableException when watch duration measurement result is missing.
+ */
 private fun calculateWatchDurationResult(
   weightedMeasurements: List<WeightedMeasurement>,
   watchDurationParams: InternalMetricSpec.WatchDurationParams,
@@ -1987,7 +1997,7 @@ private fun calculateWatchDurationResult(
                       listOf(requireNotNull(weightedMeasurementVarianceParams))
                     )
                   )
-                } catch (e: Throwable) {
+                } catch (e: Exception) {
                   throw MeasurementVarianceNotComputableException(cause = e)
                 }
               }
@@ -2017,7 +2027,7 @@ private fun ProtoDuration.toDoubleSecond(): Double {
 /**
  * Builds a list of nullable [WeightedWatchDurationMeasurementVarianceParams].
  *
- * @throws io.grpc.StatusRuntimeException when measurement noise mechanism is unrecognized.
+ * @throws MetricResultNotComputableException when watch duration measurement result is missing.
  */
 fun buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
   weightedMeasurement: WeightedMeasurement,
@@ -2061,7 +2071,12 @@ fun buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
   }
 }
 
-/** Builds a [Methodology] from an [InternalMeasurement.Result.WatchDuration]. */
+/**
+ * Builds a [Methodology] from an [InternalMeasurement.Result.WatchDuration].
+ *
+ * @throws MeasurementVarianceNotComputableException when methodology is not supported for watch
+ *   duration.
+ */
 fun buildStatsMethodology(
   watchDurationResult: InternalMeasurement.Result.WatchDuration
 ): Methodology? {
@@ -2097,7 +2112,12 @@ fun buildStatsMethodology(
   }
 }
 
-/** Calculates the impression result from [WeightedMeasurement]s. */
+/**
+ * Calculates the impression result from [WeightedMeasurement]s.
+ *
+ * @throws MeasurementVarianceNotComputableException when metric variance computation fails.
+ * @throws MetricResultNotComputableException when impression measurement result is missing.
+ */
 private fun calculateImpressionResult(
   weightedMeasurements: List<WeightedMeasurement>,
   impressionParams: InternalMetricSpec.ImpressionCountParams,
@@ -2145,7 +2165,7 @@ private fun calculateImpressionResult(
                       listOf(requireNotNull(weightedMeasurementVarianceParams))
                     )
                   )
-                } catch (e: Throwable) {
+                } catch (e: Exception) {
                   throw MeasurementVarianceNotComputableException(cause = e)
                 }
               }
@@ -2209,7 +2229,12 @@ fun buildWeightedImpressionMeasurementVarianceParamsPerResult(
   }
 }
 
-/** Builds a [Methodology] from an [InternalMeasurement.Result.Impression]. */
+/**
+ * Builds a [Methodology] from an [InternalMeasurement.Result.Impression].
+ *
+ * @throws MeasurementVarianceNotComputableException when methodology is not supported for
+ *   impression.
+ */
 fun buildStatsMethodology(impressionResult: InternalMeasurement.Result.Impression): Methodology? {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (impressionResult.methodologyCase) {
@@ -2243,7 +2268,12 @@ fun buildStatsMethodology(impressionResult: InternalMeasurement.Result.Impressio
   }
 }
 
-/** Calculates the frequency histogram result from [WeightedMeasurement]s. */
+/**
+ * Calculates the frequency histogram result from [WeightedMeasurement]s.
+ *
+ * @throws MeasurementVarianceNotComputableException when metric variance computation fails.
+ * @throws MetricResultNotComputableException when frequency measurement result is missing.
+ */
 private fun calculateFrequencyHistogramResults(
   weightedMeasurements: List<WeightedMeasurement>,
   reachAndFrequencyParams: InternalMetricSpec.ReachAndFrequencyParams,
@@ -2329,7 +2359,7 @@ private fun calculateFrequencyHistogramResults(
           variances.computeMetricVariance(
             FrequencyMetricVarianceParams(weightedMeasurementVarianceParamsList)
           )
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
           throw MeasurementVarianceNotComputableException(cause = e)
         }
       } else {
@@ -2373,7 +2403,10 @@ private fun calculateFrequencyHistogramResults(
  *
  * @return null when measurement noise mechanism is not specified or measurement methodology is not
  *   set.
- * @throws io.grpc.StatusRuntimeException when measurement noise mechanism is unrecognized.
+ *
+ * @throws MeasurementVarianceNotComputableException when measurement variance computation fails.
+ * @throws MetricResultNotComputableException when measurement has no frequency result or has
+ *   more than 1 frequency result.
  */
 fun buildWeightedFrequencyMeasurementVarianceParams(
   weightedMeasurement: WeightedMeasurement,
@@ -2400,7 +2433,7 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
           weightedReachMeasurementVarianceParams.measurementVarianceParams.measurementParams,
         ),
       )
-    } catch (e: Throwable) {
+    } catch (e: Exception) {
       throw MeasurementVarianceNotComputableException(cause = e)
     }
 
@@ -2447,7 +2480,11 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
   )
 }
 
-/** Builds a [Methodology] from an [InternalMeasurement.Result.Frequency]. */
+/**
+ * Builds a [Methodology] from an [InternalMeasurement.Result.Frequency].
+ *
+ * @throws MeasurementVarianceNotComputableException when methodology not supported for frequency.
+ */
 fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency): Methodology? {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (frequencyResult.methodologyCase) {
@@ -2506,7 +2543,12 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
   }
 }
 
-/** Calculates the reach result from [WeightedMeasurement]s. */
+/**
+ * Calculates the reach result from [WeightedMeasurement]s.
+ *
+ * @throws MeasurementVarianceNotComputableException when metric variance computation fails.
+ * @throws MetricResultNotComputableException when reach measurement result is missing.
+ */
 private fun calculateReachResult(
   weightedMeasurements: List<WeightedMeasurement>,
   reachParams: InternalMetricSpec.ReachParams,
@@ -2560,7 +2602,7 @@ private fun calculateReachResult(
                 variances.computeMetricVariance(
                   ReachMetricVarianceParams(weightedMeasurementVarianceParamsList)
                 )
-              } catch (e: Throwable) {
+              } catch (e: Exception) {
                 throw MeasurementVarianceNotComputableException(cause = e)
               }
             )
@@ -2570,7 +2612,12 @@ private fun calculateReachResult(
   }
 }
 
-/** Calculates the reach result from [WeightedMeasurement]s. */
+/**
+ * Calculates the reach result from [WeightedMeasurement]s.
+ *
+ * @throws MeasurementVarianceNotComputableException when metric variance computation fails.
+ * @throws MetricResultNotComputableException when reach measurement result is missing.
+ */
 private fun calculateReachResult(
   weightedMeasurements: List<WeightedMeasurement>,
   reachAndFrequencyParams: InternalMetricSpec.ReachAndFrequencyParams,
@@ -2624,7 +2671,7 @@ private fun calculateReachResult(
                 variances.computeMetricVariance(
                   ReachMetricVarianceParams(weightedMeasurementVarianceParamsList)
                 )
-              } catch (e: Throwable) {
+              } catch (e: Exception) {
                 throw MeasurementVarianceNotComputableException(cause = e)
               }
             )
@@ -2639,7 +2686,8 @@ private fun calculateReachResult(
  *
  * @return null when measurement noise mechanism is not specified or measurement methodology is not
  *   set.
- * @throws io.grpc.StatusRuntimeException when measurement noise mechanism is unrecognized.
+ * @throws MetricResultNotComputableException when reach measurement result is missing or
+ *   more than one reach result is found.
  */
 private fun buildWeightedReachMeasurementVarianceParams(
   weightedMeasurement: WeightedMeasurement,
@@ -2683,7 +2731,11 @@ private fun buildWeightedReachMeasurementVarianceParams(
   )
 }
 
-/** Builds a [Methodology] from an [InternalMeasurement.Result.Reach]. */
+/**
+ * Builds a [Methodology] from an [InternalMeasurement.Result.Reach].
+ *
+ * @throws MeasurementVarianceNotComputableException when methodology not supported for reach.
+ */
 fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Methodology? {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (reachResult.methodologyCase) {
