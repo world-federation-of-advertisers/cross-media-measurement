@@ -92,12 +92,12 @@ class ReportingUserSimulator(
       reportsClient
         .withAuthenticationKey(apiAuthenticationKey)
         .createReport(
-        createReportRequest {
-          parent = measurementConsumerName
-          this.report = report
-          reportId = runId
-        }
-      )
+          createReportRequest {
+            parent = measurementConsumerName
+            this.report = report
+            reportId = runId
+          }
+        )
 
     val completedReport = pollForCompletedReport(createdReport.name)
 
@@ -125,49 +125,50 @@ class ReportingUserSimulator(
     return reportingSetsClient
       .withAuthenticationKey(apiAuthenticationKey)
       .createReportingSet(
-      createReportingSetRequest {
-        parent = measurementConsumerName
-        reportingSet = primitiveReportingSet
-      }
-    )
+        createReportingSetRequest {
+          parent = measurementConsumerName
+          reportingSet = primitiveReportingSet
+        }
+      )
   }
 
   private suspend fun createMetricCalculationSpec(): MetricCalculationSpec {
     return metricCalculationSpecsClient
       .withAuthenticationKey(apiAuthenticationKey)
       .createMetricCalculationSpec(
-      createMetricCalculationSpecRequest {
-        parent = measurementConsumerName
-        metricCalculationSpec = metricCalculationSpec {
-          displayName = "union reach"
-          metricSpecs += metricSpec {
-            reach =
-              MetricSpecKt.reachParams {
-                singleDataProviderParams = MetricSpecKt.samplingAndPrivacyParams {}
-              }
-          }
-          metricFrequencySpec =
-            MetricCalculationSpecKt.metricFrequencySpec {
-              weekly =
-                MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                  dayOfWeek = DayOfWeek.WEDNESDAY
+        createMetricCalculationSpecRequest {
+          parent = measurementConsumerName
+          metricCalculationSpec = metricCalculationSpec {
+            displayName = "union reach"
+            metricSpecs += metricSpec {
+              reach =
+                MetricSpecKt.reachParams {
+                  singleDataProviderParams = MetricSpecKt.samplingAndPrivacyParams {}
                 }
             }
-          trailingWindow =
-            MetricCalculationSpecKt.trailingWindow {
-              count = 1
-              increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
-            }
+            metricFrequencySpec =
+              MetricCalculationSpecKt.metricFrequencySpec {
+                weekly =
+                  MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                    dayOfWeek = DayOfWeek.WEDNESDAY
+                  }
+              }
+            trailingWindow =
+              MetricCalculationSpecKt.trailingWindow {
+                count = 1
+                increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+              }
+          }
         }
-      }
-    )
+      )
   }
 
   private suspend fun pollForCompletedReport(reportName: String): Report {
     while (true) {
-      val retrievedReport = reportsClient
-        .withAuthenticationKey(apiAuthenticationKey)
-        .getReport(getReportRequest { name = reportName })
+      val retrievedReport =
+        reportsClient
+          .withAuthenticationKey(apiAuthenticationKey)
+          .getReport(getReportRequest { name = reportName })
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (retrievedReport.state) {
