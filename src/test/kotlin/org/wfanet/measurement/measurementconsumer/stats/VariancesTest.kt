@@ -4278,7 +4278,7 @@ class VariancesTest {
             reach = 1L,
             measurementParams =
               ReachMeasurementParams(
-                vidSamplingInterval = VidSamplingInterval(0.3, 0.8),
+                vidSamplingInterval = VidSamplingInterval(0.3, 0.7),
                 dpParams = DpParams(0.1, 1e-9),
                 noiseMechanism = NoiseMechanism.GAUSSIAN,
               ),
@@ -4293,7 +4293,7 @@ class VariancesTest {
 
     val variance = VariancesImpl.computeMetricVariance(params)
 
-    val expected = 21253.74748438153
+    val expected = 22459.91623264358
     val tolerance = computeErrorTolerance(variance, expected)
     assertThat(variance).isWithin(tolerance).of(expected)
   }
@@ -4326,7 +4326,7 @@ class VariancesTest {
             reach = 1L,
             measurementParams =
               ReachMeasurementParams(
-                vidSamplingInterval = VidSamplingInterval(0.5, 1.0),
+                vidSamplingInterval = VidSamplingInterval(0.5, 0.5),
                 dpParams = DpParams(0.1, 1e-9),
                 noiseMechanism = NoiseMechanism.GAUSSIAN,
               ),
@@ -4341,7 +4341,7 @@ class VariancesTest {
 
     val variance = VariancesImpl.computeMetricVariance(params)
 
-    val expected = 19836.523148381533
+    val expected = 27400.78312697515
     val tolerance = computeErrorTolerance(variance, expected)
     assertThat(variance).isWithin(tolerance).of(expected)
   }
@@ -4381,7 +4381,7 @@ class VariancesTest {
             reach = 1L,
             measurementParams =
               ReachMeasurementParams(
-                vidSamplingInterval = VidSamplingInterval(0.5, 1.0),
+                vidSamplingInterval = VidSamplingInterval(0.5, 0.5),
                 dpParams = DpParams(0.1, 1e-9),
                 noiseMechanism = NoiseMechanism.GAUSSIAN,
               ),
@@ -4412,7 +4412,7 @@ class VariancesTest {
             reach = 4L,
             measurementParams =
               ReachMeasurementParams(
-                vidSamplingInterval = VidSamplingInterval(0.1, 1.0),
+                vidSamplingInterval = VidSamplingInterval(0.1, 0.9),
                 dpParams = DpParams(0.1, 1e-9),
                 noiseMechanism = NoiseMechanism.GAUSSIAN,
               ),
@@ -4465,7 +4465,7 @@ class VariancesTest {
 
     val variance = VariancesImpl.computeMetricVariance(params)
 
-    val expected = 10554.13919363766
+    val expected = 11568.523587919317
     val tolerance = computeErrorTolerance(variance, expected)
     assertThat(variance).isWithin(tolerance).of(expected)
   }

@@ -39,6 +39,16 @@ data class LiquidLegionsSketchParams(val decayRate: Double, val sketchSize: Long
     }
 }
 
+/** Verifies that the liquid legions sketch params are valid. */
+fun verifyLiquidLegionsSketchParams(sketchParams: LiquidLegionsSketchParams) {
+  require(sketchParams.sketchSize > 0) {
+    "Sketch size must be positive, but got ${sketchParams.sketchSize}."
+  }
+  require(sketchParams.decayRate > 0) {
+    "Decay rate must be positive, but got ${sketchParams.decayRate}."
+  }
+}
+
 /** Functions to compute statistics of Liquid Legions sketch based measurements. */
 object LiquidLegions {
   /** Exponential integral function for negative inputs. */
@@ -90,6 +100,7 @@ object LiquidLegions {
     y: Double,
     liquidLegionsSketchParams: LiquidLegionsSketchParams,
   ): Double {
+    verifyLiquidLegionsSketchParams(liquidLegionsSketchParams)
     if (k < 0.0) {
       throw IllegalArgumentException("Invalid inputs: k=$k < 0.")
     }
@@ -128,11 +139,19 @@ object LiquidLegions {
     overlapSamplingWidth: Double,
     inflation: Double = 0.0,
   ): Double {
-    require(sketchParams.sketchSize > 0) {
-      "Sketch size must be positive, but got ${sketchParams.sketchSize}."
+    verifyLiquidLegionsSketchParams(sketchParams)
+    require(reach > 0) { "Reach must be positive, but got $reach." }
+    require(otherReach > 0) { "Other reach must be positive, but got $otherReach." }
+    require(samplingWidth > 0.0 && samplingWidth <= 1.0) {
+      "Sampling width must be greater than 0 and less than or equal to 1, but got $samplingWidth."
     }
-    require(sketchParams.decayRate > 0) {
-      "Decay rate must be positive, but got ${sketchParams.decayRate}."
+    require(otherSamplingWidth > 0.0 && otherSamplingWidth <= 1.0) {
+      "Other sampling width must be greater than 0 and less than or equal to 1, but got " +
+        "$otherSamplingWidth."
+    }
+    require(overlapSamplingWidth >= 0.0 && overlapSamplingWidth <= 1.0) {
+      "Other sampling width must be greater than or equal to 0 and less than or equal to 1, but " +
+        "got $overlapSamplingWidth."
     }
 
     val y1 = max(1.0, reach * samplingWidth)
@@ -167,6 +186,12 @@ object LiquidLegions {
     totalReach: Long,
     vidSamplingIntervalWidth: Double,
   ): Double {
+    verifyLiquidLegionsSketchParams(sketchParams)
+    require(totalReach > 0) { "Total reach must be positive, but got $totalReach." }
+    require(vidSamplingIntervalWidth > 0.0 && vidSamplingIntervalWidth <= 1.0) {
+      "Vid sampling width must be greater than 0 and less than or equal to 1, but got " +
+        "$vidSamplingIntervalWidth."
+    }
     // Expected sampled reach
     val expectedReach = totalReach * vidSamplingIntervalWidth
     if (expectedReach < 2.0) {
@@ -186,6 +211,12 @@ object LiquidLegions {
     totalReach: Long,
     vidSamplingIntervalWidth: Double,
   ): Double {
+    verifyLiquidLegionsSketchParams(sketchParams)
+    require(totalReach > 0) { "Total reach must be positive, but got $totalReach" }
+    require(vidSamplingIntervalWidth > 0.0 && vidSamplingIntervalWidth <= 1.0) {
+      "Vid sampling width must be greater than 0 and less than or equal to 1, but got " +
+        "$vidSamplingIntervalWidth."
+    }
     // Expected sampled reach
     val expectedReach = totalReach * vidSamplingIntervalWidth
     // The mathematical formulas below assume the sampled reach >= 3. If sampled reach < 3, the
@@ -233,6 +264,16 @@ object LiquidLegions {
     reachRatio: Double,
     vidSamplingIntervalWidth: Double,
   ): Double {
+    verifyLiquidLegionsSketchParams(sketchParams)
+    require(totalReach > 0) { "Total reach must be positive, but got $totalReach." }
+    require(reachRatio >= 0.0 && reachRatio <= 1.0) {
+      "Reach ratio must be greater than or equal to 0 and less than or equal to 1, but got " +
+        "$reachRatio."
+    }
+    require(vidSamplingIntervalWidth > 0.0 && vidSamplingIntervalWidth <= 1.0) {
+      "Vid sampling width must be greater than 0 and less than or equal to 1, but got " +
+        "$vidSamplingIntervalWidth."
+    }
     val tmp = reachRatio * (1.0 - reachRatio) / totalReach
     val expectedRegisterNum =
       expectedNumberOfNonDestroyedRegisters(
@@ -262,6 +303,7 @@ object LiquidLegions {
     frequencyNoiseVariance: Double,
     relativeFrequencyMeasurementVarianceParams: RelativeFrequencyMeasurementVarianceParams,
   ): Double {
+    verifyLiquidLegionsSketchParams(sketchParams)
     val (
       totalReach: Long,
       reachMeasurementVariance: Double,
