@@ -43,7 +43,7 @@ object HonestMajorityShareShuffle {
         "($vidUniverseSize)."
     }
     require(reachNoiseVariance >= 0) {
-      "Reach noise variance must be a non-negative value, but got ${reachNoiseVariance}."
+      "Reach noise variance must be a non-negative value, but got $reachNoiseVariance."
     }
 
     val reachVariance =
