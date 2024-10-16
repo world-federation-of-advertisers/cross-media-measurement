@@ -1,0 +1,19 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/secure_computation:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/secure_computation:__subpackages__",
+])
+
+kt_jvm_test(
+    name = "CryptoTest",
+    srcs = ["CryptoTest.kt"],
+    test_class = "org.wfanet.measurement.secure_computation.tee_sdk.crypto.v1alpha.CryptoTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/secure_computation/tee_sdk/crypto/v1alpha:crypto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)

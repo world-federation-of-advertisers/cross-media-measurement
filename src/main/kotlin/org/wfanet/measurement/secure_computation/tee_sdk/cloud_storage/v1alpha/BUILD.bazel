@@ -1,0 +1,20 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/secure_computation:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/secure_computation:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "cloud_storage",
+    srcs = ["CloudStorage.kt"],
+)
+
+kt_jvm_library(
+    name = "gcs_storage_client",
+    srcs = ["GcsStorageClient.kt"],
+    deps = [
+        ":cloud_storage",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage",
+    ],
+)
