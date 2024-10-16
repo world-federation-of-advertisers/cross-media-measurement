@@ -1691,15 +1691,24 @@ class MetricsService(
         try {
           result = buildMetricResult(source, variances)
         } catch (e: Exception) {
-          if (e is MeasurementVarianceNotComputableException || e is MetricResultNotComputableException || e is NoiseMechanismUnrecognizedException) {
-            state = Metric.State.FAILED
-            logger.log(
-              Level.WARNING,
-              "Failed to process metric result for metric with ID ${source.externalMetricId}",
-              e
-            )
-          } else {
-            throw e
+          when (e) {
+            is MeasurementVarianceNotComputableException,
+            is NoiseMechanismUnrecognizedException -> {
+              logger.log(
+                Level.WARNING,
+                "Failed to calculate metric variance for metric with ID ${source.externalMetricId}",
+                e
+              )
+            }
+            is MetricResultNotComputableException -> {
+              state = Metric.State.FAILED
+              logger.log(
+                Level.WARNING,
+                "Failed to calculate metric result for metric with ID ${source.externalMetricId}",
+                e
+              )
+            }
+            else -> throw e
           }
         }
       }
