@@ -1,0 +1,19 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "MeasurementSystemProberTest",
+    srcs = ["MeasurementSystemProberTest.kt"],
+    associates = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/batch:measurement_system_prober",
+    ],
+    test_class = "org.wfanet.measurement.kingdom.batch.MeasurementSystemProberTest",
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
