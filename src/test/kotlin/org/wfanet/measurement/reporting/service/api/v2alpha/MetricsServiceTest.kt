@@ -8381,6 +8381,63 @@ class MetricsServiceTest {
     }
 
   @Test
+  fun `getMetric returns succeeded duration metric without stats when 2 measurements`() =
+    runBlocking {
+      whenever(
+        internalMetricsMock.batchGetMetrics(
+          eq(
+            internalBatchGetMetricsRequest {
+              cmmsMeasurementConsumerId =
+                INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.cmmsMeasurementConsumerId
+              externalMetricIds +=
+                INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.externalMetricId
+            }
+          )
+        )
+      )
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+              weightedMeasurements += weightedMeasurements[0]
+            }
+          },
+        )
+
+      whenever(measurementsMock.batchGetMeasurements(any())).thenAnswer {
+        val batchGetMeasurementsRequest = it.arguments[0] as BatchGetMeasurementsRequest
+        val measurementsMap =
+          mapOf(
+            PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name to
+              SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT
+          )
+        batchGetMeasurementsResponse {
+          measurements +=
+            batchGetMeasurementsRequest.namesList.map { name -> measurementsMap.getValue(name) }
+        }
+      }
+      whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
+        .thenReturn(Empty.getDefaultInstance())
+
+      val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
+
+      val response =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      assertThat(response).isEqualTo(SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+        result = metricResult {
+          watchDuration =
+            MetricResultKt.watchDurationResult {
+              value = TOTAL_WATCH_DURATION.seconds.toDouble() * 2
+            }
+          cmmsMeasurements += PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name
+          cmmsMeasurements += PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name
+        }
+      })
+    }
+
+  @Test
   fun `getMetric returns impression metric with SUCCEEDED when measurements are updated to SUCCEEDED`() =
     runBlocking {
       whenever(
@@ -8456,6 +8513,64 @@ class MetricsServiceTest {
       }
 
       assertThat(result).isEqualTo(SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC)
+    }
+
+  @Test
+  fun `getMetric returns succeeded impression metric without stats when 2 measurements`() =
+    runBlocking {
+      whenever(
+        internalMetricsMock.batchGetMetrics(
+          eq(
+            internalBatchGetMetricsRequest {
+              cmmsMeasurementConsumerId =
+                INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId
+              externalMetricIds +=
+                INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+            }
+          )
+        )
+      )
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+              weightedMeasurements += weightedMeasurements[0]
+            }
+          },
+        )
+
+      whenever(measurementsMock.batchGetMeasurements(any())).thenAnswer {
+        val batchGetMeasurementsRequest = it.arguments[0] as BatchGetMeasurementsRequest
+        val measurementsMap =
+          mapOf(
+            PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name to
+              SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+          )
+        batchGetMeasurementsResponse {
+          measurements +=
+            batchGetMeasurementsRequest.namesList.map { name -> measurementsMap.getValue(name) }
+        }
+      }
+
+      whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
+        .thenReturn(Empty.getDefaultInstance())
+
+      val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
+
+      val response =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      assertThat(response).isEqualTo(SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+        result = metricResult {
+          impressionCount =
+            MetricResultKt.impressionCountResult {
+              value = IMPRESSION_VALUE * 2
+            }
+          cmmsMeasurements += PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name
+          cmmsMeasurements += PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name
+        }
+      })
     }
 
   @Test

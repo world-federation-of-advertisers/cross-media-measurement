@@ -158,6 +158,7 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
+import java.util.logging.Level
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -1690,10 +1691,12 @@ class MetricsService(
         try {
           result = buildMetricResult(source, variances)
         } catch (e: Exception) {
-          if (e is IllegalArgumentException || e is IllegalStateException) {
+          if (e is MeasurementVarianceNotComputableException || e is MetricResultNotComputableException || e is NoiseMechanismUnrecognizedException) {
             state = Metric.State.FAILED
-            logger.warning(
-              "Failed to process metric result for metric with ID ${source.externalMetricId}: ${e.message}"
+            logger.log(
+              Level.WARNING,
+              "Failed to process metric result for metric with ID ${source.externalMetricId}",
+              e
             )
           } else {
             throw e
@@ -1807,7 +1810,7 @@ private fun aggregateResults(
   internalMeasurementResults: List<InternalMeasurement.Result>
 ): InternalMeasurement.Result {
   if (internalMeasurementResults.isEmpty()) {
-    throw IllegalStateException("No measurement result.")
+    throw MetricResultNotComputableException("No measurement result.")
   }
   var reachValue = 0L
   var impressionValue = 0L
@@ -1822,7 +1825,7 @@ private fun aggregateResults(
   for (result in internalMeasurementResults) {
     if (result.hasFrequency()) {
       if (!result.hasReach()) {
-        throw IllegalStateException("Missing reach measurement in the Reach-Frequency measurement.")
+        throw MetricResultNotComputableException("Missing reach measurement in the Reach-Frequency measurement.")
       }
       for ((frequency, percentage) in result.frequency.relativeFrequencyDistributionMap) {
         val previousTotalReachCount =
@@ -1877,7 +1880,7 @@ private fun calculateWatchDurationResult(
 ): MetricResult.WatchDurationResult {
   for (weightedMeasurement in weightedMeasurements) {
     if (weightedMeasurement.measurement.details.resultsList.any { !it.hasWatchDuration() }) {
-      throw IllegalStateException("Watch duration measurement result is missing.")
+      throw MetricResultNotComputableException("Watch duration measurement result is missing.")
     }
   }
   return watchDurationResult {
@@ -1903,18 +1906,23 @@ private fun calculateWatchDurationResult(
 
       // If any measurement result contains insufficient data for variance calculation, univariate
       // statistics won't be computed.
-      if (weightedMeasurementVarianceParamsList.all { it != null }) {
+      if (weightedMeasurementVarianceParamsList.all { it != null } &&
+        weightedMeasurementVarianceParamsList.first()!!.measurementVarianceParams.duration >= 0.0) {
         univariateStatistics = univariateStatistics {
           // Watch duration results in a measurement are independent to each other. The variance is
           // the sum of the variances of each result.
           standardDeviation =
             sqrt(
               weightedMeasurementVarianceParamsList.sumOf { weightedMeasurementVarianceParams ->
-                variances.computeMetricVariance(
-                  WatchDurationMetricVarianceParams(
-                    listOf(requireNotNull(weightedMeasurementVarianceParams))
+                try {
+                  variances.computeMetricVariance(
+                    WatchDurationMetricVarianceParams(
+                      listOf(requireNotNull(weightedMeasurementVarianceParams))
+                    )
                   )
-                )
+                } catch (e: Throwable) {
+                  throw MeasurementVarianceNotComputableException(cause = e)
+                }
               }
             )
         }
@@ -1952,7 +1960,7 @@ fun buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
     weightedMeasurement.measurement.details.resultsList.map { it.watchDuration }
 
   if (watchDurationResults.isEmpty()) {
-    throw IllegalStateException("WatchDuration measurement should've had results.")
+    throw MetricResultNotComputableException("WatchDuration measurement should've had results.")
   }
 
   return watchDurationResults.map { watchDurationResult ->
@@ -1964,11 +1972,7 @@ fun buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
       }
 
     val methodology: Methodology =
-      try {
-        buildStatsMethodology(watchDurationResult)
-      } catch (e: MeasurementVarianceNotComputableException) {
-        return@map null
-      }
+      buildStatsMethodology(watchDurationResult) ?: return@map null
 
     WeightedWatchDurationMeasurementVarianceParams(
       binaryRepresentation = weightedMeasurement.binaryRepresentation,
@@ -1994,7 +1998,7 @@ fun buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
 /** Builds a [Methodology] from an [InternalMeasurement.Result.WatchDuration]. */
 fun buildStatsMethodology(
   watchDurationResult: InternalMeasurement.Result.WatchDuration
-): Methodology {
+): Methodology? {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (watchDurationResult.methodologyCase) {
     InternalMeasurement.Result.WatchDuration.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY -> {
@@ -2004,17 +2008,15 @@ fun buildStatsMethodology(
           CustomDirectScalarMethodology(watchDurationResult.customDirectMethodology.variance.scalar)
         }
         CustomDirectMethodology.Variance.TypeCase.FREQUENCY -> {
-          throw IllegalStateException(
+          throw MeasurementVarianceNotComputableException(
             "Custom direct methodology for frequency is not supported for watch duration."
           )
         }
         CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
-          throw MeasurementVarianceNotComputableException(
-            "Watch duration computed from a custom methodology doesn't have variance."
-          )
+          return null
         }
         CustomDirectMethodology.Variance.TypeCase.TYPE_NOT_SET -> {
-          throw IllegalStateException("Variance in CustomDirectMethodology should've been set.")
+          throw MeasurementVarianceNotComputableException("Variance in CustomDirectMethodology should've been set.")
         }
       }
     }
@@ -2022,7 +2024,7 @@ fun buildStatsMethodology(
       DeterministicMethodology
     }
     InternalMeasurement.Result.WatchDuration.MethodologyCase.METHODOLOGY_NOT_SET -> {
-      throw MeasurementVarianceNotComputableException("Watch duration methodology is not set.")
+      return null
     }
   }
 }
@@ -2035,7 +2037,7 @@ private fun calculateImpressionResult(
 ): MetricResult.ImpressionCountResult {
   for (weightedMeasurement in weightedMeasurements) {
     if (weightedMeasurement.measurement.details.resultsList.any { !it.hasImpression() }) {
-      throw IllegalStateException("Impression measurement result is missing.")
+      throw MetricResultNotComputableException("Impression measurement result is missing.")
     }
   }
 
@@ -2058,18 +2060,23 @@ private fun calculateImpressionResult(
 
       // If any measurement result contains insufficient data for variance calculation, univariate
       // statistics won't be computed.
-      if (weightedMeasurementVarianceParamsList.all { it != null }) {
+      if (weightedMeasurementVarianceParamsList.all { it != null } &&
+        weightedMeasurementVarianceParamsList.first()!!.measurementVarianceParams.impression >= 0.0) {
         univariateStatistics = univariateStatistics {
           // Impression results in a measurement are independent to each other. The variance is the
           // sum of the variances of each result.
           standardDeviation =
             sqrt(
               weightedMeasurementVarianceParamsList.sumOf { weightedMeasurementVarianceParams ->
-                variances.computeMetricVariance(
-                  ImpressionMetricVarianceParams(
-                    listOf(requireNotNull(weightedMeasurementVarianceParams))
+                try {
+                  variances.computeMetricVariance(
+                    ImpressionMetricVarianceParams(
+                      listOf(requireNotNull(weightedMeasurementVarianceParams))
+                    )
                   )
-                )
+                } catch (e: Throwable) {
+                  throw MeasurementVarianceNotComputableException(cause = e)
+                }
               }
             )
         }
@@ -2091,7 +2098,7 @@ fun buildWeightedImpressionMeasurementVarianceParamsPerResult(
     weightedMeasurement.measurement.details.resultsList.map { it.impression }
 
   if (impressionResults.isEmpty()) {
-    throw IllegalStateException("Impression measurement should've had results.")
+    throw MetricResultNotComputableException("Impression measurement should've had results.")
   }
 
   return impressionResults.map { impressionResult ->
@@ -2103,11 +2110,7 @@ fun buildWeightedImpressionMeasurementVarianceParamsPerResult(
       }
 
     val methodology: Methodology =
-      try {
-        buildStatsMethodology(impressionResult)
-      } catch (e: MeasurementVarianceNotComputableException) {
-        return@map null
-      }
+      buildStatsMethodology(impressionResult) ?: return@map null
 
     val maxFrequencyPerUser =
       if (impressionResult.deterministicCount.customMaximumFrequencyPerUser != 0) {
@@ -2137,7 +2140,7 @@ fun buildWeightedImpressionMeasurementVarianceParamsPerResult(
 }
 
 /** Builds a [Methodology] from an [InternalMeasurement.Result.Impression]. */
-fun buildStatsMethodology(impressionResult: InternalMeasurement.Result.Impression): Methodology {
+fun buildStatsMethodology(impressionResult: InternalMeasurement.Result.Impression): Methodology? {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (impressionResult.methodologyCase) {
     InternalMeasurement.Result.Impression.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY -> {
@@ -2147,17 +2150,15 @@ fun buildStatsMethodology(impressionResult: InternalMeasurement.Result.Impressio
           CustomDirectScalarMethodology(impressionResult.customDirectMethodology.variance.scalar)
         }
         CustomDirectMethodology.Variance.TypeCase.FREQUENCY -> {
-          throw IllegalStateException(
+          throw MeasurementVarianceNotComputableException(
             "Custom direct methodology for frequency is not supported for impression."
           )
         }
         CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
-          throw MeasurementVarianceNotComputableException(
-            "Impression computed from a custom methodology doesn't have variance."
-          )
+          return null
         }
         CustomDirectMethodology.Variance.TypeCase.TYPE_NOT_SET -> {
-          throw IllegalStateException(
+          throw MeasurementVarianceNotComputableException(
             "Variance case in CustomDirectMethodology should've been set."
           )
         }
@@ -2167,7 +2168,7 @@ fun buildStatsMethodology(impressionResult: InternalMeasurement.Result.Impressio
       DeterministicMethodology
     }
     InternalMeasurement.Result.Impression.MethodologyCase.METHODOLOGY_NOT_SET -> {
-      throw MeasurementVarianceNotComputableException("Impression methodology is not set.")
+      return null
     }
   }
 }
@@ -2186,7 +2187,7 @@ private fun calculateFrequencyHistogramResults(
             !it.hasReach() || !it.hasFrequency()
           }
         ) {
-          throw IllegalStateException("Reach-Frequency measurement is missing.")
+          throw MetricResultNotComputableException("Reach-Frequency measurement is missing.")
         }
         val result = aggregateResults(weightedMeasurement.measurement.details.resultsList)
         val reach = result.reach.value
@@ -2243,10 +2244,17 @@ private fun calculateFrequencyHistogramResults(
     }
 
   val frequencyVariances: FrequencyVariances? =
-    if (weightedMeasurementVarianceParamsList.size == weightedMeasurements.size) {
-      variances.computeMetricVariance(
-        FrequencyMetricVarianceParams(weightedMeasurementVarianceParamsList)
-      )
+    if (weightedMeasurementVarianceParamsList.size == weightedMeasurements.size &&
+      weightedMeasurementVarianceParamsList.size == 1 &&
+      weightedMeasurementVarianceParamsList.first().measurementVarianceParams.reachMeasurementVariance >= 0.0 &&
+      weightedMeasurementVarianceParamsList.first().measurementVarianceParams.totalReach > 0.0) {
+      try {
+        variances.computeMetricVariance(
+          FrequencyMetricVarianceParams(weightedMeasurementVarianceParamsList)
+        )
+      } catch (e: Throwable) {
+        throw MeasurementVarianceNotComputableException(cause = e)
+      }
     } else {
       null
     }
@@ -2304,23 +2312,27 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
     ) ?: return null
 
   val reachMeasurementVariance: Double =
-    variances.computeMeasurementVariance(
-      weightedReachMeasurementVarianceParams.methodology,
-      ReachMeasurementVarianceParams(
-        weightedReachMeasurementVarianceParams.measurementVarianceParams.reach,
-        weightedReachMeasurementVarianceParams.measurementVarianceParams.measurementParams,
-      ),
-    )
+    try {
+      variances.computeMeasurementVariance(
+        weightedReachMeasurementVarianceParams.methodology,
+        ReachMeasurementVarianceParams(
+          weightedReachMeasurementVarianceParams.measurementVarianceParams.reach,
+          weightedReachMeasurementVarianceParams.measurementVarianceParams.measurementParams,
+        ),
+      )
+    } catch (e: Throwable) {
+      throw MeasurementVarianceNotComputableException(cause = e)
+    }
 
   val frequencyResult: InternalMeasurement.Result.Frequency =
     if (weightedMeasurement.measurement.details.resultsList.size == 1) {
       weightedMeasurement.measurement.details.resultsList.single().frequency
     } else if (weightedMeasurement.measurement.details.resultsList.size > 1) {
-      throw IllegalStateException(
+      throw MetricResultNotComputableException(
         "No supported methodology generates more than one frequency result."
       )
     } else {
-      throw IllegalStateException("Frequency measurement should've had frequency results.")
+      throw MetricResultNotComputableException("Frequency measurement should've had frequency results.")
     }
 
   val frequencyStatsNoiseMechanism: StatsNoiseMechanism =
@@ -2331,11 +2343,7 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
     }
 
   val frequencyMethodology: Methodology =
-    try {
-      buildStatsMethodology(frequencyResult)
-    } catch (e: MeasurementVarianceNotComputableException) {
-      return null
-    }
+    buildStatsMethodology(frequencyResult) ?: return null
 
   return WeightedFrequencyMeasurementVarianceParams(
     binaryRepresentation = weightedMeasurement.binaryRepresentation,
@@ -2359,14 +2367,14 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
 }
 
 /** Builds a [Methodology] from an [InternalMeasurement.Result.Frequency]. */
-fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency): Methodology {
+fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency): Methodology? {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (frequencyResult.methodologyCase) {
     InternalMeasurement.Result.Frequency.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY -> {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (frequencyResult.customDirectMethodology.variance.typeCase) {
         CustomDirectMethodology.Variance.TypeCase.SCALAR -> {
-          throw IllegalStateException(
+          throw MeasurementVarianceNotComputableException(
             "Custom direct methodology for scalar is not supported for frequency."
           )
         }
@@ -2381,12 +2389,10 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
           )
         }
         CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
-          throw MeasurementVarianceNotComputableException(
-            "Frequency computed from a custom methodology doesn't have variance."
-          )
+          return null
         }
         CustomDirectMethodology.Variance.TypeCase.TYPE_NOT_SET -> {
-          throw IllegalStateException(
+          throw MeasurementVarianceNotComputableException(
             "Variance case in CustomDirectMethodology should've been set."
           )
         }
@@ -2414,7 +2420,7 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
       )
     }
     InternalMeasurement.Result.Frequency.MethodologyCase.METHODOLOGY_NOT_SET -> {
-      throw MeasurementVarianceNotComputableException("Frequency methodology is not set.")
+      return null
     }
   }
 }
@@ -2427,7 +2433,7 @@ private fun calculateReachResult(
 ): MetricResult.ReachResult {
   for (weightedMeasurement in weightedMeasurements) {
     if (weightedMeasurement.measurement.details.resultsList.any { !it.hasReach() }) {
-      throw IllegalStateException("Reach measurement result is missing.")
+      throw MetricResultNotComputableException("Reach measurement result is missing.")
     }
   }
 
@@ -2460,13 +2466,18 @@ private fun calculateReachResult(
 
     // If any measurement contains insufficient data for variance calculation, univariate statistics
     // won't be computed.
-    if (weightedMeasurementVarianceParamsList.size == weightedMeasurements.size) {
+    if (weightedMeasurementVarianceParamsList.size == weightedMeasurements.size &&
+      weightedMeasurementVarianceParamsList.all { it.measurementVarianceParams.reach >= 0.0 }) {
       univariateStatistics = univariateStatistics {
         standardDeviation =
           sqrt(
-            variances.computeMetricVariance(
-              ReachMetricVarianceParams(weightedMeasurementVarianceParamsList)
-            )
+            try {
+              variances.computeMetricVariance(
+                ReachMetricVarianceParams(weightedMeasurementVarianceParamsList)
+              )
+            } catch (e: Throwable) {
+              throw MeasurementVarianceNotComputableException(cause = e)
+            }
           )
       }
     }
@@ -2481,7 +2492,7 @@ private fun calculateReachResult(
 ): MetricResult.ReachResult {
   for (weightedMeasurement in weightedMeasurements) {
     if (weightedMeasurement.measurement.details.resultsList.any { !it.hasReach() }) {
-      throw IllegalStateException("Reach measurement result is missing.")
+      throw MetricResultNotComputableException("Reach measurement result is missing.")
     }
   }
 
@@ -2514,13 +2525,18 @@ private fun calculateReachResult(
 
     // If any measurement contains insufficient data for variance calculation, univariate statistics
     // won't be computed.
-    if (weightedMeasurementVarianceParamsList.size == weightedMeasurements.size) {
+    if (weightedMeasurementVarianceParamsList.size == weightedMeasurements.size &&
+      weightedMeasurementVarianceParamsList.all { it.measurementVarianceParams.reach >= 0.0 }) {
       univariateStatistics = univariateStatistics {
         standardDeviation =
           sqrt(
-            variances.computeMetricVariance(
-              ReachMetricVarianceParams(weightedMeasurementVarianceParamsList)
-            )
+            try {
+              variances.computeMetricVariance(
+                ReachMetricVarianceParams(weightedMeasurementVarianceParamsList)
+              )
+            } catch (e: Throwable) {
+              throw MeasurementVarianceNotComputableException(cause = e)
+            }
           )
       }
     }
@@ -2543,9 +2559,9 @@ private fun buildWeightedReachMeasurementVarianceParams(
     if (weightedMeasurement.measurement.details.resultsList.size == 1) {
       weightedMeasurement.measurement.details.resultsList.first().reach
     } else if (weightedMeasurement.measurement.details.resultsList.size > 1) {
-      throw IllegalStateException("No supported methodology generates more than one reach result.")
+      throw MetricResultNotComputableException("No supported methodology generates more than one reach result.")
     } else {
-      throw IllegalStateException("Reach measurement should've had reach results.")
+      throw MetricResultNotComputableException("Reach measurement should've had reach results.")
     }
 
   val statsNoiseMechanism: StatsNoiseMechanism =
@@ -2553,23 +2569,10 @@ private fun buildWeightedReachMeasurementVarianceParams(
       reachResult.noiseMechanism.toStatsNoiseMechanism()
     } catch (e: NoiseMechanismUnspecifiedException) {
       return null
-    } catch (e: NoiseMechanismUnrecognizedException) {
-      failGrpc(Status.UNKNOWN) {
-        listOfNotNull(
-            "Unrecognized noise mechanism should've been caught earlier.",
-            e.message,
-            e.cause?.message,
-          )
-          .joinToString(separator = "\n")
-      }
     }
 
   val methodology: Methodology =
-    try {
-      buildStatsMethodology(reachResult)
-    } catch (e: MeasurementVarianceNotComputableException) {
-      return null
-    }
+    buildStatsMethodology(reachResult) ?: return null
 
   return WeightedReachMeasurementVarianceParams(
     binaryRepresentation = weightedMeasurement.binaryRepresentation,
@@ -2589,7 +2592,7 @@ private fun buildWeightedReachMeasurementVarianceParams(
 }
 
 /** Builds a [Methodology] from an [InternalMeasurement.Result.Reach]. */
-fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Methodology {
+fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Methodology? {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (reachResult.methodologyCase) {
     InternalMeasurement.Result.Reach.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY -> {
@@ -2599,17 +2602,15 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
           CustomDirectScalarMethodology(reachResult.customDirectMethodology.variance.scalar)
         }
         CustomDirectMethodology.Variance.TypeCase.FREQUENCY -> {
-          throw IllegalStateException(
+          throw MeasurementVarianceNotComputableException(
             "Custom direct methodology for frequency is not supported for reach."
           )
         }
         CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
-          throw MeasurementVarianceNotComputableException(
-            "Reach computed from a custom methodology doesn't have variance."
-          )
+          return null
         }
         CustomDirectMethodology.Variance.TypeCase.TYPE_NOT_SET -> {
-          throw IllegalStateException(
+          throw MeasurementVarianceNotComputableException(
             "Variance case in CustomDirectMethodology should've been set."
           )
         }
@@ -2644,7 +2645,7 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
       )
     }
     InternalMeasurement.Result.Reach.MethodologyCase.METHODOLOGY_NOT_SET -> {
-      throw MeasurementVarianceNotComputableException("Reach methodology is not set.")
+      return null
     }
   }
 }
