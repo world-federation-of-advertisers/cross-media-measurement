@@ -34,6 +34,7 @@ import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.util.concurrent.TimeUnit
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
@@ -158,7 +159,6 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
-import java.util.logging.Level
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -1694,10 +1694,11 @@ class MetricsService(
           when (e) {
             is MeasurementVarianceNotComputableException,
             is NoiseMechanismUnrecognizedException -> {
+              result = buildMetricResult(source)
               logger.log(
                 Level.WARNING,
                 "Failed to calculate metric variance for metric with ID ${source.externalMetricId}",
-                e
+                e,
               )
             }
             is MetricResultNotComputableException -> {
@@ -1705,7 +1706,7 @@ class MetricsService(
               logger.log(
                 Level.WARNING,
                 "Failed to calculate metric result for metric with ID ${source.externalMetricId}",
-                e
+                e,
               )
             }
             else -> throw e
@@ -1752,6 +1753,60 @@ fun ListMetricsRequest.toListMetricsPageToken(): ListMetricsPageToken {
           else -> source.pageSize
         }
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+    }
+  }
+}
+
+/** Builds a [MetricResult] from the given [InternalMetric]. */
+private fun buildMetricResult(metric: InternalMetric): MetricResult {
+  return metricResult {
+    cmmsMeasurements +=
+      metric.weightedMeasurementsList.map {
+        MeasurementKey(metric.cmmsMeasurementConsumerId, it.measurement.cmmsMeasurementId).toName()
+      }
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    when (metric.metricSpec.typeCase) {
+      InternalMetricSpec.TypeCase.REACH -> {
+        reach =
+          calculateReachResult(metric.weightedMeasurementsList, metric.metricSpec.reach)
+      }
+      InternalMetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
+        reachAndFrequency = reachAndFrequencyResult {
+          reach =
+            calculateReachResult(
+              metric.weightedMeasurementsList,
+              metric.metricSpec.reachAndFrequency,
+            )
+          frequencyHistogram =
+            calculateFrequencyHistogramResults(
+              metric.weightedMeasurementsList,
+              metric.metricSpec.reachAndFrequency,
+            )
+        }
+      }
+      InternalMetricSpec.TypeCase.IMPRESSION_COUNT -> {
+        impressionCount =
+          calculateImpressionResult(
+            metric.weightedMeasurementsList,
+            metric.metricSpec.impressionCount,
+          )
+      }
+      InternalMetricSpec.TypeCase.WATCH_DURATION -> {
+        watchDuration =
+          calculateWatchDurationResult(
+            metric.weightedMeasurementsList,
+            metric.metricSpec.watchDuration,
+          )
+      }
+      InternalMetricSpec.TypeCase.POPULATION_COUNT -> {
+        populationCount = calculatePopulationResult(metric.weightedMeasurementsList)
+      }
+      InternalMetricSpec.TypeCase.TYPE_NOT_SET -> {
+        failGrpc(status = Status.FAILED_PRECONDITION, cause = IllegalStateException()) {
+          "Metric Type should've been set."
+        }
+      }
     }
   }
 }
@@ -1834,7 +1889,9 @@ private fun aggregateResults(
   for (result in internalMeasurementResults) {
     if (result.hasFrequency()) {
       if (!result.hasReach()) {
-        throw MetricResultNotComputableException("Missing reach measurement in the Reach-Frequency measurement.")
+        throw MetricResultNotComputableException(
+          "Missing reach measurement in the Reach-Frequency measurement."
+        )
       }
       for ((frequency, percentage) in result.frequency.relativeFrequencyDistributionMap) {
         val previousTotalReachCount =
@@ -1885,7 +1942,7 @@ private fun aggregateResults(
 private fun calculateWatchDurationResult(
   weightedMeasurements: List<WeightedMeasurement>,
   watchDurationParams: InternalMetricSpec.WatchDurationParams,
-  variances: Variances,
+  variances: Variances? = null,
 ): MetricResult.WatchDurationResult {
   for (weightedMeasurement in weightedMeasurements) {
     if (weightedMeasurement.measurement.details.resultsList.any { !it.hasWatchDuration() }) {
@@ -1904,7 +1961,7 @@ private fun calculateWatchDurationResult(
     value = watchDuration.toDoubleSecond()
 
     // Only compute univariate statistics for union-only operations, i.e. single source measurement.
-    if (weightedMeasurements.size == 1) {
+    if (weightedMeasurements.size == 1 && variances != null) {
       val weightedMeasurement = weightedMeasurements.single()
       val weightedMeasurementVarianceParamsList:
         List<WeightedWatchDurationMeasurementVarianceParams?> =
@@ -1915,8 +1972,10 @@ private fun calculateWatchDurationResult(
 
       // If any measurement result contains insufficient data for variance calculation, univariate
       // statistics won't be computed.
-      if (weightedMeasurementVarianceParamsList.all { it != null } &&
-        weightedMeasurementVarianceParamsList.first()!!.measurementVarianceParams.duration >= 0.0) {
+      if (
+        weightedMeasurementVarianceParamsList.all { it != null } &&
+          weightedMeasurementVarianceParamsList.first()!!.measurementVarianceParams.duration >= 0.0
+      ) {
         univariateStatistics = univariateStatistics {
           // Watch duration results in a measurement are independent to each other. The variance is
           // the sum of the variances of each result.
@@ -1980,8 +2039,7 @@ fun buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
         return@map null
       }
 
-    val methodology: Methodology =
-      buildStatsMethodology(watchDurationResult) ?: return@map null
+    val methodology: Methodology = buildStatsMethodology(watchDurationResult) ?: return@map null
 
     WeightedWatchDurationMeasurementVarianceParams(
       binaryRepresentation = weightedMeasurement.binaryRepresentation,
@@ -2025,7 +2083,9 @@ fun buildStatsMethodology(
           return null
         }
         CustomDirectMethodology.Variance.TypeCase.TYPE_NOT_SET -> {
-          throw MeasurementVarianceNotComputableException("Variance in CustomDirectMethodology should've been set.")
+          throw MeasurementVarianceNotComputableException(
+            "Variance in CustomDirectMethodology should've been set."
+          )
         }
       }
     }
@@ -2042,7 +2102,7 @@ fun buildStatsMethodology(
 private fun calculateImpressionResult(
   weightedMeasurements: List<WeightedMeasurement>,
   impressionParams: InternalMetricSpec.ImpressionCountParams,
-  variances: Variances,
+  variances: Variances? = null,
 ): MetricResult.ImpressionCountResult {
   for (weightedMeasurement in weightedMeasurements) {
     if (weightedMeasurement.measurement.details.resultsList.any { !it.hasImpression() }) {
@@ -2058,7 +2118,7 @@ private fun calculateImpressionResult(
       }
 
     // Only compute univariate statistics for union-only operations, i.e. single source measurement.
-    if (weightedMeasurements.size == 1) {
+    if (weightedMeasurements.size == 1 && variances != null) {
       val weightedMeasurement = weightedMeasurements.single()
       val weightedMeasurementVarianceParamsList:
         List<WeightedImpressionMeasurementVarianceParams?> =
@@ -2069,8 +2129,11 @@ private fun calculateImpressionResult(
 
       // If any measurement result contains insufficient data for variance calculation, univariate
       // statistics won't be computed.
-      if (weightedMeasurementVarianceParamsList.all { it != null } &&
-        weightedMeasurementVarianceParamsList.first()!!.measurementVarianceParams.impression >= 0.0) {
+      if (
+        weightedMeasurementVarianceParamsList.all { it != null } &&
+          weightedMeasurementVarianceParamsList.first()!!.measurementVarianceParams.impression >=
+            0.0
+      ) {
         univariateStatistics = univariateStatistics {
           // Impression results in a measurement are independent to each other. The variance is the
           // sum of the variances of each result.
@@ -2118,8 +2181,7 @@ fun buildWeightedImpressionMeasurementVarianceParamsPerResult(
         return@map null
       }
 
-    val methodology: Methodology =
-      buildStatsMethodology(impressionResult) ?: return@map null
+    val methodology: Methodology = buildStatsMethodology(impressionResult) ?: return@map null
 
     val maxFrequencyPerUser =
       if (impressionResult.deterministicCount.customMaximumFrequencyPerUser != 0) {
@@ -2186,7 +2248,7 @@ fun buildStatsMethodology(impressionResult: InternalMeasurement.Result.Impressio
 private fun calculateFrequencyHistogramResults(
   weightedMeasurements: List<WeightedMeasurement>,
   reachAndFrequencyParams: InternalMetricSpec.ReachAndFrequencyParams,
-  variances: Variances,
+  variances: Variances? = null,
 ): MetricResult.HistogramResult {
   val aggregatedFrequencyHistogramMap: MutableMap<Long, Double> =
     weightedMeasurements
@@ -2221,48 +2283,57 @@ private fun calculateFrequencyHistogramResults(
     }
   }
 
-  val weightedMeasurementVarianceParamsList: List<WeightedFrequencyMeasurementVarianceParams> =
-    weightedMeasurements.mapNotNull { weightedMeasurement ->
-      if (
-        weightedMeasurement.measurement.details.dataProviderCount == 1 &&
-          reachAndFrequencyParams.hasSingleDataProviderParams()
-      ) {
-        buildWeightedFrequencyMeasurementVarianceParams(
-          weightedMeasurement = weightedMeasurement,
-          vidSamplingInterval =
-            reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval,
-          reachPrivacyParams = reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams,
-          frequencyPrivacyParams =
-            reachAndFrequencyParams.singleDataProviderParams.frequencyPrivacyParams,
-          maximumFrequency = reachAndFrequencyParams.maximumFrequency,
-          variances = variances,
-        )
-      } else {
-        buildWeightedFrequencyMeasurementVarianceParams(
-          weightedMeasurement = weightedMeasurement,
-          vidSamplingInterval =
-            reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval,
-          reachPrivacyParams =
-            reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams,
-          frequencyPrivacyParams =
-            reachAndFrequencyParams.multipleDataProviderParams.frequencyPrivacyParams,
-          maximumFrequency = reachAndFrequencyParams.maximumFrequency,
-          variances = variances,
-        )
-      }
-    }
-
   val frequencyVariances: FrequencyVariances? =
-    if (weightedMeasurementVarianceParamsList.size == weightedMeasurements.size &&
-      weightedMeasurementVarianceParamsList.size == 1 &&
-      weightedMeasurementVarianceParamsList.first().measurementVarianceParams.reachMeasurementVariance >= 0.0 &&
-      weightedMeasurementVarianceParamsList.first().measurementVarianceParams.totalReach > 0.0) {
-      try {
-        variances.computeMetricVariance(
-          FrequencyMetricVarianceParams(weightedMeasurementVarianceParamsList)
-        )
-      } catch (e: Throwable) {
-        throw MeasurementVarianceNotComputableException(cause = e)
+    if (variances != null) {
+      val weightedMeasurementVarianceParamsList: List<WeightedFrequencyMeasurementVarianceParams> =
+        weightedMeasurements.mapNotNull { weightedMeasurement ->
+          if (
+            weightedMeasurement.measurement.details.dataProviderCount == 1 &&
+            reachAndFrequencyParams.hasSingleDataProviderParams()
+          ) {
+            buildWeightedFrequencyMeasurementVarianceParams(
+              weightedMeasurement = weightedMeasurement,
+              vidSamplingInterval =
+              reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval,
+              reachPrivacyParams = reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams,
+              frequencyPrivacyParams =
+              reachAndFrequencyParams.singleDataProviderParams.frequencyPrivacyParams,
+              maximumFrequency = reachAndFrequencyParams.maximumFrequency,
+              variances = variances,
+            )
+          } else {
+            buildWeightedFrequencyMeasurementVarianceParams(
+              weightedMeasurement = weightedMeasurement,
+              vidSamplingInterval =
+              reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval,
+              reachPrivacyParams =
+              reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams,
+              frequencyPrivacyParams =
+              reachAndFrequencyParams.multipleDataProviderParams.frequencyPrivacyParams,
+              maximumFrequency = reachAndFrequencyParams.maximumFrequency,
+              variances = variances,
+            )
+          }
+        }
+
+      if (
+        weightedMeasurementVarianceParamsList.size == weightedMeasurements.size &&
+        weightedMeasurementVarianceParamsList.size == 1 &&
+        weightedMeasurementVarianceParamsList
+          .first()
+          .measurementVarianceParams
+          .reachMeasurementVariance >= 0.0 &&
+        weightedMeasurementVarianceParamsList.first().measurementVarianceParams.totalReach > 0.0
+      ) {
+        try {
+          variances.computeMetricVariance(
+            FrequencyMetricVarianceParams(weightedMeasurementVarianceParamsList)
+          )
+        } catch (e: Throwable) {
+          throw MeasurementVarianceNotComputableException(cause = e)
+        }
+      } else {
+        null
       }
     } else {
       null
@@ -2341,7 +2412,9 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
         "No supported methodology generates more than one frequency result."
       )
     } else {
-      throw MetricResultNotComputableException("Frequency measurement should've had frequency results.")
+      throw MetricResultNotComputableException(
+        "Frequency measurement should've had frequency results."
+      )
     }
 
   val frequencyStatsNoiseMechanism: StatsNoiseMechanism =
@@ -2351,8 +2424,7 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
       return null
     }
 
-  val frequencyMethodology: Methodology =
-    buildStatsMethodology(frequencyResult) ?: return null
+  val frequencyMethodology: Methodology = buildStatsMethodology(frequencyResult) ?: return null
 
   return WeightedFrequencyMeasurementVarianceParams(
     binaryRepresentation = weightedMeasurement.binaryRepresentation,
@@ -2438,7 +2510,7 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
 private fun calculateReachResult(
   weightedMeasurements: List<WeightedMeasurement>,
   reachParams: InternalMetricSpec.ReachParams,
-  variances: Variances,
+  variances: Variances? = null,
 ): MetricResult.ReachResult {
   for (weightedMeasurement in weightedMeasurements) {
     if (weightedMeasurement.measurement.details.resultsList.any { !it.hasReach() }) {
@@ -2453,41 +2525,45 @@ private fun calculateReachResult(
           weightedMeasurement.weight
       }
 
-    val weightedMeasurementVarianceParamsList: List<WeightedReachMeasurementVarianceParams> =
-      weightedMeasurements.mapNotNull { weightedMeasurement ->
-        if (
-          weightedMeasurement.measurement.details.dataProviderCount == 1 &&
+    if (variances != null) {
+      val weightedMeasurementVarianceParamsList: List<WeightedReachMeasurementVarianceParams> =
+        weightedMeasurements.mapNotNull { weightedMeasurement ->
+          if (
+            weightedMeasurement.measurement.details.dataProviderCount == 1 &&
             reachParams.hasSingleDataProviderParams()
-        ) {
-          buildWeightedReachMeasurementVarianceParams(
-            weightedMeasurement,
-            reachParams.singleDataProviderParams.vidSamplingInterval,
-            reachParams.singleDataProviderParams.privacyParams,
-          )
-        } else {
-          buildWeightedReachMeasurementVarianceParams(
-            weightedMeasurement,
-            reachParams.multipleDataProviderParams.vidSamplingInterval,
-            reachParams.multipleDataProviderParams.privacyParams,
-          )
+          ) {
+            buildWeightedReachMeasurementVarianceParams(
+              weightedMeasurement,
+              reachParams.singleDataProviderParams.vidSamplingInterval,
+              reachParams.singleDataProviderParams.privacyParams,
+            )
+          } else {
+            buildWeightedReachMeasurementVarianceParams(
+              weightedMeasurement,
+              reachParams.multipleDataProviderParams.vidSamplingInterval,
+              reachParams.multipleDataProviderParams.privacyParams,
+            )
+          }
         }
-      }
 
-    // If any measurement contains insufficient data for variance calculation, univariate statistics
-    // won't be computed.
-    if (weightedMeasurementVarianceParamsList.size == weightedMeasurements.size &&
-      weightedMeasurementVarianceParamsList.all { it.measurementVarianceParams.reach >= 0.0 }) {
-      univariateStatistics = univariateStatistics {
-        standardDeviation =
-          sqrt(
-            try {
-              variances.computeMetricVariance(
-                ReachMetricVarianceParams(weightedMeasurementVarianceParamsList)
-              )
-            } catch (e: Throwable) {
-              throw MeasurementVarianceNotComputableException(cause = e)
-            }
-          )
+      // If any measurement contains insufficient data for variance calculation, univariate statistics
+      // won't be computed.
+      if (
+        weightedMeasurementVarianceParamsList.size == weightedMeasurements.size &&
+        weightedMeasurementVarianceParamsList.all { it.measurementVarianceParams.reach >= 0.0 }
+      ) {
+        univariateStatistics = univariateStatistics {
+          standardDeviation =
+            sqrt(
+              try {
+                variances.computeMetricVariance(
+                  ReachMetricVarianceParams(weightedMeasurementVarianceParamsList)
+                )
+              } catch (e: Throwable) {
+                throw MeasurementVarianceNotComputableException(cause = e)
+              }
+            )
+        }
       }
     }
   }
@@ -2497,7 +2573,7 @@ private fun calculateReachResult(
 private fun calculateReachResult(
   weightedMeasurements: List<WeightedMeasurement>,
   reachAndFrequencyParams: InternalMetricSpec.ReachAndFrequencyParams,
-  variances: Variances,
+  variances: Variances? = null,
 ): MetricResult.ReachResult {
   for (weightedMeasurement in weightedMeasurements) {
     if (weightedMeasurement.measurement.details.resultsList.any { !it.hasReach() }) {
@@ -2512,41 +2588,45 @@ private fun calculateReachResult(
           weightedMeasurement.weight
       }
 
-    val weightedMeasurementVarianceParamsList: List<WeightedReachMeasurementVarianceParams> =
-      weightedMeasurements.mapNotNull { weightedMeasurement ->
-        if (
-          weightedMeasurement.measurement.details.dataProviderCount == 1 &&
+    if (variances != null) {
+      val weightedMeasurementVarianceParamsList: List<WeightedReachMeasurementVarianceParams> =
+        weightedMeasurements.mapNotNull { weightedMeasurement ->
+          if (
+            weightedMeasurement.measurement.details.dataProviderCount == 1 &&
             reachAndFrequencyParams.hasSingleDataProviderParams()
-        ) {
-          buildWeightedReachMeasurementVarianceParams(
-            weightedMeasurement,
-            reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval,
-            reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams,
-          )
-        } else {
-          buildWeightedReachMeasurementVarianceParams(
-            weightedMeasurement,
-            reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval,
-            reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams,
-          )
+          ) {
+            buildWeightedReachMeasurementVarianceParams(
+              weightedMeasurement,
+              reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval,
+              reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams,
+            )
+          } else {
+            buildWeightedReachMeasurementVarianceParams(
+              weightedMeasurement,
+              reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval,
+              reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams,
+            )
+          }
         }
-      }
 
-    // If any measurement contains insufficient data for variance calculation, univariate statistics
-    // won't be computed.
-    if (weightedMeasurementVarianceParamsList.size == weightedMeasurements.size &&
-      weightedMeasurementVarianceParamsList.all { it.measurementVarianceParams.reach >= 0.0 }) {
-      univariateStatistics = univariateStatistics {
-        standardDeviation =
-          sqrt(
-            try {
-              variances.computeMetricVariance(
-                ReachMetricVarianceParams(weightedMeasurementVarianceParamsList)
-              )
-            } catch (e: Throwable) {
-              throw MeasurementVarianceNotComputableException(cause = e)
-            }
-          )
+      // If any measurement contains insufficient data for variance calculation, univariate statistics
+      // won't be computed.
+      if (
+        weightedMeasurementVarianceParamsList.size == weightedMeasurements.size &&
+        weightedMeasurementVarianceParamsList.all { it.measurementVarianceParams.reach >= 0.0 }
+      ) {
+        univariateStatistics = univariateStatistics {
+          standardDeviation =
+            sqrt(
+              try {
+                variances.computeMetricVariance(
+                  ReachMetricVarianceParams(weightedMeasurementVarianceParamsList)
+                )
+              } catch (e: Throwable) {
+                throw MeasurementVarianceNotComputableException(cause = e)
+              }
+            )
+        }
       }
     }
   }
@@ -2568,7 +2648,9 @@ private fun buildWeightedReachMeasurementVarianceParams(
     if (weightedMeasurement.measurement.details.resultsList.size == 1) {
       weightedMeasurement.measurement.details.resultsList.first().reach
     } else if (weightedMeasurement.measurement.details.resultsList.size > 1) {
-      throw MetricResultNotComputableException("No supported methodology generates more than one reach result.")
+      throw MetricResultNotComputableException(
+        "No supported methodology generates more than one reach result."
+      )
     } else {
       throw MetricResultNotComputableException("Reach measurement should've had reach results.")
     }
@@ -2580,8 +2662,7 @@ private fun buildWeightedReachMeasurementVarianceParams(
       return null
     }
 
-  val methodology: Methodology =
-    buildStatsMethodology(reachResult) ?: return null
+  val methodology: Methodology = buildStatsMethodology(reachResult) ?: return null
 
   return WeightedReachMeasurementVarianceParams(
     binaryRepresentation = weightedMeasurement.binaryRepresentation,

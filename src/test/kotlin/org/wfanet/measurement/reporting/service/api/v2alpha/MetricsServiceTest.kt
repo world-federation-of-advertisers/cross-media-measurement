@@ -7231,7 +7231,7 @@ class MetricsServiceTest {
     }
 
   @Test
-  fun `getMetric returns failed metric for reach metric when custom direct methodology has freq`():
+  fun `getMetric returns succeeded metric for reach metric when custom direct methodology has freq`():
     Unit = runBlocking {
     whenever(internalMetricsMock.batchGetMetrics(any()))
       .thenReturn(
@@ -7275,8 +7275,15 @@ class MetricsServiceTest {
         runBlocking { service.getMetric(request) }
       }
 
-    assertThat(response.state).isEqualTo(Metric.State.FAILED)
-    assertThat(response.result).isEqualTo(MetricResult.getDefaultInstance())
+    assertThat(response).isEqualTo(SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+      result = result.copy {
+        cmmsMeasurements += SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.name
+        reach = reach.copy {
+          value += UNION_ALL_REACH_VALUE
+          clearUnivariateStatistics()
+        }
+      }
+    })
   }
 
   @Test
@@ -8259,32 +8266,33 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `getMetric returns failed metric for rf metric when custom direct methodology has scalar`():
+  fun `getMetric returns succeeded metric for rf when custom direct methodology has scalar`():
     Unit = runBlocking {
     whenever(internalMetricsMock.batchGetMetrics(any()))
       .thenReturn(
         internalBatchGetMetricsResponse {
           metrics +=
             INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+              weightedMeasurements.clear()
               weightedMeasurements += weightedMeasurement {
                 weight = 1
                 binaryRepresentation = 3
                 measurement =
-                  INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.copy {
+                  INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
                     details =
-                      InternalMeasurementKt.details {
+                      INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.details.copy {
+                        results.clear()
                         results +=
-                          InternalMeasurementKt.result {
-                            reach =
-                              InternalMeasurementKt.ResultKt.reach {
-                                value = UNION_ALL_REACH_VALUE
-                                noiseMechanism = NoiseMechanism.DISCRETE_GAUSSIAN
-                                customDirectMethodology = internalCustomDirectMethodology {
-                                  variance =
-                                    InternalCustomDirectMethodologyKt.variance { scalar = 10.0 }
+                          INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.details.resultsList.first()
+                            .copy {
+                              frequency =
+                                INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.details.resultsList.first().frequency.copy {
+                                  customDirectMethodology = internalCustomDirectMethodology {
+                                    variance =
+                                      InternalCustomDirectMethodologyKt.variance { scalar = 10.0 }
+                                  }
                                 }
-                              }
-                          }
+                            }
                       }
                   }
               }
@@ -8299,8 +8307,26 @@ class MetricsServiceTest {
         runBlocking { service.getMetric(request) }
       }
 
-    assertThat(response.state).isEqualTo(Metric.State.FAILED)
-    assertThat(response.result).isEqualTo(MetricResult.getDefaultInstance())
+    assertThat(response).isEqualTo(SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+      result = result.copy {
+        reachAndFrequency = reachAndFrequency.copy {
+          reach = reach.copy {
+            clearUnivariateStatistics()
+          }
+          frequencyHistogram = frequencyHistogram.copy {
+            bins.clear()
+            SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.result.reachAndFrequency.frequencyHistogram.binsList.forEach {
+              bins += it.copy {
+                clearKPlusUnivariateStatistics()
+                clearResultUnivariateStatistics()
+                clearRelativeUnivariateStatistics()
+                clearRelativeKPlusUnivariateStatistics()
+              }
+            }
+          }
+        }
+      }
+    })
   }
 
   @Test
@@ -8384,23 +8410,24 @@ class MetricsServiceTest {
   fun `getMetric returns succeeded duration metric without stats when 2 measurements`() =
     runBlocking {
       whenever(
-        internalMetricsMock.batchGetMetrics(
-          eq(
-            internalBatchGetMetricsRequest {
-              cmmsMeasurementConsumerId =
-                INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.cmmsMeasurementConsumerId
-              externalMetricIds +=
-                INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.externalMetricId
-            }
+          internalMetricsMock.batchGetMetrics(
+            eq(
+              internalBatchGetMetricsRequest {
+                cmmsMeasurementConsumerId =
+                  INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.cmmsMeasurementConsumerId
+                externalMetricIds +=
+                  INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.externalMetricId
+              }
+            )
           )
         )
-      )
         .thenReturn(
           internalBatchGetMetricsResponse {
-            metrics += INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
-              weightedMeasurements += weightedMeasurements[0]
-            }
-          },
+            metrics +=
+              INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+                weightedMeasurements += weightedMeasurements[0]
+              }
+          }
         )
 
       whenever(measurementsMock.batchGetMeasurements(any())).thenAnswer {
@@ -8425,16 +8452,19 @@ class MetricsServiceTest {
           runBlocking { service.getMetric(request) }
         }
 
-      assertThat(response).isEqualTo(SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
-        result = metricResult {
-          watchDuration =
-            MetricResultKt.watchDurationResult {
-              value = TOTAL_WATCH_DURATION.seconds.toDouble() * 2
+      assertThat(response)
+        .isEqualTo(
+          SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+            result = metricResult {
+              watchDuration =
+                MetricResultKt.watchDurationResult {
+                  value = TOTAL_WATCH_DURATION.seconds.toDouble() * 2
+                }
+              cmmsMeasurements += PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name
+              cmmsMeasurements += PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name
             }
-          cmmsMeasurements += PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name
-          cmmsMeasurements += PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name
-        }
-      })
+          }
+        )
     }
 
   @Test
@@ -8519,23 +8549,24 @@ class MetricsServiceTest {
   fun `getMetric returns succeeded impression metric without stats when 2 measurements`() =
     runBlocking {
       whenever(
-        internalMetricsMock.batchGetMetrics(
-          eq(
-            internalBatchGetMetricsRequest {
-              cmmsMeasurementConsumerId =
-                INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId
-              externalMetricIds +=
-                INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
-            }
+          internalMetricsMock.batchGetMetrics(
+            eq(
+              internalBatchGetMetricsRequest {
+                cmmsMeasurementConsumerId =
+                  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId
+                externalMetricIds +=
+                  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+              }
+            )
           )
         )
-      )
         .thenReturn(
           internalBatchGetMetricsResponse {
-            metrics += INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-              weightedMeasurements += weightedMeasurements[0]
-            }
-          },
+            metrics +=
+              INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+                weightedMeasurements += weightedMeasurements[0]
+              }
+          }
         )
 
       whenever(measurementsMock.batchGetMeasurements(any())).thenAnswer {
@@ -8561,16 +8592,17 @@ class MetricsServiceTest {
           runBlocking { service.getMetric(request) }
         }
 
-      assertThat(response).isEqualTo(SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-        result = metricResult {
-          impressionCount =
-            MetricResultKt.impressionCountResult {
-              value = IMPRESSION_VALUE * 2
+      assertThat(response)
+        .isEqualTo(
+          SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+            result = metricResult {
+              impressionCount =
+                MetricResultKt.impressionCountResult { value = IMPRESSION_VALUE * 2 }
+              cmmsMeasurements += PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name
+              cmmsMeasurements += PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name
             }
-          cmmsMeasurements += PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name
-          cmmsMeasurements += PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name
-        }
-      })
+          }
+        )
     }
 
   @Test
@@ -9042,7 +9074,7 @@ class MetricsServiceTest {
     }
 
   @Test
-  fun `getMetric returns failed metric for impression when custom direct methodology has freq`():
+  fun `getMetric returns succeeded metric for impression when custom direct methodology has freq`():
     Unit = runBlocking {
     whenever(internalMetricsMock.batchGetMetrics(any()))
       .thenReturn(
@@ -9086,8 +9118,13 @@ class MetricsServiceTest {
         runBlocking { service.getMetric(request) }
       }
 
-    assertThat(response.state).isEqualTo(Metric.State.FAILED)
-    assertThat(response.result).isEqualTo(MetricResult.getDefaultInstance())
+    assertThat(response).isEqualTo(SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+      result = result.copy {
+        impressionCount = impressionCount.copy {
+          clearUnivariateStatistics()
+        }
+      }
+    })
   }
 
   @Test
@@ -9359,7 +9396,7 @@ class MetricsServiceTest {
     }
 
   @Test
-  fun `getMetric return failed metric for dur metric when custom direct methodology has freq`():
+  fun `getMetric return succeeded metric for dur metric when custom direct methodology has freq`():
     Unit = runBlocking {
     whenever(internalMetricsMock.batchGetMetrics(any()))
       .thenReturn(
@@ -9405,8 +9442,13 @@ class MetricsServiceTest {
         runBlocking { service.getMetric(request) }
       }
 
-    assertThat(response.state).isEqualTo(Metric.State.FAILED)
-    assertThat(response.result).isEqualTo(MetricResult.getDefaultInstance())
+    assertThat(response).isEqualTo(SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+      result = result.copy {
+        watchDuration = watchDuration.copy {
+          clearUnivariateStatistics()
+        }
+      }
+    })
   }
 
   @Test
@@ -9705,7 +9747,7 @@ class MetricsServiceTest {
         names += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name
       }
 
-      val result =
+      val response =
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.batchGetMetrics(request) }
         }
@@ -9743,11 +9785,17 @@ class MetricsServiceTest {
         batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
       }
 
-      assertThat(result)
+      assertThat(response)
         .ignoringRepeatedFieldOrder()
         .isEqualTo(
           batchGetMetricsResponse {
-            metrics += PENDING_INCREMENTAL_REACH_METRIC.copy { state = Metric.State.FAILED }
+            metrics += SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+              result = result.copy {
+                reach = reach.copy {
+                  clearUnivariateStatistics()
+                }
+              }
+            }
             metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
           }
         )
