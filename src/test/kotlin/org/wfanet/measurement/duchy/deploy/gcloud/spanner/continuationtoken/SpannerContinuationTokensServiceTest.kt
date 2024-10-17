@@ -14,19 +14,26 @@
 
 package org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken
 
+import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.duchy.service.internal.testing.ContinuationTokensServiceTest
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 
 @RunWith(JUnit4::class)
 class SpannerContinuationTokensServiceTest :
   ContinuationTokensServiceTest<SpannerContinuationTokensService>() {
-  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.DUCHY_CHANGELOG_PATH)
+  @get:Rule
+  val spannerDatabase = SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.DUCHY_CHANGELOG_PATH)
 
   override fun newService(): SpannerContinuationTokensService {
     return SpannerContinuationTokensService(spannerDatabase.databaseClient)
+  }
+
+  companion object {
+    @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
   }
 }

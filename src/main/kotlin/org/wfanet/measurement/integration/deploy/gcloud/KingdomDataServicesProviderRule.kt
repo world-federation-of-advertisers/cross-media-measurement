@@ -21,13 +21,16 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDataServices
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata
 
-class KingdomDataServicesProviderRule : ProviderRule<DataServices> {
-  private val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.KINGDOM_CHANGELOG_PATH)
+class KingdomDataServicesProviderRule(emulatorDatabaseAdmin: SpannerDatabaseAdmin) :
+  ProviderRule<DataServices> {
+  private val spannerDatabase =
+    SpannerEmulatorDatabaseRule(emulatorDatabaseAdmin, Schemata.KINGDOM_CHANGELOG_PATH)
 
   private lateinit var dataServices: DataServices
 
