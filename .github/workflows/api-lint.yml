@@ -36,12 +36,12 @@ jobs:
         shell: bash
     steps:
     - uses: actions/checkout@v4
-      
+
     - uses: world-federation-of-advertisers/actions/setup-api-linter@v2
       with:
         version: 1.67.2
         sha256: 260064fad8c38feae402595b6cefef51d70e72b0b5968359c79ee8f3ad33ab27
-        
+
     # Authenticate to Google Cloud for access to remote cache.
     - name: Authenticate to Google Cloud
       uses: google-github-actions/auth@v2
@@ -58,4 +58,6 @@ jobs:
 
     - env:
         BAZEL: bazelisk
-      run: tools/api-lint wfa/measurement/system
+      run: |
+        tools/api-lint wfa/measurement/system
+        tools/api-lint wfa/measurement/securecomputation
