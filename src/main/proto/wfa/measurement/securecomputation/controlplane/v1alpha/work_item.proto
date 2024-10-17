@@ -21,21 +21,23 @@ import "google/api/resource.proto";
 
 option java_package = "org.wfanet.measurement.securecomputation.controlplane.v1alpha";
 option java_multiple_files = true;
+option java_outer_classname = "WorkItemProto";
 
+// Resource representing a work item.
 message WorkItem {
-    option (google.api.resource) = {
-        type: "control-plane.secure-computation.halo-cmm.org/WorkItem"
-        pattern: "workItems/{work_item}"
-        singular: "workItem"
-        plural: "workItems"
-    };
+  option (google.api.resource) = {
+    type: "control-plane.secure-computation.halo-cmm.org/WorkItem"
+    pattern: "workItems/{work_item}"
+    singular: "workItem"
+    plural: "workItems"
+  };
 
-    // Resource name.
-    string name = 1;
+  // Resource name.
+  string name = 1;
 
-    // The queue into which this `WorkItem` must be enqueued.
-    // Available queues are specified in a configuration file.
-    string queue = 2;
-    // The parameters to be delivered to the TEE application.
-    google.protobuf.Any work_item_params = 3;
+  // The queue into which this `WorkItem` must be enqueued.
+  // Available queues are specified in a configuration file.
+  string queue = 2;
+  // The parameters to be delivered to the TEE application.
+  google.protobuf.Any work_item_params = 3;
 }
