@@ -15,6 +15,7 @@
 - included_paths:
   - 'wfa/measurement/reporting/**/*.proto'
   - 'wfa/measurement/system/**/*.proto'
+  - 'wfa/measurement/securecomputation/controlplane/**/*.proto'
   disabled_rules:
   - 'core::0191::java-package'
   - 'core::0146::any'
@@ -48,4 +49,7 @@
   - 'wfa/measurement/securecomputation/controlplane/v1*/*.proto'
   disabled_rules:
   - 'core::0133::request-id-field'
+  - 'core::0121::resource-must-support-get'
+  - 'core::0121::resource-must-support-list'
   - 'core::0203::field-behavior-required'
+  - 'core::0203::resource-name-identifier'
