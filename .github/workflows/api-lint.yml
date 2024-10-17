@@ -56,6 +56,8 @@ jobs:
         common --config=remote-cache
         EOF
 
-    - env:
-        BAZEL: bazelisk
-      run: tools/api-lint wfa/measurement/system
+    - name: Set up Bazel
+      uses: world-federation-of-advertisers/actions/setup-bazel@v2
+
+    - run: tools/api-lint wfa/measurement/system
+    - run: tools/api-lint wfa/measurement/access

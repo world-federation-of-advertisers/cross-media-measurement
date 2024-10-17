@@ -43,3 +43,19 @@
   - 'core::0133::request-id-field'
   - 'core::0121::resource-must-support-get'
   - 'core::0203::field-behavior-required'
+
+- included_paths:
+  - 'wfa/measurement/access/**/*.proto'
+  disabled_rules:
+  # Java package uses URL, protobuf package does not.
+  - 'core::0191::java-package'
+  # List methods aren't useful for some resource types.
+  - 'core::0121::resource-must-support-list'
+  # gRPC-only for now.
+  - 'core::0127::http-annotation'
+  # Allow custom "Lookup" methods.
+  - 'core::0131::synonyms'
+  # Allow custom "Set" methods.
+  - 'core::0134::synonyms'
+  # Allow methods that operate on resources by lookup key.
+  - 'core::0136::response-message-name'
