@@ -72,3 +72,6 @@ databaseChangeLog:
 - include:
     file: drop-json-columns.sql
     relativeToChangeLogFile: true
+- include:
+    file: shard-measurements-by-continuation-token.sql
+    relativeToChangeLogFile: true
