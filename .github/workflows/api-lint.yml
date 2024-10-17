@@ -29,8 +29,6 @@ jobs:
   lint:
     name: API lint
     runs-on: ubuntu-22.04
-    permissions:
-      id-token: write
     defaults:
       run:
         shell: bash
@@ -41,20 +39,20 @@ jobs:
       with:
         version: 1.67.2
         sha256: 260064fad8c38feae402595b6cefef51d70e72b0b5968359c79ee8f3ad33ab27
-        
-    # Authenticate to Google Cloud for access to remote cache.
-    - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
-      with:
-        workload_identity_provider: ${{ vars.BAZEL_BUILD_WORKLOAD_IDENTITY_PROVIDER }}
-        service_account: ${{ vars.BAZEL_BUILD_SERVICE_ACCOUNT }}
 
     - name: Write ~/.bazelrc
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
-        common --config=remote-cache
         EOF
+
+    - uses: ./.github/actions/setup-bazel-remote
+      with:
+        host: ${{ vars.BAZEL_REMOTE_CACHE_HOST }}
+        port: ${{ vars.BAZEL_REMOTE_CACHE_PORT }}
+        certificate: ${{ vars.BAZEL_REMOTE_CACHE_CERT }}
+        username: ${{ vars.BAZEL_REMOTE_CACHE_USER }}
+        password: ${{ secrets.BAZEL_REMOTE_CACHE_PASSWORD }}
 
     - env:
         BAZEL: bazelisk

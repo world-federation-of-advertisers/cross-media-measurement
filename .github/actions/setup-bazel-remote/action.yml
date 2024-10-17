@@ -1,0 +1,73 @@
+# Copyright 2024 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Set up bazel-remote
+description: Sets up remote caching via bazel-remote
+
+inputs:
+  host:
+    description: Host
+    required: true
+  port:
+    description: gRPC port
+    default: "9092"
+    required: false
+  certificate:
+    description: Trusted TLS server certificate in PEM format
+    required: true
+  username:
+    description: Basic auth username
+    default: "github"
+    required: false
+  password:
+    description: Basic auth password
+    required: true
+
+runs:
+  using: composite
+  steps:
+  - name: Write netrc
+    shell: bash
+    env:
+      BAZEL_REMOTE_CACHE_HOST: ${{ inputs.host }}
+      BAZEL_REMOTE_CACHE_USER: ${{ inputs.username }}
+      BAZEL_REMOTE_CACHE_PASSWORD: ${{ inputs.password }}
+    run: |
+      cat << EOF >> ~/.netrc
+      machine $BAZEL_REMOTE_CACHE_HOST
+      login $BAZEL_REMOTE_CACHE_USER
+      password $BAZEL_REMOTE_CACHE_PASSWORD
+      EOF
+
+  - name: Write certificate
+    shell: bash
+    env:
+      BAZEL_REMOTE_CACHE_CERT: ${{ inputs.certificate }}
+    # Since it appears that GitHub configuration variables use DOS (CRLF) line
+    # endings, we convert these to Unix (LF) line endings.
+    run: |
+      printf '%s' "$BAZEL_REMOTE_CACHE_CERT" | sed $'s/\r$//' > "$HOME/bazel_remote_root.pem"
+
+  - name: Write bazelrc
+    shell: bash
+    env:
+      BAZEL_REMOTE_CACHE_HOST: ${{ inputs.host }}
+      BAZEL_REMOTE_CACHE_PORT: ${{ inputs.port }}
+    run: |
+      cat << EOF >> ~/.bazelrc
+      build --remote_cache=grpcs://$BAZEL_REMOTE_CACHE_HOST:$BAZEL_REMOTE_CACHE_PORT
+      build --tls_certificate=$HOME/bazel_remote_root.pem
+      EOF
+
+
