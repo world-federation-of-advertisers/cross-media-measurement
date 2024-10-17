@@ -1022,7 +1022,11 @@ fun ListReportsPageToken.toStreamReportsRequest(): StreamReportsRequest {
   }
 }
 
-/** Converts a CMMS [ProtocolConfig.NoiseMechanism] to an internal [InternalNoiseMechanism]. */
+/**
+ * Converts a CMMS [ProtocolConfig.NoiseMechanism] to an internal [InternalNoiseMechanism].
+ *
+ * @throws NoiseMechanismUnrecognizedException if the noise mechanism is not recognized.
+ */
 fun ProtocolConfig.NoiseMechanism.toInternal(): InternalNoiseMechanism {
   return when (this) {
     ProtocolConfig.NoiseMechanism.NONE -> InternalNoiseMechanism.NONE
@@ -1152,7 +1156,12 @@ fun HonestMajorityShareShuffleMethodology.toInternal(): InternalHonestMajoritySh
   return honestMajorityShareShuffle { frequencyVectorSize = source.frequencyVectorSize }
 }
 
-/** Converts an internal [InternalNoiseMechanism] to a [StatsNoiseMechanism]. */
+/**
+ * Converts an internal [InternalNoiseMechanism] to a [StatsNoiseMechanism].
+ *
+ * @throws NoiseMechanismUnspecifiedException if the noise mechanism is not specified.
+ * @throws NoiseMechanismUnrecognizedException if the noise mechanism is not recognized.
+ */
 fun InternalNoiseMechanism.toStatsNoiseMechanism(): StatsNoiseMechanism {
   return when (this) {
     NoiseMechanism.NONE -> StatsNoiseMechanism.NONE
