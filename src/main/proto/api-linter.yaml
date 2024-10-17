@@ -43,3 +43,9 @@
   - 'core::0133::request-id-field'
   - 'core::0121::resource-must-support-get'
   - 'core::0203::field-behavior-required'
+
+- included_paths:
+  - 'wfa/measurement/securecomputation/controlplane/v1*/*.proto'
+  disabled_rules:
+  - 'core::0133::request-id-field'
+  - 'core::0203::field-behavior-required'

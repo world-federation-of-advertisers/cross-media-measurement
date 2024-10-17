@@ -27,7 +27,7 @@ service WorkItems {
     // Creates a `WorkItem`.
     //
     // Enqueues the `WorkItem` into the appropriate queue.
-    // Results in PERMISSION_DENIED if the queue_identifier specified in the `WorkItem`
+    // Results in PERMISSION_DENIED if the queue specified in the `WorkItem`
     // is not listed in the configuration file.
     rpc CreateWorkItem(CreateWorkItemRequest) returns (WorkItem);
 }
