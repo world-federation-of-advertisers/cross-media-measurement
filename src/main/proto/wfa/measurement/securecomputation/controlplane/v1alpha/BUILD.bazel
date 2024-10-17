@@ -34,7 +34,6 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":work_item_proto",
-        "@com_google_googleapis//google/api:annotations_proto",
         "@com_google_googleapis//google/api:client_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
     ],

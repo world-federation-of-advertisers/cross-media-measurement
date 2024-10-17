@@ -53,3 +53,5 @@
   - 'core::0121::resource-must-support-list'
   - 'core::0203::field-behavior-required'
   - 'core::0203::resource-name-identifier'
+  - 'core::0127::http-annotation'
+  - 'core::0133::http-uri-parent'
