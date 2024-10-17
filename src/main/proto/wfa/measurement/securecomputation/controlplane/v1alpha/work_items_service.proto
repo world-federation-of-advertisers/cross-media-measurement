@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.securecomputation.controlplane.v1alpha;
 
-import "google/api/annotations.proto";
 import "google/api/client.proto";
 import "google/api/field_behavior.proto";
 import "wfa/measurement/securecomputation/controlplane/v1alpha/work_item.proto";
@@ -33,10 +32,6 @@ service WorkItems {
   // Results in PERMISSION_DENIED if the queue specified in the `WorkItem`
   // is not listed in the configuration file.
   rpc CreateWorkItem(CreateWorkItemRequest) returns (WorkItem) {
-    option (google.api.http) = {
-      post: "/v1alpha/WorkItems"
-      body: "work_item"
-    };
     option (google.api.method_signature) = "work_item";
   }
 }
