@@ -30,15 +30,21 @@ object HonestMajorityShareShuffle {
     reachNoiseVariance: Double,
   ): Double {
     val vidUniverseSize: Long = ceil(frequencyVectorSize / vidSamplingIntervalWidth).toLong()
-    require(vidUniverseSize > 1) { "Vid universe size is too small." }
+    require(vidUniverseSize > 1) {
+      "Vid universe size must be greater than 1, but got $vidUniverseSize."
+    }
 
     require(vidSamplingIntervalWidth > 0.0 && vidSamplingIntervalWidth <= 1.0) {
-      "Vid sampling width must be greater than 0 and less than or equal to 1."
+      "Vid sampling width must be greater than 0 and less than or equal to 1, but got " +
+        "$vidSamplingIntervalWidth."
     }
     require(reach <= vidUniverseSize) {
-      "Reach must be less than or equal to the size of the Vid universe."
+      "Reach ($reach) must be less than or equal to the size of the Vid universe " +
+        "($vidUniverseSize)."
     }
-    require(reachNoiseVariance >= 0) { "Reach noise variance must be a non-negative value." }
+    require(reachNoiseVariance >= 0) {
+      "Reach noise variance must be a non-negative value, but got $reachNoiseVariance."
+    }
 
     val reachVariance =
       (vidSamplingIntervalWidth *
@@ -66,14 +72,18 @@ object HonestMajorityShareShuffle {
     val vidSamplingIntervalWidth = frequencyMeasurementParams.vidSamplingInterval.width
 
     val vidUniverseSize = ceil(frequencyVectorSize / vidSamplingIntervalWidth).toLong()
-    require(vidUniverseSize > 1) { "Vid universe size is too small." }
+    require(vidUniverseSize > 1) {
+      "Vid universe size must be greater than 1, but got $vidUniverseSize."
+    }
     require(totalReach <= vidUniverseSize) {
-      "Reach must be less than or equal to the size of the Vid universe."
+      "Total reach ($totalReach) must be less than or equal to the size of the Vid universe " +
+        "($vidUniverseSize)."
     }
 
     val kReach = (kReachRatio * totalReach).toLong()
     require(kReach <= vidUniverseSize) {
-      "kReach must be less than or equal to the size of the Vid universe."
+      "kReach ($kReach) must be less than or equal to the size of the Vid universe " +
+        "($vidUniverseSize)."
     }
 
     var kReachVariance =
@@ -113,14 +123,18 @@ object HonestMajorityShareShuffle {
     val vidSamplingIntervalWidth = frequencyMeasurementParams.vidSamplingInterval.width
 
     val vidUniverseSize = ceil(frequencyVectorSize / vidSamplingIntervalWidth).toLong()
-    require(vidUniverseSize > 1) { "Vid universe size is too small." }
+    require(vidUniverseSize > 1) {
+      "Vid universe size must be greater than 1, but got $vidUniverseSize."
+    }
     require(totalReach <= vidUniverseSize) {
-      "Reach must be less than or equal to the size of the Vid universe."
+      "Total reach ($totalReach) must be less than or equal to the size of the Vid universe " +
+        "($vidUniverseSize)."
     }
 
     val kPlusReach = (kReachRatio * totalReach).toLong()
     require(kPlusReach <= vidUniverseSize) {
-      "kPlusReach must be less than or equal to the size of the Vid universe."
+      "kPlusReach ($kPlusReach) must be less than or equal to the size of the Vid universe " +
+        "($vidUniverseSize)."
     }
 
     // Gets the reach noise variance from the reach measurement variance and total reach.
@@ -167,14 +181,18 @@ object HonestMajorityShareShuffle {
     val vidSamplingIntervalWidth = frequencyMeasurementParams.vidSamplingInterval.width
 
     val vidUniverseSize = ceil(frequencyVectorSize / vidSamplingIntervalWidth).toLong()
-    require(vidUniverseSize > 1) { "Vid universe size is too small." }
+    require(vidUniverseSize > 1) {
+      "Vid universe size must be greater than 1, but got $vidUniverseSize."
+    }
     require(totalReach <= vidUniverseSize) {
-      "Reach must be less than or equal to the size of the Vid universe."
+      "Total reach ($totalReach) must be less than or equal to the size of the Vid universe " +
+        "($vidUniverseSize)."
     }
 
     val kReach = (kReachRatio * totalReach).toLong()
     require(kReach <= vidUniverseSize) {
-      "kReach must be less than or equal to the size of the Vid universe."
+      "kReach ($kReach) must be less than or equal to the size of the Vid universe " +
+        "($vidUniverseSize)."
     }
 
     var kReachVariance =
@@ -235,14 +253,18 @@ object HonestMajorityShareShuffle {
     val vidSamplingIntervalWidth = frequencyMeasurementParams.vidSamplingInterval.width
 
     val vidUniverseSize = ceil(frequencyVectorSize / vidSamplingIntervalWidth).toLong()
-    require(vidUniverseSize > 1) { "Vid universe size is too small." }
+    require(vidUniverseSize > 1) {
+      "Vid universe size must be greater than 1, but got $vidUniverseSize."
+    }
     require(totalReach <= vidUniverseSize) {
-      "Reach must be less than or equal to the size of the Vid universe."
+      "Total reach ($totalReach) must be less than or equal to the size of the Vid universe " +
+        "($vidUniverseSize)."
     }
 
     val kPlusReach = (kPlusReachRatio * totalReach).toLong()
     require(kPlusReach <= vidUniverseSize) {
-      "kPlusReach must be less than or equal to the size of the Vid universe."
+      "kPlusReach ($kPlusReach) must be less than or equal to the size of the Vid universe " +
+        "($vidUniverseSize)."
     }
 
     // Gets the reach noise variance from the reach measurement variance and total reach.
