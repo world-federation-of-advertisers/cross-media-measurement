@@ -1,3 +1,4 @@
+load("@grpc_ecosystem_grpc_gateway//protoc-gen-openapiv2:defs.bzl", "protoc_gen_openapiv2")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 load(
     "@wfa_rules_kotlin_jvm//kotlin:defs.bzl",
@@ -283,4 +284,9 @@ proto_library(
 kt_jvm_grpc_proto_library(
     name = "reporting_sets_service_kt_jvm_grpc_proto",
     deps = [":reporting_sets_service_proto"],
+)
+
+protoc_gen_openapiv2(
+    name = "reporting_sets_service_openapi",
+    proto = ":reporting_sets_service_proto",
 )
