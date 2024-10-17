@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The Cross-Media Measurement Authors
+ * Copyright 2024 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -104,7 +104,7 @@ class MeasurementSystemProber(
       )
       .build()
 
-  suspend fun run() {
+  suspend fun run(): Measurement? {
     val lastUpdatedMeasurement = getLastUpdatedMeasurement()
     if (lastUpdatedMeasurement != null) {
       updateLastTerminalRequisitionGauge(lastUpdatedMeasurement)
@@ -113,11 +113,12 @@ class MeasurementSystemProber(
       )
     }
     if (shouldCreateNewMeasurement(lastUpdatedMeasurement)) {
-      createMeasurement()
+      return createMeasurement()
     }
+    return null
   }
 
-  private suspend fun createMeasurement() {
+  private suspend fun createMeasurement(): Measurement {
     val dataProviderNameToEventGroup: Map<String, EventGroup> =
       buildDataProviderNameToEventGroup(dataProviderNames, dataProvidersStub, apiAuthenticationKey)
 
@@ -191,6 +192,7 @@ class MeasurementSystemProber(
     logger.info(
       "A new prober measurement for measurement consumer $measurementConsumerName is created: $response"
     )
+    return response
   }
 
   private suspend fun buildDataProviderNameToEventGroup(
@@ -259,7 +261,7 @@ class MeasurementSystemProber(
     return clock.instant() >= nextMeasurementEarliestInstant
   }
 
-  private suspend fun getLastUpdatedMeasurement(): Measurement? {
+  suspend fun getLastUpdatedMeasurement(): Measurement? {
     var nextPageToken = ""
     do {
       val response: ListMeasurementsResponse =
