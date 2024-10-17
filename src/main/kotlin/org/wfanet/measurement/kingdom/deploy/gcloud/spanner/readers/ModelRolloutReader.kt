@@ -53,20 +53,20 @@ class ModelRolloutReader : SpannerReader<ModelRolloutReader.Result>() {
       ModelProviders.ExternalModelProviderId,
       PreviousModelRollout.ExternalModelRolloutId AS PreviousExternalModelRolloutId,
       ModelReleases.ExternalModelReleaseId
-      FROM ModelRollouts
-      JOIN ModelLines USING (ModelProviderId, ModelSuiteId, ModelLineId)
-      JOIN ModelSuites USING (ModelProviderId, ModelSuiteId)
-      JOIN ModelProviders USING (ModelProviderId)
-      LEFT JOIN ModelRollouts as PreviousModelRollout ON (
-        ModelRollouts.ModelProviderId = PreviousModelRollout.ModelProviderId
-        AND ModelRollouts.ModelSuiteId = PreviousModelRollout.ModelSuiteId
-        AND ModelRollouts.PreviousModelRolloutId = PreviousModelRollout.ModelRolloutId
-      )
-      JOIN ModelReleases ON (
-        ModelRollouts.ModelProviderId = ModelReleases.ModelProviderId
-        AND ModelRollouts.ModelSuiteId = ModelReleases.ModelSuiteId
-        AND ModelRollouts.ModelReleaseId = ModelReleases.ModelReleaseId
-      )
+    FROM ModelRollouts
+    JOIN ModelLines USING (ModelProviderId, ModelSuiteId, ModelLineId)
+    JOIN ModelSuites USING (ModelProviderId, ModelSuiteId)
+    JOIN ModelProviders USING (ModelProviderId)
+    LEFT JOIN ModelRollouts AS PreviousModelRollout ON (
+      ModelRollouts.ModelProviderId = PreviousModelRollout.ModelProviderId
+      AND ModelRollouts.ModelSuiteId = PreviousModelRollout.ModelSuiteId
+      AND ModelRollouts.PreviousModelRolloutId = PreviousModelRollout.ModelRolloutId
+    )
+    JOIN ModelReleases ON (
+      ModelRollouts.ModelProviderId = ModelReleases.ModelProviderId
+      AND ModelRollouts.ModelSuiteId = ModelReleases.ModelSuiteId
+      AND ModelRollouts.ModelReleaseId = ModelReleases.ModelReleaseId
+    )
     """
       .trimIndent()
 
