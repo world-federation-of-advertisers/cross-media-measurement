@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.securecomputation.controlplane.v1alpha;
 
+import "google/api/annotations.proto";
+import "google/api/client.proto";
 import "google/api/field_behavior.proto";
 import "wfa/measurement/securecomputation/controlplane/v1alpha/work_item.proto";
 
