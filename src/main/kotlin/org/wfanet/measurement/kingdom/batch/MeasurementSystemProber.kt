@@ -104,7 +104,7 @@ class MeasurementSystemProber(
       )
       .build()
 
-  suspend fun run() {
+  suspend fun run(): Measurement? {
     val lastUpdatedMeasurement = getLastUpdatedMeasurement()
     if (lastUpdatedMeasurement != null) {
       updateLastTerminalRequisitionGauge(lastUpdatedMeasurement)
@@ -113,11 +113,12 @@ class MeasurementSystemProber(
       )
     }
     if (shouldCreateNewMeasurement(lastUpdatedMeasurement)) {
-      createMeasurement()
+      return createMeasurement()
     }
+    return null
   }
 
-  private suspend fun createMeasurement() {
+  private suspend fun createMeasurement(): Measurement {
     val dataProviderNameToEventGroup: Map<String, EventGroup> =
       buildDataProviderNameToEventGroup(dataProviderNames, dataProvidersStub, apiAuthenticationKey)
 
@@ -191,6 +192,7 @@ class MeasurementSystemProber(
     logger.info(
       "A new prober measurement for measurement consumer $measurementConsumerName is created: $response"
     )
+    return response
   }
 
   private suspend fun buildDataProviderNameToEventGroup(
