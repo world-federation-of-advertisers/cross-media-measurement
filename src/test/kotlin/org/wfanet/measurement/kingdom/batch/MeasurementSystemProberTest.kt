@@ -19,6 +19,10 @@ package org.wfanet.measurement.kingdom.batch
 import com.google.common.truth.Truth
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
+import java.io.File
+import java.nio.file.Paths
+import java.time.Clock
+import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -64,10 +68,6 @@ import org.wfanet.measurement.consent.client.common.encryptMessage
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.common.toPublicKeyHandle
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
-import java.io.File
-import java.nio.file.Paths
-import java.time.Clock
-import java.time.Duration
 
 @RunWith(JUnit4::class)
 class MeasurementSystemProberTest {
@@ -174,7 +174,7 @@ class MeasurementSystemProberTest {
         )!!
         .toFile()
 
-    private val API_AUTHENTICATION_KEY = "some-api-key"
+    private const val API_AUTHENTICATION_KEY = "some-api-key"
     private val PRIVATE_KEY_DER_FILE = SECRETS_DIR.resolve("mc_cs_private.der")
     private val DURATION_BETWEEN_MEASUREMENT = Duration.ofDays(1)
     private val MEASUREMENT_LOOKBACK_DURATION = Duration.ofDays(1)
