@@ -16,10 +16,10 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "report_processor_impl_test",
-    srcs = ["ReportProcessorImplTest.kt"],
+    name = "report_processor_test",
+    srcs = ["ReportProcessorTest.kt"],
     data = [":sample_reports"],
-    test_class = "org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportProcessorImplTest",
+    test_class = "org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportProcessorTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/postprocessing/v2alpha:postprocessing",
         "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_summary_kt_jvm_proto",

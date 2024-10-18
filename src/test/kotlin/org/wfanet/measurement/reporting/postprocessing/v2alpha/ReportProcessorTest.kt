@@ -24,7 +24,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.reporting.v2alpha.Report
 
 @RunWith(JUnit4::class)
-class ReportProcessorImplTest {
+class ReportProcessorTest {
   @Test
   fun `run correct report successfully`() {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_large.json").toFile()
@@ -32,7 +32,7 @@ class ReportProcessorImplTest {
 
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
     assertThat(report.hasConsistentMeasurements()).isEqualTo(false)
-    val updatedReportAsJson = ReportProcessorImpl.processReportJson(reportAsJson)
+    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
     assertThat(updatedReport.hasConsistentMeasurements()).isEqualTo(true)
   }

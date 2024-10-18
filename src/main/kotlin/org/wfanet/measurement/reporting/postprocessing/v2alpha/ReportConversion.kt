@@ -47,7 +47,7 @@ object ReportConversion {
     return getReportFromJsonString(reportAsJsonString).toReportSummaries()
   }
 
-  // TODO(@ple13): Move this function to a separate package that handles the tags.
+  // TODO(@ple13): Move this function to a separate Origin-specific package.
   fun getMeasurementPolicy(tag: String): String {
     when {
       "measurement_policy=AMI" in tag -> return "ami"
@@ -57,7 +57,7 @@ object ReportConversion {
     }
   }
 
-  // TODO(@ple13): Move this function to a separate package that handles the tags.
+  // TODO(@ple13): Move this function to a separate Origin-specific package.
   fun getSetOperation(tag: String): String {
     val parts = tag.split(", ")
     val setOperationPart = parts.find { it.startsWith("set_operation=") }
@@ -65,12 +65,12 @@ object ReportConversion {
       ?: error("Set operation must be specified.")
   }
 
-  // TODO(@ple13): Move this function to a separate package that handles the tags.
+  // TODO(@ple13): Move this function to a separate Origin-specific package.
   fun isCumulative(tag: String): Boolean {
     return tag.contains("cumulative=true")
   }
 
-  // TODO(@ple13): Move this function to a separate package that handles the tags.
+  // TODO(@ple13): Move this function to a separate Origin-specific package.
   fun getTargets(tag: String): List<String> {
     val parts = tag.split(", ")
     val targetPart = parts.find { it.startsWith("target=") }
