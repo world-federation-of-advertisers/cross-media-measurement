@@ -20,6 +20,7 @@ import java.time.Clock
 import java.time.LocalDate
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
+import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,6 +29,7 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
@@ -41,7 +43,9 @@ import org.wfanet.measurement.kingdom.service.internal.testing.ExchangeStepAttem
 @RunWith(JUnit4::class)
 class SpannerExchangeStepAttemptsServiceTest : ExchangeStepAttemptsServiceTest() {
 
-  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.KINGDOM_CHANGELOG_PATH)
+  @get:Rule
+  val spannerDatabase =
+    SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.KINGDOM_CHANGELOG_PATH)
   private val clock = Clock.systemUTC()
 
   override fun newExchangeStepAttemptsService(
@@ -89,5 +93,9 @@ class SpannerExchangeStepAttemptsServiceTest : ExchangeStepAttemptsServiceTest()
         .toLocalDate()
 
     assertThat(spannerDate).isEqualTo(LocalDate.now(clock))
+  }
+
+  companion object {
+    @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
   }
 }

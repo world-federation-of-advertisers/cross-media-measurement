@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation
 
 import java.time.Clock
+import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
@@ -34,6 +35,7 @@ import org.wfanet.measurement.duchy.service.internal.testing.ComputationsService
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
@@ -43,7 +45,8 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.Computa
 
 @RunWith(JUnit4::class)
 class SpannerComputationsServiceTest : ComputationsServiceTest<ComputationsService>() {
-  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.DUCHY_CHANGELOG_PATH)
+  @get:Rule
+  val spannerDatabase = SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.DUCHY_CHANGELOG_PATH)
 
   private val tempDirectory = TemporaryFolder()
   private lateinit var storageClient: FileSystemStorageClient
@@ -100,5 +103,9 @@ class SpannerComputationsServiceTest : ComputationsServiceTest<ComputationsServi
       DUCHY_ID,
       clock,
     )
+  }
+
+  companion object {
+    @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
   }
 }
