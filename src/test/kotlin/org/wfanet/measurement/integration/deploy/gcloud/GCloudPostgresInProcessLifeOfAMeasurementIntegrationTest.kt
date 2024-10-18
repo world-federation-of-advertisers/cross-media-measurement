@@ -21,6 +21,7 @@ import org.junit.Rule
 import org.junit.rules.Timeout
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.InProcessLifeOfAMeasurementIntegrationTest
 import org.wfanet.measurement.integration.deploy.common.postgres.PostgresDuchyDependencyProviderRule
@@ -31,7 +32,7 @@ import org.wfanet.measurement.integration.deploy.common.postgres.PostgresDuchyDe
  */
 class GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest :
   InProcessLifeOfAMeasurementIntegrationTest(
-    KingdomDataServicesProviderRule(),
+    KingdomDataServicesProviderRule(spannerEmulator),
     PostgresDuchyDependencyProviderRule(databaseProvider, ALL_DUCHY_NAMES),
   ) {
 
@@ -46,5 +47,7 @@ class GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest :
     @JvmStatic
     @get:ClassRule
     val databaseProvider = PostgresDatabaseProviderRule(Schemata.DUCHY_CHANGELOG_PATH)
+
+    @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
   }
 }
