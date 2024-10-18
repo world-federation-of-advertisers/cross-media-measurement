@@ -149,7 +149,7 @@ class GcpSpannerComputationsDatabaseTransactor<
      * TODO(@renjiez): throw ABORT if fail to claim.
      */
     suspend fun claimSpecificTask(result: UnclaimedTaskQueryResult<StageT>): Boolean =
-      databaseClient.readWriteTransaction().execute { txn ->
+      databaseClient.readWriteTransaction().run { txn ->
         claim(
           txn,
           result.computationId,
@@ -680,14 +680,14 @@ class GcpSpannerComputationsDatabaseTransactor<
     require(publicApiVersion.isNotBlank()) {
       "Cannot insert blank public api version. $externalRequisitionKey"
     }
-    databaseClient.readWriteTransaction().execute { txn ->
+    databaseClient.readWriteTransaction().run { txn ->
       val parameterizedRequisitionQueryString =
         """
         SELECT ComputationId, RequisitionId, RequisitionDetails
         FROM Requisitions
         WHERE ExternalRequisitionId = @external_requisition_id
           AND RequisitionFingerprint = @requisition_fingerprint
-      """
+        """
           .trimIndent()
       val requisitionQuery =
         statement(parameterizedRequisitionQueryString) {
@@ -771,7 +771,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     readWriteTransactionBlock: TransactionWork<R>,
   ): R {
     val localId = token.localId
-    return databaseClient.readWriteTransaction().execute { txn ->
+    return databaseClient.readWriteTransaction().run { txn ->
       val current: Struct =
         txn.readRow("Computations", Key.of(localId), listOf("UpdateTime"))
           ?: throw ComputationNotFoundException(localId)

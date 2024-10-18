@@ -62,8 +62,12 @@ pods: [Name=string]: #Pod & {
 }
 pods: {
 	"spanner-emulator": Pod={
-		spec: _containers: "\(Pod.metadata.name)": {
-			image: "gcr.io/cloud-spanner-emulator/emulator:\(_spannerEmulatorVersion)"
+		spec: {
+			_containers: "\(Pod.metadata.name)": {
+				image: "gcr.io/cloud-spanner-emulator/emulator:\(_spannerEmulatorVersion)"
+			}
+			// Emulator DB is in memory, so restarting may hide data loss.
+			restartPolicy: "Never"
 		}
 	}
 }
