@@ -17,6 +17,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import java.time.Clock
+import kotlinx.coroutines.debug.junit4.CoroutinesTimeout
 import org.junit.ClassRule
 import org.junit.Rule
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -30,6 +31,7 @@ class SpannerModelRolloutsServiceTest : ModelRolloutsServiceTest<SpannerModelRol
   @get:Rule
   val spannerDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.KINGDOM_CHANGELOG_PATH)
+  @get:Rule val timeout = CoroutinesTimeout.seconds(30, true)
 
   override fun newServices(
     testClock: Clock,
