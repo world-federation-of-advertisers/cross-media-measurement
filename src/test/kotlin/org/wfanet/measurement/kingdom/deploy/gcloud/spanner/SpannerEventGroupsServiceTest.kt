@@ -15,11 +15,13 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import java.time.Clock
+import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.kingdom.service.internal.testing.EventGroupAndHelperServices
 import org.wfanet.measurement.kingdom.service.internal.testing.EventGroupsServiceTest
@@ -27,7 +29,9 @@ import org.wfanet.measurement.kingdom.service.internal.testing.EventGroupsServic
 @RunWith(JUnit4::class)
 class SpannerEventGroupsServiceTest : EventGroupsServiceTest<SpannerEventGroupsService>() {
 
-  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.KINGDOM_CHANGELOG_PATH)
+  @get:Rule
+  val spannerDatabase =
+    SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.KINGDOM_CHANGELOG_PATH)
   private val clock = Clock.systemUTC()
 
   override fun newServices(
@@ -42,5 +46,9 @@ class SpannerEventGroupsServiceTest : EventGroupsServiceTest<SpannerEventGroupsS
       spannerServices.dataProvidersService,
       spannerServices.accountsService,
     )
+  }
+
+  companion object {
+    @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
   }
 }

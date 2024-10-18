@@ -21,6 +21,7 @@ import org.junit.ClassRule
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata.DUCHY_CHANGELOG_PATH
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.reporting.v2.InProcessLifeOfAReportIntegrationTest
 import org.wfanet.measurement.integration.deploy.common.postgres.PostgresDuchyDependencyProviderRule
@@ -30,7 +31,7 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPO
 /** Implementation of [InProcessLifeOfAReportIntegrationTest] for Google Cloud. */
 class GCloudInProcessLifeOfAReportV2IntegrationTest :
   InProcessLifeOfAReportIntegrationTest(
-    KingdomDataServicesProviderRule(),
+    KingdomDataServicesProviderRule(spannerEmulator),
     PostgresDuchyDependencyProviderRule(duchyDatabaseProvider, ALL_DUCHY_NAMES),
   ) {
   override val internalReportingServerServices by lazy {
@@ -48,5 +49,7 @@ class GCloudInProcessLifeOfAReportV2IntegrationTest :
     @get:ClassRule
     @JvmStatic
     val duchyDatabaseProvider = PostgresDatabaseProviderRule(DUCHY_CHANGELOG_PATH)
+
+    @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
   }
 }
