@@ -38,6 +38,7 @@ interface ReportProcessor {
    */
   fun processReportJson(report: String): String
 
+  /** The default implementation of [ReportProcessor]. */
   companion object Default : ReportProcessor {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     const private val PYTHON_LIBRARY_RESOURCE_NAME =
@@ -80,8 +81,8 @@ interface ReportProcessor {
     }
 
     /**
-     * Corrects the inconsistent measurements in the [reportSummary] and returns a map of metric names
-     * to corrected reach values.
+     * Corrects the inconsistent measurements in the [reportSummary] and returns a map of metric
+     * names to corrected reach values.
      *
      * Each metric name is tied to a measurement.
      */
@@ -142,7 +143,6 @@ interface ReportProcessor {
                       metricResult =
                         metricResult.copy { reach = reach.copy { value = correctedReach } }
                     }
-
                     entry.metricResult.hasReachAndFrequency() -> {
                       val scale: Double =
                         correctedReach / entry.metricResult.reachAndFrequency.reach.value.toDouble()
@@ -166,7 +166,6 @@ interface ReportProcessor {
                             }
                         }
                     }
-
                     else -> {}
                   }
                 }
