@@ -119,6 +119,7 @@ kt_jvm_library(
     data = [
         "//src/main/k8s/testing/data:synthetic_generation_specs_large",
         "//src/main/k8s/testing/data:synthetic_generation_specs_small",
+        "//src/main/k8s/testing/data:synthetic_generation_specs_us",
     ],
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:__subpackages__",

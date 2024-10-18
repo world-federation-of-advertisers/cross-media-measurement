@@ -37,7 +37,7 @@ module "simulators_spot_node_pool" {
   name            = "spot"
   cluster         = module.simulators_cluster.cluster
   service_account = module.common.cluster_service_account
-  machine_type    = "n2d-highmem-8"
+  machine_type    = "n2d-highmem-16"
   max_node_count  = 6
   spot            = true
 }

@@ -16,20 +16,20 @@ package k8s
 
 _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "500m"
-		memory: "16Gi"
+		cpu:    "2000m"
+		memory: "50Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-_maxHeapSize: "13G"
+_maxHeapSize: "40G"
 
-_populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec_large.textproto"
+_populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec_us.textproto"
 _eventGroupSpecs: [
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_large_1.textproto",
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_large_2.textproto",
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_large_3.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_us_1.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_us_2.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_us_3.textproto",
 ]
 
 edp_simulators: {

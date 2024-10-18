@@ -14,6 +14,11 @@ filegroup(
 )
 
 filegroup(
+    name = "synthetic_generation_specs_us",
+    srcs = ["synthetic_population_spec_us.textproto"] + glob(["synthetic_event_group_spec_us*.textproto"]),
+)
+
+filegroup(
     name = "service_config",
     srcs = ["default_service_config.textproto"],
 )
