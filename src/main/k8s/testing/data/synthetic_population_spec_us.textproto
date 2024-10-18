@@ -1,0 +1,129 @@
+# proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
+# proto-message: SyntheticPopulationSpec
+
+# 2023 US population by sex and age
+#
+# Source: https://www.census.gov/popclock/
+vid_range {
+  start: 1
+  end_exclusive: 334133562  # Age 18-64
+}
+event_message_type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+population_fields: "person.gender"
+population_fields: "person.age_group"
+non_population_fields: "video_ad.viewed_fraction"
+# Age 18-34, male
+sub_populations {
+  vid_sub_range {
+    start: 1
+    end_exclusive: 38592427
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+}
+# Age 35-54, male
+sub_populations {
+  vid_sub_range {
+    start: 38592427
+    end_exclusive: 81060803
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+}
+# Age 35+, male
+sub_populations {
+  vid_sub_range {
+    start: 81060803
+    end_exclusive: 128207048
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 3
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 1
+    }
+  }
+}
+# Age 18-34, female
+sub_populations {
+  vid_sub_range {
+    start: 128207048
+    end_exclusive: 165596594
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 1
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+}
+# Age 35-54, female
+sub_populations {
+  vid_sub_range {
+    start: 165596594
+    end_exclusive: 207831076
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 2
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+}
+# Age 55+, female
+sub_populations {
+  vid_sub_range {
+    start: 207831076
+    end_exclusive: 261593166
+  }
+  population_fields_values {
+    key: "person.age_group"
+    value {
+      enum_value: 3
+    }
+  }
+  population_fields_values {
+    key: "person.gender"
+    value {
+      enum_value: 2
+    }
+  }
+}
+

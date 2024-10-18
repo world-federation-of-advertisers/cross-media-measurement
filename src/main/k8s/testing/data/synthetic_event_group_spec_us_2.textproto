@@ -1,0 +1,49 @@
+# proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
+# proto-message: SyntheticEventGroupSpec
+
+# Spec for use with synthetic_population_spec_us.textproto.
+
+date_specs {
+  date_range {
+    start {
+      year: 2021
+      month: 3
+      day: 15
+    }
+    end_exclusive {
+      year: 2021
+      month: 3
+      day: 16
+    }
+  }
+  # 12M
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 3000000
+        end_exclusive: 15000000
+      }
+    }
+  }
+  # 10M
+  frequency_specs {
+    frequency: 2
+    vid_range_specs {
+      vid_range {
+        start: 90000000
+        end_exclusive: 10000000
+      }
+    }
+  }
+  # 10M
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 13000000
+        end_exclusive: 14000000
+      }
+    }
+  }
+}
