@@ -17,6 +17,7 @@
 package org.wfanet.measurement.measurementconsumer.stats
 
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.pow
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
@@ -81,6 +82,8 @@ interface Variances {
 
 /** Default implementation of [Variances]. */
 object VariancesImpl : Variances {
+  private const val TOLERANCE = 1E-6
+
   /**
    * Computes the variance of a reach measurement that is computed using the deterministic count
    * distinct methodology.
@@ -441,11 +444,14 @@ object VariancesImpl : Variances {
     val maximumFrequency = params.measurementParams.maximumFrequency
 
     var suffixSum = 0.0
-    // There is no estimate of zero-frequency reach
+    // There is no estimate of zero-frequency reach.
     val kPlusRelativeFrequencyDistribution: Map<Int, Double> =
       (maximumFrequency downTo 1).associateWith { frequency ->
         suffixSum += params.relativeFrequencyDistribution.getOrDefault(frequency, 0.0)
-        suffixSum
+        require(suffixSum <= 1.0 + TOLERANCE) {
+          "kPlus relative frequency must not exceed 1, but got $suffixSum."
+        }
+        min(1.0, suffixSum)
       }
 
     val relativeVariances: Map<Int, Double> =
@@ -554,7 +560,10 @@ object VariancesImpl : Variances {
     val kPlusRelativeFrequencyDistribution: Map<Int, Double> =
       (maximumFrequency downTo 1).associateWith { frequency ->
         suffixSum += frequencyParams.relativeFrequencyDistribution.getOrDefault(frequency, 0.0)
-        suffixSum
+        require(suffixSum <= 1.0 + TOLERANCE) {
+          "kPlus relative frequency must not exceed 1, but got $suffixSum."
+        }
+        min(1.0, suffixSum)
       }
 
     val countVariances: Map<Int, Double> =
@@ -656,7 +665,10 @@ object VariancesImpl : Variances {
     val kPlusRelativeFrequencyDistribution: Map<Int, Double> =
       (maximumFrequency downTo 1).associateWith { frequency ->
         suffixSum += params.relativeFrequencyDistribution.getOrDefault(frequency, 0.0)
-        suffixSum
+        require(suffixSum <= 1.0 + TOLERANCE) {
+          "kPlus relative frequency must not exceed 1, but got $suffixSum."
+        }
+        min(1.0, suffixSum)
       }
 
     val countVariances: Map<Int, Double> =
