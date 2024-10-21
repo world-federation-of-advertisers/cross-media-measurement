@@ -249,8 +249,8 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.22.0/MODULE.bazel": "6437a69ac68ec8e3589d595a5ed79d3f6404510124e455838ce9cf51b8b27d52",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.22.0/source.json": "844344f41ae9b780cfb0452438388465d3cf7c7b5accedb1fcc4900ace5111ca",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.62.0/MODULE.bazel": "ff213234cf605ff0cf7dc5d55b0e1d0aab7df065f32759e6e64d2d1315110b18",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.68.0/MODULE.bazel": "88b9a5375fdb94f25ee208549fcf10534c92eddf0d56d8c9589d190279e868d5",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.68.0/source.json": "39e0f7501d2560074a84a84ad8ff93262793f8491b2ff36e43fd0b04ce696525",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.69.0/MODULE.bazel": "ae7f68d929c14fad94f43111ce371fdcfb9de048844c567842aca660c6a8d185",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.69.0/source.json": "557faab8b5fcd913edaa13dd0baf4217ef63bc7cda4f164f4bbcc86d208fe6a5",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gazelle/0.27.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gazelle/0.30.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gazelle/0.32.0/MODULE.bazel": "not found",
@@ -1019,7 +1019,7 @@
     "@@cross-media-measurement-api~//build:non_module_deps.bzl%non_module_deps": {
       "general": {
         "bzlTransitiveDigest": "wE20E2IDEGa/zb/kn5OSg6oUkQSc6bq0ibYHGkBdb/M=",
-        "usagesDigest": "6KBAOU5p6oeFKPn6CMKUkw9HJ3arjdmz+4Zp4NgmzA8=",
+        "usagesDigest": "OlamidBvVjnoe9Vgfo/gxFUh8clOfwOzhlzhFt7W5SQ=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -2501,85 +2501,6 @@
             "bazel_tools"
           ]
         ]
-      },
-      "os:osx,arch:aarch64": {
-        "bzlTransitiveDigest": "gsN4wY2u2EMhiYRJkxqtM4OBx2QpbWg2/8zfDyRLBXo=",
-        "usagesDigest": "9QWeHEFUJjpr/ZhAOcnCiVikRD2WLJnK+1EDuj+znYM=",
-        "recordedFileInputs": {},
-        "recordedDirentsInputs": {},
-        "envVariables": {},
-        "generatedRepoSpecs": {
-          "go_default_sdk": {
-            "bzlFile": "@@rules_go~//go/private:sdk.bzl",
-            "ruleClassName": "go_download_sdk_rule",
-            "attributes": {
-              "goos": "",
-              "goarch": "",
-              "sdks": {},
-              "experiments": [],
-              "patches": [],
-              "patch_strip": 0,
-              "urls": [
-                "https://dl.google.com/go/{}"
-              ],
-              "version": "1.21.1",
-              "strip_prefix": "go"
-            }
-          },
-          "go_host_compatible_sdk_label": {
-            "bzlFile": "@@rules_go~//go/private:extensions.bzl",
-            "ruleClassName": "host_compatible_toolchain",
-            "attributes": {
-              "toolchain": "@go_default_sdk//:ROOT"
-            }
-          },
-          "go_toolchains": {
-            "bzlFile": "@@rules_go~//go/private:sdk.bzl",
-            "ruleClassName": "go_multiple_toolchains",
-            "attributes": {
-              "prefixes": [
-                "_0000_go_default_sdk_"
-              ],
-              "geese": [
-                ""
-              ],
-              "goarchs": [
-                ""
-              ],
-              "sdk_repos": [
-                "go_default_sdk"
-              ],
-              "sdk_types": [
-                "remote"
-              ],
-              "sdk_versions": [
-                "1.21.1"
-              ]
-            }
-          }
-        },
-        "recordedRepoMappingEntries": [
-          [
-            "bazel_features~",
-            "bazel_features_globals",
-            "bazel_features~~version_extension~bazel_features_globals"
-          ],
-          [
-            "bazel_features~",
-            "bazel_features_version",
-            "bazel_features~~version_extension~bazel_features_version"
-          ],
-          [
-            "rules_go~",
-            "bazel_features",
-            "bazel_features~"
-          ],
-          [
-            "rules_go~",
-            "bazel_tools",
-            "bazel_tools"
-          ]
-        ]
       }
     },
     "@@rules_go~//go/private:extensions.bzl%non_module_dependencies": {
@@ -3529,7 +3450,7 @@
         "bzlTransitiveDigest": "MTb5v4rETjE0t0kEfRAxlFmWV6omfPv2i/i887n5Qx4=",
         "usagesDigest": "WPiBQi4Zs7aerqHVmgM76TWokNwERkQOVCmgNkFbPX0=",
         "recordedFileInputs": {
-          "@@//requirements.txt": "233ebd5529ba03a49909f5916717fe7c193da25bdf0d00d5c8139fceba25cc76"
+          "@@//requirements.txt": "7614a8cf868bde39c08809eefe8c9a944ed537850cc7538087e6cf051d05cd24"
         },
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -3774,6 +3695,30 @@
               "group_deps": []
             }
           },
+          "pip_311_googleapis_common_protos": {
+            "bzlFile": "@@rules_python~//python/pip_install:pip_repository.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "requirement": "googleapis-common-protos~=1.65.0",
+              "repo": "pip_311",
+              "repo_prefix": "pip_311_",
+              "whl_patches": {},
+              "experimental_target_platforms": [],
+              "python_interpreter": "",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "quiet": true,
+              "timeout": 600,
+              "isolated": true,
+              "extra_pip_args": [],
+              "download_only": false,
+              "pip_data_exclude": [],
+              "enable_implicit_namespace_pkgs": false,
+              "environment": {},
+              "envsubst": [],
+              "group_name": "",
+              "group_deps": []
+            }
+          },
           "pip_311_black": {
             "bzlFile": "@@rules_python~//python/pip_install:pip_repository.bzl",
             "ruleClassName": "whl_library",
@@ -3869,10 +3814,16 @@
                 "et_xmlfile": [
                   "3.11"
                 ],
+                "googleapis_common_protos": [
+                  "3.11"
+                ],
                 "highs": [
                   "3.11"
                 ],
                 "highspy": [
+                  "3.11"
+                ],
+                "lxml": [
                   "3.11"
                 ],
                 "numpy": [
@@ -3914,6 +3865,30 @@
             "ruleClassName": "whl_library",
             "attributes": {
               "requirement": "dateutil~=2.9.0",
+              "repo": "pip_311",
+              "repo_prefix": "pip_311_",
+              "whl_patches": {},
+              "experimental_target_platforms": [],
+              "python_interpreter": "",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "quiet": true,
+              "timeout": 600,
+              "isolated": true,
+              "extra_pip_args": [],
+              "download_only": false,
+              "pip_data_exclude": [],
+              "enable_implicit_namespace_pkgs": false,
+              "environment": {},
+              "envsubst": [],
+              "group_name": "",
+              "group_deps": []
+            }
+          },
+          "pip_311_lxml": {
+            "bzlFile": "@@rules_python~//python/pip_install:pip_repository.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "requirement": "lxml~=5.3.0",
               "repo": "pip_311",
               "repo_prefix": "pip_311_",
               "whl_patches": {},
