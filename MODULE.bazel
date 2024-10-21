@@ -219,7 +219,6 @@ maven.install(
         "com.google.cloud:google-cloud-security-private-ca",
         # TODO(googleapis/java-cloud-bom#5279): Remove when managed by BOM.
         "com.google.apis:google-api-services-storage:v1-rev20240706-2.0.0",
-        "com.google.cloud:google-cloud-kms:2.55.0",
 
         # AWS
         "software.amazon.awssdk:acmpca",
