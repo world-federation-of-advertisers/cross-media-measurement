@@ -141,7 +141,8 @@ message MetricCalculationSpec {
   }
 
   // The `TrailingWindow` for this `MetricCalculationSpec`. The beginning of the
-  // time covered is bounded by `ReportingInterval.report_start`.
+  // time covered is bounded by `ReportingInterval.report_start` and the end of
+  // the time covered is bounded by `ReportingInterval.report_end`.
   //
   // If set, but `metric_frequency_spec` is not, an error will be thrown.
   // If set and `metric_frequency_spec` is also set, the combination of this
