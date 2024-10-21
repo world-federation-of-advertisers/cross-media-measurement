@@ -36,7 +36,17 @@ _systemApiAddressName: string @tag("system_api_address_name")
 #InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
-		memory: "352Mi"
+		memory: "1024Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+
+#PublicServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "500m"
+		memory: "1024Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -94,6 +104,7 @@ kingdom: #Kingdom & {
 			_container: {
 				_grpcThreadPoolSize: #InternalServerGrpcThreads
 				resources:           #InternalServerResourceRequirements
+				_javaOptions: maxHeapSize: "800M"
 			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalServerServiceAccount
@@ -102,6 +113,12 @@ kingdom: #Kingdom & {
 		"system-api-server": {
 			_container: {
 				_grpcThreadPoolSize: #SystemServerGrpcThreads
+			}
+		}
+		"v2alpha-public-api-server": {
+			_container: {
+				resources: #PublicServerResourceRequirements
+				_javaOptions: maxHeapSize: "800M"
 			}
 		}
 	}

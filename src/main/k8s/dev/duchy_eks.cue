@@ -81,13 +81,13 @@ _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 #ControlServiceResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "200m"
-		memory: "512Mi"
+		memory: "1500Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#ControlServiceMaxHeapSize: "320M"
+#ControlServiceMaxHeapSize: "1000M"
 
 objectSets: [defaultNetworkPolicies] + [ for objectSet in duchy {objectSet}]
 
