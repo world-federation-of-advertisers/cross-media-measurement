@@ -2027,7 +2027,8 @@ private fun ProtoDuration.toDoubleSecond(): Double {
 /**
  * Builds a list of nullable [WeightedWatchDurationMeasurementVarianceParams].
  *
- * @throws MetricResultNotComputableException when watch duration measurement result is missing.
+ * @throws MetricResultNotComputableException when watch duration measurement has no results.
+ * @throws MeasurementVarianceNotComputableException when methodology is incorrectly set.
  */
 fun buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
   weightedMeasurement: WeightedMeasurement,
@@ -2075,7 +2076,7 @@ fun buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
  * Builds a [Methodology] from an [InternalMeasurement.Result.WatchDuration].
  *
  * @throws MeasurementVarianceNotComputableException when methodology is not supported for watch
- *   duration.
+ *   duration or methodology missing variance information.
  */
 fun buildStatsMethodology(
   watchDurationResult: InternalMeasurement.Result.WatchDuration
@@ -2093,6 +2094,7 @@ fun buildStatsMethodology(
             "Custom direct methodology for frequency is not supported for watch duration."
           )
         }
+        // Custom methodology is allowed to explicitly state that the variance is unavailable.
         CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
           return null
         }
@@ -2179,7 +2181,8 @@ private fun calculateImpressionResult(
 /**
  * Builds a list of nullable [WeightedImpressionMeasurementVarianceParams].
  *
- * @throws io.grpc.StatusRuntimeException when measurement noise mechanism is unrecognized.
+ * @throws MetricResultNotComputableException when impression measurement has no results.
+ * @throws MeasurementVarianceNotComputableException when methodology incorrectly set.
  */
 fun buildWeightedImpressionMeasurementVarianceParamsPerResult(
   weightedMeasurement: WeightedMeasurement,
@@ -2233,7 +2236,7 @@ fun buildWeightedImpressionMeasurementVarianceParamsPerResult(
  * Builds a [Methodology] from an [InternalMeasurement.Result.Impression].
  *
  * @throws MeasurementVarianceNotComputableException when methodology is not supported for
- *   impression.
+ *   impression or methodology missing variance information.
  */
 fun buildStatsMethodology(impressionResult: InternalMeasurement.Result.Impression): Methodology? {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
@@ -2249,6 +2252,7 @@ fun buildStatsMethodology(impressionResult: InternalMeasurement.Result.Impressio
             "Custom direct methodology for frequency is not supported for impression."
           )
         }
+        // Custom methodology is allowed to explicitly state that the variance is unavailable.
         CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
           return null
         }
@@ -2403,7 +2407,8 @@ private fun calculateFrequencyHistogramResults(
  *
  * @return null when measurement noise mechanism is not specified or measurement methodology is not
  *   set.
- * @throws MeasurementVarianceNotComputableException when measurement variance computation fails.
+ * @throws MeasurementVarianceNotComputableException when reach measurement variance computation
+ *   fails or frequency methodology incorrectly set.
  * @throws MetricResultNotComputableException when measurement has no frequency result or has more
  *   than 1 frequency result.
  */
@@ -2482,7 +2487,8 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
 /**
  * Builds a [Methodology] from an [InternalMeasurement.Result.Frequency].
  *
- * @throws MeasurementVarianceNotComputableException when methodology not supported for frequency.
+ * @throws MeasurementVarianceNotComputableException when methodology not supported for frequency
+ *   or methodology missing variance information.
  */
 fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency): Methodology? {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
@@ -2505,6 +2511,7 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
             },
           )
         }
+        // Custom methodology is allowed to explicitly state that the variance is unavailable.
         CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
           return null
         }
@@ -2683,10 +2690,10 @@ private fun calculateReachResult(
 /**
  * Builds a nullable [WeightedReachMeasurementVarianceParams].
  *
- * @return null when measurement noise mechanism is not specified or measurement methodology is not
- *   set.
+ * @return null when measurement noise mechanism is not specified.
  * @throws MetricResultNotComputableException when reach measurement result is missing or more than
  *   one reach result is found.
+ * @throws MeasurementVarianceNotComputableException when methodology incorrectly set.
  */
 private fun buildWeightedReachMeasurementVarianceParams(
   weightedMeasurement: WeightedMeasurement,
@@ -2733,7 +2740,8 @@ private fun buildWeightedReachMeasurementVarianceParams(
 /**
  * Builds a [Methodology] from an [InternalMeasurement.Result.Reach].
  *
- * @throws MeasurementVarianceNotComputableException when methodology not supported for reach.
+ * @throws MeasurementVarianceNotComputableException when methodology not supported for reach or
+ *   methodology missing variance information
  */
 fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Methodology? {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
@@ -2749,6 +2757,7 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
             "Custom direct methodology for frequency is not supported for reach."
           )
         }
+        // Custom methodology is allowed to explicitly state that the variance is unavailable.
         CustomDirectMethodology.Variance.TypeCase.UNAVAILABLE -> {
           return null
         }
