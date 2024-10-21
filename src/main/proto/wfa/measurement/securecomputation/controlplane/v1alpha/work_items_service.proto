@@ -32,12 +32,20 @@ service WorkItems {
   // Results in PERMISSION_DENIED if the queue specified in the `WorkItem`
   // is not listed in the configuration file.
   rpc CreateWorkItem(CreateWorkItemRequest) returns (WorkItem) {
-    option (google.api.method_signature) = "work_item";
+    option (google.api.method_signature) = "work_item,work_item_id";
   }
 }
 
 // Request message for `CreateWorkItem` method.
 message CreateWorkItemRequest {
+
+  // The ID to use for the `WorkItem`, which will become the final
+  // component of the `WorkItem`s resource name.
+  //
+  // This must conform to RFC 1034, with the additional restriction that all
+  // letters must be lower-case.
+  string work_item_id = 1 [(google.api.field_behavior) = REQUIRED];
+
   // The `WorkItem` to create.
-  WorkItem work_item = 1 [(google.api.field_behavior) = REQUIRED];
+  WorkItem work_item = 2 [(google.api.field_behavior) = REQUIRED];
 }
