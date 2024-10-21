@@ -2916,6 +2916,44 @@ class ReportsServiceTest {
   }
 
   @Test
+  fun `createReport throws INVALID_ARGUMENT when report_start same as report_end`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearName()
+          clearTime()
+          clearCreateTime()
+          clearState()
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2024
+                month = 1
+                day = 1
+                timeZone = timeZone { id = "America/Los_Angeles" }
+              }
+              reportEnd = date {
+                year = 2024
+                month = 1
+                day = 1
+              }
+            }
+        }
+      reportId = "report-id"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("report_end")
+  }
+
+  @Test
   fun `createReport throws INVALID_ARGUMENT when report_end not a full date`() {
     val request = createReportRequest {
       parent = MEASUREMENT_CONSUMER_KEYS.first().toName()

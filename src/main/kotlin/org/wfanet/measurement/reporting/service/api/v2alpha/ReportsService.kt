@@ -974,7 +974,7 @@ private fun validateTime(report: Report) {
         }
         .isBefore(reportEnd)
     ) {
-      "report_end be after report_start."
+      "report_end is not after report_start."
     }
   } else {
     failGrpc { "time is not set." }
