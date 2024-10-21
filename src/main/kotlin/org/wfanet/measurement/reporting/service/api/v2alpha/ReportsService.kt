@@ -784,14 +784,6 @@ class ReportsService(
               internalMetricCalculationSpec.details.metricFrequencySpec,
               trailingWindow,
             )
-          grpcRequire(generatedTimeIntervals.isNotEmpty()) {
-            "No time intervals can be generated from the combination of the reporting_interval and metric_calculation_spec ${
-              MetricCalculationSpecKey(
-                internalMetricCalculationSpec.cmmsMeasurementConsumerId,
-                internalMetricCalculationSpec.externalMetricCalculationSpecId,
-              ).toName()
-            }"
-          }
           generatedTimeIntervals
         }
       }
@@ -1131,10 +1123,6 @@ private fun generateTimeIntervals(
       if (ChronoUnit.SECONDS.between(reportStartTemporal, nextTimeIntervalEndTemporal) > 0L) {
         val nextTimeIntervalEndTimestamp = nextTimeIntervalEndTemporal.toTimestamp()
 
-        if (Timestamps.compare(nextTimeIntervalEndTimestamp, reportEndTimestamp) > 0) {
-          break
-        }
-
         val nextTimeIntervalStartTimestamp: Timestamp =
           if (isWindowReportStart) {
             reportStartTimestamp
@@ -1152,6 +1140,18 @@ private fun generateTimeIntervals(
               newTimestamp
             }
           }
+
+        if (Timestamps.compare(nextTimeIntervalEndTimestamp, reportEndTimestamp) > 0) {
+          if (Timestamps.compare(nextTimeIntervalStartTimestamp, reportEndTimestamp) != 0) {
+            add(
+              interval {
+                startTime = nextTimeIntervalStartTimestamp
+                endTime = reportEndTimestamp
+              }
+            )
+          }
+          break
+        }
 
         add(
           interval {
