@@ -24,6 +24,12 @@ date_specs {
         start: 10000000
         end_exclusive: 20000000
       }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.25
+        }
+      }
     }
   }
   # 5M
@@ -34,6 +40,12 @@ date_specs {
         start: 45000000
         end_exclusive: 50000000
       }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.25
+        }
+      }
     }
   }
   # 10M
@@ -43,6 +55,12 @@ date_specs {
       vid_range {
         start: 210000000
         end_exclusive: 220000000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.25
+        }
       }
     }
   }
