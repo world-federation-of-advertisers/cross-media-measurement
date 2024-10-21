@@ -88,7 +88,7 @@ import "list"
 					startupProbe: {
 						exec: command: ["cat", HealthFile]
 						initialDelaySeconds: 10
-						periodSeconds:       1
+						periodSeconds:       10
 						failureThreshold:    30
 					}
 					resources: Resources={
