@@ -1142,7 +1142,7 @@ private fun generateTimeIntervals(
           }
 
         if (Timestamps.compare(nextTimeIntervalEndTimestamp, reportEndTimestamp) > 0) {
-          if (Timestamps.compare(nextTimeIntervalStartTimestamp, reportEndTimestamp) != 0) {
+          if (Timestamps.compare(nextTimeIntervalStartTimestamp, reportEndTimestamp) < 0) {
             add(
               interval {
                 startTime = nextTimeIntervalStartTimestamp
