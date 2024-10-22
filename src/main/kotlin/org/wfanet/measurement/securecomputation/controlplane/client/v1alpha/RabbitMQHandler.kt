@@ -21,6 +21,14 @@ import com.rabbitmq.client.Delivery
 import com.rabbitmq.client.Channel
 import com.rabbitmq.client.Connection
 
+/**
+ * A handler class responsible for managing RabbitMQ connections and subscriptions.
+ *
+ * This class provides methods to:
+ * - Subscribe to a RabbitMQ queue and process incoming messages by launching an external process
+ *   to run the TEE application.
+ * - Unsubscribe from a RabbitMQ queue by safely closing the channel and connection.
+ */
 class RabbitMQHandler {
 
   private lateinit var connection: Connection
@@ -42,6 +50,24 @@ class RabbitMQHandler {
     }
   }
 
+  /**
+   * Subscribes to a RabbitMQ queue and processes incoming messages by dispatching the message body
+   * to an external Kotlin application running in a separate process. After processing the message,
+   * it sends an acknowledgment or negative acknowledgment back to RabbitMQ based on the result.
+   *
+   * @param rabbit_host The hostname of the RabbitMQ server.
+   * @param rabbit_port The port of the RabbitMQ server.
+   * @param rabbit_username The username for authenticating with RabbitMQ.
+   * @param rabbit_password The password for authenticating with RabbitMQ.
+   * @param rabbit_queue_name The name of the RabbitMQ queue to subscribe to.
+   *
+   * The function:
+   * - Connects to the RabbitMQ server using the provided credentials and queue details.
+   * - Consumes messages from the queue and processes them in a separate process.
+   * - Writes the message body to the external process's input stream.
+   * - Waits for the external process to complete.
+   * - Acknowledges the message if the process completes successfully, or negatively acknowledges it if the process fails.
+   */
   fun subscribeToQueue(rabbit_host: String, rabbit_port: Int, rabbit_username: String, rabbit_password: String, rabbit_queue_name: String) {
     val factory = ConnectionFactory()
     factory.host = rabbit_host
@@ -56,7 +82,7 @@ class RabbitMQHandler {
 
       process.outputStream.use { outputStream ->
         outputStream.write(body)
-        outputStream.flush()  
+        outputStream.flush()
       }
 
       process.inputStream.bufferedReader().use { it.readText() }
@@ -70,6 +96,18 @@ class RabbitMQHandler {
     }, { _ -> })
   }
 
+  /**
+   * Unsubscribes from a RabbitMQ queue by closing the associated channel and connection.
+   * Safely closes the channel and connection if they are initialized, and handles any exceptions
+   * that occur during the unsubscription process.
+   *
+   * This function ensures:
+   * - The channel is closed if it has been initialized.
+   * - The connection is closed if it has been initialized.
+   * - Any errors during the unsubscription are caught, logged, and rethrown.
+   *
+   * @throws Exception If an error occurs while closing the channel or connection.
+   */
   fun unsubscribeFromQueue() {
     try {
       if (::channel.isInitialized) {
