@@ -7,7 +7,7 @@ package(default_visibility = [
 
 kt_jvm_library(
     name = "recordio_storage_client",
-    srcs = ["RecordioStorageClient.kt"],
+    srcs = ["RecordIOStorageClient.kt"],
     deps = [
         "@wfa_common_jvm//imports/java/com/google/cloud/storage",
         "@wfa_common_jvm//imports/java/com/google/crypto/tink",

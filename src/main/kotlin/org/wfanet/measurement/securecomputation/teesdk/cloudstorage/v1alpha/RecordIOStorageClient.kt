@@ -28,13 +28,18 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * A wrapper class for [StorageClient] interface that uses Tink AEAD encryption/decryption for
- * blob/object storage operations on RecordIO-based files.
+ * A wrapper class for the [StorageClient] interface that leverages Tink AEAD encryption/decryption
+ * for blob/object storage operations on files formatted using Apache Mesos RecordIO.
+ *
+ * This class supports row-based encryption and decryption, enabling the processing of individual
+ * rows at the client’s pace. Unlike [KmsStorageClient],
+ * which encrypts entire blobs, this class focuses on handling encryption and decryption at the
+ * record level inside RecordIO files.
  *
  * @param storageClient underlying client for accessing blob/object storage
  * @param dataKey a base64-encoded symmetric data key
  */
-class RecordioStorageClient(
+class RecordIOStorageClient(
   private val storageClient: StorageClient,
   private val base64Dek: String,
 ) : StorageClient {
