@@ -16,12 +16,12 @@
 
 package org.wfanet.measurement.measurementconsumer.stats
 
+import com.google.common.math.DoubleMath.fuzzyCompare
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
-import com.google.common.math.DoubleMath.fuzzyCompare
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
