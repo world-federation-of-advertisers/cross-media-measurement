@@ -38,7 +38,6 @@ service WorkItems {
 
 // Request message for `CreateWorkItem` method.
 message CreateWorkItemRequest {
-
   // The ID to use for the `WorkItem`, which will become the final
   // component of the `WorkItem`s resource name.
   //

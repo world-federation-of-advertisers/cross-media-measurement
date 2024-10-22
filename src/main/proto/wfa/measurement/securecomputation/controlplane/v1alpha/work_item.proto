@@ -42,7 +42,9 @@ message WorkItem {
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
       type: "control-plane.secure-computation.halo-cmm.org/Queue"
-  }];
+    }
+  ];
   // The parameters to be delivered to the TEE application.
-  google.protobuf.Any work_item_params = 3 [(google.api.field_behavior) = IMMUTABLE];
+  google.protobuf.Any work_item_params = 3
+      [(google.api.field_behavior) = IMMUTABLE];
 }
