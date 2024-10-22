@@ -84,9 +84,9 @@ interface Variances {
 object VariancesImpl : Variances {
   private const val TOLERANCE = 1E-6
 
-  private fun Double.fuzzyLessThan(other: Double, tolerance: Double): Boolean {
+  private fun Double.fuzzyLessThanOrEqualTo(other: Double, tolerance: Double): Boolean {
     require(tolerance >= 0) { "Tolerance must not be negative, but got $tolerance." }
-    return this < other + tolerance
+    return this <= other + tolerance
   }
 
   /**
@@ -453,7 +453,7 @@ object VariancesImpl : Variances {
     val kPlusRelativeFrequencyDistribution: Map<Int, Double> =
       (maximumFrequency downTo 1).associateWith { frequency ->
         suffixSum += params.relativeFrequencyDistribution.getOrDefault(frequency, 0.0)
-        require(suffixSum.fuzzyLessThan(1.0, TOLERANCE)) {
+        require(suffixSum.fuzzyLessThanOrEqualTo(1.0, TOLERANCE)) {
           "kPlus relative frequency must not exceed 1, but got $suffixSum."
         }
         min(1.0, suffixSum)
@@ -565,7 +565,7 @@ object VariancesImpl : Variances {
     val kPlusRelativeFrequencyDistribution: Map<Int, Double> =
       (maximumFrequency downTo 1).associateWith { frequency ->
         suffixSum += frequencyParams.relativeFrequencyDistribution.getOrDefault(frequency, 0.0)
-        require(suffixSum.fuzzyLessThan(1.0, TOLERANCE)) {
+        require(suffixSum.fuzzyLessThanOrEqualTo(1.0, TOLERANCE)) {
           "kPlus relative frequency must not exceed 1, but got $suffixSum."
         }
         min(1.0, suffixSum)
@@ -670,7 +670,7 @@ object VariancesImpl : Variances {
     val kPlusRelativeFrequencyDistribution: Map<Int, Double> =
       (maximumFrequency downTo 1).associateWith { frequency ->
         suffixSum += params.relativeFrequencyDistribution.getOrDefault(frequency, 0.0)
-        require(suffixSum.fuzzyLessThan(1.0, TOLERANCE)) {
+        require(suffixSum.fuzzyLessThanOrEqualTo(1.0, TOLERANCE)) {
           "kPlus relative frequency must not exceed 1, but got $suffixSum."
         }
         min(1.0, suffixSum)
