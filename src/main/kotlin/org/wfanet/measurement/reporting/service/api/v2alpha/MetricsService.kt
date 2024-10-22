@@ -2487,8 +2487,8 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
 /**
  * Builds a [Methodology] from an [InternalMeasurement.Result.Frequency].
  *
- * @throws MeasurementVarianceNotComputableException when methodology not supported for frequency
- *   or methodology missing variance information.
+ * @throws MeasurementVarianceNotComputableException when methodology not supported for frequency or
+ *   methodology missing variance information.
  */
 fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency): Methodology? {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
