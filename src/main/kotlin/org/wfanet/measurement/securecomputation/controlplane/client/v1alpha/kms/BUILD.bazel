@@ -1,0 +1,21 @@
+
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "kms_client",
+    srcs = ["KmsClient.kt"],
+)
+
+kt_jvm_library(
+    name = "gcp_kms_client",
+    srcs = ["GcpKmsClient.kt"],
+    deps = [
+        ":kms_client",
+        "@maven//:com_google_cloud_google_cloud_kms"
+    ],
+)

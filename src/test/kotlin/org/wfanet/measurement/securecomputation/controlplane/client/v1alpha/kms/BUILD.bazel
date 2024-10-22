@@ -1,0 +1,21 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+])
+
+kt_jvm_test(
+    name = "GcpKmsClientTest",
+    srcs = ["GcpKmsClientTest.kt"],
+    test_class = "org.wfanet.measurement.securecomputation.controlplane.client.v1alpha.kms.GcpKmsClientTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/client/v1alpha/kms:gcp_kms_client",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@maven//:com_google_cloud_google_cloud_kms"
+    ],
+)
