@@ -16,21 +16,20 @@
 
 package org.wfanet.measurement.kingdom.batch
 
-import com.google.common.truth.Truth
+import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
-import java.io.File
-import java.nio.file.Paths
-import java.time.Clock
-import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.Mockito.`when`
-import org.mockito.kotlin.anyOrNull
+import org.mockito.Mockito
+import org.mockito.Mockito.verify
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
@@ -68,29 +67,34 @@ import org.wfanet.measurement.consent.client.common.encryptMessage
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.common.toPublicKeyHandle
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
+import java.io.File
+import java.nio.file.Paths
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
 
 @RunWith(JUnit4::class)
 class MeasurementSystemProberTest {
   private val measurementConsumersMock:
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase =
     mockService {
-      onBlocking { getMeasurementConsumer(anyOrNull()) }.thenReturn(MEASUREMENT_CONSUMER)
+      onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER)
     }
 
   private val measurementsMock: MeasurementsGrpcKt.MeasurementsCoroutineImplBase = mockService {
-    onBlocking { listMeasurements(anyOrNull()) }.thenReturn(LIST_MEASUREMENTS_RESPONSE)
+    onBlocking { listMeasurements(any()) }.thenReturn(LIST_MEASUREMENTS_RESPONSE)
   }
 
   private val dataProvidersMock: DataProvidersGrpcKt.DataProvidersCoroutineImplBase = mockService {
-    onBlocking { getDataProvider(anyOrNull()) }.thenReturn(DATA_PROVIDER)
+    onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER)
   }
 
   private val eventGroupsMock: EventGroupsGrpcKt.EventGroupsCoroutineImplBase = mockService {
-    onBlocking { listEventGroups(anyOrNull()) }.thenReturn(LIST_EVENT_GROUPS_RESPONSE)
+    onBlocking { listEventGroups(any()) }.thenReturn(LIST_EVENT_GROUPS_RESPONSE)
   }
 
   private val requisitionsMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase = mockService {
-    onBlocking { listRequisitions(anyOrNull()) }.thenReturn(LIST_REQUISITIONS_RESPONSE)
+    onBlocking { listRequisitions(any()) }.thenReturn(LIST_REQUISITIONS_RESPONSE)
   }
 
   private lateinit var measurementConsumersClient: MeasurementConsumersCoroutineStub
@@ -129,42 +133,55 @@ class MeasurementSystemProberTest {
         dataProvidersClient,
         eventGroupsClient,
         requisitionsClient,
+        CLOCK,
       )
   }
 
   @Test
   fun `run creates a new prober measurement when there is no previous prober measurement`(): Unit =
     runBlocking {
-      `when`(measurementsMock.listMeasurements(anyOrNull())).thenReturn(listMeasurementsResponse {})
-      val measurement = prober.run()
-      Truth.assertThat(measurement).isNotNull()
+      whenever(measurementsMock.listMeasurements(any())).thenReturn(listMeasurementsResponse {})
+      val createMeasurementRequest =
+        argumentCaptor {
+            prober.run()
+            verify(measurementsMock).createMeasurement(capture())
+          }
+          .firstValue
+      assertThat(createMeasurementRequest).isNotNull()
     }
 
   @Test
   fun `run creates a new prober measurement when most recent issued prober measurement is finished a long time ago`():
     Unit = runBlocking {
-    `when`(measurementsMock.listMeasurements(anyOrNull()))
+    whenever(measurementsMock.listMeasurements(any()))
       .thenReturn(listMeasurementsResponse { measurements += OLD_FINISHED_MEASUREMENT })
-    val measurement = prober.run()
-    Truth.assertThat(measurement).isNotNull()
+    whenever(CLOCK.instant()).thenReturn(NOW)
+    val createMeasurementRequest =
+      argumentCaptor {
+          prober.run()
+          verify(measurementsMock).createMeasurement(capture())
+        }
+        .firstValue
+    assertThat(createMeasurementRequest).isNotNull()
   }
 
   @Test
   fun `run creates a new prober measurement when most recent issued prober measurement is finished too recently`():
     Unit = runBlocking {
-    `when`(measurementsMock.listMeasurements(anyOrNull()))
+    whenever(measurementsMock.listMeasurements(any()))
       .thenReturn(listMeasurementsResponse { measurements += NEW_FINISHED_MEASUREMENT })
-    val measurement = prober.run()
-    Truth.assertThat(measurement).isNotNull()
+    whenever(CLOCK.instant()).thenReturn(NOW)
+    prober.run()
+    verify(measurementsMock, Mockito.never()).createMeasurement(any())
   }
 
   @Test
   fun `run does not create a new prober measurement when the most recent issued prober measurement is not finished`():
     Unit = runBlocking {
-    `when`(measurementsMock.listMeasurements(anyOrNull()))
+    whenever(measurementsMock.listMeasurements(any()))
       .thenReturn(listMeasurementsResponse { measurements += UNFINISHED_MEASUREMENT })
-    val measurement = prober.run()
-    Truth.assertThat(measurement).isNull()
+    prober.run()
+    verify(measurementsMock, Mockito.never()).createMeasurement(any())
   }
 
   companion object {
@@ -178,7 +195,7 @@ class MeasurementSystemProberTest {
     private val PRIVATE_KEY_DER_FILE = SECRETS_DIR.resolve("mc_cs_private.der")
     private val DURATION_BETWEEN_MEASUREMENT = Duration.ofDays(1)
     private val MEASUREMENT_LOOKBACK_DURATION = Duration.ofDays(1)
-    private val CLOCK = Clock.systemUTC()
+    private val CLOCK = Mockito.mock<Clock>()
 
     private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/1"
     private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
@@ -197,14 +214,14 @@ class MeasurementSystemProberTest {
       measurements += measurement { measurementConsumer { MEASUREMENT_CONSUMER } }
     }
 
-    private val OLD_FINISHED_MEASUREMENT = measurement {
+    val NOW = Instant.now()
+    val OLD_FINISHED_MEASUREMENT = measurement {
       state = Measurement.State.SUCCEEDED
-      updateTime = CLOCK.instant().minus(DURATION_BETWEEN_MEASUREMENT).toProtoTime()
+      updateTime = NOW.minus(DURATION_BETWEEN_MEASUREMENT).toProtoTime()
     }
-    private val NEW_FINISHED_MEASUREMENT = measurement {
+    val NEW_FINISHED_MEASUREMENT = measurement {
       state = Measurement.State.SUCCEEDED
-      updateTime =
-        CLOCK.instant().minus(DURATION_BETWEEN_MEASUREMENT - Duration.ofSeconds(1)).toProtoTime()
+      updateTime = NOW.minus(DURATION_BETWEEN_MEASUREMENT - Duration.ofSeconds(1)).toProtoTime()
     }
     private val UNFINISHED_MEASUREMENT = measurement { state = Measurement.State.COMPUTING }
 
