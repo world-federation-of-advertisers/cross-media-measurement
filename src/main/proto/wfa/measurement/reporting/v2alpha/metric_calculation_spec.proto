@@ -98,16 +98,21 @@ message MetricCalculationSpec {
       // A time interval is created for each day.
       Daily daily = 1;
       // A time interval is created for each week, starting on the first
-      // occurrence of the `day_of_week`. If `report_start` date is Monday and
+      // occurrence of the `day_of_week`. If `report_start` date is a Monday and
       // `day_of_week` is Tuesday, the first time interval will be created for
-      // the following day.
+      // the time period between that Monday and Tuesday, which will be 1 day
+      // long. The last time interval created will cover up to
+      // `reporting_interval.report_end` in a `Report` instead of the
+      // `day_of_week` specified.
       Weekly weekly = 2;
       // A time interval is created for each month, starting on the first
       // occurrence of the `day_of_month`. If `report_start` date is the 1st of
       // the month and `day_of_month` is 14, the first time interval will be
-      // created starting with the 14th of that month. If 'day_of_month` is
+      // from the 1st to the 14th of the month. If 'day_of_month` is
       // larger than the amount of days the month has, a time interval will be
-      // created for the end of the month.
+      // created for the end of the month. The last time interval created will
+      // cover up to `reporting_interval.report_end` in a `Report` instead of
+      // the `day_of_month` specified.
       Monthly monthly = 3;
     }
   }
