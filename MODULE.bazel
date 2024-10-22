@@ -231,6 +231,9 @@ maven.install(
         # CEL
         "org.projectnessie.cel:cel-core",
         "org.projectnessie.cel:cel-generated-pb",
+
+        # RabbitMQ
+        "com.rabbitmq:amqp-client:5.22.0"
     ],
     boms = [
         "org.apache.beam:beam-sdks-java-bom:" + APACHE_BEAM_VERSION,
