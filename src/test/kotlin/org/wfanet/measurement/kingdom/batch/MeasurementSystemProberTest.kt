@@ -19,6 +19,11 @@ package org.wfanet.measurement.kingdom.batch
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
+import java.io.File
+import java.nio.file.Paths
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -67,11 +72,6 @@ import org.wfanet.measurement.consent.client.common.encryptMessage
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.common.toPublicKeyHandle
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
-import java.io.File
-import java.nio.file.Paths
-import java.time.Clock
-import java.time.Duration
-import java.time.Instant
 
 @RunWith(JUnit4::class)
 class MeasurementSystemProberTest {
