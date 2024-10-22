@@ -13,3 +13,15 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
+
+kt_jvm_test(
+    name = "double_math_test",
+    srcs = ["DoubleMathTest.kt"],
+    test_class = "org.wfanet.measurement.common.DoubleMathTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:double_math",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

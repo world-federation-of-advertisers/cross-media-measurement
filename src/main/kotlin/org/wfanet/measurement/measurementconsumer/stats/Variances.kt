@@ -21,6 +21,7 @@ import kotlin.math.min
 import kotlin.math.pow
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
+import org.wfanet.measurement.common.fuzzyLessThanOrEqualTo
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
@@ -83,11 +84,6 @@ interface Variances {
 /** Default implementation of [Variances]. */
 object VariancesImpl : Variances {
   private const val TOLERANCE = 1E-6
-
-  private fun Double.fuzzyLessThanOrEqualTo(other: Double, tolerance: Double): Boolean {
-    require(tolerance >= 0) { "Tolerance must not be negative, but got $tolerance." }
-    return this <= other + tolerance
-  }
 
   /**
    * Computes the variance of a reach measurement that is computed using the deterministic count
