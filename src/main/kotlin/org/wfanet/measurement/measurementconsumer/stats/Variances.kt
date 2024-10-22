@@ -21,7 +21,7 @@ import kotlin.math.min
 import kotlin.math.pow
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
-import org.wfanet.measurement.common.fuzzyLessThanOrEqualTo
+import com.google.common.math.DoubleMath.fuzzyCompare
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
@@ -449,7 +449,7 @@ object VariancesImpl : Variances {
     val kPlusRelativeFrequencyDistribution: Map<Int, Double> =
       (maximumFrequency downTo 1).associateWith { frequency ->
         suffixSum += params.relativeFrequencyDistribution.getOrDefault(frequency, 0.0)
-        require(suffixSum.fuzzyLessThanOrEqualTo(1.0, TOLERANCE)) {
+        require(fuzzyCompare(suffixSum, 1.0, TOLERANCE) <= 0) {
           "kPlus relative frequency must not exceed 1, but got $suffixSum."
         }
         min(1.0, suffixSum)
@@ -561,7 +561,7 @@ object VariancesImpl : Variances {
     val kPlusRelativeFrequencyDistribution: Map<Int, Double> =
       (maximumFrequency downTo 1).associateWith { frequency ->
         suffixSum += frequencyParams.relativeFrequencyDistribution.getOrDefault(frequency, 0.0)
-        require(suffixSum.fuzzyLessThanOrEqualTo(1.0, TOLERANCE)) {
+        require(fuzzyCompare(suffixSum, 1.0, TOLERANCE) <= 0) {
           "kPlus relative frequency must not exceed 1, but got $suffixSum."
         }
         min(1.0, suffixSum)
@@ -666,7 +666,7 @@ object VariancesImpl : Variances {
     val kPlusRelativeFrequencyDistribution: Map<Int, Double> =
       (maximumFrequency downTo 1).associateWith { frequency ->
         suffixSum += params.relativeFrequencyDistribution.getOrDefault(frequency, 0.0)
-        require(suffixSum.fuzzyLessThanOrEqualTo(1.0, TOLERANCE)) {
+        require(fuzzyCompare(suffixSum, 1.0, TOLERANCE) <= 0) {
           "kPlus relative frequency must not exceed 1, but got $suffixSum."
         }
         min(1.0, suffixSum)

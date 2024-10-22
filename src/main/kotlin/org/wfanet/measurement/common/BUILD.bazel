@@ -34,8 +34,3 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
-
-kt_jvm_library(
-    name = "double_math",
-    srcs = ["DoubleMath.kt"],
-)
