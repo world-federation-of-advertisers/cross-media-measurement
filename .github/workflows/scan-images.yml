@@ -94,7 +94,7 @@ jobs:
         run:
           echo "path=${IMAGE//\//_}.sarif" >> $GITHUB_OUTPUT
       - name: Run Trivy image scanner
-        uses: aquasecurity/trivy-action@0.19.0
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: ${{ inputs.container-registry }}/${{ inputs.image-repo-prefix }}/${{ matrix.image }}:${{ inputs.image-tag }}
           format: sarif
