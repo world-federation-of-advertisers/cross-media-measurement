@@ -24,7 +24,7 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsContinuatio
 
 class SetContinuationToken(private val continuationToken: String) {
   suspend fun execute(databaseClient: AsyncDatabaseClient) {
-    databaseClient.readWriteTransaction().execute { txn ->
+    databaseClient.readWriteTransaction().run { txn ->
       val newContinuationToken = decodeContinuationToken(continuationToken)
       val oldContinuationToken =
         txn
