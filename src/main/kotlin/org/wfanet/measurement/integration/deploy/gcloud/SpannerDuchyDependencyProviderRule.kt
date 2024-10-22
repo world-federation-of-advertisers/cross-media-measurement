@@ -22,15 +22,20 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.duchy.deploy.gcloud.service.SpannerDuchyDataServices
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 /** [TestRule] which provides [InProcessDuchy.DuchyDependencies] factories using GCS and Spanner. */
-class SpannerDuchyDependencyProviderRule(duchies: Iterable<String>) :
-  ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies> {
+class SpannerDuchyDependencyProviderRule(
+  emulatorDatabaseAdmin: SpannerDatabaseAdmin,
+  duchies: Iterable<String>,
+) : ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies> {
   private val computationsDatabaseRules: Map<String, SpannerEmulatorDatabaseRule> =
-    duchies.associateWith { SpannerEmulatorDatabaseRule(Schemata.DUCHY_CHANGELOG_PATH) }
+    duchies.associateWith {
+      SpannerEmulatorDatabaseRule(emulatorDatabaseAdmin, Schemata.DUCHY_CHANGELOG_PATH)
+    }
 
   private fun buildDuchyDependencies(
     duchyId: String,
