@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.kingdom.batch
 
-import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import java.io.File
@@ -29,10 +28,9 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.Mockito
+import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.kotlin.any
-import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -45,9 +43,12 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementKt
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
+import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
@@ -67,6 +68,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
+import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.encryptMessage
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
@@ -75,22 +77,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionP
 
 @RunWith(JUnit4::class)
 class MeasurementSystemProberTest {
-  private val now = Instant.now()
-  private val durationBetweenMeasurement = Duration.ofDays(1)
-
-  private val listEventGroupsResponse: ListEventGroupsResponse = listEventGroupsResponse {
-    eventGroups += eventGroup {
-      name = EVENT_GROUP_NAME
-      measurementConsumer = MEASUREMENT_CONSUMER_NAME
-      eventGroupReferenceId = "aaa"
-      measurementConsumerPublicKey = MEASUREMENT_CONSUMER.publicKey.message
-      encryptedMetadata =
-        MC_ENCRYPTION_PUBLIC_KEY.toPublicKeyHandle()
-          .encryptMessage(EventGroup.Metadata.getDefaultInstance().pack())
-    }
-  }
-  private val listRequisitionsResponse: ListRequisitionsResponse = listRequisitionsResponse {}
-
   private val measurementConsumersMock:
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase =
     mockService {
@@ -104,11 +90,11 @@ class MeasurementSystemProberTest {
   }
 
   private val eventGroupsMock: EventGroupsGrpcKt.EventGroupsCoroutineImplBase = mockService {
-    onBlocking { listEventGroups(any()) }.thenReturn(listEventGroupsResponse)
+    onBlocking { listEventGroups(any()) }.thenReturn(LIST_EVENT_GROUPS_RESPONSE)
   }
 
   private val requisitionsMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase = mockService {
-    onBlocking { listRequisitions(any()) }.thenReturn(listRequisitionsResponse)
+    onBlocking { listRequisitions(any()) }.thenReturn(LIST_REQUISITIONS_RESPONSE)
   }
 
   private lateinit var measurementConsumersClient: MeasurementConsumersCoroutineStub
@@ -132,13 +118,12 @@ class MeasurementSystemProberTest {
     val dataProviderNames = listOf(DATA_PROVIDER_NAME)
     val apiAuthenticationKey = "some-api-key"
     val privateKeyDerFile = SECRETS_DIR.resolve("mc_cs_private.der")
-    val measurementLookbackDuration = Duration.ofDays(1)
     measurementConsumersClient = MeasurementConsumersCoroutineStub(grpcTestServerRule.channel)
     measurementsClient = MeasurementsCoroutineStub(grpcTestServerRule.channel)
     dataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(grpcTestServerRule.channel)
     eventGroupsClient = EventGroupsGrpcKt.EventGroupsCoroutineStub(grpcTestServerRule.channel)
     requisitionsClient = RequisitionsGrpcKt.RequisitionsCoroutineStub(grpcTestServerRule.channel)
-    val clock = TestClockWithNamedInstants(now)
+    val clock = TestClockWithNamedInstants(NOW)
 
     prober =
       MeasurementSystemProber(
@@ -146,8 +131,8 @@ class MeasurementSystemProberTest {
         dataProviderNames,
         apiAuthenticationKey,
         privateKeyDerFile,
-        measurementLookbackDuration,
-        durationBetweenMeasurement,
+        MEASUREMENT_LOOKBACK_DURATION,
+        DURATION_BETWEEN_MEASUREMENT,
         measurementConsumersClient,
         measurementsClient,
         dataProvidersClient,
@@ -162,13 +147,20 @@ class MeasurementSystemProberTest {
     runBlocking {
       whenever(measurementsMock.listMeasurements(any()))
         .thenReturn(ListMeasurementsResponse.getDefaultInstance())
-      val createMeasurementRequest =
-        argumentCaptor {
-            prober.run()
-            verify(measurementsMock).createMeasurement(capture())
+
+      prober.run()
+
+      verifyProtoArgument(
+          measurementsMock,
+          MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
+        )
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          createMeasurementRequest {
+            parent = MEASUREMENT_CONSUMER_NAME
+            measurement = MEASUREMENT
           }
-          .firstValue
-      assertThat(createMeasurementRequest).isNotNull()
+        )
     }
 
   @Test
@@ -176,17 +168,24 @@ class MeasurementSystemProberTest {
     Unit = runBlocking {
     val oldFinishedMeasurement = measurement {
       state = Measurement.State.SUCCEEDED
-      updateTime = now.minus(durationBetweenMeasurement).toProtoTime()
+      updateTime = NOW.minus(DURATION_BETWEEN_MEASUREMENT).toProtoTime()
     }
     whenever(measurementsMock.listMeasurements(any()))
       .thenReturn(listMeasurementsResponse { measurements += oldFinishedMeasurement })
-    val createMeasurementRequest =
-      argumentCaptor {
-          prober.run()
-          verify(measurementsMock).createMeasurement(capture())
+
+    prober.run()
+
+    verifyProtoArgument(
+        measurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
+      )
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        createMeasurementRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          measurement = MEASUREMENT
         }
-        .firstValue
-    assertThat(createMeasurementRequest).isNotNull()
+      )
   }
 
   @Test
@@ -194,12 +193,12 @@ class MeasurementSystemProberTest {
     Unit = runBlocking {
     val newFinishedMeasurement = measurement {
       state = Measurement.State.SUCCEEDED
-      updateTime = now.minus(durationBetweenMeasurement - Duration.ofSeconds(1)).toProtoTime()
+      updateTime = NOW.minus(DURATION_BETWEEN_MEASUREMENT - Duration.ofSeconds(1)).toProtoTime()
     }
     whenever(measurementsMock.listMeasurements(any()))
       .thenReturn(listMeasurementsResponse { measurements += newFinishedMeasurement })
     prober.run()
-    verify(measurementsMock, Mockito.never()).createMeasurement(any())
+    verify(measurementsMock, never()).createMeasurement(any())
   }
 
   @Test
@@ -209,7 +208,7 @@ class MeasurementSystemProberTest {
     whenever(measurementsMock.listMeasurements(any()))
       .thenReturn(listMeasurementsResponse { measurements += unfinishedMeasurement })
     prober.run()
-    verify(measurementsMock, Mockito.never()).createMeasurement(any())
+    verify(measurementsMock, never()).createMeasurement(any())
   }
 
   companion object {
@@ -218,6 +217,10 @@ class MeasurementSystemProberTest {
           Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
         )!!
         .toFile()
+
+    private val NOW = Instant.now()
+    private val DURATION_BETWEEN_MEASUREMENT = Duration.ofDays(1)
+    private val MEASUREMENT_LOOKBACK_DURATION = Duration.ofDays(1)
 
     private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/1"
     private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
@@ -232,6 +235,8 @@ class MeasurementSystemProberTest {
       certificateDer = MC_CERTIFICATE_DER
       publicKey = signedMessage { setMessage(MC_ENCRYPTION_PUBLIC_KEY.pack()) }
     }
+
+    private val LIST_REQUISITIONS_RESPONSE: ListRequisitionsResponse = listRequisitionsResponse {}
 
     private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
     private const val DATA_PROVIDER_CERTIFICATE_NAME =
@@ -257,5 +262,30 @@ class MeasurementSystemProberTest {
     }
 
     private const val EVENT_GROUP_NAME = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAHs"
+    private val LIST_EVENT_GROUPS_RESPONSE: ListEventGroupsResponse = listEventGroupsResponse {
+      eventGroups += eventGroup {
+        name = EVENT_GROUP_NAME
+        measurementConsumer = MEASUREMENT_CONSUMER_NAME
+        eventGroupReferenceId = "aaa"
+        measurementConsumerPublicKey = MEASUREMENT_CONSUMER.publicKey.message
+        encryptedMetadata =
+          MC_ENCRYPTION_PUBLIC_KEY.toPublicKeyHandle()
+            .encryptMessage(EventGroup.Metadata.getDefaultInstance().pack())
+      }
+    }
+
+    private val DATA_PROVIDER_ENTRY = dataProviderEntry {
+      key = DATA_PROVIDER_NAME
+      value =
+        MeasurementKt.DataProviderEntryKt.value {
+          dataProviderCertificate = DATA_PROVIDER.certificate
+          dataProviderPublicKey = DATA_PROVIDER.publicKey.message
+        }
+    }
+
+    private val MEASUREMENT = measurement {
+      measurementConsumerCertificate = MEASUREMENT_CONSUMER.certificate
+      dataProviders += DATA_PROVIDER_ENTRY
+    }
   }
 }
