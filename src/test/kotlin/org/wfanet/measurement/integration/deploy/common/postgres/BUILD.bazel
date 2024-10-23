@@ -3,7 +3,10 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "PostgresInProcessLifeOfAReportIntegrationTest",
     srcs = ["PostgresInProcessLifeOfAReportIntegrationTest.kt"],
-    tags = ["cpu:2"],
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
     test_class = "org.wfanet.measurement.integration.deploy.common.postgres.PostgresInProcessLifeOfAReportIntegrationTest",
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
