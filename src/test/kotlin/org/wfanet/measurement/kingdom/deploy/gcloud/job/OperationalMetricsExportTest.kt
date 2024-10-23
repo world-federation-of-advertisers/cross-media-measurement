@@ -56,6 +56,7 @@ import org.mockito.ArgumentMatchers
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
@@ -69,6 +70,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
@@ -79,19 +81,31 @@ import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
+import org.wfanet.measurement.internal.kingdom.bigquerytables.ComputationParticipantStagesTableRow
+import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestComputationReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestMeasurementReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestRequisitionReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementType
 import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.RequisitionsTableRow
+import org.wfanet.measurement.internal.kingdom.bigquerytables.computationParticipantStagesTableRow
+import org.wfanet.measurement.internal.kingdom.bigquerytables.latestComputationReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.latestMeasurementReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.latestRequisitionReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.measurementsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.requisitionsTableRow
+import org.wfanet.measurement.internal.kingdom.computationKey
+import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntryDetails
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntryStageAttempt
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementDetails
 import org.wfanet.measurement.internal.kingdom.measurementKey
+import org.wfanet.measurement.internal.kingdom.measurementLogEntry
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
@@ -131,8 +145,10 @@ class OperationalMetricsExportTest {
 
   private lateinit var measurementsStreamWriterMock: StreamWriter
   private lateinit var requisitionsStreamWriterMock: StreamWriter
+  private lateinit var computationParticipantStagesStreamWriterMock: StreamWriter
   private lateinit var latestMeasurementReadStreamWriterMock: StreamWriter
   private lateinit var latestRequisitionReadStreamWriterMock: StreamWriter
+  private lateinit var latestComputationReadStreamWriterMock: StreamWriter
 
   private lateinit var streamWriterFactoryTestImpl: StreamWriterFactory
 
@@ -153,6 +169,12 @@ class OperationalMetricsExportTest {
       whenever(it.isClosed).thenReturn(false)
     }
 
+    computationParticipantStagesStreamWriterMock = mock {
+      whenever(it.append(any()))
+        .thenReturn(ApiFutures.immediateFuture(AppendRowsResponse.getDefaultInstance()))
+      whenever(it.isClosed).thenReturn(false)
+    }
+
     latestMeasurementReadStreamWriterMock = mock {
       whenever(it.append(any()))
         .thenReturn(ApiFutures.immediateFuture(AppendRowsResponse.getDefaultInstance()))
@@ -160,6 +182,12 @@ class OperationalMetricsExportTest {
     }
 
     latestRequisitionReadStreamWriterMock = mock {
+      whenever(it.append(any()))
+        .thenReturn(ApiFutures.immediateFuture(AppendRowsResponse.getDefaultInstance()))
+      whenever(it.isClosed).thenReturn(false)
+    }
+
+    latestComputationReadStreamWriterMock = mock {
       whenever(it.append(any()))
         .thenReturn(ApiFutures.immediateFuture(AppendRowsResponse.getDefaultInstance()))
       whenever(it.isClosed).thenReturn(false)
@@ -175,8 +203,10 @@ class OperationalMetricsExportTest {
         when (tableId) {
           MEASUREMENTS_TABLE_ID -> measurementsStreamWriterMock
           REQUISITIONS_TABLE_ID -> requisitionsStreamWriterMock
+          COMPUTATION_PARTICIPANT_STAGES_TABLE_ID -> computationParticipantStagesStreamWriterMock
           LATEST_MEASUREMENT_READ_TABLE_ID -> latestMeasurementReadStreamWriterMock
           LATEST_REQUISITION_READ_TABLE_ID -> latestRequisitionReadStreamWriterMock
+          LATEST_COMPUTATION_READ_TABLE_ID -> latestComputationReadStreamWriterMock
           else -> mock {}
         }
       }
@@ -204,6 +234,8 @@ class OperationalMetricsExportTest {
         measurementsTableId = MEASUREMENTS_TABLE_ID,
         latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
         requisitionsTableId = REQUISITIONS_TABLE_ID,
+        latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
+        computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
         streamWriterFactory = streamWriterFactoryTestImpl,
       )
 
@@ -316,6 +348,53 @@ class OperationalMetricsExportTest {
     }
 
     with(argumentCaptor<ProtoRows>()) {
+      verify(computationParticipantStagesStreamWriterMock).append(capture())
+
+      val protoRows: ProtoRows = allValues.first()
+      assertThat(protoRows.serializedRowsList).hasSize(2)
+
+      val stageOneTableRow =
+        ComputationParticipantStagesTableRow.parseFrom(protoRows.serializedRowsList[0])
+
+      assertThat(stageOneTableRow)
+        .isEqualTo(
+          computationParticipantStagesTableRow {
+            measurementConsumerId =
+              externalIdToApiId(COMPUTATION_MEASUREMENT.externalMeasurementConsumerId)
+            measurementId = externalIdToApiId(COMPUTATION_MEASUREMENT.externalMeasurementId)
+            computationId = externalIdToApiId(COMPUTATION_MEASUREMENT.externalComputationId)
+            duchyId = "0"
+            measurementType = MeasurementType.REACH_AND_FREQUENCY
+            result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
+            stageName = STAGE_ONE
+            stageStartTime = timestamp { seconds = 100 }
+            completionDurationSeconds = 200
+            completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
+          }
+        )
+
+      val stageTwoTableRow =
+        ComputationParticipantStagesTableRow.parseFrom(protoRows.serializedRowsList[1])
+
+      assertThat(stageTwoTableRow)
+        .isEqualTo(
+          computationParticipantStagesTableRow {
+            measurementConsumerId =
+              externalIdToApiId(COMPUTATION_MEASUREMENT.externalMeasurementConsumerId)
+            measurementId = externalIdToApiId(COMPUTATION_MEASUREMENT.externalMeasurementId)
+            computationId = externalIdToApiId(COMPUTATION_MEASUREMENT.externalComputationId)
+            duchyId = "0"
+            measurementType = MeasurementType.REACH_AND_FREQUENCY
+            result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
+            stageName = STAGE_TWO
+            stageStartTime = timestamp { seconds = 300 }
+            completionDurationSeconds = 300
+            completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
+          }
+        )
+    }
+
+    with(argumentCaptor<ProtoRows>()) {
       verify(latestMeasurementReadStreamWriterMock).append(capture())
 
       val protoRows: ProtoRows = allValues.first()
@@ -347,6 +426,106 @@ class OperationalMetricsExportTest {
             updateTime = Timestamps.toNanos(REQUISITION_2.updateTime)
             externalDataProviderId = REQUISITION_2.externalDataProviderId
             externalRequisitionId = REQUISITION_2.externalRequisitionId
+          }
+        )
+    }
+
+    with(argumentCaptor<ProtoRows>()) {
+      verify(latestComputationReadStreamWriterMock).append(capture())
+
+      val protoRows: ProtoRows = allValues.first()
+      assertThat(protoRows.serializedRowsList).hasSize(1)
+
+      val latestComputationReadTableRow =
+        LatestComputationReadTableRow.parseFrom(protoRows.serializedRowsList.first())
+      assertThat(latestComputationReadTableRow)
+        .isEqualTo(
+          latestComputationReadTableRow {
+            updateTime = Timestamps.toNanos(COMPUTATION_MEASUREMENT.updateTime)
+            externalComputationId = COMPUTATION_MEASUREMENT.externalComputationId
+          }
+        )
+    }
+  }
+
+  @Test
+  fun `job successfully creates proto for stages when measurement failed`() = runBlocking {
+    val tableResultMock: TableResult = mock { tableResult ->
+      whenever(tableResult.iterateAll()).thenReturn(emptyList())
+    }
+
+    val bigQueryMock: BigQuery = mock { bigQuery ->
+      whenever(bigQuery.query(any())).thenReturn(tableResultMock)
+    }
+
+    whenever(measurementsMock.streamMeasurements(any())).thenReturn(
+      flowOf(COMPUTATION_MEASUREMENT.copy {
+        state = Measurement.State.FAILED
+      })
+    )
+
+    val operationalMetricsExport =
+      OperationalMetricsExport(
+        measurementsClient = measurementsClient,
+        requisitionsClient = requisitionsClient,
+        bigQuery = bigQueryMock,
+        bigQueryWriteClient = bigQueryWriteClientMock,
+        projectId = PROJECT_ID,
+        datasetId = DATASET_ID,
+        latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
+        measurementsTableId = MEASUREMENTS_TABLE_ID,
+        latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
+        requisitionsTableId = REQUISITIONS_TABLE_ID,
+        latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
+        computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
+        streamWriterFactory = streamWriterFactoryTestImpl,
+      )
+
+    operationalMetricsExport.execute()
+
+    with(argumentCaptor<ProtoRows>()) {
+      verify(computationParticipantStagesStreamWriterMock).append(capture())
+
+      val protoRows: ProtoRows = allValues.first()
+      assertThat(protoRows.serializedRowsList).hasSize(2)
+
+      val stageOneTableRow =
+        ComputationParticipantStagesTableRow.parseFrom(protoRows.serializedRowsList[0])
+
+      assertThat(stageOneTableRow)
+        .isEqualTo(
+          computationParticipantStagesTableRow {
+            measurementConsumerId =
+              externalIdToApiId(COMPUTATION_MEASUREMENT.externalMeasurementConsumerId)
+            measurementId = externalIdToApiId(COMPUTATION_MEASUREMENT.externalMeasurementId)
+            computationId = externalIdToApiId(COMPUTATION_MEASUREMENT.externalComputationId)
+            duchyId = "0"
+            measurementType = MeasurementType.REACH_AND_FREQUENCY
+            result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
+            stageName = STAGE_ONE
+            stageStartTime = timestamp { seconds = 100 }
+            completionDurationSeconds = 200
+            completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
+          }
+        )
+
+      val stageTwoTableRow =
+        ComputationParticipantStagesTableRow.parseFrom(protoRows.serializedRowsList[1])
+
+      assertThat(stageTwoTableRow)
+        .isEqualTo(
+          computationParticipantStagesTableRow {
+            measurementConsumerId =
+              externalIdToApiId(COMPUTATION_MEASUREMENT.externalMeasurementConsumerId)
+            measurementId = externalIdToApiId(COMPUTATION_MEASUREMENT.externalMeasurementId)
+            computationId = externalIdToApiId(COMPUTATION_MEASUREMENT.externalComputationId)
+            duchyId = "0"
+            measurementType = MeasurementType.REACH_AND_FREQUENCY
+            result = ComputationParticipantStagesTableRow.Result.FAILED
+            stageName = STAGE_TWO
+            stageStartTime = timestamp { seconds = 300 }
+            completionDurationSeconds = 300
+            completionDurationSecondsSquared = completionDurationSeconds * completionDurationSeconds
           }
         )
     }
@@ -406,13 +585,15 @@ class OperationalMetricsExportTest {
           measurementsTableId = MEASUREMENTS_TABLE_ID,
           latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
           requisitionsTableId = REQUISITIONS_TABLE_ID,
+          latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
+          computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
           streamWriterFactory = streamWriterFactoryTestImpl,
         )
 
       operationalMetricsExport.execute()
 
       with(argumentCaptor<StreamMeasurementsRequest>()) {
-        verify(measurementsMock).streamMeasurements(capture())
+        verify(measurementsMock, times(2)).streamMeasurements(capture())
         val streamMeasurementsRequest = allValues.first()
 
         assertThat(streamMeasurementsRequest)
@@ -470,6 +651,7 @@ class OperationalMetricsExportTest {
               )
             )
           )
+          .thenReturn(emptyList())
       }
 
       whenever(requisitionsMock.streamRequisitions(any())).thenReturn(flowOf(REQUISITION_2))
@@ -490,6 +672,8 @@ class OperationalMetricsExportTest {
           measurementsTableId = MEASUREMENTS_TABLE_ID,
           latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
           requisitionsTableId = REQUISITIONS_TABLE_ID,
+          latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
+          computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
           streamWriterFactory = streamWriterFactoryTestImpl,
         )
 
@@ -512,6 +696,93 @@ class OperationalMetricsExportTest {
                       updateTime = requisition.updateTime
                       externalDataProviderId = requisition.externalDataProviderId
                       externalRequisitionId = requisition.externalRequisitionId
+                    }
+                }
+              limit = 3000
+            }
+          )
+      }
+    }
+
+  @Test
+  fun `job can process the next batch of computations without starting at the beginning`() =
+    runBlocking {
+      val computationMeasurement = COMPUTATION_MEASUREMENT
+
+      val updateTimeFieldValue: FieldValue =
+        FieldValue.of(
+          FieldValue.Attribute.PRIMITIVE,
+          "${Timestamps.toNanos(computationMeasurement.updateTime)}",
+        )
+      val externalMeasurementConsumerIdFieldValue: FieldValue =
+        FieldValue.of(
+          FieldValue.Attribute.PRIMITIVE,
+          "${computationMeasurement.externalComputationId}",
+        )
+
+      val tableResultMock: TableResult = mock { tableResult ->
+        whenever(tableResult.iterateAll())
+          .thenReturn(emptyList())
+          .thenReturn(emptyList())
+          .thenReturn(
+            listOf(
+              FieldValueList.of(
+                mutableListOf(
+                  updateTimeFieldValue,
+                  externalMeasurementConsumerIdFieldValue,
+                ),
+                LATEST_COMPUTATION_FIELD_LIST,
+              )
+            )
+          )
+          .thenReturn(emptyList())
+      }
+
+      whenever(measurementsMock.streamMeasurements(any()))
+        .thenReturn(flowOf(COMPUTATION_MEASUREMENT))
+
+      val bigQueryMock: BigQuery = mock { bigQuery ->
+        whenever(bigQuery.query(any())).thenReturn(tableResultMock)
+      }
+
+      val operationalMetricsExport =
+        OperationalMetricsExport(
+          measurementsClient = measurementsClient,
+          requisitionsClient = requisitionsClient,
+          bigQuery = bigQueryMock,
+          bigQueryWriteClient = bigQueryWriteClientMock,
+          projectId = PROJECT_ID,
+          datasetId = DATASET_ID,
+          latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
+          measurementsTableId = MEASUREMENTS_TABLE_ID,
+          latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
+          requisitionsTableId = REQUISITIONS_TABLE_ID,
+          latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
+          computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
+          streamWriterFactory = streamWriterFactoryTestImpl,
+        )
+
+      operationalMetricsExport.execute()
+
+      with(argumentCaptor<StreamMeasurementsRequest>()) {
+        verify(measurementsMock, times(2)).streamMeasurements(capture())
+        val streamMeasurementsRequest = allValues.last()
+
+        assertThat(streamMeasurementsRequest)
+          .ignoringRepeatedFieldOrder()
+          .isEqualTo(
+            streamMeasurementsRequest {
+              measurementView = Measurement.View.COMPUTATION
+              filter =
+                StreamMeasurementsRequestKt.filter {
+                  states += Measurement.State.SUCCEEDED
+                  states += Measurement.State.FAILED
+                  after =
+                    StreamMeasurementsRequestKt.FilterKt.after {
+                      updateTime = computationMeasurement.updateTime
+                      computation = computationKey {
+                        externalComputationId = computationMeasurement.externalComputationId
+                      }
                     }
                 }
               limit = 3000
@@ -545,6 +816,8 @@ class OperationalMetricsExportTest {
         measurementsTableId = MEASUREMENTS_TABLE_ID,
         latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
         requisitionsTableId = REQUISITIONS_TABLE_ID,
+        latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
+        computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
         streamWriterFactory = streamWriterFactoryTestImpl,
       )
 
@@ -583,6 +856,8 @@ class OperationalMetricsExportTest {
         measurementsTableId = MEASUREMENTS_TABLE_ID,
         latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
         requisitionsTableId = REQUISITIONS_TABLE_ID,
+        latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
+        computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
         streamWriterFactory = streamWriterFactoryTestImpl,
       )
 
@@ -615,6 +890,8 @@ class OperationalMetricsExportTest {
           measurementsTableId = MEASUREMENTS_TABLE_ID,
           latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
           requisitionsTableId = REQUISITIONS_TABLE_ID,
+          latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
+          computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
           streamWriterFactory = streamWriterFactoryTestImpl,
         )
 
@@ -648,6 +925,8 @@ class OperationalMetricsExportTest {
           measurementsTableId = MEASUREMENTS_TABLE_ID,
           latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
           requisitionsTableId = REQUISITIONS_TABLE_ID,
+          latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
+          computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
           streamWriterFactory = streamWriterFactoryTestImpl,
         )
 
@@ -684,6 +963,15 @@ class OperationalMetricsExportTest {
           )
         )
 
+      whenever(computationParticipantStagesStreamWriterMock.append(any()))
+        .thenReturn(
+          ApiFutures.immediateFuture(
+            AppendRowsResponse.newBuilder()
+              .setError(Status.newBuilder().setCode(Code.INTERNAL_VALUE).build())
+              .build()
+          )
+        )
+
       val operationalMetricsExport =
         OperationalMetricsExport(
           measurementsClient = measurementsClient,
@@ -696,6 +984,8 @@ class OperationalMetricsExportTest {
           measurementsTableId = MEASUREMENTS_TABLE_ID,
           latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
           requisitionsTableId = REQUISITIONS_TABLE_ID,
+          latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
+          computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
           streamWriterFactory = streamWriterFactoryTestImpl,
         )
 
@@ -735,6 +1025,8 @@ class OperationalMetricsExportTest {
           measurementsTableId = MEASUREMENTS_TABLE_ID,
           latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
           requisitionsTableId = REQUISITIONS_TABLE_ID,
+          latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
+          computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
           streamWriterFactory = streamWriterFactoryTestImpl,
         )
 
@@ -768,6 +1060,8 @@ class OperationalMetricsExportTest {
           measurementsTableId = MEASUREMENTS_TABLE_ID,
           latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
           requisitionsTableId = REQUISITIONS_TABLE_ID,
+          latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
+          computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
           streamWriterFactory = streamWriterFactoryTestImpl,
         )
 
@@ -780,8 +1074,10 @@ class OperationalMetricsExportTest {
     private const val DATASET_ID = "dataset"
     private const val MEASUREMENTS_TABLE_ID = "measurements"
     private const val REQUISITIONS_TABLE_ID = "requisitions"
+    private const val COMPUTATION_PARTICIPANT_STAGES_TABLE_ID = "computation_participant_stages"
     private const val LATEST_MEASUREMENT_READ_TABLE_ID = "latest_measurement_read"
     private const val LATEST_REQUISITION_READ_TABLE_ID = "latest_requisition_read"
+    private const val LATEST_COMPUTATION_READ_TABLE_ID = "latest_computation_read"
 
     private val API_VERSION = Version.V2_ALPHA.toString()
 
@@ -817,6 +1113,9 @@ class OperationalMetricsExportTest {
       }
     }
 
+    private val STAGE_ONE = "stage_one"
+    private val STAGE_TWO = "stage_two"
+
     private val COMPUTATION_MEASUREMENT =
       MEASUREMENT.copy {
         externalMeasurementId = 123
@@ -825,8 +1124,7 @@ class OperationalMetricsExportTest {
         state = Measurement.State.SUCCEEDED
         createTime = timestamp { seconds = 200 }
         updateTime = timestamp {
-          seconds = 300
-          nanos = 100
+          seconds = 600
         }
         details =
           details.copy {
@@ -834,6 +1132,61 @@ class OperationalMetricsExportTest {
               liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
             }
           }
+
+        requisitions += requisition {
+          externalDataProviderId = 432
+          externalRequisitionId = 433
+          state = Requisition.State.FULFILLED
+          updateTime = timestamp {
+            seconds = 500
+            nanos = 100
+          }
+        }
+
+        computationParticipants += computationParticipant {
+          externalDuchyId = "0"
+          state = ComputationParticipant.State.READY
+          updateTime = timestamp { seconds = 300 }
+          logEntryPerStageUnique += duchyMeasurementLogEntry {
+            logEntry = measurementLogEntry { createTime = timestamp { seconds = 300 } }
+            details = duchyMeasurementLogEntryDetails {
+              stageAttempt = duchyMeasurementLogEntryStageAttempt {
+                stage = 1
+                stageStartTime = timestamp { seconds = 100}
+                stageName = STAGE_ONE
+              }
+            }
+          }
+          logEntryPerStageUnique += duchyMeasurementLogEntry {
+            logEntry = measurementLogEntry { createTime = timestamp { seconds = 300 } }
+            details = duchyMeasurementLogEntryDetails {
+              stageAttempt = duchyMeasurementLogEntryStageAttempt {
+                stage = 2
+                stageStartTime = timestamp { seconds = 300 }
+                stageName = STAGE_TWO
+              }
+            }
+          }
+          failureLogEntry = duchyMeasurementLogEntry {
+            logEntry = measurementLogEntry {
+              createTime = timestamp { seconds = 350 }
+              details = measurementLogEntryDetails { error = measurementLogEntryError {} }
+            }
+            details = duchyMeasurementLogEntryDetails {
+              stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = STAGE_TWO }
+            }
+          }
+        }
+        computationParticipants += computationParticipant {
+          externalDuchyId = "1"
+          state = ComputationParticipant.State.READY
+          updateTime = timestamp { seconds = 400 }
+        }
+        computationParticipants += computationParticipant {
+          externalDuchyId = "2"
+          state = ComputationParticipant.State.READY
+          updateTime = timestamp { seconds = 500 }
+        }
       }
 
     private val DIRECT_MEASUREMENT =
@@ -912,6 +1265,14 @@ class OperationalMetricsExportTest {
           Field.of("update_time", LegacySQLTypeName.INTEGER),
           Field.of("external_data_provider_id", LegacySQLTypeName.INTEGER),
           Field.of("external_requisition_id", LegacySQLTypeName.INTEGER),
+        )
+      )
+
+    private val LATEST_COMPUTATION_FIELD_LIST: FieldList =
+      FieldList.of(
+        listOf(
+          Field.of("update_time", LegacySQLTypeName.INTEGER),
+          Field.of("external_computation_id", LegacySQLTypeName.INTEGER),
         )
       )
   }

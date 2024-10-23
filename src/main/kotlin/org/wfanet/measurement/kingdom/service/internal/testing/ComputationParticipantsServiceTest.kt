@@ -45,6 +45,7 @@ import org.wfanet.measurement.internal.kingdom.ComputationParticipantDetails
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.computedRequisitionParams
@@ -53,6 +54,9 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementFailure
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -62,12 +66,19 @@ import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.confirmComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.createDuchyMeasurementLogEntryRequest
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntryDetails
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntryStageAttempt
 import org.wfanet.measurement.internal.kingdom.failComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.getComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.honestMajorityShareShuffleParams
 import org.wfanet.measurement.internal.kingdom.liquidLegionsV2Params
+import org.wfanet.measurement.internal.kingdom.measurementLogEntry
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
@@ -101,6 +112,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val certificatesService: CertificatesCoroutineImplBase,
     val requisitionsService: RequisitionsCoroutineImplBase,
     val accountsService: AccountsCoroutineImplBase,
+    val measurementLogEntriesService: MeasurementLogEntriesCoroutineImplBase,
   )
 
   private val clock: Clock = Clock.systemUTC()
@@ -130,6 +142,9 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   protected lateinit var accountsService: AccountsCoroutineImplBase
     private set
 
+  protected lateinit var measurementLogEntriesService: MeasurementLogEntriesCoroutineImplBase
+    private set
+
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
   @Before
@@ -142,6 +157,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     certificatesService = services.certificatesService
     requisitionsService = services.requisitionsService
     accountsService = services.accountsService
+    measurementLogEntriesService = services.measurementLogEntriesService
   }
 
   private fun createDuchyCertificates(
@@ -185,6 +201,120 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           updateTime = measurement.updateTime
           apiVersion = Version.V2_ALPHA.string
           details = ComputationParticipantDetails.getDefaultInstance()
+        }
+      )
+    assertThat(response.etag).isNotEmpty()
+  }
+
+  @Test
+  fun `getComputationParticipant returns ComputationParticipant with log entries`() = runBlocking {
+    createDuchyCertificates()
+    val measurementConsumer: MeasurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+    val measurement: Measurement =
+      population.createLlv2Measurement(
+        measurementsService,
+        measurementConsumer,
+        PROVIDED_MEASUREMENT_ID,
+        dataProvider,
+      )
+
+    val stageOne = "stage_one"
+    val stageTwo = "stage_two"
+
+    val stageOneLogEntryRequest = createDuchyMeasurementLogEntryRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = DUCHIES.first().externalDuchyId
+      measurementLogEntryDetails = measurementLogEntryDetails { logMessage = "good" }
+      details = duchyMeasurementLogEntryDetails {
+        stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageOne }
+      }
+    }
+    measurementLogEntriesService.createDuchyMeasurementLogEntry(stageOneLogEntryRequest)
+    measurementLogEntriesService.createDuchyMeasurementLogEntry(stageOneLogEntryRequest)
+
+    val stageTwoLogEntryRequest = createDuchyMeasurementLogEntryRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = DUCHIES.first().externalDuchyId
+      measurementLogEntryDetails = measurementLogEntryDetails { logMessage = "good" }
+      details = duchyMeasurementLogEntryDetails {
+        stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageTwo }
+      }
+    }
+    measurementLogEntriesService.createDuchyMeasurementLogEntry(stageTwoLogEntryRequest)
+
+    val failureLogEntryRequest = createDuchyMeasurementLogEntryRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = DUCHIES.first().externalDuchyId
+      measurementLogEntryDetails = measurementLogEntryDetails {
+        logMessage = "bad"
+        error = measurementLogEntryError { type = MeasurementLogEntryError.Type.TRANSIENT }
+      }
+      details = duchyMeasurementLogEntryDetails {
+        stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageTwo }
+      }
+    }
+    measurementLogEntriesService.createDuchyMeasurementLogEntry(failureLogEntryRequest)
+
+    val request = getComputationParticipantRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = DUCHIES.first().externalDuchyId
+    }
+    val response = computationParticipantsService.getComputationParticipant(request)
+
+    assertThat(response)
+      .ignoringFields(
+        ComputationParticipant.ETAG_FIELD_NUMBER,
+        ComputationParticipant.FAILURE_LOG_ENTRY_FIELD_NUMBER,
+        ComputationParticipant.LOG_ENTRY_PER_STAGE_UNIQUE_FIELD_NUMBER,
+      )
+      .isEqualTo(
+        computationParticipant {
+          externalComputationId = request.externalComputationId
+          externalDuchyId = request.externalDuchyId
+          externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          externalMeasurementId = measurement.externalMeasurementId
+          state = ComputationParticipant.State.CREATED
+          updateTime = measurement.updateTime
+          apiVersion = Version.V2_ALPHA.string
+          details = ComputationParticipantDetails.getDefaultInstance()
+        }
+      )
+    assertThat(response.logEntryPerStageUniqueList).hasSize(2)
+    assertThat(response.logEntryPerStageUniqueList)
+      .ignoringFields(
+        DuchyMeasurementLogEntry.EXTERNAL_COMPUTATION_LOG_ENTRY_ID_FIELD_NUMBER,
+        DuchyMeasurementLogEntry.LOG_ENTRY_FIELD_NUMBER,
+      )
+      .containsExactly(
+        duchyMeasurementLogEntry {
+          externalDuchyId = request.externalDuchyId
+          details = stageOneLogEntryRequest.details
+        },
+        duchyMeasurementLogEntry {
+          externalDuchyId = request.externalDuchyId
+          details = stageTwoLogEntryRequest.details
+        }
+      )
+    assertThat(response.failureLogEntry)
+      .ignoringFields(
+        DuchyMeasurementLogEntry.EXTERNAL_COMPUTATION_LOG_ENTRY_ID_FIELD_NUMBER,
+        DuchyMeasurementLogEntry.LOG_ENTRY_FIELD_NUMBER,
+      )
+      .isEqualTo(
+        duchyMeasurementLogEntry {
+          externalDuchyId = request.externalDuchyId
+          details = failureLogEntryRequest.details
+        }
+      )
+    assertThat(response.failureLogEntry.logEntry)
+      .ignoringFields(MeasurementLogEntry.CREATE_TIME_FIELD_NUMBER)
+      .isEqualTo(
+        measurementLogEntry {
+          externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          externalMeasurementId = measurement.externalMeasurementId
+          details = failureLogEntryRequest.measurementLogEntryDetails
         }
       )
     assertThat(response.etag).isNotEmpty()

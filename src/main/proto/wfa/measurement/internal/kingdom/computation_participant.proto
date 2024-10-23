@@ -57,6 +57,8 @@ message ComputationParticipant {
   ComputationParticipantDetails details = 7;
 
   DuchyMeasurementLogEntry failure_log_entry = 8;
+  // One log entry for each stage.
+  repeated DuchyMeasurementLogEntry log_entry_per_stage_unique = 12;
 
   // Version of the public API for serialized message definitions as well as
   // resource names, which is denormalized from the parent Measurement.

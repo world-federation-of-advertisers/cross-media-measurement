@@ -386,7 +386,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
             PublicApiVersion
           FROM
             DuchyMeasurementResults
-            JOIN DuchyCertificates USING (CertificateId)
+            JOIN DuchyCertificates USING (DuchyId, CertificateId)
           WHERE
             Measurements.MeasurementConsumerId = DuchyMeasurementResults.MeasurementConsumerId
             AND Measurements.MeasurementId = DuchyMeasurementResults.MeasurementId

@@ -185,6 +185,13 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
           externalDuchyId,
           struct.getStructList("DuchyMeasurementLogEntries"),
         )
+      val uniqueLogEntries: Collection<DuchyMeasurementLogEntry> =
+        buildUniqueLogEntries(
+          externalMeasurementConsumerId,
+          externalMeasurementId,
+          externalDuchyId,
+          struct.getStructList("DuchyMeasurementLogEntries"),
+        )
       val updateTime = struct.getTimestamp("UpdateTime")
       val etag = ETags.computeETag(updateTime)
       return computationParticipant {
@@ -208,6 +215,7 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
         if (failureLogEntry != null) {
           this.failureLogEntry = failureLogEntry
         }
+        logEntryPerStageUnique += uniqueLogEntries
       }
     }
 
@@ -244,6 +252,40 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
               )
           }
         }
+    }
+
+    private fun buildUniqueLogEntries(
+      externalMeasurementConsumerId: ExternalId,
+      externalMeasurementId: ExternalId,
+      externalDuchyId: String,
+      logEntryStructs: Iterable<Struct>,
+    ): Collection<DuchyMeasurementLogEntry> {
+      val stageNames = mutableSetOf<String>()
+      return buildList {
+        for (struct in logEntryStructs) {
+          val measurementLogEntryDetails =
+            struct.getProtoMessage("MeasurementLogDetails", MeasurementLogEntryDetails.getDefaultInstance())
+          val duchyMeasurementLogEntryDetails =
+            struct.getProtoMessage("DuchyMeasurementLogDetails", DuchyMeasurementLogEntryDetails.getDefaultInstance())
+
+          if (!measurementLogEntryDetails.hasError() && !stageNames.contains(duchyMeasurementLogEntryDetails.stageAttempt.stageName)) {
+            add(
+              duchyMeasurementLogEntry {
+                logEntry = measurementLogEntry {
+                  this.externalMeasurementConsumerId = externalMeasurementConsumerId.value
+                  this.externalMeasurementId = externalMeasurementId.value
+                  createTime = struct.getTimestamp("CreateTime").toProto()
+                  details = measurementLogEntryDetails
+                }
+                this.externalDuchyId = externalDuchyId
+                externalComputationLogEntryId = struct.getLong("ExternalComputationLogEntryId")
+                details = duchyMeasurementLogEntryDetails
+              }
+            )
+            stageNames.add(duchyMeasurementLogEntryDetails.stageAttempt.stageName)
+          }
+        }
+      }
     }
   }
 }
