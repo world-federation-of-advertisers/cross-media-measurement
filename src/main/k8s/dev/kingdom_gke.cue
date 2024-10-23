@@ -119,6 +119,8 @@ kingdom: #Kingdom & {
 					"--latest-measurement-read-table=latest_measurement_read",
 					"--requisitions-table=requisitions",
 					"--latest-requisition-read-table=latest_requisition_read",
+					"--computation-participant-stages-table=computation_participant_stages",
+					"--latest-computation-read-table=latest_computation_read",
 					"--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem",
 					"--tls-key-file=/var/run/secrets/files/kingdom_tls.key",
 					"--cert-collection-file=/var/run/secrets/files/kingdom_root.pem",

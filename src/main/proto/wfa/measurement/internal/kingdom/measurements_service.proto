@@ -98,7 +98,8 @@ message StreamMeasurementsRequest {
       oneof key {
         // Key of the `Measurement`, used when view is DEFAULT.
         MeasurementKey measurement = 2;
-        // Computation key of the `Measurement`, used when view is COMPUTATION.
+        // Computation key of the `Measurement`, used when view is COMPUTATION
+        // or COMPUTATION_ALTERNATIVE.
         ComputationKey computation = 3;
       }
     }

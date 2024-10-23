@@ -74,7 +74,8 @@ class StreamMeasurements(
 
     private fun getOrderByClause(view: Measurement.View): String {
       return when (view) {
-        Measurement.View.COMPUTATION ->
+        Measurement.View.COMPUTATION,
+        Measurement.View.COMPUTATION_ALTERNATIVE ->
           "ORDER BY Measurements.UpdateTime ASC, ExternalComputationId ASC"
         Measurement.View.DEFAULT ->
           "ORDER BY Measurements.UpdateTime ASC, ExternalMeasurementConsumerId ASC, " +
