@@ -159,6 +159,7 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
+import io.opentelemetry.api.GlobalOpenTelemetry
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -239,6 +240,8 @@ class MetricsService(
     val certificateName: String,
   )
 
+  private val opentelemtry = GlobalOpenTelemetry.get()
+
   private val measurementSupplier =
     MeasurementSupplier(
       internalMeasurementsStub,
@@ -305,6 +308,7 @@ class MetricsService(
       internalMetricsList: List<InternalMetric>,
       internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
       principal: MeasurementConsumerPrincipal,
+      tracer: io.opentelemetry.api.trace.Tracer,
     ) {
       val measurementConsumer: MeasurementConsumer = getMeasurementConsumer(principal)
 
@@ -338,6 +342,9 @@ class MetricsService(
           }
         }
       }
+
+      val createCmmsMeasurementsSpan = tracer.spanBuilder("create-cmms-measurements-actual").startSpan()
+      createCmmsMeasurementsSpan.makeCurrent()
 
       // Create CMMS measurements.
       val callBatchCreateMeasurementsRpc:
@@ -376,6 +383,8 @@ class MetricsService(
           emptyList<Unit>()
         }
         .collect {}
+
+      createCmmsMeasurementsSpan.end()
     }
 
     /** Sets a batch of CMMS [MeasurementIds] to the [InternalMeasurement] table. */
@@ -412,7 +421,17 @@ class MetricsService(
       } catch (e: StatusException) {
         throw when (e.status.code) {
             Status.Code.INVALID_ARGUMENT ->
-              Status.INVALID_ARGUMENT.withDescription("Required field unspecified or invalid.")
+              Status.INVALID_ARGUMENT.withDescription("""
+                ${e.status.code}
+                ${e.status.description}
+                ${e.status.cause}
+                ${e.trailers}
+                ${e.suppressed}
+                ${e.stackTrace}
+                ${e.cause}
+                ${e.message}
+                ${e.suppressedExceptions}
+              """.trimIndent())
             Status.Code.PERMISSION_DENIED ->
               Status.PERMISSION_DENIED.withDescription(
                 "Cannot create CMMS Measurements for another MeasurementConsumer."
@@ -1227,6 +1246,8 @@ class MetricsService(
   }
 
   override suspend fun createMetric(request: CreateMetricRequest): Metric {
+    val tracer = opentelemtry.tracerProvider.get(this.javaClass.name)
+
     val parentKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid."
@@ -1299,11 +1320,15 @@ class MetricsService(
       }
 
     if (internalMetric.state == InternalMetric.State.RUNNING) {
+      val createCmmsMeasurementsSpan = tracer.spanBuilder("create-cmms-measurements").startSpan()
+      createCmmsMeasurementsSpan.makeCurrent()
       measurementSupplier.createCmmsMeasurements(
         listOf(internalMetric),
         internalPrimitiveReportingSetMap,
         principal,
+        tracer,
       )
+      createCmmsMeasurementsSpan.end()
     }
 
     // Convert the internal metric to public and return it.
@@ -1313,6 +1338,11 @@ class MetricsService(
   override suspend fun batchCreateMetrics(
     request: BatchCreateMetricsRequest
   ): BatchCreateMetricsResponse {
+    val tracer = opentelemtry.tracerProvider.get(this.javaClass.name)
+
+    val span = tracer.spanBuilder("batch-create-metrics").startSpan()
+    span.makeCurrent()
+
     val parentKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid."
@@ -1379,6 +1409,8 @@ class MetricsService(
           }
         }
     }
+    val buildInternalCreateMetricRequestSpan = tracer.spanBuilder("build-internal-create-metric-requests").startSpan()
+    buildInternalCreateMetricRequestSpan.makeCurrent()
 
     val internalPrimitiveReportingSetMap: Map<String, InternalReportingSet> =
       buildInternalPrimitiveReportingSetMap(
@@ -1401,6 +1433,11 @@ class MetricsService(
           }
         }
       }
+
+    buildInternalCreateMetricRequestSpan.end()
+
+    val createInternalMetricsSpan = tracer.spanBuilder("internal-batch-create-metrics").startSpan()
+    createInternalMetricsSpan.makeCurrent()
 
     val internalMetrics =
       try {
@@ -1426,20 +1463,28 @@ class MetricsService(
           .asRuntimeException()
       }
 
+    createInternalMetricsSpan.end()
+
     val internalRunningMetrics =
       internalMetrics.filter { internalMetric ->
         internalMetric.state == InternalMetric.State.RUNNING
       }
     if (internalRunningMetrics.isNotEmpty()) {
+      val createCmmsMeasurementsSpan = tracer.spanBuilder("create-cmms-measurements").startSpan()
+      createCmmsMeasurementsSpan.makeCurrent()
       measurementSupplier.createCmmsMeasurements(
         internalRunningMetrics,
         internalPrimitiveReportingSetMap,
         principal,
+        tracer,
       )
+      createCmmsMeasurementsSpan.end()
     }
 
     // Convert the internal metric to public and return it.
-    return batchCreateMetricsResponse { metrics += internalMetrics.map { it.toMetric(variances) } }
+    val response = batchCreateMetricsResponse { metrics += internalMetrics.map { it.toMetric(variances) } }
+    span.end()
+    return response
   }
 
   /** Builds an [InternalCreateMetricRequest]. */

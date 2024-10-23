@@ -65,6 +65,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpe
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
+import kotlinx.coroutines.flow.filter
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.reportScheduleInfoFromCurrentContext
@@ -423,16 +424,20 @@ class ReportsService(
       internalReport.reportingMetricEntriesMap.entries.asFlow().flatMapMerge { entry ->
         entry.value.metricCalculationSpecReportingMetricsList.asFlow().flatMapMerge {
           metricCalculationSpecReportingMetrics ->
-          metricCalculationSpecReportingMetrics.reportingMetricsList.asFlow().map {
-            it.toCreateMetricRequest(
-              principal.resourceKey,
-              entry.key,
-              externalIdToMetricCalculationSpecMap
-                .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
-                .details
-                .filter,
-            )
-          }
+          metricCalculationSpecReportingMetrics.reportingMetricsList.asFlow()
+            .filter {
+              it.externalMetricId.isEmpty()
+            }
+            .map {
+              it.toCreateMetricRequest(
+                principal.resourceKey,
+                entry.key,
+                externalIdToMetricCalculationSpecMap
+                  .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
+                  .details
+                  .filter,
+              )
+            }
         }
       }
 
