@@ -52,6 +52,8 @@ jobs:
         MC_NAME: ${{ vars.MC_NAME }}
         MC_API_KEY: ${{ secrets.MC_API_KEY }}
         GCLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
+        REPORTING_PUBLIC_API_TARGET: v2alpha.reporting.dev.halo-cmm.org:8443
+        REPORTING_PUBLIC_API_CERT_HOST: localhost
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -59,6 +61,8 @@ jobs:
         build --define mc_name=$MC_NAME
         build --define mc_api_key=$MC_API_KEY
         build --define google_cloud_project=$GCLOUD_PROJECT
+        build --define reporting_public_api_target=$REPORTING_PUBLIC_API_TARGET
+        build --define reporting_public_api_cert_host=$REPORTING_PUBLIC_API_CERT_HOST
         test --test_output=streamed
         test --test_timeout=3600
         EOF
