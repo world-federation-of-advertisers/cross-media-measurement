@@ -1500,8 +1500,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamMeasurements with computation view only returns failure log`():
-    Unit = runBlocking {
+  fun `streamMeasurements with computation view only returns failure log`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
@@ -1540,7 +1539,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       }
     }
     measurementLogEntriesService.createDuchyMeasurementLogEntry(failureLogEntryRequest)
-
 
     val streamMeasurementsRequest = streamMeasurementsRequest {
       limit = 2
@@ -1555,73 +1553,74 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     for (computationParticipant in response.first().computationParticipantsList) {
       if (computationParticipant.externalDuchyId == DUCHIES.first().externalDuchyId) {
-        assertThat(computationParticipant.failureLogEntry.logEntry.details).isEqualTo(failureLogEntryRequest.measurementLogEntryDetails)
+        assertThat(computationParticipant.failureLogEntry.logEntry.details)
+          .isEqualTo(failureLogEntryRequest.measurementLogEntryDetails)
         assertThat(computationParticipant.logEntryPerStageUniqueList).hasSize(0)
       }
     }
   }
 
   @Test
-  fun `streamMeasurements with computation alternative view returns more than failure log`():
-    Unit = runBlocking {
-    val measurementConsumer =
-      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+  fun `streamMeasurements with computation alternative view returns more than failure log`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
-    val measurement =
-      measurementsService.createMeasurement(
-        createMeasurementRequest {
-          measurement =
-            MEASUREMENT.copy {
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-              externalMeasurementConsumerCertificateId =
-                measurementConsumer.certificate.externalCertificateId
-            }
+      val measurement =
+        measurementsService.createMeasurement(
+          createMeasurementRequest {
+            measurement =
+              MEASUREMENT.copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+              }
+          }
+        )
+
+      val stageOne = "stage_one"
+      val stageOneLogEntryRequest = createDuchyMeasurementLogEntryRequest {
+        externalComputationId = measurement.externalComputationId
+        externalDuchyId = DUCHIES.first().externalDuchyId
+        measurementLogEntryDetails = measurementLogEntryDetails { logMessage = "good" }
+        details = duchyMeasurementLogEntryDetails {
+          stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageOne }
         }
-      )
+      }
+      measurementLogEntriesService.createDuchyMeasurementLogEntry(stageOneLogEntryRequest)
 
-    val stageOne = "stage_one"
-    val stageOneLogEntryRequest = createDuchyMeasurementLogEntryRequest {
-      externalComputationId = measurement.externalComputationId
-      externalDuchyId = DUCHIES.first().externalDuchyId
-      measurementLogEntryDetails = measurementLogEntryDetails { logMessage = "good" }
-      details = duchyMeasurementLogEntryDetails {
-        stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageOne }
+      val failureLogEntryRequest = createDuchyMeasurementLogEntryRequest {
+        externalComputationId = measurement.externalComputationId
+        externalDuchyId = DUCHIES.first().externalDuchyId
+        measurementLogEntryDetails = measurementLogEntryDetails {
+          logMessage = "bad"
+          error = measurementLogEntryError { type = MeasurementLogEntryError.Type.TRANSIENT }
+        }
+        details = duchyMeasurementLogEntryDetails {
+          stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageOne }
+        }
+      }
+      measurementLogEntriesService.createDuchyMeasurementLogEntry(failureLogEntryRequest)
+
+      val streamMeasurementsRequest = streamMeasurementsRequest {
+        limit = 2
+        filter = filter {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        }
+        measurementView = Measurement.View.COMPUTATION_ALTERNATIVE
+      }
+
+      val response: List<Measurement> =
+        measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
+
+      for (computationParticipant in response.first().computationParticipantsList) {
+        if (computationParticipant.externalDuchyId == DUCHIES.first().externalDuchyId) {
+          assertThat(computationParticipant.failureLogEntry.logEntry.details)
+            .isEqualTo(failureLogEntryRequest.measurementLogEntryDetails)
+          assertThat(computationParticipant.logEntryPerStageUniqueList).hasSize(1)
+        }
       }
     }
-    measurementLogEntriesService.createDuchyMeasurementLogEntry(stageOneLogEntryRequest)
-
-    val failureLogEntryRequest = createDuchyMeasurementLogEntryRequest {
-      externalComputationId = measurement.externalComputationId
-      externalDuchyId = DUCHIES.first().externalDuchyId
-      measurementLogEntryDetails = measurementLogEntryDetails {
-        logMessage = "bad"
-        error = measurementLogEntryError { type = MeasurementLogEntryError.Type.TRANSIENT }
-      }
-      details = duchyMeasurementLogEntryDetails {
-        stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageOne }
-      }
-    }
-    measurementLogEntriesService.createDuchyMeasurementLogEntry(failureLogEntryRequest)
-
-
-    val streamMeasurementsRequest = streamMeasurementsRequest {
-      limit = 2
-      filter = filter {
-        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-      }
-      measurementView = Measurement.View.COMPUTATION_ALTERNATIVE
-    }
-
-    val response: List<Measurement> =
-      measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
-
-    for (computationParticipant in response.first().computationParticipantsList) {
-      if (computationParticipant.externalDuchyId == DUCHIES.first().externalDuchyId) {
-        assertThat(computationParticipant.failureLogEntry.logEntry.details).isEqualTo(failureLogEntryRequest.measurementLogEntryDetails)
-        assertThat(computationParticipant.logEntryPerStageUniqueList).hasSize(1)
-      }
-    }
-  }
 
   @Test
   fun `streamMeasurements respects limit`(): Unit = runBlocking {

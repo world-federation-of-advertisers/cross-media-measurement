@@ -622,4 +622,3 @@ private fun MeasurementKt.Dsl.fillComputationAlternativeView(struct: Struct) {
       )
   }
 }
-
