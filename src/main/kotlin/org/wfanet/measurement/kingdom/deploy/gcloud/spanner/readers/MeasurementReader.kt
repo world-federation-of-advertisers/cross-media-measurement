@@ -94,6 +94,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
         when (view) {
           Measurement.View.DEFAULT -> DEFAULT_VIEW_SQL
           Measurement.View.COMPUTATION -> COMPUTATION_VIEW_SQL
+          Measurement.View.COMPUTATION_ALTERNATIVE -> COMPUTATION_ALTERNATIVE_VIEW_SQL
           Measurement.View.UNRECOGNIZED -> error("Invalid view $view")
         }
       appendClause(sql)
@@ -171,6 +172,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
       when (view) {
         Measurement.View.DEFAULT -> fillDefaultView(struct)
         Measurement.View.COMPUTATION -> fillComputationView(struct)
+        Measurement.View.COMPUTATION_ALTERNATIVE -> fillComputationAlternativeView(struct)
         Measurement.View.UNRECOGNIZED ->
           throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
       }
@@ -368,6 +370,76 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
                 DuchyMeasurementLogEntries.DuchyId = ComputationParticipants.DuchyId
                 AND DuchyMeasurementLogEntries.MeasurementConsumerId = ComputationParticipants.MeasurementConsumerId
                 AND DuchyMeasurementLogEntries.MeasurementId = ComputationParticipants.MeasurementId
+                AND MeasurementLogEntries.MeasurementLogDetails.has_error
+              ORDER BY MeasurementLogEntries.CreateTime DESC
+            ) AS DuchyMeasurementLogEntries
+          FROM
+            ComputationParticipants
+            LEFT JOIN (DuchyCertificates JOIN Certificates USING (CertificateId))
+              USING (DuchyId, CertificateId)
+          WHERE
+            ComputationParticipants.MeasurementConsumerId = Measurements.MeasurementConsumerId
+            AND ComputationParticipants.MeasurementId = Measurements.MeasurementId
+        ) AS ComputationParticipants,
+        ARRAY(
+          SELECT AS STRUCT
+            DuchyMeasurementResults.DuchyId,
+            ExternalDuchyCertificateId,
+            EncryptedResult,
+            PublicApiVersion
+          FROM
+            DuchyMeasurementResults
+            JOIN DuchyCertificates USING (DuchyId, CertificateId)
+          WHERE
+            Measurements.MeasurementConsumerId = DuchyMeasurementResults.MeasurementConsumerId
+            AND Measurements.MeasurementId = DuchyMeasurementResults.MeasurementId
+        ) AS DuchyResults
+      FROM
+        FilteredMeasurements AS Measurements
+        JOIN MeasurementConsumerCertificates USING (MeasurementConsumerId, CertificateId)
+      """
+        .trimIndent()
+
+    private val COMPUTATION_ALTERNATIVE_VIEW_SQL =
+      """
+      SELECT
+        ExternalMeasurementConsumerId,
+        ExternalMeasurementConsumerCertificateId,
+        Measurements.MeasurementId,
+        Measurements.MeasurementConsumerId,
+        Measurements.ExternalMeasurementId,
+        Measurements.ExternalComputationId,
+        Measurements.ProvidedMeasurementId,
+        Measurements.CreateRequestId,
+        Measurements.MeasurementDetails,
+        Measurements.CreateTime,
+        Measurements.UpdateTime,
+        Measurements.State AS MeasurementState,
+        ARRAY(
+          SELECT AS STRUCT
+            ExternalDuchyCertificateId,
+            ComputationParticipants.DuchyId,
+            ComputationParticipants.UpdateTime,
+            ComputationParticipants.State,
+            ComputationParticipants.ParticipantDetails,
+            Certificates.SubjectKeyIdentifier,
+            Certificates.NotValidBefore,
+            Certificates.NotValidAfter,
+            Certificates.RevocationState,
+            Certificates.CertificateDetails,
+            ARRAY(
+              SELECT AS STRUCT
+                DuchyMeasurementLogEntries.CreateTime,
+                DuchyMeasurementLogEntries.ExternalComputationLogEntryId,
+                DuchyMeasurementLogEntries.DuchyMeasurementLogDetails,
+                MeasurementLogEntries.MeasurementLogDetails
+              FROM
+                DuchyMeasurementLogEntries
+                JOIN MeasurementLogEntries USING (MeasurementConsumerId, MeasurementId, CreateTime)
+              WHERE
+                DuchyMeasurementLogEntries.DuchyId = ComputationParticipants.DuchyId
+                AND DuchyMeasurementLogEntries.MeasurementConsumerId = ComputationParticipants.MeasurementConsumerId
+                AND DuchyMeasurementLogEntries.MeasurementId = ComputationParticipants.MeasurementId
               ORDER BY MeasurementLogEntries.CreateTime DESC
             ) AS DuchyMeasurementLogEntries
           FROM
@@ -519,3 +591,35 @@ private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
       )
   }
 }
+
+private fun MeasurementKt.Dsl.fillComputationAlternativeView(struct: Struct) {
+  fillMeasurementCommon(struct)
+
+  if (struct.isNull("ExternalComputationId")) {
+    return
+  }
+
+  val externalMeasurementId = ExternalId(struct.getLong("ExternalMeasurementId"))
+  val externalMeasurementConsumerId = ExternalId(struct.getLong("ExternalMeasurementConsumerId"))
+  val externalComputationId = ExternalId(struct.getLong("ExternalComputationId"))
+
+  // Map of external Duchy ID to ComputationParticipant struct.
+  val participantStructs: Map<String, Struct> =
+    struct.getStructList("ComputationParticipants").associateBy {
+      val duchyId = it.getLong("DuchyId")
+      checkNotNull(DuchyIds.getExternalId(duchyId)) { "Duchy with internal ID $duchyId not found" }
+    }
+
+  for ((externalDuchyId, participantStruct) in participantStructs) {
+    computationParticipants +=
+      ComputationParticipantReader.buildComputationParticipant(
+        externalMeasurementConsumerId = externalMeasurementConsumerId,
+        externalMeasurementId = externalMeasurementId,
+        externalDuchyId = externalDuchyId,
+        externalComputationId = externalComputationId,
+        measurementDetails = details,
+        struct = participantStruct,
+      )
+  }
+}
+

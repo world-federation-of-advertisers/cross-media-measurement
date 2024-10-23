@@ -53,6 +53,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -68,8 +69,11 @@ import org.wfanet.measurement.internal.kingdom.batchGetMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.createDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.deleteMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntryDetails
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntryStageAttempt
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
@@ -78,6 +82,7 @@ import org.wfanet.measurement.internal.kingdom.measurementDetails
 import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.requisitionDetails
@@ -1492,6 +1497,130 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(responses)
       .containsExactly(computationMeasurement1, computationMeasurement3)
       .inOrder()
+  }
+
+  @Test
+  fun `streamMeasurements with computation view only returns failure log`():
+    Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+
+    val measurement =
+      measurementsService.createMeasurement(
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
+        }
+      )
+
+    val stageOne = "stage_one"
+    val stageOneLogEntryRequest = createDuchyMeasurementLogEntryRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = DUCHIES.first().externalDuchyId
+      measurementLogEntryDetails = measurementLogEntryDetails { logMessage = "good" }
+      details = duchyMeasurementLogEntryDetails {
+        stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageOne }
+      }
+    }
+    measurementLogEntriesService.createDuchyMeasurementLogEntry(stageOneLogEntryRequest)
+
+    val failureLogEntryRequest = createDuchyMeasurementLogEntryRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = DUCHIES.first().externalDuchyId
+      measurementLogEntryDetails = measurementLogEntryDetails {
+        logMessage = "bad"
+        error = measurementLogEntryError { type = MeasurementLogEntryError.Type.TRANSIENT }
+      }
+      details = duchyMeasurementLogEntryDetails {
+        stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageOne }
+      }
+    }
+    measurementLogEntriesService.createDuchyMeasurementLogEntry(failureLogEntryRequest)
+
+
+    val streamMeasurementsRequest = streamMeasurementsRequest {
+      limit = 2
+      filter = filter {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      }
+      measurementView = Measurement.View.COMPUTATION
+    }
+
+    val response: List<Measurement> =
+      measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
+
+    for (computationParticipant in response.first().computationParticipantsList) {
+      if (computationParticipant.externalDuchyId == DUCHIES.first().externalDuchyId) {
+        assertThat(computationParticipant.failureLogEntry.logEntry.details).isEqualTo(failureLogEntryRequest.measurementLogEntryDetails)
+        assertThat(computationParticipant.logEntryPerStageUniqueList).hasSize(0)
+      }
+    }
+  }
+
+  @Test
+  fun `streamMeasurements with computation alternative view returns more than failure log`():
+    Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+
+    val measurement =
+      measurementsService.createMeasurement(
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
+        }
+      )
+
+    val stageOne = "stage_one"
+    val stageOneLogEntryRequest = createDuchyMeasurementLogEntryRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = DUCHIES.first().externalDuchyId
+      measurementLogEntryDetails = measurementLogEntryDetails { logMessage = "good" }
+      details = duchyMeasurementLogEntryDetails {
+        stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageOne }
+      }
+    }
+    measurementLogEntriesService.createDuchyMeasurementLogEntry(stageOneLogEntryRequest)
+
+    val failureLogEntryRequest = createDuchyMeasurementLogEntryRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = DUCHIES.first().externalDuchyId
+      measurementLogEntryDetails = measurementLogEntryDetails {
+        logMessage = "bad"
+        error = measurementLogEntryError { type = MeasurementLogEntryError.Type.TRANSIENT }
+      }
+      details = duchyMeasurementLogEntryDetails {
+        stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageOne }
+      }
+    }
+    measurementLogEntriesService.createDuchyMeasurementLogEntry(failureLogEntryRequest)
+
+
+    val streamMeasurementsRequest = streamMeasurementsRequest {
+      limit = 2
+      filter = filter {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      }
+      measurementView = Measurement.View.COMPUTATION_ALTERNATIVE
+    }
+
+    val response: List<Measurement> =
+      measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
+
+    for (computationParticipant in response.first().computationParticipantsList) {
+      if (computationParticipant.externalDuchyId == DUCHIES.first().externalDuchyId) {
+        assertThat(computationParticipant.failureLogEntry.logEntry.details).isEqualTo(failureLogEntryRequest.measurementLogEntryDetails)
+        assertThat(computationParticipant.logEntryPerStageUniqueList).hasSize(1)
+      }
+    }
   }
 
   @Test

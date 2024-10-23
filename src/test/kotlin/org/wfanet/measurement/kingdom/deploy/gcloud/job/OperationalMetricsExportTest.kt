@@ -766,7 +766,7 @@ class OperationalMetricsExportTest {
           .ignoringRepeatedFieldOrder()
           .isEqualTo(
             streamMeasurementsRequest {
-              measurementView = Measurement.View.COMPUTATION
+              measurementView = Measurement.View.COMPUTATION_ALTERNATIVE
               filter =
                 StreamMeasurementsRequestKt.filter {
                   states += Measurement.State.SUCCEEDED

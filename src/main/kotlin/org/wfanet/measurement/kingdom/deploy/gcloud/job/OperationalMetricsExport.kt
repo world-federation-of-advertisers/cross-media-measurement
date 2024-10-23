@@ -464,7 +464,7 @@ class OperationalMetricsExport(
     val latestComputationReadFromPreviousJob: FieldValueList? = results.firstOrNull()
 
     var streamComputationsRequest = streamMeasurementsRequest {
-      measurementView = Measurement.View.COMPUTATION
+      measurementView = Measurement.View.COMPUTATION_ALTERNATIVE
       limit = BATCH_SIZE
       filter =
         StreamMeasurementsRequestKt.filter {
