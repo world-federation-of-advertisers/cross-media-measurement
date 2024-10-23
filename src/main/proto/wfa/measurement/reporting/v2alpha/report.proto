@@ -84,7 +84,7 @@ message Report {
   ];
 
   // The interval over which Metrics are generated. This interval is
-  // closed on the left hand side and open on the right hand side.
+  // closed on both sides.
   message ReportingInterval {
     // The date and time of the start of the report. The year,
     // month, day, and time_offset are all required.
@@ -99,7 +99,7 @@ message Report {
     ];
 
     // The end date of the report. The time is considered to be the same as
-    // that specified in the report start. This side of the interval is open.
+    // that specified in the report start. This side of the interval is closed.
     google.type.Date report_end = 2 [
       (google.api.field_behavior) = REQUIRED,
       (google.api.field_behavior) = IMMUTABLE
@@ -117,7 +117,8 @@ message Report {
     // A single time interval specifying the start and end time of the `Report`.
     // If this is specified, then for each `MetricCalculationSpec`,
     // `metric_frequency_spec` and `trailing_window` will be used to divide the
-    // interval. Any interval created will have a lower bound of report_start.
+    // interval. Any interval created will have a lower bound of `report_start`
+    // and an upper bound of `report_end`.
     // If no `metric_frequency_spec` is specified then the entire interval is
     // reported on.
     ReportingInterval reporting_interval = 10;

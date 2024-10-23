@@ -1,35 +1,19 @@
-# Configuration for remote building.
-# See https://cloud.google.com/remote-build-execution/docs/overview
-# Adapted from https://github.com/bazelbuild/bazel-toolchains/blob/master/bazelrc/bazel-2.0.0.bazelrc
+ # Remote Build Execution (RBE)
+
+build:remote --remote_executor=grpcs://halo-cmm.buildbuddy.io
+build:remote --define=EXECUTOR=remote
+
+# Include container toolchain/platform configuration.
+build:remote --config=container
 
 # Depending on how many machines are in the remote execution instance, setting
 # this higher can make builds faster by allowing more jobs to run in parallel.
 # Setting it too high can result in jobs that timeout, however, while waiting
 # for a remote machine to execute them.
-build:remote --jobs=200
-
-# Include container toolchain/platform configuration.
-build:remote --config=container
-
-# Starting with Bazel 0.27.0 strategies do not need to be explicitly
-# defined. See https://github.com/bazelbuild/bazel/issues/7480
-build:remote --define=EXECUTOR=remote
-
-# Enable remote execution so actions are performed on the remote systems.
-build:remote --remote_executor=grpcs://remotebuildexecution.googleapis.com
+build:remote --jobs=50
 
 # Enforce stricter environment rules, which eliminates some non-hermetic
 # behavior and therefore improves both the remote cache hit rate and the
 # correctness and repeatability of the build.
 build:remote --incompatible_strict_action_env=true
 
-# Set a higher timeout value, just in case.
-build:remote --remote_timeout=3600
-
-# Enable caching.
-build:remote --remote_cache=remotebuildexecution.googleapis.com
-
-# Enable authentication. This will pick up application default credentials by
-# default. You can use --google_credentials=some_file.json to use a service
-# account credential instead.
-build:remote --google_default_credentials=true

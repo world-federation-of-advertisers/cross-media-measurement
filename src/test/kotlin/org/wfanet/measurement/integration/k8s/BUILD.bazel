@@ -130,6 +130,7 @@ java_test(
     tags = [
         "cpu:8",
         "manual",
+        "no-remote-exec",
     ],
     test_class = "org.wfanet.measurement.integration.k8s.EmptyClusterCorrectnessTest",
     runtime_deps = [":empty_cluster_correctness_test"],
@@ -145,6 +146,7 @@ java_test(
         "exclusive",
         "external",
         "manual",
+        "no-remote-exec",
     ],
     test_class = "org.wfanet.measurement.integration.k8s.SyntheticGeneratorCorrectnessTest",
     runtime_deps = [":synthetic_data_generator_correctness_test"],
@@ -161,6 +163,7 @@ java_test(
         "exclusive",
         "external",
         "manual",
+        "no-remote-exec",
     ],
     test_class = "org.wfanet.measurement.integration.k8s.BigQueryCorrectnessTest",
     runtime_deps = [":bigquery_correctness_test"],
