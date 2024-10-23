@@ -458,11 +458,8 @@ class OperationalMetricsExportTest {
       whenever(bigQuery.query(any())).thenReturn(tableResultMock)
     }
 
-    whenever(measurementsMock.streamMeasurements(any())).thenReturn(
-      flowOf(COMPUTATION_MEASUREMENT.copy {
-        state = Measurement.State.FAILED
-      })
-    )
+    whenever(measurementsMock.streamMeasurements(any()))
+      .thenReturn(flowOf(COMPUTATION_MEASUREMENT.copy { state = Measurement.State.FAILED }))
 
     val operationalMetricsExport =
       OperationalMetricsExport(
@@ -727,10 +724,7 @@ class OperationalMetricsExportTest {
           .thenReturn(
             listOf(
               FieldValueList.of(
-                mutableListOf(
-                  updateTimeFieldValue,
-                  externalMeasurementConsumerIdFieldValue,
-                ),
+                mutableListOf(updateTimeFieldValue, externalMeasurementConsumerIdFieldValue),
                 LATEST_COMPUTATION_FIELD_LIST,
               )
             )
@@ -1123,9 +1117,7 @@ class OperationalMetricsExportTest {
         providedMeasurementId = "computation-participant"
         state = Measurement.State.SUCCEEDED
         createTime = timestamp { seconds = 200 }
-        updateTime = timestamp {
-          seconds = 600
-        }
+        updateTime = timestamp { seconds = 600 }
         details =
           details.copy {
             protocolConfig = protocolConfig {
@@ -1152,7 +1144,7 @@ class OperationalMetricsExportTest {
             details = duchyMeasurementLogEntryDetails {
               stageAttempt = duchyMeasurementLogEntryStageAttempt {
                 stage = 1
-                stageStartTime = timestamp { seconds = 100}
+                stageStartTime = timestamp { seconds = 100 }
                 stageName = STAGE_ONE
               }
             }

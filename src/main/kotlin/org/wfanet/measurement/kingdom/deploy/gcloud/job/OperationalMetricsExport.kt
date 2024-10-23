@@ -487,28 +487,30 @@ class OperationalMetricsExport(
     }
 
     DataWriter(
-      projectId = projectId,
-      datasetId = datasetId,
-      tableId = computationParticipantStagesTableId,
-      client = bigQueryWriteClient,
-      protoSchema = ProtoSchemaConverter.convert(ComputationParticipantStagesTableRow.getDescriptor()),
-      streamWriterFactory = streamWriterFactory,
-    )
+        projectId = projectId,
+        datasetId = datasetId,
+        tableId = computationParticipantStagesTableId,
+        client = bigQueryWriteClient,
+        protoSchema =
+          ProtoSchemaConverter.convert(ComputationParticipantStagesTableRow.getDescriptor()),
+        streamWriterFactory = streamWriterFactory,
+      )
       .use { computationParticipantStagesDataWriter ->
         DataWriter(
-          projectId = projectId,
-          datasetId = datasetId,
-          tableId = latestComputationReadTableId,
-          client = bigQueryWriteClient,
-          protoSchema =
-          ProtoSchemaConverter.convert(LatestComputationReadTableRow.getDescriptor()),
-          streamWriterFactory = streamWriterFactory,
-        )
+            projectId = projectId,
+            datasetId = datasetId,
+            tableId = latestComputationReadTableId,
+            client = bigQueryWriteClient,
+            protoSchema =
+              ProtoSchemaConverter.convert(LatestComputationReadTableRow.getDescriptor()),
+            streamWriterFactory = streamWriterFactory,
+          )
           .use { latestComputationReadDataWriter ->
             do {
               computationsQueryResponseSize = 0
 
-              val computationParticipantStagesProtoRowsBuilder: ProtoRows.Builder = ProtoRows.newBuilder()
+              val computationParticipantStagesProtoRowsBuilder: ProtoRows.Builder =
+                ProtoRows.newBuilder()
               var latestComputation: Measurement = Measurement.getDefaultInstance()
 
               measurementsClient
@@ -535,37 +537,46 @@ class OperationalMetricsExport(
                     val measurementId = externalIdToApiId(measurement.externalMeasurementId)
                     val computationId = externalIdToApiId(measurement.externalComputationId)
 
-                    val baseComputationParticipantStagesTableRow = computationParticipantStagesTableRow {
-                      this.measurementConsumerId = measurementConsumerId
-                      this.measurementId = measurementId
-                      this.computationId = computationId
-                      this.measurementType = measurementType
-                    }
+                    val baseComputationParticipantStagesTableRow =
+                      computationParticipantStagesTableRow {
+                        this.measurementConsumerId = measurementConsumerId
+                        this.measurementId = measurementId
+                        this.computationId = computationId
+                        this.measurementType = measurementType
+                      }
 
                     for (computationParticipant in measurement.computationParticipantsList) {
                       if (computationParticipant.logEntryPerStageUniqueList.isEmpty()) {
                         continue
                       }
 
-                      val sortedStageLogEntries = computationParticipant.logEntryPerStageUniqueList.sortedBy { it.details.stageAttempt.stage }
+                      val sortedStageLogEntries =
+                        computationParticipant.logEntryPerStageUniqueList.sortedBy {
+                          it.details.stageAttempt.stage
+                        }
                       for (i in 1 until sortedStageLogEntries.size) {
-                        val logEntry = sortedStageLogEntries[i-1]
+                        val logEntry = sortedStageLogEntries[i - 1]
                         val nextLogEntry = sortedStageLogEntries[i]
-                        if (logEntry.details.stageAttempt.stage + 1 == nextLogEntry.details.stageAttempt.stage) {
+                        if (
+                          logEntry.details.stageAttempt.stage + 1 ==
+                            nextLogEntry.details.stageAttempt.stage
+                        ) {
                           computationParticipantStagesProtoRowsBuilder.addSerializedRows(
-                            baseComputationParticipantStagesTableRow.copy {
-                              duchyId = computationParticipant.externalDuchyId
-                              result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
-                              stageName = logEntry.details.stageAttempt.stageName
-                              stageStartTime = logEntry.details.stageAttempt.stageStartTime
-                              completionDurationSeconds = Duration.between(
-                                logEntry.details.stageAttempt.stageStartTime.toInstant(),
-                                nextLogEntry.details.stageAttempt.stageStartTime.toInstant(),
-                              )
-                                .seconds
-                              completionDurationSecondsSquared =
-                                completionDurationSeconds * completionDurationSeconds
-                            }
+                            baseComputationParticipantStagesTableRow
+                              .copy {
+                                duchyId = computationParticipant.externalDuchyId
+                                result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
+                                stageName = logEntry.details.stageAttempt.stageName
+                                stageStartTime = logEntry.details.stageAttempt.stageStartTime
+                                completionDurationSeconds =
+                                  Duration.between(
+                                      logEntry.details.stageAttempt.stageStartTime.toInstant(),
+                                      nextLogEntry.details.stageAttempt.stageStartTime.toInstant(),
+                                    )
+                                    .seconds
+                                completionDurationSecondsSquared =
+                                  completionDurationSeconds * completionDurationSeconds
+                              }
                               .toByteString()
                           )
                         }
@@ -575,36 +586,40 @@ class OperationalMetricsExport(
                         val logEntry = sortedStageLogEntries.last()
                         if (measurement.state == Measurement.State.SUCCEEDED) {
                           computationParticipantStagesProtoRowsBuilder.addSerializedRows(
-                            baseComputationParticipantStagesTableRow.copy {
-                              duchyId = computationParticipant.externalDuchyId
-                              result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
-                              stageName = logEntry.details.stageAttempt.stageName
-                              stageStartTime = logEntry.details.stageAttempt.stageStartTime
-                              completionDurationSeconds = Duration.between(
-                                logEntry.details.stageAttempt.stageStartTime.toInstant(),
-                                measurement.updateTime.toInstant(),
-                              )
-                                .seconds
-                              completionDurationSecondsSquared =
-                                completionDurationSeconds * completionDurationSeconds
-                            }
+                            baseComputationParticipantStagesTableRow
+                              .copy {
+                                duchyId = computationParticipant.externalDuchyId
+                                result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
+                                stageName = logEntry.details.stageAttempt.stageName
+                                stageStartTime = logEntry.details.stageAttempt.stageStartTime
+                                completionDurationSeconds =
+                                  Duration.between(
+                                      logEntry.details.stageAttempt.stageStartTime.toInstant(),
+                                      measurement.updateTime.toInstant(),
+                                    )
+                                    .seconds
+                                completionDurationSecondsSquared =
+                                  completionDurationSeconds * completionDurationSeconds
+                              }
                               .toByteString()
                           )
                         } else if (measurement.state == Measurement.State.FAILED) {
                           computationParticipantStagesProtoRowsBuilder.addSerializedRows(
-                            baseComputationParticipantStagesTableRow.copy {
-                              duchyId = computationParticipant.externalDuchyId
-                              result = ComputationParticipantStagesTableRow.Result.FAILED
-                              stageName = logEntry.details.stageAttempt.stageName
-                              stageStartTime = logEntry.details.stageAttempt.stageStartTime
-                              completionDurationSeconds = Duration.between(
-                                logEntry.details.stageAttempt.stageStartTime.toInstant(),
-                                measurement.updateTime.toInstant(),
-                              )
-                                .seconds
-                              completionDurationSecondsSquared =
-                                completionDurationSeconds * completionDurationSeconds
-                            }
+                            baseComputationParticipantStagesTableRow
+                              .copy {
+                                duchyId = computationParticipant.externalDuchyId
+                                result = ComputationParticipantStagesTableRow.Result.FAILED
+                                stageName = logEntry.details.stageAttempt.stageName
+                                stageStartTime = logEntry.details.stageAttempt.stageStartTime
+                                completionDurationSeconds =
+                                  Duration.between(
+                                      logEntry.details.stageAttempt.stageStartTime.toInstant(),
+                                      measurement.updateTime.toInstant(),
+                                    )
+                                    .seconds
+                                completionDurationSecondsSquared =
+                                  completionDurationSeconds * completionDurationSeconds
+                              }
                               .toByteString()
                           )
                         }
@@ -616,7 +631,9 @@ class OperationalMetricsExport(
               logger.info("Computations read from the Kingdom Internal Server")
 
               if (computationParticipantStagesProtoRowsBuilder.serializedRowsCount > 0) {
-                computationParticipantStagesDataWriter.appendRows(computationParticipantStagesProtoRowsBuilder.build())
+                computationParticipantStagesDataWriter.appendRows(
+                  computationParticipantStagesProtoRowsBuilder.build()
+                )
               } else {
                 logger.info("No more Computations to process")
                 break

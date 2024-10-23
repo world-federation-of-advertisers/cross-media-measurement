@@ -295,7 +295,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         duchyMeasurementLogEntry {
           externalDuchyId = request.externalDuchyId
           details = stageTwoLogEntryRequest.details
-        }
+        },
       )
     assertThat(response.failureLogEntry)
       .ignoringFields(

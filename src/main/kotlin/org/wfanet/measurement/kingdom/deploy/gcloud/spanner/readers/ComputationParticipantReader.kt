@@ -264,11 +264,20 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
       return buildList {
         for (struct in logEntryStructs) {
           val measurementLogEntryDetails =
-            struct.getProtoMessage("MeasurementLogDetails", MeasurementLogEntryDetails.getDefaultInstance())
+            struct.getProtoMessage(
+              "MeasurementLogDetails",
+              MeasurementLogEntryDetails.getDefaultInstance(),
+            )
           val duchyMeasurementLogEntryDetails =
-            struct.getProtoMessage("DuchyMeasurementLogDetails", DuchyMeasurementLogEntryDetails.getDefaultInstance())
+            struct.getProtoMessage(
+              "DuchyMeasurementLogDetails",
+              DuchyMeasurementLogEntryDetails.getDefaultInstance(),
+            )
 
-          if (!measurementLogEntryDetails.hasError() && !stageNames.contains(duchyMeasurementLogEntryDetails.stageAttempt.stageName)) {
+          if (
+            !measurementLogEntryDetails.hasError() &&
+              !stageNames.contains(duchyMeasurementLogEntryDetails.stageAttempt.stageName)
+          ) {
             add(
               duchyMeasurementLogEntry {
                 logEntry = measurementLogEntry {
