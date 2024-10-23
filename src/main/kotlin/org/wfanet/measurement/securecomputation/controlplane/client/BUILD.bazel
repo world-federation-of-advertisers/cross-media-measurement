@@ -6,9 +6,12 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "rabbit_mq_handler",
-    srcs = ["RabbitMQHandler.kt"],
+    name = "rabbit_mq_client",
+    srcs = ["RabbitMQClient.kt"],
     deps = [
-        "@maven//:com_rabbitmq_amqp_client"
+        "@maven//:com_rabbitmq_amqp_client",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
