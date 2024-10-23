@@ -17,20 +17,21 @@
 package org.wfanet.measurement.kingdom.batch
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.Descriptors
 import com.google.protobuf.kotlin.toByteString
-import java.io.File
-import java.nio.file.Paths
-import java.time.Duration
-import java.time.Instant
+import com.google.type.interval
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -45,19 +46,28 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
+import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
+import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.setMessage
 import org.wfanet.measurement.api.v2alpha.signedMessage
+import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
@@ -73,10 +83,20 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.encryptMessage
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.common.toPublicKeyHandle
+import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
+import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
+import java.io.File
+import java.nio.file.Paths
+import java.security.SecureRandom
+import java.time.Duration
+import java.time.Instant
 
 @RunWith(JUnit4::class)
 class MeasurementSystemProberTest {
+  private val randomMock: SecureRandom = mock()
+
   private val measurementConsumersMock:
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase =
     mockService {
@@ -125,6 +145,8 @@ class MeasurementSystemProberTest {
     requisitionsClient = RequisitionsGrpcKt.RequisitionsCoroutineStub(grpcTestServerRule.channel)
     val clock = TestClockWithNamedInstants(NOW)
 
+    randomMock.stub { on { nextLong() } doReturn NONCE }
+
     prober =
       MeasurementSystemProber(
         MEASUREMENT_CONSUMER_NAME,
@@ -139,6 +161,7 @@ class MeasurementSystemProberTest {
         eventGroupsClient,
         requisitionsClient,
         clock,
+        randomMock,
       )
   }
 
@@ -148,13 +171,15 @@ class MeasurementSystemProberTest {
       whenever(measurementsMock.listMeasurements(any()))
         .thenReturn(ListMeasurementsResponse.getDefaultInstance())
 
+      randomMock.stub { on { nextLong() } doReturn NONCE }
+
       prober.run()
 
       verifyProtoArgument(
           measurementsMock,
           MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
         )
-        .comparingExpectedFieldsOnly()
+        .ignoringFieldDescriptors(MEASUREMENT_SPEC_FIELD, ENCRYPTED_REQUISITION_SPEC_FIELD)
         .isEqualTo(
           createMeasurementRequest {
             parent = MEASUREMENT_CONSUMER_NAME
@@ -179,7 +204,7 @@ class MeasurementSystemProberTest {
         measurementsMock,
         MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
       )
-      .comparingExpectedFieldsOnly()
+      .ignoringFieldDescriptors(MEASUREMENT_SPEC_FIELD, ENCRYPTED_REQUISITION_SPEC_FIELD)
       .isEqualTo(
         createMeasurementRequest {
           parent = MEASUREMENT_CONSUMER_NAME
@@ -235,6 +260,11 @@ class MeasurementSystemProberTest {
       certificateDer = MC_CERTIFICATE_DER
       publicKey = signedMessage { setMessage(MC_ENCRYPTION_PUBLIC_KEY.pack()) }
     }
+    private val MC_SIGNING_KEY: SigningKeyHandle =
+      loadSigningKey(
+        SECRETS_DIR.resolve("mc_cs_cert.der"),
+        SECRETS_DIR.resolve("mc_cs_private.der"),
+      )
 
     private val LIST_REQUISITIONS_RESPONSE: ListRequisitionsResponse = listRequisitionsResponse {}
 
@@ -274,18 +304,73 @@ class MeasurementSystemProberTest {
       }
     }
 
+    private const val NONCE = -3060866405677570814L // Hex: D5859E38A0A96502
+    private val REQUISITION_SPEC = requisitionSpec {
+      events =
+        RequisitionSpecKt.events {
+          eventGroups += eventGroupEntry {
+            eventGroupEntry {
+              key = EVENT_GROUP_NAME
+              value =
+                RequisitionSpecKt.EventGroupEntryKt.value {
+                  collectionInterval = interval {
+                    startTime = NOW.minus(MEASUREMENT_LOOKBACK_DURATION).toProtoTime()
+                    endTime = NOW.plus(Duration.ofDays(1)).toProtoTime()
+                  }
+                }
+            }
+          }
+        }
+      measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message
+      nonce = NONCE
+    }
     private val DATA_PROVIDER_ENTRY = dataProviderEntry {
       key = DATA_PROVIDER_NAME
       value =
         MeasurementKt.DataProviderEntryKt.value {
           dataProviderCertificate = DATA_PROVIDER.certificate
           dataProviderPublicKey = DATA_PROVIDER.publicKey.message
+          encryptedRequisitionSpec =
+            encryptRequisitionSpec(
+              signRequisitionSpec(REQUISITION_SPEC, MC_SIGNING_KEY),
+              DATA_PROVIDER.publicKey.unpack(),
+            )
+          nonceHash = Hashing.hashSha256(REQUISITION_SPEC.nonce)
+        }
+    }
+    private val MEASUREMENT_SPEC = measurementSpec {
+      measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.message
+      nonceHashes += DATA_PROVIDER_ENTRY.value.nonceHash
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0f
+        width = 1f
+      }
+      reachAndFrequency =
+        MeasurementSpecKt.reachAndFrequency {
+          reachPrivacyParams = differentialPrivacyParams {
+            epsilon = 0.005
+            delta = 1e-15
+          }
+          frequencyPrivacyParams = differentialPrivacyParams {
+            epsilon = 0.005
+            delta = 1e-15
+          }
+          maximumFrequency = 1
         }
     }
 
     private val MEASUREMENT = measurement {
       measurementConsumerCertificate = MEASUREMENT_CONSUMER.certificate
       dataProviders += DATA_PROVIDER_ENTRY
+      measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)
     }
+
+    private val MEASUREMENT_SPEC_FIELD: Descriptors.FieldDescriptor =
+      Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER)
+    private val ENCRYPTED_REQUISITION_SPEC_FIELD: Descriptors.FieldDescriptor =
+      Measurement.DataProviderEntry.Value.getDescriptor()
+        .findFieldByNumber(
+          Measurement.DataProviderEntry.Value.ENCRYPTED_REQUISITION_SPEC_FIELD_NUMBER
+        )
   }
 }

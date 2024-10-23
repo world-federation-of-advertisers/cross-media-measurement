@@ -86,6 +86,7 @@ class MeasurementSystemProber(
   private val eventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub,
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
   private val clock: Clock = Clock.systemUTC(),
+  private val secureRandom: SecureRandom = SecureRandom.getInstance("SHA1PRNG"),
 ) {
   private val lastTerminalMeasurementTimeGauge: DoubleGauge =
     Instrumentation.meter
@@ -380,8 +381,6 @@ class MeasurementSystemProber(
     private const val MILLISECONDS_PER_SECOND = 1000.0
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-
-    private val secureRandom = SecureRandom.getInstance("SHA1PRNG")
 
     private val COMPLETED_MEASUREMENT_STATES =
       listOf(Measurement.State.SUCCEEDED, Measurement.State.FAILED, Measurement.State.CANCELLED)
