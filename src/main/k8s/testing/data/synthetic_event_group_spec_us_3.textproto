@@ -16,13 +16,13 @@ date_specs {
       day: 16
     }
   }
-  # 10M
+  # 3M
   frequency_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
         start: 10000000
-        end_exclusive: 20000000
+        end_exclusive: 13000000
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -32,13 +32,13 @@ date_specs {
       }
     }
   }
-  # 5M
+  # 2M
   frequency_specs {
     frequency: 2
     vid_range_specs {
       vid_range {
         start: 45000000
-        end_exclusive: 50000000
+        end_exclusive: 47000000
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -48,13 +48,13 @@ date_specs {
       }
     }
   }
-  # 10M
+  # 3M
   frequency_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
         start: 210000000
-        end_exclusive: 220000000
+        end_exclusive: 213000000
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"

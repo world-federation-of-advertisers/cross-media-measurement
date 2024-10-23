@@ -16,12 +16,12 @@ date_specs {
       day: 16
     }
   }
-  # 12M
+  # 7M
   frequency_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
-        start: 3000000
+        start: 8000000
         end_exclusive: 15000000
       }
       non_population_field_values {
@@ -48,13 +48,13 @@ date_specs {
       }
     }
   }
-  # 10M
+  # 5M
   frequency_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
         start: 13000000
-        end_exclusive: 14000000
+        end_exclusive: 13500000
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
