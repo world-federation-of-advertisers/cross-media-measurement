@@ -20,6 +20,11 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
 import com.google.protobuf.kotlin.toByteString
 import com.google.type.interval
+import java.io.File
+import java.nio.file.Paths
+import java.security.SecureRandom
+import java.time.Duration
+import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -87,11 +92,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
-import java.io.File
-import java.nio.file.Paths
-import java.security.SecureRandom
-import java.time.Duration
-import java.time.Instant
 
 @RunWith(JUnit4::class)
 class MeasurementSystemProberTest {
