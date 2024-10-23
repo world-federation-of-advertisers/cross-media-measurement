@@ -23,7 +23,10 @@ package(
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         repository = image_spec.repository,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
-        tags = ["manual"],
+        tags = [
+            "manual",
+            "no-remote",
+        ],
     )
     for image_spec in ALL_IMAGES
 ]
@@ -35,7 +38,10 @@ container_push_all(
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
     ): image_spec.image for image_spec in ALL_LOCAL_IMAGES},
-    tags = ["manual"],
+    tags = [
+        "manual",
+        "no-remote",
+    ],
 )
 
 container_push_all(
@@ -45,7 +51,10 @@ container_push_all(
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
     ): image_spec.image for image_spec in ALL_GKE_IMAGES},
-    tags = ["manual"],
+    tags = [
+        "manual",
+        "no-remote",
+    ],
 )
 
 container_push_all(
@@ -55,7 +64,10 @@ container_push_all(
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
     ): image_spec.image for image_spec in ALL_EKS_IMAGES},
-    tags = ["manual"],
+    tags = [
+        "manual",
+        "no-remote",
+    ],
 )
 
 container_push_all(
@@ -65,7 +77,10 @@ container_push_all(
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
     ): image_spec.image for image_spec in ALL_IMAGES if image_spec.name.startswith("kingdom_")},
-    tags = ["manual"],
+    tags = [
+        "manual",
+        "no-remote",
+    ],
 )
 
 container_push_all(
@@ -75,7 +90,10 @@ container_push_all(
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
     ): image_spec.image for image_spec in ALL_IMAGES if image_spec.name.startswith("duchy_")},
-    tags = ["manual"],
+    tags = [
+        "manual",
+        "no-remote",
+    ],
 )
 
 container_push_all(
@@ -85,7 +103,10 @@ container_push_all(
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
     ): image_spec.image for image_spec in ALL_EKS_IMAGES if image_spec.name.startswith("duchy_")},
-    tags = ["manual"],
+    tags = [
+        "manual",
+        "no-remote",
+    ],
 )
 
 container_push_all(
@@ -95,5 +116,8 @@ container_push_all(
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
     ): image_spec.image for image_spec in ALL_REPORTING_GKE_IMAGES},
-    tags = ["manual"],
+    tags = [
+        "manual",
+        "no-remote",
+    ],
 )
