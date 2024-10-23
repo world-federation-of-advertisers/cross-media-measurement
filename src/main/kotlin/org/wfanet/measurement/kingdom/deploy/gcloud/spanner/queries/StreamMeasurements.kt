@@ -76,8 +76,7 @@ class StreamMeasurements(
       return when (view) {
         Measurement.View.COMPUTATION ->
           "ORDER BY Measurements.UpdateTime ASC, ExternalComputationId ASC"
-        Measurement.View.DEFAULT,
-        Measurement.View.FULL ->
+        Measurement.View.DEFAULT ->
           "ORDER BY Measurements.UpdateTime ASC, ExternalMeasurementConsumerId ASC, " +
             "ExternalMeasurementId ASC"
         Measurement.View.UNRECOGNIZED -> error("Unrecognized View")
@@ -204,6 +203,11 @@ class StreamMeasurements(
           StreamMeasurementsRequest.Filter.After.KeyCase.KEY_NOT_SET ->
             throw IllegalArgumentException("key not set")
         }
+      }
+
+      if (filter.hasAfter() || filter.hasUpdatedAfter()) {
+        // Include shard ID to use sharded index on UpdateTime appropriately.
+        conjuncts.add("MeasurementIndexShardId != -1")
       }
 
       if (conjuncts.isEmpty()) {

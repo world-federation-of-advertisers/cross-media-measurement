@@ -1,0 +1,43 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+package(default_testonly = True)
+
+kt_jvm_test(
+    name = "report_post_processing_test",
+    srcs = ["ReportPostProcessingTest.kt"],
+    data = [":sample_reports"],
+    test_class = "org.wfanet.measurement.reporting.postprocessing.ReportPostProcessingTest",
+    deps = [
+        "//experimental/dp_consistency/src/main/kotlin/org/wfanet/measurement/reporting/postprocess:report_post_processing",
+        "//experimental/dp_consistency/src/main/proto/wfa/measurement/reporting/postprocess:report_summary_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_test(
+    name = "report_conversion_test",
+    srcs = ["ReportConversionTest.kt"],
+    data = [":sample_reports"],
+    test_class = "org.wfanet.measurement.reporting.postprocessing.ReportConversionTest",
+    deps = [
+        "//experimental/dp_consistency/src/main/kotlin/org/wfanet/measurement/reporting/postprocess:report_conversion",
+        "//experimental/dp_consistency/src/main/proto/wfa/measurement/reporting/postprocess:report_summary_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+filegroup(
+    name = "sample_reports",
+    srcs = glob(["*.json"]),
+)

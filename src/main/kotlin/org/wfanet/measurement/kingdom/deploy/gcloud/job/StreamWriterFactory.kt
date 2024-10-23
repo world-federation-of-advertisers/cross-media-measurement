@@ -43,7 +43,7 @@ class StreamWriterFactoryImpl : StreamWriterFactory {
     protoSchema: ProtoSchema,
   ): StreamWriter {
     val tableName = TableName.of(projectId, datasetId, tableId)
-    return StreamWriter.newBuilder(tableName.toString() + DEFAULT_STREAM_PATH, client)
+    return StreamWriter.newBuilder(StreamWriter.getDefaultStreamName(tableName), client)
       .setExecutorProvider(FixedExecutorProvider.create(Executors.newScheduledThreadPool(1)))
       .setEnableConnectionPool(true)
       .setDefaultMissingValueInterpretation(
@@ -51,9 +51,5 @@ class StreamWriterFactoryImpl : StreamWriterFactory {
       )
       .setWriterSchema(protoSchema)
       .build()
-  }
-
-  companion object {
-    private const val DEFAULT_STREAM_PATH = "/streams/_default"
   }
 }

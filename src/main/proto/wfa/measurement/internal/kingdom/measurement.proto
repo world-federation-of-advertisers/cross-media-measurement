@@ -36,9 +36,6 @@ message Measurement {
     // View for computation, which includes child Requisitions and
     // ComputationParticipants.
     COMPUTATION = 1;
-
-    // Denormalized view, which includes all fields.
-    FULL = 2;
   }
 
   fixed64 external_measurement_consumer_id = 1;
@@ -202,6 +199,8 @@ message Requisition {
     Measurement.State state = 6;
 
     int32 data_providers_count = 7;
+
+    google.protobuf.Timestamp create_time = 9;
   }
   // Denormalized fields from the parent Measurement. Output-only.
   ParentMeasurement parent_measurement = 12;

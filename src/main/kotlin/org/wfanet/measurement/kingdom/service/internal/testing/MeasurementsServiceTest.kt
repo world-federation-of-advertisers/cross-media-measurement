@@ -971,6 +971,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
                 liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
               }
               dataProvidersCount = 1
+              createTime = createdMeasurement.createTime
             }
             details = requisitionDetails {
               dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
@@ -1492,86 +1493,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       .containsExactly(computationMeasurement1, computationMeasurement3)
       .inOrder()
   }
-
-  @Test
-  fun `streamMeasurements with full view returns measurements with all fields set`(): Unit =
-    runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
-
-      val measurement1 =
-        measurementsService.createMeasurement(
-          createMeasurementRequest {
-            measurement =
-              MEASUREMENT.copy {
-                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-                externalMeasurementConsumerCertificateId =
-                  measurementConsumer.certificate.externalCertificateId
-              }
-          }
-        )
-
-      val dataProvider = population.createDataProvider(dataProvidersService)
-      val dataProviderValue = dataProvider.toDataProviderValue()
-      val measurement2 =
-        measurementsService.createMeasurement(
-          createMeasurementRequest {
-            measurement =
-              MEASUREMENT.copy {
-                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-                externalMeasurementConsumerCertificateId =
-                  measurementConsumer.certificate.externalCertificateId
-                dataProviders.putAll(
-                  mapOf(dataProvider.externalDataProviderId to dataProviderValue)
-                )
-                details =
-                  details.copy {
-                    protocolConfig = protocolConfig {
-                      direct = ProtocolConfig.Direct.getDefaultInstance()
-                    }
-                    clearDuchyProtocolConfig()
-                  }
-              }
-          }
-        )
-
-      val computationMeasurement1 =
-        measurementsService.getMeasurementByComputationId(
-          getMeasurementByComputationIdRequest {
-            externalComputationId = measurement1.externalComputationId
-          }
-        )
-
-      val requisition2 =
-        requisitionsService
-          .streamRequisitions(
-            streamRequisitionsRequest {
-              limit = 1
-              filter =
-                StreamRequisitionsRequestKt.filter {
-                  externalMeasurementConsumerId = measurement2.externalMeasurementConsumerId
-                  externalMeasurementId = measurement2.externalMeasurementId
-                }
-            }
-          )
-          .toList()
-          .first()
-
-      val streamMeasurementsRequest = streamMeasurementsRequest {
-        limit = 10
-        measurementView = Measurement.View.FULL
-      }
-
-      val responses: List<Measurement> =
-        measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
-
-      assertThat(responses)
-        .containsExactly(
-          computationMeasurement1,
-          measurement2.copy { requisitions += requisition2 },
-        )
-        .inOrder()
-    }
 
   @Test
   fun `streamMeasurements respects limit`(): Unit = runBlocking {
