@@ -83,6 +83,7 @@ jobs:
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
+          build --remote_download_outputs=toplevel  # Need build output.
           common --config=ghcr
           build --define "image_tag=$IMAGE_TAG"
           build --define "google_cloud_project=$GCLOUD_PROJECT"

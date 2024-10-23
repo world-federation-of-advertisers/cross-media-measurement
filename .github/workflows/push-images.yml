@@ -51,18 +51,6 @@ jobs:
           build --define image_repo_prefix=$GITHUB_REPOSITORY_OWNER
           build --define image_tag=$IMAGE_TAG
           EOF
-      
-      - name: Get Bazel cache params
-        id: get-cache-params
-        run: |
-          repo_cache_path="$(bazelisk info repository_cache)"
-          echo "repo-cache-path=${repo_cache_path}" >> $GITHUB_OUTPUT
-
-      - name: Restore repository cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.get-cache-params.outputs.repo-cache-path }}
-          key: ${{ vars.BAZEL_REPO_CACHE_KEY }}
 
       - name: Authenticate to GitHub Container Registry
         uses: docker/login-action@v3

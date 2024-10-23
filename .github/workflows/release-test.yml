@@ -45,18 +45,6 @@ jobs:
         common --config=ci
         EOF
 
-    - name: Get Bazel cache params
-      id: get-cache-params
-      run: |
-        repo_cache_path="$(bazelisk info repository_cache)"
-        echo "repo-cache-path=${repo_cache_path}" >> $GITHUB_OUTPUT
-
-    - name: Restore repository cache
-      uses: actions/cache/restore@v4
-      with:
-        path: ${{ steps.get-cache-params.outputs.repo-cache-path }}
-        key: ${{ vars.BAZEL_REPO_CACHE_KEY }}
-
     - name: Run tests
       id: run-tests
       run: >
