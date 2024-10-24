@@ -26,6 +26,9 @@ maven_export(
     name = "native_maven",
     lib_name = "native",
     maven_coordinates = MAVEN_COORDINATES,
-    tags = ["no-javadocs"],
+    tags = [
+        "no-javadocs",
+        "no-remote-cache",
+    ],
     visibility = ["//visibility:private"],
 )
