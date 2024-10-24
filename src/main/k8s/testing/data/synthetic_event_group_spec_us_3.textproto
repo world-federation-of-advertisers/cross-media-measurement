@@ -2,6 +2,7 @@
 # proto-message: SyntheticEventGroupSpec
 
 # Spec for use with synthetic_population_spec_us.textproto.
+# EventGroupSpec 1, 2, 3 should yield a total reach of ~30M
 
 date_specs {
   date_range {
