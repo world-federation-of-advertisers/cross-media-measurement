@@ -55,3 +55,17 @@
   # gRPC-only. REST/HTTP not supported.
   - 'core::0127::http-annotation'
   - 'core::0133::http-uri-parent'
+
+- included_paths:
+  - 'wfa/measurement/access/**/*.proto'
+  disabled_rules:
+  # Java package uses full domain, while protobuf package does not.
+  - 'core::0191::java-package'
+  # List methods aren't useful for some resource types.
+  - 'core::0121::resource-must-support-list'
+  # gRPC-only for now.
+  - 'core::0127::http-annotation'
+  # Allow custom "Lookup" methods.
+  - 'core::0131::synonyms'
+  # Allow methods that operate on resources by lookup key.
+  - 'core::0136::response-message-name'
