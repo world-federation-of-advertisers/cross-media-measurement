@@ -86,7 +86,7 @@ class MeasurementSystemProber(
   private val eventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub,
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
   private val clock: Clock = Clock.systemUTC(),
-  private val secureRandom: SecureRandom = SecureRandom.getInstance("SHA1PRNG"),
+  private val secureRandom: SecureRandom = SecureRandom(),
 ) {
   private val lastTerminalMeasurementTimeGauge: DoubleGauge =
     Instrumentation.meter
@@ -109,9 +109,11 @@ class MeasurementSystemProber(
     val lastUpdatedMeasurement = getLastUpdatedMeasurement()
     if (lastUpdatedMeasurement != null) {
       updateLastTerminalRequisitionGauge(lastUpdatedMeasurement)
-      lastTerminalMeasurementTimeGauge.set(
-        lastUpdatedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
-      )
+      if (lastUpdatedMeasurement.state in COMPLETED_MEASUREMENT_STATES) {
+        lastTerminalMeasurementTimeGauge.set(
+          lastUpdatedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
+        )
+      }
     }
     if (shouldCreateNewMeasurement(lastUpdatedMeasurement)) {
       createMeasurement()
