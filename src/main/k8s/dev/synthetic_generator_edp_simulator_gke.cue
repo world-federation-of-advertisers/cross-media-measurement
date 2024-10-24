@@ -27,9 +27,9 @@ _maxHeapSize: "40G"
 
 _populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec_us.textproto"
 _eventGroupSpecs: [
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_us_4.textproto",
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_us_5.textproto",
-	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_us_6.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_us_7.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_us_8.textproto",
+	"/etc/\(#AppName)/config-files/synthetic_event_group_spec_us_9.textproto",
 ]
 
 edp_simulators: {

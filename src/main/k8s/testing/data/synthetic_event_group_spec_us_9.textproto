@@ -2,7 +2,7 @@
 # proto-message: SyntheticEventGroupSpec
 
 # Spec for use with synthetic_population_spec_us.textproto.
-# EventGroupSpec 1, 2, 3 should yield a total reach of ~123M
+# EventGroupSpec 1, 2, 3 should yield a total reach of ~30M
 
 date_specs {
   date_range {
@@ -17,13 +17,13 @@ date_specs {
       day: 16
     }
   }
-  # 7M
+  # 40M
   frequency_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
-        start: 8000000
-        end_exclusive: 15000000
+        start: 166000000
+        end_exclusive: 206000000
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -33,46 +33,13 @@ date_specs {
       }
     }
   }
-  # 30M
+  # 50M
   frequency_specs {
     frequency: 2
     vid_range_specs {
       vid_range {
-        start: 90000000
-        end_exclusive: 12000000
-      }
-      non_population_field_values {
-        key: "video_ad.viewed_fraction"
-        value {
-          double_value: 0.25
-        }
-      }
-    }
-  }
-  # 5M
-  frequency_specs {
-    frequency: 1
-    vid_range_specs {
-      vid_range {
-        start: 13000000
-        end_exclusive: 13500000
-      }
-      non_population_field_values {
-        key: "video_ad.viewed_fraction"
-        value {
-          double_value: 0.25
-        }
-      }
-    }
-  }
-
-  # 30M
-  frequency_specs {
-    frequency: 1
-    vid_range_specs {
-      vid_range {
-        start: 170000000
-        end_exclusive: 200000000
+        start: 208000000
+        end_exclusive: 258000000
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
