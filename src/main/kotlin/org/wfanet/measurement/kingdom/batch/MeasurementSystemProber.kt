@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The Cross-Media Measurement Authors
+ * Copyright 2024 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -86,6 +86,7 @@ class MeasurementSystemProber(
   private val eventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub,
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
   private val clock: Clock = Clock.systemUTC(),
+  private val secureRandom: SecureRandom = SecureRandom(),
 ) {
   private val lastTerminalMeasurementTimeGauge: DoubleGauge =
     Instrumentation.meter
@@ -108,9 +109,11 @@ class MeasurementSystemProber(
     val lastUpdatedMeasurement = getLastUpdatedMeasurement()
     if (lastUpdatedMeasurement != null) {
       updateLastTerminalRequisitionGauge(lastUpdatedMeasurement)
-      lastTerminalMeasurementTimeGauge.set(
-        lastUpdatedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
-      )
+      if (lastUpdatedMeasurement.state in COMPLETED_MEASUREMENT_STATES) {
+        lastTerminalMeasurementTimeGauge.set(
+          lastUpdatedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
+        )
+      }
     }
     if (shouldCreateNewMeasurement(lastUpdatedMeasurement)) {
       createMeasurement()
@@ -380,8 +383,6 @@ class MeasurementSystemProber(
     private const val MILLISECONDS_PER_SECOND = 1000.0
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-
-    private val secureRandom = SecureRandom.getInstance("SHA1PRNG")
 
     private val COMPLETED_MEASUREMENT_STATES =
       listOf(Measurement.State.SUCCEEDED, Measurement.State.FAILED, Measurement.State.CANCELLED)

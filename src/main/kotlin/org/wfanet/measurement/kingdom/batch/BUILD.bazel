@@ -3,6 +3,7 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/kingdom/batch/spanner:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/kingdom/batch:__subpackages__",
 ])
 
 kt_jvm_library(
@@ -35,5 +36,25 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/opentelemetry/api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "measurement_system_prober",
+    srcs = ["MeasurementSystemProber.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
 )
