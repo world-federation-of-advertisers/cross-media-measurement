@@ -6,7 +6,7 @@
 # Source: https://www.census.gov/popclock/
 vid_range {
   start: 1
-  end_exclusive: 334133562  # Age 18-64
+  end_exclusive: 261593166  # Age 18-64
 }
 event_message_type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
 population_fields: "person.gender"

@@ -33,13 +33,13 @@ date_specs {
       }
     }
   }
-  # 30M
+  # 40M
   frequency_specs {
     frequency: 2
     vid_range_specs {
       vid_range {
-        start: 45000000
-        end_exclusive: 75000000
+        start: 40000000
+        end_exclusive: 80000000
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
