@@ -79,6 +79,7 @@ java_test(
     tags = [
         "cpu:8",
         "manual",
+        "no-remote-exec",
     ],
     test_class = "org.wfanet.panelmatch.integration.k8s.EmptyClusterPanelMatchCorrectnessTest",
     runtime_deps = [":empty_cluster_panel_match_correctness_test"],

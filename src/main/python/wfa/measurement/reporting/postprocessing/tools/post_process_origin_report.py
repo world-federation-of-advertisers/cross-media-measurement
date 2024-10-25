@@ -17,8 +17,7 @@ import math
 import pandas as pd
 import sys
 
-from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
-  report_summary_pb2
+from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import report_summary_pb2
 from functools import partial
 from noiseninja.noised_measurements import Measurement
 from report.report import Report, MetricReport

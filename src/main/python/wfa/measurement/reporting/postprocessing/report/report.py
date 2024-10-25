@@ -76,7 +76,6 @@ class MetricReport:
         }
     )
 
-
   def get_cumulative_measurements(self, edp_combination: str):
     """Returns the cumulative measurements for the given EDP combination.
 

@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -53,6 +54,7 @@ import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.integration.common.InProcessKingdom
 import org.wfanet.measurement.integration.deploy.gcloud.KingdomDataServicesProviderRule
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
@@ -112,7 +114,7 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
 
   abstract val workflow: ExchangeWorkflow
 
-  private val kingdomDataServicesProvider = KingdomDataServicesProviderRule()
+  private val kingdomDataServicesProvider = KingdomDataServicesProviderRule(spannerEmulator)
   private val inProcessKingdom =
     InProcessKingdom({ kingdomDataServicesProvider.value }, REDIRECT_URI)
   private val resourceSetup by lazy { inProcessKingdom.panelMatchResourceSetup }
@@ -430,6 +432,7 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
     private val logger by loggerFor()
     private val typeRegistry =
       TypeRegistry.newBuilder().add(Shared.Parameters.getDescriptor()).build()
+    @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
 
     private const val REDIRECT_URI = "https://localhost:2048"
 
