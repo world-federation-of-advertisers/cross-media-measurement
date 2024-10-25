@@ -9,7 +9,16 @@ MAVEN_COORDINATES = "org.wfanet.measurement.reporting:postprocessing-v2alpha:" +
 kt_jvm_library(
     name = "postprocessing",
     srcs = glob(["*.kt"]),
+    resources = [
+        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_origin_report_pyzip",
+    ],
     tags = ["maven_coordinates=" + MAVEN_COORDINATES],
+    deps = [
+        "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_summary_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/gson",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
 )
 
 maven_export(
