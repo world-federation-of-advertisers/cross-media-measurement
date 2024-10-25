@@ -450,7 +450,7 @@ class TestReport(unittest.TestCase):
             )
         },
         metric_subsets_by_parent={},
-        cumulative_inconsistency_allowed_edp_combs={},
+        cumulative_inconsistency_allowed_edp_combinations={},
     )
 
     corrected = report.get_corrected_report()
@@ -469,7 +469,7 @@ class TestReport(unittest.TestCase):
             )
         },
         metric_subsets_by_parent={},
-        cumulative_inconsistency_allowed_edp_combs={},
+        cumulative_inconsistency_allowed_edp_combinations={},
     )
 
     self.__assertReportsAlmostEqual(expected, corrected, corrected.to_array())
@@ -494,7 +494,7 @@ class TestReport(unittest.TestCase):
             )
         },
         metric_subsets_by_parent={},
-        cumulative_inconsistency_allowed_edp_combs={},
+        cumulative_inconsistency_allowed_edp_combinations={},
     )
 
     corrected = report.get_corrected_report()
@@ -517,7 +517,7 @@ class TestReport(unittest.TestCase):
             )
         },
         metric_subsets_by_parent={},
-        cumulative_inconsistency_allowed_edp_combs={},
+        cumulative_inconsistency_allowed_edp_combinations={},
     )
 
     self.__assertReportsAlmostEqual(expected, corrected, corrected.to_array())
@@ -570,7 +570,7 @@ class TestReport(unittest.TestCase):
             )
         },
         metric_subsets_by_parent={},
-        cumulative_inconsistency_allowed_edp_combs={},
+        cumulative_inconsistency_allowed_edp_combinations={},
     )
 
     corrected = report.get_corrected_report()
@@ -621,7 +621,7 @@ class TestReport(unittest.TestCase):
             )
         },
         metric_subsets_by_parent={},
-        cumulative_inconsistency_allowed_edp_combs={},
+        cumulative_inconsistency_allowed_edp_combinations={},
     )
 
     self.__assertReportsAlmostEqual(expected, corrected, corrected.to_array())
@@ -646,7 +646,8 @@ class TestReport(unittest.TestCase):
             )
         },
         metric_subsets_by_parent={},
-        cumulative_inconsistency_allowed_edp_combs=set(frozenset({EDP_ONE})),
+        cumulative_inconsistency_allowed_edp_combinations=set(
+          frozenset({EDP_ONE})),
     )
 
     corrected = report.get_corrected_report()
@@ -669,7 +670,8 @@ class TestReport(unittest.TestCase):
             )
         },
         metric_subsets_by_parent={},
-        cumulative_inconsistency_allowed_edp_combs=set(frozenset({EDP_ONE})),
+        cumulative_inconsistency_allowed_edp_combinations=set(
+          frozenset({EDP_ONE})),
     )
 
     self.__assertReportsAlmostEqual(expected, corrected, corrected.to_array())
@@ -698,7 +700,7 @@ class TestReport(unittest.TestCase):
         },
         # AMI is a parent of MRC
         metric_subsets_by_parent={ami: [mrc]},
-        cumulative_inconsistency_allowed_edp_combs={},
+        cumulative_inconsistency_allowed_edp_combinations={},
     )
 
     corrected = report.get_corrected_report()
@@ -724,7 +726,7 @@ class TestReport(unittest.TestCase):
         },
         # AMI is a parent of MRC
         metric_subsets_by_parent={ami: [mrc]},
-        cumulative_inconsistency_allowed_edp_combs={},
+        cumulative_inconsistency_allowed_edp_combinations={},
     )
 
     self.__assertReportsAlmostEqual(expected, corrected, corrected.to_array())
@@ -742,15 +744,16 @@ class TestReport(unittest.TestCase):
   def __assertMetricReportsAlmostEqual(
       self, expected: MetricReport, actual: MetricReport, msg
   ):
-    self.assertEqual(expected.get_num_edp_combs(), actual.get_num_edp_combs())
+    self.assertEqual(expected.get_cumulative_edp_combinations_count(),
+                     actual.get_cumulative_edp_combinations_count())
     self.assertEqual(
         expected.get_number_of_periods(), actual.get_number_of_periods()
     )
     for period in range(0, expected.get_number_of_periods()):
-      for edp_comb in expected.get_edp_combs():
+      for edp_comb in expected.get_cumulative_edp_combinations():
         self.__assertMeasurementAlmostEquals(
-            expected.get_edp_comb_measurement(edp_comb, period),
-            actual.get_edp_comb_measurement(edp_comb, period),
+            expected.get_cumulative_measurement(edp_comb, period),
+            actual.get_cumulative_measurement(edp_comb, period),
             msg,
         )
 

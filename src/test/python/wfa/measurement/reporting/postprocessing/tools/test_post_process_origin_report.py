@@ -96,6 +96,8 @@ class TestOriginReport(unittest.TestCase):
           len(MRC_MEASUREMENTS[edp]) - 1).zfill(5)
 
     corrected_measurements_map = processReportSummary(report_summary)
+    for key, value in corrected_measurements_map.items():
+        print(f"{key}: {value}")
     # Verifies that the updated reach values are consistent.
     for edp in EDP_MAP:
       ami_metric_prefix = "metric_" + edp + "_ami_"

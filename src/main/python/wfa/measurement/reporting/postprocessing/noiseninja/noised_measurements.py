@@ -19,15 +19,15 @@ class Measurement:
 
     value: float
     sigma: float
-    metric_name: str
+    name: str
 
-    def __init__(self, value: float, sigma: float, metric_name: str):
+    def __init__(self, value: float, sigma: float, name: str):
         self.value = value
         self.sigma = sigma
-        self.metric_name = metric_name
+        self.name = name
 
     def __repr__(self):
-        return 'Measurement({:.2f}, {:.2f}, {})\n'.format(self.value, self.sigma, self.metric_name)
+        return 'Measurement({:.2f}, {:.2f}, {})\n'.format(self.value, self.sigma, self.name)
 
 
 class SetMeasurementsSpec:
@@ -69,7 +69,7 @@ class SetMeasurementsSpec:
 
     def get_measurement_metric(self, measured_set_id):
         measurement = self.__measurements_by_set.get(measured_set_id)
-        return measurement[0].metric_name
+        return measurement[0].name
 
     def __repr__(self):
         return (('SetMeasurementsSpec('

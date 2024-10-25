@@ -17,7 +17,8 @@ import math
 import pandas as pd
 import sys
 
-from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import report_summary_pb2
+from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
+  report_summary_pb2
 from functools import partial
 from noiseninja.noised_measurements import Measurement
 from report.report import Report, MetricReport
@@ -127,15 +128,15 @@ def processReportSummary(report_summary: report_summary_pb2.ReportSummary()):
       elif entry.measurement_policy == "mrc":
         mrc_measurements[data_providers] = measurements
 
-  edp_comb_list = ami_measurements.keys()
-  if len(edp_comb_list) == 0:
-    edp_comb_list = mrc_measurements.keys()
+  edp_combination_list = ami_measurements.keys()
+  if len(edp_combination_list) == 0:
+    edp_combination_list = mrc_measurements.keys()
 
   # Processes non-cumulative union measurements.
   for entry in report_summary.measurement_details:
     if (entry.set_operation == "union") and (
         entry.is_cumulative == False) and (
-        frozenset(entry.data_providers) in edp_comb_list):
+        frozenset(entry.data_providers) in edp_combination_list):
       measurements = [
           Measurement(result.reach, result.standard_deviation,
                       result.metric)
@@ -157,7 +158,7 @@ def processReportSummary(report_summary: report_summary_pb2.ReportSummary()):
           if measurements  # Only include if measurements is not empty
       },
       metric_subsets_by_parent={ami: [mrc]},
-      cumulative_inconsistency_allowed_edp_combs={},
+      cumulative_inconsistency_allowed_edp_combinations={},
   )
 
   # Gets the corrected report.
@@ -168,11 +169,11 @@ def processReportSummary(report_summary: report_summary_pb2.ReportSummary()):
   measurements_policies = corrected_report.get_metrics()
   for policy in measurements_policies:
     metric_report = corrected_report.get_metric_report(policy)
-    for edp in metric_report.get_edp_combs():
+    for edp in metric_report.get_cumulative_edp_combinations():
       for index in range(metric_report.get_number_of_periods()):
-        entry = metric_report.get_edp_comb_measurement(edp, index)
+        entry = metric_report.get_cumulative_measurement(edp, index)
         metric_name_to_value.update(
-            {entry.metric_name: int(entry.value)})
+            {entry.name: int(entry.value)})
 
   return metric_name_to_value
 
@@ -201,7 +202,7 @@ def getCorrectedReport(measurements):
       },
       # AMI is a parent of MRC
       metric_subsets_by_parent={ami: [mrc]},
-      cumulative_inconsistency_allowed_edp_combs={},
+      cumulative_inconsistency_allowed_edp_combinations={},
   )
 
   return report.get_corrected_report()
@@ -238,17 +239,17 @@ def buildCorrectedExcel(correctedReport, excel):
   for edp in EDP_MAP:
     edp_index = EDP_MAP[edp]["ind"]
     amiFunc = (
-        partial(ami_metric_report.get_edp_comb_measurement,
+        partial(ami_metric_report.get_cumulative_measurement,
                 frozenset({EDP_ONE, EDP_TWO}))
         if (edp == TOTAL_CAMPAIGN)
-        else partial(ami_metric_report.get_edp_comb_measurement,
+        else partial(ami_metric_report.get_cumulative_measurement,
                      frozenset({edp}))
     )
     mrcFunc = (
-        partial(mrc_metric_report.get_edp_comb_measurement,
+        partial(mrc_metric_report.get_cumulative_measurement,
                 frozenset({EDP_ONE, EDP_TWO}))
         if (edp == TOTAL_CAMPAIGN)
-        else partial(mrc_metric_report.get_edp_comb_measurement,
+        else partial(mrc_metric_report.get_cumulative_measurement,
                      frozenset({edp}))
     )
 
@@ -259,18 +260,20 @@ def buildCorrectedExcel(correctedReport, excel):
 
     # The last value of the corrected measurement series is the total reach.
     totAmiVal = (
-        ami_metric_report.get_edp_comb_measurement(
+        ami_metric_report.get_cumulative_measurement(
             frozenset({EDP_ONE, EDP_TWO}), -1).value
         if (edp == TOTAL_CAMPAIGN)
-        else ami_metric_report.get_edp_comb_measurement(frozenset({edp}),
-                                                        -1).value
+        else ami_metric_report.get_cumulative_measurement(
+          frozenset({edp}),
+          -1).value
     )
     totMrcVal = (
-        mrc_metric_report.get_edp_comb_measurement(
+        mrc_metric_report.get_cumulative_measurement(
             frozenset({EDP_ONE, EDP_TWO}), -1).value
         if (edp == TOTAL_CAMPAIGN)
-        else mrc_metric_report.get_edp_comb_measurement(frozenset({edp}),
-                                                        -1).value
+        else mrc_metric_report.get_cumulative_measurement(
+          frozenset({edp}),
+          -1).value
     )
     total_sheet_name = edp
     excel[total_sheet_name] = correctTotSheet(
