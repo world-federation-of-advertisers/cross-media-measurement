@@ -15,6 +15,10 @@
 configMapGenerator:
 - name: config-files
   files:
+  - synthetic_population_spec_large.textproto
+  - synthetic_event_group_spec_large_7.textproto
+  - synthetic_event_group_spec_large_8.textproto
+  - synthetic_event_group_spec_large_9.textproto
   - synthetic_population_spec_us.textproto
   - synthetic_event_group_spec_us_1.textproto
   - synthetic_event_group_spec_us_2.textproto
