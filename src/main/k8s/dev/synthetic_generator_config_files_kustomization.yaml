@@ -22,6 +22,9 @@ configMapGenerator:
   - synthetic_event_group_spec_large_10.textproto
   - synthetic_event_group_spec_large_11.textproto
   - synthetic_event_group_spec_large_12.textproto
+  - synthetic_event_group_spec_large_13.textproto
+  - synthetic_event_group_spec_large_14.textproto
+  - synthetic_event_group_spec_large_15.textproto
   - synthetic_population_spec_us.textproto
   - synthetic_event_group_spec_us_1.textproto
   - synthetic_event_group_spec_us_2.textproto
