@@ -55,6 +55,7 @@ import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.integration.common.DEFAULT_SERVICE_CONFIG_MAP
 import org.wfanet.measurement.integration.common.createEntityContent
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
@@ -214,9 +215,12 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
         val dpStorageAddress: InetSocketAddress =
           withContext(Dispatchers.IO) { dpStorageForwarder.start() }
         val dpStorageChannel =
-          buildMutualTlsChannel(dpStorageAddress.toTarget(), EDP_SIGNING_CERTS)
+          buildMutualTlsChannel(
+              dpStorageAddress.toTarget(),
+              EDP_SIGNING_CERTS,
+              defaultServiceConfig = DEFAULT_SERVICE_CONFIG_MAP,
+            )
             .also { channels.add(it) }
-            .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
         dpForwardedStorage =
           ForwardedStorageClient(
             ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub(dpStorageChannel)
