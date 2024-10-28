@@ -1,0 +1,55 @@
+# Copyright 2024 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Update Trivy cache
+
+on:
+  schedule:
+    - cron: '0 5 * * *'  # Night in America/Los_Angeles, before deploy-nightly.
+  workflow_dispatch:
+
+jobs:
+  update-trivy-cache:
+    runs-on: ubuntu-latest
+    env:
+      TRIVY_CACHE_PATH: .cache/trivy
+    steps:
+      - uses: oras-project/setup-oras@v1
+
+      - name: Get current date
+        id: get-date
+        run: echo "date=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+
+      - name: Download vulnerability DB
+        run: oras pull ghcr.io/aquasecurity/trivy-db:2
+
+      - name: Download Java DB
+        run: oras pull ghcr.io/aquasecurity/trivy-java-db:1
+
+      - name: Extract vulnerability DB
+        run: |
+          mkdir -p "$TRIVY_CACHE_PATH/db"
+          tar -xf db.tar.gz -C "$TRIVY_CACHE_PATH/db"
+
+      - name: Extract Java DB
+        run: |
+          mkdir -p "$TRIVY_CACHE_PATH/java-db"
+          tar -xf javadb.tar.gz -C "$TRIVY_CACHE_PATH/java-db"
+
+      - name: Save cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.TRIVY_CACHE_PATH }}
+          # Cache key expected by aquasecurity/trivy-action.
+          key: cache-trivy-${{ steps.get-date.outputs.date }}
