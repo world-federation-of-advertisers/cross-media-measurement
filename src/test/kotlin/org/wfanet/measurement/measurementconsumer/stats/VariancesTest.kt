@@ -2670,7 +2670,7 @@ class VariancesTest {
         2 to 0.0,
         3 to 0.3816793893129771,
         4 to 0.1832061068702290,
-        5 to 0.0
+        5 to 0.0,
       )
     val frequencyDpParams = DpParams(0.2, 1e-15)
     val frequencyMeasurementParams =
