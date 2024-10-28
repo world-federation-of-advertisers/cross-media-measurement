@@ -53,6 +53,7 @@ on:
 jobs:
   publish-images:
     uses: ./.github/workflows/maybe-push-images.yml
+    secrets: inherit
     with:
       existing-image-tag: ${{ inputs.existing-image-tag }}
 
@@ -75,6 +76,7 @@ jobs:
   update-kingdom:
     uses: ./.github/workflows/configure-kingdom.yml
     needs: [publish-images, terraform]
+    secrets: inherit
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
@@ -83,6 +85,7 @@ jobs:
   update-aggregator-duchy:
     uses: ./.github/workflows/configure-duchy.yml
     needs: [publish-images, terraform]
+    secrets: inherit
     with:
       duchy-name: aggregator
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
@@ -92,6 +95,7 @@ jobs:
   update-worker1-duchy:
     uses: ./.github/workflows/configure-duchy.yml
     needs: [publish-images, terraform]
+    secrets: inherit
     with:
       duchy-name: worker1
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
@@ -101,6 +105,7 @@ jobs:
   update-worker2-duchy:
     uses: ./.github/workflows/configure-aws-duchy.yml
     needs: [publish-images, terraform]
+    secrets: inherit
     with:
       duchy-name: worker2
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
@@ -110,6 +115,7 @@ jobs:
   update-simulators:
     uses: ./.github/workflows/configure-simulators.yml
     needs: [publish-images, terraform]
+    secrets: inherit
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
