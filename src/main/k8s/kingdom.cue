@@ -173,7 +173,6 @@ import ("strings")
 					_llv2_protocol_config_config,
 					_ro_llv2_protocol_config_config,
 					_hmssProtocolConfigConfig,
-					_hmssEnableFlag,
 					_kingdom_tls_cert_file_flag,
 					_kingdom_tls_key_file_flag,
 					_kingdom_cert_collection_file_flag,
