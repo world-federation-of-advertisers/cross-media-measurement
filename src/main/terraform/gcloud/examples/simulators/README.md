@@ -8,7 +8,6 @@ Google Cloud Project.
 *   [Common resources](../../modules/common)
 *   IAM service account
     *   IAM membership for Kubernetes service account to impersonate
-    *   Optional IAM membership for BigQuery table access.
 *   GKE [cluster](../../modules/cluster) with application-level secret
     encryption in the specified location
     *   Default node pool

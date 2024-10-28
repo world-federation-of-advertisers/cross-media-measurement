@@ -80,8 +80,6 @@ jobs:
           build --define edp6_name=dataProviders/foo6
           build --define edp6_cert_name=dataProviders/foo6/certificates/bar6
           build --define google_cloud_project=example-project
-          build --define bigquery_dataset=example-dataset
-          build --define bigquery_table=events
           EOF
 
       - name: Check lockfile

@@ -3,8 +3,6 @@ load("@wfa_common_jvm//build:defs.bzl", "expand_template")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 load(
     "//build:variables.bzl",
-    "GCLOUD_SETTINGS",
-    "SIMULATOR_K8S_SETTINGS",
     "TEST_K8S_SETTINGS",
 )
 
@@ -68,22 +66,6 @@ kt_jvm_library(
     ],
 )
 
-kt_jvm_library(
-    name = "bigquery_correctness_test",
-    srcs = ["BigQueryCorrectnessTest.kt"],
-    deps = [
-        ":abstract_correctness_test",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:bigquery_event_query",
-        "//src/main/proto/wfa/measurement/integration/k8s/testing:bigquery_config_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/integration/k8s/testing:correctness_test_config_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
-    ],
-)
-
 expand_template(
     name = "gen_correctness_test_config",
     out = "correctness_test_config.textproto",
@@ -95,18 +77,6 @@ expand_template(
     },
     tags = ["manual"],
     template = "correctness_test_config.tmpl.textproto",
-)
-
-expand_template(
-    name = "gen_bigquery_config",
-    out = "bigquery_config.textproto",
-    substitutions = {
-        "{project}": GCLOUD_SETTINGS.project,
-        "{dataset}": SIMULATOR_K8S_SETTINGS.bigquery_dataset,
-        "{table}": SIMULATOR_K8S_SETTINGS.bigquery_table,
-    },
-    tags = ["manual"],
-    template = "bigquery_config.tmpl.textproto",
 )
 
 java_test(
@@ -145,21 +115,4 @@ java_test(
     ],
     test_class = "org.wfanet.measurement.integration.k8s.SyntheticGeneratorCorrectnessTest",
     runtime_deps = [":synthetic_data_generator_correctness_test"],
-)
-
-java_test(
-    name = "BigQueryCorrectnessTest",
-    timeout = "long",
-    data = [
-        ":bigquery_config.textproto",
-        ":correctness_test_config.textproto",
-    ],
-    tags = [
-        "exclusive",
-        "external",
-        "manual",
-        "no-remote-exec",
-    ],
-    test_class = "org.wfanet.measurement.integration.k8s.BigQueryCorrectnessTest",
-    runtime_deps = [":bigquery_correctness_test"],
 )
