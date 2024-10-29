@@ -200,6 +200,7 @@ kt_jvm_library(
     ],
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/integration/deploy/gcloud:__subpackages__",
     ],
     deps = [
         ":configs",
