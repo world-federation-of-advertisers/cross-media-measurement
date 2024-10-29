@@ -431,7 +431,8 @@ class TestReport(unittest.TestCase):
             ),
         ),
     ]
-    self.assertEqual(metric_report.get_cumulative_cover_relationships(), expected)
+    self.assertEqual(metric_report.get_cumulative_cover_relationships(),
+                     expected)
 
   def test_get_corrected_single_metric_report(self):
 
@@ -669,21 +670,21 @@ class TestReport(unittest.TestCase):
                 reach_whole_campaign_by_edp_combination={
                     # 1 way comb
                     frozenset({EDP_ONE}):
-                        Measurement(4.00, 1.00, "measurement_03"),
+                      Measurement(4.00, 1.00, "measurement_03"),
                     frozenset({EDP_TWO}):
-                        Measurement(3.3333, 1.00, "measurement_06"),
+                      Measurement(3.3333, 1.00, "measurement_06"),
                     frozenset({EDP_THREE}):
-                        Measurement(5.3333, 1.00, "measurement_09"),
+                      Measurement(5.3333, 1.00, "measurement_09"),
                     # 2 way combs
                     frozenset({EDP_ONE, EDP_TWO}):
-                        Measurement(6.90, 1.00, "measurement_12"),
+                      Measurement(6.90, 1.00, "measurement_12"),
                     frozenset({EDP_TWO, EDP_THREE}):
-                        Measurement(8.66666, 1.00, "measurement_15"),
+                      Measurement(8.66666, 1.00, "measurement_15"),
                     frozenset({EDP_ONE, EDP_THREE}):
-                        Measurement(8.90, 1.00, "measurement_18"),
+                      Measurement(8.90, 1.00, "measurement_18"),
                     # 3 way comb
                     frozenset({EDP_ONE, EDP_TWO, EDP_THREE}):
-                        Measurement(11.90, 1.00, "measurement_21"),
+                      Measurement(11.90, 1.00, "measurement_21"),
                 }
             )
         },
@@ -732,21 +733,21 @@ class TestReport(unittest.TestCase):
                 reach_whole_campaign_by_edp_combination={
                     # 1 way comb
                     frozenset({EDP_ONE}):
-                        Measurement(4.00, 1.00, "measurement_03"),
+                      Measurement(4.00, 1.00, "measurement_03"),
                     frozenset({EDP_TWO}):
-                        Measurement(3.3333, 1.00, "measurement_06"),
+                      Measurement(3.3333, 1.00, "measurement_06"),
                     frozenset({EDP_THREE}):
-                        Measurement(5.3333, 1.00, "measurement_09"),
+                      Measurement(5.3333, 1.00, "measurement_09"),
                     # 2 way combs
                     frozenset({EDP_ONE, EDP_TWO}):
-                        Measurement(6.90, 1.00, "measurement_12"),
+                      Measurement(6.90, 1.00, "measurement_12"),
                     frozenset({EDP_TWO, EDP_THREE}):
-                        Measurement(8.66666, 1.00, "measurement_15"),
+                      Measurement(8.66666, 1.00, "measurement_15"),
                     frozenset({EDP_ONE, EDP_THREE}):
-                        Measurement(8.90, 1.00, "measurement_18"),
+                      Measurement(8.90, 1.00, "measurement_18"),
                     # 3 way comb
                     frozenset({EDP_ONE, EDP_TWO, EDP_THREE}):
-                        Measurement(11.90, 1.00, "measurement_21"),
+                      Measurement(11.90, 1.00, "measurement_21"),
                 },
             )
         },
@@ -964,6 +965,62 @@ class TestReport(unittest.TestCase):
 
     self.__assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
+  def test_get_corrected_multiple_metric_report_with_different_edp_combinations(
+      self):
+    report = Report(
+        metric_reports={
+            "ami": MetricReport(
+                reach_time_series_by_edp_combination={
+                    frozenset({EDP_ONE, EDP_TWO}): [
+                        Measurement(50, 1, "measurement_01")],
+                    frozenset({EDP_ONE}): [
+                        Measurement(48, 0, "measurement_02")],
+                    frozenset({EDP_TWO}): [
+                        Measurement(1, 1, "measurement_03")],
+                }
+            ),
+            "mrc": MetricReport(
+                reach_time_series_by_edp_combination={
+                    frozenset({EDP_ONE, EDP_TWO}): [
+                        Measurement(45, 1, "measurement_04")],
+                    frozenset({EDP_TWO}): [
+                        Measurement(2, 1, "measurement_05")],
+                }
+            ),
+        },
+        metric_subsets_by_parent={"ami": ["mrc"]},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
+
+    corrected = report.get_corrected_report()
+
+    expected = Report(
+        metric_reports={
+            "ami": MetricReport(
+                reach_time_series_by_edp_combination={
+                    frozenset({EDP_ONE, EDP_TWO}): [
+                        Measurement(49.667, 1, "measurement_01")],
+                    frozenset({EDP_ONE}): [
+                        Measurement(48, 0, "measurement_02")],
+                    frozenset({EDP_TWO}): [
+                        Measurement(1.667, 1, "measurement_03")],
+                }
+            ),
+            "mrc": MetricReport(
+                reach_time_series_by_edp_combination={
+                    frozenset({EDP_ONE, EDP_TWO}): [
+                        Measurement(45, 1, "measurement_04")],
+                    frozenset({EDP_TWO}): [
+                        Measurement(1.667, 1, "measurement_05")],
+                }
+            ),
+        },
+        metric_subsets_by_parent={"ami": ["mrc"]},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
+
+    self.__assertReportsAlmostEqual(expected, corrected, corrected.to_array())
+
   def __assertMeasurementAlmostEquals(
       self, expected: Measurement, actual: Measurement, msg
   ):
@@ -982,8 +1039,8 @@ class TestReport(unittest.TestCase):
     self.assertEqual(
         expected.get_number_of_periods(), actual.get_number_of_periods()
     )
-    for period in range(0, expected.get_number_of_periods()):
-      for edp_comb in expected.get_cumulative_edp_combinations():
+    for edp_comb in expected.get_cumulative_edp_combinations():
+      for period in range(0, expected.get_number_of_periods()):
         self.__assertMeasurementAlmostEquals(
             expected.get_cumulative_measurement(edp_comb, period),
             actual.get_cumulative_measurement(edp_comb, period),

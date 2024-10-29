@@ -223,10 +223,6 @@ class Report:
     self.__num_periods = next(
         iter(metric_reports.values())).get_number_of_periods()
 
-    num_vars_per_period = (self.__num_edp_combinations + 1) * len(
-        metric_reports.keys())
-    self.__num_vars = self.__num_periods * num_vars_per_period
-
     # Assign an index to each measurement.
     measurement_index = 0
     self.__measurement_name_to_index = {}
@@ -244,6 +240,8 @@ class Report:
             edp_combination)
         self.__measurement_name_to_index[measurement.name] = measurement_index
         measurement_index += 1
+
+    self.__num_vars = measurement_index
 
   def get_metric_report(self, metric: str) -> MetricReport:
     return self.__metric_reports[metric]
@@ -288,8 +286,8 @@ class Report:
     """
     array = np.zeros(self.__num_vars)
     for metric in self.__metric_reports:
-      for period in range(0, self.__num_periods):
-        for edp_combination in self.__edp_combination_index:
+      for edp_combination in self.__metric_reports[metric].get_cumulative_edp_combinations():
+        for period in range(0, self.__num_periods):
           array.put(
               self.__get_measurement_index(
                   self.__metric_reports[metric]
@@ -299,6 +297,16 @@ class Report:
               .get_cumulative_measurement(edp_combination, period)
               .value,
           )
+      for edp_combination in self.__metric_reports[metric].get_whole_campaign_edp_combinations():
+        array.put(
+            self.__get_measurement_index(
+                self.__metric_reports[metric]
+                .get_whole_campaign_measurement(edp_combination)
+            ),
+            self.__metric_reports[metric]
+            .get_whole_campaign_measurement(edp_combination)
+            .value,
+            )
     return array
 
   def to_set_measurement_spec(self):
