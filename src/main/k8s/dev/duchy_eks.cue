@@ -118,7 +118,7 @@ duchy: #PostgresDuchy & {
 	_blob_storage_flags:              #AwsS3Config.flags
 	_verbose_grpc_logging:            "false"
 	_duchyMillParallelism:            4
-	_liquidLegionsV2WorkLockDuration: "10m"
+	_liquidLegionsV2WorkLockDuration: "60m"
   _shareShuffleWorkLockDuration:    "30m"
 	_postgresConfig:                  #AwsPostgresConfig
 

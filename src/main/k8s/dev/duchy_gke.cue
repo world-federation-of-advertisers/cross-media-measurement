@@ -116,7 +116,7 @@ duchy: #SpannerDuchy & {
 	_blob_storage_flags:              _cloudStorageConfig.flags
 	_verbose_grpc_logging:            "false"
 	_duchyMillParallelism:            4
-	_liquidLegionsV2WorkLockDuration: "30m"
+	_liquidLegionsV2WorkLockDuration: "60m"
 	_shareShuffleWorkLockDuration:    "30m"
 
 	serviceAccounts: {
