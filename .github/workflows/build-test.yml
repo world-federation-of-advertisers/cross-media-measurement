@@ -80,21 +80,7 @@ jobs:
           build --define edp6_name=dataProviders/foo6
           build --define edp6_cert_name=dataProviders/foo6/certificates/bar6
           build --define google_cloud_project=example-project
-          build --define bigquery_dataset=example-dataset
-          build --define bigquery_table=events
           EOF
-
-      - name: Get Bazel cache params
-        id: get-cache-params
-        run: |
-          repo_cache_path="$(bazel info repository_cache)"
-          echo "repo-cache-path=${repo_cache_path}" >> $GITHUB_OUTPUT
-
-      - name: Restore repository cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.get-cache-params.outputs.repo-cache-path }}
-          key: ${{ vars.BAZEL_REPO_CACHE_KEY }}
 
       - name: Check lockfile
         run: bazel mod deps
@@ -104,13 +90,6 @@ jobs:
           bazel build --worker_quit_after_build
           //...
           //src/main/k8s/dev:synthetic_generator_edp_simulators
-
-      - name: Save repository cache
-        uses: actions/cache/save@v4
-        continue-on-error: true
-        with:
-          path: ${{ steps.get-cache-params.outputs.repo-cache-path }}
-          key: ${{ vars.BAZEL_REPO_CACHE_KEY }}
 
       - name: Run tests
         id: run-tests

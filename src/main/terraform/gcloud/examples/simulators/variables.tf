@@ -44,13 +44,3 @@ variable "key_ring_location" {
   type        = string
   default     = null
 }
-
-variable "bigquery_table" {
-  description = "`google_bigquery_table` containing labeled test events."
-  type = object({
-    dataset_id = string
-    id         = string
-  })
-  nullable = true
-  default  = null
-}

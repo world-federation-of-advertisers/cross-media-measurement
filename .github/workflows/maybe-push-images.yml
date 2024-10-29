@@ -51,5 +51,6 @@ jobs:
     uses: ./.github/workflows/push-images.yml
     if: inputs.existing-image-tag == ''
     needs: [get-image-tag]
+    secrets: inherit
     with:
       image-tag: ${{ needs.get-image-tag.outputs.image-tag }}

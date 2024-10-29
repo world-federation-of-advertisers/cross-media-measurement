@@ -75,7 +75,6 @@ jobs:
           - panel-exchange/gcloud-example-daemon
           - panel-exchange/aws-example-daemon
           - simulator/synthetic-generator-edp
-          - simulator/bigquery-edp
           - reporting/v2/postgres-internal-server
           - duchy/postgres-update-schema
           - duchy/gcloud-postgres-update-schema
@@ -95,6 +94,9 @@ jobs:
           echo "path=${IMAGE//\//_}.sarif" >> $GITHUB_OUTPUT
       - name: Run Trivy image scanner
         uses: aquasecurity/trivy-action@0.28.0
+        env:
+          TRIVY_SKIP_DB_UPDATE: true
+          TRIVY_SKIP_JAVA_DB_UPDATE: true
         with:
           image-ref: ${{ inputs.container-registry }}/${{ inputs.image-repo-prefix }}/${{ matrix.image }}:${{ inputs.image-tag }}
           format: sarif
