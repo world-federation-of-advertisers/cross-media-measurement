@@ -51,7 +51,6 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
-import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -188,15 +187,13 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
     do {
       val response: ListMeasurementsResponse =
         try {
-          publicMeasurementsClient
-            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-            .listMeasurements(
-              listMeasurementsRequest {
-                parent = measurementConsumerData.name
-                this.pageSize = 1
-                pageToken = nextPageToken
-              }
-            )
+          publicMeasurementsClient.listMeasurements(
+            listMeasurementsRequest {
+              parent = measurementConsumerData.name
+              this.pageSize = 1
+              pageToken = nextPageToken
+            }
+          )
         } catch (e: StatusException) {
           throw Exception(
             "Unable to list measurements for measurement consumer ${measurementConsumerData.name}",
@@ -214,18 +211,15 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
   private suspend fun getRequisitionsForMeasurement(measurementName: String): List<Requisition> {
     var nextPageToken = ""
     val requisitions = mutableListOf<Requisition>()
-    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     do {
       val response: ListRequisitionsResponse =
         try {
-          publicRequisitionsClient
-            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-            .listRequisitions(
-              listRequisitionsRequest {
-                parent = measurementName
-                pageToken = nextPageToken
-              }
-            )
+          publicRequisitionsClient.listRequisitions(
+            listRequisitionsRequest {
+              parent = measurementName
+              pageToken = nextPageToken
+            }
+          )
         } catch (e: StatusException) {
           throw Exception("Unable to list requisitions for measurement $measurementName", e)
         }
