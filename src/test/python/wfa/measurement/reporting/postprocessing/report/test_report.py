@@ -431,7 +431,7 @@ class TestReport(unittest.TestCase):
             ),
         ),
     ]
-    self.assertEqual(metric_report.get_cover_relationships(), expected)
+    self.assertEqual(metric_report.get_cumulative_cover_relationships(), expected)
 
   def test_get_corrected_single_metric_report(self):
 

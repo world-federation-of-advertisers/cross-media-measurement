@@ -36,6 +36,37 @@ def get_subset_relationships(edp_combinations: list[str]):
   return subset_relationships
 
 
+def get_cover_relationships(edp_combinations):
+  """Returns covers as defined here: # https://en.wikipedia.org/wiki/Cover_(topology).
+  For each set (s_i) in the list, enumerate combinations of all sets excluding this one.
+  For each of these considered combinations, take their union and check if it is equal to
+  s_i. If so, this combination is a cover of s_i.
+  """
+
+  def generate_all_length_combinations(data):
+    return [
+        comb for r in range(1, len(data) + 1) for comb in
+        combinations(data, r)
+    ]
+
+  cover_relationships = []
+  for i in range(len(edp_combinations)):
+    possible_covered = edp_combinations[i]
+    other_sets = edp_combinations[:i] + edp_combinations[i + 1:]
+    all_subsets_of_possible_covered = [other_set for other_set in other_sets
+                                       if
+                                       other_set.issubset(possible_covered)]
+    possible_covers = generate_all_length_combinations(
+        all_subsets_of_possible_covered)
+    for possible_cover in possible_covers:
+      union_of_possible_cover = reduce(
+          lambda x, y: x.union(y), possible_cover
+      )
+      if union_of_possible_cover == possible_covered:
+        cover_relationships.append((possible_covered, possible_cover))
+  return cover_relationships
+
+
 class MetricReport:
   """Represents a metric sub-report view (e.g. MRC, AMI, etc)
   within a report.
@@ -119,36 +150,13 @@ class MetricReport:
     edp_combinations = list(self.__reach_whole_campaign_by_edp_combination)
     return get_subset_relationships(edp_combinations)
 
-  def get_cover_relationships(self):
-    """Returns covers as defined here: # https://en.wikipedia.org/wiki/Cover_(topology).
-    For each set (s_i) in the list, enumerate combinations of all sets excluding this one.
-    For each of these considered combinations, take their union and check if it is equal to
-    s_i. If so, this combination is a cover of s_i.
-    """
-
-    def generate_all_length_combinations(data):
-      return [
-          comb for r in range(1, len(data) + 1) for comb in
-          combinations(data, r)
-      ]
-
-    cover_relationships = []
+  def get_cumulative_cover_relationships(self):
     edp_combinations = list(self.__reach_time_series_by_edp_combination)
-    for i in range(len(edp_combinations)):
-      possible_covered = edp_combinations[i]
-      other_sets = edp_combinations[:i] + edp_combinations[i + 1:]
-      all_subsets_of_possible_covered = [other_set for other_set in other_sets
-                                         if
-                                         other_set.issubset(possible_covered)]
-      possible_covers = generate_all_length_combinations(
-          all_subsets_of_possible_covered)
-      for possible_cover in possible_covers:
-        union_of_possible_cover = reduce(
-            lambda x, y: x.union(y), possible_cover
-        )
-        if union_of_possible_cover == possible_covered:
-          cover_relationships.append((possible_covered, possible_cover))
-    return cover_relationships
+    return get_cover_relationships(edp_combinations)
+
+  def get_whole_campaign_cover_relationships(self):
+    edp_combinations = list(self.__reach_whole_campaign_by_edp_combination)
+    return get_cover_relationships(edp_combinations)
 
   @staticmethod
   def __sample_with_noise(measurement: Measurement):
@@ -303,7 +311,7 @@ class Report:
     # sum of subsets >= union for each period
     for metric in self.__metric_reports:
       for cover_relationship in self.__metric_reports[
-        metric].get_cover_relationships():
+        metric].get_cumulative_cover_relationships():
         covered_parent = cover_relationship[0]
         covering_children = cover_relationship[1]
         for period in range(0, self.__num_periods):
@@ -314,6 +322,17 @@ class Report:
               parent=self.__get_cumulative_measurement_index(
                   metric, covered_parent, period),
           )
+      for cover_relationship in self.__metric_reports[
+        metric].get_whole_campaign_cover_relationships():
+        covered_parent = cover_relationship[0]
+        covering_children = cover_relationship[1]
+        spec.add_cover(
+            children=list(self.__get_whole_campaign_measurement_index(
+                metric, covering_child)
+                          for covering_child in covering_children),
+            parent=self.__get_whole_campaign_measurement_index(
+                metric, covered_parent),
+        )
 
   def __add_subset_relations_to_spec(self, spec):
     # Adds relations for cumulative measurements.
