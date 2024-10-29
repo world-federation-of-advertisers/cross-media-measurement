@@ -17,6 +17,7 @@
 package org.wfanet.measurement.kingdom.batch
 
 import com.google.protobuf.Any
+import com.google.protobuf.api
 import com.google.type.interval
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
@@ -267,13 +268,15 @@ class MeasurementSystemProber(
     do {
       val response: ListMeasurementsResponse =
         try {
-          measurementsStub.listMeasurements(
-            listMeasurementsRequest {
-              parent = measurementConsumerName
-              this.pageSize = 1
-              pageToken = nextPageToken
-            }
-          )
+          measurementsStub
+            .withAuthenticationKey(apiAuthenticationKey)
+            .listMeasurements(
+              listMeasurementsRequest {
+                parent = measurementConsumerName
+                this.pageSize = 1
+                pageToken = nextPageToken
+              }
+            )
         } catch (e: StatusException) {
           throw Exception(
             "Unable to list measurements for measurement consumer $measurementConsumerName",
@@ -294,12 +297,14 @@ class MeasurementSystemProber(
     do {
       val response: ListRequisitionsResponse =
         try {
-          requisitionsStub.listRequisitions(
-            listRequisitionsRequest {
-              parent = measurementName
-              pageToken = nextPageToken
-            }
-          )
+          requisitionsStub
+            .withAuthenticationKey(apiAuthenticationKey)
+            .listRequisitions(
+              listRequisitionsRequest {
+                parent = measurementName
+                pageToken = nextPageToken
+              }
+            )
         } catch (e: StatusException) {
           throw Exception("Unable to list requisitions for measurement $measurementName", e)
         }
