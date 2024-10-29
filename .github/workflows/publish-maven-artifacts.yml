@@ -64,18 +64,6 @@ jobs:
           common --config=ci
           EOF
 
-      - name: Get Bazel cache params
-        id: get-cache-params
-        run: |
-          repo_cache_path="$(bazelisk info repository_cache)"
-          echo "repo-cache-path=${repo_cache_path}" >> $GITHUB_OUTPUT
-
-      - name: Restore repository cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.get-cache-params.outputs.repo-cache-path }}
-          key: ${{ vars.BAZEL_REPO_CACHE_KEY }}
-
       # Patch MODULE.bazel and MODULE.bazel.lock to specify version.
       # TODO(bazelbuild/bazel#22919): Use alternative mechanism when available.
       - name: Patch module version
