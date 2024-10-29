@@ -161,7 +161,7 @@ object VariancesImpl : Variances {
       multiplier: Int) =
       relativeFrequencyMeasurementVarianceParams
 
-    require(totalReach >= 0) { "Total reach must be non-negarive, but got $totalReach." }
+    require(totalReach >= 0) { "Total reach must be non-negative, but got $totalReach." }
     require(reachRatio >= 0.0 && reachRatio <= 1.0) {
       "Reach ratio must be greater than or equal to 0 and less than or equal to 1, but got " +
         "$reachRatio."
