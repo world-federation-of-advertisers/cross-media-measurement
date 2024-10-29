@@ -117,6 +117,7 @@ duchy: #SpannerDuchy & {
 	_verbose_grpc_logging:            "false"
 	_duchyMillParallelism:            4
 	_liquidLegionsV2WorkLockDuration: "10m"
+	_shareShuffleWorkLockDuration:    "30m"
 
 	serviceAccounts: {
 		"\(#InternalServerServiceAccount)": #WorkloadIdentityServiceAccount & {
