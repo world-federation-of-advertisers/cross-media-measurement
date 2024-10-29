@@ -83,7 +83,7 @@ class InProcessCmmsComponents(
     }
   }
 
-  private val edpSimulators: List<InProcessEdpSimulator> by lazy {
+  val edpSimulators: List<InProcessEdpSimulator> by lazy {
     edpDisplayNameToResourceMap.entries.mapIndexed { index, (displayName, resource) ->
       val specIndex = index % syntheticEventGroupSpecs.size
       val certificateKey = DataProviderCertificateKey.fromName(resource.dataProvider.certificate)!!
