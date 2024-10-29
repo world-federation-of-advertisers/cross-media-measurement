@@ -397,6 +397,7 @@ kustomization_dir(
     srcs = [
         "synthetic_generator_config_files_kustomization.yaml",
         "//src/main/k8s/testing/data:synthetic_generation_specs_large",
+        "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
     ],
     renames = {
         "synthetic_generator_config_files_kustomization.yaml": "kustomization.yaml",
