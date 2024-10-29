@@ -668,23 +668,22 @@ class TestReport(unittest.TestCase):
                 },
                 reach_whole_campaign_by_edp_combination={
                     # 1 way comb
-                    frozenset({EDP_ONE}): Measurement(4.00, 1.00,
-                                                      "measurement_03"),
-                    frozenset({EDP_TWO}): Measurement(3.3333, 1.00,
-                                                      "measurement_06"),
-                    frozenset({EDP_THREE}): Measurement(5.3333, 1.00,
-                                                        "measurement_09"),
+                    frozenset({EDP_ONE}):
+                        Measurement(4.00, 1.00, "measurement_03"),
+                    frozenset({EDP_TWO}):
+                        Measurement(3.3333, 1.00, "measurement_06"),
+                    frozenset({EDP_THREE}):
+                        Measurement(5.3333, 1.00, "measurement_09"),
                     # 2 way combs
-                    frozenset({EDP_ONE, EDP_TWO}): Measurement(6.90, 1.00,
-                                                               "measurement_12"),
-                    frozenset({EDP_TWO, EDP_THREE}): Measurement(8.66666, 1.00,
-                                                                 "measurement_15"),
-                    frozenset({EDP_ONE, EDP_THREE}): Measurement(8.90, 1.00,
-                                                                 "measurement_18"),
+                    frozenset({EDP_ONE, EDP_TWO}):
+                        Measurement(6.90, 1.00, "measurement_12"),
+                    frozenset({EDP_TWO, EDP_THREE}):
+                        Measurement(8.66666, 1.00, "measurement_15"),
+                    frozenset({EDP_ONE, EDP_THREE}):
+                        Measurement(8.90, 1.00, "measurement_18"),
                     # 3 way comb
-                    frozenset({EDP_ONE, EDP_TWO, EDP_THREE}): Measurement(11.90,
-                                                                          1.00,
-                                                                          "measurement_21"),
+                    frozenset({EDP_ONE, EDP_TWO, EDP_THREE}):
+                        Measurement(11.90, 1.00, "measurement_21"),
                 }
             )
         },
@@ -732,23 +731,22 @@ class TestReport(unittest.TestCase):
                 },
                 reach_whole_campaign_by_edp_combination={
                     # 1 way comb
-                    frozenset({EDP_ONE}): Measurement(4.00, 1.00,
-                                                      "measurement_03"),
-                    frozenset({EDP_TWO}): Measurement(3.3333, 1.00,
-                                                      "measurement_06"),
-                    frozenset({EDP_THREE}): Measurement(5.3333, 1.00,
-                                                        "measurement_09"),
+                    frozenset({EDP_ONE}):
+                        Measurement(4.00, 1.00, "measurement_03"),
+                    frozenset({EDP_TWO}):
+                        Measurement(3.3333, 1.00, "measurement_06"),
+                    frozenset({EDP_THREE}):
+                        Measurement(5.3333, 1.00, "measurement_09"),
                     # 2 way combs
-                    frozenset({EDP_ONE, EDP_TWO}): Measurement(6.90, 1.00,
-                                                               "measurement_12"),
-                    frozenset({EDP_TWO, EDP_THREE}): Measurement(8.66666, 1.00,
-                                                                 "measurement_15"),
-                    frozenset({EDP_ONE, EDP_THREE}): Measurement(8.90, 1.00,
-                                                                 "measurement_18"),
+                    frozenset({EDP_ONE, EDP_TWO}):
+                        Measurement(6.90, 1.00, "measurement_12"),
+                    frozenset({EDP_TWO, EDP_THREE}):
+                        Measurement(8.66666, 1.00, "measurement_15"),
+                    frozenset({EDP_ONE, EDP_THREE}):
+                        Measurement(8.90, 1.00, "measurement_18"),
                     # 3 way comb
-                    frozenset({EDP_ONE, EDP_TWO, EDP_THREE}): Measurement(11.90,
-                                                                          1.00,
-                                                                          "measurement_21"),
+                    frozenset({EDP_ONE, EDP_TWO, EDP_THREE}):
+                        Measurement(11.90, 1.00, "measurement_21"),
                 },
             )
         },
@@ -802,7 +800,7 @@ class TestReport(unittest.TestCase):
                     # 3 way comb
                     frozenset({EDP_ONE, EDP_TWO, EDP_THREE}):
                       Measurement(11.90, 1.00, "measurement_21"),
-                }
+                },
             )
         },
         metric_subsets_by_parent={},

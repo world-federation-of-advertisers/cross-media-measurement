@@ -172,15 +172,13 @@ def processReportSummary(report_summary: report_summary_pb2.ReportSummary()):
   measurements_policies = corrected_report.get_metrics()
   for policy in measurements_policies:
     metric_report = corrected_report.get_metric_report(policy)
-    for edp in metric_report.get_cumulative_edp_combinations():
+    for edp_combination in metric_report.get_cumulative_edp_combinations():
       for index in range(metric_report.get_number_of_periods()):
-        entry = metric_report.get_cumulative_measurement(edp, index)
-        metric_name_to_value.update(
-            {entry.name: int(entry.value)})
-    for edp in metric_report.get_whole_campaign_edp_combinations():
-      entry = metric_report.get_whole_campaign_measurement(edp)
-      metric_name_to_value.update(
-          {entry.name: int(entry.value)})
+        entry = metric_report.get_cumulative_measurement(edp_combination, index)
+        metric_name_to_value.update({entry.name: int(entry.value)})
+    for edp_combination in metric_report.get_whole_campaign_edp_combinations():
+      entry = metric_report.get_whole_campaign_measurement(edp_combination)
+      metric_name_to_value.update({entry.name: int(entry.value)})
 
   return metric_name_to_value
 
