@@ -110,7 +110,7 @@ import "list"
 		"\(deployment._name)": {
 			_app_label: deployment.spec.template.metadata.labels.app
 			_egresses: {
-				// Need to be able to access Kingdom and BigQuery.
+				// Need to be able to access Kingdom.
 				any: {}
 			}
 		}
