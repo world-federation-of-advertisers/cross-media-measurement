@@ -23,6 +23,19 @@ from itertools import combinations
 from functools import reduce
 
 
+def get_subset_relationships(edp_combinations: list[str]):
+  """Returns a list of tuples where first element in the tuple is the parent
+  and second element is the subset."""
+  subset_relationships = []
+
+  for comb1, comb2 in combinations(edp_combinations, 2):
+    if comb1.issubset(comb2):
+      subset_relationships.append((comb2, comb1))
+    elif comb2.issubset(comb1):
+      subset_relationships.append((comb1, comb2))
+  return subset_relationships
+
+
 class MetricReport:
   """Represents a metric sub-report view (e.g. MRC, AMI, etc)
   within a report.
@@ -76,14 +89,6 @@ class MetricReport:
         }
     )
 
-  def get_cumulative_measurements(self, edp_combination: str):
-    """Returns the cumulative measurements for the given EDP combination.
-
-    Args: edp_combination: The EDP combination string.
-    Returns: A list of cumulative measurements if found, otherwise None.
-    """
-    return self.__reach_time_series_by_edp_combination[edp_combination]
-
   def get_cumulative_measurement(self, edp_combination: str, period: int):
     return self.__reach_time_series_by_edp_combination[edp_combination][
       period]
@@ -92,10 +97,10 @@ class MetricReport:
     return self.__reach_whole_campaign_by_edp_combination[edp_combination]
 
   def get_cumulative_edp_combinations(self):
-    return list(self.__reach_time_series_by_edp_combination.keys())
+    return set(self.__reach_time_series_by_edp_combination.keys())
 
   def get_whole_campaign_edp_combinations(self):
-    return list(self.__reach_whole_campaign_by_edp_combination.keys())
+    return set(self.__reach_whole_campaign_by_edp_combination.keys())
 
   def get_cumulative_edp_combinations_count(self):
     return len(self.__reach_time_series_by_edp_combination.keys())
@@ -107,30 +112,12 @@ class MetricReport:
     return len(next(iter(self.__reach_time_series_by_edp_combination.values())))
 
   def get_cumulative_subset_relationships(self):
-    """Returns a list of tuples where first element in the tuple is the parent
-    and second element is the subset."""
-    subset_relationships = []
     edp_combinations = list(self.__reach_time_series_by_edp_combination)
-
-    for comb1, comb2 in combinations(edp_combinations, 2):
-      if comb1.issubset(comb2):
-        subset_relationships.append((comb2, comb1))
-      elif comb2.issubset(comb1):
-        subset_relationships.append((comb1, comb2))
-    return subset_relationships
+    return get_subset_relationships(edp_combinations)
 
   def get_whole_campaign_subset_relationships(self):
-    """Returns a list of tuples where first element in the tuple is the parent
-    and second element is the subset."""
-    subset_relationships = []
     edp_combinations = list(self.__reach_whole_campaign_by_edp_combination)
-
-    for comb1, comb2 in combinations(edp_combinations, 2):
-      if comb1.issubset(comb2):
-        subset_relationships.append((comb2, comb1))
-      elif comb2.issubset(comb1):
-        subset_relationships.append((comb1, comb2))
-    return subset_relationships
+    return get_subset_relationships(edp_combinations)
 
   def get_cover_relationships(self):
     """Returns covers as defined here: # https://en.wikipedia.org/wiki/Cover_(topology).
@@ -232,13 +219,15 @@ class Report:
         metric_reports.keys())
     self.__num_vars = self.__num_periods * num_vars_per_period
 
+    # Assign an index to each measurement.
     measurement_index = 0
     self.__measurement_name_to_index = {}
     for metric in metric_reports.keys():
       for edp_combination in metric_reports[
         metric].get_cumulative_edp_combinations():
-        for measurement in metric_reports[metric].get_cumulative_measurements(
-            edp_combination):
+        for period in range(0, self.__num_periods):
+          measurement = metric_reports[metric].get_cumulative_measurement(
+              edp_combination, period)
           self.__measurement_name_to_index[measurement.name] = measurement_index
           measurement_index += 1
       for edp_combination in metric_reports[
@@ -327,8 +316,8 @@ class Report:
           )
 
   def __add_subset_relations_to_spec(self, spec):
+    # Adds relations for cumulative measurements.
     for metric in self.__metric_reports:
-      metric_ind = self.__metric_index[metric]
       for subset_relationship in self.__metric_reports[
         metric
       ].get_cumulative_subset_relationships():
@@ -346,27 +335,55 @@ class Report:
                       parent_edp_combination, period)),
           )
 
-      # for subset_relationship in self.__metric_reports[metric].get_whole_campaign_subset_relationships():
-      #   parent_edp_combination = subset_relationship[0]
-      #   child_edp_combination = subset_relationship[1]
-      #   for period in range(0, self.__num_periods):
-      #     spec.add_subset_relation(
-      #         child_set_id=self.__get_measurement_index(
-      #             self.__metric_reports[
-      #               metric].get_cumulative_measurement(
-      #                 child_edp_combination, period)),
-      #         parent_set_id=self.__get_measurement_index(
-      #             self.__metric_reports[
-      #               metric].get_cumulative_measurement(
-      #                 parent_edp_combination, period)),
-      #     )
+      # Adds relations for whole campaign measurements.
+      for subset_relationship in self.__metric_reports[
+        metric
+      ].get_whole_campaign_subset_relationships():
+        parent_edp_combination = subset_relationship[0]
+        child_edp_combination = subset_relationship[1]
+        spec.add_subset_relation(
+            child_set_id=self.__get_measurement_index(
+                self.__metric_reports[
+                  metric].get_whole_campaign_measurement(
+                    child_edp_combination)),
+            parent_set_id=self.__get_measurement_index(
+                self.__metric_reports[
+                  metric].get_whole_campaign_measurement(
+                    parent_edp_combination)),
+        )
+
+  # TODO(@ple13):Use timestamp to check if the last cumulative measurement covers
+  # the whole campaign. If yes, make sure that the two measurements are equal
+  # instead of less than or equal.
+  def __add_cumulative_whole_campaign_relations_to_spec(self, spec):
+    # Adds relations between cumulative and whole campaign measurements.
+    # For an edp combination, the last cumulative measurement is less than or
+    # equal to the whole campaign measurement.
+    for metric in self.__metric_reports:
+      for edp_combination in self.__metric_reports[
+        metric].get_cumulative_edp_combinations().intersection(
+          self.__metric_reports[
+            metric].get_whole_campaign_edp_combinations()):
+        spec.add_subset_relation(
+            child_set_id=self.__get_measurement_index(
+                self.__metric_reports[
+                  metric].get_cumulative_measurement(
+                    edp_combination, (self.__num_periods - 1))),
+            parent_set_id=self.__get_measurement_index(
+                self.__metric_reports[
+                  metric].get_whole_campaign_measurement(
+                    edp_combination)),
+        )
 
   def __add_metric_relations_to_spec(self, spec):
     # metric1>=metric#2
     for parent_metric in self.__metric_subsets_by_parent:
       for child_metric in self.__metric_subsets_by_parent[parent_metric]:
+        # Handles cumulative measurements of common edp combinations.
         for edp_combination in self.__metric_reports[
-          parent_metric].get_cumulative_edp_combinations():
+          parent_metric].get_cumulative_edp_combinations().intersection(
+            self.__metric_reports[
+              child_metric].get_cumulative_edp_combinations()):
           for period in range(0, self.__num_periods):
             spec.add_subset_relation(
                 child_set_id=self.__get_measurement_index(
@@ -378,10 +395,26 @@ class Report:
                       parent_metric].get_cumulative_measurement(
                         edp_combination, period)),
             )
+        # Handles whole campaign measurements of common edp combinations.
+        for edp_combination in self.__metric_reports[
+          parent_metric].get_whole_campaign_edp_combinations().intersection(
+            self.__metric_reports[
+              child_metric].get_whole_campaign_edp_combinations()):
+          spec.add_subset_relation(
+              child_set_id=self.__get_measurement_index(
+                  self.__metric_reports[
+                    child_metric].get_whole_campaign_measurement(
+                      edp_combination)),
+              parent_set_id=self.__get_measurement_index(
+                  self.__metric_reports[
+                    parent_metric].get_whole_campaign_measurement(
+                      edp_combination)),
+          )
 
-  def __add_periodic_relations_to_spec(self, spec):
+  def __add_cumulative_relations_to_spec(self, spec):
     for metric in self.__metric_reports.keys():
-      for edp_combination in self.__edp_combination_index:
+      for edp_combination in self.__metric_reports[
+        metric].get_cumulative_edp_combinations():
         if (
             len(edp_combination) == 1
             and next(iter(edp_combination))
@@ -412,15 +445,19 @@ class Report:
     # metric1>=metric#2.
     self.__add_metric_relations_to_spec(spec)
 
-    # period1 <= period2
-    self.__add_periodic_relations_to_spec(spec)
+    # period1 <= period2.
+    self.__add_cumulative_relations_to_spec(spec)
+
+    # Last cumulative measurement <= whole campaign measurement.
+    self.__add_cumulative_whole_campaign_relations_to_spec(spec)
 
   def __add_measurements_to_spec(self, spec):
     for metric in self.__metric_reports.keys():
       for edp_combination in self.__metric_reports[
         metric].get_cumulative_edp_combinations():
-        for measurement in self.__metric_reports[
-          metric].get_cumulative_measurements(edp_combination):
+        for period in range(0, self.__num_periods):
+          measurement = self.__metric_reports[
+            metric].get_cumulative_measurement(edp_combination, period)
           spec.add_measurement(
               self.__get_measurement_index(measurement),
               measurement,
@@ -451,16 +488,11 @@ class Report:
             edp_combination)
     )
 
-  def __get_var_index(self, period: int, metric: int, edp: int):
-    return (
-        metric * self.__num_edp_combinations * self.__num_periods
-        + edp * self.__num_periods
-        + period
-    )
-
   def __metric_report_from_solution(self, metric, solution):
     solution_time_series = {}
-    for edp_combination in self.__edp_combination_index:
+    solution_whole_campaign = {}
+    for edp_combination in self.__metric_reports[
+      metric].get_cumulative_edp_combinations():
       solution_time_series[edp_combination] = [
           Measurement(
               solution[
@@ -475,6 +507,20 @@ class Report:
           )
           for period in range(0, self.__num_periods)
       ]
-
+    for edp_combination in self.__metric_reports[
+      metric].get_whole_campaign_edp_combinations():
+      solution_whole_campaign[edp_combination] = Measurement(
+          solution[
+            self.__get_measurement_index(self.__metric_reports[
+              metric].get_whole_campaign_measurement(
+                edp_combination))
+          ],
+          self.__metric_reports[metric].get_whole_campaign_measurement(
+              edp_combination).sigma,
+          self.__metric_reports[metric].get_whole_campaign_measurement(
+              edp_combination).name,
+      )
     return MetricReport(
-        reach_time_series_by_edp_combination=solution_time_series)
+        reach_time_series_by_edp_combination=solution_time_series,
+        reach_whole_campaign_by_edp_combination=solution_whole_campaign,
+    )

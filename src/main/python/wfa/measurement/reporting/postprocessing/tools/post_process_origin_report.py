@@ -17,7 +17,8 @@ import math
 import pandas as pd
 import sys
 
-from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import report_summary_pb2
+from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
+  report_summary_pb2
 from functools import partial
 from noiseninja.noised_measurements import Measurement
 from report.report import Report, MetricReport
@@ -110,8 +111,10 @@ def readExcel(excel_file_path, unnoised_edps):
 # TODO(@ple13): Extend the function to support custom measurements and composite
 #  set operations such as difference, incremental.
 def processReportSummary(report_summary: report_summary_pb2.ReportSummary()):
-  ami_measurements: Dict[FrozenSet[str], List[Measurement]] = {}
-  mrc_measurements: Dict[FrozenSet[str], List[Measurement]] = {}
+  cumulative_ami_measurements: Dict[FrozenSet[str], List[Measurement]] = {}
+  cumulative_mrc_measurements: Dict[FrozenSet[str], List[Measurement]] = {}
+  total_ami_measurements: Dict[FrozenSet[str], Measurement] = {}
+  total_mrc_measurements: Dict[FrozenSet[str], Measurement] = {}
 
   # Processes cumulative measurements first.
   for entry in report_summary.measurement_details:
@@ -123,38 +126,39 @@ def processReportSummary(report_summary: report_summary_pb2.ReportSummary()):
           for result in entry.measurement_results
       ]
       if entry.measurement_policy == "ami":
-        ami_measurements[data_providers] = measurements
+        cumulative_ami_measurements[data_providers] = measurements
       elif entry.measurement_policy == "mrc":
-        mrc_measurements[data_providers] = measurements
+        cumulative_mrc_measurements[data_providers] = measurements
 
-  edp_combination_list = ami_measurements.keys()
+  edp_combination_list = cumulative_ami_measurements.keys()
   if len(edp_combination_list) == 0:
-    edp_combination_list = mrc_measurements.keys()
+    edp_combination_list = cumulative_mrc_measurements.keys()
 
-  # Processes non-cumulative union measurements.
+  # Processes total union measurements.
   for entry in report_summary.measurement_details:
     if (entry.set_operation == "union") and (
-        entry.is_cumulative == False) and (
-        frozenset(entry.data_providers) in edp_combination_list):
+        entry.is_cumulative == False):
       measurements = [
           Measurement(result.reach, result.standard_deviation,
                       result.metric)
           for result in entry.measurement_results
       ]
       if entry.measurement_policy == "ami":
-        ami_measurements[frozenset(entry.data_providers)].extend(
-            measurements)
+        total_ami_measurements[frozenset(entry.data_providers)] = measurements[
+          0]
       elif entry.measurement_policy == "mrc":
-        mrc_measurements[frozenset(entry.data_providers)].extend(
-            measurements)
+        total_mrc_measurements[frozenset(entry.data_providers)] = measurements[
+          0]
 
   # Builds the report based on the above measurements.
   report = Report(
       {
-          policy: MetricReport(measurements)
-          for policy, measurements in
-          [("ami", ami_measurements), ("mrc", mrc_measurements)]
-          if measurements  # Only include if measurements is not empty
+          policy: MetricReport(cumulative_measurements, total_measurements)
+          for policy, cumulative_measurements, total_measurements in
+          [("ami", cumulative_ami_measurements, total_ami_measurements),
+           ("mrc", cumulative_mrc_measurements, total_mrc_measurements)]
+          if cumulative_measurements
+          # Only include if measurements is not empty
       },
       metric_subsets_by_parent={ami: [mrc]},
       cumulative_inconsistency_allowed_edp_combinations={},
@@ -173,6 +177,10 @@ def processReportSummary(report_summary: report_summary_pb2.ReportSummary()):
         entry = metric_report.get_cumulative_measurement(edp, index)
         metric_name_to_value.update(
             {entry.name: int(entry.value)})
+    for edp in metric_report.get_whole_campaign_edp_combinations():
+      entry = metric_report.get_whole_campaign_measurement(edp)
+      metric_name_to_value.update(
+          {entry.name: int(entry.value)})
 
   return metric_name_to_value
 
@@ -263,16 +271,16 @@ def buildCorrectedExcel(correctedReport, excel):
             frozenset({EDP_ONE, EDP_TWO}), -1).value
         if (edp == TOTAL_CAMPAIGN)
         else ami_metric_report.get_cumulative_measurement(
-          frozenset({edp}),
-          -1).value
+            frozenset({edp}),
+            -1).value
     )
     totMrcVal = (
         mrc_metric_report.get_cumulative_measurement(
             frozenset({EDP_ONE, EDP_TWO}), -1).value
         if (edp == TOTAL_CAMPAIGN)
         else mrc_metric_report.get_cumulative_measurement(
-          frozenset({edp}),
-          -1).value
+            frozenset({edp}),
+            -1).value
     )
     total_sheet_name = edp
     excel[total_sheet_name] = correctTotSheet(

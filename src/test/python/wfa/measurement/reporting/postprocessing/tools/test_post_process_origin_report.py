@@ -59,7 +59,8 @@ class TestOriginReport(unittest.TestCase):
         ami_result = ami_measurement_detail.measurement_results.add()
         ami_result.reach = AMI_MEASUREMENTS[edp][i]
         ami_result.standard_deviation = 1.0
-        ami_result.metric = "metric_" + edp + "_ami_" + str(i).zfill(5)
+        ami_result.metric = "cumulative_metric_" + edp + "_ami_" + str(i).zfill(
+          5)
 
       mrc_measurement_detail = report_summary.measurement_details.add()
       mrc_measurement_detail.measurement_policy = "mrc"
@@ -70,7 +71,8 @@ class TestOriginReport(unittest.TestCase):
         mrc_result = mrc_measurement_detail.measurement_results.add()
         mrc_result.reach = MRC_MEASUREMENTS[edp][i]
         mrc_result.standard_deviation = 1.0
-        mrc_result.metric = "metric_" + edp + "_mrc_" + str(i).zfill(5)
+        mrc_result.metric = "cumulative_metric_" + edp + "_mrc_" + str(i).zfill(
+          5)
 
     for edp in EDP_MAP:
       ami_measurement_detail = report_summary.measurement_details.add()
@@ -81,8 +83,7 @@ class TestOriginReport(unittest.TestCase):
       ami_result = ami_measurement_detail.measurement_results.add()
       ami_result.reach = AMI_MEASUREMENTS[edp][len(AMI_MEASUREMENTS[edp]) - 1]
       ami_result.standard_deviation = 1.0
-      ami_result.metric = "metric_" + edp + "_ami_" + str(
-          len(AMI_MEASUREMENTS[edp]) - 1).zfill(5)
+      ami_result.metric = "total_metric_" + edp + "_ami_"
 
       mrc_measurement_detail = report_summary.measurement_details.add()
       mrc_measurement_detail.measurement_policy = "mrc"
@@ -92,44 +93,79 @@ class TestOriginReport(unittest.TestCase):
       mrc_result = mrc_measurement_detail.measurement_results.add()
       mrc_result.reach = MRC_MEASUREMENTS[edp][len(MRC_MEASUREMENTS[edp]) - 1]
       mrc_result.standard_deviation = 1.0
-      mrc_result.metric = "metric_" + edp + "_mrc_" + str(
-          len(MRC_MEASUREMENTS[edp]) - 1).zfill(5)
+      mrc_result.metric = "total_metric_" + edp + "_mrc_"
 
     corrected_measurements_map = processReportSummary(report_summary)
-    for key, value in corrected_measurements_map.items():
-        print(f"{key}: {value}")
     # Verifies that the updated reach values are consistent.
     for edp in EDP_MAP:
-      ami_metric_prefix = "metric_" + edp + "_ami_"
-      mrc_metric_prefix = "metric_" + edp + "_mrc_"
+      cumulative_ami_metric_prefix = "cumulative_metric_" + edp + "_ami_"
+      cumulative_mrc_metric_prefix = "cumulative_metric_" + edp + "_mrc_"
+      total_ami_metric = "total_metric_" + edp + "_ami_"
+      total_mrc_metric = "total_metric_" + edp + "_mrc_"
       # Verifies that cumulative measurements are consistent.
+      for i in range(len(AMI_MEASUREMENTS) - 2):
+        self.assertTrue(
+            corrected_measurements_map[
+              cumulative_ami_metric_prefix + str(i).zfill(5)] <=
+            corrected_measurements_map[
+              cumulative_ami_metric_prefix + str(i + 1).zfill(5)])
+        self.assertTrue(
+            corrected_measurements_map[
+              cumulative_mrc_metric_prefix + str(i).zfill(5)] <=
+            corrected_measurements_map[
+              cumulative_mrc_metric_prefix + str(i + 1).zfill(5)])
+      # Verifies that the mrc measurements is less than or equal to the ami ones.
       for i in range(len(AMI_MEASUREMENTS) - 1):
         self.assertTrue(
-            corrected_measurements_map[ami_metric_prefix + str(i).zfill(5)] <=
-            corrected_measurements_map[ami_metric_prefix + str(i + 1).zfill(5)])
-        self.assertTrue(
-            corrected_measurements_map[mrc_metric_prefix + str(i).zfill(5)] <=
-            corrected_measurements_map[mrc_metric_prefix + str(i + 1).zfill(5)])
-      # Verifies that the mrc measurements is less than or equal to the ami ones.
-      for i in range(len(AMI_MEASUREMENTS)):
-        self.assertTrue(
-            corrected_measurements_map[mrc_metric_prefix + str(i).zfill(5)] <=
-            corrected_measurements_map[ami_metric_prefix + str(i).zfill(5)]
+            corrected_measurements_map[
+              cumulative_mrc_metric_prefix + str(i).zfill(5)] <=
+            corrected_measurements_map[
+              cumulative_ami_metric_prefix + str(i).zfill(5)]
         )
+      # Verifies that the total reach is greater than or equal to the last
+      # cumulative reach.
+      index = len(AMI_MEASUREMENTS) - 1
+      self.assertTrue(
+          corrected_measurements_map[
+            cumulative_ami_metric_prefix + str(index).zfill(5)] <=
+          corrected_measurements_map[total_ami_metric]
+      )
+      self.assertTrue(
+          corrected_measurements_map[
+            cumulative_mrc_metric_prefix + str(index).zfill(5)] <=
+          corrected_measurements_map[total_mrc_metric]
+      )
 
     # Verifies that the union reach is less than or equal to the sum of
     # individual reaches.
     for i in range(len(AMI_MEASUREMENTS) - 1):
       self.assertTrue(
-          corrected_measurements_map["metric_union_ami_" + str(i).zfill(5)] <=
-          corrected_measurements_map["metric_edp1_ami_" + str(i).zfill(5)] +
-          corrected_measurements_map["metric_edp2_ami_" + str(i).zfill(5)]
+          corrected_measurements_map[
+            "cumulative_metric_union_ami_" + str(i).zfill(5)] <=
+          corrected_measurements_map[
+            "cumulative_metric_edp1_ami_" + str(i).zfill(5)] +
+          corrected_measurements_map[
+            "cumulative_metric_edp2_ami_" + str(i).zfill(5)]
       )
       self.assertTrue(
-          corrected_measurements_map["metric_union_mrc_" + str(i).zfill(5)] <=
-          corrected_measurements_map["metric_edp1_mrc_" + str(i).zfill(5)] +
-          corrected_measurements_map["metric_edp2_mrc_" + str(i).zfill(5)]
+          corrected_measurements_map[
+            "cumulative_metric_union_mrc_" + str(i).zfill(5)] <=
+          corrected_measurements_map[
+            "cumulative_metric_edp1_mrc_" + str(i).zfill(5)] +
+          corrected_measurements_map[
+            "cumulative_metric_edp2_mrc_" + str(i).zfill(5)]
       )
+    self.assertTrue(
+        corrected_measurements_map["total_metric_union_ami_"] <=
+        corrected_measurements_map["total_metric_edp1_ami_"] +
+        corrected_measurements_map["total_metric_edp2_ami_"]
+    )
+    self.assertTrue(
+        corrected_measurements_map["total_metric_union_mrc_"] <=
+        corrected_measurements_map["total_metric_edp1_mrc_"] +
+        corrected_measurements_map["total_metric_edp2_mrc_"]
+    )
+
 
 if __name__ == "__main__":
   unittest.main()
