@@ -127,8 +127,6 @@ SIMULATOR_K8S_SETTINGS = struct(
     edp5_cert_name = "$(edp5_cert_name)",
     edp6_name = "$(edp6_name)",
     edp6_cert_name = "$(edp6_cert_name)",
-    bigquery_dataset = "$(bigquery_dataset)",
-    bigquery_table = "$(bigquery_table)",
 )
 
 # Settings for Grafana Kubernetes deployments.

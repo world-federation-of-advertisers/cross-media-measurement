@@ -67,37 +67,21 @@ kubectl apply -k src/main/k8s/dev/kingdom
 ## Deploy EDP simulators
 
 See the [simulator deployment guide](simulator-deployment.md). The test assumes
-that there are valid events in the range `[2021-03-15, 2021-03-17]`. The
-synthetic generator variant assumes that the event message type is
-`wfa.measurement.api.v2alpha.event_templates.testing.TestEvent`, and the
-BigQuery variant assumes the event message type is `halo_cmm.uk.pilot.Event`.
+that there are valid events in the range `[2021-03-15, 2021-03-17]`. The test
+assumes that the event message type is
+`wfa.measurement.api.v2alpha.event_templates.testing.TestEvent`.
 
 ## Run the correctness test
 
 Run the following, substituting your own values:
 
-*   Synthetic generator
-
-    ```shell
-    bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
-    --test_output=streamed \
-    --define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
-    --define=mc_name=measurementConsumers/Rcn7fKd25C8 \
-    --define=mc_api_key=W9q4zad246g
-    ```
-
-*   BigQuery
-
-    ```shell
-    bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:BigQueryCorrectnessTest
-      --test_output=streamed \
-      --define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
-      --define=mc_name=measurementConsumers/Rcn7fKd25C8 \
-      --define=mc_api_key=W9q4zad246g \
-      --define=google_cloud_project=halo-cmm-demo \
-      --define=bigquery_dataset=demo \
-      --define=bigquery_table=labelled_events
-    ```
+```shell
+bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest \
+--test_output=streamed \
+--define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+--define=mc_name=measurementConsumers/Rcn7fKd25C8 \
+--define=mc_api_key=W9q4zad246g
+```
 
 The time the test takes depends on the size of the data set. With the default
 synthetic generator configuration, this is about an hour. Eventually, you should

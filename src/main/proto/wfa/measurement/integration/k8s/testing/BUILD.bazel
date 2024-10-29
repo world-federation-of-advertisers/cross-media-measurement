@@ -21,14 +21,3 @@ kt_jvm_proto_library(
     name = "correctness_test_config_kt_jvm_proto",
     deps = [":correctness_test_config_proto"],
 )
-
-proto_library(
-    name = "bigquery_config_proto",
-    srcs = ["bigquery_config.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-)
-
-kt_jvm_proto_library(
-    name = "bigquery_config_kt_jvm_proto",
-    deps = [":bigquery_config_proto"],
-)

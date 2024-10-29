@@ -75,7 +75,6 @@ jobs:
           - panel-exchange/gcloud-example-daemon
           - panel-exchange/aws-example-daemon
           - simulator/synthetic-generator-edp
-          - simulator/bigquery-edp
           - reporting/v2/postgres-internal-server
           - duchy/postgres-update-schema
           - duchy/gcloud-postgres-update-schema
