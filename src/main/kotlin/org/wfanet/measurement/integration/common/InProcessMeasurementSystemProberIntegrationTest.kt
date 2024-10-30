@@ -53,6 +53,7 @@ import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.kingdom.batch.MeasurementSystemProber
@@ -79,6 +80,7 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
 
   private val publicEventGroupsClient by lazy {
     EventGroupsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+      .withPrincipalName(inProcessCmmsComponents.getMeasurementConsumerData().name)
   }
 
   private val publicDataProvidersClient by lazy {
