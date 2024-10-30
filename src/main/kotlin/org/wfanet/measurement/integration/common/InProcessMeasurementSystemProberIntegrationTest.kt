@@ -118,7 +118,7 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
     prober =
       MeasurementSystemProber(
         measurementConsumerData.name,
-        ALL_EDP_DISPLAY_NAMES,
+        inProcessCmmsComponents.getDataProviderResourceNames(),
         measurementConsumerData.apiAuthenticationKey,
         PRIVATE_KEY_DER_FILE,
         MEASUREMENT_LOOKBACK_DURATION,
@@ -143,7 +143,7 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
   }
 
   @Test
-  fun `prober creates two measurements`(): Unit = runBlocking {
+  fun `prober creates first two measurements`(): Unit = runBlocking {
     prober.run()
 
     delay(DURATION_BETWEEN_MEASUREMENT.toKotlinDuration())

@@ -30,7 +30,6 @@ import java.time.Duration
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProvider
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
@@ -200,9 +199,7 @@ class MeasurementSystemProber(
   private suspend fun buildDataProviderNameToEventGroup(): MutableMap<String, EventGroup> {
     val dataProviderNameToEventGroup = mutableMapOf<String, EventGroup>()
     for (dataProviderName in dataProviderNames) {
-      val getDataProviderRequest = getDataProviderRequest {
-        name = DataProviderKey(dataProviderName).toName()
-      }
+      val getDataProviderRequest = getDataProviderRequest { name = dataProviderName }
       val dataProvider: DataProvider =
         try {
           dataProvidersStub
