@@ -19,6 +19,7 @@ package wfa.measurement.internal.kingdom;
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/kingdom/certificate.proto";
 import "wfa/measurement/internal/kingdom/computation_participant.proto";
+import "wfa/measurement/internal/kingdom/duchy_measurement_log_entry.proto";
 import "wfa/measurement/internal/kingdom/measurement_details.proto";
 import "wfa/measurement/internal/kingdom/participant_requisition_params.proto";
 import "wfa/measurement/internal/kingdom/protocol_config.proto";
@@ -36,6 +37,11 @@ message Measurement {
     // View for computation, which includes child Requisitions and
     // ComputationParticipants.
     COMPUTATION = 1;
+
+    // Alternative view for computation that includes ComputationParticipants
+    // and additional log entries for ComputationParticipants, but does not
+    // include child Requisitions.
+    COMPUTATION_ALTERNATIVE = 2;
   }
 
   fixed64 external_measurement_consumer_id = 1;
@@ -124,12 +130,17 @@ message Measurement {
 
   // Child ComputationParticipants of this Measurement. Output-only.
   //
-  // Only set for COMPUTATION view.
+  // Only set for COMPUTATION and COMPUTATION_ALTERNATIVE views.
   repeated ComputationParticipant computation_participants = 13;
 
   // Output only. This may be sent on cancel and delete requests to ensure the
   // client has an up-to-date Measurement before proceeding.
   string etag = 14;
+
+  // All log entries across all child ComputationParticipants. Output-only.
+  //
+  // Only set for COMPUTATION_ALTERNATIVE view.
+  repeated DuchyMeasurementLogEntry log_entries = 15;
 }
 
 message Requisition {
