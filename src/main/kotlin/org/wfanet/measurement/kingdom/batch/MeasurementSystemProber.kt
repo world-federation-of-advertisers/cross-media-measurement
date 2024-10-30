@@ -211,12 +211,8 @@ class MeasurementSystemProber(
 
       // TODO(@roaminggypsy): Implement QA event group logic using simulatorEventGroupName
       val listEventGroupsRequest = listEventGroupsRequest {
-        parent = dataProviderName
-        filter =
-          ListEventGroupsRequestKt.filter {
-            measurementConsumers += measurementConsumerName
-            dataProviders += dataProviderName
-          }
+        parent = measurementConsumerName
+        filter = ListEventGroupsRequestKt.filter { dataProviders += dataProviderName }
       }
 
       val eventGroups: List<EventGroup> =
