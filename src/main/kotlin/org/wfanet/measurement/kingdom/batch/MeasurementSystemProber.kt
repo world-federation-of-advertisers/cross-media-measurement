@@ -170,7 +170,7 @@ class MeasurementSystemProber(
               epsilon = 0.005
               delta = 1e-15
             }
-            maximumFrequency = 1
+            maximumFrequency = 10
           }
       }
 
