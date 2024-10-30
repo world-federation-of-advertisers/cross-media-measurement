@@ -23,7 +23,7 @@ from itertools import combinations
 from functools import reduce
 
 
-def get_subset_relationships(edp_combinations: list[str]):
+def get_subset_relationships(edp_combinations: list[FrozenSet[str]]):
   """Returns a list of tuples where first element in the tuple is the parent
   and second element is the subset."""
   subset_relationships = []
@@ -36,7 +36,7 @@ def get_subset_relationships(edp_combinations: list[str]):
   return subset_relationships
 
 
-def get_cover_relationships(edp_combinations):
+def get_cover_relationships(edp_combinations: list[FrozenSet[str]]):
   """Returns covers as defined here: # https://en.wikipedia.org/wiki/Cover_(topology).
   For each set (s_i) in the list, enumerate combinations of all sets excluding this one.
   For each of these considered combinations, take their union and check if it is equal to
@@ -228,18 +228,18 @@ class Report:
     self.__measurement_name_to_index = {}
     for metric in metric_reports.keys():
       for edp_combination in metric_reports[
+        metric].get_whole_campaign_edp_combinations():
+        measurement = metric_reports[metric].get_whole_campaign_measurement(
+            edp_combination)
+        self.__measurement_name_to_index[measurement.name] = measurement_index
+        measurement_index += 1
+      for edp_combination in metric_reports[
         metric].get_cumulative_edp_combinations():
         for period in range(0, self.__num_periods):
           measurement = metric_reports[metric].get_cumulative_measurement(
               edp_combination, period)
           self.__measurement_name_to_index[measurement.name] = measurement_index
           measurement_index += 1
-      for edp_combination in metric_reports[
-        metric].get_whole_campaign_edp_combinations():
-        measurement = metric_reports[metric].get_whole_campaign_measurement(
-            edp_combination)
-        self.__measurement_name_to_index[measurement.name] = measurement_index
-        measurement_index += 1
 
     self.__num_vars = measurement_index
 

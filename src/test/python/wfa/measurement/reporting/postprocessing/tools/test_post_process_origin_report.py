@@ -96,6 +96,7 @@ class TestOriginReport(unittest.TestCase):
       mrc_result.metric = "total_metric_" + edp + "_mrc_"
 
     corrected_measurements_map = processReportSummary(report_summary)
+
     # Verifies that the updated reach values are consistent.
     for edp in EDP_MAP:
       cumulative_ami_metric_prefix = "cumulative_metric_" + edp + "_ami_"

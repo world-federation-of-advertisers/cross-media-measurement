@@ -130,17 +130,11 @@ def processReportSummary(report_summary: report_summary_pb2.ReportSummary()):
       elif entry.measurement_policy == "mrc":
         cumulative_mrc_measurements[data_providers] = measurements
 
-  edp_combination_list = cumulative_ami_measurements.keys()
-  if len(edp_combination_list) == 0:
-    edp_combination_list = cumulative_mrc_measurements.keys()
-
   # Processes total union measurements.
   for entry in report_summary.measurement_details:
-    if (entry.set_operation == "union") and (
-        entry.is_cumulative == False):
+    if (entry.set_operation == "union") and (entry.is_cumulative == False):
       measurements = [
-          Measurement(result.reach, result.standard_deviation,
-                      result.metric)
+          Measurement(result.reach, result.standard_deviation, result.metric)
           for result in entry.measurement_results
       ]
       if entry.measurement_policy == "ami":
