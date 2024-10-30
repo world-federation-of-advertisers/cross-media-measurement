@@ -82,11 +82,28 @@ bazel build //src/main/k8s/dev:synthetic_generator_edp_simulators.tar \
 --define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
 ```
 
-The resulting archive will contain `SyntheticEventGroupSpec` messages in text
-format under `src/main/k8s/dev/synthetic_generator_config_files/`. These can be
-replaced in order to customize the synthetic generator.
-
 Extract the generated archive to some directory.
+
+## Customize Behavior
+
+The extracted Kustomization directory will contain `SyntheticEventGroupSpec`
+messages in text format under
+`src/main/k8s/dev/synthetic_generator_config_files/`. These can be replaced in
+order to customize the synthetic generator. This directory will also contain a
+`known_event_group_metadata_type_set.pb` file which is a serialized
+FileDescriptorSet containing known types used in EventGroup metadata
+descriptors. If not using the default, replace this file with the same one used
+for the Kingdom and Reporting deployments.
+
+By default, the simulator will create EventGroups using the configured
+`SyntheticEventGroupSpec` message as the metadata. This is required for running
+the [correctness test](correctness-test.md). If the simulator is not being used
+for that test, you can opt to use your own EventGroup metadata. To do this, add
+files containing metadata messages in protobuf text format to the ConfigMap
+generator. You can then update
+`src/main/k8s/dev/synthetic_generator_edp_simulators/synthetic_generator_edp_simulator_gke.yaml`
+to modify the `--event-group-metadata` and `--event-group-metadata-type-url`
+options passed to the simulator Deployment.
 
 ## Apply K8s Kustomization
 
