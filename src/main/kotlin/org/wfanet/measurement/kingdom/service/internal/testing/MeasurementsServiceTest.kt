@@ -1555,57 +1555,56 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamMeasurements with computation stats view returns log entries`(): Unit =
-    runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+  fun `streamMeasurements with computation stats view returns log entries`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
-      val measurement =
-        measurementsService.createMeasurement(
-          createMeasurementRequest {
-            measurement =
-              MEASUREMENT.copy {
-                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-                externalMeasurementConsumerCertificateId =
-                  measurementConsumer.certificate.externalCertificateId
-              }
-          }
-        )
-
-      val stageOne = "stage_one"
-      val stageOneLogEntryRequest = createDuchyMeasurementLogEntryRequest {
-        externalComputationId = measurement.externalComputationId
-        externalDuchyId = DUCHIES[0].externalDuchyId
-        measurementLogEntryDetails = measurementLogEntryDetails { logMessage = "good" }
-        details = duchyMeasurementLogEntryDetails {
-          stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageOne }
+    val measurement =
+      measurementsService.createMeasurement(
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
         }
+      )
+
+    val stageOne = "stage_one"
+    val stageOneLogEntryRequest = createDuchyMeasurementLogEntryRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = DUCHIES[0].externalDuchyId
+      measurementLogEntryDetails = measurementLogEntryDetails { logMessage = "good" }
+      details = duchyMeasurementLogEntryDetails {
+        stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageOne }
       }
-      measurementLogEntriesService.createDuchyMeasurementLogEntry(stageOneLogEntryRequest)
-
-      val stageOneLogEntryRequest2 = createDuchyMeasurementLogEntryRequest {
-        externalComputationId = measurement.externalComputationId
-        externalDuchyId = DUCHIES[1].externalDuchyId
-        measurementLogEntryDetails = measurementLogEntryDetails { logMessage = "good" }
-        details = duchyMeasurementLogEntryDetails {
-          stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageOne }
-        }
-      }
-      measurementLogEntriesService.createDuchyMeasurementLogEntry(stageOneLogEntryRequest2)
-
-      val streamMeasurementsRequest = streamMeasurementsRequest {
-        limit = 2
-        filter = filter {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-        }
-        measurementView = Measurement.View.COMPUTATION_STATS
-      }
-
-      val response: List<Measurement> =
-        measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
-
-      assertThat(response.first().logEntriesList).hasSize(2)
     }
+    measurementLogEntriesService.createDuchyMeasurementLogEntry(stageOneLogEntryRequest)
+
+    val stageOneLogEntryRequest2 = createDuchyMeasurementLogEntryRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = DUCHIES[1].externalDuchyId
+      measurementLogEntryDetails = measurementLogEntryDetails { logMessage = "good" }
+      details = duchyMeasurementLogEntryDetails {
+        stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageOne }
+      }
+    }
+    measurementLogEntriesService.createDuchyMeasurementLogEntry(stageOneLogEntryRequest2)
+
+    val streamMeasurementsRequest = streamMeasurementsRequest {
+      limit = 2
+      filter = filter {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      }
+      measurementView = Measurement.View.COMPUTATION_STATS
+    }
+
+    val response: List<Measurement> =
+      measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
+
+    assertThat(response.first().logEntriesList).hasSize(2)
+  }
 
   @Test
   fun `streamMeasurements respects limit`(): Unit = runBlocking {
