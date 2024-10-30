@@ -38,10 +38,10 @@ message Measurement {
     // ComputationParticipants.
     COMPUTATION = 1;
 
-    // Alternative view for computation that includes ComputationParticipants
-    // and additional log entries for ComputationParticipants, but does not
-    // include child Requisitions.
-    COMPUTATION_ALTERNATIVE = 2;
+    // View for computation that includes ComputationParticipants and additional
+    // log entries for ComputationParticipants, but does not include child
+    // Requisitions.
+    COMPUTATION_STATS = 2;
   }
 
   fixed64 external_measurement_consumer_id = 1;
@@ -130,7 +130,7 @@ message Measurement {
 
   // Child ComputationParticipants of this Measurement. Output-only.
   //
-  // Only set for COMPUTATION and COMPUTATION_ALTERNATIVE views.
+  // Only set for COMPUTATION and COMPUTATION_STATS views.
   repeated ComputationParticipant computation_participants = 13;
 
   // Output only. This may be sent on cancel and delete requests to ensure the
@@ -139,7 +139,7 @@ message Measurement {
 
   // All log entries across all child ComputationParticipants. Output-only.
   //
-  // Only set for COMPUTATION_ALTERNATIVE view.
+  // Only set for COMPUTATION_STATS view.
   repeated DuchyMeasurementLogEntry log_entries = 15;
 }
 

@@ -1555,7 +1555,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamMeasurements with computation alternative view returns log entries`(): Unit =
+  fun `streamMeasurements with computation stats view returns log entries`(): Unit =
     runBlocking {
       val measurementConsumer =
         population.createMeasurementConsumer(measurementConsumersService, accountsService)
@@ -1598,7 +1598,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         filter = filter {
           externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
         }
-        measurementView = Measurement.View.COMPUTATION_ALTERNATIVE
+        measurementView = Measurement.View.COMPUTATION_STATS
       }
 
       val response: List<Measurement> =

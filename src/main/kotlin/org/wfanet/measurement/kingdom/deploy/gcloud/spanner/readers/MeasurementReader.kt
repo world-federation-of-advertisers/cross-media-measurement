@@ -99,7 +99,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
         when (view) {
           Measurement.View.DEFAULT -> DEFAULT_VIEW_SQL
           Measurement.View.COMPUTATION -> COMPUTATION_VIEW_SQL
-          Measurement.View.COMPUTATION_ALTERNATIVE -> COMPUTATION_ALTERNATIVE_VIEW_SQL
+          Measurement.View.COMPUTATION_STATS -> COMPUTATION_STATS_VIEW_SQL
           Measurement.View.UNRECOGNIZED -> error("Invalid view $view")
         }
       appendClause(sql)
@@ -177,7 +177,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
       when (view) {
         Measurement.View.DEFAULT -> fillDefaultView(struct)
         Measurement.View.COMPUTATION -> fillComputationView(struct)
-        Measurement.View.COMPUTATION_ALTERNATIVE -> fillComputationAlternativeView(struct)
+        Measurement.View.COMPUTATION_STATS -> fillComputationStatsView(struct)
         Measurement.View.UNRECOGNIZED ->
           throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
       }
@@ -405,7 +405,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
       """
         .trimIndent()
 
-    private val COMPUTATION_ALTERNATIVE_VIEW_SQL =
+    private val COMPUTATION_STATS_VIEW_SQL =
       """
       SELECT
         ExternalMeasurementConsumerId,
@@ -597,7 +597,7 @@ private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
   }
 }
 
-private fun MeasurementKt.Dsl.fillComputationAlternativeView(struct: Struct) {
+private fun MeasurementKt.Dsl.fillComputationStatsView(struct: Struct) {
   fillMeasurementCommon(struct)
 
   if (struct.isNull("ExternalComputationId")) {
