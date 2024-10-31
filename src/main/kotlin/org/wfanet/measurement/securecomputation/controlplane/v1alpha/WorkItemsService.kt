@@ -16,31 +16,28 @@
 
 package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
-import io.grpc.Status
-import io.grpc.StatusException
-import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import com.rabbitmq.client.AMQP
 import com.rabbitmq.client.Channel
 import com.rabbitmq.client.Connection
 import com.rabbitmq.client.ConnectionFactory
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import io.grpc.Status
+import io.grpc.StatusException
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
-
 
 class WorkItemsService(
   private val rabbitMqHost: String,
   private val rabbitMqPort: Int,
   private val rabbitMqUsername: String,
-  private val rabbitMqPassword: String
+  private val rabbitMqPassword: String,
 ) : WorkItemsCoroutineImplBase(), AutoCloseable {
 
-  private val connectionFactory = ConnectionFactory().apply {
-    host = rabbitMqHost
-    port = rabbitMqPort
-    username = rabbitMqUsername
-    password = rabbitMqPassword
-  }
+  private val connectionFactory =
+    ConnectionFactory().apply {
+      host = rabbitMqHost
+      port = rabbitMqPort
+      username = rabbitMqUsername
+      password = rabbitMqPassword
+    }
 
   private lateinit var connection: Connection
   private lateinit var channel: Channel
@@ -55,8 +52,7 @@ class WorkItemsService(
       channel = connection.createChannel()
     } catch (e: Exception) {
       throw StatusException(
-        Status.UNAVAILABLE
-          .withDescription("Failed to connect to RabbitMQ: ${e.message}")
+        Status.UNAVAILABLE.withDescription("Failed to connect to RabbitMQ: ${e.message}")
       )
     }
   }
@@ -64,9 +60,9 @@ class WorkItemsService(
   /**
    * Checks if the current RabbitMQ channel is open and creates a new one if it's closed.
    *
-   * RabbitMQ may close channels in response to certain errors (e.g., accessing non-existent queues).
-   * This method ensures we have a valid channel for subsequent operations by creating a new one
-   * from the existing connection if needed.
+   * RabbitMQ may close channels in response to certain errors (e.g., accessing non-existent
+   * queues). This method ensures we have a valid channel for subsequent operations by creating a
+   * new one from the existing connection if needed.
    */
   private fun recreateChannelIfNeeded() {
     if (!channel.isOpen) {
@@ -80,36 +76,23 @@ class WorkItemsService(
     val queueName = workItem.queue
     val workItemParams = workItem.workItemParams
 
-    grpcRequireNotNull(queueName) {
-      "Queue name is unspecified"
-    }
-
     try {
       recreateChannelIfNeeded()
       channel.queueDeclarePassive(queueName)
     } catch (e: Exception) {
       throw StatusException(
-        Status.PERMISSION_DENIED
-          .withDescription("Queue '$queueName' does not exist")
+        Status.PERMISSION_DENIED.withDescription("Queue '$queueName' does not exist")
       )
     }
 
     try {
       // Makes the message persistent.
-      val props = AMQP.BasicProperties.Builder()
-        .deliveryMode(2)
-        .build()
+      val props = AMQP.BasicProperties.Builder().deliveryMode(2).build()
 
-      channel.basicPublish(
-        "",
-        queueName,
-        props,
-        workItemParams.toByteArray()
-      )
+      channel.basicPublish("", queueName, props, workItemParams.toByteArray())
     } catch (e: Exception) {
       throw StatusException(
-        Status.INTERNAL
-          .withDescription("Failed to enqueue work item: ${e.message}")
+        Status.INTERNAL.withDescription("Failed to enqueue work item: ${e.message}")
       )
     }
 
@@ -119,5 +102,4 @@ class WorkItemsService(
   override fun close() {
     connection.close()
   }
-
 }
