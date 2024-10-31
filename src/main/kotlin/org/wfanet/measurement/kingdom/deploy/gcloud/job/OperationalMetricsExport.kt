@@ -565,32 +565,25 @@ class OperationalMetricsExport(
                         continue
                       }
 
-                      for (i in 1 until sortedStageLogEntries.size) {
-                        val logEntry = sortedStageLogEntries[i - 1]
-                        val nextLogEntry = sortedStageLogEntries[i]
-                        if (
-                          logEntry.details.stageAttempt.stage + 1 ==
-                            nextLogEntry.details.stageAttempt.stage
-                        ) {
-                          computationParticipantStagesProtoRowsBuilder.addSerializedRows(
-                            baseComputationParticipantStagesTableRow
-                              .copy {
-                                duchyId = computationParticipant.externalDuchyId
-                                result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
-                                stageName = logEntry.details.stageAttempt.stageName
-                                stageStartTime = logEntry.details.stageAttempt.stageStartTime
-                                completionDurationSeconds =
-                                  Duration.between(
-                                      logEntry.details.stageAttempt.stageStartTime.toInstant(),
-                                      nextLogEntry.details.stageAttempt.stageStartTime.toInstant(),
-                                    )
-                                    .seconds
-                                completionDurationSecondsSquared =
-                                  completionDurationSeconds * completionDurationSeconds
-                              }
-                              .toByteString()
-                          )
-                        }
+                      sortedStageLogEntries.zipWithNext { logEntry, nextLogEntry ->
+                        computationParticipantStagesProtoRowsBuilder.addSerializedRows(
+                          baseComputationParticipantStagesTableRow
+                            .copy {
+                              duchyId = computationParticipant.externalDuchyId
+                              result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
+                              stageName = logEntry.details.stageAttempt.stageName
+                              stageStartTime = logEntry.details.stageAttempt.stageStartTime
+                              completionDurationSeconds =
+                                Duration.between(
+                                    logEntry.details.stageAttempt.stageStartTime.toInstant(),
+                                    nextLogEntry.details.stageAttempt.stageStartTime.toInstant(),
+                                  )
+                                  .seconds
+                              completionDurationSecondsSquared =
+                                completionDurationSeconds * completionDurationSeconds
+                            }
+                            .toByteString()
+                        )
                       }
 
                       val logEntry = sortedStageLogEntries.last()
