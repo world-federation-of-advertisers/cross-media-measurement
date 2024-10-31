@@ -1,0 +1,7 @@
+# TODO(@marcopremier): Remove this once common-jvm PR #286 is merged
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "client",
+    actual = "@maven//:com_rabbitmq_amqp_client",
+)
