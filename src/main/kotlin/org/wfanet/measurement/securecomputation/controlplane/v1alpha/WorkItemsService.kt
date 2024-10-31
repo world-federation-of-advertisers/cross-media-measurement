@@ -61,6 +61,19 @@ class WorkItemsService(
     }
   }
 
+  /**
+   * Checks if the current RabbitMQ channel is open and creates a new one if it's closed.
+   *
+   * RabbitMQ may close channels in response to certain errors (e.g., accessing non-existent queues).
+   * This method ensures we have a valid channel for subsequent operations by creating a new one
+   * from the existing connection if needed.
+   */
+  private fun recreateChannelIfNeeded() {
+    if (!channel.isOpen) {
+      channel = connection.createChannel()
+    }
+  }
+
   override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
 
     val workItem = request.workItem
@@ -72,6 +85,7 @@ class WorkItemsService(
     }
 
     try {
+      recreateChannelIfNeeded()
       channel.queueDeclarePassive(queueName)
     } catch (e: Exception) {
       throw StatusException(
@@ -103,7 +117,6 @@ class WorkItemsService(
   }
 
   override fun close() {
-    channel.close()
     connection.close()
   }
 
