@@ -50,13 +50,13 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #Llv2MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "3"
-		memory: "2.5Gi"
+		memory: "6Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#Llv2MillMaxHeapSize:          "1G"
+#Llv2MillMaxHeapSize:          "5G"
 #Llv2MillMaxConcurrency:       10
 #HmssMillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
