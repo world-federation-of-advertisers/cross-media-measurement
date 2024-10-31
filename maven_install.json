@@ -1110,6 +1110,13 @@
       },
       "version": "5.6"
     },
+    "com.rabbitmq:amqp-client": {
+      "shasums": {
+        "jar": "f5df000445bbab12f650d4cd9224c57c2e416eb75a7b80f5734c670fbf932b1e",
+        "sources": "de7f700b6922dba8fdd84f84d43531b061085521329686009b37818ec13e4bd6"
+      },
+      "version": "5.22.0"
+    },
     "com.squareup.okhttp3:logging-interceptor": {
       "shasums": {
         "jar": "f3e8d5f0903c250c2b55d2f47fcfe008e80634385da8385161c7a63aaed0c74c",
@@ -4884,6 +4891,9 @@
       "org.apache.commons:commons-lang3",
       "org.apache.commons:commons-text"
     ],
+    "com.rabbitmq:amqp-client": [
+      "org.slf4j:slf4j-api"
+    ],
     "com.squareup.okhttp3:logging-interceptor": [
       "com.squareup.okhttp3:okhttp",
       "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
@@ -7488,6 +7498,18 @@
       "com.opencsv.processor",
       "com.opencsv.stream.reader",
       "com.opencsv.validators"
+    ],
+    "com.rabbitmq:amqp-client": [
+      "com.rabbitmq.client",
+      "com.rabbitmq.client.impl",
+      "com.rabbitmq.client.impl.nio",
+      "com.rabbitmq.client.impl.recovery",
+      "com.rabbitmq.client.observation",
+      "com.rabbitmq.client.observation.micrometer",
+      "com.rabbitmq.tools",
+      "com.rabbitmq.tools.json",
+      "com.rabbitmq.tools.jsonrpc",
+      "com.rabbitmq.utility"
     ],
     "com.squareup.okhttp3:logging-interceptor": [
       "okhttp3.logging"
@@ -12494,6 +12516,8 @@
       "com.ongres.stringprep:stringprep:jar:sources",
       "com.opencsv:opencsv",
       "com.opencsv:opencsv:jar:sources",
+      "com.rabbitmq:amqp-client",
+      "com.rabbitmq:amqp-client:jar:sources",
       "com.squareup.okhttp3:logging-interceptor",
       "com.squareup.okhttp3:logging-interceptor:jar:sources",
       "com.squareup.okhttp3:okhttp",
