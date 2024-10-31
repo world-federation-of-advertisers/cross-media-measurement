@@ -27,6 +27,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertThrows
 import org.junit.Before
@@ -55,7 +56,7 @@ class WorkItemsServiceTest {
 
     connectionFactory.newConnection().use { connection ->
       connection.createChannel().use { channel ->
-        val rer = channel.queueDeclare(testQueue, true, false, false, null)
+        channel.queueDeclare(testQueue, true, false, false, null)
       }
     }
 
@@ -197,6 +198,25 @@ class WorkItemsServiceTest {
     workItemsService.createWorkItem(request2)
     delay(100)
     assertThat(getQueueInfo().messageCount).isEqualTo(2)
+  }
+
+  @Test
+  fun `test sending multiple messages in sequence`() = runBlocking {
+    val numMessages = 1000
+    assertThat(getQueueInfo().messageCount).isEqualTo(0)
+
+    repeat(numMessages) { index ->
+      val request = createTestRequest("test-work-item-multiple-$index")
+      val response = workItemsService.createWorkItem(request)
+      assertThat(response.name).isEqualTo("workItems/test-work-item-multiple-$index")
+    }
+
+    withTimeout(5000) {
+      while (getQueueInfo().messageCount < numMessages) {
+        delay(100)
+      }
+    }
+    assertThat(getQueueInfo().messageCount).isEqualTo(numMessages)
   }
 
   private fun createTestRequest(workItemId: String): CreateWorkItemRequest {
