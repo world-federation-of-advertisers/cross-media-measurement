@@ -38,21 +38,28 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
+import org.wfanet.measurement.internal.kingdom.bigquerytables.ComputationParticipantStagesTableRow
+import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestComputationReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestMeasurementReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.LatestRequisitionReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementType
 import org.wfanet.measurement.internal.kingdom.bigquerytables.MeasurementsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.RequisitionsTableRow
+import org.wfanet.measurement.internal.kingdom.bigquerytables.computationParticipantStagesTableRow
+import org.wfanet.measurement.internal.kingdom.bigquerytables.copy
+import org.wfanet.measurement.internal.kingdom.bigquerytables.latestComputationReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.latestMeasurementReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.latestRequisitionReadTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.measurementsTableRow
 import org.wfanet.measurement.internal.kingdom.bigquerytables.requisitionsTableRow
+import org.wfanet.measurement.internal.kingdom.computationKey
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
@@ -67,13 +74,16 @@ class OperationalMetricsExport(
   private val datasetId: String,
   private val latestMeasurementReadTableId: String,
   private val latestRequisitionReadTableId: String,
+  private val latestComputationReadTableId: String,
   private val measurementsTableId: String,
   private val requisitionsTableId: String,
+  private val computationParticipantStagesTableId: String,
   private val streamWriterFactory: StreamWriterFactory = StreamWriterFactoryImpl(),
 ) {
   suspend fun execute() {
     exportMeasurements()
     exportRequisitions()
+    exportComputationParticipants()
   }
 
   private suspend fun exportMeasurements() {
@@ -430,6 +440,242 @@ class OperationalMetricsExport(
                     }
                 }
             } while (requisitionsQueryResponseSize == BATCH_SIZE)
+          }
+      }
+  }
+
+  private suspend fun exportComputationParticipants() {
+    var computationsQueryResponseSize: Int
+
+    val query =
+      """
+    SELECT update_time, external_computation_id
+    FROM `$datasetId.$latestComputationReadTableId`
+    ORDER BY update_time DESC, external_computation_id DESC
+    LIMIT 1
+    """
+        .trimIndent()
+
+    val queryJobConfiguration: QueryJobConfiguration =
+      QueryJobConfiguration.newBuilder(query).build()
+
+    val results = bigQuery.query(queryJobConfiguration).iterateAll()
+    logger.info("Retrieved latest computation read info from BigQuery")
+
+    val latestComputationReadFromPreviousJob: FieldValueList? = results.firstOrNull()
+
+    var streamComputationsRequest = streamMeasurementsRequest {
+      measurementView = Measurement.View.COMPUTATION_STATS
+      limit = BATCH_SIZE
+      filter =
+        StreamMeasurementsRequestKt.filter {
+          states += Measurement.State.SUCCEEDED
+          states += Measurement.State.FAILED
+          if (latestComputationReadFromPreviousJob != null) {
+            after =
+              StreamMeasurementsRequestKt.FilterKt.after {
+                updateTime =
+                  Timestamps.fromNanos(
+                    latestComputationReadFromPreviousJob.get("update_time").longValue
+                  )
+                computation = computationKey {
+                  externalComputationId =
+                    latestComputationReadFromPreviousJob.get("external_computation_id").longValue
+                }
+              }
+          }
+        }
+    }
+
+    DataWriter(
+        projectId = projectId,
+        datasetId = datasetId,
+        tableId = computationParticipantStagesTableId,
+        client = bigQueryWriteClient,
+        protoSchema =
+          ProtoSchemaConverter.convert(ComputationParticipantStagesTableRow.getDescriptor()),
+        streamWriterFactory = streamWriterFactory,
+      )
+      .use { computationParticipantStagesDataWriter ->
+        DataWriter(
+            projectId = projectId,
+            datasetId = datasetId,
+            tableId = latestComputationReadTableId,
+            client = bigQueryWriteClient,
+            protoSchema =
+              ProtoSchemaConverter.convert(LatestComputationReadTableRow.getDescriptor()),
+            streamWriterFactory = streamWriterFactory,
+          )
+          .use { latestComputationReadDataWriter ->
+            do {
+              computationsQueryResponseSize = 0
+
+              val computationParticipantStagesProtoRowsBuilder: ProtoRows.Builder =
+                ProtoRows.newBuilder()
+              var latestComputation: Measurement = Measurement.getDefaultInstance()
+
+              measurementsClient
+                .streamMeasurements(streamComputationsRequest)
+                .catch { e ->
+                  if (e is StatusException) {
+                    logger.warning("Failed to retrieved Computations")
+                    throw e
+                  }
+                }
+                .collect { measurement ->
+                  computationsQueryResponseSize++
+                  latestComputation = measurement
+
+                  if (measurement.externalComputationId != 0L) {
+                    val measurementType =
+                      getMeasurementType(
+                        measurement.details.measurementSpec,
+                        measurement.details.apiVersion,
+                      )
+
+                    val measurementConsumerId =
+                      externalIdToApiId(measurement.externalMeasurementConsumerId)
+                    val measurementId = externalIdToApiId(measurement.externalMeasurementId)
+                    val computationId = externalIdToApiId(measurement.externalComputationId)
+
+                    val baseComputationParticipantStagesTableRow =
+                      computationParticipantStagesTableRow {
+                        this.measurementConsumerId = measurementConsumerId
+                        this.measurementId = measurementId
+                        this.computationId = computationId
+                        this.measurementType = measurementType
+                      }
+
+                    // Map of ExternalDuchyId to log entries.
+                    val logEntriesMap: Map<String, MutableList<DuchyMeasurementLogEntry>> =
+                      buildMap {
+                        for (logEntry in measurement.logEntriesList) {
+                          val logEntries = getOrPut(logEntry.externalDuchyId) { mutableListOf() }
+                          logEntries.add(logEntry)
+                        }
+                      }
+
+                    for (computationParticipant in measurement.computationParticipantsList) {
+                      val sortedStageLogEntries =
+                        logEntriesMap[computationParticipant.externalDuchyId]?.sortedBy {
+                          it.details.stageAttempt.stage
+                        } ?: emptyList()
+
+                      if (sortedStageLogEntries.isEmpty()) {
+                        continue
+                      }
+
+                      for (i in 1 until sortedStageLogEntries.size) {
+                        val logEntry = sortedStageLogEntries[i - 1]
+                        val nextLogEntry = sortedStageLogEntries[i]
+                        if (
+                          logEntry.details.stageAttempt.stage + 1 ==
+                            nextLogEntry.details.stageAttempt.stage
+                        ) {
+                          computationParticipantStagesProtoRowsBuilder.addSerializedRows(
+                            baseComputationParticipantStagesTableRow
+                              .copy {
+                                duchyId = computationParticipant.externalDuchyId
+                                result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
+                                stageName = logEntry.details.stageAttempt.stageName
+                                stageStartTime = logEntry.details.stageAttempt.stageStartTime
+                                completionDurationSeconds =
+                                  Duration.between(
+                                      logEntry.details.stageAttempt.stageStartTime.toInstant(),
+                                      nextLogEntry.details.stageAttempt.stageStartTime.toInstant(),
+                                    )
+                                    .seconds
+                                completionDurationSecondsSquared =
+                                  completionDurationSeconds * completionDurationSeconds
+                              }
+                              .toByteString()
+                          )
+                        }
+                      }
+
+                      val logEntry = sortedStageLogEntries.last()
+                      if (measurement.state == Measurement.State.SUCCEEDED) {
+                        computationParticipantStagesProtoRowsBuilder.addSerializedRows(
+                          baseComputationParticipantStagesTableRow
+                            .copy {
+                              duchyId = computationParticipant.externalDuchyId
+                              result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
+                              stageName = logEntry.details.stageAttempt.stageName
+                              stageStartTime = logEntry.details.stageAttempt.stageStartTime
+                              completionDurationSeconds =
+                                Duration.between(
+                                    logEntry.details.stageAttempt.stageStartTime.toInstant(),
+                                    measurement.updateTime.toInstant(),
+                                  )
+                                  .seconds
+                              completionDurationSecondsSquared =
+                                completionDurationSeconds * completionDurationSeconds
+                            }
+                            .toByteString()
+                        )
+                      } else if (measurement.state == Measurement.State.FAILED) {
+                        computationParticipantStagesProtoRowsBuilder.addSerializedRows(
+                          baseComputationParticipantStagesTableRow
+                            .copy {
+                              duchyId = computationParticipant.externalDuchyId
+                              result = ComputationParticipantStagesTableRow.Result.FAILED
+                              stageName = logEntry.details.stageAttempt.stageName
+                              stageStartTime = logEntry.details.stageAttempt.stageStartTime
+                              completionDurationSeconds =
+                                Duration.between(
+                                    logEntry.details.stageAttempt.stageStartTime.toInstant(),
+                                    measurement.updateTime.toInstant(),
+                                  )
+                                  .seconds
+                              completionDurationSecondsSquared =
+                                completionDurationSeconds * completionDurationSeconds
+                            }
+                            .toByteString()
+                        )
+                      }
+                    }
+                  }
+                }
+
+              logger.info("Computations read from the Kingdom Internal Server")
+
+              if (computationParticipantStagesProtoRowsBuilder.serializedRowsCount > 0) {
+                computationParticipantStagesDataWriter.appendRows(
+                  computationParticipantStagesProtoRowsBuilder.build()
+                )
+              } else {
+                logger.info("No more Computations to process")
+                break
+              }
+
+              logger.info("Computation Participant Stages Metrics written to BigQuery")
+
+              val latestComputationReadTableRow = latestComputationReadTableRow {
+                updateTime = Timestamps.toNanos(latestComputation.updateTime)
+                externalComputationId = latestComputation.externalComputationId
+              }
+
+              latestComputationReadDataWriter.appendRows(
+                ProtoRows.newBuilder()
+                  .addSerializedRows(latestComputationReadTableRow.toByteString())
+                  .build()
+              )
+
+              streamComputationsRequest =
+                streamComputationsRequest.copy {
+                  filter =
+                    filter.copy {
+                      after =
+                        StreamMeasurementsRequestKt.FilterKt.after {
+                          updateTime = latestComputation.updateTime
+                          computation = computationKey {
+                            externalComputationId =
+                              latestComputationReadTableRow.externalComputationId
+                          }
+                        }
+                    }
+                }
+            } while (computationsQueryResponseSize == BATCH_SIZE)
           }
       }
   }
