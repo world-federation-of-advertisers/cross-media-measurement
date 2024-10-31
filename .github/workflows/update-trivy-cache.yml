@@ -23,7 +23,7 @@ jobs:
   update-trivy-cache:
     runs-on: ubuntu-latest
     env:
-      TRIVY_CACHE_PATH: .cache/trivy
+      TRIVY_CACHE_PATH: ${{ github.workspace }}/.cache/trivy
     steps:
       - uses: oras-project/setup-oras@v1
 
