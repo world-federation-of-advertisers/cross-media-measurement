@@ -1828,7 +1828,6 @@ class MeasurementsServiceTest {
       verify(internalMeasurementsMock).streamMeasurements(capture())
     }
 
-    val defaultTimestamp = Timestamp.newBuilder().setSeconds(0).setNanos(0).build()
     assertThat(streamMeasurementsRequest)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
@@ -1837,10 +1836,6 @@ class MeasurementsServiceTest {
           filter =
             StreamMeasurementsRequestKt.filter {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-              createdAfter = defaultTimestamp
-              createdBefore = defaultTimestamp
-              updatedBefore = defaultTimestamp
-              updatedAfter = defaultTimestamp
             }
         }
       )
