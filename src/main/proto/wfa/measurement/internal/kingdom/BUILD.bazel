@@ -466,6 +466,7 @@ proto_library(
     deps = [
         ":certificate_proto",
         ":computation_participant_proto",
+        ":duchy_measurement_log_entry_proto",
         ":measurement_details_proto",
         ":participant_requisition_params_proto",
         ":protocol_config_proto",
