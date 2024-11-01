@@ -829,17 +829,17 @@ private fun ListMeasurementsPageToken.toStreamMeasurementsRequest(): StreamMeasu
     filter = filter {
       externalMeasurementConsumerId = source.externalMeasurementConsumerId
       states += source.statesList.map { it.toInternalState() }.flatten()
-      if (source.filter.hasUpdatedBefore()) {
-        updatedBefore = source.filter.updatedBefore
+      if (source.hasUpdatedBefore()) {
+        updatedBefore = source.updatedBefore
       }
-      if (source.filter.hasUpdatedAfter()) {
-        updatedAfter = source.filter.updatedAfter
+      if (source.hasUpdatedAfter()) {
+        updatedAfter = source.updatedAfter
       }
-      if (source.filter.hasCreatedBefore()) {
-        createdBefore = source.filter.createdBefore
+      if (source.hasCreatedBefore()) {
+        createdBefore = source.createdBefore
       }
-      if (source.filter.hasCreatedAfter()) {
-        createdAfter = source.filter.createdAfter
+      if (source.hasCreatedAfter()) {
+        createdAfter = source.createdAfter
       }
       if (source.hasLastMeasurement()) {
         after =
