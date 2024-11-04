@@ -1810,6 +1810,40 @@ class MeasurementsServiceTest {
   }
 
   @Test
+  fun `listMeasurements with no filters returns response`() {
+    val request = listMeasurementsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listMeasurements(request) }
+      }
+
+    val expected = listMeasurementsResponse {
+      measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME }
+      measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME_2 }
+      measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME_3 }
+    }
+
+    val streamMeasurementsRequest: StreamMeasurementsRequest = captureFirst {
+      verify(internalMeasurementsMock).streamMeasurements(capture())
+    }
+
+    assertThat(streamMeasurementsRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        streamMeasurementsRequest {
+          limit = DEFAULT_LIMIT + 1
+          filter =
+            StreamMeasurementsRequestKt.filter {
+              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
   fun `listMeasurements throws PERMISSION_DENIED when mc caller doesn't match`() {
     val request = listMeasurementsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
