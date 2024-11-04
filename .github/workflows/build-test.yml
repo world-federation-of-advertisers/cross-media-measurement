@@ -82,6 +82,10 @@ jobs:
           build --define google_cloud_project=example-project
           EOF
 
+      # Reduce chance of disconnection from the Build Event Service.
+      - name: Set TCP keepalive
+        run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
+
       - name: Check lockfile
         run: bazel mod deps
 
