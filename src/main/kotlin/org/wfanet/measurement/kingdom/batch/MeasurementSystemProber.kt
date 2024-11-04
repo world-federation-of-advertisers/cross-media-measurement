@@ -17,7 +17,6 @@
 package org.wfanet.measurement.kingdom.batch
 
 import com.google.protobuf.Any
-import com.google.protobuf.api
 import com.google.type.interval
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
