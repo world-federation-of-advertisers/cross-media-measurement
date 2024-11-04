@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
 import unittest
 
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_summary_pb2
-from tools.post_process_origin_report import correctExcelFile, readExcel, \
-  processReportSummary
+from tools.post_process_origin_report import processReportSummary
 
 EDP_MAP = {
     "edp1": {"edp1"},
@@ -26,24 +26,34 @@ EDP_MAP = {
 }
 
 AMI_MEASUREMENTS = {
-    'edp1': [6333, 3585, 7511, 1037, 0, 10040, 0, 2503, 7907, 0, 0, 0, 0, 1729,
-             0, 1322, 0],
-    'edp2': [24062000, 29281000, 31569000, 31569000, 31569000, 31569000,
-             31569000, 31569000, 31569000, 31569000, 31569000, 31569000,
-             31569000, 31569000, 31569000, 31569000, 31569000],
-    'union': [24129432, 29152165, 31474050, 31352346, 31685183, 31425302,
-              31655739, 31643458, 31438532, 31600739, 31386917, 31785206,
-              31627169, 31453865, 31582783, 31806702, 31477620],
+    'edp1': [701155, 1387980, 1993909, 2530351, 3004251, 3425139, 3798300,
+             4130259, 4425985, 4689161, 4924654, 5134209, 5321144, 5488320,
+             5638284, 5772709, 5893108],
+    'edp2': [17497550, 26248452, 28434726, 29254557, 29613105, 29781657,
+             29863471, 29903985, 29923599, 29933436, 29938318, 29940737,
+             29941947, 29942509, 29942840, 29942982, 29943048],
+    'union': [17848693, 26596529, 28810116, 29670899, 30076858, 30293844,
+              30422560, 30507247, 30567675, 30614303, 30652461, 30684582,
+              30712804, 30737507, 30759392, 30778972, 30796521],
 }
 MRC_MEASUREMENTS = {
-    'edp1': [0, 2196, 2014, 0, 129, 0, 2018, 81, 0, 0, 288, 0, 0, 0, 0, 0, 0],
-    'edp2': [24062000, 29281000, 31569000, 31569000, 31569000, 31569000,
-             31569000, 31569000, 31569000, 31569000, 31569000, 31569000,
-             31569000, 31569000, 31569000, 31569000, 31569000],
-    'union': [24299684, 29107595, 31680517, 31513613, 32127776, 31517198,
-              31786057, 31225783, 31237872, 31901620, 31720183, 31263524,
-              31775635, 31917650, 31478465, 31784354, 31542065],
+    'edp1': [630563, 1248838, 1794204, 2276856, 2703592, 3082468, 3418615,
+             3717626, 3983983, 4220849, 4432799, 4621453, 4789932, 4940394,
+             5075337, 5196132, 5304490],
+    'edp2': [15747807, 23623080, 25590863, 26328935, 26651567, 26803189,
+             26876867, 26913336, 26930960, 26939827, 26944204, 26946392,
+             26947485, 26947981, 26948285, 26948410, 26948472],
+    'union': [16063679, 23936163, 25928613, 26703382, 27068800, 27263915,
+              27379780, 27456089, 27510475, 27552474, 27586849, 27615813,
+              27641241, 27663446, 27683138, 27700680, 27716450],
 }
+
+SIGMAS = {
+    'edp1': 0.1,
+    'edp2': 1.0,
+    'union': 0.1,
+}
+
 
 class TestOriginReport(unittest.TestCase):
   def test_report_summary_is_corrected_successfully(self):
@@ -58,9 +68,9 @@ class TestOriginReport(unittest.TestCase):
       for i in range(len(AMI_MEASUREMENTS[edp]) - 1):
         ami_result = ami_measurement_detail.measurement_results.add()
         ami_result.reach = AMI_MEASUREMENTS[edp][i]
-        ami_result.standard_deviation = 1.0
+        ami_result.standard_deviation = SIGMAS[edp]
         ami_result.metric = "cumulative_metric_" + edp + "_ami_" + str(i).zfill(
-          5)
+            5)
 
       mrc_measurement_detail = report_summary.measurement_details.add()
       mrc_measurement_detail.measurement_policy = "mrc"
@@ -70,9 +80,9 @@ class TestOriginReport(unittest.TestCase):
       for i in range(len(MRC_MEASUREMENTS[edp]) - 1):
         mrc_result = mrc_measurement_detail.measurement_results.add()
         mrc_result.reach = MRC_MEASUREMENTS[edp][i]
-        mrc_result.standard_deviation = 1.0
+        mrc_result.standard_deviation = SIGMAS[edp]
         mrc_result.metric = "cumulative_metric_" + edp + "_mrc_" + str(i).zfill(
-          5)
+            5)
 
     for edp in EDP_MAP:
       ami_measurement_detail = report_summary.measurement_details.add()
@@ -82,7 +92,7 @@ class TestOriginReport(unittest.TestCase):
       ami_measurement_detail.data_providers.extend(EDP_MAP[edp])
       ami_result = ami_measurement_detail.measurement_results.add()
       ami_result.reach = AMI_MEASUREMENTS[edp][len(AMI_MEASUREMENTS[edp]) - 1]
-      ami_result.standard_deviation = 1.0
+      ami_result.standard_deviation = SIGMAS[edp]
       ami_result.metric = "total_metric_" + edp + "_ami_"
 
       mrc_measurement_detail = report_summary.measurement_details.add()
@@ -92,7 +102,7 @@ class TestOriginReport(unittest.TestCase):
       mrc_measurement_detail.data_providers.extend(EDP_MAP[edp])
       mrc_result = mrc_measurement_detail.measurement_results.add()
       mrc_result.reach = MRC_MEASUREMENTS[edp][len(MRC_MEASUREMENTS[edp]) - 1]
-      mrc_result.standard_deviation = 1.0
+      mrc_result.standard_deviation = SIGMAS[edp]
       mrc_result.metric = "total_metric_" + edp + "_mrc_"
 
     corrected_measurements_map = processReportSummary(report_summary)

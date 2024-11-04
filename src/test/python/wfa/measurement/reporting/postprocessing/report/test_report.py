@@ -14,20 +14,122 @@
 
 import unittest
 
-from noiseninja.noised_measurements import Measurement
-from report.report import Report, MetricReport
+from noiseninja.noised_measurements import Measurement, SetMeasurementsSpec
+from report.report import Report, MetricReport, is_cover, get_covers
 
 EXPECTED_PRECISION = 3
 EDP_ONE = "EDP_ONE"
 EDP_TWO = "EDP_TWO"
 EDP_THREE = "EDP_THREE"
 
+SAMPLE_REPORT = Report(
+    metric_reports={
+        "ami": MetricReport(
+            reach_time_series={
+                frozenset({EDP_ONE}): [Measurement(1, 0, "measurement_01"),
+                                       Measurement(1, 0, "measurement_02")],
+                frozenset({EDP_TWO}): [Measurement(1, 0, "measurement_03"),
+                                       Measurement(1, 0, "measurement_04")],
+                frozenset({EDP_THREE}): [
+                    Measurement(1, 0, "measurement_05"),
+                    Measurement(1, 0, "measurement_06")],
+                frozenset({EDP_ONE, EDP_TWO, EDP_THREE}): [
+                    Measurement(1, 0, "measurement_07"),
+                    Measurement(1, 0, "measurement_08")],
+            },
+            reach_whole_campaign={
+                frozenset({EDP_ONE}): Measurement(1, 0, "measurement_09"),
+                frozenset({EDP_TWO}): Measurement(1, 0, "measurement_10"),
+                frozenset({EDP_THREE}):
+                  Measurement(1, 0, "measurement_11"),
+                frozenset({EDP_ONE, EDP_TWO}):
+                  Measurement(1, 0, "measurement_12"),
+                frozenset({EDP_ONE, EDP_TWO, EDP_THREE}):
+                  Measurement(1, 0, "measurement_13"),
+            },
+        ),
+        "mrc": MetricReport(
+            reach_time_series={
+                frozenset({EDP_ONE}): [Measurement(1, 0, "measurement_14"),
+                                       Measurement(1, 0, "measurement_15")],
+                frozenset({EDP_TWO}): [Measurement(1, 0, "measurement_16"),
+                                       Measurement(1, 0, "measurement_17")],
+                frozenset({EDP_THREE}): [
+                    Measurement(1, 0, "measurement_18"),
+                    Measurement(1, 0, "measurement_19")],
+                frozenset({EDP_ONE, EDP_TWO, EDP_THREE}): [
+                    Measurement(1, 0, "measurement_20"),
+                    Measurement(1, 0, "measurement_21")],
+            },
+            reach_whole_campaign={
+                frozenset({EDP_ONE}): Measurement(1, 0, "measurement_22"),
+                frozenset({EDP_TWO}): Measurement(1, 0, "measurement_23"),
+                frozenset({EDP_THREE}):
+                  Measurement(1, 0, "measurement_24"),
+                frozenset({EDP_TWO, EDP_THREE}):
+                  Measurement(1, 0, "measurement_25"),
+            },
+        )
+    },
+    metric_subsets_by_parent={"ami": ["mrc"]},
+    cumulative_inconsistency_allowed_edp_combinations={},
+)
+
 
 class TestReport(unittest.TestCase):
+  def test_is_cover_returns_true_for_valid_cover_sets(self):
+    self.assertTrue(is_cover(frozenset({"EDP_ONE", "EDP_TWO", "EDP_THREE"}),
+                             (frozenset({"EDP_ONE"}), frozenset({"EDP_TWO"}),
+                              frozenset({"EDP_THREE"}))))
+    self.assertTrue(is_cover(frozenset({"EDP_ONE", "EDP_TWO", "EDP_THREE"}),
+                             (frozenset({"EDP_ONE"}), frozenset({"EDP_TWO"}),
+                              frozenset({"EDP_THREE"}),
+                              frozenset({"EDP_ONE", "EDP_TWO"}))))
+
+  def test_is_cover_returns_false_for_invalid_cover_sets(self):
+    self.assertFalse(is_cover(frozenset({"EDP_ONE", "EDP_TWO", "EDP_THREE"}),
+                              (frozenset({"EDP_ONE"}),
+                               frozenset({"EDP_THREE"}))))
+
+  def test_get_cover_returns_all_cover_sets(self):
+    target = frozenset({"EDP_ONE", "EDP_TWO", "EDP_THREE"})
+    other_sets = (frozenset({"EDP_ONE"}), frozenset({"EDP_TWO"}),
+                  frozenset({"EDP_THREE"}),
+                  frozenset({"EDP_ONE", "EDP_TWO"}))
+
+    expected = [
+        (
+            frozenset({'EDP_TWO', 'EDP_THREE', 'EDP_ONE'}),
+            (frozenset({'EDP_THREE'}), frozenset({'EDP_TWO', 'EDP_ONE'}))
+        ),
+        (
+            frozenset({'EDP_TWO', 'EDP_THREE', 'EDP_ONE'}), (
+                frozenset({'EDP_ONE'}), frozenset({'EDP_TWO'}),
+                frozenset({'EDP_THREE'}))
+        ),
+        (
+            frozenset({'EDP_TWO', 'EDP_THREE', 'EDP_ONE'}), (
+                frozenset({'EDP_ONE'}), frozenset({'EDP_THREE'}),
+                frozenset({'EDP_TWO', 'EDP_ONE'}))
+        ),
+        (
+            frozenset({'EDP_TWO', 'EDP_THREE', 'EDP_ONE'}), (
+                frozenset({'EDP_TWO'}), frozenset({'EDP_THREE'}),
+                frozenset({'EDP_TWO', 'EDP_ONE'}))
+        ),
+        (
+            frozenset({'EDP_TWO', 'EDP_THREE', 'EDP_ONE'}), (
+                frozenset({'EDP_ONE'}), frozenset({'EDP_TWO'}),
+                frozenset({'EDP_THREE'}), frozenset({'EDP_TWO', 'EDP_ONE'}))
+        )
+    ]
+
+    cover_relationship = get_covers(target, other_sets)
+    self.assertEqual(expected, cover_relationship)
 
   def test_get_cover_relationships(self):
     metric_report = MetricReport(
-        reach_time_series_by_edp_combination={
+        reach_time_series={
             frozenset({EDP_ONE}): [Measurement(1, 0, "measurement_01")],
             frozenset({EDP_TWO}): [Measurement(1, 0, "measurement_02")],
             frozenset({EDP_THREE}): [Measurement(1, 0, "measurement_03")],
@@ -39,7 +141,8 @@ class TestReport(unittest.TestCase):
                 Measurement(1, 0, "measurement_06")],
             frozenset({EDP_ONE, EDP_TWO, EDP_THREE}): [
                 Measurement(1, 0, "measurement_07")],
-        }
+        },
+        reach_whole_campaign={},
     )
 
     expected = [
@@ -434,20 +537,196 @@ class TestReport(unittest.TestCase):
     self.assertEqual(metric_report.get_cumulative_cover_relationships(),
                      expected)
 
-  def test_get_corrected_single_metric_report(self):
+  def test_add_cover_relationships(self):
+    report = SAMPLE_REPORT
+    name_to_index = report._measurement_name_to_index
 
+    expected_covers_by_set = {
+        name_to_index["measurement_07"]: [
+            [name_to_index["measurement_01"],
+             name_to_index["measurement_03"],
+             name_to_index["measurement_05"]]
+        ],
+        name_to_index["measurement_08"]: [
+            [name_to_index["measurement_02"],
+             name_to_index["measurement_04"],
+             name_to_index["measurement_06"]]
+        ],
+        name_to_index["measurement_12"]: [
+            [name_to_index["measurement_09"],
+             name_to_index["measurement_10"]]
+        ],
+        name_to_index["measurement_13"]: [
+            [name_to_index["measurement_11"],
+             name_to_index["measurement_12"]],
+            [name_to_index["measurement_09"],
+             name_to_index["measurement_10"],
+             name_to_index["measurement_11"]],
+            [name_to_index["measurement_09"],
+             name_to_index["measurement_11"],
+             name_to_index["measurement_12"]],
+            [name_to_index["measurement_10"],
+             name_to_index["measurement_11"],
+             name_to_index["measurement_12"]],
+            [name_to_index["measurement_10"],
+             name_to_index["measurement_09"],
+             name_to_index["measurement_11"],
+             name_to_index["measurement_12"]]
+        ],
+        name_to_index["measurement_20"]: [
+            [name_to_index["measurement_14"],
+             name_to_index["measurement_16"],
+             name_to_index["measurement_18"]]
+        ],
+        name_to_index["measurement_21"]: [
+            [name_to_index["measurement_15"],
+             name_to_index["measurement_17"],
+             name_to_index["measurement_19"]]
+        ],
+        name_to_index["measurement_25"]: [
+            [name_to_index["measurement_23"],
+             name_to_index["measurement_24"]]
+        ],
+    }
+
+    spec = SetMeasurementsSpec()
+    report._add_cover_relations_to_spec(spec)
+    self.assertEqual(len(spec._subsets_by_set), 0)
+    self.assertEqual(expected_covers_by_set.keys(), spec._covers_by_set.keys())
+    for key in spec._covers_by_set.keys():
+      self.assertEqual({tuple(sorted(inner_list)) for inner_list in
+                        expected_covers_by_set[key]},
+                       {tuple(sorted(inner_list)) for inner_list in
+                        spec._covers_by_set[key]})
+
+  def test_add_subset_relationships(self):
+    report = SAMPLE_REPORT
+    name_to_index = report._measurement_name_to_index
+
+    expected_subsets_by_set = {
+        name_to_index["measurement_07"]: [name_to_index["measurement_01"],
+                                          name_to_index["measurement_03"],
+                                          name_to_index["measurement_05"]],
+        name_to_index["measurement_08"]: [name_to_index["measurement_02"],
+                                          name_to_index["measurement_04"],
+                                          name_to_index["measurement_06"]],
+        name_to_index["measurement_12"]: [name_to_index["measurement_09"],
+                                          name_to_index["measurement_10"]],
+        name_to_index["measurement_13"]: [name_to_index["measurement_09"],
+                                          name_to_index["measurement_10"],
+                                          name_to_index["measurement_11"],
+                                          name_to_index["measurement_12"]],
+        name_to_index["measurement_20"]: [name_to_index["measurement_14"],
+                                          name_to_index["measurement_16"],
+                                          name_to_index["measurement_18"]],
+        name_to_index["measurement_21"]: [name_to_index["measurement_15"],
+                                          name_to_index["measurement_17"],
+                                          name_to_index["measurement_19"]],
+        name_to_index["measurement_25"]: [name_to_index["measurement_23"],
+                                          name_to_index["measurement_24"]],
+    }
+
+    spec = SetMeasurementsSpec()
+    report._add_subset_relations_to_spec(spec)
+
+    self.assertEqual(len(spec._covers_by_set), 0)
+    self.assertEqual(expected_subsets_by_set.keys(),
+                     spec._subsets_by_set.keys())
+    for key in spec._subsets_by_set.keys():
+      self.assertEqual(sorted(expected_subsets_by_set[key]),
+                       sorted(spec._subsets_by_set[key]))
+
+  def test_add_cumulative_subset_relationships(self):
+    report = SAMPLE_REPORT
+    name_to_index = report._measurement_name_to_index
+
+    expected_subsets_by_set = {
+        name_to_index["measurement_02"]: [name_to_index["measurement_01"]],
+        name_to_index["measurement_04"]: [name_to_index["measurement_03"]],
+        name_to_index["measurement_06"]: [name_to_index["measurement_05"]],
+        name_to_index["measurement_08"]: [name_to_index["measurement_07"]],
+        name_to_index["measurement_15"]: [name_to_index["measurement_14"]],
+        name_to_index["measurement_17"]: [name_to_index["measurement_16"]],
+        name_to_index["measurement_19"]: [name_to_index["measurement_18"]],
+        name_to_index["measurement_21"]: [name_to_index["measurement_20"]],
+    }
+
+    spec = SetMeasurementsSpec()
+    report._add_cumulative_relations_to_spec(spec)
+
+    self.assertEqual(len(spec._covers_by_set), 0)
+    self.assertEqual(expected_subsets_by_set.keys(),
+                     spec._subsets_by_set.keys())
+    for key in spec._subsets_by_set.keys():
+      self.assertEqual(sorted(expected_subsets_by_set[key]),
+                       sorted(spec._subsets_by_set[key]))
+
+  def test_add_metric_relationships(self):
+    report = SAMPLE_REPORT
+    name_to_index = report._measurement_name_to_index
+
+    expected_subsets_by_set = {
+        name_to_index["measurement_01"]: [name_to_index["measurement_14"]],
+        name_to_index["measurement_02"]: [name_to_index["measurement_15"]],
+        name_to_index["measurement_03"]: [name_to_index["measurement_16"]],
+        name_to_index["measurement_04"]: [name_to_index["measurement_17"]],
+        name_to_index["measurement_05"]: [name_to_index["measurement_18"]],
+        name_to_index["measurement_06"]: [name_to_index["measurement_19"]],
+        name_to_index["measurement_07"]: [name_to_index["measurement_20"]],
+        name_to_index["measurement_08"]: [name_to_index["measurement_21"]],
+        name_to_index["measurement_09"]: [name_to_index["measurement_22"]],
+        name_to_index["measurement_10"]: [name_to_index["measurement_23"]],
+        name_to_index["measurement_11"]: [name_to_index["measurement_24"]],
+    }
+
+    spec = SetMeasurementsSpec()
+    report._add_metric_relations_to_spec(spec)
+
+    self.assertEqual(len(spec._covers_by_set), 0)
+    self.assertEqual(expected_subsets_by_set.keys(),
+                     spec._subsets_by_set.keys())
+    for key in spec._subsets_by_set.keys():
+      self.assertEqual(sorted(expected_subsets_by_set[key]),
+                       sorted(spec._subsets_by_set[key]))
+
+  def test_add_cumulative_whole_campaign_relationships(self):
+    report = SAMPLE_REPORT
+    name_to_index = report._measurement_name_to_index
+
+    expected_subsets_by_set = {
+        name_to_index["measurement_09"]: [name_to_index["measurement_02"]],
+        name_to_index["measurement_10"]: [name_to_index["measurement_04"]],
+        name_to_index["measurement_11"]: [name_to_index["measurement_06"]],
+        name_to_index["measurement_13"]: [name_to_index["measurement_08"]],
+        name_to_index["measurement_22"]: [name_to_index["measurement_15"]],
+        name_to_index["measurement_23"]: [name_to_index["measurement_17"]],
+        name_to_index["measurement_24"]: [name_to_index["measurement_19"]],
+    }
+
+    spec = SetMeasurementsSpec()
+    report._add_cumulative_whole_campaign_relations_to_spec(spec)
+
+    self.assertEqual(len(spec._covers_by_set), 0)
+    self.assertEqual(expected_subsets_by_set.keys(),
+                     spec._subsets_by_set.keys())
+    for key in spec._subsets_by_set.keys():
+      self.assertEqual(sorted(expected_subsets_by_set[key]),
+                       sorted(spec._subsets_by_set[key]))
+
+  def test_get_corrected_single_metric_report(self):
     ami = "ami"
 
     report = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(50, 1, "measurement_01")],
                     frozenset({EDP_ONE}): [
                         Measurement(48, 0, "measurement_02")],
                     frozenset({EDP_TWO}): [Measurement(1, 1, "measurement_03")],
-                }
+                },
+                reach_whole_campaign={},
             )
         },
         metric_subsets_by_parent={},
@@ -459,28 +738,29 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(49.5, 1, "measurement_01")],
                     frozenset({EDP_ONE}): [
                         Measurement(48, 0, "measurement_02")],
                     frozenset({EDP_TWO}): [
                         Measurement(1.5, 1, "measurement_03")],
-                }
+                },
+                reach_whole_campaign={},
             )
         },
         metric_subsets_by_parent={},
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.__assertReportsAlmostEqual(expected, corrected, corrected.to_array())
+    self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_can_correct_time_series(self):
     ami = "ami"
     report = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(0.00, 1, "measurement_01"),
                         Measurement(3.30, 1, "measurement_02"),
@@ -491,7 +771,8 @@ class TestReport(unittest.TestCase):
                         Measurement(3.30, 1, "measurement_05"),
                         Measurement(0.00, 1, "measurement_06"),
                     ],
-                }
+                },
+                reach_whole_campaign={},
             )
         },
         metric_subsets_by_parent={},
@@ -503,7 +784,7 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(0.00, 1, "measurement_01"),
                         Measurement(1.65, 1, "measurement_02"),
@@ -514,21 +795,22 @@ class TestReport(unittest.TestCase):
                         Measurement(1.65, 1, "measurement_05"),
                         Measurement(1.65, 1, "measurement_06"),
                     ],
-                }
+                },
+                reach_whole_campaign={},
             )
         },
         metric_subsets_by_parent={},
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.__assertReportsAlmostEqual(expected, corrected, corrected.to_array())
+    self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_can_correct_time_series_for_three_edps(self):
     ami = "ami"
     report = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     # 1 way comb
                     frozenset({EDP_ONE}): [
                         Measurement(0.00, 1, "measurement_01"),
@@ -567,7 +849,8 @@ class TestReport(unittest.TestCase):
                         Measurement(8.0, 1, "measurement_20"),
                         Measurement(11.90, 1, "measurement_21"),
                     ],
-                }
+                },
+                reach_whole_campaign={},
             )
         },
         metric_subsets_by_parent={},
@@ -579,7 +862,7 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     # 1 way comb
                     frozenset({EDP_ONE}): [
                         Measurement(0.10, 1.00, "measurement_01"),
@@ -618,14 +901,15 @@ class TestReport(unittest.TestCase):
                         Measurement(8.00, 1.00, "measurement_20"),
                         Measurement(11.90, 1.00, "measurement_21"),
                     ],
-                }
+                },
+                reach_whole_campaign={},
             )
         },
         metric_subsets_by_parent={},
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.__assertReportsAlmostEqual(expected, corrected, corrected.to_array())
+    self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_correct_report_with_both_time_series_and_whole_campaign_measurements_three_edps(
       self):
@@ -634,7 +918,7 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     # 1 way comb
                     frozenset({EDP_ONE}): [
                         Measurement(0.00, 1, "measurement_01"),
@@ -667,7 +951,7 @@ class TestReport(unittest.TestCase):
                         Measurement(8.0, 1, "measurement_20"),
                     ],
                 },
-                reach_whole_campaign_by_edp_combination={
+                reach_whole_campaign={
                     # 1 way comb
                     frozenset({EDP_ONE}):
                       Measurement(4.00, 1.00, "measurement_03"),
@@ -697,7 +981,7 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     # 1 way comb
                     frozenset({EDP_ONE}): [
                         Measurement(0.10, 1.00, "measurement_01"),
@@ -730,7 +1014,7 @@ class TestReport(unittest.TestCase):
                         Measurement(8.00, 1.00, "measurement_20"),
                     ],
                 },
-                reach_whole_campaign_by_edp_combination={
+                reach_whole_campaign={
                     # 1 way comb
                     frozenset({EDP_ONE}):
                       Measurement(4.00, 1.00, "measurement_03"),
@@ -755,7 +1039,7 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.__assertReportsAlmostEqual(expected, corrected, corrected.to_array())
+    self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_correct_report_with_whole_campaign_has_more_edp_combinations(self):
     ami = "ami"
@@ -763,7 +1047,7 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     # 1 way comb
                     frozenset({EDP_ONE}): [
                         Measurement(0.00, 1, "measurement_01"),
@@ -783,7 +1067,7 @@ class TestReport(unittest.TestCase):
                         Measurement(8.0, 1, "measurement_20"),
                     ],
                 },
-                reach_whole_campaign_by_edp_combination={
+                reach_whole_campaign={
                     # 1 way comb
                     frozenset({EDP_ONE}):
                       Measurement(4.00, 1.00, "measurement_03"),
@@ -813,7 +1097,7 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     # 1 way comb
                     frozenset({EDP_ONE}): [
                         Measurement(0.025, 1.00, "measurement_01"),
@@ -833,7 +1117,7 @@ class TestReport(unittest.TestCase):
                         Measurement(8.00, 1.00, "measurement_20"),
                     ],
                 },
-                reach_whole_campaign_by_edp_combination={
+                reach_whole_campaign={
                     # 1 way comb
                     frozenset({EDP_ONE}):
                       Measurement(4.00, 1.00, "measurement_03"),
@@ -858,14 +1142,14 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.__assertReportsAlmostEqual(expected, corrected, corrected.to_array())
+    self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_allows_incorrect_time_series(self):
     ami = "ami"
     report = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     frozenset({EDP_TWO}): [
                         Measurement(0.00, 1, "measurement_01"),
                         Measurement(3.30, 1, "measurement_02"),
@@ -876,7 +1160,8 @@ class TestReport(unittest.TestCase):
                         Measurement(3.30, 1, "measurement_05"),
                         Measurement(1.00, 1, "measurement_06"),
                     ],
-                }
+                },
+                reach_whole_campaign={},
             )
         },
         metric_subsets_by_parent={},
@@ -889,7 +1174,7 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     frozenset({EDP_TWO}): [
                         Measurement(0.00, 1, "measurement_01"),
                         Measurement(3.30, 1, "measurement_02"),
@@ -900,7 +1185,8 @@ class TestReport(unittest.TestCase):
                         Measurement(3.30, 1, "measurement_05"),
                         Measurement(1.00, 1, "measurement_06"),
                     ],
-                }
+                },
+                reach_whole_campaign={},
             )
         },
         metric_subsets_by_parent={},
@@ -908,7 +1194,7 @@ class TestReport(unittest.TestCase):
             frozenset({EDP_ONE})),
     )
 
-    self.__assertReportsAlmostEqual(expected, corrected, corrected.to_array())
+    self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_can_correct_related_metrics(self):
     ami = "ami"
@@ -916,20 +1202,22 @@ class TestReport(unittest.TestCase):
     report = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(51, 1, "measurement_01")],
                     frozenset({EDP_ONE}): [
                         Measurement(50, 1, "measurement_02")],
-                }
+                },
+                reach_whole_campaign={},
             ),
             mrc: MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(52, 1, "measurement_03")],
                     frozenset({EDP_ONE}): [
                         Measurement(51, 1, "measurement_04")],
-                }
+                },
+                reach_whole_campaign={},
             ),
         },
         # AMI is a parent of MRC
@@ -942,20 +1230,22 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             ami: MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(51.5, 1, "measurement_01")],
                     frozenset({EDP_ONE}): [
                         Measurement(50.5, 1, "measurement_02")],
-                }
+                },
+                reach_whole_campaign={},
             ),
             mrc: MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(51.5, 1, "measurement_03")],
                     frozenset({EDP_ONE}): [
                         Measurement(50.5, 1, "measurement_04")],
-                }
+                },
+                reach_whole_campaign={},
             ),
         },
         # AMI is a parent of MRC
@@ -963,29 +1253,31 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.__assertReportsAlmostEqual(expected, corrected, corrected.to_array())
+    self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_get_corrected_multiple_metric_report_with_different_edp_combinations(
       self):
     report = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(50, 1, "measurement_01")],
                     frozenset({EDP_ONE}): [
                         Measurement(48, 0, "measurement_02")],
                     frozenset({EDP_TWO}): [
                         Measurement(1, 1, "measurement_03")],
-                }
+                },
+                reach_whole_campaign={},
             ),
             "mrc": MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(45, 1, "measurement_04")],
                     frozenset({EDP_TWO}): [
                         Measurement(2, 1, "measurement_05")],
-                }
+                },
+                reach_whole_campaign={},
             ),
         },
         metric_subsets_by_parent={"ami": ["mrc"]},
@@ -997,31 +1289,33 @@ class TestReport(unittest.TestCase):
     expected = Report(
         metric_reports={
             "ami": MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(49.667, 1, "measurement_01")],
                     frozenset({EDP_ONE}): [
                         Measurement(48, 0, "measurement_02")],
                     frozenset({EDP_TWO}): [
                         Measurement(1.667, 1, "measurement_03")],
-                }
+                },
+                reach_whole_campaign={},
             ),
             "mrc": MetricReport(
-                reach_time_series_by_edp_combination={
+                reach_time_series={
                     frozenset({EDP_ONE, EDP_TWO}): [
                         Measurement(45, 1, "measurement_04")],
                     frozenset({EDP_TWO}): [
                         Measurement(1.667, 1, "measurement_05")],
-                }
+                },
+                reach_whole_campaign={},
             ),
         },
         metric_subsets_by_parent={"ami": ["mrc"]},
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.__assertReportsAlmostEqual(expected, corrected, corrected.to_array())
+    self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
-  def __assertMeasurementAlmostEquals(
+  def _assertMeasurementAlmostEquals(
       self, expected: Measurement, actual: Measurement, msg
   ):
     if expected.sigma == 0:
@@ -1031,7 +1325,7 @@ class TestReport(unittest.TestCase):
           expected.value, actual.value, places=EXPECTED_PRECISION, msg=msg
       )
 
-  def __assertMetricReportsAlmostEqual(
+  def _assertMetricReportsAlmostEqual(
       self, expected: MetricReport, actual: MetricReport, msg
   ):
     self.assertEqual(expected.get_cumulative_edp_combinations_count(),
@@ -1039,27 +1333,27 @@ class TestReport(unittest.TestCase):
     self.assertEqual(
         expected.get_number_of_periods(), actual.get_number_of_periods()
     )
-    for edp_comb in expected.get_cumulative_edp_combinations():
+    for edp_combination in expected.get_cumulative_edp_combinations():
       for period in range(0, expected.get_number_of_periods()):
-        self.__assertMeasurementAlmostEquals(
-            expected.get_cumulative_measurement(edp_comb, period),
-            actual.get_cumulative_measurement(edp_comb, period),
+        self._assertMeasurementAlmostEquals(
+            expected.get_cumulative_measurement(edp_combination, period),
+            actual.get_cumulative_measurement(edp_combination, period),
             msg,
         )
 
     self.assertEqual(expected.get_whole_campaign_edp_combinations_count(),
                      actual.get_whole_campaign_edp_combinations_count())
-    for edp_comb in expected.get_whole_campaign_edp_combinations():
-      self.__assertMeasurementAlmostEquals(
-          expected.get_whole_campaign_measurement(edp_comb),
-          actual.get_whole_campaign_measurement(edp_comb),
+    for edp_combination in expected.get_whole_campaign_edp_combinations():
+      self._assertMeasurementAlmostEquals(
+          expected.get_whole_campaign_measurement(edp_combination),
+          actual.get_whole_campaign_measurement(edp_combination),
           msg,
       )
 
-  def __assertReportsAlmostEqual(self, expected: Report, actual: Report, msg):
+  def _assertReportsAlmostEqual(self, expected: Report, actual: Report, msg):
     self.assertEqual(expected.get_metrics(), actual.get_metrics())
     for metric in expected.get_metrics():
-      self.__assertMetricReportsAlmostEqual(
+      self._assertMetricReportsAlmostEqual(
           expected.get_metric_report(metric),
           actual.get_metric_report(metric),
           msg,
