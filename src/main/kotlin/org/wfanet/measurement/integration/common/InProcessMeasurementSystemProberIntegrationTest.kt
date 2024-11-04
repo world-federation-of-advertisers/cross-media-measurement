@@ -18,13 +18,6 @@ package org.wfanet.measurement.integration.common
 
 import com.google.common.truth.Truth.assertThat
 import io.grpc.StatusException
-import io.opentelemetry.api.GlobalOpenTelemetry
-import io.opentelemetry.api.common.AttributeKey
-import io.opentelemetry.sdk.OpenTelemetrySdk
-import io.opentelemetry.sdk.metrics.SdkMeterProvider
-import io.opentelemetry.sdk.metrics.export.MetricReader
-import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
-import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.io.File
 import java.nio.file.Paths
 import java.time.Clock
@@ -47,7 +40,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
-import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -88,23 +80,9 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
 
   private lateinit var prober: MeasurementSystemProber
 
-  private lateinit var openTelemetry: OpenTelemetrySdk
-  private lateinit var metricExporter: InMemoryMetricExporter
-  private lateinit var metricReader: MetricReader
-
   @Before
   fun startDaemons() {
     inProcessCmmsComponents.startDaemons()
-
-    GlobalOpenTelemetry.resetForTest()
-    Instrumentation.resetForTest()
-    metricExporter = InMemoryMetricExporter.create()
-    metricReader = PeriodicMetricReader.create(metricExporter)
-    openTelemetry =
-      OpenTelemetrySdk.builder()
-        .setMeterProvider(SdkMeterProvider.builder().registerMetricReader(metricReader).build())
-        .buildAndRegisterGlobal()
-
     initMeasurementSystemProber()
   }
 
@@ -142,48 +120,14 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
   @Test
   fun `prober creates first two measurements`(): Unit = runBlocking {
     prober.run()
-
-    //    delay(DURATION_BETWEEN_MEASUREMENT.toKotlinDuration())
-    //
-    //    prober.run()
-
     val measurements = listMeasurements()
     assertThat(measurements.size).isEqualTo(1)
-
-    //    val metricData: List<MetricData> = metricExporter.finishedMetricItems
-    //    assertThat(metricData).hasSize(2)
-    //    val metricNameToPoints: Map<String, List<DoublePointData>> =
-    //      metricData.associateBy({ it.name }, { it.doubleGaugeData.points.map { point -> point }
-    // })
-    //    assertThat(metricNameToPoints.keys)
-    //      .containsExactly(
-    //        LAST_TERMINAL_MEASUREMENT_TIME_GAUGE_METRIC_NAME,
-    //        LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME,
-    //      )
-    //    assertThat(
-    //        metricNameToPoints.getValue(LAST_TERMINAL_MEASUREMENT_TIME_GAUGE_METRIC_NAME)[0].value
-    //      )
-    //      .isEqualTo(measurements[0].updateTime.toInstant().toEpochMilli() /
-    // MILLISECONDS_PER_SECOND)
-    //
-    //    val requisitions = getRequisitionsForMeasurement(measurements[0].name)
-    //    assertThat(
-    //        metricNameToPoints.getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0].value
-    //      )
-    //      .isEqualTo(requisitions[0].updateTime.toInstant().toEpochMilli() /
-    // MILLISECONDS_PER_SECOND)
-    //    assertThat(
-    //        metricNameToPoints
-    //          .getValue(LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME)[0]
-    //          .attributes
-    //          .get(DATA_PROVIDER_ATTRIBUTE_KEY)
-    //      )
-    //      .isEqualTo(CanonicalRequisitionKey.fromName(requisitions[0].name)!!.dataProviderId)
   }
 
   private suspend fun listMeasurements(): List<Measurement> {
     var nextPageToken = ""
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+
     do {
       val response: ListMeasurementsResponse =
         try {
@@ -192,7 +136,6 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
             .listMeasurements(
               listMeasurementsRequest {
                 parent = measurementConsumerData.name
-                this.pageSize = 1
                 pageToken = nextPageToken
               }
             )
@@ -241,18 +184,9 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
         )!!
         .toFile()
     private val PRIVATE_KEY_DER_FILE = SECRETS_DIR.resolve("${MC_DISPLAY_NAME}_cs_private.der")
-    private val DURATION_BETWEEN_MEASUREMENT: Duration = Duration.ofMinutes(1)
+    private val DURATION_BETWEEN_MEASUREMENT: Duration = Duration.ofSeconds(10)
     private val MEASUREMENT_LOOKBACK_DURATION = Duration.ofDays(1)
     private val CLOCK = Clock.systemUTC()
-
-    private const val PROBER_NAMESPACE = "${Instrumentation.ROOT_NAMESPACE}.prober"
-    private const val LAST_TERMINAL_MEASUREMENT_TIME_GAUGE_METRIC_NAME =
-      "${PROBER_NAMESPACE}.last_terminal_measurement.timestamp"
-    private const val LAST_TERMINAL_REQUISITION_TIME_GAUGE_METRIC_NAME =
-      "${PROBER_NAMESPACE}.last_terminal_requisition.timestamp"
-    private val DATA_PROVIDER_ATTRIBUTE_KEY =
-      AttributeKey.stringKey("${Instrumentation.ROOT_NAMESPACE}.data_provider")
-    private const val MILLISECONDS_PER_SECOND = 1000.0
 
     @BeforeClass
     @JvmStatic
