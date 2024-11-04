@@ -37,6 +37,16 @@ def get_subset_relationships(edp_combinations: list[FrozenSet[str]]):
 
 
 def is_cover(target_set, possible_cover):
+  """Checks if a collection of sets covers a target set.
+
+  Args:
+    target_set: The set that should be covered.
+    possible_cover: A collection of sets that may cover the target set.
+
+  Returns:
+    True if the union of the sets in `possible_cover` equals `target_set`,
+    False otherwise.
+  """
   union_of_possible_cover = reduce(
       lambda x, y: x.union(y), possible_cover
   )
@@ -47,7 +57,30 @@ def is_cover(target_set, possible_cover):
 
 
 def get_covers(target_set, other_sets):
+  """Finds all combinations of sets from `other_sets` that cover `target_set`.
+
+  This function identifies all possible combinations of sets within `other_sets`
+  whose union equals the `target_set`. It only considers sets that are subsets of
+  the `target_set`.
+
+  Args:
+    target_set: The set that needs to be covered.
+    other_sets: A collection of sets that may be used to cover the `target_set`.
+
+  Returns:
+    A list of tuples, where each tuple represents a covering relationship.
+    The first element of the tuple is the `target_set`, and the second element
+    is a tuple containing the sets from `other_sets` that cover it.
+  """
   def generate_all_length_combinations(data):
+    """Generates all possible combinations of elements from a list.
+
+    Args:
+      data: The list of elements.
+
+    Returns:
+      A list of tuples, where each tuple represents a combination of elements.
+    """
     return [
         comb for r in range(1, len(data) + 1) for comb in
         combinations(data, r)
