@@ -565,7 +565,6 @@ class EdpSimulator(
     }
 
     for (requisition in requisitions) {
-      logger.info("$requisition")
       try {
         logger.info("Processing requisition ${requisition.name}...")
 
