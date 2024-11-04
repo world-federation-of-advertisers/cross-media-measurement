@@ -638,8 +638,9 @@ class OperationalMetricsExport(
                 )
 
                 logger.info("Computation Participant Stages Metrics written to BigQuery")
-              // Possible for there to be no stages because all measurements in response are direct.
-              } else if (computationsQueryResponseSize == 0){
+                // Possible for there to be no stages because all measurements in response are
+                // direct.
+              } else if (computationsQueryResponseSize == 0) {
                 logger.info("No more Computations to process")
                 break
               }

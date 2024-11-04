@@ -867,55 +867,57 @@ class OperationalMetricsExportTest {
     }
 
   @Test
-  fun `job skips direct measurements when attempting to export stages`() =
-    runBlocking {
-      whenever(measurementsMock.streamMeasurements(any()))
-        .thenReturn(flowOf(DIRECT_MEASUREMENT, COMPUTATION_MEASUREMENT))
-        .thenReturn(buildList {
-          for (i in 1..3000) {
-            add(DIRECT_MEASUREMENT)
+  fun `job skips direct measurements when attempting to export stages`() = runBlocking {
+    whenever(measurementsMock.streamMeasurements(any()))
+      .thenReturn(flowOf(DIRECT_MEASUREMENT, COMPUTATION_MEASUREMENT))
+      .thenReturn(
+        buildList {
+            for (i in 1..3000) {
+              add(DIRECT_MEASUREMENT)
+            }
           }
-        }.asFlow())
-        .thenReturn(flowOf(DIRECT_MEASUREMENT, COMPUTATION_MEASUREMENT))
+          .asFlow()
+      )
+      .thenReturn(flowOf(DIRECT_MEASUREMENT, COMPUTATION_MEASUREMENT))
 
-      val tableResultMock: TableResult = mock { tableResult ->
-        whenever(tableResult.iterateAll()).thenReturn(emptyList())
-      }
-
-      val bigQueryMock: BigQuery = mock { bigQuery ->
-        whenever(bigQuery.query(any())).thenReturn(tableResultMock)
-      }
-
-      val operationalMetricsExport =
-        OperationalMetricsExport(
-          measurementsClient = measurementsClient,
-          requisitionsClient = requisitionsClient,
-          bigQuery = bigQueryMock,
-          bigQueryWriteClient = bigQueryWriteClientMock,
-          projectId = PROJECT_ID,
-          datasetId = DATASET_ID,
-          latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
-          measurementsTableId = MEASUREMENTS_TABLE_ID,
-          latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
-          requisitionsTableId = REQUISITIONS_TABLE_ID,
-          latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
-          computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
-          streamWriterFactory = streamWriterFactoryTestImpl,
-        )
-
-      operationalMetricsExport.execute()
-
-      with(argumentCaptor<StreamMeasurementsRequest>()) {
-        verify(measurementsMock, times(3)).streamMeasurements(capture())
-      }
-
-      with(argumentCaptor<ProtoRows>()) {
-        verify(computationParticipantStagesStreamWriterMock).append(capture())
-
-        val protoRows: ProtoRows = allValues.first()
-        assertThat(protoRows.serializedRowsList).hasSize(4)
-      }
+    val tableResultMock: TableResult = mock { tableResult ->
+      whenever(tableResult.iterateAll()).thenReturn(emptyList())
     }
+
+    val bigQueryMock: BigQuery = mock { bigQuery ->
+      whenever(bigQuery.query(any())).thenReturn(tableResultMock)
+    }
+
+    val operationalMetricsExport =
+      OperationalMetricsExport(
+        measurementsClient = measurementsClient,
+        requisitionsClient = requisitionsClient,
+        bigQuery = bigQueryMock,
+        bigQueryWriteClient = bigQueryWriteClientMock,
+        projectId = PROJECT_ID,
+        datasetId = DATASET_ID,
+        latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
+        measurementsTableId = MEASUREMENTS_TABLE_ID,
+        latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
+        requisitionsTableId = REQUISITIONS_TABLE_ID,
+        latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
+        computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
+        streamWriterFactory = streamWriterFactoryTestImpl,
+      )
+
+    operationalMetricsExport.execute()
+
+    with(argumentCaptor<StreamMeasurementsRequest>()) {
+      verify(measurementsMock, times(3)).streamMeasurements(capture())
+    }
+
+    with(argumentCaptor<ProtoRows>()) {
+      verify(computationParticipantStagesStreamWriterMock).append(capture())
+
+      val protoRows: ProtoRows = allValues.first()
+      assertThat(protoRows.serializedRowsList).hasSize(4)
+    }
+  }
 
   @Test
   fun `job recreates streamwriter if it is closed`() = runBlocking {
