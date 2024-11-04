@@ -206,10 +206,10 @@ resource "google_bigquery_table" "computation_participant_stages" {
   dataset_id = google_bigquery_dataset.operational_metrics.dataset_id
   table_id   = "computation_participant_stages"
 
-  deletion_protection = true
+  deletion_protection = false
 
   time_partitioning {
-    field = "log_entry_create_time"
+    field = "stage_start_time"
     type  = "MONTH"
   }
 
@@ -345,7 +345,7 @@ resource "google_bigquery_table" "latest_computation_read" {
   dataset_id = google_bigquery_dataset.operational_metrics.dataset_id
   table_id   = "latest_computation_read"
 
-  deletion_protection = true
+  deletion_protection = false
 
   time_partitioning {
     expiration_ms = 3888000000 // 45 days
