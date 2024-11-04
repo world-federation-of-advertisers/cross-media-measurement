@@ -811,10 +811,18 @@ private fun ListMeasurementsRequest.toListMeasurementsPageToken(): ListMeasureme
 
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
       states += measurementStatesList
-      updatedBefore = source.filter.updatedBefore
-      updatedAfter = source.filter.updatedAfter
-      createdBefore = source.filter.createdBefore
-      createdAfter = source.filter.createdAfter
+      if (source.filter.hasUpdatedBefore()) {
+        updatedBefore = source.filter.updatedBefore
+      }
+      if (source.filter.hasUpdatedAfter()) {
+        updatedAfter = source.filter.updatedAfter
+      }
+      if (source.filter.hasCreatedBefore()) {
+        createdBefore = source.filter.createdBefore
+      }
+      if (source.filter.hasCreatedAfter()) {
+        createdAfter = source.filter.createdAfter
+      }
     }
   }
 }
@@ -829,10 +837,18 @@ private fun ListMeasurementsPageToken.toStreamMeasurementsRequest(): StreamMeasu
     filter = filter {
       externalMeasurementConsumerId = source.externalMeasurementConsumerId
       states += source.statesList.map { it.toInternalState() }.flatten()
-      createdAfter = source.createdAfter
-      createdBefore = source.createdBefore
-      updatedBefore = source.updatedBefore
-      updatedAfter = source.updatedAfter
+      if (source.hasUpdatedBefore()) {
+        updatedBefore = source.updatedBefore
+      }
+      if (source.hasUpdatedAfter()) {
+        updatedAfter = source.updatedAfter
+      }
+      if (source.hasCreatedBefore()) {
+        createdBefore = source.createdBefore
+      }
+      if (source.hasCreatedAfter()) {
+        createdAfter = source.createdAfter
+      }
       if (source.hasLastMeasurement()) {
         after =
           StreamMeasurementsRequestKt.FilterKt.after {
