@@ -63,6 +63,10 @@ jobs:
         test --test_timeout=3600
         EOF
 
+    # Reduce chance of disconnection from the Build Event Service.
+    - name: Set TCP keepalive
+      run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
+
     - name: Run tests
       id: run-tests
       run: >
