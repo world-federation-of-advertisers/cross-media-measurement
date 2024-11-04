@@ -84,11 +84,17 @@ class StreamMeasurements(
       }
     }
 
-    private fun Statement.Builder.appendWhereClause(      view: Measurement.View,
-                                                          filter: StreamMeasurementsRequest.Filter) {
+    private fun Statement.Builder.appendWhereClause(
+      view: Measurement.View,
+      filter: StreamMeasurementsRequest.Filter,
+    ) {
       val conjuncts = mutableListOf<String>()
 
-      if (filter.hasExternalComputationId || view == Measurement.View.COMPUTATION || view == Measurement.View.COMPUTATION_STATS) {
+      if (
+        filter.hasExternalComputationId ||
+          view == Measurement.View.COMPUTATION ||
+          view == Measurement.View.COMPUTATION_STATS
+      ) {
         conjuncts.add("ExternalComputationId IS NOT NULL")
       }
 
