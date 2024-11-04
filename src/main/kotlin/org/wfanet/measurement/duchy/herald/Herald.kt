@@ -277,7 +277,7 @@ class Herald(
       // TODO(@renjiezh): Catch StatusException at the RPC site instead, wrapping in a more
       // specific exception if it needs to be handled at a higher level.
       if (e.status.code == Status.Code.ALREADY_EXISTS) {
-        logger.warning("[id=$globalId]: Computation already exists. $e")
+        logger.log(Level.WARNING, e) { "[id=$globalId]: Computation already exists." }
       } else {
         throw e // rethrow all other exceptions.
       }
