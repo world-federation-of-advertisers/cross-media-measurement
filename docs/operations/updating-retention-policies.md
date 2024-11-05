@@ -23,10 +23,11 @@ kubectl get cronjobs
 You should see something like the following:
 
 ```
-NAME                                      SCHEDULE    SUSPEND ACTIVE LAST SCHEDULE AGE
-completed-measurements-deletion-cronjob   15 * * * *  False   0      52m           5h32m
-exchanges-deletion-cronjob                40 6 * * *  False   0      10h27m        5h32m
-pending-measurements-cancellation-cronjob 45 * * * *  False   0      22m           5h32m
+NAME                                      SCHEDULE     SUSPEND ACTIVE LAST SCHEDULE AGE
+completed-measurements-deletion-cronjob   15 * * * *   False   0      52m           5h32m
+exchanges-deletion-cronjob                40 6 * * *   False   0      10h27m        5h32m
+pending-measurements-cancellation-cronjob 45 * * * *   False   0      22m           5h32m
+measurement-system-prober-cronjob         */30 * * * * False   0      30m           5h32m
 ```
 
 The `schedule` specifies the frequency at which jobs are created for each
@@ -82,7 +83,7 @@ for each cronjob you wish to modify.
   `--days-to-live` or `--time-to-live` arg which control the time allowed to
   pass before a retention procedure should apply. The `days-to-live` arg is
   specified as an int and the `time-to-live` arg is specified as a
-  human-readable duration. See [Human-Readable Duration](#human-readable-duration) 
+  human-readable duration. See [Human-Readable Duration](#human-readable-duration)
   in the Appendix.
 
 If you wish to modify a cronjob's `schedule`, `dry-run`, or `time-to-live`
@@ -99,16 +100,18 @@ To modify cronjobs in a non-interactive manner, see
 [`kubectl patch`](https://kubernetes.io/docs/tasks/manage-kubernetes-objects/update-api-object-kubectl-patch/).
 
 ## Appendix
+
 ### Human-Readable Duration
 
-Human-readable format consists of a sequence elements each consisting of a 
-decimal number followed by a unit suffix. 
-The valid suffixes are: 
-* `d` - days 
-* `h` - hours 
-* `m` - minutes 
-* `s` - seconds 
-* `ms` - milliseconds 
-* `ns` - nanoseconds 
+Human-readable format consists of a sequence elements each consisting of a
+decimal number followed by a unit suffix.
+The valid suffixes are:
+
+* `d` - days
+* `h` - hours
+* `m` - minutes
+* `s` - seconds
+* `ms` - milliseconds
+* `ns` - nanoseconds
 
 For example, `3h50m` means 3 hours and 50 minutes.
