@@ -577,9 +577,9 @@ class OperationalMetricsExport(
                                 stageStartTime = logEntry.details.stageAttempt.stageStartTime
                                 completionDurationSeconds =
                                   Duration.between(
-                                    logEntry.details.stageAttempt.stageStartTime.toInstant(),
-                                    nextLogEntry.details.stageAttempt.stageStartTime.toInstant(),
-                                  )
+                                      logEntry.details.stageAttempt.stageStartTime.toInstant(),
+                                      nextLogEntry.details.stageAttempt.stageStartTime.toInstant(),
+                                    )
                                     .seconds
                                 completionDurationSecondsSquared =
                                   completionDurationSeconds * completionDurationSeconds
