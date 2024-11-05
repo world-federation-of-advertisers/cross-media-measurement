@@ -50,11 +50,7 @@ def is_cover(target_set, possible_cover):
   union_of_possible_cover = reduce(
       lambda x, y: x.union(y), possible_cover
   )
-  if union_of_possible_cover == target_set:
-    return True
-  else:
-    return False
-
+  return union_of_possible_cover == target_set
 
 def get_covers(target_set, other_sets):
   """Finds all combinations of sets from `other_sets` that cover `target_set`.
