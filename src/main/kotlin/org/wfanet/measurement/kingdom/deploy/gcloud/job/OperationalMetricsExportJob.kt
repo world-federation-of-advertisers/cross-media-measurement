@@ -164,7 +164,7 @@ class OperationalMetricsFlags {
 
   @CommandLine.Option(
     names = ["--latest-computation-read-table"],
-    description = ["Latest Computationn Read table ID"],
+    description = ["Latest Computation Read table ID"],
     required = true,
   )
   lateinit var latestComputationReadTable: String

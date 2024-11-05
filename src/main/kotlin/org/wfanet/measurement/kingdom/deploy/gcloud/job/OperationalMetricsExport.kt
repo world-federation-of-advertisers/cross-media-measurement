@@ -30,6 +30,7 @@ import com.google.protobuf.util.Timestamps
 import com.google.rpc.Code
 import io.grpc.StatusException
 import java.time.Duration
+import java.util.concurrent.ExecutionException
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.catch
 import org.jetbrains.annotations.Blocking
@@ -113,9 +114,9 @@ class OperationalMetricsExport(
         StreamMeasurementsRequestKt.filter {
           states += Measurement.State.SUCCEEDED
           states += Measurement.State.FAILED
-          if (latestMeasurementReadFromPreviousJob != null) {
-            after =
-              StreamMeasurementsRequestKt.FilterKt.after {
+          after =
+            StreamMeasurementsRequestKt.FilterKt.after {
+              if (latestMeasurementReadFromPreviousJob != null) {
                 updateTime =
                   Timestamps.fromNanos(
                     latestMeasurementReadFromPreviousJob.get("update_time").longValue
@@ -129,7 +130,7 @@ class OperationalMetricsExport(
                     latestMeasurementReadFromPreviousJob.get("external_measurement_id").longValue
                 }
               }
-          }
+            }
         }
     }
 
@@ -471,9 +472,9 @@ class OperationalMetricsExport(
         StreamMeasurementsRequestKt.filter {
           states += Measurement.State.SUCCEEDED
           states += Measurement.State.FAILED
-          if (latestComputationReadFromPreviousJob != null) {
-            after =
-              StreamMeasurementsRequestKt.FilterKt.after {
+          after =
+            StreamMeasurementsRequestKt.FilterKt.after {
+              if (latestComputationReadFromPreviousJob != null) {
                 updateTime =
                   Timestamps.fromNanos(
                     latestComputationReadFromPreviousJob.get("update_time").longValue
@@ -483,7 +484,7 @@ class OperationalMetricsExport(
                     latestComputationReadFromPreviousJob.get("external_computation_id").longValue
                 }
               }
-          }
+            }
         }
     }
 
@@ -566,27 +567,33 @@ class OperationalMetricsExport(
                       }
 
                       sortedStageLogEntries.zipWithNext { logEntry, nextLogEntry ->
-                        computationParticipantStagesProtoRowsBuilder.addSerializedRows(
-                          baseComputationParticipantStagesTableRow
-                            .copy {
-                              duchyId = computationParticipant.externalDuchyId
-                              result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
-                              stageName = logEntry.details.stageAttempt.stageName
-                              stageStartTime = logEntry.details.stageAttempt.stageStartTime
-                              completionDurationSeconds =
-                                Duration.between(
+                        if (logEntry.details.stageAttempt.stageName.isNotBlank()) {
+                          computationParticipantStagesProtoRowsBuilder.addSerializedRows(
+                            baseComputationParticipantStagesTableRow
+                              .copy {
+                                duchyId = computationParticipant.externalDuchyId
+                                result = ComputationParticipantStagesTableRow.Result.SUCCEEDED
+                                stageName = logEntry.details.stageAttempt.stageName
+                                stageStartTime = logEntry.details.stageAttempt.stageStartTime
+                                completionDurationSeconds =
+                                  Duration.between(
                                     logEntry.details.stageAttempt.stageStartTime.toInstant(),
                                     nextLogEntry.details.stageAttempt.stageStartTime.toInstant(),
                                   )
-                                  .seconds
-                              completionDurationSecondsSquared =
-                                completionDurationSeconds * completionDurationSeconds
-                            }
-                            .toByteString()
-                        )
+                                    .seconds
+                                completionDurationSecondsSquared =
+                                  completionDurationSeconds * completionDurationSeconds
+                              }
+                              .toByteString()
+                          )
+                        }
                       }
 
                       val logEntry = sortedStageLogEntries.last()
+                      if (logEntry.details.stageAttempt.stageName.isBlank()) {
+                        continue
+                      }
+
                       if (measurement.state == Measurement.State.SUCCEEDED) {
                         computationParticipantStagesProtoRowsBuilder.addSerializedRows(
                           baseComputationParticipantStagesTableRow
@@ -756,8 +763,17 @@ class OperationalMetricsExport(
             break
           }
         } catch (e: AppendSerializationError) {
+          logger.warning("Logging serialization errors")
           for (value in e.rowIndexToErrorMessage.values) {
             logger.warning(value)
+          }
+          throw e
+        } catch (e: ExecutionException) {
+          if (e.cause is AppendSerializationError) {
+            logger.warning("Logging serialization errors")
+            for (value in (e.cause as AppendSerializationError).rowIndexToErrorMessage.values) {
+              logger.warning(value)
+            }
           }
           throw e
         }

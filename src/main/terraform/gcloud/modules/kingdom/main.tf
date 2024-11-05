@@ -362,7 +362,8 @@ resource "google_bigquery_table" "latest_computation_read" {
   {
     "name": "external_computation_id",
     "type": "INTEGER",
-    "mode": "REQUIRED"
+    "mode": "REQUIRED",
+    "defaultValueExpression": "0"
   }
 ]
 EOF
