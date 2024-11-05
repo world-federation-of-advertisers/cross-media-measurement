@@ -31,10 +31,16 @@ object Covariances {
     val overlapReach =
       reachMeasurementCovarianceParams.reach + reachMeasurementCovarianceParams.otherReach -
         reachMeasurementCovarianceParams.unionReach
+
     val overlapSamplingWidth =
       reachMeasurementCovarianceParams.samplingWidth +
         reachMeasurementCovarianceParams.otherSamplingWidth -
         reachMeasurementCovarianceParams.unionSamplingWidth
+    require(overlapSamplingWidth >= 0.0 && overlapSamplingWidth <= 1.0) {
+      "Overlap sampling width must be greater than or equal to 0 and less than or equal to 1, but" +
+        " got $overlapSamplingWidth."
+    }
+
     return overlapReach *
       (overlapSamplingWidth /
         reachMeasurementCovarianceParams.samplingWidth /
@@ -52,6 +58,7 @@ object Covariances {
     sketchParams: LiquidLegionsSketchParams,
     reachMeasurementCovarianceParams: ReachMeasurementCovarianceParams,
   ): Double {
+    verifyLiquidLegionsSketchParams(sketchParams)
     return LiquidLegions.inflatedReachCovariance(
       sketchParams = sketchParams,
       reach = reachMeasurementCovarianceParams.reach,
@@ -86,6 +93,10 @@ object Covariances {
         otherWeightedMeasurementVarianceParams.measurementVarianceParams.measurementParams
           .vidSamplingInterval,
       )
+    require(unionSamplingWidth >= 0.0 && unionSamplingWidth <= 1.0) {
+      "The union sampling width must be greater than or equal to 0 and less than or equal to 1, " +
+        "but got $unionSamplingWidth."
+    }
 
     val liquidLegionsSketchParams =
       when (val methodology = weightedMeasurementVarianceParams.methodology) {
@@ -94,7 +105,8 @@ object Covariances {
           // Custom direct methodology must guarantee independence.
           return 0.0
         }
-        is DeterministicMethodology -> {
+        is DeterministicMethodology,
+        is HonestMajorityShareShuffleMethodology -> {
           return computeDeterministicCovariance(
             ReachMeasurementCovarianceParams(
               reach = weightedMeasurementVarianceParams.measurementVarianceParams.reach,
@@ -118,9 +130,6 @@ object Covariances {
         is LiquidLegionsV2Methodology -> {
           LiquidLegionsSketchParams(methodology.decayRate, methodology.sketchSize)
         }
-        is HonestMajorityShareShuffleMethodology -> {
-          throw IllegalArgumentException("Unsupported methodology.")
-        }
       }
 
     when (val otherMethodology = otherWeightedMeasurementVarianceParams.methodology) {
@@ -129,7 +138,8 @@ object Covariances {
         // Custom direct methodology must guarantee independence.
         return 0.0
       }
-      is DeterministicMethodology -> {
+      is DeterministicMethodology,
+      is HonestMajorityShareShuffleMethodology -> {
         return computeDeterministicCovariance(
           ReachMeasurementCovarianceParams(
             reach = weightedMeasurementVarianceParams.measurementVarianceParams.reach,
@@ -168,11 +178,6 @@ object Covariances {
               "measurements using the same decay rate and sketch size."
           )
         }
-      }
-      is HonestMajorityShareShuffleMethodology -> {
-        // TODO(@renjiez): When implement HMSS covariances, add test case for wrapping interval.
-        // sampling interval.
-        throw IllegalArgumentException("Unsupported methodology.")
       }
     }
     return computeLiquidLegionsCovariance(

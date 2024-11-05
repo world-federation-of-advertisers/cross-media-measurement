@@ -38,22 +38,23 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase as AccountsCoroutineService
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase as CertificatesCoroutineService
-import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase as ComputationParticipantsCoroutineService
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as DataProvidersCoroutineService
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.computedRequisitionParams
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
+import org.wfanet.measurement.internal.kingdom.LiquidLegionsV2Params
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as MeasurementConsumersCoroutineService
+import org.wfanet.measurement.internal.kingdom.MeasurementFailure
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as MeasurementsCoroutineService
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.RequisitionKt
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
-import org.wfanet.measurement.internal.kingdom.RequisitionKt.refusal
+import org.wfanet.measurement.internal.kingdom.RequisitionRefusal
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase as RequisitionsCoroutineService
+import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.FilterKt.after
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
@@ -62,6 +63,8 @@ import org.wfanet.measurement.internal.kingdom.getRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.requisition
+import org.wfanet.measurement.internal.kingdom.requisitionDetails
+import org.wfanet.measurement.internal.kingdom.requisitionRefusal
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
@@ -73,8 +76,8 @@ private const val NONCE_1 = 3127743798281582205L
 private const val NONCE_2 = -7004399847946251733L
 private val REQUISITION_ENCRYPTED_DATA = "foo".toByteStringUtf8()
 
-private val REFUSAL = refusal {
-  justification = Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET
+private val REFUSAL = requisitionRefusal {
+  justification = RequisitionRefusal.Justification.INSUFFICIENT_PRIVACY_BUDGET
   message = "MC wrote check that EDP couldn't cash"
 }
 
@@ -223,7 +226,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             externalComputationId = measurement.externalComputationId
             externalDuchyId = duchyCertificate.externalDuchyId
             externalDuchyCertificateId = duchyCertificate.externalCertificateId
-            liquidLegionsV2 = ComputationParticipant.LiquidLegionsV2Details.getDefaultInstance()
+            liquidLegionsV2 = LiquidLegionsV2Params.getDefaultInstance()
           }
         )
       }
@@ -486,14 +489,10 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         .streamRequisitions(
           streamRequisitionsRequest {
             filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
-            limit = 1
+            limit = 2
           }
         )
         .toList()
-
-    assertThat(requisitions)
-      .comparingExpectedFieldsOnly()
-      .containsExactly(requisition { externalDataProviderId = dataProvider.externalDataProviderId })
 
     val requisitions2: List<Requisition> =
       service
@@ -501,19 +500,18 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           streamRequisitionsRequest {
             filter = filter {
               externalDataProviderId = dataProvider.externalDataProviderId
-              externalRequisitionIdAfter = requisitions[0].externalRequisitionId
-              externalDataProviderIdAfter = requisitions[0].externalDataProviderId
+              after = after {
+                updateTime = requisitions[0].updateTime
+                externalDataProviderId = requisitions[0].externalDataProviderId
+                externalRequisitionId = requisitions[0].externalRequisitionId
+              }
             }
             limit = 1
           }
         )
         .toList()
 
-    assertThat(requisitions2)
-      .comparingExpectedFieldsOnly()
-      .containsExactly(requisition { externalDataProviderId = dataProvider.externalDataProviderId })
-    assertThat(requisitions2[0].externalRequisitionId)
-      .isGreaterThan(requisitions[0].externalRequisitionId)
+    assertThat(requisitions2).containsExactly(requisitions[1])
   }
 
   @Test
@@ -563,18 +561,17 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       this.externalRequisitionId = externalRequisitionId
       externalComputationId = measurement.externalComputationId
       state = Requisition.State.PENDING_PARAMS
-      details =
-        RequisitionKt.details {
-          dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
-          encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
-          nonceHash = dataProviderValue.nonceHash
+      details = requisitionDetails {
+        dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
+        encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
+        nonceHash = dataProviderValue.nonceHash
 
-          // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
-          // fields.
-          dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
-          dataProviderPublicKeySignatureAlgorithmOid =
-            dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
-        }
+        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
+        // fields.
+        dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
+        dataProviderPublicKeySignatureAlgorithmOid =
+          dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
+      }
       dataProviderCertificate = dataProvider.certificate
       parentMeasurement = parentMeasurement {
         apiVersion = measurement.details.apiVersion
@@ -589,6 +586,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
         }
         dataProvidersCount = 1
+        createTime = measurement.createTime
       }
     }
     assertThat(requisition)
@@ -647,18 +645,17 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       externalDataProviderId = dataProvider.externalDataProviderId
       this.externalRequisitionId = listedRequisition.externalRequisitionId
       state = Requisition.State.UNFULFILLED
-      details =
-        RequisitionKt.details {
-          dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
-          encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
-          nonceHash = dataProviderValue.nonceHash
+      details = requisitionDetails {
+        dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
+        encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
+        nonceHash = dataProviderValue.nonceHash
 
-          // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
-          // fields.
-          dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
-          dataProviderPublicKeySignatureAlgorithmOid =
-            dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
-        }
+        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
+        // fields.
+        dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
+        dataProviderPublicKeySignatureAlgorithmOid =
+          dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
+      }
       dataProviderCertificate = dataProvider.certificate
       parentMeasurement = parentMeasurement {
         apiVersion = measurement.details.apiVersion
@@ -671,6 +668,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         state = Measurement.State.PENDING_REQUISITION_FULFILLMENT
         protocolConfig = protocolConfig { direct = ProtocolConfig.Direct.getDefaultInstance() }
         dataProvidersCount = 1
+        createTime = measurement.createTime
       }
     }
     assertThat(requisition)
@@ -698,7 +696,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           externalComputationId = measurement.externalComputationId
           externalDuchyId = duchyCertificate.externalDuchyId
           externalDuchyCertificateId = duchyCertificate.externalCertificateId
-          liquidLegionsV2 = ComputationParticipant.LiquidLegionsV2Details.getDefaultInstance()
+          liquidLegionsV2 = LiquidLegionsV2Params.getDefaultInstance()
         }
       )
     }
@@ -761,7 +759,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           externalComputationId = measurement.externalComputationId
           externalDuchyId = duchyCertificate.externalDuchyId
           externalDuchyCertificateId = duchyCertificate.externalCertificateId
-          liquidLegionsV2 = ComputationParticipant.LiquidLegionsV2Details.getDefaultInstance()
+          liquidLegionsV2 = LiquidLegionsV2Params.getDefaultInstance()
         }
       )
     }
@@ -949,7 +947,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           externalComputationId = measurement.externalComputationId
           externalDuchyId = duchyCertificate.externalDuchyId
           externalDuchyCertificateId = duchyCertificate.externalCertificateId
-          liquidLegionsV2 = ComputationParticipant.LiquidLegionsV2Details.getDefaultInstance()
+          liquidLegionsV2 = LiquidLegionsV2Params.getDefaultInstance()
         }
       )
     }
@@ -1232,11 +1230,11 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           externalComputationId = measurement.externalComputationId
           externalDuchyId = duchyCertificate.externalDuchyId
           externalDuchyCertificateId = duchyCertificate.externalCertificateId
-          liquidLegionsV2 = ComputationParticipant.LiquidLegionsV2Details.getDefaultInstance()
+          liquidLegionsV2 = LiquidLegionsV2Params.getDefaultInstance()
         }
       )
     }
-    val requisition =
+    val requisitions =
       service
         .streamRequisitions(
           streamRequisitionsRequest {
@@ -1246,9 +1244,10 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             }
           }
         )
-        .first()
+        .toList()
+    val requisition: Requisition = requisitions.first()
 
-    val response =
+    val response: Requisition =
       service.refuseRequisition(
         refuseRequisitionRequest {
           externalDataProviderId = requisition.externalDataProviderId
@@ -1270,6 +1269,18 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           }
         )
       )
+    val otherRequisition: Requisition = requisitions[1]
+    assertThat(
+        service
+          .getRequisition(
+            getRequisitionRequest {
+              externalDataProviderId = otherRequisition.externalDataProviderId
+              externalRequisitionId = otherRequisition.externalRequisitionId
+            }
+          )
+          .state
+      )
+      .isEqualTo(Requisition.State.WITHDRAWN)
     val updatedMeasurement =
       dataServices.measurementsService.getMeasurement(
         getMeasurementRequest {
@@ -1279,7 +1290,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       )
     assertThat(updatedMeasurement.state).isEqualTo(Measurement.State.FAILED)
     assertThat(updatedMeasurement.details.failure.reason)
-      .isEqualTo(Measurement.Failure.Reason.REQUISITION_REFUSED)
+      .isEqualTo(MeasurementFailure.Reason.REQUISITION_REFUSED)
   }
 
   @Test
@@ -1370,7 +1381,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             externalComputationId = measurement.externalComputationId
             externalDuchyId = duchyCertificate.externalDuchyId
             externalDuchyCertificateId = duchyCertificate.externalCertificateId
-            liquidLegionsV2 = ComputationParticipant.LiquidLegionsV2Details.getDefaultInstance()
+            liquidLegionsV2 = LiquidLegionsV2Params.getDefaultInstance()
           }
         )
       }
@@ -1391,7 +1402,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             refuseRequisitionRequest {
               externalDataProviderId = requisition.externalDataProviderId
               externalRequisitionId = requisition.externalRequisitionId
-              refusal = refusal { message = "Refusal without justification" }
+              refusal = requisitionRefusal { message = "Refusal without justification" }
             }
           )
         }

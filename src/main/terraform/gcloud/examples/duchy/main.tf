@@ -31,10 +31,9 @@ module "common" {
 }
 
 resource "google_spanner_instance" "spanner_instance" {
-  name             = var.spanner_instance_name
-  config           = var.spanner_instance_config
-  display_name     = "Halo CMMS"
-  processing_units = 100
+  name         = var.spanner_instance_name
+  config       = var.spanner_instance_config
+  display_name = "Halo CMMS"
 }
 
 module "storage" {
@@ -51,7 +50,7 @@ module "cluster" {
   location            = local.cluster_location
   release_channel     = var.cluster_release_channel
   secret_key          = module.common.cluster_secret_key
-  autoscaling_profile = "OPTIMIZE_UTILIZATION"
+  autoscaling_profile = "BALANCED"
 }
 
 module "default_node_pool" {

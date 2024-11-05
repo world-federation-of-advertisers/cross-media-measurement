@@ -77,6 +77,7 @@ jobs:
       env:
         KEY_RING: ${{ vars.KEY_RING }}
         SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
+        SPANNER_PROCESSING_UNITS: ${{ vars.SPANNER_PROCESSING_UNITS }}
         STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
         POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
         POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
@@ -86,6 +87,7 @@ jobs:
         -input=false
         -var="key_ring_name=$KEY_RING"
         -var="spanner_instance_name=$SPANNER_INSTANCE"
+        -var="spanner_processing_units=$SPANNER_PROCESSING_UNITS"
         -var="storage_bucket_name=$STORAGE_BUCKET"
         -var="postgres_instance_name=$POSTGRES_INSTANCE"
         -var="postgres_password=$POSTGRES_PASSWORD"

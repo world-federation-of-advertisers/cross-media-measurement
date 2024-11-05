@@ -67,7 +67,7 @@ import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest as InternalCreateMeasurementRequest
-import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
+import org.wfanet.measurement.internal.kingdom.DataProviderCapabilities as InternalDataProviderCapabilities
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
@@ -162,7 +162,7 @@ class MeasurementsService(
           }
         ApiId(key.dataProviderId).externalId
       }
-    val dataProviderCapabilities: List<InternalDataProvider.Capabilities> =
+    val dataProviderCapabilities: List<InternalDataProviderCapabilities> =
       try {
           internalDataProvidersStub.batchGetDataProviders(
             batchGetDataProvidersRequest {
@@ -317,7 +317,7 @@ class MeasurementsService(
             }
           ApiId(key.dataProviderId).externalId
         }
-    val allDataProviderCapabilities: Map<ExternalId, InternalDataProvider.Capabilities> =
+    val allDataProviderCapabilities: Map<ExternalId, InternalDataProviderCapabilities> =
       try {
           internalDataProvidersStub.batchGetDataProviders(
             batchGetDataProvidersRequest {
@@ -471,7 +471,7 @@ class MeasurementsService(
 
   private fun buildInternalProtocolConfig(
     measurementSpec: MeasurementSpec,
-    dataProviderCapabilities: Collection<InternalDataProvider.Capabilities>,
+    dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
     measurementConsumerName: String,
   ): InternalProtocolConfig {
     val dataProvidersCount = dataProviderCapabilities.size
@@ -498,17 +498,17 @@ class MeasurementsService(
               dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
           ) {
             protocolConfig {
-              externalProtocolConfigId = HmssProtocolConfig.name
+              externalProtocolConfigId = HmssProtocolConfig.NAME
               honestMajorityShareShuffle = HmssProtocolConfig.protocolConfig
             }
           } else if (reachOnlyLlV2Enabled) {
             protocolConfig {
-              externalProtocolConfigId = RoLlv2ProtocolConfig.name
+              externalProtocolConfigId = RoLlv2ProtocolConfig.NAME
               reachOnlyLiquidLegionsV2 = RoLlv2ProtocolConfig.protocolConfig
             }
           } else {
             protocolConfig {
-              externalProtocolConfigId = Llv2ProtocolConfig.name
+              externalProtocolConfigId = Llv2ProtocolConfig.NAME
               liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
             }
           }
@@ -538,12 +538,12 @@ class MeasurementsService(
               dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
           ) {
             protocolConfig {
-              externalProtocolConfigId = HmssProtocolConfig.name
+              externalProtocolConfigId = HmssProtocolConfig.NAME
               honestMajorityShareShuffle = HmssProtocolConfig.protocolConfig
             }
           } else {
             protocolConfig {
-              externalProtocolConfigId = Llv2ProtocolConfig.name
+              externalProtocolConfigId = Llv2ProtocolConfig.NAME
               liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
             }
           }
@@ -588,7 +588,7 @@ class MeasurementsService(
   }
 
   private fun CreateMeasurementRequest.buildInternalCreateMeasurementRequest(
-    dataProviderCapabilities: Collection<InternalDataProvider.Capabilities>,
+    dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
     parentKey: MeasurementConsumerKey,
   ): InternalCreateMeasurementRequest {
     val measurementConsumerCertificateKey =
@@ -789,6 +789,22 @@ private fun ListMeasurementsRequest.toListMeasurementsPageToken(): ListMeasureme
         "Arguments must be kept the same when using a page token"
       }
 
+      grpcRequire(source.filter.createdAfter == this.createdAfter) {
+        "Arguments must be kept the same when using a page token"
+      }
+
+      grpcRequire(source.filter.createdBefore == this.createdBefore) {
+        "Arguments must be kept the same when using a page token"
+      }
+
+      grpcRequire(source.filter.updatedBefore == this.updatedBefore) {
+        "Arguments must be kept the same when using a page token"
+      }
+
+      grpcRequire(source.filter.updatedAfter == this.updatedAfter) {
+        "Arguments must be kept the same when using a page token"
+      }
+
       if (source.pageSize in 1..MAX_PAGE_SIZE) {
         pageSize = source.pageSize
       }
@@ -804,6 +820,18 @@ private fun ListMeasurementsRequest.toListMeasurementsPageToken(): ListMeasureme
 
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
       states += measurementStatesList
+      if (source.filter.hasUpdatedBefore()) {
+        updatedBefore = source.filter.updatedBefore
+      }
+      if (source.filter.hasUpdatedAfter()) {
+        updatedAfter = source.filter.updatedAfter
+      }
+      if (source.filter.hasCreatedBefore()) {
+        createdBefore = source.filter.createdBefore
+      }
+      if (source.filter.hasCreatedAfter()) {
+        createdAfter = source.filter.createdAfter
+      }
     }
   }
 }
@@ -818,6 +846,18 @@ private fun ListMeasurementsPageToken.toStreamMeasurementsRequest(): StreamMeasu
     filter = filter {
       externalMeasurementConsumerId = source.externalMeasurementConsumerId
       states += source.statesList.map { it.toInternalState() }.flatten()
+      if (source.hasUpdatedBefore()) {
+        updatedBefore = source.updatedBefore
+      }
+      if (source.hasUpdatedAfter()) {
+        updatedAfter = source.updatedAfter
+      }
+      if (source.hasCreatedBefore()) {
+        createdBefore = source.createdBefore
+      }
+      if (source.hasCreatedAfter()) {
+        createdAfter = source.createdAfter
+      }
       if (source.hasLastMeasurement()) {
         after =
           StreamMeasurementsRequestKt.FilterKt.after {

@@ -15,7 +15,6 @@
 package org.wfanet.measurement.duchy.mill.liquidlegionsv2
 
 import com.google.protobuf.ByteString
-import io.opentelemetry.api.OpenTelemetry
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
@@ -83,7 +82,6 @@ abstract class LiquidLegionsV2Mill(
   computationType: ComputationType,
   private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   workLockDuration: Duration,
-  openTelemetry: OpenTelemetry,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
   clock: Clock = Clock.systemUTC(),
@@ -103,13 +101,7 @@ abstract class LiquidLegionsV2Mill(
     requestChunkSizeBytes,
     maximumAttempts,
     clock,
-    openTelemetry,
   ) {
-
-  suspend fun processClaimedWork(globalComputationId: String) {
-    val token: ComputationToken = getLatestComputationToken(globalComputationId)
-    processComputation(token)
-  }
 
   /**
    * Verifies that all EDPs have participated.
@@ -212,15 +204,9 @@ abstract class LiquidLegionsV2Mill(
     throw ComputationDataClients.PermanentErrorException(errorMessage)
   }
 
-  protected fun nextDuchyStub(
-    duchyList: List<InternalComputationParticipant>
-  ): ComputationControlCoroutineStub {
+  protected fun nextDuchyId(duchyList: List<InternalComputationParticipant>): String {
     val index = duchyList.indexOfFirst { it.duchyId == duchyId }
-    val nextDuchy = duchyList[(index + 1) % duchyList.size].duchyId
-    return workerStubs[nextDuchy]
-      ?: throw ComputationDataClients.PermanentErrorException(
-        "No ComputationControlService stub for next duchy '$nextDuchy'"
-      )
+    return duchyList[(index + 1) % duchyList.size].duchyId
   }
 
   protected fun aggregatorDuchyStub(aggregatorId: String): ComputationControlCoroutineStub {

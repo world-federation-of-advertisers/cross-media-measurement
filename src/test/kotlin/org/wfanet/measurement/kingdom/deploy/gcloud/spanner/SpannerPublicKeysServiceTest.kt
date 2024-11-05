@@ -14,18 +14,22 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.kingdom.service.internal.testing.PublicKeysServiceTest
 
 @RunWith(JUnit4::class)
 class SpannerPublicKeysServiceTest : PublicKeysServiceTest<SpannerPublicKeysService>() {
 
-  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.KINGDOM_CHANGELOG_PATH)
+  @get:Rule
+  val spannerDatabase =
+    SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.KINGDOM_CHANGELOG_PATH)
 
   override fun newServices(idGenerator: IdGenerator): Services<SpannerPublicKeysService> {
     val spannerServices =
@@ -38,5 +42,9 @@ class SpannerPublicKeysServiceTest : PublicKeysServiceTest<SpannerPublicKeysServ
       spannerServices.certificatesService,
       spannerServices.accountsService,
     )
+  }
+
+  companion object {
+    @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
   }
 }

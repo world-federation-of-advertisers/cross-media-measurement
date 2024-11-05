@@ -36,4 +36,19 @@ interface VidIndexMap {
    * The order of iteration is undefined.
    */
   operator fun iterator(): Iterator<VidIndexMapEntry>
+
+  companion object {
+    val EMPTY: VidIndexMap =
+      object : VidIndexMap {
+        override fun get(vid: Long): Int = throw VidNotFoundException(vid)
+
+        override val size: Long = 0L
+
+        override val populationSpec: PopulationSpec
+          get() = PopulationSpec.getDefaultInstance()
+
+        override fun iterator(): Iterator<VidIndexMapEntry> =
+          emptyList<VidIndexMapEntry>().iterator()
+      }
+  }
 }

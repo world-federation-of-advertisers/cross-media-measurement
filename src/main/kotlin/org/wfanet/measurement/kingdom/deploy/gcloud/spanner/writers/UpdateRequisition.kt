@@ -14,17 +14,22 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
+import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
 
 internal fun SpannerWriter.TransactionScope.updateRequisition(
   readResult: RequisitionReader.Result,
   state: Requisition.State,
-  details: Requisition.Details,
+  details: RequisitionDetails,
   fulfillingDuchyId: InternalId? = null,
 ) {
   transactionContext.bufferUpdateMutation("Requisitions") {
@@ -32,10 +37,48 @@ internal fun SpannerWriter.TransactionScope.updateRequisition(
     set("MeasurementConsumerId" to readResult.measurementConsumerId.value)
     set("RequisitionId" to readResult.requisitionId.value)
     set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-    set("State" to state)
-    set("RequisitionDetails" to details)
+    set("State").toInt64(state)
+    set("RequisitionDetails").to(details)
     if (fulfillingDuchyId != null) {
-      set("FulfillingDuchyId" to fulfillingDuchyId.value)
+      set("FulfillingDuchyId" to fulfillingDuchyId)
     }
   }
+}
+
+internal suspend fun SpannerWriter.TransactionScope.withdrawRequisitions(
+  measurementConsumerId: InternalId,
+  measurementId: InternalId,
+  excludedRequisitionId: InternalId? = null,
+) {
+  val keyPrefix = Key.of(measurementConsumerId.value, measurementId.value)
+  transactionContext
+    .read("Requisitions", KeySet.prefixRange(keyPrefix), listOf("RequisitionId", "State"))
+    .collect { row ->
+      val requisitionId = row.getInternalId("RequisitionId")
+      if (requisitionId == excludedRequisitionId) {
+        return@collect
+      }
+
+      val requisitionState: Requisition.State =
+        row.getProtoEnum("State") {
+          Requisition.State.forNumber(it) ?: Requisition.State.UNRECOGNIZED
+        }
+      when (requisitionState) {
+        Requisition.State.PENDING_PARAMS,
+        Requisition.State.UNFULFILLED -> {}
+        Requisition.State.FULFILLED,
+        Requisition.State.REFUSED,
+        Requisition.State.WITHDRAWN,
+        Requisition.State.STATE_UNSPECIFIED,
+        Requisition.State.UNRECOGNIZED -> return@collect
+      }
+
+      transactionContext.bufferUpdateMutation("Requisitions") {
+        set("MeasurementConsumerId" to measurementConsumerId)
+        set("MeasurementId" to measurementId)
+        set("RequisitionId" to requisitionId)
+        set("State").toInt64(Requisition.State.WITHDRAWN)
+        set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+      }
+    }
 }

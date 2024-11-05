@@ -18,6 +18,7 @@ import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountNotFoundException
@@ -69,7 +70,7 @@ class CreateAccount(
 
         set("AccountId" to internalAccountId)
         set("ExternalAccountId" to externalAccountId)
-        set("ActivationState" to Account.ActivationState.UNACTIVATED)
+        set("ActivationState").toInt64(Account.ActivationState.UNACTIVATED)
         set("ActivationToken" to activationToken)
         set("CreateTime" to Value.COMMIT_TIMESTAMP)
         set("UpdateTime" to Value.COMMIT_TIMESTAMP)

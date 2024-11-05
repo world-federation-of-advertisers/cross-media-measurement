@@ -5,6 +5,10 @@ spanner_emulator_test(
     size = "small",
     srcs = ["MiniWorkflowTest.kt"],
     resources = ["//src/test/kotlin/org/wfanet/panelmatch/integration/config"],
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
     test_class = "org.wfanet.panelmatch.integration.MiniWorkflowTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/integration",
@@ -24,6 +28,10 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/panelmatch/integration/fixtures/shared",
     ],
     resources = ["//src/test/kotlin/org/wfanet/panelmatch/integration/config"],
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
     test_class = "org.wfanet.panelmatch.integration.SingleStepTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/integration",
@@ -38,6 +46,10 @@ spanner_emulator_test(
     size = "small",
     srcs = ["DoubleBlindWorkflowTest.kt"],
     resources = ["//src/test/kotlin/org/wfanet/panelmatch/integration/config"],
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
     test_class = "org.wfanet.panelmatch.integration.DoubleBlindWorkflowTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/integration",
@@ -53,6 +65,10 @@ spanner_emulator_test(
     size = "medium",
     srcs = ["FullWorkflowTest.kt"],
     resources = ["//src/test/kotlin/org/wfanet/panelmatch/integration/config"],
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
     test_class = "org.wfanet.panelmatch.integration.FullWorkflowTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/common",
@@ -74,6 +90,10 @@ spanner_emulator_test(
     size = "medium",
     srcs = ["FullWithPreprocessingTest.kt"],
     resources = ["//src/test/kotlin/org/wfanet/panelmatch/integration/config"],
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
     test_class = "org.wfanet.panelmatch.integration.FullWithPreprocessingTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/common",

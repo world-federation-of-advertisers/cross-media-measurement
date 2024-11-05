@@ -77,6 +77,8 @@ AWS_SETTINGS = struct(
     s3_region = "$(s3_region)",
     amp_ingest_endpoint = "$(amp_ingest_endpoint)",
     amp_region = "$(amp_region)",
+    kms_key_arn = "$(kms_key_arn)",
+    private_ca_arn = "$(private_ca_arn)",
 )
 
 # Settings for Kingdom Kubernetes deployments.
@@ -125,8 +127,6 @@ SIMULATOR_K8S_SETTINGS = struct(
     edp5_cert_name = "$(edp5_cert_name)",
     edp6_name = "$(edp6_name)",
     edp6_cert_name = "$(edp6_cert_name)",
-    bigquery_dataset = "$(bigquery_dataset)",
-    bigquery_table = "$(bigquery_table)",
 )
 
 # Settings for Grafana Kubernetes deployments.
@@ -134,10 +134,36 @@ GRAFANA_K8S_SETTINGS = struct(
     secret_name = "$(k8s_grafana_secret_name)",
 )
 
+PANEL_EXCHANGE_SETTINGS = struct(
+    party_type = "$(party_type)",
+    party_id = "$(party_id)",
+    recurring_exchange_ids = "$(recurring_exchange_ids)",
+    cluster_service_account_name = "$(cluster_service_account_name)",
+    private_storage_bucket = "$(private_storage_bucket)",
+    dataflow_region = "$(dataflow_region)",
+    dataflow_temp_storage_bucket = "$(dataflow_temp_storage_bucket)",
+    kms_region = "$(kms_region)",
+    kms_key_ring = "$(kms_key_ring)",
+    kms_key = "$(kms_key)",
+    private_ca_region = "$(private_ca_region)",
+    private_ca_name = "$(private_ca_name)",
+    private_ca_pool_id = "$(private_ca_pool_id)",
+    cert_common_name = "$(cert_common_name)",
+    cert_organization = "$(cert_organization)",
+    cert_dns_name = "$(cert_dns_name)",
+)
+
 # Config for Panel Exchange Client Example Daemon.
 EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG = struct(
     edp_name = "$(edp_name)",
     mp_name = "$(mp_name)",
+)
+
+# Config for Kingdom-less Panel Exchange Client Example Daemon.
+EXAMPLE_KINGDOMLESS_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG = struct(
+    edp_id = "$(edp_id)",
+    mp_id = "$(mp_id)",
+    recurring_exchange_ids = "$(recurring_exchange_ids)",
 )
 
 # Settings for deploying tests to Google Cloud.

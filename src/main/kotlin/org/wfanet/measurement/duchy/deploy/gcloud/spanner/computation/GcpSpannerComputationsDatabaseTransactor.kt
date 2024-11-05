@@ -19,7 +19,7 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Struct
-import com.google.protobuf.Message
+import com.google.protobuf.AbstractMessage
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -42,8 +42,6 @@ import org.wfanet.measurement.gcloud.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.TransactionWork
 import org.wfanet.measurement.gcloud.spanner.getNullableString
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
@@ -56,8 +54,8 @@ import org.wfanet.measurement.internal.duchy.copy
 class GcpSpannerComputationsDatabaseTransactor<
   ProtocolT,
   StageT,
-  StageDT : Message,
-  ComputationDT : Message,
+  StageDT : AbstractMessage,
+  ComputationDT : AbstractMessage,
 >(
   private val databaseClient: AsyncDatabaseClient,
   private val computationMutations: ComputationMutations<ProtocolT, StageT, StageDT, ComputationDT>,
@@ -145,9 +143,13 @@ class GcpSpannerComputationsDatabaseTransactor<
     lockDuration: Duration,
     prioritizedStages: List<StageT>,
   ): String? {
-    /** Claim a specific task represented by the results of running the above sql. */
+    /**
+     * Claim a specific task represented by the results of running the above sql.
+     *
+     * TODO(@renjiez): throw ABORT if fail to claim.
+     */
     suspend fun claimSpecificTask(result: UnclaimedTaskQueryResult<StageT>): Boolean =
-      databaseClient.readWriteTransaction().execute { txn ->
+      databaseClient.readWriteTransaction().run { txn ->
         claim(
           txn,
           result.computationId,
@@ -189,17 +191,26 @@ class GcpSpannerComputationsDatabaseTransactor<
     ownerId: String,
     lockDuration: Duration,
   ): Boolean {
-    val currentLockOwnerStruct =
-      txn.readRow("Computations", Key.of(computationId), listOf("LockOwner", "UpdateTime"))
-        ?: error("Failed to claim computation $computationId. It does not exist.")
-    // Verify that the row hasn't been updated since the previous, non-transactional read.
-    // If it has been updated since that time the lock should not be acquired.
-    if (currentLockOwnerStruct.getTimestamp("UpdateTime") != lastUpdate) return false
+    val currentLockInfo =
+      txn.readRow(
+        "Computations",
+        Key.of(computationId),
+        listOf("LockOwner", "LockExpirationTime", "UpdateTime"),
+      ) ?: error("Failed to claim computation $computationId. It does not exist.")
 
     // TODO(sanjayvas): Determine whether we can use commit timestamp via
     // spanner.commit_timestamp() in mutation.
     val writeTime: Instant = clock.instant()
     val writeTimestamp = writeTime.toGcloudTimestamp()
+
+    // Verify that the row hasn't been updated since the previous, non-transactional read.
+    // If it has been updated since that time the lock should not be acquired.
+    if (currentLockInfo.getTimestamp("UpdateTime") != lastUpdate) return false
+    // Verify if this computation is still locked.
+    if (currentLockInfo.getTimestamp("LockExpirationTime") > writeTimestamp) {
+      return false
+    }
+
     txn.buffer(setLockMutation(computationId, ownerId, writeTime, lockDuration))
     // Create a new attempt of the stage for the nextAttempt.
     txn.buffer(
@@ -220,7 +231,7 @@ class GcpSpannerComputationsDatabaseTransactor<
       )
     )
 
-    if (currentLockOwnerStruct.getNullableString("LockOwner") != null) {
+    if (currentLockInfo.getNullableString("LockOwner") != null) {
       // The current attempt is the one before the nextAttempt
       val currentAttempt = nextAttempt - 1
       val details =
@@ -230,7 +241,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             Key.of(computationId, stage.toLongStage(), currentAttempt),
             listOf("Details"),
           )
-          ?.getProtoMessage("Details", ComputationStageAttemptDetails.parser())
+          ?.getProtoMessage("Details", ComputationStageAttemptDetails.getDefaultInstance())
           ?: error("Failed to claim computation $computationId. It does not exist.")
       // If the computation was locked, but that lock was expired we need to finish off the
       // current attempt of the stage.
@@ -504,7 +515,7 @@ class GcpSpannerComputationsDatabaseTransactor<
           Key.of(token.localId, token.stage.toLongStage(), token.attempt),
           listOf("Details"),
         )
-        ?.getProtoMessage("Details", ComputationStageAttemptDetails.parser())
+        ?.getProtoMessage("Details", ComputationStageAttemptDetails.getDefaultInstance())
         ?: error("No ComputationStageAttempt (${token.localId}, $newStage, ${token.attempt})")
     mutations.add(
       computationMutations.updateComputationStageAttempt(
@@ -614,7 +625,8 @@ class GcpSpannerComputationsDatabaseTransactor<
         listOf("BlobId", "PathToBlob", "DependencyType"),
       )
       .filter {
-        val dep = it.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
+        val dep: ComputationBlobDependency =
+          it.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
         dep == ComputationBlobDependency.OUTPUT
       }
       .toList()
@@ -627,7 +639,7 @@ class GcpSpannerComputationsDatabaseTransactor<
   ) {
     require(blobRef.key.isNotBlank()) { "Cannot insert blank path to blob. $blobRef" }
     runIfTokenFromLastUpdate(token) { txn ->
-      val type =
+      val type: ComputationBlobDependency =
         txn
           .readRow(
             "ComputationBlobReferences",
@@ -668,14 +680,14 @@ class GcpSpannerComputationsDatabaseTransactor<
     require(publicApiVersion.isNotBlank()) {
       "Cannot insert blank public api version. $externalRequisitionKey"
     }
-    databaseClient.readWriteTransaction().execute { txn ->
+    databaseClient.readWriteTransaction().run { txn ->
       val parameterizedRequisitionQueryString =
         """
         SELECT ComputationId, RequisitionId, RequisitionDetails
         FROM Requisitions
         WHERE ExternalRequisitionId = @external_requisition_id
           AND RequisitionFingerprint = @requisition_fingerprint
-      """
+        """
           .trimIndent()
       val requisitionQuery =
         statement(parameterizedRequisitionQueryString) {
@@ -688,7 +700,8 @@ class GcpSpannerComputationsDatabaseTransactor<
           ?: error("No row found for this requisition: $externalRequisitionKey")
       val localComputationId = row.getLong("ComputationId")
       val requisitionId = row.getLong("RequisitionId")
-      val details = row.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
+      val details =
+        row.getProtoMessage("RequisitionDetails", RequisitionDetails.getDefaultInstance())
       require(localComputationId == token.localId) {
         "The token doesn't match the computation owns the requisition."
       }
@@ -758,7 +771,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     readWriteTransactionBlock: TransactionWork<R>,
   ): R {
     val localId = token.localId
-    return databaseClient.readWriteTransaction().execute { txn ->
+    return databaseClient.readWriteTransaction().run { txn ->
       val current: Struct =
         txn.readRow("Computations", Key.of(localId), listOf("UpdateTime"))
           ?: throw ComputationNotFoundException(localId)

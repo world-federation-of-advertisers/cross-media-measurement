@@ -16,10 +16,12 @@ package org.wfanet.panelmatch.client.launcher
 
 import com.google.common.truth.Truth.assertThat
 import java.time.LocalDate
+import kotlinx.coroutines.Job
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.verifyNoInteractions
@@ -72,18 +74,22 @@ class ExchangeStepLauncherTest {
   fun noExchangeTask() = runBlockingTest {
     whenever(apiClient.claimExchangeStep()).thenReturn(null)
 
-    launcher.findAndRunExchangeStep()
+    val job = launcher.findAndRunExchangeStep()
 
+    assertThat(job).isNull()
     verifyBlocking(apiClient) { claimExchangeStep() }
     verifyNoInteractions(stepExecutor)
   }
 
   @Test
   fun validExchangeTask() = runBlockingTest {
+    val job = Job()
+    whenever(stepExecutor.execute(eq(CLAIMED_EXCHANGE_STEP))).thenReturn(job)
     whenever(apiClient.claimExchangeStep()).thenReturn(CLAIMED_EXCHANGE_STEP)
 
-    launcher.findAndRunExchangeStep()
+    val result = launcher.findAndRunExchangeStep()
 
+    assertThat(result).isEqualTo(job)
     verifyBlocking(stepExecutor) {
       val stepCaptor = argumentCaptor<ClaimedExchangeStep>()
 

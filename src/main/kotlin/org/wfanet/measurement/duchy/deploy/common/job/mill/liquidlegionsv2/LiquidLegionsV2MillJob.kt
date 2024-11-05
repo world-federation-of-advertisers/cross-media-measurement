@@ -16,8 +16,6 @@ package org.wfanet.measurement.duchy.deploy.common.job.mill.liquidlegionsv2
 
 import com.google.protobuf.ByteString
 import io.grpc.Channel
-import io.opentelemetry.api.GlobalOpenTelemetry
-import io.opentelemetry.api.OpenTelemetry
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runBlocking
@@ -122,12 +120,8 @@ abstract class LiquidLegionsV2MillJob : Runnable {
     // included in mill logs to help debugging.
     val millId = flags.millId
 
-    // OpenTelemetry is usually enabled using the Java agent, in which case this will grab the
-    // shared instance.
-    val openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get()
-
     val mill: LiquidLegionsV2Mill =
-      when (flags.computationType) {
+      when (flags.claimedComputationType) {
         ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
           ReachFrequencyLiquidLegionsV2Mill(
             millId = millId,
@@ -143,7 +137,6 @@ abstract class LiquidLegionsV2MillJob : Runnable {
             workerStubs = computationControlClientMap,
             cryptoWorker = JniLiquidLegionsV2Encryption(),
             workLockDuration = flags.workLockDuration,
-            openTelemetry = openTelemetry,
             requestChunkSizeBytes = flags.requestChunkSizeBytes,
             parallelism = flags.parallelism,
           )
@@ -162,18 +155,17 @@ abstract class LiquidLegionsV2MillJob : Runnable {
             workerStubs = computationControlClientMap,
             cryptoWorker = JniReachOnlyLiquidLegionsV2Encryption(),
             workLockDuration = flags.workLockDuration,
-            openTelemetry = openTelemetry,
             requestChunkSizeBytes = flags.requestChunkSizeBytes,
             parallelism = flags.parallelism,
           )
         ComputationTypeEnum.ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE,
         ComputationTypeEnum.ComputationType.UNSPECIFIED,
         ComputationTypeEnum.ComputationType.UNRECOGNIZED ->
-          error("Unsupported ComputationType ${flags.computationType}")
+          error("Unsupported ComputationType ${flags.claimedComputationType}")
       }
 
     runBlocking(CoroutineName("Mill $millId")) {
-      mill.processClaimedWork(flags.claimedGlobalComputationId)
+      mill.processClaimedWork(flags.claimedGlobalComputationId, flags.claimedComputationVersion)
 
       // Continue processing until work is exhausted.
       do {

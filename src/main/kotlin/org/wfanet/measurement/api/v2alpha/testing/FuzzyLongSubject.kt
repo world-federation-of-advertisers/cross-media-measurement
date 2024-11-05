@@ -26,14 +26,19 @@ import kotlin.math.abs
  *
  * TODO(@SanjayVas): Move this to common-jvm.
  */
-class FuzzyLongSubject private constructor(failureMetadata: FailureMetadata, subject: Long) :
+class FuzzyLongSubject private constructor(failureMetadata: FailureMetadata, subject: Long?) :
   LongSubject(failureMetadata, subject) {
 
-  private val actual: Long = subject
+  private val actual: Long? = subject
 
   fun isWithinPercent(percent: Double): LongRatioComparison {
     return object : LongRatioComparison() {
       override fun of(expected: Long) {
+        if (actual == null) {
+          failWithActual(Fact.simpleFact("expected not to be null"))
+          return
+        }
+
         val actualRatio: Double = abs(expected - actual) / expected.toDouble()
         val expectedRatio: Double = percent / 100.0
         if (actualRatio > expectedRatio) {
@@ -46,6 +51,11 @@ class FuzzyLongSubject private constructor(failureMetadata: FailureMetadata, sub
   fun isWithin(tolerance: Double): LongRatioComparison {
     return object : LongRatioComparison() {
       override fun of(expected: Long) {
+        if (actual == null) {
+          failWithActual(Fact.simpleFact("expected not to be null"))
+          return
+        }
+
         check("getValue").that(actual.toDouble()).isWithin(tolerance).of(expected.toDouble())
       }
     }
@@ -56,7 +66,7 @@ class FuzzyLongSubject private constructor(failureMetadata: FailureMetadata, sub
   }
 
   companion object {
-    fun fuzzyLongs(): (failureMetadata: FailureMetadata, subject: Long) -> FuzzyLongSubject =
-      ::FuzzyLongSubject
+    fun fuzzyLongs() =
+      Factory<FuzzyLongSubject, Long> { metadata, actual -> FuzzyLongSubject(metadata, actual) }
   }
 }

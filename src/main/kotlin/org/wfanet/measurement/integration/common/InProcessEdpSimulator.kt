@@ -43,6 +43,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.common.Health
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.dataprovider.DataProviderData
@@ -50,9 +51,10 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemory
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
+import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
-import org.wfanet.measurement.loadtest.dataprovider.VidToIndexMapGenerator
+import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 
 /** An in process EDP simulator. */
 class InProcessEdpSimulator(
@@ -67,7 +69,7 @@ class InProcessEdpSimulator(
   private val syntheticDataSpec: SyntheticEventGroupSpec,
   coroutineContext: CoroutineContext = Dispatchers.Default,
   honestMajorityShareShuffleSupported: Boolean = true,
-) {
+) : Health {
   private val loggingName = "${javaClass.simpleName} $displayName"
   private val backgroundScope =
     CoroutineScope(
@@ -81,15 +83,12 @@ class InProcessEdpSimulator(
   private val delegate: EdpSimulator
 
   init {
-    val vidRangeStart = syntheticPopulationSpec.vidRange.start
-    val vidRangeEndExclusive = syntheticPopulationSpec.vidRange.endExclusive
-    val vidIndexMap =
+    val populationSpec = syntheticPopulationSpec.toPopulationSpec()
+    val hmssVidIndexMap =
       if (honestMajorityShareShuffleSupported) {
-        VidToIndexMapGenerator.generateMapping(
-          (vidRangeStart until vidRangeEndExclusive).asSequence()
-        )
+        InMemoryVidIndexMap.build(populationSpec)
       } else {
-        emptyMap()
+        null
       }
 
     delegate =
@@ -116,10 +115,7 @@ class InProcessEdpSimulator(
           },
         eventQuery =
           object :
-            SyntheticGeneratorEventQuery(
-              SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
-              TestEvent.getDescriptor(),
-            ) {
+            SyntheticGeneratorEventQuery(syntheticPopulationSpec, TestEvent.getDescriptor()) {
             override fun getSyntheticDataSpec(eventGroup: EventGroup) = syntheticDataSpec
           },
         throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
@@ -131,13 +127,18 @@ class InProcessEdpSimulator(
             100.0f,
           ),
         trustedCertificates = trustedCertificates,
-        vidToIndexMap = vidIndexMap,
+        hmssVidIndexMap = hmssVidIndexMap,
         knownEventGroupMetadataTypes = listOf(SyntheticEventGroupSpec.getDescriptor().file),
         random = random,
       )
   }
 
   private lateinit var edpJob: Job
+
+  override val healthy: Boolean
+    get() = delegate.healthy
+
+  override suspend fun waitUntilHealthy() = delegate.waitUntilHealthy()
 
   fun start() {
     edpJob = backgroundScope.launch { delegate.run() }

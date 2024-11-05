@@ -42,6 +42,7 @@ class StreamMeasurements(
     private const val UPDATED_AFTER = "updatedAfter"
     private const val UPDATED_BEFORE = "updatedBefore"
     private const val CREATED_BEFORE = "createdBefore"
+    private const val CREATED_AFTER = "createdAfter"
     private const val STATES_PARAM = "states"
     private const val DUCHY_ID_PARAM = "duchyId"
 
@@ -73,7 +74,8 @@ class StreamMeasurements(
 
     private fun getOrderByClause(view: Measurement.View): String {
       return when (view) {
-        Measurement.View.COMPUTATION ->
+        Measurement.View.COMPUTATION,
+        Measurement.View.COMPUTATION_STATS ->
           "ORDER BY Measurements.UpdateTime ASC, ExternalComputationId ASC"
         Measurement.View.DEFAULT ->
           "ORDER BY Measurements.UpdateTime ASC, ExternalMeasurementConsumerId ASC, " +
@@ -129,6 +131,11 @@ class StreamMeasurements(
         bind(CREATED_BEFORE to filter.createdBefore.toGcloudTimestamp())
       }
 
+      if (filter.hasCreatedAfter()) {
+        conjuncts.add("Measurements.CreateTime > @$CREATED_AFTER")
+        bind(CREATED_AFTER to filter.createdAfter.toGcloudTimestamp())
+      }
+
       if (filter.externalDuchyId.isNotEmpty()) {
         val duchyId: Long =
           DuchyIds.getInternalId(filter.externalDuchyId)
@@ -152,22 +159,18 @@ class StreamMeasurements(
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf case fields cannot be null.
         when (filter.after.keyCase) {
           StreamMeasurementsRequest.Filter.After.KeyCase.MEASUREMENT -> {
+            // CASE implements short-circuiting, which fixes performance issues with this filter.
             conjuncts.add(
               """
-              (
-                Measurements.UpdateTime > @${AfterParams.UPDATE_TIME}
-                OR (
-                  Measurements.UpdateTime = @${AfterParams.UPDATE_TIME}
-                  AND ExternalMeasurementConsumerId >
-                    @${AfterParams.EXTERNAL_MEASUREMENT_CONSUMER_ID}
-                )
-                OR (
-                  Measurements.UpdateTime = @${AfterParams.UPDATE_TIME}
-                  AND ExternalMeasurementConsumerId =
-                    @${AfterParams.EXTERNAL_MEASUREMENT_CONSUMER_ID}
-                  AND ExternalMeasurementId > @${AfterParams.EXTERNAL_MEASUREMENT_ID}
-                )
-              )
+              CASE
+                WHEN Measurements.UpdateTime > @${AfterParams.UPDATE_TIME} THEN TRUE
+                WHEN Measurements.UpdateTime = @${AfterParams.UPDATE_TIME}
+                  AND ExternalMeasurementConsumerId > @${AfterParams.EXTERNAL_MEASUREMENT_CONSUMER_ID} THEN TRUE
+                WHEN Measurements.UpdateTime = @${AfterParams.UPDATE_TIME}
+                  AND ExternalMeasurementConsumerId = @${AfterParams.EXTERNAL_MEASUREMENT_CONSUMER_ID}
+                  AND ExternalMeasurementId > @${AfterParams.EXTERNAL_MEASUREMENT_ID} THEN TRUE
+                ELSE FALSE
+              END
               """
                 .trimIndent()
             )
@@ -201,6 +204,11 @@ class StreamMeasurements(
           StreamMeasurementsRequest.Filter.After.KeyCase.KEY_NOT_SET ->
             throw IllegalArgumentException("key not set")
         }
+      }
+
+      if (filter.hasAfter() || filter.hasUpdatedAfter()) {
+        // Include shard ID to use sharded index on UpdateTime appropriately.
+        conjuncts.add("MeasurementIndexShardId != -1")
       }
 
       if (conjuncts.isEmpty()) {

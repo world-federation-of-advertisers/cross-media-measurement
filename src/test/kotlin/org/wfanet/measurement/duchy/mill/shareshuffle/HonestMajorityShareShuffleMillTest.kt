@@ -24,7 +24,6 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
-import io.opentelemetry.api.GlobalOpenTelemetry
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.time.Clock
@@ -127,7 +126,6 @@ import org.wfanet.measurement.internal.duchy.protocol.completeAggregationPhaseRe
 import org.wfanet.measurement.internal.duchy.protocol.completeAggregationPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeShufflePhaseResponse
-import org.wfanet.measurement.internal.duchy.protocol.copy
 import org.wfanet.measurement.internal.duchy.protocol.shareShuffleFrequencyVectorParams
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
@@ -144,10 +142,13 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.Compu
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase as SystemComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffle as SystemHonestMajorityShareShuffle
+import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffleStage
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.computationParticipant
+import org.wfanet.measurement.system.v1alpha.computationStage
 import org.wfanet.measurement.system.v1alpha.copy
 import org.wfanet.measurement.system.v1alpha.honestMajorityShareShuffle as systemHonestMajorityShareShuffle
+import org.wfanet.measurement.system.v1alpha.honestMajorityShareShuffleStage
 import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
 import org.wfanet.measurement.system.v1alpha.setParticipantRequisitionParamsRequest
 
@@ -447,7 +448,7 @@ class HonestMajorityShareShuffleMillTest {
     CertificatesGrpcKt.CertificatesCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private lateinit var advanceComputationRequests: List<AdvanceComputationRequest>
+  private var advanceComputationRequests: List<AdvanceComputationRequest> = emptyList()
 
   // Just use the same workerStub for all other duchies, since it is not relevant to this test.
   private val workerStubs =
@@ -474,13 +475,12 @@ class HonestMajorityShareShuffleMillTest {
       systemComputationsClient = systemComputationStub,
       systemComputationLogEntriesClient = systemComputationLogEntriesStub,
       computationStatsClient = computationStatsStub,
-      privateKeyStore = privateKeyStore,
       certificateClient = certificateStub,
       workerStubs = workerStubs,
-      protocolSetupConfig = PROTOCOL_SETUP_CONFIG,
       cryptoWorker = mockCryptoWorker,
+      protocolSetupConfig = PROTOCOL_SETUP_CONFIG,
       workLockDuration = Duration.ofMinutes(5),
-      openTelemetry = GlobalOpenTelemetry.get(),
+      privateKeyStore = privateKeyStore,
       requestChunkSizeBytes = 20,
       maximumAttempts = 2,
     )
@@ -731,6 +731,16 @@ class HonestMajorityShareShuffleMillTest {
         computationDetails = computationDetails,
         requisitions = REACH_AND_FREQUENCY_REQUISITIONS,
       )
+      mockComputationControl.stub {
+        onBlocking { getComputationStage(any()) }
+          .thenReturn(
+            computationStage {
+              honestMajorityShareShuffleStage = honestMajorityShareShuffleStage {
+                stage = HonestMajorityShareShuffleStage.Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE
+              }
+            }
+          )
+      }
 
       val mill = createHmssMill(DUCHY_ONE_ID)
       mill.claimAndProcessWork()
@@ -837,6 +847,16 @@ class HonestMajorityShareShuffleMillTest {
         computationDetails = computationDetails,
         requisitions = requisitions,
       )
+      mockComputationControl.stub {
+        onBlocking { getComputationStage(any()) }
+          .thenReturn(
+            computationStage {
+              honestMajorityShareShuffleStage = honestMajorityShareShuffleStage {
+                stage = HonestMajorityShareShuffleStage.Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO
+              }
+            }
+          )
+      }
 
       val mill = createHmssMill(DUCHY_TWO_ID)
       mill.claimAndProcessWork()
@@ -958,6 +978,16 @@ class HonestMajorityShareShuffleMillTest {
         x509Der = DATA_PROVIDER_CERT_DER
         this.subjectKeyIdentifier = DATA_PROVIDER_SIGNING_CERT.subjectKeyIdentifier!!
       }
+    }
+    mockComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            honestMajorityShareShuffleStage = honestMajorityShareShuffleStage {
+              stage = HonestMajorityShareShuffleStage.Stage.WAIT_ON_AGGREGATION_INPUT
+            }
+          }
+        )
     }
 
     val mill = createHmssMill(DUCHY_ONE_ID)
@@ -1268,6 +1298,16 @@ class HonestMajorityShareShuffleMillTest {
         this.subjectKeyIdentifier = DATA_PROVIDER_SIGNING_CERT.subjectKeyIdentifier!!
       }
     }
+    mockComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            honestMajorityShareShuffleStage = honestMajorityShareShuffleStage {
+              stage = HonestMajorityShareShuffleStage.Stage.WAIT_ON_AGGREGATION_INPUT
+            }
+          }
+        )
+    }
 
     val mill = createHmssMill(DUCHY_ONE_ID)
     mill.claimAndProcessWork()
@@ -1423,6 +1463,112 @@ class HonestMajorityShareShuffleMillTest {
             CompleteAggregationPhaseRequestKt.shareData { shareVector += listOf(4, 5, 6) }
         }
       )
+  }
+
+  @Test
+  fun `skip advancing when the next duchy is in a future phase`() = runBlocking {
+    val computationDetails =
+      getReachAndFrequencyHmssComputationDetails(RoleInComputation.FIRST_NON_AGGREGATOR)
+
+    val inputBlobPath = ComputationBlobContext(GLOBAL_ID, Stage.SHUFFLE_PHASE.toProtocolStage(), 0L)
+    val peerRandomSeed = RANDOM.generateSeed(RANDOM_SEED_LENGTH_IN_BYTES).toByteString()
+    val requisitionSeed = randomSeed {
+      RANDOM.generateSeed(RANDOM_SEED_LENGTH_IN_BYTES).toByteString()
+    }
+    val requisitionSignedSeed = signRandomSeed(requisitionSeed, DATA_PROVIDER_SIGNING_KEY)
+    val duchyPublicKey =
+      computationDetails.honestMajorityShareShuffle.encryptionKeyPair.publicKey
+        .toV2AlphaEncryptionPublicKey()
+    val requisitionEncryptedSeed = encryptRandomSeed(requisitionSignedSeed, duchyPublicKey)
+
+    val inputBlobData =
+      shufflePhaseInput {
+          this.peerRandomSeed = peerRandomSeed
+          secretSeeds += secretSeed {
+            requisitionId = REACH_AND_FREQUENCY_REQUISITION_2.externalKey.externalRequisitionId
+            secretSeedCiphertext = requisitionEncryptedSeed.ciphertext
+            registerCount = 100
+            dataProviderCertificate = "DataProviders/2/Certificates/2"
+          }
+        }
+        .toByteString()
+    val inputBlobs =
+      listOf(
+        computationStageBlobMetadata {
+          dependencyType = ComputationBlobDependency.INPUT
+          blobId = 0L
+          path = inputBlobPath.blobKey
+        }
+      )
+    computationStore.write(inputBlobPath, inputBlobData)
+
+    val requisitionBlobContext1 =
+      RequisitionBlobContext(
+        GLOBAL_ID,
+        REACH_AND_FREQUENCY_REQUISITION_1.externalKey.externalRequisitionId,
+      )
+    val requisitionBlobContext3 =
+      RequisitionBlobContext(
+        GLOBAL_ID,
+        REACH_AND_FREQUENCY_REQUISITION_3.externalKey.externalRequisitionId,
+      )
+
+    val requisitionData1 = frequencyVector { data += listOf(1, 2, 3) }.toByteString()
+    val requisitionData3 = frequencyVector { data += listOf(4, 5, 6) }.toByteString()
+    requisitionStore.write(requisitionBlobContext1, requisitionData1)
+    requisitionStore.write(requisitionBlobContext3, requisitionData3)
+
+    fakeComputationDb.addComputation(
+      LOCAL_ID,
+      Stage.SHUFFLE_PHASE.toProtocolStage(),
+      blobs = inputBlobs,
+      computationDetails = computationDetails,
+      requisitions = REACH_AND_FREQUENCY_REQUISITIONS,
+    )
+
+    var cryptoRequest = CompleteShufflePhaseRequest.getDefaultInstance()
+    whenever(mockCryptoWorker.completeReachAndFrequencyShufflePhase(any())).thenAnswer {
+      cryptoRequest = it.getArgument(0)
+      completeShufflePhaseResponse { combinedFrequencyVector += listOf(1, 2, 3) }
+    }
+    whenever(mockCertificates.getCertificate(any())).thenAnswer {
+      certificate {
+        name =
+          REACH_AND_FREQUENCY_REQUISITION_2.details.protocol.honestMajorityShareShuffle
+            .dataProviderCertificate
+        x509Der = DATA_PROVIDER_CERT_DER
+        this.subjectKeyIdentifier = DATA_PROVIDER_SIGNING_CERT.subjectKeyIdentifier!!
+      }
+    }
+    mockComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            honestMajorityShareShuffleStage = honestMajorityShareShuffleStage {
+              // A future stage
+              stage = HonestMajorityShareShuffleStage.Stage.AGGREGATION_PHASE
+            }
+          }
+        )
+    }
+
+    val mill = createHmssMill(DUCHY_ONE_ID)
+    mill.claimAndProcessWork()
+
+    assertThat(fakeComputationDb[LOCAL_ID])
+      .isEqualTo(
+        computationToken {
+          globalComputationId = GLOBAL_ID
+          localComputationId = LOCAL_ID
+          computationStage = Stage.COMPLETE.toProtocolStage()
+          attempt = 1
+          version = 2
+          this.computationDetails =
+            computationDetails.copy { endingState = ComputationDetails.CompletedReason.SUCCEEDED }
+          requisitions += REACH_AND_FREQUENCY_REQUISITIONS
+        }
+      )
+    assertThat(advanceComputationRequests).isEmpty()
   }
 
   fun getComputationRequestHeader(): AdvanceComputationRequest.Header =

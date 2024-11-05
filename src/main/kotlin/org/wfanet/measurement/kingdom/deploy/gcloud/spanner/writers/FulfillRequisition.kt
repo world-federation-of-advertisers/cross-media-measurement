@@ -21,11 +21,12 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -98,8 +99,9 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
               Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
             }
           } else Measurement.State.SUCCEEDED
-        val measurementLogEntryDetails =
-          MeasurementLogEntryKt.details { logMessage = "All requisitions fulfilled" }
+        val measurementLogEntryDetails = measurementLogEntryDetails {
+          logMessage = "All requisitions fulfilled"
+        }
         // All other Requisitions are already FULFILLED, so update Measurement state.
         nextState.also {
           updateMeasurementState(
@@ -196,7 +198,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
         statement(sql) {
           bind(Params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
           bind(Params.MEASUREMENT_ID to measurementId)
-          bind(Params.REQUISITION_STATE to state)
+          bind(Params.REQUISITION_STATE).toInt64(state)
         }
       return transactionContext.executeQuery(query).map { struct ->
         InternalId(struct.getLong("RequisitionId"))

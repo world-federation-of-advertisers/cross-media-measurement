@@ -444,10 +444,10 @@ class MeasurementConsumerSimulator(
 
     // Get the CMMS computed result and compare it with the expected result.
     var reachOnlyResult = getReachResult(measurementName)
-    var nAttempts = 0
-    while (reachOnlyResult == null && (nAttempts < 4)) {
-      nAttempts++
-      logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $nAttempts")
+    var attemptCount = 0
+    while (reachOnlyResult == null && (attemptCount < 4)) {
+      attemptCount++
+      logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $attemptCount")
       delay(Duration.ofSeconds(30))
       reachOnlyResult = getReachResult(measurementName)
     }
@@ -455,6 +455,39 @@ class MeasurementConsumerSimulator(
 
     val expectedResult: Result = getExpectedResult(measurementInfo)
     return ExecutionResult(reachOnlyResult, expectedResult, measurementInfo)
+  }
+
+  suspend fun executeReachAndFrequency(
+    runId: String,
+    requiredCapabilities: DataProvider.Capabilities = DataProvider.Capabilities.getDefaultInstance(),
+  ): ExecutionResult {
+    // Create a new measurement on behalf of the measurement consumer.
+    val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
+    val measurementInfo =
+      createMeasurement(
+        measurementConsumer,
+        runId,
+        ::newReachAndFrequencyMeasurementSpec,
+        requiredCapabilities,
+      )
+    val measurementName = measurementInfo.measurement.name
+    logger.info("Created reach-and-frequency measurement $measurementName.")
+
+    // Get the CMMS computed result and compare it with the expected result.
+    var reachAndFrequencyResult = getReachAndFrequencyResult(measurementName)
+    var attemptCount = 0
+    while (reachAndFrequencyResult == null && (attemptCount < 4)) {
+      attemptCount++
+      logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $attemptCount")
+      delay(Duration.ofSeconds(30))
+      reachAndFrequencyResult = getReachAndFrequencyResult(measurementName)
+    }
+    checkNotNull(reachAndFrequencyResult) {
+      "Timed out waiting for response to reach-and-frequency request"
+    }
+
+    val expectedResult: Result = getExpectedResult(measurementInfo)
+    return ExecutionResult(reachAndFrequencyResult, expectedResult, measurementInfo)
   }
 
   /** A sequence of operations done in the simulator involving a reach-only measurement. */
@@ -1172,8 +1205,8 @@ class MeasurementConsumerSimulator(
     private val DEFAULT_EVENT_RANGE =
       OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
 
-    // For a 99.9% Confidence Interval.
-    private const val CONFIDENCE_INTERVAL_MULTIPLIER = 3.291
+    // For a 99.9999% Confidence Interval.
+    private const val CONFIDENCE_INTERVAL_MULTIPLIER = 5.0
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

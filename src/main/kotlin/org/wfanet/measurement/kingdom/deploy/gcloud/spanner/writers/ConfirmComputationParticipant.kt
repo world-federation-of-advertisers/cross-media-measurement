@@ -24,11 +24,12 @@ import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantETagMismatchException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationException
@@ -113,34 +114,31 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
       set("MeasurementId" to measurementId)
       set("DuchyId" to duchyId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      set("State" to NEXT_COMPUTATION_PARTICIPANT_STATE)
+      set("State").toInt64(NEXT_COMPUTATION_PARTICIPANT_STATE)
     }
 
     val duchyIds: List<InternalId> =
-      getComputationParticipantsDuchyIds(
-          InternalId(measurementConsumerId),
-          InternalId(measurementId),
-        )
-        .filter { it.value != duchyId }
+      getComputationParticipantsDuchyIds(measurementConsumerId, measurementId).filter {
+        it.value != duchyId
+      }
 
     if (
       computationParticipantsInState(
         transactionContext,
         duchyIds,
-        InternalId(measurementConsumerId),
-        InternalId(measurementId),
+        measurementConsumerId,
+        measurementId,
         NEXT_COMPUTATION_PARTICIPANT_STATE,
       )
     ) {
 
-      val measurementLogEntryDetails =
-        MeasurementLogEntryKt.details {
-          logMessage = "All participants are in status == READY. Measurement.STATE is now PENDING"
-        }
+      val measurementLogEntryDetails = measurementLogEntryDetails {
+        logMessage = "All participants are in status == READY. Measurement.STATE is now PENDING"
+      }
 
       updateMeasurementState(
-        measurementConsumerId = InternalId(measurementConsumerId),
-        measurementId = InternalId(measurementId),
+        measurementConsumerId = measurementConsumerId,
+        measurementId = measurementId,
         nextState = Measurement.State.PENDING_COMPUTATION,
         previousState = measurementState,
         measurementLogEntryDetails = measurementLogEntryDetails,

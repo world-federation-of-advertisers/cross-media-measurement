@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.api.v2alpha.testing
 
+import com.google.common.truth.Fact
 import com.google.common.truth.FailureMetadata
 import com.google.common.truth.MapSubject
 import com.google.common.truth.Truth.assertAbout
@@ -23,14 +24,19 @@ import com.google.common.truth.Truth.assertAbout
 typealias RelativeFrequencyDistribution = Map<Long, Double>
 
 class FrequencyDistributionSubject
-private constructor(failureMetadata: FailureMetadata, subject: RelativeFrequencyDistribution) :
-  MapSubject(failureMetadata, subject) {
-
-  private val actual: RelativeFrequencyDistribution = subject
+private constructor(
+  failureMetadata: FailureMetadata,
+  private val actual: RelativeFrequencyDistribution?,
+) : MapSubject(failureMetadata, actual) {
 
   fun isWithin(tolerance: Double): DistributionComparison {
     return object : DistributionComparison() {
       override fun of(expected: RelativeFrequencyDistribution) {
+        if (actual == null) {
+          failWithActual(Fact.simpleFact("expected not to be null"))
+          return
+        }
+
         val buckets: Set<Long> = expected.keys.union(actual.keys)
         for (bucket in buckets) {
           val actualValue = actual.getOrDefault(bucket, 0.0)
@@ -44,6 +50,11 @@ private constructor(failureMetadata: FailureMetadata, subject: RelativeFrequency
   fun isWithin(toleranceMap: Map<Long, Double>): DistributionComparison {
     return object : DistributionComparison() {
       override fun of(expected: RelativeFrequencyDistribution) {
+        if (actual == null) {
+          failWithActual(Fact.simpleFact("expected not to be null"))
+          return
+        }
+
         val buckets: Set<Long> = expected.keys.union(actual.keys)
         for (bucket in buckets) {
           val actualValue = actual.getOrDefault(bucket, 0.0)
@@ -60,10 +71,10 @@ private constructor(failureMetadata: FailureMetadata, subject: RelativeFrequency
   }
 
   companion object {
-    fun frequencyDistributions():
-      (
-        failureMetadata: FailureMetadata, subject: RelativeFrequencyDistribution,
-      ) -> FrequencyDistributionSubject = ::FrequencyDistributionSubject
+    fun frequencyDistributions() =
+      Factory<FrequencyDistributionSubject, RelativeFrequencyDistribution> { metadata, actual ->
+        FrequencyDistributionSubject(metadata, actual)
+      }
 
     fun assertThat(subject: RelativeFrequencyDistribution): FrequencyDistributionSubject =
       assertAbout(frequencyDistributions()).that(subject)

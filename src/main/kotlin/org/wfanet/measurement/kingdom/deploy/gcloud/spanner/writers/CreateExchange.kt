@@ -18,7 +18,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RecurringExchangeNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
@@ -43,9 +43,8 @@ class CreateExchange(private val exchange: Exchange) : SimpleSpannerWriter<Excha
     transactionContext.bufferInsertMutation("Exchanges") {
       set("RecurringExchangeId" to recurringExchangeId)
       set("Date" to exchange.date.toCloudDate())
-      set("State" to INITIAL_STATE)
-      set("ExchangeDetails" to exchange.details)
-      setJson("ExchangeDetailsJson" to exchange.details)
+      set("State").toInt64(INITIAL_STATE)
+      set("ExchangeDetails").to(exchange.details)
     }
 
     return exchange.toBuilder().apply { state = INITIAL_STATE }.build()

@@ -20,9 +20,10 @@ import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.DeleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
+import org.wfanet.measurement.internal.kingdom.EventGroupDetails
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
@@ -58,9 +59,8 @@ class DeleteEventGroup(private val request: DeleteEventGroupRequest) :
       set("EventGroupId" to result.internalEventGroupId.value)
       set("MeasurementConsumerCertificateId" to null as Long?)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      set("EventGroupDetails" to null as EventGroup.Details?)
-      setJson("EventGroupDetailsJson" to null as EventGroup.Details?)
-      set("State" to EventGroup.State.DELETED)
+      set("EventGroupDetails").to(null, EventGroupDetails.getDescriptor())
+      set("State").toInt64(EventGroup.State.DELETED)
     }
 
     return result.eventGroup.copy {

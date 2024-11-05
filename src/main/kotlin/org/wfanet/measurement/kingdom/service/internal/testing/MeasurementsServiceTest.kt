@@ -43,19 +43,20 @@ import org.wfanet.measurement.internal.kingdom.CancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantDetails
+import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DeleteMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.RequisitionKt.details
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
@@ -68,16 +69,23 @@ import org.wfanet.measurement.internal.kingdom.batchGetMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.createDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.deleteMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntryDetails
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntryStageAttempt
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.measurement
+import org.wfanet.measurement.internal.kingdom.measurementDetails
 import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
+import org.wfanet.measurement.internal.kingdom.requisitionDetails
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.stateTransitionMeasurementLogEntry
@@ -99,19 +107,18 @@ private const val MAX_BATCH_CANCEL = 1000
 
 private val MEASUREMENT = measurement {
   providedMeasurementId = PROVIDED_MEASUREMENT_ID
-  details =
-    MeasurementKt.details {
-      apiVersion = API_VERSION
-      measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
-      measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
-      measurementSpecSignatureAlgorithmOid = "2.9999"
-      duchyProtocolConfig = duchyProtocolConfig {
-        liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-      }
-      protocolConfig = protocolConfig {
-        liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-      }
+  details = measurementDetails {
+    apiVersion = API_VERSION
+    measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
+    measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
+    measurementSpecSignatureAlgorithmOid = "2.9999"
+    duchyProtocolConfig = duchyProtocolConfig {
+      liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
     }
+    protocolConfig = protocolConfig {
+      liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+    }
+  }
 }
 
 private val REACH_ONLY_MEASUREMENT =
@@ -129,16 +136,15 @@ private val REACH_ONLY_MEASUREMENT =
 
 private val HMSS_MEASUREMENT = measurement {
   providedMeasurementId = PROVIDED_MEASUREMENT_ID
-  details =
-    MeasurementKt.details {
-      apiVersion = API_VERSION
-      measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
-      measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
-      measurementSpecSignatureAlgorithmOid = "2.9999"
-      protocolConfig = protocolConfig {
-        honestMajorityShareShuffle = ProtocolConfig.HonestMajorityShareShuffle.getDefaultInstance()
-      }
+  details = measurementDetails {
+    apiVersion = API_VERSION
+    measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
+    measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
+    measurementSpecSignatureAlgorithmOid = "2.9999"
+    protocolConfig = protocolConfig {
+      honestMajorityShareShuffle = ProtocolConfig.HonestMajorityShareShuffle.getDefaultInstance()
     }
+  }
 }
 
 private val INVALID_WORKER_DUCHY =
@@ -970,8 +976,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
                 liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
               }
               dataProvidersCount = 1
+              createTime = createdMeasurement.createTime
             }
-            details = details {
+            details = requisitionDetails {
               dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
               encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
               nonceHash = dataProviderValue.nonceHash
@@ -1001,7 +1008,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         externalComputationId = createdMeasurement.externalComputationId
         updateTime = createdMeasurement.createTime
         state = ComputationParticipant.State.CREATED
-        details = ComputationParticipant.Details.getDefaultInstance()
+        details = ComputationParticipantDetails.getDefaultInstance()
         apiVersion = createdMeasurement.details.apiVersion
       }
       assertThat(measurement.computationParticipantsList)
@@ -1138,7 +1145,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
             externalMeasurementId = measurement.externalMeasurementId
             createTime = succeededMeasurement.updateTime
-            details = MeasurementLogEntryKt.details { logMessage = "Measurement succeeded" }
+            details = measurementLogEntryDetails { logMessage = "Measurement succeeded" }
           }
           previousState = measurement.state
           currentState = Measurement.State.SUCCEEDED
@@ -1180,6 +1187,46 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             externalMeasurementId = measurement.externalMeasurementId
           }
         )
+      )
+  }
+
+  @Test
+  fun `cancelMeasurement transitions Requisition state`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProviders = (1..2).map { population.createDataProvider(dataProvidersService) }
+    val measurement =
+      population.createLlv2Measurement(
+        measurementsService,
+        measurementConsumer,
+        PROVIDED_MEASUREMENT_ID,
+        *dataProviders.toTypedArray(),
+      )
+
+    measurementsService.cancelMeasurement(
+      cancelMeasurementRequest {
+        externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+        externalMeasurementId = measurement.externalMeasurementId
+      }
+    )
+
+    val requisitions: List<Requisition> =
+      requisitionsService
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              StreamRequisitionsRequestKt.filter {
+                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                externalMeasurementId = measurement.externalMeasurementId
+              }
+          }
+        )
+        .toList()
+    assertThat(requisitions)
+      .comparingExpectedFieldsOnly()
+      .containsExactly(
+        requisition { state = Requisition.State.WITHDRAWN },
+        requisition { state = Requisition.State.WITHDRAWN },
       )
   }
 
@@ -1450,6 +1497,113 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(responses)
       .containsExactly(computationMeasurement1, computationMeasurement3)
       .inOrder()
+  }
+
+  @Test
+  fun `streamMeasurements with computation view only returns failure log`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+
+    val measurement =
+      measurementsService.createMeasurement(
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
+        }
+      )
+
+    val stageOne = "stage_one"
+    val stageOneLogEntryRequest = createDuchyMeasurementLogEntryRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = DUCHIES.first().externalDuchyId
+      measurementLogEntryDetails = measurementLogEntryDetails { logMessage = "good" }
+      details = duchyMeasurementLogEntryDetails {
+        stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageOne }
+      }
+    }
+    measurementLogEntriesService.createDuchyMeasurementLogEntry(stageOneLogEntryRequest)
+
+    val failureLogEntryRequest = createDuchyMeasurementLogEntryRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = DUCHIES.first().externalDuchyId
+      measurementLogEntryDetails = measurementLogEntryDetails {
+        logMessage = "bad"
+        error = measurementLogEntryError { type = MeasurementLogEntryError.Type.TRANSIENT }
+      }
+      details = duchyMeasurementLogEntryDetails {
+        stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageOne }
+      }
+    }
+    measurementLogEntriesService.createDuchyMeasurementLogEntry(failureLogEntryRequest)
+
+    val streamMeasurementsRequest = streamMeasurementsRequest {
+      limit = 2
+      filter = filter {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      }
+      measurementView = Measurement.View.COMPUTATION
+    }
+
+    val response: List<Measurement> =
+      measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
+
+    assertThat(response.first().logEntriesList).hasSize(0)
+  }
+
+  @Test
+  fun `streamMeasurements with computation stats view returns log entries`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+
+    val measurement =
+      measurementsService.createMeasurement(
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+            }
+        }
+      )
+
+    val stageOne = "stage_one"
+    val stageOneLogEntryRequest = createDuchyMeasurementLogEntryRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = DUCHIES[0].externalDuchyId
+      measurementLogEntryDetails = measurementLogEntryDetails { logMessage = "good" }
+      details = duchyMeasurementLogEntryDetails {
+        stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageOne }
+      }
+    }
+    measurementLogEntriesService.createDuchyMeasurementLogEntry(stageOneLogEntryRequest)
+
+    val stageOneLogEntryRequest2 = createDuchyMeasurementLogEntryRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = DUCHIES[1].externalDuchyId
+      measurementLogEntryDetails = measurementLogEntryDetails { logMessage = "good" }
+      details = duchyMeasurementLogEntryDetails {
+        stageAttempt = duchyMeasurementLogEntryStageAttempt { stageName = stageOne }
+      }
+    }
+    measurementLogEntriesService.createDuchyMeasurementLogEntry(stageOneLogEntryRequest2)
+
+    val streamMeasurementsRequest = streamMeasurementsRequest {
+      limit = 2
+      filter = filter {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      }
+      measurementView = Measurement.View.COMPUTATION_STATS
+    }
+
+    val response: List<Measurement> =
+      measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
+
+    assertThat(response.first().logEntriesList).hasSize(2)
   }
 
   @Test
@@ -1829,6 +1983,55 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(cancelledMeasurements)
       .containsExactly(cancelledMeasurement1, cancelledMeasurement2)
       .inOrder()
+  }
+
+  @Test
+  fun `batchCancelMeasurements withdraws Requisitions`(): Unit = runBlocking {
+    val measurementCount = 2
+    val dataProviderCount = 2
+    val requisitionCount = dataProviderCount * measurementCount
+    val measurementConsumer: MeasurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProviders: List<DataProvider> =
+      (1..dataProviderCount).map { population.createDataProvider(dataProvidersService) }
+    val measurements: List<Measurement> =
+      (1..measurementCount).map {
+        population.createLlv2Measurement(
+          measurementsService,
+          measurementConsumer,
+          "measurement-$it",
+          *dataProviders.toTypedArray(),
+        )
+      }
+
+    measurementsService.batchCancelMeasurements(
+      batchCancelMeasurementsRequest {
+        requests +=
+          measurements.map {
+            cancelMeasurementRequest {
+              externalMeasurementConsumerId = it.externalMeasurementConsumerId
+              externalMeasurementId = it.externalMeasurementId
+            }
+          }
+      }
+    )
+
+    val requisitions =
+      requisitionsService
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              StreamRequisitionsRequestKt.filter {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              }
+          }
+        )
+        .toList()
+    assertThat(requisitions)
+      .comparingExpectedFieldsOnly()
+      .containsExactlyElementsIn(
+        (1..requisitionCount).map { requisition { state = Requisition.State.WITHDRAWN } }
+      )
   }
 
   @Test
@@ -2811,11 +3014,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       )
       HmssProtocolConfig.setForTest(
         ProtocolConfig.HonestMajorityShareShuffle.getDefaultInstance(),
-        setOf(
-          Population.AGGREGATOR_DUCHY.externalDuchyId,
-          Population.WORKER1_DUCHY.externalDuchyId,
-          Population.WORKER2_DUCHY.externalDuchyId,
-        ),
+        Population.WORKER1_DUCHY.externalDuchyId,
+        Population.WORKER2_DUCHY.externalDuchyId,
+        Population.AGGREGATOR_DUCHY.externalDuchyId,
       )
     }
   }

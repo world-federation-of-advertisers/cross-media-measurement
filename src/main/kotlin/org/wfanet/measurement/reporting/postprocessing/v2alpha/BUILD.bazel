@@ -1,0 +1,30 @@
+load("@rules_jvm_external//:defs.bzl", "maven_export")
+load("@wfa_common_jvm//build/maven:defs.bzl", "artifact_version")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+MAVEN_COORDINATES = "org.wfanet.measurement.reporting:postprocessing-v2alpha:" + artifact_version()
+
+kt_jvm_library(
+    name = "postprocessing",
+    srcs = glob(["*.kt"]),
+    resources = [
+        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_origin_report_pyzip",
+    ],
+    tags = ["maven_coordinates=" + MAVEN_COORDINATES],
+    deps = [
+        "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_summary_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/gson",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+maven_export(
+    name = "postprocessing_maven",
+    lib_name = "postprocessing",
+    maven_coordinates = MAVEN_COORDINATES,
+    tags = ["no-javadocs"],
+    visibility = ["//visibility:private"],
+)

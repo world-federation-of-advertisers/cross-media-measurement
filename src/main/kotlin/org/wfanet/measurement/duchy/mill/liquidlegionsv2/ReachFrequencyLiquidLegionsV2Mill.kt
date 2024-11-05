@@ -15,10 +15,10 @@
 package org.wfanet.measurement.duchy.mill.liquidlegionsv2
 
 import com.google.protobuf.ByteString
-import io.opentelemetry.api.OpenTelemetry
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
+import java.util.logging.Level
 import java.util.logging.Logger
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.measurement.api.Version
@@ -119,7 +119,6 @@ class ReachFrequencyLiquidLegionsV2Mill(
   private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   private val cryptoWorker: LiquidLegionsV2Encryption,
   workLockDuration: Duration,
-  openTelemetry: OpenTelemetry,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
   clock: Clock = Clock.systemUTC(),
@@ -139,14 +138,11 @@ class ReachFrequencyLiquidLegionsV2Mill(
     ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
     workerStubs,
     workLockDuration,
-    openTelemetry,
     requestChunkSizeBytes,
     maximumAttempts,
     clock,
   ) {
   override val endingStage = Stage.COMPLETE.toProtocolStage()
-
-  override val prioritizedStagesToClaim = listOf(Stage.INITIALIZATION_PHASE.toProtocolStage())
 
   private val actions =
     mapOf(
@@ -163,6 +159,23 @@ class ReachFrequencyLiquidLegionsV2Mill(
       Pair(Stage.EXECUTION_PHASE_THREE, AGGREGATOR) to ::completeExecutionPhaseThreeAtAggregator,
       Pair(Stage.EXECUTION_PHASE_THREE, NON_AGGREGATOR) to
         ::completeExecutionPhaseThreeAtNonAggregator,
+    )
+
+  private val stageSequence =
+    listOf(
+      Stage.INITIALIZATION_PHASE,
+      Stage.WAIT_REQUISITIONS_AND_KEY_SET,
+      Stage.CONFIRMATION_PHASE,
+      Stage.WAIT_TO_START,
+      Stage.WAIT_SETUP_PHASE_INPUTS,
+      Stage.SETUP_PHASE,
+      Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS,
+      Stage.EXECUTION_PHASE_ONE,
+      Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS,
+      Stage.EXECUTION_PHASE_TWO,
+      Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS,
+      Stage.EXECUTION_PHASE_THREE,
+      Stage.COMPLETE,
     )
 
   override suspend fun processComputationImpl(token: ComputationToken) {
@@ -373,15 +386,28 @@ class ReachFrequencyLiquidLegionsV2Mill(
         cryptoResult.combinedRegisterVector
       }
 
-    sendAdvanceComputationRequest(
-      header =
-        advanceComputationHeader(
-          LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT,
-          token.globalComputationId,
-        ),
-      content = addLoggingHook(token, bytes),
-      stub = nextDuchyStub(llv2Details.participantList),
-    )
+    val nextDuchyId = nextDuchyId(llv2Details.participantList)
+    val nextDuchyStub = workerStubs[nextDuchyId] ?: error("$nextDuchyId stub not found")
+    val nextDuchyStage =
+      getComputationStageInOtherDuchy(token.globalComputationId, nextDuchyId, nextDuchyStub)
+        .liquidLegionsSketchAggregationV2
+
+    if (nextDuchyStage.isSequencedAfter(Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS)) {
+      logger.log(Level.WARNING) {
+        "Skipping advanceComputation for next duchy $nextDuchyId. " +
+          "expected_stage=${Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS}, actual_stage=${nextDuchyStage}"
+      }
+    } else {
+      sendAdvanceComputationRequest(
+        header =
+          advanceComputationHeader(
+            LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT,
+            token.globalComputationId,
+          ),
+        content = addLoggingHook(token, bytes),
+        stub = nextDuchyStub,
+      )
+    }
 
     return dataClients.transitionComputationToStage(
       nextToken,
@@ -414,15 +440,28 @@ class ReachFrequencyLiquidLegionsV2Mill(
         cryptoResult.combinedRegisterVector
       }
 
-    sendAdvanceComputationRequest(
-      header =
-        advanceComputationHeader(
-          LiquidLegionsV2.Description.SETUP_PHASE_INPUT,
-          token.globalComputationId,
-        ),
-      content = addLoggingHook(token, bytes),
-      stub = aggregatorDuchyStub(llv2Details.participantList.last().duchyId),
-    )
+    val aggregatorId = llv2Details.participantList.last().duchyId
+    val aggregatorStub = workerStubs[aggregatorId] ?: error("$aggregatorId stub not found")
+    val aggregatorStage =
+      getComputationStageInOtherDuchy(token.globalComputationId, aggregatorId, aggregatorStub)
+        .liquidLegionsSketchAggregationV2
+
+    if (aggregatorStage.isSequencedAfter(Stage.WAIT_SETUP_PHASE_INPUTS)) {
+      logger.log(Level.WARNING) {
+        "Skipping advanceComputation for next duchy $aggregatorId. " +
+          "expected_stage=${Stage.WAIT_SETUP_PHASE_INPUTS}, actual_stage=${aggregatorStage}"
+      }
+    } else {
+      sendAdvanceComputationRequest(
+        header =
+          advanceComputationHeader(
+            LiquidLegionsV2.Description.SETUP_PHASE_INPUT,
+            token.globalComputationId,
+          ),
+        content = addLoggingHook(token, bytes),
+        stub = aggregatorStub,
+      )
+    }
 
     return dataClients.transitionComputationToStage(
       nextToken,
@@ -464,15 +503,28 @@ class ReachFrequencyLiquidLegionsV2Mill(
       }
 
     // Passes the computation to the next duchy.
-    sendAdvanceComputationRequest(
-      header =
-        advanceComputationHeader(
-          LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT,
-          token.globalComputationId,
-        ),
-      content = addLoggingHook(token, bytes),
-      stub = nextDuchyStub(llv2Details.participantList),
-    )
+    val nextDuchyId = nextDuchyId(llv2Details.participantList)
+    val nextDuchyStub = workerStubs[nextDuchyId] ?: error("$nextDuchyId stub not found")
+    val nextDuchyStage =
+      getComputationStageInOtherDuchy(token.globalComputationId, nextDuchyId, nextDuchyStub)
+        .liquidLegionsSketchAggregationV2
+
+    if (nextDuchyStage.isSequencedAfter(Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS)) {
+      logger.log(Level.WARNING) {
+        "Skipping advanceComputation for next duchy $nextDuchyId. " +
+          "expected_stage=${Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS}, actual_stage=${nextDuchyStage}"
+      }
+    } else {
+      sendAdvanceComputationRequest(
+        header =
+          advanceComputationHeader(
+            LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT,
+            token.globalComputationId,
+          ),
+        content = addLoggingHook(token, bytes),
+        stub = nextDuchyStub,
+      )
+    }
 
     return dataClients.transitionComputationToStage(
       nextToken,
@@ -510,15 +562,28 @@ class ReachFrequencyLiquidLegionsV2Mill(
       }
 
     // Passes the computation to the next duchy.
-    sendAdvanceComputationRequest(
-      header =
-        advanceComputationHeader(
-          LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT,
-          token.globalComputationId,
-        ),
-      content = addLoggingHook(token, bytes),
-      stub = nextDuchyStub(llv2Details.participantList),
-    )
+    val nextDuchyId = nextDuchyId(llv2Details.participantList)
+    val nextDuchyStub = workerStubs[nextDuchyId] ?: error("$nextDuchyId stub not found")
+    val nextDuchyStage =
+      getComputationStageInOtherDuchy(token.globalComputationId, nextDuchyId, nextDuchyStub)
+        .liquidLegionsSketchAggregationV2
+
+    if (nextDuchyStage.isSequencedAfter(Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS)) {
+      logger.log(Level.WARNING) {
+        "Skipping advanceComputation for next duchy $nextDuchyId. " +
+          "expected_stage=${Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS}, actual_stage=${nextDuchyStage}"
+      }
+    } else {
+      sendAdvanceComputationRequest(
+        header =
+          advanceComputationHeader(
+            LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT,
+            token.globalComputationId,
+          ),
+        content = addLoggingHook(token, bytes),
+        stub = nextDuchyStub,
+      )
+    }
 
     return dataClients.transitionComputationToStage(
       nextToken,
@@ -626,15 +691,28 @@ class ReachFrequencyLiquidLegionsV2Mill(
     }
 
     // Passes the computation to the next duchy.
-    sendAdvanceComputationRequest(
-      header =
-        advanceComputationHeader(
-          LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT,
-          token.globalComputationId,
-        ),
-      content = addLoggingHook(token, bytes),
-      stub = nextDuchyStub(llv2Details.participantList),
-    )
+    val nextDuchyId = nextDuchyId(llv2Details.participantList)
+    val nextDuchyStub = workerStubs[nextDuchyId] ?: error("$nextDuchyId stub not found")
+    val nextDuchyStage =
+      getComputationStageInOtherDuchy(token.globalComputationId, nextDuchyId, nextDuchyStub)
+        .liquidLegionsSketchAggregationV2
+
+    if (nextDuchyStage.isSequencedAfter(Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS)) {
+      logger.log(Level.WARNING) {
+        "Skipping advanceComputation for next duchy $nextDuchyId. " +
+          "expected_stage=${Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS}, actual_stage=${nextDuchyStage}"
+      }
+    } else {
+      sendAdvanceComputationRequest(
+        header =
+          advanceComputationHeader(
+            LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT,
+            token.globalComputationId,
+          ),
+        content = addLoggingHook(token, bytes),
+        stub = nextDuchyStub,
+      )
+    }
 
     return dataClients.transitionComputationToStage(
       nextToken,
@@ -679,15 +757,28 @@ class ReachFrequencyLiquidLegionsV2Mill(
       }
 
     // Passes the computation to the next duchy.
-    sendAdvanceComputationRequest(
-      header =
-        advanceComputationHeader(
-          LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT,
-          token.globalComputationId,
-        ),
-      content = addLoggingHook(token, bytes),
-      stub = nextDuchyStub(llv2Details.participantList),
-    )
+    val nextDuchyId = nextDuchyId(llv2Details.participantList)
+    val nextDuchyStub = workerStubs[nextDuchyId] ?: error("$nextDuchyId stub not found")
+    val nextDuchyStage =
+      getComputationStageInOtherDuchy(token.globalComputationId, nextDuchyId, nextDuchyStub)
+        .liquidLegionsSketchAggregationV2
+
+    if (nextDuchyStage.isSequencedAfter(Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS)) {
+      logger.log(Level.WARNING) {
+        "Skipping advanceComputation for next duchy $nextDuchyId. " +
+          "expected_stage=${Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS}, actual_stage=${nextDuchyStage}"
+      }
+    } else {
+      sendAdvanceComputationRequest(
+        header =
+          advanceComputationHeader(
+            LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT,
+            token.globalComputationId,
+          ),
+        content = addLoggingHook(token, bytes),
+        stub = nextDuchyStub,
+      )
+    }
 
     // If this is a reach-only computation, then our job is done.
     if (maximumRequestedFrequency == 1) {
@@ -783,15 +874,28 @@ class ReachFrequencyLiquidLegionsV2Mill(
       }
 
     // Passes the computation to the next duchy.
-    sendAdvanceComputationRequest(
-      header =
-        advanceComputationHeader(
-          LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT,
-          token.globalComputationId,
-        ),
-      content = addLoggingHook(token, bytes),
-      stub = nextDuchyStub(llv2Details.participantList),
-    )
+    val nextDuchyId = nextDuchyId(llv2Details.participantList)
+    val nextDuchyStub = workerStubs[nextDuchyId] ?: error("$nextDuchyId stub not found")
+    val nextDuchyStage =
+      getComputationStageInOtherDuchy(token.globalComputationId, nextDuchyId, nextDuchyStub)
+        .liquidLegionsSketchAggregationV2
+
+    if (nextDuchyStage.isSequencedAfter(Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS)) {
+      logger.log(Level.WARNING) {
+        "Skipping advanceComputation for next duchy $nextDuchyId. " +
+          "expected_stage=${Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS}, actual_stage=${nextDuchyStage}"
+      }
+    } else {
+      sendAdvanceComputationRequest(
+        header =
+          advanceComputationHeader(
+            LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT,
+            token.globalComputationId,
+          ),
+        content = addLoggingHook(token, bytes),
+        stub = nextDuchyStub,
+      )
+    }
 
     // This duchy's responsibility for the computation is done. Mark it COMPLETED locally.
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
@@ -837,6 +941,10 @@ class ReachFrequencyLiquidLegionsV2Mill(
       dpParams = llv2Parameters.noise.frequencyNoiseConfig
     }
   }
+
+  /** Returns whether this [Stage] is after [other] in [stageSequence]. */
+  private fun Stage.isSequencedAfter(other: Stage): Boolean =
+    stageSequence.indexOf(this) > stageSequence.indexOf(other)
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

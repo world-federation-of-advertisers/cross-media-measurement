@@ -30,6 +30,7 @@ import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
@@ -76,15 +77,29 @@ abstract class RequisitionFulfiller(
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   protected val measurementConsumerName: String,
 ) {
+  protected val measurementConsumerKey =
+    checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
+
   protected data class Specifications(
     val measurementSpec: MeasurementSpec,
     val requisitionSpec: RequisitionSpec,
   )
 
-  protected class RequisitionRefusalException(
+  protected open class RequisitionRefusalException(
     val justification: Requisition.Refusal.Justification,
     message: String,
-  ) : Exception(message)
+    cause: Throwable? = null,
+  ) : Exception(message, cause) {
+    override val message: String
+      get() = super.message!!
+  }
+
+  /** [RequisitionRefusalException] for test EventGroups. */
+  protected class TestRequisitionRefusalException(
+    justification: Requisition.Refusal.Justification,
+    message: String,
+    cause: Throwable? = null,
+  ) : RequisitionRefusalException(justification, message, cause)
 
   protected class InvalidConsentSignalException(message: String? = null, cause: Throwable? = null) :
     GeneralSecurityException(message, cause)

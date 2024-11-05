@@ -15,13 +15,14 @@
 package org.wfanet.measurement.duchy.mill.shareshuffle
 
 import com.google.protobuf.ByteString
+import io.grpc.Status
 import io.grpc.StatusException
-import io.opentelemetry.api.OpenTelemetry
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.flowOf
 import org.wfanet.frequencycount.FrequencyVector
@@ -46,6 +47,7 @@ import org.wfanet.measurement.consent.client.duchy.signEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.verifyRandomSeed
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
+import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.TransientErrorException
 import org.wfanet.measurement.duchy.mill.CRYPTO_CPU_DURATION
 import org.wfanet.measurement.duchy.mill.CRYPTO_WALL_CLOCK_DURATION
 import org.wfanet.measurement.duchy.mill.Certificate
@@ -106,7 +108,6 @@ class HonestMajorityShareShuffleMill(
   private val cryptoWorker: HonestMajorityShareShuffleCryptor,
   private val protocolSetupConfig: HonestMajorityShareShuffleSetupConfig,
   workLockDuration: Duration,
-  openTelemetry: OpenTelemetry,
   private val privateKeyStore: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>? = null,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
@@ -127,7 +128,6 @@ class HonestMajorityShareShuffleMill(
     requestChunkSizeBytes = requestChunkSizeBytes,
     maximumAttempts = maximumAttempts,
     clock = clock,
-    openTelemetry = openTelemetry,
   ) {
   init {
     if (protocolSetupConfig.role != AGGREGATOR) {
@@ -136,8 +136,6 @@ class HonestMajorityShareShuffleMill(
   }
 
   override val endingStage = Stage.COMPLETE.toProtocolStage()
-
-  override val prioritizedStagesToClaim = listOf(Stage.INITIALIZED.toProtocolStage())
 
   private val actions =
     mapOf(
@@ -149,6 +147,19 @@ class HonestMajorityShareShuffleMill(
       Pair(Stage.SHUFFLE_PHASE, FIRST_NON_AGGREGATOR) to ::shufflePhase,
       Pair(Stage.SHUFFLE_PHASE, SECOND_NON_AGGREGATOR) to ::shufflePhase,
       Pair(Stage.AGGREGATION_PHASE, AGGREGATOR) to ::aggregationPhase,
+    )
+
+  private val stageSequence =
+    listOf(
+      Stage.INITIALIZED,
+      Stage.WAIT_TO_START,
+      Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE,
+      Stage.SETUP_PHASE,
+      Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO,
+      Stage.WAIT_ON_AGGREGATION_INPUT,
+      Stage.SHUFFLE_PHASE,
+      Stage.AGGREGATION_PHASE,
+      Stage.COMPLETE,
     )
 
   private fun nextStage(token: ComputationToken): Stage {
@@ -213,41 +224,9 @@ class HonestMajorityShareShuffleMill(
     )
   }
 
-  private fun peerDuchyStub(role: RoleInComputation): ComputationControlCoroutineStub {
-    val peerDuchy =
-      when (role) {
-        FIRST_NON_AGGREGATOR -> {
-          protocolSetupConfig.secondNonAggregatorDuchyId
-        }
-        SECOND_NON_AGGREGATOR -> {
-          protocolSetupConfig.firstNonAggregatorDuchyId
-        }
-        AGGREGATOR,
-        RoleInComputation.NON_AGGREGATOR,
-        RoleInComputation.ROLE_IN_COMPUTATION_UNSPECIFIED,
-        RoleInComputation.UNRECOGNIZED -> error("Unexpected role:$role for peerDuchyStub")
-      }
-    return workerStubs[peerDuchy]
-      ?: throw PermanentErrorException(
-        "No ComputationControlService stub for the peer duchy '$peerDuchy'"
-      )
-  }
-
-  private fun aggregatorStub(): ComputationControlCoroutineStub {
-    val aggregator = protocolSetupConfig.aggregatorDuchyId
-    return workerStubs[aggregator]
-      ?: throw PermanentErrorException(
-        "No ComputationControlService stub for aggregator '$aggregator'"
-      )
-  }
-
   private suspend fun setupPhase(token: ComputationToken): ComputationToken {
     val hmssDetails = token.computationDetails.honestMajorityShareShuffle
     val role = hmssDetails.role
-
-    val headerDescription =
-      if (role == FIRST_NON_AGGREGATOR) Description.SHUFFLE_PHASE_INPUT_ONE
-      else Description.SHUFFLE_PHASE_INPUT_TWO
 
     val shufflePhaseInput = shufflePhaseInput {
       peerRandomSeed = hmssDetails.randomSeed
@@ -272,24 +251,38 @@ class HonestMajorityShareShuffleMill(
           }
     }
 
-    sendAdvanceComputationRequest(
-      header = advanceComputationHeader(headerDescription, token.globalComputationId),
-      content = addLoggingHook(token, flowOf(shufflePhaseInput.toByteString())),
-      stub = peerDuchyStub(hmssDetails.role),
-    )
+    val peerDuchyId = peerDuchyId(role)
+    val peerDuchyStub = workerStubs[peerDuchyId] ?: error("$peerDuchyId stub not found")
+    val peerDuchyStage =
+      getComputationStageInOtherDuchy(token.globalComputationId, peerDuchyId, peerDuchyStub)
+        .honestMajorityShareShuffle
+    val headerDescription =
+      if (role == FIRST_NON_AGGREGATOR) Description.SHUFFLE_PHASE_INPUT_ONE
+      else Description.SHUFFLE_PHASE_INPUT_TWO
+    val peerDuchyExpectedStage =
+      if (role == FIRST_NON_AGGREGATOR) Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_ONE
+      else Stage.WAIT_ON_SHUFFLE_INPUT_PHASE_TWO
 
-    val nextStage = nextStage(token).toProtocolStage()
+    if (peerDuchyStage.isSequencedAfter(peerDuchyExpectedStage)) {
+      logger.log(Level.WARNING) {
+        "Skipping advanceComputation for next duchy $peerDuchyId. " +
+          "expected_stage=${peerDuchyExpectedStage}, actual_stage=${peerDuchyStage}"
+      }
+    } else {
+      sendAdvanceComputationRequest(
+        header = advanceComputationHeader(headerDescription, token.globalComputationId),
+        content = addLoggingHook(token, flowOf(shufflePhaseInput.toByteString())),
+        stub = peerDuchyStub,
+      )
+    }
+
     return dataClients.transitionComputationToStage(
       token,
       stage = nextStage(token).toProtocolStage(),
-      // For SECOND_NON_AGGREGATOR, the input of SETUP_PHASE is the ShufflePhaseInput from peer
-      // worker. It should be forwarded to SHUFFLE_PHASE.
-      inputsToNextStage =
-        if (nextStage == Stage.SHUFFLE_PHASE.toProtocolStage()) {
-          token.inputPathList()
-        } else {
-          emptyList()
-        },
+      // This is specifically for SECOND_NON_AGGREGATOR. The input of SETUP_PHASE is the
+      // ShufflePhaseInput from peer worker that should be forwarded to SHUFFLE_PHASE.
+      // For FIRST_NON_AGGREGATOR, this is empty.
+      inputsToNextStage = token.inputPathList(),
     )
   }
 
@@ -341,7 +334,15 @@ class HonestMajorityShareShuffleMill(
           getCertificateRequest { name = dataProviderCertificateName }
         )
       } catch (e: StatusException) {
-        throw PermanentErrorException("Fail to get certificate for $dataProviderCertificateName", e)
+        val message = "Fail to get certificate for $dataProviderCertificateName"
+        when (e.status.code) {
+          // TODO(@renjiezh): immediately retry for UNAVAILABLE and DEADLINE_EXCEEDED based on
+          // gRPC service config.
+          Status.Code.UNAVAILABLE,
+          Status.Code.DEADLINE_EXCEEDED,
+          Status.Code.ABORTED -> throw TransientErrorException(message, e)
+          else -> throw PermanentErrorException(message, e)
+        }
       }
 
     val x509Certificate: X509Certificate = readCertificate(dataProviderCertificate.x509Der)
@@ -458,17 +459,32 @@ class HonestMajorityShareShuffleMill(
       registerCount = request.frequencyVectorParams.registerCount
     }
 
-    logWallClockDuration(
-      token,
-      DATA_TRANSMISSION_RPC_WALL_CLOCK_DURATION,
-      stageDataTransmissionDurationHistogram,
-    ) {
-      sendAdvanceComputationRequest(
-        header =
-          advanceComputationHeader(Description.AGGREGATION_PHASE_INPUT, token.globalComputationId),
-        content = addLoggingHook(token, flowOf(aggregationPhaseInput.toByteString())),
-        stub = aggregatorStub(),
-      )
+    val aggregatorId = protocolSetupConfig.aggregatorDuchyId
+    val aggregatorStub = workerStubs[aggregatorId] ?: error("$aggregatorId stub not found")
+    val aggregatorStage =
+      getComputationStageInOtherDuchy(token.globalComputationId, aggregatorId, aggregatorStub)
+        .honestMajorityShareShuffle
+    if (aggregatorStage.isSequencedAfter(Stage.WAIT_ON_AGGREGATION_INPUT)) {
+      logger.log(Level.WARNING) {
+        "Skipping advanceComputation for the aggregator " +
+          "expected_stage=${Stage.WAIT_ON_AGGREGATION_INPUT}, actual_stage=${aggregatorStage}"
+      }
+    } else {
+      logWallClockDuration(
+        token,
+        DATA_TRANSMISSION_RPC_WALL_CLOCK_DURATION,
+        stageDataTransmissionDurationHistogram,
+      ) {
+        sendAdvanceComputationRequest(
+          header =
+            advanceComputationHeader(
+              Description.AGGREGATION_PHASE_INPUT,
+              token.globalComputationId,
+            ),
+          content = addLoggingHook(token, flowOf(aggregationPhaseInput.toByteString())),
+          stub = aggregatorStub,
+        )
+      }
     }
 
     return completeComputation(token, ComputationDetails.CompletedReason.SUCCEEDED)
@@ -569,6 +585,32 @@ class HonestMajorityShareShuffleMill(
 
     return completeComputation(token, ComputationDetails.CompletedReason.SUCCEEDED)
   }
+
+  private fun peerDuchyId(role: RoleInComputation): String {
+    return when (role) {
+      FIRST_NON_AGGREGATOR -> {
+        protocolSetupConfig.secondNonAggregatorDuchyId
+      }
+      SECOND_NON_AGGREGATOR -> {
+        protocolSetupConfig.firstNonAggregatorDuchyId
+      }
+      AGGREGATOR,
+      RoleInComputation.NON_AGGREGATOR,
+      RoleInComputation.ROLE_IN_COMPUTATION_UNSPECIFIED,
+      RoleInComputation.UNRECOGNIZED -> error("Unexpected role:$role for peerDuchyStub")
+    }
+  }
+
+  private fun peerDuchyStub(role: RoleInComputation): ComputationControlCoroutineStub {
+    val peerDuchyId = peerDuchyId(role)
+    return workerStubs[peerDuchyId]
+      ?: throw PermanentErrorException(
+        "No ComputationControlService stub for the peer duchy '$peerDuchyId'"
+      )
+  }
+
+  private fun Stage.isSequencedAfter(other: Stage): Boolean =
+    stageSequence.indexOf(this) > stageSequence.indexOf(other)
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

@@ -26,6 +26,7 @@ import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.computationStage
 import org.wfanet.measurement.internal.duchy.computationStageDetails
 import org.wfanet.measurement.internal.duchy.computationToken
+import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2Kt.stageDetails
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2Kt.waitSetupPhaseInputsDetails
@@ -51,13 +52,17 @@ class ReachOnlyLiquidLegionsV2StagesTest {
       when (stage) {
         Stage.WAIT_SETUP_PHASE_INPUTS,
         Stage.WAIT_EXECUTION_PHASE_INPUTS -> {
-          val next =
-            stages.nextStage(stage.toProtocolStage()).reachOnlyLiquidLegionsSketchAggregationV2
-          assertTrue("$next is not a valid successor of $stage") {
-            ReachOnlyLiquidLegionsSketchAggregationV2Protocol.EnumStages.validTransition(
-              stage,
-              next,
-            )
+          for (role in listOf(RoleInComputation.AGGREGATOR, RoleInComputation.NON_AGGREGATOR)) {
+            val next =
+              stages
+                .nextStage(stage.toProtocolStage(), role)
+                .reachOnlyLiquidLegionsSketchAggregationV2
+            assertTrue("$next is not a valid successor of $stage") {
+              ReachOnlyLiquidLegionsSketchAggregationV2Protocol.EnumStages.validTransition(
+                stage,
+                next,
+              )
+            }
           }
         }
         else -> assertContextThrowsErrorWhenCallingNextStage(stage)

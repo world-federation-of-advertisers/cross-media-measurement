@@ -25,7 +25,6 @@ import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.inprocess.InProcessChannelBuilder
-import io.grpc.inprocess.InProcessServerBuilder
 import java.io.File
 import java.security.SecureRandom
 import java.time.Duration
@@ -53,6 +52,7 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
+import org.wfanet.measurement.common.instrumented
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
@@ -91,138 +91,141 @@ import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
 import picocli.CommandLine
 
-private const val SERVER_NAME = "V2AlphaPublicApiServer"
+private object V2AlphaPublicApiServer {
+  private const val SERVER_NAME = "V2AlphaPublicApiServer"
+  private const val IN_PROCESS_SERVER_NAME = "$SERVER_NAME-in-process"
 
-@CommandLine.Command(
-  name = SERVER_NAME,
-  description = ["Server daemon for Reporting v2alpha public API services."],
-  mixinStandardHelpOptions = true,
-  showDefaultValues = true,
-)
-private fun run(
-  @CommandLine.Mixin reportingApiServerFlags: ReportingApiServerFlags,
-  @CommandLine.Mixin kingdomApiFlags: KingdomApiFlags,
-  @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
-  @CommandLine.Mixin v2AlphaFlags: V2AlphaFlags,
-  @CommandLine.Mixin v2AlphaPublicServerFlags: V2AlphaPublicServerFlags,
-  @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
-) {
-  val clientCerts =
-    SigningCerts.fromPemFiles(
-      certificateFile = commonServerFlags.tlsFlags.certFile,
-      privateKeyFile = commonServerFlags.tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile,
-    )
-  val channel: Channel =
-    buildMutualTlsChannel(
-        reportingApiServerFlags.internalApiFlags.target,
-        clientCerts,
-        reportingApiServerFlags.internalApiFlags.certHost,
+  @CommandLine.Command(
+    name = SERVER_NAME,
+    description = ["Server daemon for Reporting v2alpha public API services."],
+    mixinStandardHelpOptions = true,
+    showDefaultValues = true,
+  )
+  fun run(
+    @CommandLine.Mixin reportingApiServerFlags: ReportingApiServerFlags,
+    @CommandLine.Mixin kingdomApiFlags: KingdomApiFlags,
+    @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
+    @CommandLine.Mixin v2AlphaFlags: V2AlphaFlags,
+    @CommandLine.Mixin v2AlphaPublicServerFlags: V2AlphaPublicServerFlags,
+    @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
+  ) {
+    val clientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = commonServerFlags.tlsFlags.certFile,
+        privateKeyFile = commonServerFlags.tlsFlags.privateKeyFile,
+        trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile,
       )
-      .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
-
-  val kingdomChannel: Channel =
-    buildMutualTlsChannel(
-        target = kingdomApiFlags.target,
-        clientCerts = clientCerts,
-        hostName = kingdomApiFlags.certHost,
-      )
-      .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
-
-  val principalLookup: PrincipalLookup<ReportingPrincipal, ByteString> =
-    AkidPrincipalLookup(
-        v2AlphaPublicServerFlags.authorityKeyIdentifierToPrincipalMapFile,
-        v2AlphaFlags.measurementConsumerConfigFile,
-      )
-      .memoizing()
-
-  val measurementConsumerConfigs =
-    parseTextProto(
-      v2AlphaFlags.measurementConsumerConfigFile,
-      MeasurementConsumerConfigs.getDefaultInstance(),
-    )
-
-  val internalMeasurementConsumersCoroutineStub = InternalMeasurementConsumersCoroutineStub(channel)
-  runBlocking {
-    measurementConsumerConfigs.configsMap.keys.forEach {
-      val measurementConsumerKey =
-        MeasurementConsumerKey.fromName(it)
-          ?: throw IllegalArgumentException("measurement_consumer_config is invalid")
-      try {
-        internalMeasurementConsumersCoroutineStub.createMeasurementConsumer(
-          measurementConsumer {
-            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-          }
+    val channel: Channel =
+      buildMutualTlsChannel(
+          reportingApiServerFlags.internalApiFlags.target,
+          clientCerts,
+          reportingApiServerFlags.internalApiFlags.certHost,
         )
-      } catch (e: StatusException) {
-        when (e.status.code) {
-          Status.Code.ALREADY_EXISTS -> {}
-          else -> throw e
+        .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
+
+    val kingdomChannel: Channel =
+      buildMutualTlsChannel(
+          target = kingdomApiFlags.target,
+          clientCerts = clientCerts,
+          hostName = kingdomApiFlags.certHost,
+        )
+        .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
+
+    val principalLookup: PrincipalLookup<ReportingPrincipal, ByteString> =
+      AkidPrincipalLookup(
+          v2AlphaPublicServerFlags.authorityKeyIdentifierToPrincipalMapFile,
+          v2AlphaFlags.measurementConsumerConfigFile,
+        )
+        .memoizing()
+
+    val measurementConsumerConfigs =
+      parseTextProto(
+        v2AlphaFlags.measurementConsumerConfigFile,
+        MeasurementConsumerConfigs.getDefaultInstance(),
+      )
+
+    val internalMeasurementConsumersCoroutineStub =
+      InternalMeasurementConsumersCoroutineStub(channel)
+    runBlocking {
+      measurementConsumerConfigs.configsMap.keys.forEach {
+        val measurementConsumerKey =
+          MeasurementConsumerKey.fromName(it)
+            ?: throw IllegalArgumentException("measurement_consumer_config is invalid")
+        try {
+          internalMeasurementConsumersCoroutineStub.createMeasurementConsumer(
+            measurementConsumer {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            }
+          )
+        } catch (e: StatusException) {
+          when (e.status.code) {
+            Status.Code.ALREADY_EXISTS -> {}
+            else -> throw e
+          }
         }
       }
     }
-  }
 
-  val metricSpecConfig =
-    parseTextProto(v2AlphaFlags.metricSpecConfigFile, MetricSpecConfig.getDefaultInstance())
-  metricSpecConfig.validate()
+    val metricSpecConfig =
+      parseTextProto(v2AlphaFlags.metricSpecConfigFile, MetricSpecConfig.getDefaultInstance())
+    metricSpecConfig.validate()
 
-  val apiKey = measurementConsumerConfigs.configsMap.values.first().apiKey
-  val celEnvCacheProvider =
-    CelEnvCacheProvider(
-      KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
-        .withAuthenticationKey(apiKey),
-      EventGroup.getDescriptor(),
-      reportingApiServerFlags.eventGroupMetadataDescriptorCacheDuration,
-      v2AlphaPublicServerFlags.knownEventGroupMetadataTypes,
-      Dispatchers.Default,
-    )
+    val apiKey = measurementConsumerConfigs.configsMap.values.first().apiKey
+    val celEnvCacheProvider =
+      CelEnvCacheProvider(
+        KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
+          .withAuthenticationKey(apiKey),
+        EventGroup.getDescriptor(),
+        reportingApiServerFlags.eventGroupMetadataDescriptorCacheDuration,
+        v2AlphaPublicServerFlags.knownEventGroupMetadataTypes,
+        Dispatchers.Default,
+      )
 
-  val metricsService =
-    MetricsService(
-      metricSpecConfig,
-      InternalReportingSetsCoroutineStub(channel),
-      InternalMetricsCoroutineStub(channel),
-      VariancesImpl,
-      InternalMeasurementsCoroutineStub(channel),
-      KingdomDataProvidersCoroutineStub(kingdomChannel),
-      KingdomMeasurementsCoroutineStub(kingdomChannel),
-      KingdomCertificatesCoroutineStub(kingdomChannel),
-      KingdomMeasurementConsumersCoroutineStub(kingdomChannel),
-      InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
-      SecureRandom().asKotlinRandom(),
-      v2AlphaFlags.signingPrivateKeyStoreDir,
-      commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
-      certificateCacheExpirationDuration =
-        v2AlphaPublicServerFlags.certificateCacheExpirationDuration,
-      dataProviderCacheExpirationDuration =
-        v2AlphaPublicServerFlags.dataProviderCacheExpirationDuration,
-      Dispatchers.IO,
-      Dispatchers.Default,
-    )
+    val metricsService =
+      MetricsService(
+        metricSpecConfig,
+        InternalReportingSetsCoroutineStub(channel),
+        InternalMetricsCoroutineStub(channel),
+        VariancesImpl,
+        InternalMeasurementsCoroutineStub(channel),
+        KingdomDataProvidersCoroutineStub(kingdomChannel),
+        KingdomMeasurementsCoroutineStub(kingdomChannel),
+        KingdomCertificatesCoroutineStub(kingdomChannel),
+        KingdomMeasurementConsumersCoroutineStub(kingdomChannel),
+        InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
+        SecureRandom().asKotlinRandom(),
+        v2AlphaFlags.signingPrivateKeyStoreDir,
+        commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
+        certificateCacheExpirationDuration =
+          v2AlphaPublicServerFlags.certificateCacheExpirationDuration,
+        dataProviderCacheExpirationDuration =
+          v2AlphaPublicServerFlags.dataProviderCacheExpirationDuration,
+        Dispatchers.IO,
+        Dispatchers.Default,
+      )
 
-  val inProcessExecutorService: ExecutorService =
-    ThreadPoolExecutor(
-      1,
-      commonServerFlags.threadPoolSize,
-      60L,
-      TimeUnit.SECONDS,
-      LinkedBlockingQueue(),
-    )
+    val inProcessExecutorService: ExecutorService =
+      ThreadPoolExecutor(
+          1,
+          commonServerFlags.threadPoolSize,
+          60L,
+          TimeUnit.SECONDS,
+          LinkedBlockingQueue(),
+        )
+        .instrumented(IN_PROCESS_SERVER_NAME)
 
-  val inProcessServerName = InProcessServerBuilder.generateName()
-  val inProcessServer: Server =
-    startInProcessServerWithService(
-      inProcessServerName,
-      commonServerFlags,
-      metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs),
-      inProcessExecutorService,
-    )
-  val inProcessChannel =
-    InProcessChannelBuilder.forName(inProcessServerName)
-      .directExecutor()
-      .build()
-      .withShutdownTimeout(Duration.ofSeconds(30))
+    val inProcessServer: Server =
+      startInProcessServerWithService(
+        IN_PROCESS_SERVER_NAME,
+        commonServerFlags,
+        metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs),
+        inProcessExecutorService,
+      )
+    val inProcessChannel =
+      InProcessChannelBuilder.forName(IN_PROCESS_SERVER_NAME)
+        .directExecutor()
+        .build()
+        .withShutdownTimeout(Duration.ofSeconds(30))
 
   val services: List<ServerServiceDefinition> =
     listOf(
@@ -274,52 +277,53 @@ private fun run(
   inProcessExecutorService.awaitTermination(30, TimeUnit.SECONDS)
 }
 
-fun main(args: Array<String>) = commandLineMain(::run, args)
+  class V2AlphaPublicServerFlags {
+    @CommandLine.Option(
+      names = ["--authority-key-identifier-to-principal-map-file"],
+      description = ["File path to a AuthorityKeyToPrincipalMap textproto"],
+      required = true,
+    )
+    lateinit var authorityKeyIdentifierToPrincipalMapFile: File
+      private set
 
-private class V2AlphaPublicServerFlags {
-  @CommandLine.Option(
-    names = ["--authority-key-identifier-to-principal-map-file"],
-    description = ["File path to a AuthorityKeyToPrincipalMap textproto"],
-    required = true,
-  )
-  lateinit var authorityKeyIdentifierToPrincipalMapFile: File
-    private set
+    @CommandLine.Option(
+      names = ["--certificate-cache-expiration-duration"],
+      description = ["Duration to mark cache entries as expired in format 1d1h1m1s1ms1ns"],
+      required = true,
+    )
+    lateinit var certificateCacheExpirationDuration: Duration
+      private set
 
-  @CommandLine.Option(
-    names = ["--certificate-cache-expiration-duration"],
-    description = ["Duration to mark cache entries as expired in format 1d1h1m1s1ms1ns"],
-    required = true,
-  )
-  lateinit var certificateCacheExpirationDuration: Duration
-    private set
+    @CommandLine.Option(
+      names = ["--data-provider-cache-expiration-duration"],
+      description = ["Duration to mark cache entries as expired in format 1d1h1m1s1ms1ns"],
+      required = true,
+    )
+    lateinit var dataProviderCacheExpirationDuration: Duration
+      private set
 
-  @CommandLine.Option(
-    names = ["--data-provider-cache-expiration-duration"],
-    description = ["Duration to mark cache entries as expired in format 1d1h1m1s1ms1ns"],
-    required = true,
-  )
-  lateinit var dataProviderCacheExpirationDuration: Duration
-    private set
+    @CommandLine.Option(
+      names = ["--known-event-group-metadata-type"],
+      description =
+        [
+          "File path to FileDescriptorSet containing known EventGroup metadata types.",
+          "This is in addition to standard protobuf well-known types.",
+          "Can be specified multiple times.",
+        ],
+      required = false,
+      defaultValue = "",
+    )
+    private fun setKnownEventGroupMetadataTypes(fileDescriptorSetFiles: List<File>) {
+      val fileDescriptorSets =
+        fileDescriptorSetFiles.map { file ->
+          file.inputStream().use { input -> DescriptorProtos.FileDescriptorSet.parseFrom(input) }
+        }
+      knownEventGroupMetadataTypes = ProtoReflection.buildFileDescriptors(fileDescriptorSets)
+    }
 
-  @CommandLine.Option(
-    names = ["--known-event-group-metadata-type"],
-    description =
-      [
-        "File path to FileDescriptorSet containing known EventGroup metadata types.",
-        "This is in addition to standard protobuf well-known types.",
-        "Can be specified multiple times.",
-      ],
-    required = false,
-    defaultValue = "",
-  )
-  private fun setKnownEventGroupMetadataTypes(fileDescriptorSetFiles: List<File>) {
-    val fileDescriptorSets =
-      fileDescriptorSetFiles.map { file ->
-        file.inputStream().use { input -> DescriptorProtos.FileDescriptorSet.parseFrom(input) }
-      }
-    knownEventGroupMetadataTypes = ProtoReflection.buildFileDescriptors(fileDescriptorSets)
+    lateinit var knownEventGroupMetadataTypes: List<Descriptors.FileDescriptor>
+      private set
   }
-
-  lateinit var knownEventGroupMetadataTypes: List<Descriptors.FileDescriptor>
-    private set
 }
+
+fun main(args: Array<String>) = commandLineMain(V2AlphaPublicApiServer::run, args)

@@ -19,7 +19,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.copy
@@ -82,10 +82,9 @@ class CreateEventGroup(private val request: CreateEventGroupRequest) :
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       if (request.eventGroup.hasDetails()) {
-        set("EventGroupDetails" to request.eventGroup.details)
-        setJson("EventGroupDetailsJson" to request.eventGroup.details)
+        set("EventGroupDetails").to(request.eventGroup.details)
       }
-      set("State" to EventGroup.State.ACTIVE)
+      set("State").toInt64(EventGroup.State.ACTIVE)
     }
 
     return request.eventGroup.copy {

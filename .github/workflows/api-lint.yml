@@ -29,33 +29,33 @@ jobs:
   lint:
     name: API lint
     runs-on: ubuntu-22.04
-    permissions:
-      id-token: write
     defaults:
       run:
         shell: bash
     steps:
     - uses: actions/checkout@v4
-      
+
     - uses: world-federation-of-advertisers/actions/setup-api-linter@v2
       with:
-        version: 1.52.0
-        sha256: 89ec88aa07974e4476f1d5a1bb626b05a65cdc76b64c7e73e15ebb77ebdb9aaf
-        
-    # Authenticate to Google Cloud for access to remote cache.
-    - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
-      with:
-        workload_identity_provider: ${{ vars.BAZEL_BUILD_WORKLOAD_IDENTITY_PROVIDER }}
-        service_account: ${{ vars.BAZEL_BUILD_SERVICE_ACCOUNT }}
+        version: 1.67.2
+        sha256: 260064fad8c38feae402595b6cefef51d70e72b0b5968359c79ee8f3ad33ab27
+
+    - name: Write auth.bazelrc
+      env:
+        BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+      run: |
+        cat << EOF > auth.bazelrc
+        build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+        EOF
 
     - name: Write ~/.bazelrc
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
-        common --config=remote-cache
+        build --remote_download_outputs=toplevel  # Need descriptor set output.
         EOF
 
-    - env:
-        BAZEL: bazelisk
-      run: tools/api-lint wfa/measurement/system
+    - uses: world-federation-of-advertisers/actions/setup-bazel@v2
+
+    - run: tools/api-lint wfa/measurement/system
+    - run: tools/api-lint wfa/measurement/securecomputation

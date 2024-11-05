@@ -17,19 +17,17 @@ package org.wfanet.measurement.duchy.mill
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
-import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.DoubleHistogram
-import io.opentelemetry.api.metrics.Meter
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.pow
 import kotlin.random.Random
-import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource
 import kotlin.time.toJavaDuration
 import kotlinx.coroutines.flow.Flow
@@ -42,12 +40,15 @@ import kotlinx.coroutines.time.delay
 import kotlinx.coroutines.yield
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.ExponentialBackoff
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDuration
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signResult
 import org.wfanet.measurement.duchy.db.computation.BlobRef
@@ -55,6 +56,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
+import org.wfanet.measurement.duchy.toComputationStage
 import org.wfanet.measurement.duchy.utils.ComputationResult
 import org.wfanet.measurement.duchy.utils.toV2AlphaEncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
@@ -76,14 +78,18 @@ import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.Computatio
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntryKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
-import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
+import org.wfanet.measurement.system.v1alpha.StageKey
+import org.wfanet.measurement.system.v1alpha.computationLogEntry
+import org.wfanet.measurement.system.v1alpha.createComputationLogEntryRequest
 import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.getComputationParticipantRequest
+import org.wfanet.measurement.system.v1alpha.getComputationStageRequest
 import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
 import org.wfanet.measurement.system.v1alpha.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.system.v1alpha.stageAttempt
@@ -125,43 +131,64 @@ abstract class MillBase(
   private val requestChunkSizeBytes: Int,
   private val maximumAttempts: Int,
   private val clock: Clock,
-  openTelemetry: OpenTelemetry,
   private val rpcRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
   private val rpcMaxAttempts: Int = 3,
 ) {
   abstract val endingStage: ComputationStage
 
-  abstract val prioritizedStagesToClaim: List<ComputationStage>
-
-  private val meter: Meter = openTelemetry.getMeter(this::class.qualifiedName!!)
-
   protected val cryptoWallClockDurationHistogram: DoubleHistogram =
-    meter
-      .histogramBuilder("halo_cmm.computation.stage.crypto.time")
+    Instrumentation.meter
+      .histogramBuilder("$COMPUTATION_STAGE_NAMESPACE.crypto.time")
       .setDescription("Wall time spent in crypto operations for a computation stage")
       .setUnit("s")
       .build()
 
   protected val cryptoCpuDurationHistogram: DoubleHistogram =
-    meter
-      .histogramBuilder("halo_cmm.computation.stage.crypto.cpu.time")
+    Instrumentation.meter
+      .histogramBuilder("$COMPUTATION_STAGE_NAMESPACE.crypto.cpu.time")
       .setDescription("CPU time spent in crypto operations for a computation stage")
       .setUnit("s")
       .build()
 
   private val stageWallClockDurationHistogram: DoubleHistogram =
-    meter
-      .histogramBuilder("halo_cmm.computation.stage.time")
+    Instrumentation.meter
+      .histogramBuilder("$COMPUTATION_STAGE_NAMESPACE.time")
       .setDescription("Wall time for a computation stage")
       .setUnit("s")
       .build()
 
   protected val stageDataTransmissionDurationHistogram: DoubleHistogram =
-    meter
-      .histogramBuilder("halo_cmm.computation.stage.transmission.time")
+    Instrumentation.meter
+      .histogramBuilder("$COMPUTATION_STAGE_NAMESPACE.transmission.time")
       .setDescription("Wall time for data transmission")
       .setUnit("s")
       .build()
+
+  /** Returns whether this Mill currently holds the lock on [token]. */
+  private fun holdsLock(token: ComputationToken, now: Instant): Boolean {
+    return token.lockOwner == millId && token.lockExpirationTime.toInstant() > now
+  }
+
+  /** Process a work item that has already been claimed. */
+  suspend fun processClaimedWork(globalComputationId: String, version: Long) {
+    val token: ComputationToken = getLatestComputationToken(globalComputationId)
+    val now = clock.instant()
+
+    if (token.version != version) {
+      val message = "Computation version has changed since claimed"
+      logger.warning(message)
+      sendStatusUpdateToKingdom(globalComputationId, buildErrorLogEntry(token, message, now))
+      return
+    }
+    if (!holdsLock(token, now)) {
+      val message = "Mill does not hold lock for Computation $globalComputationId"
+      logger.warning(message)
+      sendStatusUpdateToKingdom(globalComputationId, buildErrorLogEntry(token, message, now))
+      return
+    }
+
+    processComputation(token)
+  }
 
   private var computationsServerReady = false
   /**
@@ -176,7 +203,7 @@ abstract class MillBase(
       computationType = this@MillBase.computationType
       owner = millId
       lockDuration = workLockDuration.toProtoDuration()
-      prioritizedStages += prioritizedStagesToClaim
+      prioritizedStages += this@MillBase.computationType.prioritizedStages
     }
     val claimWorkResponse =
       try {
@@ -194,12 +221,18 @@ abstract class MillBase(
       return false
     }
 
-    processComputation(claimWorkResponse.token)
+    val token: ComputationToken = claimWorkResponse.token
+    logger.info {
+      val globalComputationId = token.globalComputationId
+      val stage = token.computationStage
+      "Claimed work item for Computation $globalComputationId at stage $stage"
+    }
+    processComputation(token)
     return true
   }
 
   /** Process the computation according to its protocol and status. */
-  protected suspend fun processComputation(token: ComputationToken) {
+  private suspend fun processComputation(token: ComputationToken) {
     if (token.attempt > maximumAttempts) {
       failComputation(token, "Failing computation due to too many failed ComputationStageAttempts.")
       return
@@ -248,7 +281,14 @@ abstract class MillBase(
           )
         } else {
           logger.log(Level.WARNING, e) { "$globalId@$millId: TRANSIENT error" }
-          sendStatusUpdateToKingdom(newErrorUpdateRequest(token, e.localizedMessage))
+          sendStatusUpdateToKingdom(
+            globalId,
+            buildErrorLogEntry(
+              token,
+              "Transient error processing Computation $globalId at attempt ${token.attempt} of " +
+                "stage ${token.computationStage}: ${e.message}",
+            ),
+          )
           // Enqueue the computation again for future retry
           enqueueComputation(token)
         }
@@ -388,7 +428,9 @@ abstract class MillBase(
     cause: Throwable? = null,
   ) {
     val errorMessage: String = message ?: cause?.message.orEmpty()
-    val logMessageSupplier = { "${token.globalComputationId}@$millId: $errorMessage" }
+    val logMessageSupplier = {
+      "${token.globalComputationId}@$millId: Failing Computation. $errorMessage"
+    }
     if (cause == null) {
       logger.log(Level.SEVERE, logMessageSupplier)
     } else {
@@ -402,9 +444,17 @@ abstract class MillBase(
   protected abstract suspend fun processComputationImpl(token: ComputationToken)
 
   /** Sends status update to the Kingdom's ComputationLogEntriesService. */
-  private suspend fun sendStatusUpdateToKingdom(request: CreateComputationLogEntryRequest) {
+  private suspend fun sendStatusUpdateToKingdom(
+    globalComputationId: String,
+    logEntry: ComputationLogEntry,
+  ) {
     try {
-      systemComputationLogEntriesClient.createComputationLogEntry(request)
+      systemComputationLogEntriesClient.createComputationLogEntry(
+        createComputationLogEntryRequest {
+          parent = ComputationParticipantKey(globalComputationId, duchyId).toName()
+          computationLogEntry = logEntry
+        }
+      )
     } catch (e: StatusException) {
       logger.log(Level.WARNING, e) { "Failed to update status change to the kingdom." }
     }
@@ -523,33 +573,24 @@ abstract class MillBase(
     }
   }
 
-  /** Builds a [CreateComputationLogEntryRequest] to update the new error. */
-  private fun newErrorUpdateRequest(
+  private fun buildErrorLogEntry(
     token: ComputationToken,
     message: String,
-  ): CreateComputationLogEntryRequest {
-    val timestamp = clock.protoTimestamp()
-    return CreateComputationLogEntryRequest.newBuilder()
-      .apply {
-        parent = ComputationParticipantKey(token.globalComputationId, duchyId).toName()
-        computationLogEntryBuilder.apply {
-          participantChildReferenceId = millId
-          logMessage =
-            "Computation ${token.globalComputationId} at stage " +
-              "${token.computationStage.name}, attempt ${token.attempt} failed, $message"
-          stageAttemptBuilder.apply {
-            stage = token.computationStage.number
-            stageName = token.computationStage.name
-            stageStartTime = timestamp
-            attemptNumber = token.attempt.toLong()
-          }
-          errorDetailsBuilder.also {
-            it.errorTime = timestamp
-            it.type = ComputationLogEntry.ErrorDetails.Type.TRANSIENT
-          }
-        }
+    now: Instant = clock.instant(),
+  ) = computationLogEntry {
+    participantChildReferenceId = millId
+    logMessage = message
+    stageAttempt = stageAttempt {
+      stage = token.computationStage.number
+      stageName = token.computationStage.name
+      stageStartTime = now.toProtoTime()
+      attemptNumber = token.attempt.toLong()
+    }
+    errorDetails =
+      ComputationLogEntryKt.errorDetails {
+        type = ComputationLogEntry.ErrorDetails.Type.TRANSIENT
+        errorTime = now.toProtoTime()
       }
-      .build()
   }
 
   /** Adds a logging hook to the flow to log the total number of bytes sent out in the rpc. */
@@ -579,6 +620,9 @@ abstract class MillBase(
       val message = "Error advancing computation at other Duchy"
       throw when (e.status.code) {
         Status.Code.UNAVAILABLE,
+        // The mill will check the ComputationToken Stage in the target duchy before sending the
+        // request, so it is safe to retry DEADLINE_EXCEEDED cases.
+        Status.Code.DEADLINE_EXCEEDED,
         Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
         else -> ComputationDataClients.PermanentErrorException(message, e)
       }
@@ -682,7 +726,7 @@ abstract class MillBase(
   }
 
   /** Gets the latest [ComputationToken] for computation with [globalId]. */
-  protected suspend fun getLatestComputationToken(globalId: String): ComputationToken {
+  private suspend fun getLatestComputationToken(globalId: String): ComputationToken {
     val response: GetComputationTokenResponse =
       try {
         dataClients.computationsClient.getComputationToken(
@@ -692,6 +736,7 @@ abstract class MillBase(
         val message = "Error retrieving computation token"
         throw when (e.status.code) {
           Status.Code.UNAVAILABLE,
+          Status.Code.DEADLINE_EXCEEDED,
           Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
           else -> ComputationDataClients.PermanentErrorException(message, e)
         }
@@ -737,6 +782,10 @@ abstract class MillBase(
         val message = "Error updating computation details"
         throw when (e.status.code) {
           Status.Code.UNAVAILABLE,
+          // The mill will get the latest ComputationToken before attempting to update the details.
+          // Updating only succeeds with the latest Computation version. So it is safe to retry for
+          // DEADLINE_EXCEEDED.
+          Status.Code.DEADLINE_EXCEEDED,
           Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
           else -> ComputationDataClients.PermanentErrorException(message, e)
         }
@@ -745,7 +794,29 @@ abstract class MillBase(
     return response.token
   }
 
-  @OptIn(ExperimentalTime::class)
+  protected suspend fun getComputationStageInOtherDuchy(
+    globalComputationId: String,
+    otherDuchyId: String,
+    stub: ComputationControlCoroutineStub,
+  ): ComputationStage {
+    val systemStage =
+      try {
+        stub.getComputationStage(
+          getComputationStageRequest { name = StageKey(globalComputationId, otherDuchyId).toName() }
+        )
+      } catch (e: StatusException) {
+        val message = "Error getting computation stage from other duchy."
+        throw when (e.status.code) {
+          Status.Code.UNAVAILABLE,
+          Status.Code.DEADLINE_EXCEEDED,
+          Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
+          else -> ComputationDataClients.PermanentErrorException(message, e)
+        }
+      }
+
+    return systemStage.toComputationStage()
+  }
+
   private inner class WallDurationLogger {
     private val timeMark = TimeSource.Monotonic.markNow()
 
@@ -776,9 +847,12 @@ abstract class MillBase(
   }
 
   companion object {
-    private val COMPUTATION_TYPE_ATTRIBUTE_KEY = AttributeKey.stringKey("halo_cmm.computation.type")
+    private const val COMPUTATION_NAMESPACE = "${Instrumentation.ROOT_NAMESPACE}.computation"
+    private const val COMPUTATION_STAGE_NAMESPACE = "$COMPUTATION_NAMESPACE.stage"
+    private val COMPUTATION_TYPE_ATTRIBUTE_KEY =
+      AttributeKey.stringKey("$COMPUTATION_NAMESPACE.type")
     private val COMPUTATION_STAGE_ATTRIBUTE_KEY =
-      AttributeKey.stringKey("halo_cmm.computation.stage")
+      AttributeKey.stringKey("$COMPUTATION_NAMESPACE.stage")
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }

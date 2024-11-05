@@ -34,28 +34,29 @@ jobs:
   build-test:
     name: Build and test
     runs-on: ubuntu-22.04
-    permissions:
-      id-token: write
     env:
       CLUSTER_LOGS_PATH: cluster-logs
     steps:
       - name: Check out revision
         uses: actions/checkout@v4
 
+      - name: Set up Bazel
+        uses: world-federation-of-advertisers/actions/setup-bazel@v2
+
       - uses: ./.github/actions/free-disk-space
 
-      # Authenticate to Google Cloud for access to remote cache.
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ vars.BAZEL_BUILD_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.BAZEL_BUILD_SERVICE_ACCOUNT }}
+      - name: Write auth.bazelrc
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: |
+          cat << EOF > auth.bazelrc
+          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+          EOF
 
       - name: Write ~/.bazelrc
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
-          common --config=remote-cache
           build --remote_upload_local_results
           build --define container_registry=localhost:5001
           build --define image_repo_prefix=halo
@@ -79,48 +80,24 @@ jobs:
           build --define edp6_name=dataProviders/foo6
           build --define edp6_cert_name=dataProviders/foo6/certificates/bar6
           build --define google_cloud_project=example-project
-          build --define bigquery_dataset=example-dataset
-          build --define bigquery_table=events
           EOF
 
-      - name: Get Bazel cache params
-        id: get-cache-params
-        run: |
-          cache_path="$(bazelisk info output_base)"
-          echo "cache-path=${cache_path}" >> $GITHUB_OUTPUT
+      # Reduce chance of disconnection from the Build Event Service.
+      - name: Set TCP keepalive
+        run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
 
-          repo_cache_path="$(bazelisk info repository_cache)"
-          echo "repo-cache-path=${repo_cache_path}" >> $GITHUB_OUTPUT
-
-      # Hack to work around disk space consumed by bazel-contrib/rules_oci#439.
-      # The alternative is to use a runner with more disk space.
-      - name: Mount scratch disk
-        uses: ./.github/actions/mount-scratch-disk
-        with:
-          mount-path: ${{ steps.get-cache-params.outputs.cache-path }}
-
-      - name: Restore repository cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.get-cache-params.outputs.repo-cache-path }}
-          key: ${{ vars.BAZEL_REPO_CACHE_KEY }}
+      - name: Check lockfile
+        run: bazel mod deps
 
       - name: Build
         run: >
-          bazelisk build --worker_quit_after_build
+          bazel build --worker_quit_after_build
           //...
           //src/main/k8s/dev:synthetic_generator_edp_simulators
 
-      - name: Save repository cache
-        uses: actions/cache/save@v4
-        continue-on-error: true
-        with:
-          path: ${{ steps.get-cache-params.outputs.repo-cache-path }}
-          key: ${{ vars.BAZEL_REPO_CACHE_KEY }}
-
       - name: Run tests
         id: run-tests
-        run: bazelisk test //...
+        run: bazel test //...
 
       - name: Create cluster
         id: create-cluster
@@ -128,12 +105,13 @@ jobs:
           echo "KUBECONFIG=$HOME/.kube/config" >> "$GITHUB_ENV"
           curl -LOJ https://kind.sigs.k8s.io/examples/kind-with-registry.sh
           chmod +x kind-with-registry.sh
+          sed -i 's|kind create cluster|kind create cluster --image=kindest/node:v1.30.0|g' kind-with-registry.sh
           ./kind-with-registry.sh
 
       - name: Run correctness test
         id: run-correctness-test
         run: >
-          bazelisk test
+          bazel test
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:EmptyClusterCorrectnessTest
           --test_output=streamed
 
@@ -146,7 +124,7 @@ jobs:
       - name: Run panelmatch correctness test
         id: run-panelmatch-correctness-test
         run: >
-          bazelisk test
+          bazel test
           //src/test/kotlin/org/wfanet/panelmatch/integration/k8s:EmptyClusterPanelMatchCorrectnessTest
           --test_output=streamed
 

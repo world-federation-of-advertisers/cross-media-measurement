@@ -58,7 +58,6 @@ package k8s
 	collectors: [Name=string]: #OpenTelemetryCollector & {
 		metadata: name: Name
 	}
-
 	collectors: {
 		"default": {
 			spec: {
@@ -123,7 +122,7 @@ package k8s
 				_envVars: [string]: string
 				_envVars: {
 					OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT: "256"
-					OTEL_TRACES_EXPORTER:                   "otlp"
+					OTEL_TRACES_EXPORTER:                   _ | *"none"
 					OTEL_EXPORTER_OTLP_TRACES_PROTOCOL:     "grpc"
 					OTEL_EXPORTER_OTLP_ENDPOINT:            "http://default-collector-headless.default.svc:\(#OpenTelemetryReceiverPort)"
 					OTEL_EXPORTER_OTLP_TIMEOUT:             "20000"
@@ -142,15 +141,45 @@ package k8s
 	}
 
 	networkPolicies: [Name=_]: #NetworkPolicy & {
-		_policyPodSelectorMatchLabels: "app.kubernetes.io/component": "opentelemetry-collector"
 		_name: Name
 	}
-
 	networkPolicies: {
-		"opentelemetry-collector": {
-			_ingresses: {
-				any: {}
+		"to-opentelemetry-collector": {
+			_egresses: {
+				collector: {
+					to: [{
+						podSelector: {
+							matchLabels: {
+								"app.kubernetes.io/component": "opentelemetry-collector"
+							}
+						}
+					}]
+				}
+			}
+			spec: {
+				podSelector: {}
+				policyTypes: ["Egress"]
 			}
 		}
+		"opentelemetry-collector": {
+			_ingresses: {
+				allPods: {
+					from: [{
+						podSelector: {}
+					}]
+				}
+			}
+			spec: {
+				podSelector: {
+					matchLabels: {
+						"app.kubernetes.io/component": "opentelemetry-collector"
+					}
+				}
+			}
+		}
+	}
+
+	serviceAccounts: [Name=string]: #ServiceAccount & {
+		metadata: name: Name
 	}
 }

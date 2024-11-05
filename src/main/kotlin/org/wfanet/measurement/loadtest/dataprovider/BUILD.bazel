@@ -1,5 +1,4 @@
 load("@rules_java//java:defs.bzl", "java_binary")
-load("@wfa_common_jvm//build/rules_oci:defs.bzl", "DEFAULT_JAVA_DEBUG_IMAGE_BASE")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 load("//build/platforms:constraints.bzl", "DISTROLESS_JAVA")
 load("//src/main/docker:macros.bzl", "java_image")
@@ -43,34 +42,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-    ],
-)
-
-kt_jvm_library(
-    name = "csv_event_query",
-    srcs = ["CsvEventQuery.kt"],
-    deps = [
-        ":in_memory_event_query",
-        ":labeled_event",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/opencsv",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-    ],
-)
-
-kt_jvm_library(
-    name = "bigquery_event_query",
-    srcs = ["BigQueryEventQuery.kt"],
-    deps = [
-        ":event_query",
-        ":labeled_event",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
-        "//src/main/proto/halo_cmm/uk/pilot:display_template_kt_jvm_proto",
-        "//src/main/proto/halo_cmm/uk/pilot:event_kt_jvm_proto",
-        "//src/main/proto/halo_cmm/uk/pilot:video_template_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/cloud/bigquery",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/common",
     ],
 )
 
@@ -146,17 +117,19 @@ kt_jvm_library(
         ":vid_to_index_map_generator",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/common:health",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_fulfiller",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/api/v2alpha:privacy_query_mapper",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/shareshuffle/v2alpha:shareshuffle",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/common:sample_vids",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:privacy_budgets",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:test_identifiers",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
         "//src/main/proto/halo_cmm/uk/pilot:event_kt_jvm_proto",
+        "//src/main/proto/wfa/any_sketch:frequency_vector_kt_jvm_proto",
         "//src/main/proto/wfa/any_sketch:sketch_kt_jvm_proto",
-        "//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto",
         "//src/main/proto/wfa/frequency_count:secret_share_kt_jvm_proto",
         "//src/main/proto/wfa/frequency_count:secret_share_methods_kt_jvm__proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
@@ -219,72 +192,11 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "csv_edp_simulator_runner",
-    srcs = ["CsvEdpSimulatorRunner.kt"],
-    deps = [
-        ":csv_event_query",
-        ":edp_simulator_runner",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_group_metadata",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/picocli",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-    ],
-)
-
-java_binary(
-    name = "CsvEdpSimulatorRunner",
-    main_class = "org.wfanet.measurement.loadtest.dataprovider.CsvEdpSimulatorRunnerKt",
-    runtime_deps = [
-        ":csv_edp_simulator_runner",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
-    ],
-)
-
-java_image(
-    name = "csv_edp_simulator_runner_image",
-    # Use the debug image as it includes the `tar` binary needed to use `kubectl cp` to copy in a CSV file.
-    base = DEFAULT_JAVA_DEBUG_IMAGE_BASE,
-    binary = ":CsvEdpSimulatorRunner",
-    main_class = "org.wfanet.measurement.loadtest.dataprovider.CsvEdpSimulatorRunnerKt",
-    target_compatible_with = DISTROLESS_JAVA,
-    visibility = ["//src:docker_image_deployment"],
-)
-
-kt_jvm_library(
-    name = "bigquery_edp_simulator_runner",
-    srcs = ["BigQueryEdpSimulatorRunner.kt"],
-    deps = [
-        ":bigquery_event_query",
-        ":edp_simulator_runner",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_group_metadata",
-        "//src/main/proto/halo_cmm/uk/pilot:event_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/picocli",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-    ],
-)
-
-java_binary(
-    name = "BigQueryEdpSimulatorRunner",
-    main_class = "org.wfanet.measurement.loadtest.dataprovider.BigQueryEdpSimulatorRunnerKt",
-    runtime_deps = [
-        ":bigquery_edp_simulator_runner",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
-    ],
-)
-
-java_image(
-    name = "bigquery_edp_simulator_runner_image",
-    binary = ":BigQueryEdpSimulatorRunner",
-    main_class = "org.wfanet.measurement.loadtest.dataprovider.BigQueryEdpSimulatorRunnerKt",
-    target_compatible_with = DISTROLESS_JAVA,
-    visibility = ["//src:docker_image_deployment"],
-)
-
-kt_jvm_library(
     name = "synthetic_generator_edp_simulator_runner",
     srcs = ["SyntheticGeneratorEdpSimulatorRunner.kt"],
     deps = [
         ":edp_simulator_runner",
+        ":population_spec_converter",
         ":synthetic_generator_event_query",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
@@ -324,5 +236,16 @@ kt_jvm_library(
         ":vid_to_index_map_generator",
         "//src/main/kotlin/org/wfanet/measurement/common:sorted_lists",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+    ],
+)
+
+kt_jvm_library(
+    name = "population_spec_converter",
+    srcs = [
+        "PopulationSpecConverter.kt",
+    ],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
     ],
 )

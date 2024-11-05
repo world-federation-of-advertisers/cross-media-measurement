@@ -44,7 +44,6 @@ import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
@@ -54,6 +53,7 @@ import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
+import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.recurringExchange
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
@@ -173,13 +173,12 @@ private class CreateDataProviderCommand : Runnable {
     val dataProvider = dataProvider {
       certificate = this@CreateDataProviderCommand.certificate
 
-      details =
-        DataProviderKt.details {
-          apiVersion = publicKeyApiVersion.string
-          publicKey = serializedEncryptionPublicKey
-          publicKeySignature = encryptionPublicKeySignature
-          publicKeySignatureAlgorithmOid = signatureAlgorithm.oid
-        }
+      details = dataProviderDetails {
+        apiVersion = publicKeyApiVersion.string
+        publicKey = serializedEncryptionPublicKey
+        publicKeySignature = encryptionPublicKeySignature
+        publicKeySignatureAlgorithmOid = signatureAlgorithm.oid
+      }
 
       requiredExternalDuchyIds += requiredDuchies
     }

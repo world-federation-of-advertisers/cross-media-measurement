@@ -88,6 +88,14 @@ jobs:
         WORKER2_DUCHY_CERT_ID: ${{ vars.WORKER2_DUCHY_CERT_ID }}
       run: ./.github/workflows/export-duchy-cert-id.sh
 
+    - name: Write auth.bazelrc
+      env:
+        BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+      run: |
+        cat << EOF > auth.bazelrc
+        build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+        EOF
+
     - name: Write ~/.bazelrc
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
@@ -104,6 +112,7 @@ jobs:
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
+        build --remote_download_outputs=toplevel  # Need build output.
         common --config=ghcr
         build --define image_tag=$IMAGE_TAG
         build --define kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET

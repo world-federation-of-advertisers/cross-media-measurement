@@ -23,6 +23,7 @@ free to use whichever you prefer.
     *   `open-telemetry-java-agent`
 *   NetworkPolicy
     *   `opentelemetry-collector-network-policy`
+    *   `to-opentelemetry-collector-network-policy`
 
 ## Before you start
 
@@ -122,6 +123,8 @@ These will be visible in the "Workload" domain.
 
 ### Halo instrumentation
 
+*   halo_cmm.thread_pool.size
+*   halo_cmm.thread_pool.active_count
 *   halo_cmm.computation.stage.crypto.cpu.time
 *   halo_cmm.computation.stage.crypto.time
 *   halo_cmm.computation.stage.time

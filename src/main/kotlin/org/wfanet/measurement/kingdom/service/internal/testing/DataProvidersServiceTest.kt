@@ -33,15 +33,16 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.Certificate
-import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.DataProvider
-import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.batchGetDataProvidersRequest
 import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.dataProvider
+import org.wfanet.measurement.internal.kingdom.dataProviderCapabilities
+import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderCapabilitiesRequest
@@ -240,16 +241,15 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
           certificate {
             notValidBefore = timestamp { seconds = 12345 }
             notValidAfter = timestamp { seconds = 23456 }
-            details = CertificateKt.details { x509Der = CERTIFICATE_DER }
+            details = certificateDetails { x509Der = CERTIFICATE_DER }
           }
-          details =
-            DataProviderKt.details {
-              apiVersion = "v2alpha"
-              publicKey = PUBLIC_KEY
-              publicKeySignature = PUBLIC_KEY_SIGNATURE
-              publicKeySignatureAlgorithmOid = PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
-              this.dataAvailabilityInterval = dataAvailabilityInterval
-            }
+          details = dataProviderDetails {
+            apiVersion = "v2alpha"
+            publicKey = PUBLIC_KEY
+            publicKeySignature = PUBLIC_KEY_SIGNATURE
+            publicKeySignatureAlgorithmOid = PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
+            this.dataAvailabilityInterval = dataAvailabilityInterval
+          }
           requiredExternalDuchyIds += DUCHIES.map { it.externalDuchyId }
         }
       )
@@ -313,7 +313,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
   fun `replaceDataProviderCapabilites updates DataProvider`() = runBlocking {
     val dataProvider: DataProvider =
       dataProvidersService.createDataProvider(CREATE_DATA_PROVIDER_REQUEST)
-    val capabilities = DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true }
+    val capabilities = dataProviderCapabilities { honestMajorityShareShuffleSupported = true }
 
     val response: DataProvider =
       dataProvidersService.replaceDataProviderCapabilities(
@@ -381,15 +381,14 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
         notValidBefore = timestamp { seconds = 12345 }
         notValidAfter = timestamp { seconds = 23456 }
         subjectKeyIdentifier = CERTIFICATE_SKID
-        details = CertificateKt.details { x509Der = CERTIFICATE_DER }
+        details = certificateDetails { x509Der = CERTIFICATE_DER }
       }
-      details =
-        DataProviderKt.details {
-          apiVersion = "v2alpha"
-          publicKey = PUBLIC_KEY
-          publicKeySignature = PUBLIC_KEY_SIGNATURE
-          publicKeySignatureAlgorithmOid = PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
-        }
+      details = dataProviderDetails {
+        apiVersion = "v2alpha"
+        publicKey = PUBLIC_KEY
+        publicKeySignature = PUBLIC_KEY_SIGNATURE
+        publicKeySignatureAlgorithmOid = PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
+      }
       requiredExternalDuchyIds += DUCHIES.map { it.externalDuchyId }
     }
   }

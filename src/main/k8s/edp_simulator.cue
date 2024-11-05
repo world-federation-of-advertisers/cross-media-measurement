@@ -21,6 +21,7 @@ import "list"
 	resourceName:     string
 	certResourceName: string
 	publisherId:      int
+	supportHmss:      bool | *false
 }
 
 #RequisitionFulfillmentServiceConfig: {
@@ -51,6 +52,7 @@ import "list"
 	}
 
 	deployment: #Deployment & {
+		let HealthFile = "/run/probe/healthy"
 		_name:       DisplayName + "-simulator"
 		_secretName: _edp_secret_name
 		_system:     "simulator"
@@ -70,7 +72,35 @@ import "list"
 				"--kingdom-public-api-target=\(_kingdom_public_api_target)",
 				"--kingdom-public-api-cert-host=localhost",
 				"--log-sketch-details=\(_logSketchDetails)",
+				"--health-file=\(HealthFile)",
+				"--known-event-group-metadata-type=/etc/\(#AppName)/config-files/known_event_group_metadata_type_set.pb",
 			] + _requisitionFulfillmentServiceFlags + _additional_args
+		}
+		spec: template: spec: {
+			_mounts: {
+				"probe": {
+					volume: emptyDir: {}
+				}
+			}
+			_containers: {
+				"probe-sidecar": {
+					image: "registry.k8s.io/busybox"
+					args: ["/bin/sh", "-c", "while true; do sleep 30; done"]
+					startupProbe: {
+						exec: command: ["cat", HealthFile]
+						initialDelaySeconds: 10
+						periodSeconds:       1
+						failureThreshold:    30
+					}
+					resources: Resources={
+						requests: {
+							cpu:    "1m"
+							memory: "10Mi"
+						}
+						limits: memory: _ | *Resources.requests.memory
+					}
+				}
+			}
 		}
 	}
 
@@ -81,7 +111,7 @@ import "list"
 		"\(deployment._name)": {
 			_app_label: deployment.spec.template.metadata.labels.app
 			_egresses: {
-				// Need to be able to access Kingdom and BigQuery.
+				// Need to be able to access Kingdom.
 				any: {}
 			}
 		}

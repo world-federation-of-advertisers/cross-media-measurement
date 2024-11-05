@@ -19,14 +19,17 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
-import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementKt
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
+import org.wfanet.measurement.internal.kingdom.MeasurementFailure
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntryDetails
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntryStageAttempt
+import org.wfanet.measurement.internal.kingdom.measurementFailure
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantETagMismatchException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationException
@@ -85,7 +88,8 @@ class FailComputationParticipant(private val request: FailComputationParticipant
 
     when (measurementState) {
       Measurement.State.PENDING_REQUISITION_PARAMS,
-      Measurement.State.PENDING_REQUISITION_FULFILLMENT,
+      Measurement.State.PENDING_REQUISITION_FULFILLMENT ->
+        withdrawRequisitions(measurementConsumerId, measurementId)
       Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
       Measurement.State.PENDING_COMPUTATION -> {}
       Measurement.State.FAILED,
@@ -108,42 +112,38 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       set("MeasurementId" to measurementId)
       set("DuchyId" to duchyId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      set("State" to NEXT_COMPUTATION_PARTICIPANT_STATE)
+      set("State").toInt64(NEXT_COMPUTATION_PARTICIPANT_STATE)
     }
 
     val updatedMeasurementDetails =
       measurementDetails.copy {
-        failure =
-          MeasurementKt.failure {
-            reason = Measurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED
-            message = "Computation Participant failed. ${request.errorMessage}"
-          }
+        failure = measurementFailure {
+          reason = MeasurementFailure.Reason.COMPUTATION_PARTICIPANT_FAILED
+          message = "Computation Participant failed. ${request.logMessage}"
+        }
       }
 
-    val measurementLogEntryDetails =
-      MeasurementLogEntryKt.details {
-        logMessage = "Computation Participant failed. ${request.errorMessage}"
-        this.error = request.errorDetails
-      }
+    val measurementLogEntryDetails = measurementLogEntryDetails {
+      logMessage = "Computation Participant failed. ${request.logMessage}"
+      this.error = request.error
+    }
 
     val duchyMeasurementLogEntry = duchyMeasurementLogEntry {
       externalDuchyId = request.externalDuchyId
-      details =
-        DuchyMeasurementLogEntryKt.details {
-          duchyChildReferenceId = request.duchyChildReferenceId
-          stageAttempt =
-            DuchyMeasurementLogEntryKt.stageAttempt {
-              stage = request.stageAttempt.stage
-              stageName = request.stageAttempt.stageName
-              stageStartTime = request.stageAttempt.stageStartTime
-              attemptNumber = request.stageAttempt.attemptNumber
-            }
+      details = duchyMeasurementLogEntryDetails {
+        duchyChildReferenceId = request.duchyChildReferenceId
+        stageAttempt = duchyMeasurementLogEntryStageAttempt {
+          stage = request.stageAttempt.stage
+          stageName = request.stageAttempt.stageName
+          stageStartTime = request.stageAttempt.stageStartTime
+          attemptNumber = request.stageAttempt.attemptNumber
         }
+      }
     }
 
     updateMeasurementState(
-      measurementConsumerId = InternalId(measurementConsumerId),
-      measurementId = InternalId(measurementId),
+      measurementConsumerId = measurementConsumerId,
+      measurementId = measurementId,
       nextState = Measurement.State.FAILED,
       previousState = measurementState,
       measurementLogEntryDetails = measurementLogEntryDetails,
@@ -151,8 +151,8 @@ class FailComputationParticipant(private val request: FailComputationParticipant
     )
 
     insertDuchyMeasurementLogEntry(
-      InternalId(measurementId),
-      InternalId(measurementConsumerId),
+      measurementId,
+      measurementConsumerId,
       InternalId(duchyId),
       duchyMeasurementLogEntry.details,
     )

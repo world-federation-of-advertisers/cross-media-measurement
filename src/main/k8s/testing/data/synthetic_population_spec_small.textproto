@@ -279,7 +279,7 @@ sub_populations {
 sub_populations {
   vid_sub_range {
     start: 95000
-    end_exclusive: 100001
+    end_exclusive: 100000
   }
   population_fields_values {
     key: "person.age_group"

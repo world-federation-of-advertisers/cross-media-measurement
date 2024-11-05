@@ -67,7 +67,7 @@ _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 	}
 }
 #HmssMillMaxHeapSize:             "5G"
-#HmssMillReplicas:                1
+#HmssMillMaxConcurrency:          5
 #FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "200m"
@@ -89,14 +89,14 @@ _duchyCertName: "duchies/\(_duchyName)/certificates/\(_certificateId)"
 }
 #ControlServiceMaxHeapSize: "320M"
 
-objectSets: [default_deny_ingress_and_egress] + [ for objectSet in duchy {objectSet}]
+objectSets: [defaultNetworkPolicies] + [ for objectSet in duchy {objectSet}]
 
 duchy: #PostgresDuchy & {
 	_imageSuffixes: {
 		"herald-daemon":                  "duchy/aws-herald"
 		"computation-control-server":     "duchy/aws-computation-control"
 		"llv2-mill":                      "duchy/aws-liquid-legions-v2-mill"
-		"hmss-mill-daemon":               "duchy/aws-honest-majority-share-shuffle-mill"
+		"hmss-mill":                      "duchy/aws-honest-majority-share-shuffle-mill"
 		"requisition-fulfillment-server": "duchy/aws-requisition-fulfillment"
 		"internal-api-server":            "duchy/aws-postgres-internal-server"
 		"update-duchy-schema":            "duchy/aws-postgres-update-schema"
@@ -137,19 +137,7 @@ duchy: #PostgresDuchy & {
 		}
 		"mill-job-scheduler-deployment": {
 			_liquidLegionsV2MaxConcurrency: #Llv2MillMaxConcurrency
-		}
-		"hmss-mill-daemon-deployment": {
-			_workLockDuration: "5m"
-			_container: {
-				_javaOptions: maxHeapSize: #HmssMillMaxHeapSize
-				resources: #HmssMillResourceRequirements
-			}
-			spec: {
-				replicas: #HmssMillReplicas
-				template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
-					serviceAccountName: #StorageServiceAccount
-				}
-			}
+			_shareShuffleMaxConcurrency:    #HmssMillMaxConcurrency
 		}
 		"computation-control-server-deployment": {
 			_container: {
@@ -183,6 +171,15 @@ duchy: #PostgresDuchy & {
 			_container: {
 				_javaOptions: maxHeapSize: #Llv2MillMaxHeapSize
 				resources: #Llv2MillResourceRequirements
+			}
+			template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
+				serviceAccountName: #StorageServiceAccount
+			}
+		}
+		"hmss-mill": {
+			_container: {
+				_javaOptions: maxHeapSize: #HmssMillMaxHeapSize
+				resources: #HmssMillResourceRequirements
 			}
 			template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
 				serviceAccountName: #StorageServiceAccount

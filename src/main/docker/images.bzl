@@ -92,11 +92,6 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/loadtest/panel-match-resource-setup",
     ),
     struct(
-        name = "csv_edp_simulator_runner_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:csv_edp_simulator_runner_image",
-        repository = _PREFIX + "/simulator/csv-edp",
-    ),
-    struct(
         name = "synthetic_generator_edp_simulator_runner_image",
         image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_edp_simulator_runner_image",
         repository = _PREFIX + "/simulator/synthetic-generator-edp",
@@ -137,19 +132,19 @@ GKE_IMAGES = [
         repository = _PREFIX + "/duchy/liquid-legions-v2-mill",
     ),
     struct(
-        name = "duchy_honest_majority_share_shuffle_mill_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/daemon/mill/shareshuffle:gcs_honest_majority_share_shuffle_mill_daemon_image",
+        name = "duchy_honest_majority_share_shuffle_mill_job_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/job/mill/shareshuffle:gcs_honest_majority_share_shuffle_mill_job_image",
         repository = _PREFIX + "/duchy/honest-majority-share-shuffle-mill",
-    ),
-    struct(
-        name = "bigquery_edp_simulator_runner_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:bigquery_edp_simulator_runner_image",
-        repository = _PREFIX + "/simulator/bigquery-edp",
     ),
     struct(
         name = "duchy_gcloud_postgres_update_schema_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/postgres/tools:update_schema_image",
         repository = _PREFIX + "/duchy/gcloud-postgres-update-schema",
+    ),
+    struct(
+        name = "kingdom_operational_metrics_export_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/job:operational_metrics_export_job_image",
+        repository = _PREFIX + "/kingdom/bigquery-operational-metrics",
     ),
 ]
 
@@ -182,8 +177,8 @@ EKS_IMAGES = [
         repository = _PREFIX + "/duchy/aws-liquid-legions-v2-mill",
     ),
     struct(
-        name = "duchy_s3_honest_majority_share_shuffle_mill_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/daemon/mill/shareshuffle:s3_honest_majority_share_shuffle_mill_daemon_image",
+        name = "duchy_s3_honest_majority_share_shuffle_mill_job_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/aws/job/mill/shareshuffle:s3_honest_majority_share_shuffle_mill_job_image",
         repository = _PREFIX + "/duchy/aws-honest-majority-share-shuffle-mill",
     ),
     struct(
@@ -206,8 +201,8 @@ LOCAL_IMAGES = [
         repository = _PREFIX + "/duchy/local-liquid-legions-v2-mill",
     ),
     struct(
-        name = "forwarded_storage_honest_majority_share_shuffle_mill_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/shareshuffle:forwarded_storage_honest_majority_share_shuffle_mill_daemon_image",
+        name = "forwarded_storage_honest_majority_share_shuffle_mill_job_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/job/mill/shareshuffle:forwarded_storage_honest_majority_share_shuffle_mill_job_image",
         repository = _PREFIX + "/duchy/local-honest-majority-share-shuffle-mill",
     ),
     struct(

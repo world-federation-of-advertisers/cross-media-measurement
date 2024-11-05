@@ -27,6 +27,7 @@ use whichever you prefer.
     *   `open-telemetry-java-agent`
 *   NetworkPolicy
     *   `opentelemetry-collector-network-policy`
+    *   `to-opentelemetry-collector-network-policy`
 
 ## Before you start
 
@@ -191,6 +192,8 @@ See
 
 ### Halo instrumentation
 
+-   halo_cmm_thread_pool_size
+-   halo_cmm_thread_pool_active_count
 -   halo_cmm_computation_stage_crypto_cpu_time_seconds
 -   halo_cmm_computation_stage_crypto_time_seconds
 -   halo_cmm_computation_stage_time_seconds

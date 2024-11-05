@@ -25,6 +25,7 @@ import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
 import org.wfanet.measurement.duchy.service.internal.computations.outputPathList
+import org.wfanet.measurement.duchy.service.internal.computations.role
 import org.wfanet.measurement.internal.duchy.AdvanceComputationRequest
 import org.wfanet.measurement.internal.duchy.AdvanceComputationResponse
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineImplBase as AsyncComputationControlCoroutineService
@@ -89,17 +90,45 @@ class AsyncComputationControlService(
           .asRuntimeException()
 
     val computationStage = token.computationStage
+    val role = token.role()
+
+    // Tolerant certain stage mismatches.
     if (computationStage != request.computationStage) {
-      if (computationStage == stages.nextStage(request.computationStage)) {
+      // Ignore if stage in the request is one step behind.
+      if (computationStage == stages.nextStage(request.computationStage, role)) {
         // This is technically an error, but it should be safe to treat as a no-op.
-        logger.warning { "[id=$globalComputationId]: Computation stage has already been advanced" }
+        logger.warning {
+          "[id=$globalComputationId]: Computation stage has already been advanced. " +
+            "computation_stage=$computationStage, request_stage=${request.computationStage}"
+        }
         return AdvanceComputationResponse.getDefaultInstance()
       }
-      throw Status.ABORTED.withDescription(
-          "Request stage ${request.computationStage} does not match Computation stage " +
-            computationStage
-        )
-        .asRuntimeException()
+      // Catch up if stage in the request is one step ahead.
+      if (stages.nextStage(computationStage, role) == request.computationStage) {
+        logger.warning {
+          "[id=$globalComputationId]: Computation stage catching up... " +
+            "computation_stage=$computationStage, request_stage=${request.computationStage}"
+        }
+        if (token.outputPathList().any(String::isEmpty)) {
+          throw Status.FAILED_PRECONDITION.withDescription(
+              "Output blob has not been set. Unable to advance the stage."
+            )
+            .asRuntimeException()
+        }
+        token =
+          computationsClient.advanceComputationStage(
+            computationToken = token,
+            inputsToNextStage = token.outputPathList(),
+            stage = stages.nextStage(token.computationStage, role),
+          )
+      } else {
+        // When stage mismatch is not tolerable.
+        throw Status.ABORTED.withDescription(
+            "Stage mismatch cannot be tolerate. computation_stage=$computationStage, " +
+              "request_stage=${request.computationStage}"
+          )
+          .asRuntimeException()
+      }
     }
 
     val outputBlob =
@@ -128,6 +157,7 @@ class AsyncComputationControlService(
           )
         } catch (e: StatusException) {
           throw when (e.status.code) {
+            Status.Code.UNAVAILABLE,
             Status.Code.ABORTED -> RetryableException(e)
             else -> Status.UNKNOWN.withCause(e).asRuntimeException()
           }
@@ -143,10 +173,11 @@ class AsyncComputationControlService(
         computationsClient.advanceComputationStage(
           computationToken = token,
           inputsToNextStage = token.outputPathList(),
-          stage = stages.nextStage(token.computationStage),
+          stage = stages.nextStage(token.computationStage, role),
         )
       } catch (e: StatusException) {
         throw when (e.status.code) {
+          Status.Code.UNAVAILABLE,
           Status.Code.ABORTED -> RetryableException(e)
           else -> Status.UNKNOWN.withCause(e).asRuntimeException()
         }

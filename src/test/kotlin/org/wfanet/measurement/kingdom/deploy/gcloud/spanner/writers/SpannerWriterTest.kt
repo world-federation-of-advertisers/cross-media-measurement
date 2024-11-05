@@ -21,12 +21,14 @@ import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.TimestampBound
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertFails
+import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 
 @RunWith(JUnit4::class)
@@ -39,7 +41,9 @@ class SpannerWriterTest : KingdomDatabaseTestBase() {
     val transaction =
       object : SpannerWriter<Long, String>() {
         override suspend fun TransactionScope.runTransaction(): Long {
-          return idGenerator.generateExternalId().value
+          // A transaction can have no writes, but must still be non-empty (i.e. interact with the
+          // DB in some way).
+          return txn.executeQuery(statement("SELECT 1234")).single().getLong(0)
         }
 
         override fun ResultScope<Long>.buildResult(): String {
@@ -47,7 +51,7 @@ class SpannerWriterTest : KingdomDatabaseTestBase() {
         }
       }
     val result = transaction.execute(databaseClient, idGenerator)
-    assertThat(result).isEqualTo(idGenerator.externalId.value.toString())
+    assertThat(result).isEqualTo("1234")
   }
 
   @Test
@@ -70,8 +74,6 @@ class SpannerWriterTest : KingdomDatabaseTestBase() {
               .to(1)
               .set("CertificateDetails")
               .to(ByteArray.copyFrom(""))
-              .set("CertificateDetailsJson")
-              .to("irrelevant-certificate-details-json")
               .build()
           )
           return internalId
@@ -98,7 +100,7 @@ class SpannerWriterTest : KingdomDatabaseTestBase() {
       val transaction =
         object : SpannerWriter<Long, String>() {
           override suspend fun TransactionScope.runTransaction(): Long {
-            return 1
+            return txn.executeQuery(statement("SELECT 1")).single().getLong(0)
           }
 
           override fun ResultScope<Long>.buildResult(): String {

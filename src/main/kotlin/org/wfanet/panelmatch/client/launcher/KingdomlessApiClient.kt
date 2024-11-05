@@ -21,6 +21,8 @@ import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.time.delay
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.crypto.SignatureAlgorithm
 import org.wfanet.measurement.common.crypto.sign
 import org.wfanet.measurement.common.crypto.verifySignature
@@ -78,7 +80,7 @@ class KingdomlessApiClient(
   private val lookbackWindow: Duration,
   private val stepTimeout: Duration,
   private val clock: Clock,
-  private val getSharedStorage: (ExchangeDateKey) -> StorageClient,
+  private val getSharedStorage: suspend (ExchangeDateKey) -> StorageClient,
 ) : ApiClient {
 
   init {
@@ -308,15 +310,22 @@ class KingdomlessApiClient(
      * Fetches each party's checkpoint from shared storage and builds the
      * [ExchangeWorkflowDependencyGraph] representing the current state of the exchange.
      */
-    suspend fun loadCheckpoints() {
+    suspend fun loadCheckpoints(
+      retryAttempts: Int = 3,
+      retryBackoff: ExponentialBackoff = ExponentialBackoff(),
+    ) {
       val storageClient = getSharedStorage(datedWorkflow.exchangeDateKey)
       checkpointStore = CheckpointStore(storageClient)
       dataProviderCheckpoint =
-        checkpointStore.readCheckpoint(Party.DATA_PROVIDER, datedWorkflow.exchangeDateKey)
-          ?: createNewCheckpoint(Party.DATA_PROVIDER)
+        retry(retryAttempts, retryBackoff, { it is EmptyCheckpointException }) {
+          checkpointStore.readCheckpoint(Party.DATA_PROVIDER, datedWorkflow.exchangeDateKey)
+            ?: createNewCheckpoint(Party.DATA_PROVIDER)
+        }
       modelProviderCheckpoint =
-        checkpointStore.readCheckpoint(Party.MODEL_PROVIDER, datedWorkflow.exchangeDateKey)
-          ?: createNewCheckpoint(Party.MODEL_PROVIDER)
+        retry(retryAttempts, retryBackoff, { it is EmptyCheckpointException }) {
+          checkpointStore.readCheckpoint(Party.MODEL_PROVIDER, datedWorkflow.exchangeDateKey)
+            ?: createNewCheckpoint(Party.MODEL_PROVIDER)
+        }
       dependencyGraph = buildDependencyGraph()
     }
 
@@ -457,23 +466,25 @@ class KingdomlessApiClient(
     private fun buildDependencyGraph(): ExchangeWorkflowDependencyGraph {
       val inProgressStepExpirationBoundary = clock.instant().minus(stepTimeout)
       val dependencyGraph = ExchangeWorkflowDependencyGraph.fromWorkflow(datedWorkflow.workflow)
-      for (checkpoint in listOf(dataProviderCheckpoint, modelProviderCheckpoint)) {
-        for (entry in checkpoint.progressEntriesList) {
-          val attempt = entry.attempt
-          val attemptStartTime = entry.startTime.toInstant()
+      val orderedProgressEntries =
+        listOf(dataProviderCheckpoint, modelProviderCheckpoint)
+          .flatMap { it.progressEntriesList }
+          .sortedBy { it.attempt.stepIndex }
 
-          if (attempt.state == ExchangeStepAttempt.State.SUCCEEDED) {
-            dependencyGraph.markStepAsCompleted(attempt.stepId)
-          }
-
-          if (
-            attempt.state == ExchangeStepAttempt.State.IN_PROGRESS &&
-              inProgressStepExpirationBoundary < attemptStartTime
-          ) {
-            dependencyGraph.markStepAsInProgress(attempt.stepId)
-          }
+      for (entry in orderedProgressEntries) {
+        val attempt = entry.attempt
+        val attemptStartTime = entry.startTime.toInstant()
+        if (attempt.state == ExchangeStepAttempt.State.SUCCEEDED) {
+          dependencyGraph.markStepAsCompleted(attempt.stepId)
+        }
+        if (
+          attempt.state == ExchangeStepAttempt.State.IN_PROGRESS &&
+            inProgressStepExpirationBoundary < attemptStartTime
+        ) {
+          dependencyGraph.markStepAsInProgress(attempt.stepId)
         }
       }
+
       return dependencyGraph
     }
   }
@@ -559,13 +570,19 @@ class KingdomlessApiClient(
      * Reads the [SignedExchangeCheckpoint] belonging to [party] with the given [exchangeDateKey],
      * verifies the signature, and returns the verified [ExchangeCheckpoint]. Returns null if no
      * checkpoint exists, indicating that the given party hasn't begun performing tasks for the
-     * exchange date yet.
+     * exchange date yet. Throws [EmptyCheckpointException] if the checkpoint is empty, which is a
+     * possible indicator that [party] is currently writing the blob.
      */
     suspend fun readCheckpoint(
       party: Party,
       exchangeDateKey: ExchangeDateKey,
     ): ExchangeCheckpoint? {
       val serializedSignedCheckpoint = get(party)?.toByteString() ?: return null
+      if (serializedSignedCheckpoint.isEmpty) {
+        // TODO(@robinsons): It's possible to avoid this situation if StorageClient can perform a
+        // direct upload. Investigate the feasibility and revisit this.
+        throw EmptyCheckpointException(party, exchangeDateKey)
+      }
       val signedCheckpoint = SignedExchangeCheckpoint.parseFrom(serializedSignedCheckpoint)
       val certificate =
         certificateManager.getCertificate(exchangeDateKey, signedCheckpoint.certName)
@@ -599,6 +616,39 @@ class KingdomlessApiClient(
       }
       write(identity.party, signedCheckpoint.toByteString())
     }
+  }
+
+  class EmptyCheckpointException(party: Party, exchangeDateKey: ExchangeDateKey) :
+    Exception("Empty checkpoint for party=$party exchangeDateKey=$exchangeDateKey")
+
+  /**
+   * Executes [block] and returns the result. If [block] throws an exception that satisfies
+   * [shouldRetry], the exception is suppressed and [block] is retried according to the specified
+   * [attempts] and [backoff]. If [block] does not succeed after retrying, the last exception
+   * encountered is rethrown. If [shouldRetry] returns false, the exception is rethrown immediately
+   * without further retries.
+   */
+  private suspend fun <T> retry(
+    attempts: Int,
+    backoff: ExponentialBackoff,
+    shouldRetry: (Exception) -> Boolean,
+    block: suspend () -> T,
+  ): T {
+    require(attempts > 0) { "attempts must be at least 1" }
+    var lastException: Exception? = null
+    for (attempt in 1..attempts) {
+      try {
+        return block()
+      } catch (e: Exception) {
+        if (shouldRetry(e)) {
+          lastException = e
+          delay(backoff.durationForAttempt(attempt))
+        } else {
+          throw e
+        }
+      }
+    }
+    throw lastException!!
   }
 
   companion object {

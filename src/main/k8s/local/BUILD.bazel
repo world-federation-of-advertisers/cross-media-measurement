@@ -14,7 +14,7 @@ package(
     ],
 )
 
-SPANNER_EMULATOR_VERSION = "1.5.13"
+SPANNER_EMULATOR_VERSION = "1.5.23"
 
 SECRET_NAME = "certs-and-configs"
 

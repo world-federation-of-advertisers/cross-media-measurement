@@ -31,9 +31,6 @@ on:
         - qa
         - head
 
-permissions:
-  id-token: write
-
 jobs:
   run-tests:
     runs-on: ubuntu-22.04
@@ -41,12 +38,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    # Authenticate to Google Cloud for access to remote cache.
-    - name: Authenticate to Google Cloud for remote cache
-      uses: google-github-actions/auth@v2
-      with:
-        workload_identity_provider: ${{ vars.BAZEL_BUILD_WORKLOAD_IDENTITY_PROVIDER }}
-        service_account: ${{ vars.BAZEL_BUILD_SERVICE_ACCOUNT }}
+    - name: Write auth.bazelrc
+      env:
+        BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+      run: |
+        cat << EOF > auth.bazelrc
+        build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+        EOF
 
     - name: Write ~/.bazelrc
       env:
@@ -57,7 +55,6 @@ jobs:
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
-        common --config=remote-cache
         build --define kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET
         build --define mc_name=$MC_NAME
         build --define mc_api_key=$MC_API_KEY
@@ -66,17 +63,9 @@ jobs:
         test --test_timeout=3600
         EOF
 
-    - name: Get Bazel cache params
-      id: get-cache-params
-      run: |
-        repo_cache_path="$(bazelisk info repository_cache)"
-        echo "repo-cache-path=${repo_cache_path}" >> $GITHUB_OUTPUT
-
-    - name: Restore repository cache
-      uses: actions/cache/restore@v4
-      with:
-        path: ${{ steps.get-cache-params.outputs.repo-cache-path }}
-        key: ${{ vars.BAZEL_REPO_CACHE_KEY }}
+    # Reduce chance of disconnection from the Build Event Service.
+    - name: Set TCP keepalive
+      run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
 
     - name: Run tests
       id: run-tests

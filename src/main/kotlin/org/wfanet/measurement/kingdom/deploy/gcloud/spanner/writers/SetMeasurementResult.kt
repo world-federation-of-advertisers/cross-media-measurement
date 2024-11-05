@@ -21,11 +21,12 @@ import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
@@ -90,7 +91,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      set("State" to NEXT_MEASUREMENT_STATE)
+      set("State").toInt64(NEXT_MEASUREMENT_STATE)
     }
 
     updateMeasurementState(
@@ -99,7 +100,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       nextState = NEXT_MEASUREMENT_STATE,
       previousState = measurement.state,
       measurementLogEntryDetails =
-        MeasurementLogEntryKt.details { logMessage = "Measurement succeeded" },
+        measurementLogEntryDetails { logMessage = "Measurement succeeded" },
     )
 
     return measurement.copy {

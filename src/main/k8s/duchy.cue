@@ -31,6 +31,7 @@ import ("strings")
 	_computationsTimeToLive:           string | *"180d"
 	_duchyMillParallelism:             uint | *2
 	_liquidLegionsV2WorkLockDuration?: string
+	_shareShuffleWorkLockDuration?:    string
 	_kingdom_system_api_target:        string
 	_kingdom_public_api_target:        string
 	_blob_storage_flags: [...string]
@@ -51,7 +52,7 @@ import ("strings")
 		"herald-daemon":                    string | *"duchy/herald"
 		"mill-job-scheduler":               string | *"duchy/mill-job-scheduler"
 		"llv2-mill":                        string | *"duchy/liquid-legions-v2-mill"
-		"hmss-mill-daemon":                 string | *"duchy/honest-majority-share-shuffle-mill"
+		"hmss-mill":                        string | *"duchy/honest-majority-share-shuffle-mill"
 		"requisition-fulfillment-server":   string | *"duchy/requisition-fulfillment"
 		"computations-cleaner":             string | *"duchy/computations-cleaner"
 	}
@@ -143,11 +144,12 @@ import ("strings")
 		"mill-job-scheduler-deployment": Deployment={
 			let DeploymentName = Deployment.metadata.name
 			_liquidLegionsV2MaxConcurrency?: int32 & >0
+			_shareShuffleMaxConcurrency?:    int32 & >0
 			_container: {
 				_javaOptions: maxHeapSize: "40M"
 				resources: Resources={
 					requests: {
-						cpu:    "25m"
+						cpu:    "50m"
 						memory: _ | *"224Mi"
 					}
 					limits: {
@@ -156,7 +158,6 @@ import ("strings")
 				}
 				args: [
 					"--deployment-name=\(DeploymentName)",
-					"--llv2-pod-template-name=\(_object_prefix)llv2-mill",
 					_duchyInternalApiTargetFlag,
 					_duchyInternalApiCertHostFlag,
 					_duchy_name_flag,
@@ -164,8 +165,12 @@ import ("strings")
 					_duchy_tls_key_file_flag,
 					_duchy_cert_collection_file_flag,
 					if (_millPollingInterval != _|_) {"--polling-delay=\(_millPollingInterval)"},
+					"--llv2-pod-template-name=\(_object_prefix)llv2-mill",
 					if (_liquidLegionsV2WorkLockDuration != _|_) {"--llv2-work-lock-duration=\(_liquidLegionsV2WorkLockDuration)"},
 					if (_liquidLegionsV2MaxConcurrency != _|_) {"--llv2-maximum-concurrency=\(_liquidLegionsV2MaxConcurrency)"},
+					"--hmss-pod-template-name=\(_object_prefix)hmss-mill",
+					if (_shareShuffleWorkLockDuration != _|_) {"--hmss-work-lock-duration=\(_shareShuffleWorkLockDuration)"},
+					if (_shareShuffleMaxConcurrency != _|_) {"--hmss-maximum-concurrency=\(_shareShuffleMaxConcurrency)"},
 				]
 			}
 			spec: template: spec: {
@@ -174,32 +179,6 @@ import ("strings")
 				]
 				serviceAccountName: _object_prefix + "mill-job-scheduler"
 			}
-		}
-		"hmss-mill-daemon-deployment": {
-			_workLockDuration?: string
-			_container: args: [
-						_duchyInternalApiTargetFlag,
-						_duchyInternalApiCertHostFlag,
-						_duchy_name_flag,
-						_duchy_info_config_flag,
-						_duchy_tls_cert_file_flag,
-						_duchy_tls_key_file_flag,
-						_duchy_cert_collection_file_flag,
-						_duchy_cs_cert_file_flag,
-						_duchy_cs_key_file_flag,
-						_duchy_cs_cert_rename_name_flag,
-						_duchy_protocols_setup_config_flag,
-						_kingdom_system_api_target_flag,
-						_kingdom_system_api_cert_host_flag,
-						_kingdom_public_api_target_flag,
-						_kingdom_public_api_cert_host_flag,
-						if (_duchyKeyEncryptionKeyFile != _|_) {_duchyKeyEncryptionKeyFileFlag},
-						if (_millPollingInterval != _|_) {"--polling-interval=\(_millPollingInterval)"},
-						if (_workLockDuration != _|_) {"--work-lock-duration=\(_workLockDuration)"},
-			] + _blob_storage_flags + _computation_control_target_flags
-			spec: template: spec: _dependencies: [
-				"\(_name)-internal-api-server", "\(_name)-computation-control-server",
-			]
 		}
 		"async-computation-control-server-deployment": #ServerDeployment & {
 			_container: args: [
@@ -217,6 +196,8 @@ import ("strings")
 		}
 		"computation-control-server-deployment": #ServerDeployment & {
 			_container: args: [
+						_duchyInternalApiTargetFlag,
+						_duchyInternalApiCertHostFlag,
 						_async_computations_control_service_target_flag,
 						_async_computations_control_service_cert_host_flag,
 						_duchy_name_flag,
@@ -329,6 +310,31 @@ import ("strings")
 				restartPolicy: "Never"
 			}
 		}
+		"hmss-mill": {
+			_secretName: _duchy_secret_name
+			_container: args: [
+						_duchyInternalApiTargetFlag,
+						_duchyInternalApiCertHostFlag,
+						_duchy_name_flag,
+						_duchy_info_config_flag,
+						_duchy_tls_cert_file_flag,
+						_duchy_tls_key_file_flag,
+						_duchy_cert_collection_file_flag,
+						_duchy_cs_cert_file_flag,
+						_duchy_cs_key_file_flag,
+						_duchy_cs_cert_rename_name_flag,
+						_duchy_protocols_setup_config_flag,
+						_kingdom_system_api_target_flag,
+						_kingdom_system_api_cert_host_flag,
+						_kingdom_public_api_target_flag,
+						_kingdom_public_api_cert_host_flag,
+						if (_duchyKeyEncryptionKeyFile != _|_) {_duchyKeyEncryptionKeyFileFlag},
+						if (_shareShuffleWorkLockDuration != _|_) {"--work-lock-duration=\(_shareShuffleWorkLockDuration)"},
+			] + _blob_storage_flags + _computation_control_target_flags
+			template: spec: {
+				restartPolicy: "Never"
+			}
+		}
 	}
 
 	networkPolicies: [Name=_]: #NetworkPolicy & {
@@ -342,8 +348,9 @@ import ("strings")
 				_object_prefix + "herald-daemon-app",
 				_object_prefix + "mill-job-scheduler-app",
 				_object_prefix + "llv2-mill-app",
-				_object_prefix + "hmss-mill-daemon-app",
+				_object_prefix + "hmss-mill-app",
 				_object_prefix + "async-computation-control-server-app",
+				_object_prefix + "computation-control-server-app",
 				_object_prefix + "requisition-fulfillment-server-app",
 				_object_prefix + "computations-cleaner-app",
 			]
@@ -374,7 +381,6 @@ import ("strings")
 			]
 			_destinationMatchLabels: [
 				_object_prefix + "internal-api-server-app",
-				"opentelemetry-collector-app",
 			]
 		}
 		"computation-control-server": {
@@ -392,6 +398,18 @@ import ("strings")
 				any: {}
 			}
 		}
+		"mill-job-scheduler": {
+			_app_label: _object_prefix + "mill-job-scheduler-app"
+			_destinationMatchLabels: [
+				_object_prefix + "internal-api-server-app",
+				_object_prefix + "computation-control-server-app",
+			]
+			_egresses: {
+				// There doesn't appear to be cluster-agnostic way to target
+				// kube-apiserver, so we just allow egress traffic to anywhere.
+				kubernetesService: {}
+			}
+		}
 		"llv2-mill": {
 			_app_label: _object_prefix + "llv2-mill-app"
 			_egresses: {
@@ -399,8 +417,8 @@ import ("strings")
 				any: {}
 			}
 		}
-		"hmss-mill-daemon": {
-			_app_label: _object_prefix + "hmss-mill-daemon-app"
+		"hmss-mill": {
+			_app_label: _object_prefix + "hmss-mill-app"
 			_egresses: {
 				// Need to send external traffic.
 				any: {}

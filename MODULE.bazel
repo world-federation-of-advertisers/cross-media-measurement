@@ -3,8 +3,6 @@ module(
     repo_name = "wfa_measurement_system",
 )
 
-PROJECTNESSIE_CEL_VERSION = "0.3.11"
-
 BORINGSSL_VERSION = "0.0.0-20230215-5c22014"
 
 # Version of Apache Beam.
@@ -16,105 +14,15 @@ BORINGSSL_VERSION = "0.0.0-20230215-5c22014"
 # * https://docs.aws.amazon.com/kinesisanalytics/latest/java/earlier.html
 APACHE_BEAM_VERSION = "2.45.0"
 
-K8S_CLIENT_VERSION = "20.0.0"
+K8S_CLIENT_VERSION = "21.0.1"
 
-# Bazel Central Registry modules.
-bazel_dep(
-    name = "platforms",
-    version = "0.0.9",
-)
-bazel_dep(
-    name = "bazel_skylib",
-    version = "1.5.0",
-)
-bazel_dep(
-    name = "rules_proto",
-    version = "6.0.2",
-)
-bazel_dep(
-    name = "rules_cc",
-    version = "0.0.9",
-)
-bazel_dep(
-    name = "rules_pkg",
-    version = "0.9.1",
-)
-bazel_dep(
-    name = "rules_go",
-    version = "0.43.0",
-    repo_name = "io_bazel_rules_go",
-)
-bazel_dep(
-    name = "gazelle",
-    version = "0.34.0",
-    repo_name = "bazel_gazelle",
-)
-bazel_dep(
-    name = "rules_java",
-    version = "7.4.0",
-)
-bazel_dep(
-    name = "rules_jvm_external",
-    version = "6.0",
-)
-bazel_dep(
-    name = "rules_python",
-    version = "0.31.0",
-)
-bazel_dep(
-    name = "protobuf",
-    version = "23.1",
-    repo_name = "com_google_protobuf",
-)
-bazel_dep(
-    name = "aspect_rules_ts",
-    version = "1.4.0",
-)
-bazel_dep(
-    name = "aspect_rules_js",
-    version = "1.35.0",
-)
-bazel_dep(
-    name = "aspect_rules_webpack",
-    version = "0.13.0",
-)
-bazel_dep(
-    name = "aspect_rules_jest",
-    version = "0.19.6",
-)
-bazel_dep(
-    name = "abseil-cpp",
-    version = "20230802.1",
-    repo_name = "com_google_absl",
-)
-bazel_dep(
-    name = "googletest",
-    version = "1.14.0.bcr.1",
-    repo_name = "com_google_googletest",
-)
-bazel_dep(
-    name = "glog",  # For shell-encryption.
-    version = "0.6.0",
-    repo_name = "com_github_google_glog",
-)
-bazel_dep(
-    name = "boringssl",  # For shell-encryption.
-    version = BORINGSSL_VERSION,
-)
-bazel_dep(
-    name = "bazel_jar_jar",
-    version = "0.1.0",
-)
-bazel_dep(
-    name = "riegeli",
-    version = "0.0.0-20240606-973b6f0",
-    repo_name = "com_google_riegeli",
-)
+#  --- WFA registry modules. ---
 
-# WFA registry modules.
+# Must come before rules_kotlin due to toolchain resolution precedence.
+# See https://github.com/bazelbuild/bazel/discussions/23075.
 bazel_dep(
     name = "rules_kotlin_jvm",
-    version = "0.2.0",
+    version = "0.4.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
 bazel_dep(
@@ -129,7 +37,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.86.0",
+    version = "0.96.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -139,7 +47,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.64.0",
+    version = "0.69.0",
     repo_name = "wfa_measurement_proto",
 )
 bazel_dep(
@@ -179,8 +87,106 @@ bazel_dep(
 )
 bazel_dep(
     name = "cloud-spanner-emulator-bin",
-    version = "1.5.13",
+    version = "1.5.23",
     repo_name = "cloud_spanner_emulator",
+)
+
+# --- Bazel Central Registry modules. ---
+
+bazel_dep(
+    name = "platforms",
+    version = "0.0.10",
+)
+bazel_dep(
+    name = "bazel_skylib",
+    version = "1.7.1",
+)
+bazel_dep(
+    name = "rules_proto",
+    version = "6.0.2",
+)
+bazel_dep(
+    name = "rules_cc",
+    version = "0.0.9",
+)
+bazel_dep(
+    name = "rules_pkg",
+    version = "0.9.1",
+)
+bazel_dep(
+    name = "rules_go",
+    version = "0.43.0",
+    repo_name = "io_bazel_rules_go",
+)
+bazel_dep(
+    name = "gazelle",
+    version = "0.34.0",
+    repo_name = "bazel_gazelle",
+)
+bazel_dep(
+    name = "rules_java",
+    version = "7.11.1",
+)
+bazel_dep(
+    name = "rules_jvm_external",
+    version = "6.4",
+)
+bazel_dep(
+    name = "rules_python",
+    version = "0.31.0",
+)
+bazel_dep(
+    name = "protobuf",
+    version = "27.3",
+    repo_name = "com_google_protobuf",
+)
+bazel_dep(
+    name = "aspect_rules_ts",
+    version = "3.1.0",
+)
+bazel_dep(
+    name = "aspect_rules_js",
+    version = "2.0.0",
+)
+bazel_dep(
+    name = "aspect_rules_webpack",
+    version = "0.16.0",
+)
+bazel_dep(
+    name = "aspect_rules_jest",
+    version = "0.22.0",
+)
+bazel_dep(
+    name = "aspect_bazel_lib",
+    version = "2.7.7",
+)
+bazel_dep(
+    name = "abseil-cpp",
+    version = "20230802.1",
+    repo_name = "com_google_absl",
+)
+bazel_dep(
+    name = "googletest",
+    version = "1.14.0.bcr.1",
+    repo_name = "com_google_googletest",
+)
+bazel_dep(
+    name = "glog",  # For shell-encryption.
+    version = "0.6.0",
+    repo_name = "com_github_google_glog",
+)
+bazel_dep(
+    name = "boringssl",  # For shell-encryption.
+    version = BORINGSSL_VERSION,
+)
+bazel_dep(
+    name = "bazel_jar_jar",
+    version = "0.1.0",
+)
+bazel_dep(
+    name = "riegeli",
+    version = "0.0.0-20240606-973b6f0",
+    repo_name = "com_google_riegeli",
 )
 
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
@@ -188,7 +194,6 @@ maven.artifact(
     artifact = "beam-runners-google-cloud-dataflow-java",
     exclusions = ["org.apache.beam:beam-sdks-java-io-kafka"],
     group = "org.apache.beam",
-    version = APACHE_BEAM_VERSION,
 )
 maven.artifact(
     artifact = "beam-sdks-java-io-google-cloud-platform",
@@ -197,12 +202,9 @@ maven.artifact(
         "io.netty:netty-tcnative-boringssl-static",
     ],
     group = "org.apache.beam",
-    version = APACHE_BEAM_VERSION,
 )
 maven.install(
     artifacts = [
-        "com.github.ben-manes.caffeine:caffeine:3.1.8",
-        "com.google.cloud:google-cloud-security-private-ca:2.3.1",
         "com.google.crypto.tink:tink-awskms:1.9.1",
         "com.google.crypto.tink:tink-gcpkms:1.9.0",
         "com.squareup.okhttp3:okhttp:4.12.0",
@@ -210,20 +212,37 @@ maven.install(
         "io.kubernetes:client-java:" + K8S_CLIENT_VERSION,
         "io.kubernetes:client-java-extended:" + K8S_CLIENT_VERSION,
         "joda-time:joda-time:2.10.10",
-        "org.apache.beam:beam-runners-direct-java:" + APACHE_BEAM_VERSION,
-        "org.apache.beam:beam-runners-spark:" + APACHE_BEAM_VERSION,
-        "org.apache.beam:beam-sdks-java-core:" + APACHE_BEAM_VERSION,
-        "org.projectnessie.cel:cel-core:" + PROJECTNESSIE_CEL_VERSION,
-        "org.projectnessie.cel:cel-generated-pb:" + PROJECTNESSIE_CEL_VERSION,
         "org.slf4j:slf4j-simple:1.7.32",
-        "software.amazon.awssdk:acmpca:2.17.258",
+
+        # Google Cloud
+        "com.google.cloud:google-cloud-bigquerystorage",
+        "com.google.cloud:google-cloud-security-private-ca",
+        # TODO(googleapis/java-cloud-bom#5279): Remove when managed by BOM.
+        "com.google.apis:google-api-services-storage:v1-rev20240706-2.0.0",
+
+        # AWS
+        "software.amazon.awssdk:acmpca",
+
+        # Apache Beam
+        "org.apache.beam:beam-runners-direct-java",
+        "org.apache.beam:beam-runners-spark",
+        "org.apache.beam:beam-sdks-java-core",
+
+        # CEL
+        "org.projectnessie.cel:cel-core",
+        "org.projectnessie.cel:cel-generated-pb",
+    ],
+    boms = [
+        "org.apache.beam:beam-sdks-java-bom:" + APACHE_BEAM_VERSION,
+        "org.projectnessie.cel:cel-bom:0.5.0",
     ],
     fail_if_repin_required = True,
     fetch_sources = True,  # For IDE integration.
     lock_file = "//:maven_install.json",
+    resolver = "maven",
     strict_visibility = True,
 )
-use_repo(maven, "maven", "unpinned_maven")
+use_repo(maven, "maven")
 
 npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")
 npm.npm_translate_lock(
@@ -276,6 +295,14 @@ python.toolchain(
     ignore_root_user_error = True,
     python_version = "3.11",
 )
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    hub_name = "pip",
+    python_version = "3.11",
+    requirements_lock = "//:requirements.txt",
+)
+use_repo(pip, "pip")
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 

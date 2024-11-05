@@ -97,10 +97,16 @@ message Computation {
   bytes encrypted_result = 8;
 
   // Denormalized child `ComputationParticipant` resources.
+  //
+  // (-- api-linter: core::0122::embedded-resource=disabled
+  //     aip.dev/not-precedent: Denormalized resource field. --)
   repeated ComputationParticipant computation_participants = 9
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Denormalized child `Requisition` resources.
+  //
+  // (-- api-linter: core::0122::embedded-resource=disabled
+  //     aip.dev/not-precedent: Denormalized resource field. --)
   repeated Requisition requisitions = 10
       [(google.api.field_behavior) = OUTPUT_ONLY];
 

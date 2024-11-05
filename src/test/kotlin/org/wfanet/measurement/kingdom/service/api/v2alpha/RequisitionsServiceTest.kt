@@ -23,6 +23,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.any as protoAny
 import com.google.protobuf.kotlin.toByteStringUtf8
+import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -42,7 +43,7 @@ import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
-import org.wfanet.measurement.api.v2alpha.EncryptedMessage
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
@@ -95,16 +96,15 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.honestMajorityShareShuffleDetails
-import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
+import org.wfanet.measurement.internal.kingdom.HonestMajorityShareShuffleParams
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
-import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
 import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
 import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisitionKt
+import org.wfanet.measurement.internal.kingdom.RequisitionRefusal as InternalRefusal
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
@@ -112,9 +112,13 @@ import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest as internalFulfillRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.honestMajorityShareShuffleParams
+import org.wfanet.measurement.internal.kingdom.liquidLegionsV2Params
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest as internalRefuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.requisition as internalRequisition
+import org.wfanet.measurement.internal.kingdom.requisitionDetails
+import org.wfanet.measurement.internal.kingdom.requisitionRefusal as internalRequisitionRefusal
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
@@ -168,6 +172,7 @@ private val VISIBLE_REQUISITION_STATES: Set<InternalRequisition.State> =
     InternalRequisition.State.UNFULFILLED,
     InternalRequisition.State.FULFILLED,
     InternalRequisition.State.REFUSED,
+    InternalRequisition.State.WITHDRAWN,
   )
 
 @RunWith(JUnit4::class)
@@ -177,13 +182,11 @@ class RequisitionsServiceTest {
       .thenReturn(
         INTERNAL_REQUISITION.copy {
           state = InternalState.REFUSED
-          details =
-            InternalRequisitionKt.details {
-              refusal =
-                InternalRequisitionKt.refusal {
-                  justification = InternalRefusal.Justification.UNFULFILLABLE
-                }
+          details = requisitionDetails {
+            refusal = internalRequisitionRefusal {
+              justification = InternalRefusal.Justification.UNFULFILLABLE
             }
+          }
         }
       )
   }
@@ -295,9 +298,18 @@ class RequisitionsServiceTest {
 
   @Test
   fun `listRequisitions with page token returns next page`() {
-    whenever(internalRequisitionMock.streamRequisitions(any()))
-      .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION, INTERNAL_REQUISITION))
-      .thenReturn(flowOf(INTERNAL_REQUISITION))
+    whenever(internalRequisitionMock.streamRequisitions(any())).thenAnswer {
+      val request: StreamRequisitionsRequest = it.getArgument(0)
+      if (request.filter.hasAfter()) {
+        assertThat(request.filter.after.updateTime).isEqualTo(INTERNAL_REQUISITION.updateTime)
+        assertThat(request.filter.after.externalDataProviderId)
+          .isEqualTo(INTERNAL_REQUISITION.externalDataProviderId)
+        assertThat(request.filter.after.externalRequisitionId)
+          .isEqualTo(INTERNAL_REQUISITION.externalRequisitionId)
+      }
+      flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION)
+    }
+
     val initialRequest = listRequisitionsRequest {
       parent = DATA_PROVIDER_NAME
       pageSize = 2
@@ -314,7 +326,14 @@ class RequisitionsServiceTest {
         runBlocking { service.listRequisitions(request) }
       }
 
-    assertThat(response).isEqualTo(listRequisitionsResponse { requisitions += REQUISITION })
+    assertThat(response)
+      .isEqualTo(
+        listRequisitionsResponse {
+          requisitions += REQUISITION
+          requisitions += REQUISITION
+          nextPageToken = initialResponse.nextPageToken
+        }
+      )
   }
 
   @Test
@@ -364,6 +383,7 @@ class RequisitionsServiceTest {
             externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
             measurementStates += Measurement.State.FAILED
             lastRequisition = previousPageEnd {
+              updateTime = INTERNAL_REQUISITION.updateTime
               externalRequisitionId = EXTERNAL_REQUISITION_ID
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
             }
@@ -373,8 +393,11 @@ class RequisitionsServiceTest {
 
   @Test
   fun `listRequisitions with more results remaining returns response with next page token`() {
+    val laterUpdateTime = timestamp { seconds = INTERNAL_REQUISITION.updateTime.seconds + 100 }
     whenever(internalRequisitionMock.streamRequisitions(any()))
-      .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION))
+      .thenReturn(
+        flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION.copy { updateTime = laterUpdateTime })
+      )
     val request = listRequisitionsRequest {
       parent = DATA_PROVIDER_NAME
       pageSize = 1
@@ -394,6 +417,7 @@ class RequisitionsServiceTest {
         listRequisitionsPageToken {
           externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
           lastRequisition = previousPageEnd {
+            updateTime = INTERNAL_REQUISITION.updateTime
             externalRequisitionId = EXTERNAL_REQUISITION_ID
             externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
           }
@@ -662,10 +686,9 @@ class RequisitionsServiceTest {
           state = InternalState.REFUSED
           details =
             details.copy {
-              refusal =
-                InternalRequisitionKt.refusal {
-                  justification = InternalRefusal.Justification.UNFULFILLABLE
-                }
+              refusal = internalRequisitionRefusal {
+                justification = InternalRefusal.Justification.UNFULFILLABLE
+              }
             }
         }
       )
@@ -690,10 +713,9 @@ class RequisitionsServiceTest {
       .comparingExpectedFieldsOnly()
       .isEqualTo(
         internalRefuseRequisitionRequest {
-          refusal =
-            InternalRequisitionKt.refusal {
-              justification = InternalRefusal.Justification.UNFULFILLABLE
-            }
+          refusal = internalRequisitionRefusal {
+            justification = InternalRefusal.Justification.UNFULFILLABLE
+          }
         }
       )
 
@@ -709,10 +731,9 @@ class RequisitionsServiceTest {
             state = InternalState.REFUSED
             details =
               details.copy {
-                refusal =
-                  InternalRequisitionKt.refusal {
-                    justification = InternalRefusal.Justification.UNFULFILLABLE
-                  }
+                refusal = internalRequisitionRefusal {
+                  justification = InternalRefusal.Justification.UNFULFILLABLE
+                }
               }
           }
         )
@@ -737,10 +758,9 @@ class RequisitionsServiceTest {
         .comparingExpectedFieldsOnly()
         .isEqualTo(
           internalRefuseRequisitionRequest {
-            refusal =
-              InternalRequisitionKt.refusal {
-                justification = InternalRefusal.Justification.UNFULFILLABLE
-              }
+            refusal = internalRequisitionRefusal {
+              justification = InternalRefusal.Justification.UNFULFILLABLE
+            }
           }
         )
 
@@ -1245,7 +1265,7 @@ class RequisitionsServiceTest {
     private val TINK_PUBLIC_KEY_1 = ByteString.copyFromUtf8("This is an Tink Public Key 1.")
     private val TINK_PUBLIC_KEY_SIGNATURE_1 =
       ByteString.copyFromUtf8("This is an Tink Public Key signature 1.")
-    private val TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID = "2.9999"
+    private const val TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID = "2.9999"
 
     private val TINK_PUBLIC_KEY_2 = ByteString.copyFromUtf8("This is an Tink Public Key 2.")
     private val TINK_PUBLIC_KEY_SIGNATURE_2 =
@@ -1294,7 +1314,7 @@ class RequisitionsServiceTest {
       duchies[DUCHY_ID] =
         InternalRequisitionKt.duchyValue {
           externalDuchyCertificateId = 6L
-          liquidLegionsV2 = liquidLegionsV2Details {
+          liquidLegionsV2 = liquidLegionsV2Params {
             elGamalPublicKey = SIGNED_EL_GAMAL_PUBLIC_KEY.message.value
             elGamalPublicKeySignature = SIGNED_EL_GAMAL_PUBLIC_KEY.signature
             elGamalPublicKeySignatureAlgorithmOid = SIGNED_EL_GAMAL_PUBLIC_KEY.signatureAlgorithmOid
@@ -1316,11 +1336,10 @@ class RequisitionsServiceTest {
           state = InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT
           dataProvidersCount = 1
         }
-      details =
-        InternalRequisitionKt.details {
-          dataProviderPublicKey = PACKED_DATA_PROVIDER_PUBLIC_KEY.value
-          encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC.ciphertext
-        }
+      details = requisitionDetails {
+        dataProviderPublicKey = PACKED_DATA_PROVIDER_PUBLIC_KEY.value
+        encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC.ciphertext
+      }
     }
 
     private val INTERNAL_HMSS_REQUISITION =
@@ -1332,12 +1351,12 @@ class RequisitionsServiceTest {
         duchies["aggregator"] =
           InternalRequisitionKt.duchyValue {
             externalDuchyCertificateId = 6L
-            honestMajorityShareShuffle = honestMajorityShareShuffleDetails {}
+            honestMajorityShareShuffle = HonestMajorityShareShuffleParams.getDefaultInstance()
           }
         duchies["worker1"] =
           InternalRequisitionKt.duchyValue {
             externalDuchyCertificateId = 6L
-            honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+            honestMajorityShareShuffle = honestMajorityShareShuffleParams {
               tinkPublicKey = TINK_PUBLIC_KEY_1
               tinkPublicKeySignature = TINK_PUBLIC_KEY_SIGNATURE_1
               tinkPublicKeySignatureAlgorithmOid = TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
@@ -1346,7 +1365,7 @@ class RequisitionsServiceTest {
         duchies["worker2"] =
           InternalRequisitionKt.duchyValue {
             externalDuchyCertificateId = 6L
-            honestMajorityShareShuffle = honestMajorityShareShuffleDetails {
+            honestMajorityShareShuffle = honestMajorityShareShuffleParams {
               tinkPublicKey = TINK_PUBLIC_KEY_2
               tinkPublicKeySignature = TINK_PUBLIC_KEY_SIGNATURE_2
               tinkPublicKeySignatureAlgorithmOid = TINK_PUBLIC_KEY_SIGNATURE_ALGORITHM_OID
@@ -1428,6 +1447,7 @@ class RequisitionsServiceTest {
 
       state = State.FULFILLED
       measurementState = Measurement.State.AWAITING_REQUISITION_FULFILLMENT
+      updateTime = UPDATE_TIME
     }
 
     private val HMSS_REQUISITION =
@@ -1464,7 +1484,7 @@ class RequisitionsServiceTest {
                   setMessage(
                     protoAny {
                       value = TINK_PUBLIC_KEY_2
-                      typeUrl = ProtoReflection.getTypeUrl(EncryptedMessage.getDescriptor())
+                      typeUrl = ProtoReflection.getTypeUrl(EncryptionPublicKey.getDescriptor())
                     }
                   )
                   signature = TINK_PUBLIC_KEY_SIGNATURE_2

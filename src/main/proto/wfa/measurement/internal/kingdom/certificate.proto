@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/kingdom/certificate_details.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -55,9 +56,5 @@ message Certificate {
   // determined by the issuing certificate authority.
   RevocationState revocation_state = 9;
 
-  message Details {
-    // X.509 certificate in DER format.
-    bytes x509_der = 1;
-  }
-  Details details = 10;
+  CertificateDetails details = 10;
 }

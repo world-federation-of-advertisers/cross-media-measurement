@@ -17,22 +17,7 @@ package k8s
 // Name of K8s service account for OpenTelemetry collector.
 #CollectorServiceAccount: "open-telemetry"
 
-objectSets: [
-	collectors,
-	openTelemetry.instrumentations,
-	networkPolicies,
-	serviceAccounts,
-]
-
-serviceAccounts: [Name=string]: #ServiceAccount & {
-	metadata: name: Name
-}
-
-serviceAccounts: {
-	"\(#CollectorServiceAccount)": #WorkloadIdentityServiceAccount & {
-		_iamServiceAccountName: "open-telemetry"
-	}
-}
+objectSets: [ for objectSet in openTelemetry {objectSet}]
 
 #OpenTelemetryCollector: {
 	spec: {
@@ -42,100 +27,100 @@ serviceAccounts: {
 }
 
 openTelemetry: #OpenTelemetry & {
+	collectors: {
+		"default": {
+			spec: {
+				serviceAccount: #CollectorServiceAccount
+				config: {
+					processors: {
+						filter: {
+							spans: {
+								exclude: {
+									match_type: "strict"
+									attributes: [{
+										key:   "rpc.method"
+										value: "Check"
+									}]
+								}
+							}
+						}
+						resourcedetection: {
+							detectors: ["gcp"]
+							timeout: "10s"
+						}
+						transform: {
+							// "location", "cluster", "namespace", "job", "instance", and
+							// "project_id" are reserved, and metrics containing these labels
+							// will be rejected.  Prefix them with exported_ to prevent this.
+							metric_statements: [{
+								context: "datapoint"
+								statements: [
+									"set(attributes[\"exported_location\"], attributes[\"location\"])",
+									"delete_key(attributes, \"location\")",
+									"set(attributes[\"exported_cluster\"], attributes[\"cluster\"])",
+									"delete_key(attributes, \"cluster\")",
+									"set(attributes[\"exported_namespace\"], attributes[\"namespace\"])",
+									"delete_key(attributes, \"namespace\")",
+									"set(attributes[\"exported_job\"], attributes[\"job\"])",
+									"delete_key(attributes, \"job\")",
+									"set(attributes[\"exported_instance\"], attributes[\"instance\"])",
+									"delete_key(attributes, \"instance\")",
+									"set(attributes[\"exported_project_id\"], attributes[\"project_id\"])",
+									"delete_key(attributes, \"project_id\")",
+								]
+							}]
+						}
+					}
+
+					exporters: {
+						googlecloud: {}
+					}
+
+					service: {
+						pipelines: {
+							metrics: {
+								receivers: ["otlp"]
+								processors: [
+									"batch",
+									"memory_limiter",
+									"resourcedetection",
+									"transform",
+								]
+								exporters: ["googlecloud"]
+							}
+							traces: {
+								receivers: ["otlp"]
+								processors: ["batch", "memory_limiter", "filter"]
+								exporters: ["googlecloud"]
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	instrumentations: "java-instrumentation": {
 		spec: {
 			_envVars: {
+				OTEL_TRACES_EXPORTER:                                     "otlp"
 				OTEL_EXPORTER_OTLP_METRICS_DEFAULT_HISTOGRAM_AGGREGATION: "base2_exponential_bucket_histogram"
 			}
 		}
 	}
-}
 
-collectors: openTelemetry.collectors & {
-	"default": {
-		spec: {
-			serviceAccount: #CollectorServiceAccount
-			config: {
-				processors: {
-					filter: {
-						spans: {
-							exclude: {
-								match_type: "strict"
-								attributes: [{
-									key:   "rpc.method"
-									value: "Check"
-								}]
-							}
-						}
-					}
-					resourcedetection: {
-						detectors: ["gcp"]
-						timeout: "10s"
-					}
-					transform: {
-						// "location", "cluster", "namespace", "job", "instance", and
-						// "project_id" are reserved, and metrics containing these labels
-						// will be rejected.  Prefix them with exported_ to prevent this.
-						metric_statements: [{
-							context: "datapoint"
-							statements: [
-								"set(attributes[\"exported_location\"], attributes[\"location\"])",
-								"delete_key(attributes, \"location\")",
-								"set(attributes[\"exported_cluster\"], attributes[\"cluster\"])",
-								"delete_key(attributes, \"cluster\")",
-								"set(attributes[\"exported_namespace\"], attributes[\"namespace\"])",
-								"delete_key(attributes, \"namespace\")",
-								"set(attributes[\"exported_job\"], attributes[\"job\"])",
-								"delete_key(attributes, \"job\")",
-								"set(attributes[\"exported_instance\"], attributes[\"instance\"])",
-								"delete_key(attributes, \"instance\")",
-								"set(attributes[\"exported_project_id\"], attributes[\"project_id\"])",
-								"delete_key(attributes, \"project_id\")",
-							]
-						}]
-					}
-				}
-
-				exporters: {
-					googlecloud: {}
-				}
-
-				service: {
-					pipelines: {
-						metrics: {
-							receivers: ["otlp"]
-							processors: [
-								"batch",
-								"memory_limiter",
-								"resourcedetection",
-								"transform",
-							]
-							exporters: ["googlecloud"]
-						}
-						traces: {
-							receivers: ["otlp"]
-							processors: ["batch", "memory_limiter", "filter"]
-							exporters: ["googlecloud"]
-						}
-					}
-				}
+	networkPolicies: {
+		"opentelemetry-collector": {
+			_egresses: {
+				// Need to call Google Cloud Monitoring.
+				any: {}
 			}
 		}
 	}
-}
 
-networkPolicies: [Name=_]: #NetworkPolicy & {
-	_policyPodSelectorMatchLabels: "app.kubernetes.io/component": "opentelemetry-collector"
-	_name: Name
-}
-
-networkPolicies: {
-	"opentelemetry-collector": {
-		_ingresses: {
-			any: {}
-		}
-		_egresses: {
-			any: {}
+	serviceAccounts: {
+		"\(#CollectorServiceAccount)": #WorkloadIdentityServiceAccount & {
+			_iamServiceAccountName: "open-telemetry"
 		}
 	}
 }

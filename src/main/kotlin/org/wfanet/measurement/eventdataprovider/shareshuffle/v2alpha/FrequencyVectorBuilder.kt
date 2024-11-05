@@ -88,6 +88,8 @@ class FrequencyVectorBuilder(
    */
   private val primaryRange: IntRange
 
+  private val primaryRangeCount: Int
+
   /**
    * For a wrapping VidSamplingInterval this is the part of the range than spans [0, width-start)
    */
@@ -114,6 +116,7 @@ class FrequencyVectorBuilder(
     val globalEndIndex =
       (populationSize * (vidSamplingInterval.start + vidSamplingInterval.width)).toInt() - 1
     primaryRange = globalStartIndex..minOf(globalEndIndex, populationSize - 1)
+    primaryRangeCount = primaryRange.count()
     wrappedRange =
       if (globalEndIndex >= populationSize) {
         0..(globalEndIndex - populationSize)
@@ -131,7 +134,7 @@ class FrequencyVectorBuilder(
 
   init {
     // Initialize the frequency vector
-    val frequencyVectorSize = primaryRange.count() + wrappedRange.count()
+    val frequencyVectorSize = primaryRangeCount + wrappedRange.count()
     frequencyData = IntArray(frequencyVectorSize)
   }
 
@@ -172,6 +175,17 @@ class FrequencyVectorBuilder(
    *   supported by this builder
    */
   fun increment(globalIndex: Int) {
+    incrementBy(globalIndex, 1)
+  }
+
+  /**
+   * Increment the frequency vector for the VID at globalIndex by amount.
+   *
+   * See [increment] for additional information.
+   */
+  fun incrementBy(globalIndex: Int, amount: Int) {
+    require(amount > 0) { "amount must be > 0 got ${amount}" }
+
     if (!(globalIndex in primaryRange || globalIndex in wrappedRange)) {
       if (strict) {
         require(globalIndex in primaryRange || globalIndex in wrappedRange) {
@@ -186,17 +200,25 @@ class FrequencyVectorBuilder(
       if (globalIndex in primaryRange) {
         globalIndex - primaryRange.first
       } else {
-        primaryRange.count() + globalIndex
+        primaryRangeCount + globalIndex
       }
-    frequencyData[localIndex] = minOf(frequencyData[localIndex] + 1, maxFrequency)
+    frequencyData[localIndex] = minOf(frequencyData[localIndex] + amount, maxFrequency)
   }
 
   /**
    * Add each globalIndex in the input Collection to the [FrequencyVector] according to the criteria
-   * described by [addVid]
+   * described by [increment]
    */
   fun incrementAll(globalIndexes: Collection<Int>) {
-    globalIndexes.map { increment(it) }
+    globalIndexes.map { incrementBy(it, 1) }
+  }
+
+  /**
+   * Add each globalIndex in the input Collection to the [FrequencyVector] according to the criteria
+   * described by [incrementBy]
+   */
+  fun incrementAllBy(globalIndexes: Collection<Int>, amount: Int) {
+    globalIndexes.map { incrementBy(it, amount) }
   }
 
   /**

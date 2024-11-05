@@ -23,8 +23,6 @@ import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getInternalId
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeDetails
@@ -50,7 +48,7 @@ class ExchangeReader : SpannerReader<ExchangeReader.Result>() {
           externalRecurringExchangeId = struct.getLong("ExternalRecurringExchangeId")
           date = struct.getDate("Date").toProtoDate()
           state = struct.getProtoEnum("State", Exchange.State::forNumber)
-          details = struct.getProtoMessage("ExchangeDetails", ExchangeDetails.parser())
+          details = struct.getProtoMessage("ExchangeDetails", ExchangeDetails.getDefaultInstance())
         },
       recurringExchangeId = struct.getLong("RecurringExchangeId"),
     )
@@ -99,7 +97,6 @@ class ExchangeReader : SpannerReader<ExchangeReader.Result>() {
         "Exchanges.Date",
         "Exchanges.State",
         "Exchanges.ExchangeDetails",
-        "Exchanges.ExchangeDetailsJson",
         "RecurringExchanges.ExternalRecurringExchangeId",
       )
 

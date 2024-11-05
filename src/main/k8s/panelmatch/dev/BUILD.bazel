@@ -1,7 +1,7 @@
-load("//build:variables.bzl", "EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG")
 load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
-load("//src/main/k8s:macros.bzl", "cue_dump")
+load("//build:variables.bzl", "AWS_SETTINGS", "EXAMPLE_KINGDOMLESS_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG", "EXAMPLE_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG", "GCLOUD_SETTINGS", "IMAGE_REPOSITORY_SETTINGS", "PANEL_EXCHANGE_SETTINGS")
 load("//build/k8s:defs.bzl", "kustomization_dir")
+load("//src/main/k8s:macros.bzl", "cue_dump")
 
 SECRET_NAME = "certs-and-configs"
 
@@ -130,4 +130,169 @@ kustomization_dir(
     generate_kustomization = True,
     tags = ["manual"],
     deps = [":mp_daemon_secret"],
+)
+
+cue_library(
+    name = "example_kingdomless_daemon_gke",
+    srcs = ["example_kingdomless_daemon_gke.cue"],
+    deps = [":base_gke"],
+)
+
+cue_dump(
+    name = "example_kingdomless_edp_daemon_gke",
+    srcs = ["example_kingdomless_edp_daemon_gke.cue"],
+    cue_tags = {
+        "party_id": EXAMPLE_KINGDOMLESS_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.edp_id,
+        "recurring_exchange_ids": EXAMPLE_KINGDOMLESS_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.recurring_exchange_ids,
+    },
+    tags = ["manual"],
+    deps = [
+        ":example_kingdomless_daemon_gke",
+        "//src/main/k8s:config",
+    ],
+)
+
+kustomization_dir(
+    name = "edp_kingdomless_daemon_gke",
+    srcs = [
+        "resource_requirements.yaml",
+        ":example_kingdomless_edp_daemon_gke",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+)
+
+cue_dump(
+    name = "example_kingdomless_mp_daemon_gke",
+    srcs = ["example_kingdomless_mp_daemon_gke.cue"],
+    cue_tags = {
+        "party_id": EXAMPLE_KINGDOMLESS_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.mp_id,
+        "recurring_exchange_ids": EXAMPLE_KINGDOMLESS_PANEL_EXCHANGE_CLIENT_DAEMON_CONFIG.recurring_exchange_ids,
+    },
+    tags = ["manual"],
+    deps = [
+        ":example_kingdomless_daemon_gke",
+        "//src/main/k8s:config",
+    ],
+)
+
+kustomization_dir(
+    name = "mp_kingdomless_daemon_gke",
+    srcs = [
+        "resource_requirements.yaml",
+        ":example_kingdomless_mp_daemon_gke",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+)
+
+cue_library(
+    name = "config",
+    srcs = ["config.cue"],
+)
+
+cue_library(
+    name = "config_aws",
+    srcs = ["config_aws.cue"],
+    deps = [
+        ":config",
+    ],
+)
+
+cue_library(
+    name = "config_gke",
+    srcs = ["config_gke.cue"],
+    deps = [
+        ":config",
+    ],
+)
+
+cue_library(
+    name = "daemon_config",
+    srcs = ["daemon_config.cue"],
+)
+
+cue_dump(
+    name = "kingdomless_daemon_gke",
+    srcs = ["kingdomless_daemon_gke.cue"],
+    cue_tags = {
+        "google_cloud_project": GCLOUD_SETTINGS.project,
+        "party_type": PANEL_EXCHANGE_SETTINGS.party_type,
+        "party_id": PANEL_EXCHANGE_SETTINGS.party_id,
+        "recurring_exchange_ids": PANEL_EXCHANGE_SETTINGS.recurring_exchange_ids,
+        "cluster_service_account_name": PANEL_EXCHANGE_SETTINGS.cluster_service_account_name,
+        "private_storage_bucket": PANEL_EXCHANGE_SETTINGS.private_storage_bucket,
+        "kms_region": PANEL_EXCHANGE_SETTINGS.kms_region,
+        "kms_key_ring": PANEL_EXCHANGE_SETTINGS.kms_key_ring,
+        "kms_key": PANEL_EXCHANGE_SETTINGS.kms_key,
+        "private_ca_region": PANEL_EXCHANGE_SETTINGS.private_ca_region,
+        "private_ca_name": PANEL_EXCHANGE_SETTINGS.private_ca_name,
+        "private_ca_pool_id": PANEL_EXCHANGE_SETTINGS.private_ca_pool_id,
+        "cert_common_name": PANEL_EXCHANGE_SETTINGS.cert_common_name,
+        "cert_organization": PANEL_EXCHANGE_SETTINGS.cert_organization,
+        "cert_dns_name": PANEL_EXCHANGE_SETTINGS.cert_dns_name,
+        "dataflow_region": PANEL_EXCHANGE_SETTINGS.dataflow_region,
+        "dataflow_temp_storage_bucket": PANEL_EXCHANGE_SETTINGS.dataflow_temp_storage_bucket,
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "image_repo_suffix": "panel-exchange/gcloud-example-daemon",
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+    },
+    tags = ["manual"],
+    deps = [
+        ":base_gke",
+        ":config_gke",
+        ":daemon_config",
+    ],
+)
+
+kustomization_dir(
+    name = "export_kingdomless_daemon_gke",
+    srcs = [
+        "resource_requirements.yaml",
+        ":kingdomless_daemon_gke",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+)
+
+cue_dump(
+    name = "kingdomless_daemon_aws",
+    srcs = ["kingdomless_daemon_aws.cue"],
+    cue_tags = {
+        "party_type": PANEL_EXCHANGE_SETTINGS.party_type,
+        "party_id": PANEL_EXCHANGE_SETTINGS.party_id,
+        "recurring_exchange_ids": PANEL_EXCHANGE_SETTINGS.recurring_exchange_ids,
+        "cluster_service_account_name": PANEL_EXCHANGE_SETTINGS.cluster_service_account_name,
+        "s3_bucket": AWS_SETTINGS.s3_bucket,
+        "s3_region": AWS_SETTINGS.s3_region,
+        "kms_key_arn": AWS_SETTINGS.kms_key_arn,
+        "private_ca_arn": AWS_SETTINGS.private_ca_arn,
+        "private_ca_region": PANEL_EXCHANGE_SETTINGS.private_ca_region,
+        "private_ca_name": PANEL_EXCHANGE_SETTINGS.private_ca_name,
+        "private_ca_pool_id": PANEL_EXCHANGE_SETTINGS.private_ca_pool_id,
+        "cert_common_name": PANEL_EXCHANGE_SETTINGS.cert_common_name,
+        "cert_organization": PANEL_EXCHANGE_SETTINGS.cert_organization,
+        "cert_dns_name": PANEL_EXCHANGE_SETTINGS.cert_dns_name,
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "image_repo_suffix": "panel-exchange/aws-example-daemon",
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+    },
+    tags = ["manual"],
+    deps = [
+        ":base_aws",
+        ":config_aws",
+        ":daemon_config",
+    ],
+)
+
+kustomization_dir(
+    name = "export_kingdomless_daemon_aws",
+    srcs = [
+        "resource_requirements.yaml",
+        ":kingdomless_daemon_aws",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
 )

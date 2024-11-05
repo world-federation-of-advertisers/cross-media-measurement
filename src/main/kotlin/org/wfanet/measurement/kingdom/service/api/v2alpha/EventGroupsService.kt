@@ -48,9 +48,9 @@ import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.packedValue
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.signedMessage
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
@@ -64,7 +64,6 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest as InternalCreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
-import org.wfanet.measurement.internal.kingdom.EventGroupKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub as InternalEventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest as InternalGetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
@@ -72,6 +71,7 @@ import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt as Int
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest as internalCreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
+import org.wfanet.measurement.internal.kingdom.eventGroupDetails
 import org.wfanet.measurement.internal.kingdom.eventGroupKey
 import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTemplate
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalGetEventGroupRequest
@@ -234,7 +234,12 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
    */
   private fun validateRequestEventGroup(requestEventGroup: EventGroup) {
     if (requestEventGroup.hasEncryptedMetadata()) {
-      grpcRequire(requestEventGroup.hasMeasurementConsumerPublicKey()) {
+      grpcRequire(
+        requestEventGroup.hasMeasurementConsumerPublicKey() ||
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop reading this
+          // field.
+          requestEventGroup.hasSignedMeasurementConsumerPublicKey()
+      ) {
         "event_group.measurement_consumer_public_key must be specified if " +
           "event_group.encrypted_metadata is specified"
       }
@@ -476,6 +481,7 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
         // field.
         signedMeasurementConsumerPublicKey = signedMessage {
           message = this@eventGroup.measurementConsumerPublicKey
+          data = message.value
           signature = details.measurementConsumerPublicKeySignature
           signatureAlgorithmOid = details.measurementConsumerPublicKeySignatureAlgorithmOid
         }
@@ -525,7 +531,7 @@ private fun EventGroup.toInternal(
     externalMeasurementConsumerId = apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
 
     providedEventGroupId = source.eventGroupReferenceId
-    details = details {
+    details = eventGroupDetails {
       apiVersion = Version.V2_ALPHA.string
       // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop reading this
       // field.
@@ -537,7 +543,7 @@ private fun EventGroup.toInternal(
       if (source.hasMeasurementConsumerPublicKey()) {
         measurementConsumerPublicKey = source.measurementConsumerPublicKey.value
       } else if (source.hasSignedMeasurementConsumerPublicKey()) {
-        measurementConsumerPublicKey = source.signedMeasurementConsumerPublicKey.unpack()
+        measurementConsumerPublicKey = source.signedMeasurementConsumerPublicKey.packedValue
       }
 
       vidModelLines += source.vidModelLinesList

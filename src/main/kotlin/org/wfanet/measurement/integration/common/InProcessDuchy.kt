@@ -21,7 +21,6 @@ import com.google.protobuf.ByteString
 import io.grpc.Channel
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.testing.GrpcCleanupRule
-import io.opentelemetry.api.GlobalOpenTelemetry
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
@@ -160,6 +159,7 @@ class InProcessDuchy(
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       addService(
         RequisitionFulfillmentService(
+            externalDuchyId,
             systemRequisitionsClient,
             computationsClient,
             RequisitionStore(duchyDependencies.storageClient),
@@ -179,7 +179,12 @@ class InProcessDuchy(
       logAllRequests = verboseGrpcLogging,
     ) {
       addService(
-        ComputationControlService(asyncComputationControlClient, duchyDependencies.storageClient)
+        ComputationControlService(
+            externalDuchyId,
+            computationsClient,
+            asyncComputationControlClient,
+            duchyDependencies.storageClient,
+          )
           .withMetadataDuchyIdentities()
       )
     }
@@ -267,7 +272,6 @@ class InProcessDuchy(
             workerStubs = workerStubs,
             cryptoWorker = JniLiquidLegionsV2Encryption(),
             workLockDuration = Duration.ofSeconds(1),
-            openTelemetry = GlobalOpenTelemetry.get(),
             parallelism = DUCHY_MILL_PARALLELISM,
           )
         val reachOnlyLiquidLegionsV2Mill =
@@ -285,7 +289,6 @@ class InProcessDuchy(
             workerStubs = workerStubs,
             cryptoWorker = JniReachOnlyLiquidLegionsV2Encryption(),
             workLockDuration = Duration.ofSeconds(1),
-            openTelemetry = GlobalOpenTelemetry.get(),
             parallelism = DUCHY_MILL_PARALLELISM,
           )
         val honestMajorityShareShuffleMill =
@@ -300,13 +303,12 @@ class InProcessDuchy(
             systemComputationsClient = systemComputationsClient,
             systemComputationLogEntriesClient = systemComputationLogEntriesClient,
             computationStatsClient = computationStatsClient,
-            privateKeyStore = privateKeyStore,
             certificateClient = certificateStub,
             workerStubs = workerStubs,
-            protocolSetupConfig = protocolsSetupConfig.honestMajorityShareShuffle,
             cryptoWorker = JniHonestMajorityShareShuffleCryptor(),
+            protocolSetupConfig = protocolsSetupConfig.honestMajorityShareShuffle,
             workLockDuration = Duration.ofSeconds(1),
-            openTelemetry = GlobalOpenTelemetry.get(),
+            privateKeyStore = privateKeyStore,
           )
         val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1))
         throttler.loopOnReady {
