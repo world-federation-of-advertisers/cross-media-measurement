@@ -41,6 +41,7 @@ import ("strings")
 		"completed-measurements-deletion":   string | *"kingdom/completed-measurements-deletion"
 		"pending-measurements-cancellation": string | *"kingdom/pending-measurements-cancellation"
 		"exchanges-deletion":                string | *"kingdom/exchanges-deletion"
+		"measurement-system-prober":         string | *"kingdom/measurement-system-prober"
 	}
 	_imageConfigs: [string]: #ImageConfig
 	_imageConfigs: {
@@ -241,6 +242,20 @@ import ("strings")
 			]
 			spec: schedule: "40 6 * * *" // Daily, 6:40 am
 		}
+		"measurement-system-prober": {
+			_container: args: [
+				_internal_api_target_flag,
+				_internal_api_cert_host_flag,
+				_kingdom_tls_cert_file_flag,
+				_kingdom_tls_key_file_flag,
+				_kingdom_cert_collection_file_flag,
+				_kingdomExchangesDaysToLiveFlag,
+				_kingdomExchangesDryRunRetentionPolicyFlag,
+				_debug_verbose_grpc_client_logging_flag,
+			]
+			]
+			spec: schedule: "*/30 * * * *" // Every half hour
+		}
 	}
 
 	networkPolicies: [Name=_]: #NetworkPolicy & {
@@ -258,6 +273,7 @@ import ("strings")
 				"pending-measurements-cancellation-app",
 				"exchanges-deletion-app",
 				"operational-metrics-app",
+				"measurement-system-prober-app",
 			]
 			_egresses: {
 				// Need to send external traffic to Spanner.
@@ -310,6 +326,12 @@ import ("strings")
 		}
 		"exchanges-deletion": {
 			_app_label: "exchanges-deletion-app"
+			_destinationMatchLabels: [
+				"gcp-kingdom-data-server-app",
+			]
+		}
+		"measurement-system-prober": {
+			app_label: "measurement-system-prober-app"
 			_destinationMatchLabels: [
 				"gcp-kingdom-data-server-app",
 			]

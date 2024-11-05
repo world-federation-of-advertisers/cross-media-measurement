@@ -8,20 +8,20 @@ used as the basis for deploying CMMS components using Google Kubernetes Engine
 
 ***Disclaimer***:
 
--   This guide is just one way of achieving the goal, not necessarily the best
-    approach.
--   Almost all steps can be done via either the
-    [Google Cloud Console](https://console.cloud.google.com/) UI or the
-    [`gcloud` CLI](https://cloud.google.com/sdk/gcloud/reference). The doc picks
-    the easier one for each step. But you are free to do it in an alternative
-    way.
--   All names used in this doc can be replaced with something else. We use
-    specific names in the doc for ease of reference.
--   All quotas and resource configs are just examples, adjust the quota and size
-    based on the actual usage.
--   In the doc, we assume we are deploying to a single region, i.e. us-central1.
-    If you are deploying to another region or multiple regions, just need to
-    adjust each step mentioning "region" accordingly.
+- This guide is just one way of achieving the goal, not necessarily the best
+  approach.
+- Almost all steps can be done via either the
+  [Google Cloud Console](https://console.cloud.google.com/) UI or the
+  [`gcloud` CLI](https://cloud.google.com/sdk/gcloud/reference). The doc picks
+  the easier one for each step. But you are free to do it in an alternative
+  way.
+- All names used in this doc can be replaced with something else. We use
+  specific names in the doc for ease of reference.
+- All quotas and resource configs are just examples, adjust the quota and size
+  based on the actual usage.
+- In the doc, we assume we are deploying to a single region, i.e. us-central1.
+  If you are deploying to another region or multiple regions, just need to
+  adjust each step mentioning "region" accordingly.
 
 ## What are we creating/deploying?
 
@@ -31,32 +31,34 @@ to see what resources are created.
 
 The cluster will be populated with the following:
 
--   Secret
-    -   `certs-and-configs-<hash>`
--   ConfigMap
-    -   `config-files-<hash>`
--   Service
-    -   `gcp-kingdom-data-server` (Cluster IP)
-    -   `system-api-server` (External load balancer)
-    -   `v2alpha-public-api-server` (External load balancer)
--   Deployment
-    -   `gcp-kingdom-data-server-deployment`
-    -   `system-api-server-deployment`
-    -   `v2alpha-public-api-server-deployment`
--   CronJob
-    -   `completed-measurements-deletion-cronjob`
-    -   `pending-measurements-cancellation-cronjob`
-    -   `exchanges-deletion-cronjob`
--   NetworkPolicy
-    -   `default-deny-network-policy`
-    -   `kube-dns-network-policy`
-    -   `gke-network-policy`
-    -   `internal-data-server-network-policy`
-    -   `system-api-server-network-policy`
-    -   `public-api-server-network-policy`
-    -   `completed-measurements-deletion-network-policy`
-    -   `pending-measurements-cancellation-network-policy`
-    -   `exchanges-deletion-network-policy`
+- Secret
+    - `certs-and-configs-<hash>`
+- ConfigMap
+    - `config-files-<hash>`
+- Service
+    - `gcp-kingdom-data-server` (Cluster IP)
+    - `system-api-server` (External load balancer)
+    - `v2alpha-public-api-server` (External load balancer)
+- Deployment
+    - `gcp-kingdom-data-server-deployment`
+    - `system-api-server-deployment`
+    - `v2alpha-public-api-server-deployment`
+- CronJob
+    - `completed-measurements-deletion-cronjob`
+    - `pending-measurements-cancellation-cronjob`
+    - `exchanges-deletion-cronjob`
+    - `measurement-system-prober-cronjob`
+- NetworkPolicy
+    - `default-deny-network-policy`
+    - `kube-dns-network-policy`
+    - `gke-network-policy`
+    - `internal-data-server-network-policy`
+    - `system-api-server-network-policy`
+    - `public-api-server-network-policy`
+    - `completed-measurements-deletion-network-policy`
+    - `pending-measurements-cancellation-network-policy`
+    - `exchanges-deletion-network-policy`
+    - `measurement-system-prober-policy`
 
 ## Before You Start
 
@@ -141,67 +143,67 @@ We use a K8s secret to hold sensitive information, such as private keys.
 First, prepare all the files we want to include in the Kubernetes secret. The
 `dev` configuration assumes the files have the following names:
 
-1.  `all_root_certs.pem`
+1. `all_root_certs.pem`
 
-    This makes up the TLS trusted root CA store for the Kingdom. It's the
-    concatenation of the root CA certificates for all the entites that connect
-    to the Kingdom, including:
+   This makes up the TLS trusted root CA store for the Kingdom. It's the
+   concatenation of the root CA certificates for all the entites that connect
+   to the Kingdom, including:
 
-    *   All Duchies
-    *   All EDPs
-    *   All MC reporting tools (frontends)
-    *   The Kingdom's itself (for traffic between Kingdom servers)
+    * All Duchies
+    * All EDPs
+    * All MC reporting tools (frontends)
+    * The Kingdom's itself (for traffic between Kingdom servers)
 
-    Supposing your root certs are all in a single folder and end with
-    `_root.pem`, you can concatenate them all with a simple shell command:
+   Supposing your root certs are all in a single folder and end with
+   `_root.pem`, you can concatenate them all with a simple shell command:
 
-    ```shell
-    cat *_root.pem > all_root_certs.pem
-    ```
+   ```shell
+   cat *_root.pem > all_root_certs.pem
+   ```
 
-    Note: This assumes that all your root certificate PEM files end in newline.
+   Note: This assumes that all your root certificate PEM files end in newline.
 
-1.  `kingdom_root.pem`
+1. `kingdom_root.pem`
 
-    The root certificate of the Kingdom's CA.
+   The root certificate of the Kingdom's CA.
 
-1.  `kingdom_tls.pem`
+1. `kingdom_tls.pem`
 
-    The Kingdom's TLS certificate.
+   The Kingdom's TLS certificate.
 
-1.  `kingdom_tls.key`
+1. `kingdom_tls.key`
 
-    The private key for the Kingdom's TLS certificate.
+   The private key for the Kingdom's TLS certificate.
 
-1.  `duchy_cert_config.textproto`
+1. `duchy_cert_config.textproto`
 
-    Configuration mapping Duchy root certificates to the corresponding Duchy ID.
+   Configuration mapping Duchy root certificates to the corresponding Duchy ID.
 
-    -   [Example](../../src/main/k8s/testing/secretfiles/duchy_cert_config.textproto)
+    - [Example](../../src/main/k8s/testing/secretfiles/duchy_cert_config.textproto)
 
-1.  `duchy_id_config.textproto`
+1. `duchy_id_config.textproto`
 
-    Configuration mapping external (public) Duchy IDs to internal Duchy IDs.
+   Configuration mapping external (public) Duchy IDs to internal Duchy IDs.
 
-    -   [Example](../../src/main/k8s/testing/secretfiles/duchy_id_config.textproto)
+    - [Example](../../src/main/k8s/testing/secretfiles/duchy_id_config.textproto)
 
-1.  `llv2_protocol_config_config.textproto`
+1. `llv2_protocol_config_config.textproto`
 
-    Configuration for the Liquid Legions v2 protocol.
+   Configuration for the Liquid Legions v2 protocol.
 
-    -   [Example](../../src/main/k8s/testing/secretfiles/llv2_protocol_config_config.textproto)
+    - [Example](../../src/main/k8s/testing/secretfiles/llv2_protocol_config_config.textproto)
 
-1.  `ro_llv2_protocol_config_config.textproto`
+1. `ro_llv2_protocol_config_config.textproto`
 
-    Configuration for the Reach-Only Liquid Legions v2 protocol.
+   Configuration for the Reach-Only Liquid Legions v2 protocol.
 
-    -   [Example](../../src/main/k8s/testing/secretfiles/ro_llv2_protocol_config_config.textproto)
+    - [Example](../../src/main/k8s/testing/secretfiles/ro_llv2_protocol_config_config.textproto)
 
-1.  `hmss_protocol_config_config.textproto`
+1. `hmss_protocol_config_config.textproto`
 
-    Configuration for the Honest Majority Share Shuffle protocol.
+   Configuration for the Honest Majority Share Shuffle protocol.
 
-    -   [Example](../../src/main/k8s/testing/secretfiles/hmss_protocol_config_config.textproto)
+    - [Example](../../src/main/k8s/testing/secretfiles/hmss_protocol_config_config.textproto)
 
 ***The private keys are confidential to the Kingdom, and are generated by the
 Kingdom's certificate authority (CA).***
@@ -229,11 +231,11 @@ within the Kustomization directory.
 Configuration that may frequently change is stored in a K8s configMap. The `dev`
 configuration uses one named `config-files` containing the following files:
 
-*   `authority_key_identifier_to_principal_map.textproto`
-    *   See [Creating Resources](../operations/creating-resources.md)
-*   `known_event_group_metadata_type_set.pb`
-    *   Protobuf `FileDescriptorSet` containing known `EventGroup` metadata
-        types.
+* `authority_key_identifier_to_principal_map.textproto`
+    * See [Creating Resources](../operations/creating-resources.md)
+* `known_event_group_metadata_type_set.pb`
+    * Protobuf `FileDescriptorSet` containing known `EventGroup` metadata
+      types.
 
 Place these files in the `src/main/k8s/dev/config_files/` path within the
 Kustomization directory.
@@ -285,8 +287,8 @@ to the external IPs of the public and system API services.
 
 For example in the Halo dev environment we use the following subdomains:
 
--   `v2alpha.kingdom.dev.halo-cmm.org`
--   `v1alpha.system.kingdom.dev.halo-cmm.org`
+- `v2alpha.kingdom.dev.halo-cmm.org`
+- `v1alpha.system.kingdom.dev.halo-cmm.org`
 
 Other components (such as Duchies) and integrators (such as data providers and
 model providers) can use these names to access Kingdom services.
@@ -301,13 +303,13 @@ deploying on GKE is the
 
 Certificate requirements:
 
-*   Support both client and server TLS.
-*   Include the following DNS hostnames in the subject alternative name (SAN)
-    extension:
-    *   The hostnames for any external IPs. For example, our dev Kingdom
-        certificates have`*.kingdom.dev.halo-cmm.org` to cover both
-        `public.kingdom.dev.halo-cmm.org` and `system.kingdom.dev.halo-cmm.org`
-    *   `localhost` (some of our configurations assume this)
+* Support both client and server TLS.
+* Include the following DNS hostnames in the subject alternative name (SAN)
+  extension:
+    * The hostnames for any external IPs. For example, our dev Kingdom
+      certificates have`*.kingdom.dev.halo-cmm.org` to cover both
+      `public.kingdom.dev.halo-cmm.org` and `system.kingdom.dev.halo-cmm.org`
+    * `localhost` (some of our configurations assume this)
 
 Encryption keys can be generated using the
 [Tinkey tool](https://github.com/google/tink/blob/master/docs/TINKEY.md).
