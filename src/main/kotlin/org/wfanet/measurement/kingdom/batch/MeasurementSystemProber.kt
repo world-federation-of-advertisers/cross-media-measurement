@@ -195,7 +195,7 @@ class MeasurementSystemProber(
     )
   }
 
-  private suspend fun buildDataProviderNameToEventGroup(): MutableMap<String, EventGroup> {
+  private suspend fun buildDataProviderNameToEventGroup(): Map<String, EventGroup> {
     val dataProviderNameToEventGroup = mutableMapOf<String, EventGroup>()
     for (dataProviderName in dataProviderNames) {
       val getDataProviderRequest = getDataProviderRequest { name = dataProviderName }

@@ -200,7 +200,6 @@ kt_jvm_library(
     ],
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
-        "//src/test/kotlin/org/wfanet/measurement/integration/deploy/gcloud:__subpackages__",
     ],
     deps = [
         ":configs",
@@ -280,15 +279,9 @@ kt_jvm_library(
         "InProcessMeasurementSystemProberIntegrationTest.kt",
     ],
     deps = [
-        ":all_kingdom_services",
         ":in_process_cmms_components",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:duchy_data_server",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/batch:measurement_system_prober",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:simulator",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:synthetic_generator_event_query",
-        "@wfa_common_jvm//imports/java/io/opentelemetry/sdk",
-        "@wfa_common_jvm//imports/java/io/opentelemetry/sdk/testing",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
