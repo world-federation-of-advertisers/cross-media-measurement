@@ -89,21 +89,29 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
   @Before
   fun initMeasurementSystemProber() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-
+    val secretsDir: File =
+      getRuntimePath(
+          Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+        )!!
+        .toFile()
+    val privateKeyDerFile = secretsDir.resolve("${MC_DISPLAY_NAME}_cs_private.der")
+    val durationBetweenMeasurement: Duration = Duration.ofSeconds(10)
+    val measurementLookBackDuration = Duration.ofDays(1)
+    val clock = Clock.systemUTC()
     prober =
       MeasurementSystemProber(
         measurementConsumerData.name,
         inProcessCmmsComponents.getDataProviderResourceNames(),
         measurementConsumerData.apiAuthenticationKey,
-        PRIVATE_KEY_DER_FILE,
-        MEASUREMENT_LOOKBACK_DURATION,
-        DURATION_BETWEEN_MEASUREMENT,
+        privateKeyDerFile,
+        measurementLookBackDuration,
+        durationBetweenMeasurement,
         publicMeasurementConsumersClient,
         publicMeasurementsClient,
         publicDataProvidersClient,
         publicEventGroupsClient,
         publicRequisitionsClient,
-        CLOCK,
+        clock,
       )
   }
 
@@ -118,7 +126,7 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
   }
 
   @Test
-  fun `prober creates first two measurements`(): Unit = runBlocking {
+  fun `prober creates the first measurement`(): Unit = runBlocking {
     prober.run()
     val measurements = listMeasurements()
     assertThat(measurements.size).isEqualTo(1)
@@ -150,7 +158,7 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
       }
       nextPageToken = response.nextPageToken
     } while (nextPageToken.isNotEmpty())
-    return listOf()
+    return emptyList()
   }
 
   private suspend fun getRequisitionsForMeasurement(measurementName: String): List<Requisition> {
@@ -178,16 +186,6 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
   }
 
   companion object {
-    private val SECRETS_DIR: File =
-      getRuntimePath(
-          Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
-        )!!
-        .toFile()
-    private val PRIVATE_KEY_DER_FILE = SECRETS_DIR.resolve("${MC_DISPLAY_NAME}_cs_private.der")
-    private val DURATION_BETWEEN_MEASUREMENT: Duration = Duration.ofSeconds(10)
-    private val MEASUREMENT_LOOKBACK_DURATION = Duration.ofDays(1)
-    private val CLOCK = Clock.systemUTC()
-
     @BeforeClass
     @JvmStatic
     fun initConfig() {
