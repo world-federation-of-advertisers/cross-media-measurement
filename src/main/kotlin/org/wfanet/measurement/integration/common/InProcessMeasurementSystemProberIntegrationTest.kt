@@ -31,14 +31,11 @@ import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsResponse
-import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
-import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.identity.withPrincipalName
@@ -159,30 +156,6 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
       nextPageToken = response.nextPageToken
     } while (nextPageToken.isNotEmpty())
     return emptyList()
-  }
-
-  private suspend fun getRequisitionsForMeasurement(measurementName: String): List<Requisition> {
-    var nextPageToken = ""
-    val requisitions = mutableListOf<Requisition>()
-    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-    do {
-      val response: ListRequisitionsResponse =
-        try {
-          publicRequisitionsClient
-            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-            .listRequisitions(
-              listRequisitionsRequest {
-                parent = measurementName
-                pageToken = nextPageToken
-              }
-            )
-        } catch (e: StatusException) {
-          throw Exception("Unable to list requisitions for measurement $measurementName", e)
-        }
-      requisitions.addAll(response.requisitionsList)
-      nextPageToken = response.nextPageToken
-    } while (nextPageToken.isNotEmpty())
-    return requisitions
   }
 
   companion object {
