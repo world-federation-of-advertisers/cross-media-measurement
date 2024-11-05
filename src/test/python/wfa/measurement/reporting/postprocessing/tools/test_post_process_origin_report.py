@@ -26,33 +26,170 @@ EDP_MAP = {
 }
 
 AMI_MEASUREMENTS = {
-    'edp1': [6333, 3585, 7511, 1037, 0, 10040, 0, 2503, 7907, 0, 0, 0, 0, 1729,
-             0, 1322, 0],
-    'edp2': [24062000, 29281000, 31569000, 31569000, 31569000, 31569000,
-             31569000, 31569000, 31569000, 31569000, 31569000, 31569000,
-             31569000, 31569000, 31569000, 31569000, 31569000],
-    'union': [24129432, 29152165, 31474050, 31352346, 31685183, 31425302,
-              31655739, 31643458, 31438532, 31600739, 31386917, 31785206,
-              31627169, 31453865, 31582783, 31806702, 31477620],
+    'edp1': [701155, 1387980, 1993909, 2530351, 3004251, 3425139, 3798300,
+             4130259, 4425985, 4689161, 4924654, 5134209, 5321144, 5488320,
+             5638284, 5772709, 5893108],
+    'edp2': [17497550, 26248452, 28434726, 29254557, 29613105, 29781657,
+             29863471, 29903985, 29923599, 29933436, 29938318, 29940737,
+             29941947, 29942509, 29942840, 29942982, 29943048],
+    'union': [17848693, 26596529, 28810116, 29670899, 30076858, 30293844,
+              30422560, 30507247, 30567675, 30614303, 30652461, 30684582,
+              30712804, 30737507, 30759392, 30778972, 30796521],
 }
 MRC_MEASUREMENTS = {
-    'edp1': [0, 2196, 2014, 0, 129, 0, 2018, 81, 0, 0, 288, 0, 0, 0, 0, 0, 0],
-    'edp2': [24062000, 29281000, 31569000, 31569000, 31569000, 31569000,
-             31569000, 31569000, 31569000, 31569000, 31569000, 31569000,
-             31569000, 31569000, 31569000, 31569000, 31569000],
-    'union': [24299684, 29107595, 31680517, 31513613, 32127776, 31517198,
-              31786057, 31225783, 31237872, 31901620, 31720183, 31263524,
-              31775635, 31917650, 31478465, 31784354, 31542065],
+    'edp1': [630563, 1248838, 1794204, 2276856, 2703592, 3082468, 3418615,
+             3717626, 3983983, 4220849, 4432799, 4621453, 4789932, 4940394,
+             5075337, 5196132, 5304490],
+    'edp2': [15747807, 23623080, 25590863, 26328935, 26651567, 26803189,
+             26876867, 26913336, 26930960, 26939827, 26944204, 26946392,
+             26947485, 26947981, 26948285, 26948410, 26948472],
+    'union': [16063679, 23936163, 25928613, 26703382, 27068800, 27263915,
+              27379780, 27456089, 27510475, 27552474, 27586849, 27615813,
+              27641241, 27663446, 27683138, 27700680, 27716450],
+}
+
+STDS = {
+    'edp1': 13000.0,
+    'edp2': 13000.0,
+    'union': 1300.0,
 }
 
 SIGMAS = {
     'edp1': 1.0,
     'edp2': 1.0,
-    'union': 1.0,
+    'union': 0.1,
 }
 
 
+def get_report_summary_from_data(ami_measurements, mrc_measurements, has_noise):
+  report_summary = report_summary_pb2.ReportSummary()
+  measurement_map = {}
+  # Generates report summary from the measurements
+  for edp in EDP_MAP:
+    ami_measurement_detail = report_summary.measurement_details.add()
+    ami_measurement_detail.measurement_policy = "ami"
+    ami_measurement_detail.set_operation = "cumulative"
+    ami_measurement_detail.is_cumulative = True
+    ami_measurement_detail.data_providers.extend(EDP_MAP[edp])
+    for i in range(len(ami_measurements[edp])):
+      ami_result = ami_measurement_detail.measurement_results.add()
+      ami_result.reach = ami_measurements[edp][i]
+      ami_result.standard_deviation = 0
+      if has_noise:
+        ami_result.reach += int(np.random.normal(0, STDS[edp], 1)[0])
+        ami_result.standard_deviation = SIGMAS[edp]
+      ami_result.metric = "cumulative_metric_" + edp + "_ami_" + str(i).zfill(
+          5)
+      measurement_map[ami_result.metric] = ami_result.reach
+
+    mrc_measurement_detail = report_summary.measurement_details.add()
+    mrc_measurement_detail.measurement_policy = "mrc"
+    mrc_measurement_detail.set_operation = "cumulative"
+    mrc_measurement_detail.is_cumulative = True
+    mrc_measurement_detail.data_providers.extend(EDP_MAP[edp])
+    for i in range(len(mrc_measurements[edp])):
+      mrc_result = mrc_measurement_detail.measurement_results.add()
+      mrc_result.reach = mrc_measurements[edp][i]
+      mrc_result.standard_deviation = 0
+      if has_noise:
+        mrc_result.reach += int(np.random.normal(0, STDS[edp], 1)[0])
+        mrc_result.standard_deviation = SIGMAS[edp]
+      mrc_result.metric = "cumulative_metric_" + edp + "_mrc_" + str(i).zfill(
+          5)
+      measurement_map[mrc_result.metric] = mrc_result.reach
+  return report_summary, measurement_map
+
+
+def get_statistics(array, variance_list, bias_list):
+  variance_list.append(np.var(array))
+  bias_list.append(np.mean(array))
+
+class
 class TestOriginReport(unittest.TestCase):
+  def test_variance(self):
+    true_report_summary, true_measurement_map = get_report_summary_from_data(
+        AMI_MEASUREMENTS, MRC_MEASUREMENTS, 0)
+    sorted_ground_truth = np.array(
+        list(dict(sorted(true_measurement_map.items())).values()))
+
+    edp1_gt = sorted_ground_truth[0:17]
+    edp2_gt = sorted_ground_truth[17:34]
+    union_gt = sorted_ground_truth[34:51]
+    unique1_gt = union_gt - edp2_gt
+    unique2_gt = union_gt - edp1_gt
+
+    noisy_total_variances = []
+    noisy_total_bias = []
+    noisy_unique_reach_1_variances = []
+    noisy_unique_reach_2_variances = []
+    noisy_unique_reach_1_bias = []
+    noisy_unique_reach_2_bias = []
+    corrected_total_variances = []
+    corrected_total_bias = []
+    corrected_unique_reach_1_variances = []
+    corrected_unique_reach_2_variances = []
+    corrected_unique_reach_1_bias = []
+    corrected_unique_reach_2_bias = []
+
+    for i in range(0, 50):
+      report_summary, noisy_measurement_map = get_report_summary_from_data(
+          AMI_MEASUREMENTS,
+          MRC_MEASUREMENTS, 1)
+
+      corrected_measurements = np.array(list(dict(
+          sorted(processReportSummary(report_summary).items())).values()))
+
+      noisy_measurement_values = np.array(list(dict(
+          sorted(noisy_measurement_map.items())).values()))
+
+      corrected_edp1 = corrected_measurements[0:17]
+      corrected_edp2 = corrected_measurements[17:34]
+      corrected_union = corrected_measurements[34:51]
+      corrected_unique1 = corrected_union - corrected_edp2
+      corrected_unique2 = corrected_union - corrected_edp1
+
+      get_statistics(corrected_measurements - sorted_ground_truth,
+                     corrected_total_variances, corrected_total_bias)
+      get_statistics(corrected_unique1 - unique1_gt,
+                     corrected_unique_reach_1_variances,
+                     corrected_unique_reach_1_bias)
+      get_statistics(corrected_unique2 - unique2_gt,
+                     corrected_unique_reach_2_variances,
+                     corrected_unique_reach_2_bias)
+
+      noisy_edp1 = noisy_measurement_values[0:17]
+      noisy_edp2 = noisy_measurement_values[17:34]
+      noisy_union = noisy_measurement_values[34:51]
+      noisy_unique1 = noisy_union - noisy_edp2
+      noisy_unique2 = noisy_union - noisy_edp1
+
+      get_statistics(noisy_measurement_values - sorted_ground_truth,
+                     noisy_total_variances, noisy_total_bias)
+      get_statistics(noisy_unique1 - unique1_gt, noisy_unique_reach_1_variances,
+                     noisy_unique_reach_1_bias)
+      get_statistics(noisy_unique2 - unique2_gt, noisy_unique_reach_2_variances,
+                     noisy_unique_reach_2_bias)
+
+    print(', '.join(str(x) for x in np.array(noisy_total_variances)))
+    print(', '.join(str(x) for x in np.array(corrected_total_variances)))
+
+    print(', '.join(str(x) for x in np.array(noisy_unique_reach_1_variances)))
+    print(
+        ', '.join(str(x) for x in np.array(corrected_unique_reach_1_variances)))
+
+    print(', '.join(str(x) for x in np.array(noisy_unique_reach_2_variances)))
+    print(
+        ', '.join(str(x) for x in np.array(corrected_unique_reach_2_variances)))
+
+    print(', '.join(str(x) for x in np.array(noisy_total_bias)))
+    print(', '.join(str(x) for x in np.array(corrected_total_bias)))
+
+    print(', '.join(str(x) for x in np.array(noisy_unique_reach_1_bias)))
+    print(', '.join(str(x) for x in np.array(corrected_unique_reach_1_bias)))
+
+    print(', '.join(str(x) for x in np.array(noisy_unique_reach_2_bias)))
+    print(', '.join(str(x) for x in np.array(corrected_unique_reach_2_bias)))
+
   def test_report_summary_is_corrected_successfully(self):
     report_summary = report_summary_pb2.ReportSummary()
     # Generates report summary from the measurements
