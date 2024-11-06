@@ -21,9 +21,14 @@ import com.google.type.DayOfWeek
 import com.google.type.date
 import com.google.type.dateTime
 import com.google.type.timeZone
+import io.grpc.StatusException
 import java.util.logging.Logger
 import kotlinx.coroutines.delay
+import org.wfanet.measurement.api.v2alpha.DataProvider
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
+import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
@@ -50,6 +55,7 @@ import org.wfanet.measurement.reporting.v2alpha.reportingSet
 class ReportingUserSimulator(
   private val measurementConsumerName: String,
   private val apiAuthenticationKey: String,
+  private val dataProvidersClient: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   private val eventGroupsClient: EventGroupsGrpcKt.EventGroupsCoroutineStub,
   private val reportingSetsClient: ReportingSetsGrpcKt.ReportingSetsCoroutineStub,
   private val metricCalculationSpecsClient:
@@ -59,7 +65,13 @@ class ReportingUserSimulator(
   suspend fun testCreateReport(runId: String) {
     logger.info("Creating report...")
 
-    val eventGroup = listEventGroups().first()
+    val eventGroup = listEventGroups().filter {
+      it.eventGroupReferenceId.startsWith(
+        TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
+      )
+    }.firstOrNull {
+      getDataProvider(it.cmmsDataProvider).capabilities.honestMajorityShareShuffleSupported
+    } ?: listEventGroups().first()
     val createdPrimitiveReportingSet = createPrimitiveReportingSet(eventGroup)
     val createdMetricCalculationSpec = createMetricCalculationSpec()
 
@@ -89,15 +101,19 @@ class ReportingUserSimulator(
     }
 
     val createdReport =
-      reportsClient
-        .withAuthenticationKey(apiAuthenticationKey)
-        .createReport(
-          createReportRequest {
-            parent = measurementConsumerName
-            this.report = report
-            reportId = "a-$runId"
-          }
-        )
+      try {
+        reportsClient
+          .withAuthenticationKey(apiAuthenticationKey)
+          .createReport(
+            createReportRequest {
+              parent = measurementConsumerName
+              this.report = report
+              reportId = "a-$runId"
+            }
+          )
+      } catch (e: StatusException) {
+        throw Exception("Error creating Report", e)
+      }
 
     val completedReport = pollForCompletedReport(createdReport.name)
 
@@ -106,15 +122,31 @@ class ReportingUserSimulator(
   }
 
   private suspend fun listEventGroups(): List<EventGroup> {
-    return eventGroupsClient
-      .withAuthenticationKey(apiAuthenticationKey)
-      .listEventGroups(
-        listEventGroupsRequest {
-          parent = measurementConsumerName
-          pageSize = 1000
-        }
-      )
-      .eventGroupsList
+    try {
+      return eventGroupsClient
+        .withAuthenticationKey(apiAuthenticationKey)
+        .listEventGroups(
+          listEventGroupsRequest {
+            parent = measurementConsumerName
+            pageSize = 1000
+          }
+        )
+        .eventGroupsList
+    } catch (e: StatusException) {
+      throw Exception("Error listing EventGroups", e)
+    }
+  }
+
+  private suspend fun getDataProvider(dataProviderName: String): DataProvider {
+    try {
+      return dataProvidersClient
+        .withAuthenticationKey(apiAuthenticationKey)
+        .getDataProvider(getDataProviderRequest {
+          name = dataProviderName
+        })
+    } catch (e: StatusException) {
+      throw Exception("Error getting DataProvider $dataProviderName", e)
+    }
   }
 
   private suspend fun createPrimitiveReportingSet(eventGroup: EventGroup): ReportingSet {
@@ -122,60 +154,72 @@ class ReportingUserSimulator(
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
     }
 
-    return reportingSetsClient
-      .withAuthenticationKey(apiAuthenticationKey)
-      .createReportingSet(
-        createReportingSetRequest {
-          parent = measurementConsumerName
-          reportingSet = primitiveReportingSet
-          reportingSetId = "a-123"
-        }
-      )
+    try {
+      return reportingSetsClient
+        .withAuthenticationKey(apiAuthenticationKey)
+        .createReportingSet(
+          createReportingSetRequest {
+            parent = measurementConsumerName
+            reportingSet = primitiveReportingSet
+            reportingSetId = "a-123"
+          }
+        )
+    } catch (e: StatusException) {
+      throw Exception("Error creating ReportingSet", e)
+    }
   }
 
   private suspend fun createMetricCalculationSpec(): MetricCalculationSpec {
-    return metricCalculationSpecsClient
-      .withAuthenticationKey(apiAuthenticationKey)
-      .createMetricCalculationSpec(
-        createMetricCalculationSpecRequest {
-          parent = measurementConsumerName
-          metricCalculationSpecId = "a-123"
-          metricCalculationSpec = metricCalculationSpec {
-            displayName = "union reach"
-            metricSpecs += metricSpec {
-              reach =
-                MetricSpecKt.reachParams {
-                  singleDataProviderParams = MetricSpecKt.samplingAndPrivacyParams {
-                    privacyParams = MetricSpecKt.differentialPrivacyParams {  }
+    try {
+      return metricCalculationSpecsClient
+        .withAuthenticationKey(apiAuthenticationKey)
+        .createMetricCalculationSpec(
+          createMetricCalculationSpecRequest {
+            parent = measurementConsumerName
+            metricCalculationSpecId = "a-123"
+            metricCalculationSpec = metricCalculationSpec {
+              displayName = "union reach"
+              metricSpecs += metricSpec {
+                reach =
+                  MetricSpecKt.reachParams {
+                    singleDataProviderParams = MetricSpecKt.samplingAndPrivacyParams {
+                      privacyParams = MetricSpecKt.differentialPrivacyParams { }
+                    }
+                    multipleDataProviderParams = MetricSpecKt.samplingAndPrivacyParams {
+                      privacyParams = MetricSpecKt.differentialPrivacyParams { }
+                    }
                   }
-                  multipleDataProviderParams = MetricSpecKt.samplingAndPrivacyParams {
-                    privacyParams = MetricSpecKt.differentialPrivacyParams {  }
-                  }
+              }
+              metricFrequencySpec =
+                MetricCalculationSpecKt.metricFrequencySpec {
+                  weekly =
+                    MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                      dayOfWeek = DayOfWeek.WEDNESDAY
+                    }
+                }
+              trailingWindow =
+                MetricCalculationSpecKt.trailingWindow {
+                  count = 1
+                  increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
                 }
             }
-            metricFrequencySpec =
-              MetricCalculationSpecKt.metricFrequencySpec {
-                weekly =
-                  MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                    dayOfWeek = DayOfWeek.WEDNESDAY
-                  }
-              }
-            trailingWindow =
-              MetricCalculationSpecKt.trailingWindow {
-                count = 1
-                increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
-              }
           }
-        }
-      )
+        )
+    } catch (e: StatusException) {
+      throw Exception("Error creating MetricCalculationSpec", e)
+    }
   }
 
   private suspend fun pollForCompletedReport(reportName: String): Report {
     while (true) {
       val retrievedReport =
-        reportsClient
-          .withAuthenticationKey(apiAuthenticationKey)
-          .getReport(getReportRequest { name = reportName })
+        try {
+          reportsClient
+            .withAuthenticationKey(apiAuthenticationKey)
+            .getReport(getReportRequest { name = reportName })
+        } catch (e: StatusException) {
+          throw Exception("Error getting Report", e)
+        }
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (retrievedReport.state) {

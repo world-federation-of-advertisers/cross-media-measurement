@@ -132,6 +132,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
       return ReportingUserSimulator(
         measurementConsumerName = TEST_CONFIG.measurementConsumer,
         apiAuthenticationKey = TEST_CONFIG.apiAuthenticationKey,
+        dataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
         eventGroupsClient =
           org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub(
             publicApiChannel
