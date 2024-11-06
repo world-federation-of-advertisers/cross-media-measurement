@@ -74,7 +74,8 @@ class StreamMeasurements(
 
     private fun getOrderByClause(view: Measurement.View): String {
       return when (view) {
-        Measurement.View.COMPUTATION ->
+        Measurement.View.COMPUTATION,
+        Measurement.View.COMPUTATION_STATS ->
           "ORDER BY Measurements.UpdateTime ASC, ExternalComputationId ASC"
         Measurement.View.DEFAULT ->
           "ORDER BY Measurements.UpdateTime ASC, ExternalMeasurementConsumerId ASC, " +
@@ -205,10 +206,8 @@ class StreamMeasurements(
         }
       }
 
-      if (filter.hasAfter() || filter.hasUpdatedAfter()) {
-        // Include shard ID to use sharded index on UpdateTime appropriately.
-        conjuncts.add("MeasurementIndexShardId != -1")
-      }
+      // Include shard ID to use sharded index on UpdateTime appropriately.
+      conjuncts.add("MeasurementIndexShardId != -1")
 
       if (conjuncts.isEmpty()) {
         return
