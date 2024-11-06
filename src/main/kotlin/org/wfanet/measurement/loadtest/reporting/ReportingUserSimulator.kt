@@ -83,7 +83,7 @@ class ReportingUserSimulator(
           reportEnd = date {
             year = 2024
             month = 1
-            day = 18
+            day = 4
           }
         }
     }
