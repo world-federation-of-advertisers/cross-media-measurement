@@ -65,13 +65,16 @@ class ReportingUserSimulator(
   suspend fun testCreateReport(runId: String) {
     logger.info("Creating report...")
 
-    val eventGroup = listEventGroups().filter {
-      it.eventGroupReferenceId.startsWith(
-        TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
-      )
-    }.firstOrNull {
-      getDataProvider(it.cmmsDataProvider).capabilities.honestMajorityShareShuffleSupported
-    } ?: listEventGroups().first()
+    val eventGroup =
+      listEventGroups()
+        .filter {
+          it.eventGroupReferenceId.startsWith(
+            TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
+          )
+        }
+        .firstOrNull {
+          getDataProvider(it.cmmsDataProvider).capabilities.honestMajorityShareShuffleSupported
+        } ?: listEventGroups().first()
     val createdPrimitiveReportingSet = createPrimitiveReportingSet(eventGroup)
     val createdMetricCalculationSpec = createMetricCalculationSpec()
 
@@ -141,9 +144,7 @@ class ReportingUserSimulator(
     try {
       return dataProvidersClient
         .withAuthenticationKey(apiAuthenticationKey)
-        .getDataProvider(getDataProviderRequest {
-          name = dataProviderName
-        })
+        .getDataProvider(getDataProviderRequest { name = dataProviderName })
     } catch (e: StatusException) {
       throw Exception("Error getting DataProvider $dataProviderName", e)
     }
@@ -182,12 +183,14 @@ class ReportingUserSimulator(
               metricSpecs += metricSpec {
                 reach =
                   MetricSpecKt.reachParams {
-                    singleDataProviderParams = MetricSpecKt.samplingAndPrivacyParams {
-                      privacyParams = MetricSpecKt.differentialPrivacyParams { }
-                    }
-                    multipleDataProviderParams = MetricSpecKt.samplingAndPrivacyParams {
-                      privacyParams = MetricSpecKt.differentialPrivacyParams { }
-                    }
+                    singleDataProviderParams =
+                      MetricSpecKt.samplingAndPrivacyParams {
+                        privacyParams = MetricSpecKt.differentialPrivacyParams {}
+                      }
+                    multipleDataProviderParams =
+                      MetricSpecKt.samplingAndPrivacyParams {
+                        privacyParams = MetricSpecKt.differentialPrivacyParams {}
+                      }
                   }
               }
               metricFrequencySpec =
