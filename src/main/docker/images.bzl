@@ -69,6 +69,7 @@ COMMON_IMAGES = [
     struct(
         name = "kingdom_measurement_system_prober_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/job:measurement_system_prober_image",
+        repository = _PREFIX + "/kingdom/measurement-system-prober",
     ),
     struct(
         name = "kingdom_system_api_server_image",
