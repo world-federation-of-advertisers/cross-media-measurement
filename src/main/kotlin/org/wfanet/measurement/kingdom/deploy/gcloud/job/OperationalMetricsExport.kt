@@ -474,16 +474,16 @@ class OperationalMetricsExport(
           states += Measurement.State.FAILED
           if (latestComputationReadFromPreviousJob != null) {
             after =
-            StreamMeasurementsRequestKt.FilterKt.after {
-              updateTime =
-                Timestamps.fromNanos(
-                  latestComputationReadFromPreviousJob.get("update_time").longValue
-                )
-              computation = computationKey {
-                externalComputationId =
-                  latestComputationReadFromPreviousJob.get("external_computation_id").longValue
+              StreamMeasurementsRequestKt.FilterKt.after {
+                updateTime =
+                  Timestamps.fromNanos(
+                    latestComputationReadFromPreviousJob.get("update_time").longValue
+                  )
+                computation = computationKey {
+                  externalComputationId =
+                    latestComputationReadFromPreviousJob.get("external_computation_id").longValue
+                }
               }
-            }
           }
         }
     }
