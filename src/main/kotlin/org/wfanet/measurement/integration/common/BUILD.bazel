@@ -272,3 +272,19 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )
+
+kt_jvm_library(
+    name = "in_process_measurement_system_prober_integration_test",
+    srcs = [
+        "InProcessMeasurementSystemProberIntegrationTest.kt",
+    ],
+    deps = [
+        ":in_process_cmms_components",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/batch:measurement_system_prober",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
