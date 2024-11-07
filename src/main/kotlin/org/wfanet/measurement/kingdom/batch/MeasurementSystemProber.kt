@@ -121,8 +121,7 @@ class MeasurementSystemProber(
   }
 
   private suspend fun createMeasurement() {
-    val dataProviderNameToEventGroup: Map<String, EventGroup> =
-      buildDataProviderNameToEventGroup(dataProviderNames, dataProvidersStub, apiAuthenticationKey)
+    val dataProviderNameToEventGroup: Map<String, EventGroup> = buildDataProviderNameToEventGroup()
 
     val measurementConsumer: MeasurementConsumer =
       try {
@@ -170,7 +169,7 @@ class MeasurementSystemProber(
               epsilon = 0.005
               delta = 1e-15
             }
-            maximumFrequency = 1
+            maximumFrequency = 10
           }
       }
 
@@ -196,11 +195,7 @@ class MeasurementSystemProber(
     )
   }
 
-  private suspend fun buildDataProviderNameToEventGroup(
-    dataProviderNames: List<String>,
-    dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
-    apiAuthenticationKey: String,
-  ): MutableMap<String, EventGroup> {
+  private suspend fun buildDataProviderNameToEventGroup(): Map<String, EventGroup> {
     val dataProviderNameToEventGroup = mutableMapOf<String, EventGroup>()
     for (dataProviderName in dataProviderNames) {
       val getDataProviderRequest = getDataProviderRequest { name = dataProviderName }
@@ -215,12 +210,8 @@ class MeasurementSystemProber(
 
       // TODO(@roaminggypsy): Implement QA event group logic using simulatorEventGroupName
       val listEventGroupsRequest = listEventGroupsRequest {
-        parent = dataProviderName
-        filter =
-          ListEventGroupsRequestKt.filter {
-            measurementConsumers += measurementConsumerName
-            dataProviders += dataProviderName
-          }
+        parent = measurementConsumerName
+        filter = ListEventGroupsRequestKt.filter { dataProviders += dataProviderName }
       }
 
       val eventGroups: List<EventGroup> =
@@ -267,13 +258,15 @@ class MeasurementSystemProber(
     do {
       val response: ListMeasurementsResponse =
         try {
-          measurementsStub.listMeasurements(
-            listMeasurementsRequest {
-              parent = measurementConsumerName
-              this.pageSize = 1
-              pageToken = nextPageToken
-            }
-          )
+          measurementsStub
+            .withAuthenticationKey(apiAuthenticationKey)
+            .listMeasurements(
+              listMeasurementsRequest {
+                parent = measurementConsumerName
+                this.pageSize = 1
+                pageToken = nextPageToken
+              }
+            )
         } catch (e: StatusException) {
           throw Exception(
             "Unable to list measurements for measurement consumer $measurementConsumerName",
@@ -294,12 +287,14 @@ class MeasurementSystemProber(
     do {
       val response: ListRequisitionsResponse =
         try {
-          requisitionsStub.listRequisitions(
-            listRequisitionsRequest {
-              parent = measurementName
-              pageToken = nextPageToken
-            }
-          )
+          requisitionsStub
+            .withAuthenticationKey(apiAuthenticationKey)
+            .listRequisitions(
+              listRequisitionsRequest {
+                parent = measurementName
+                pageToken = nextPageToken
+              }
+            )
         } catch (e: StatusException) {
           throw Exception("Unable to list requisitions for measurement $measurementName", e)
         }

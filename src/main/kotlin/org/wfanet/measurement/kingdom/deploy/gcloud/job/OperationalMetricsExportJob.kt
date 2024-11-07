@@ -75,8 +75,11 @@ private fun run(
     val datasetId = operationalMetricsFlags.bigQueryDataSet
     val measurementsTableId = operationalMetricsFlags.measurementsTable
     val requisitionsTableId = operationalMetricsFlags.requisitionsTable
+    val computationParticipantStagesTableId =
+      operationalMetricsFlags.computationParticipantStagesTable
     val latestMeasurementReadTableId = operationalMetricsFlags.latestMeasurementReadTable
     val latestRequisitionReadTableId = operationalMetricsFlags.latestRequisitionReadTable
+    val latestComputationReadTableId = operationalMetricsFlags.latestComputationReadTable
 
     BigQueryWriteClient.create().use { bigQueryWriteClient ->
       val operationalMetricsExport =
@@ -89,8 +92,10 @@ private fun run(
           datasetId = datasetId,
           latestMeasurementReadTableId = latestMeasurementReadTableId,
           latestRequisitionReadTableId = latestRequisitionReadTableId,
+          latestComputationReadTableId = latestComputationReadTableId,
           measurementsTableId = measurementsTableId,
           requisitionsTableId = requisitionsTableId,
+          computationParticipantStagesTableId = computationParticipantStagesTableId,
         )
 
       operationalMetricsExport.execute()
@@ -134,6 +139,14 @@ class OperationalMetricsFlags {
     private set
 
   @CommandLine.Option(
+    names = ["--computation-participant-stages-table"],
+    description = ["Computation Participant Stages table ID"],
+    required = true,
+  )
+  lateinit var computationParticipantStagesTable: String
+    private set
+
+  @CommandLine.Option(
     names = ["--latest-measurement-read-table"],
     description = ["Latest Measurement Read table ID"],
     required = true,
@@ -147,5 +160,13 @@ class OperationalMetricsFlags {
     required = true,
   )
   lateinit var latestRequisitionReadTable: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--latest-computation-read-table"],
+    description = ["Latest Computation Read table ID"],
+    required = true,
+  )
+  lateinit var latestComputationReadTable: String
     private set
 }

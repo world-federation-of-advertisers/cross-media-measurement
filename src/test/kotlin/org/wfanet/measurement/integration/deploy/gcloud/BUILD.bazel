@@ -124,3 +124,21 @@ java_test(
     test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudSpannerInProcessReachMeasurementAccuracyTest",
     runtime_deps = [":gcloud_spanner_in_process_reach_measurement_accuracy_test"],
 )
+
+kt_jvm_library(
+    name = "gcloud_spanner_in_process_measurement_system_prober_integration_test",
+    srcs = ["GCloudSpannerInProcessMeasurementSystemProberIntegrationTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_measurement_system_prober_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "GCloudSpannerInProcessMeasurementSystemProberIntegrationTest",
+    size = "large",
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudSpannerInProcessMeasurementSystemProberIntegrationTest",
+    runtime_deps = [":gcloud_spanner_in_process_measurement_system_prober_integration_test"],
+)
