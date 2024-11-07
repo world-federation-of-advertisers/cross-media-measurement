@@ -1500,6 +1500,142 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
+  fun `streamMeasurements with hasExternalComputationId filter only gets computations`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+
+      val measurement1 =
+        measurementsService.createMeasurement(
+          createMeasurementRequest {
+            measurement =
+              MEASUREMENT.copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+              }
+          }
+        )
+      measurementsService.createMeasurement(
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+              details =
+                details.copy {
+                  protocolConfig = protocolConfig {
+                    direct = ProtocolConfig.Direct.getDefaultInstance()
+                  }
+                  clearDuchyProtocolConfig()
+                }
+            }
+        }
+      )
+      val measurement3 =
+        measurementsService.createMeasurement(
+          createMeasurementRequest { measurement = measurement1 }
+        )
+
+      val streamMeasurementsRequest = streamMeasurementsRequest {
+        limit = 2
+        filter = filter {
+          hasExternalComputationId = true
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        }
+      }
+
+      val responses: List<Measurement> =
+        measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
+
+      val computationMeasurement1 =
+        measurementsService.getMeasurement(
+          getMeasurementRequest {
+            externalMeasurementConsumerId = measurement1.externalMeasurementConsumerId
+            externalMeasurementId = measurement1.externalMeasurementId
+          }
+        )
+      val computationMeasurement3 =
+        measurementsService.getMeasurement(
+          getMeasurementRequest {
+            externalMeasurementConsumerId = measurement3.externalMeasurementConsumerId
+            externalMeasurementId = measurement3.externalMeasurementId
+          }
+        )
+      assertThat(responses)
+        .containsExactly(computationMeasurement1, computationMeasurement3)
+        .inOrder()
+    }
+
+  @Test
+  fun `streamMeasurements with COMPUTATION_STATS view only gets computations`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+
+      val measurement1 =
+        measurementsService.createMeasurement(
+          createMeasurementRequest {
+            measurement =
+              MEASUREMENT.copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+              }
+          }
+        )
+      measurementsService.createMeasurement(
+        createMeasurementRequest {
+          measurement =
+            MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+              details =
+                details.copy {
+                  protocolConfig = protocolConfig {
+                    direct = ProtocolConfig.Direct.getDefaultInstance()
+                  }
+                  clearDuchyProtocolConfig()
+                }
+            }
+        }
+      )
+      val measurement3 =
+        measurementsService.createMeasurement(
+          createMeasurementRequest { measurement = measurement1 }
+        )
+
+      val streamMeasurementsRequest = streamMeasurementsRequest {
+        limit = 3
+        filter = filter {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        }
+        measurementView = Measurement.View.COMPUTATION_STATS
+      }
+
+      val responses: List<Measurement> =
+        measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
+
+      val computationMeasurement1 =
+        measurementsService.getMeasurementByComputationId(
+          getMeasurementByComputationIdRequest {
+            externalComputationId = measurement1.externalComputationId
+          }
+        )
+      val computationMeasurement3 =
+        measurementsService.getMeasurementByComputationId(
+          getMeasurementByComputationIdRequest {
+            externalComputationId = measurement3.externalComputationId
+          }
+        )
+      assertThat(responses)
+        .containsExactly(computationMeasurement1, computationMeasurement3)
+        .inOrder()
+    }
+
+  @Test
   fun `streamMeasurements with computation view only returns failure log`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
