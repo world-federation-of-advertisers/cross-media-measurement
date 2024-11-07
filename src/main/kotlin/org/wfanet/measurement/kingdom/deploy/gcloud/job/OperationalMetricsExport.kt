@@ -114,9 +114,9 @@ class OperationalMetricsExport(
         StreamMeasurementsRequestKt.filter {
           states += Measurement.State.SUCCEEDED
           states += Measurement.State.FAILED
-          after =
-            StreamMeasurementsRequestKt.FilterKt.after {
-              if (latestMeasurementReadFromPreviousJob != null) {
+          if (latestMeasurementReadFromPreviousJob != null) {
+            after =
+              StreamMeasurementsRequestKt.FilterKt.after {
                 updateTime =
                   Timestamps.fromNanos(
                     latestMeasurementReadFromPreviousJob.get("update_time").longValue
@@ -130,7 +130,7 @@ class OperationalMetricsExport(
                     latestMeasurementReadFromPreviousJob.get("external_measurement_id").longValue
                 }
               }
-            }
+          }
         }
     }
 
@@ -472,19 +472,19 @@ class OperationalMetricsExport(
         StreamMeasurementsRequestKt.filter {
           states += Measurement.State.SUCCEEDED
           states += Measurement.State.FAILED
-          after =
+          if (latestComputationReadFromPreviousJob != null) {
+            after =
             StreamMeasurementsRequestKt.FilterKt.after {
-              if (latestComputationReadFromPreviousJob != null) {
-                updateTime =
-                  Timestamps.fromNanos(
-                    latestComputationReadFromPreviousJob.get("update_time").longValue
-                  )
-                computation = computationKey {
-                  externalComputationId =
-                    latestComputationReadFromPreviousJob.get("external_computation_id").longValue
-                }
+              updateTime =
+                Timestamps.fromNanos(
+                  latestComputationReadFromPreviousJob.get("update_time").longValue
+                )
+              computation = computationKey {
+                externalComputationId =
+                  latestComputationReadFromPreviousJob.get("external_computation_id").longValue
               }
             }
+          }
         }
     }
 
