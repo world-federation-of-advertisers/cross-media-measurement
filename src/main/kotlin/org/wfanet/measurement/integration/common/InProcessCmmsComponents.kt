@@ -187,6 +187,10 @@ class InProcessCmmsComponents(
     )
   }
 
+  fun getDataProviderResourceNames(): List<String> {
+    return edpDisplayNameToResourceMap.values.map { it.name }
+  }
+
   fun startDaemons() = runBlocking {
     // Create all resources
     createAllResources()
