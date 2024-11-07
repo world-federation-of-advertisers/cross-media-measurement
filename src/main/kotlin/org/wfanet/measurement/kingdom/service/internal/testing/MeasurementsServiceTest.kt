@@ -1608,7 +1608,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         )
 
       val streamMeasurementsRequest = streamMeasurementsRequest {
-        limit = 2
+        limit = 3
         filter = filter {
           externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
         }
