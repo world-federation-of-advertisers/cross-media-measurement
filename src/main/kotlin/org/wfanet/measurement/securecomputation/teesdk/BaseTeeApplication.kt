@@ -19,58 +19,75 @@ package org.wfanet.measurement.securecomputation.teesdk
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Message
 import java.util.logging.Logger
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.consumeAsFlow
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import org.wfanet.measurement.common.rabbitmq.RabbitMqClient
+import org.wfanet.measurement.common.rabbitmq.QueueClient
 
+/**
+ * BaseTeeApplication is an abstract base class for TEE applications that automatically subscribes
+ * to a specified queue and processes messages as they arrive.
+ *
+ * @param T The type of message that this application will process.
+ * @param queueName The name of the queue to which this application subscribes.
+ * @param queueClient A client that manages connections and interactions with the queue.
+ * @param parser A function that converts raw ByteArray data from the queue into the desired message
+ *   type [T].
+ * @param blockingContext The [CoroutineContext] used for blocking operations, defaulting to
+ *   [Dispatchers.IO].
+ */
 abstract class BaseTeeApplication<T : Message>(
   private val queueName: String,
-  private val rabbitMqClient: RabbitMqClient,
+  private val queueClient: QueueClient,
   private val parser: (ByteArray) -> T,
+  private val blockingContext: CoroutineContext = Dispatchers.IO,
 ) : AutoCloseable {
 
-  private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-  private val job: Job
+  private val scope = CoroutineScope(blockingContext + SupervisorJob())
 
   init {
-    job = scope.launch {
+    scope.launch {
       try {
         startListening()
       } catch (e: Exception) {
-        logger.severe("Error starting to listen to RabbitMQ: ${e.message}")
+        logger.severe("Error starting to listen to queue: ${e.message}")
         throw e
       }
     }
   }
 
+  /**
+   * Begins listening for messages on the specified queue. Each message is processed as it arrives.
+   * If an error occurs during the message flow, it is logged and handling continues.
+   */
   private suspend fun startListening() {
-    while (scope.isActive) {
-      try {
-        val messageChannel: ReceiveChannel<RabbitMqClient.QueueMessage<ByteArray>> =
-          rabbitMqClient.subscribe(queueName)
+    try {
+      val messageChannel: ReceiveChannel<QueueClient.QueueMessage<ByteArray>> =
+        queueClient.subscribe(queueName)
 
-        messageChannel.consumeAsFlow()
-          .catch { e ->
-            logger.severe("Error in message flow: ${e.message}")
-          }
-          .collect { queueMessage ->
-            processMessage(queueMessage)
-          }
-      } catch (e: Exception) {
-        logger.severe("Connection error in startListening: ${e.message}")
-      }
+      messageChannel
+        .consumeAsFlow()
+        .catch { e -> logger.severe("Error in message flow: ${e.message}") }
+        .collect { queueMessage -> processMessage(queueMessage) }
+    } catch (e: Exception) {
+      logger.severe("Connection error in startListening: ${e.message}")
     }
   }
 
-  private suspend fun processMessage(queueMessage: RabbitMqClient.QueueMessage<ByteArray>) {
+  /**
+   * Processes each message received from the queue by attempting to parse and pass it to [runWork].
+   * If parsing fails, the message is negatively acknowledged and discarded. If processing fails,
+   * the message is negatively acknowledged and optionally requeued.
+   *
+   * @param queueMessage The raw message received from the queue.
+   */
+  private fun processMessage(queueMessage: QueueClient.QueueMessage<ByteArray>) {
     try {
       val message = parser(queueMessage.body)
       runWork(message)
@@ -88,9 +105,8 @@ abstract class BaseTeeApplication<T : Message>(
 
   override fun close() {
     try {
-      job.cancel()
       scope.cancel()
-      rabbitMqClient.close()
+      queueClient.close()
     } catch (e: Exception) {
       logger.severe("Error during close: ${e.message}")
     }
@@ -99,5 +115,4 @@ abstract class BaseTeeApplication<T : Message>(
   companion object {
     protected val logger = Logger.getLogger(this::class.java.name)
   }
-
 }
