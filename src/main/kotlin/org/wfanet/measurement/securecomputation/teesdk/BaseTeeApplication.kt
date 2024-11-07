@@ -87,7 +87,7 @@ abstract class BaseTeeApplication<T : Message>(
    *
    * @param queueMessage The raw message received from the queue.
    */
-  private fun processMessage(queueMessage: QueueClient.QueueMessage<ByteArray>) {
+  private suspend fun processMessage(queueMessage: QueueClient.QueueMessage<ByteArray>) {
     try {
       val message = parser(queueMessage.body)
       runWork(message)
@@ -101,7 +101,7 @@ abstract class BaseTeeApplication<T : Message>(
     }
   }
 
-  abstract fun runWork(message: T)
+  abstract suspend fun runWork(message: T)
 
   override fun close() {
     try {

@@ -38,7 +38,7 @@ class BaseTeeApplicationImpl(
   val processedMessages: MutableList<TestWork> = mutableListOf()
   val messageProcessed = CompletableDeferred<Unit>()
 
-  override fun runWork(message: TestWork) {
+  override suspend fun runWork(message: TestWork) {
     processedMessages.add(message)
     messageProcessed.complete(Unit)
   }
