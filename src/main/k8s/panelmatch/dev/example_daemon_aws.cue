@@ -67,14 +67,14 @@ import "strings"
 }
 
 #DefaultAwsConfig: {
-	region:          string
-	storageBucket:   string
-	certArn:         string
-	kingdomApi:      string
-	commonName:      string
-	orgName:         string
-	dns:             string
-	containerPrefix: string
+	region:                  string
+	storageBucket:           string
+	certArn:                 string
+	kingdomApi:              string
+	commonName:              string
+	orgName:                 string
+	dns:                     string
+	containerPrefix:         string
 }
 
 _exchangeDaemonConfig: #ExchangeDaemonConfig
@@ -122,6 +122,7 @@ deployments: {
 						"--s3-region=" + _defaultAwsConfig.region,
 						"--s3-storage-bucket=" + _defaultAwsConfig.storageBucket,
 						"--certificate-authority-arn=" + _defaultAwsConfig.certArn,
+						"--certificate-authority-csr-signature-algorithm=ECDSA_WITH_SHA256",
 			]
 		}
 	}
