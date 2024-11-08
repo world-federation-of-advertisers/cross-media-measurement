@@ -12,6 +12,8 @@ kt_jvm_library(
         "//imports/java/software/amazon/awssdk/acmpca",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/certificates",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/certificates:generate_csr",
         "//src/main/kotlin/org/wfanet/panelmatch/common/secrets",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signatures",
     ],
 )
