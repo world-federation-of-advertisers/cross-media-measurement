@@ -28,6 +28,7 @@ package k8s
 
 	_extraFlags: [
 		"--certificate-authority-arn=" + privateCaArn,
+		"--certificate-authority-csr-signature-algorithm=ECDSA_WITH_SHA256",
 	]
 }
 
