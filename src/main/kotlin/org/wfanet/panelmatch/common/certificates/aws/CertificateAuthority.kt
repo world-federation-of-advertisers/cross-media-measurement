@@ -17,10 +17,11 @@ package org.wfanet.panelmatch.common.certificates.aws
 import java.security.KeyPair
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
+import org.wfanet.measurement.common.crypto.SignatureAlgorithm
 import org.wfanet.measurement.common.crypto.generateKeyPair
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.panelmatch.common.certificates.CertificateAuthority
-import org.wfanet.panelmatch.common.certificates.generateCsrFromPrivateKey
+import org.wfanet.panelmatch.common.certificates.generateCsrFromKeyPair
 import software.amazon.awssdk.core.SdkBytes
 import software.amazon.awssdk.services.acmpca.model.ASN1Subject
 import software.amazon.awssdk.services.acmpca.model.ApiPassthrough
@@ -93,7 +94,12 @@ class CertificateAuthority(
         .certificateAuthorityArn(certificateAuthorityArn)
         .csr(
           SdkBytes.fromByteArray(
-            generateCsrFromPrivateKey(privateKey, context.commonName, context.organization)
+            generateCsrFromKeyPair(
+                keyPair,
+                context.commonName,
+                context.organization,
+                AWS_CERTIFICATE_SIGNING_ALGORITHM.toSignatureAlgorithm(),
+              )
               .toByteArray()
           )
         )
@@ -114,5 +120,18 @@ class CertificateAuthority(
     val getResponse = client.getCertificate(getRequest)
 
     return readCertificate(getResponse.certificate().byteInputStream()) to privateKey
+  }
+
+  private fun SigningAlgorithm.toSignatureAlgorithm(): SignatureAlgorithm {
+    return when (this) {
+      SigningAlgorithm.SHA256_WITHECDSA -> SignatureAlgorithm.ECDSA_WITH_SHA256
+      SigningAlgorithm.SHA384_WITHECDSA -> SignatureAlgorithm.ECDSA_WITH_SHA384
+      SigningAlgorithm.SHA512_WITHECDSA -> SignatureAlgorithm.ECDSA_WITH_SHA512
+      SigningAlgorithm.SHA256_WITHRSA -> SignatureAlgorithm.SHA_256_WITH_RSA_ENCRYPTION
+      SigningAlgorithm.SHA384_WITHRSA -> SignatureAlgorithm.SHA_384_WITH_RSA_ENCRYPTION
+      SigningAlgorithm.SHA512_WITHRSA -> SignatureAlgorithm.SHA_512_WITH_RSA_ENCRYPTION
+      SigningAlgorithm.UNKNOWN_TO_SDK_VERSION ->
+        throw IllegalStateException("Signing algorithm unknown")
+    }
   }
 }

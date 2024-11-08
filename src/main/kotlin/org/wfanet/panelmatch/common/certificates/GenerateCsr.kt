@@ -14,36 +14,33 @@
 
 package org.wfanet.panelmatch.common.certificates
 
-import java.io.ByteArrayOutputStream
-import java.security.PrivateKey
-import org.wfanet.measurement.common.crypto.PemWriter
+import java.io.StringWriter
+import java.security.KeyPair
+import javax.security.auth.x500.X500Principal
+import org.bouncycastle.openssl.jcajce.JcaPEMWriter
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
+import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder
+import org.wfanet.measurement.common.crypto.SignatureAlgorithm
 
 /**
- * Generates a PEM format CSR through OpenSSL for a given private key, organization and common name.
+ * Generates a PEM format CSR using Bouncy Castle for a given key pair, organization, common name,
+ * and signature algorithm.
  */
-fun generateCsrFromPrivateKey(key: PrivateKey, organization: String, commonName: String): String {
-  val outputStream = ByteArrayOutputStream()
-  PemWriter(outputStream).write(key)
-  return runProcessWithInputAndReturnOutput(
-    outputStream.toByteArray(),
-    "openssl",
-    "req",
-    "-new",
-    "-subj",
-    "/O=$organization/CN=$commonName",
-    "-key",
-    "/dev/stdin",
-  )
-}
-
-private fun runProcessWithInputAndReturnOutput(input: ByteArray, vararg args: String): String {
-  val process = ProcessBuilder(*args).redirectErrorStream(true).start()
-  process.outputStream.write(input)
-  process.outputStream.close()
-  val exitCode = process.waitFor()
-  val output = process.inputStream.use { it.bufferedReader().readText() }
-  check(exitCode == 0) {
-    "Command ${args.joinToString(" ")} failed with code $exitCode. Output:\n$output"
+fun generateCsrFromKeyPair(
+  keyPair: KeyPair,
+  organization: String,
+  commonName: String,
+  signatureAlgorithm: SignatureAlgorithm,
+): String {
+  val signer = JcaContentSignerBuilder(signatureAlgorithm.javaName).build(keyPair.private)
+  val pkcs10Csr =
+    JcaPKCS10CertificationRequestBuilder(
+        X500Principal("O=$organization, CN=$commonName"),
+        keyPair.public,
+      )
+      .build(signer)
+  return StringWriter().use { stringWriter ->
+    JcaPEMWriter(stringWriter).use { pemWriter -> pemWriter.writeObject(pkcs10Csr) }
+    stringWriter.toString()
   }
-  return output
 }
