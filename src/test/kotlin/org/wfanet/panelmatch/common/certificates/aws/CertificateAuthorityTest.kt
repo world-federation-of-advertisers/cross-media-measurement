@@ -45,6 +45,7 @@ import software.amazon.awssdk.services.acmpca.model.GetCertificateResponse
 import software.amazon.awssdk.services.acmpca.model.IssueCertificateRequest
 import software.amazon.awssdk.services.acmpca.model.IssueCertificateResponse
 import software.amazon.awssdk.services.acmpca.model.KeyUsage
+import software.amazon.awssdk.services.acmpca.model.SigningAlgorithm
 import software.amazon.awssdk.services.acmpca.model.Validity
 
 private val CONTEXT =
@@ -119,7 +120,8 @@ class CertificateAuthorityTest {
         CONTEXT,
         CERTIFICATE_AUTHORITY_ARN,
         mockCreateCertificateClient,
-        generateKeyPair = { KeyPair(ROOT_PUBLIC_KEY, readPrivateKey(ROOT_PRIVATE_KEY_FILE, "ec")) },
+        signatureAlgorithm = SignatureAlgorithm.ECDSA_WITH_SHA256,
+        generateKeyPair = { KeyPair(ROOT_PUBLIC_KEY, readPrivateKey(ROOT_PRIVATE_KEY_FILE, "EC")) },
       )
 
     val (x509, privateKey) = certificateAuthority.generateX509CertificateAndPrivateKey()
@@ -133,7 +135,7 @@ class CertificateAuthorityTest {
     assertThat(issueCertificateRequest.certificateAuthorityArn())
       .isEqualTo(CERTIFICATE_AUTHORITY_ARN)
     assertThat(issueCertificateRequest.signingAlgorithm())
-      .isEqualTo(AWS_CERTIFICATE_SIGNING_ALGORITHM)
+      .isEqualTo(SigningAlgorithm.SHA256_WITHECDSA)
     assertThat(issueCertificateRequest.validity()).isEqualTo(CERTIFICATE_LIFETIME)
 
     val getCertificateRequest =

@@ -23,8 +23,8 @@ import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder
 import org.wfanet.measurement.common.crypto.SignatureAlgorithm
 
 /**
- * Generates a PEM format CSR using Bouncy Castle for a given key pair, organization, common name,
- * and signature algorithm.
+ * Generates a PEM format CSR for a given key pair, organization, common name, and signature
+ * algorithm.
  */
 fun generateCsrFromKeyPair(
   keyPair: KeyPair,
