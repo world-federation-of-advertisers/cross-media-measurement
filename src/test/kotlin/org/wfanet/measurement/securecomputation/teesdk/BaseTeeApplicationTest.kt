@@ -15,7 +15,6 @@
 package org.wfanet.measurement.securecomputation.teesdk
 
 import com.google.common.truth.Truth.assertThat
-import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -23,39 +22,50 @@ import org.junit.Test
 import org.wfanet.measurement.common.rabbitmq.QueueClient
 import org.wfanet.measurement.common.rabbitmq.testing.InMemoryQueueClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.testing.TestWork
+import com.google.protobuf.Parser
+import kotlinx.coroutines.launch
 
 class BaseTeeApplicationImpl(
   queueClient: QueueClient,
-  parser: (ByteArray) -> TestWork,
-  blockingContext: CoroutineContext = Dispatchers.IO,
+  parser: Parser<TestWork>,
 ) :
   BaseTeeApplication<TestWork>(
     queueName = "test-queue",
     queueClient = queueClient,
     parser = parser,
-    blockingContext = blockingContext,
   ) {
   val processedMessages: MutableList<TestWork> = mutableListOf()
   val messageProcessed = CompletableDeferred<Unit>()
+  val subscriptionReady = CompletableDeferred<Unit>()
 
   override suspend fun runWork(message: TestWork) {
     processedMessages.add(message)
     messageProcessed.complete(Unit)
   }
+  override suspend fun startListening() {
+    subscriptionReady.complete(Unit)
+    super.startListening()
+  }
+
 }
 
 class BaseTeeApplicationTest {
 
   @Test
   fun `test processing protobuf message`() = runBlocking {
-    val testContext = Dispatchers.IO
-    val inMemoryQueueClient = InMemoryQueueClient(testContext)
+
+    val inMemoryQueueClient = InMemoryQueueClient(Dispatchers.IO)
     val app =
       BaseTeeApplicationImpl(
         queueClient = inMemoryQueueClient,
-        parser = { byteArray -> TestWork.parseFrom(byteArray) },
-        blockingContext = testContext,
+        parser = TestWork.parser(),
       )
+
+    launch {
+      app.startListening()
+    }
+
+    app.subscriptionReady.await()
 
     val testWork =
       TestWork.newBuilder()
@@ -68,8 +78,8 @@ class BaseTeeApplicationTest {
     inMemoryQueueClient.sendMessage(testWork.toByteArray())
     app.messageProcessed.await()
     assertThat(app.processedMessages.contains(testWork)).isTrue()
-
     inMemoryQueueClient.close()
     app.close()
+
   }
 }

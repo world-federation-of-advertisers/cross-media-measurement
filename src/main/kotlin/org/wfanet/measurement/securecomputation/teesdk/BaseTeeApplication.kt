@@ -18,16 +18,11 @@ package org.wfanet.measurement.securecomputation.teesdk
 
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Message
+import com.google.protobuf.Parser
 import java.util.logging.Logger
-import kotlin.coroutines.CoroutineContext
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.consumeAsFlow
-import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.rabbitmq.QueueClient
 
 /**
@@ -37,44 +32,32 @@ import org.wfanet.measurement.common.rabbitmq.QueueClient
  * @param T The type of message that this application will process.
  * @param queueName The name of the queue to which this application subscribes.
  * @param queueClient A client that manages connections and interactions with the queue.
- * @param parser A function that converts raw ByteArray data from the queue into the desired message
+ * @param parser A `Parser` from `com.google.protobuf` used to parse raw `ByteArray` data from the
+ * queue into the desired message type [T], typically a Protobuf message.
  *   type [T].
- * @param blockingContext The [CoroutineContext] used for blocking operations, defaulting to
- *   [Dispatchers.IO].
  */
 abstract class BaseTeeApplication<T : Message>(
   private val queueName: String,
   private val queueClient: QueueClient,
-  private val parser: (ByteArray) -> T,
-  private val blockingContext: CoroutineContext = Dispatchers.IO,
+  private val parser: Parser<T>,
 ) : AutoCloseable {
-
-  private val scope = CoroutineScope(blockingContext + SupervisorJob())
-
-  init {
-    scope.launch {
-      try {
-        startListening()
-      } catch (e: Exception) {
-        logger.severe("Error starting to listen to queue: ${e.message}")
-        throw e
-      }
-    }
-  }
 
   /**
    * Begins listening for messages on the specified queue. Each message is processed as it arrives.
    * If an error occurs during the message flow, it is logged and handling continues.
    */
-  private suspend fun startListening() {
+  suspend open fun startListening() {
     try {
-      val messageChannel: ReceiveChannel<QueueClient.QueueMessage<ByteArray>> =
-        queueClient.subscribe(queueName)
+      val messageChannel: ReceiveChannel<QueueClient.QueueMessage<T>> =
+        queueClient.subscribe(queueName, parser)
 
       messageChannel
         .consumeAsFlow()
         .catch { e -> logger.severe("Error in message flow: ${e.message}") }
-        .collect { queueMessage -> processMessage(queueMessage) }
+        .collect {
+          queueMessage -> processMessage(queueMessage)
+          println("~~~~~~~~~~~~~~~~~~~~~~~~ collecting message")
+        }
     } catch (e: Exception) {
       logger.severe("Connection error in startListening: ${e.message}")
     }
@@ -87,10 +70,9 @@ abstract class BaseTeeApplication<T : Message>(
    *
    * @param queueMessage The raw message received from the queue.
    */
-  private suspend fun processMessage(queueMessage: QueueClient.QueueMessage<ByteArray>) {
+  private suspend fun processMessage(queueMessage: QueueClient.QueueMessage<T>) {
     try {
-      val message = parser(queueMessage.body)
-      runWork(message)
+      runWork(queueMessage.body)
       queueMessage.ack()
     } catch (e: InvalidProtocolBufferException) {
       logger.severe("Failed to parse protobuf message: ${e.message}")
@@ -105,7 +87,6 @@ abstract class BaseTeeApplication<T : Message>(
 
   override fun close() {
     try {
-      scope.cancel()
       queueClient.close()
     } catch (e: Exception) {
       logger.severe("Error during close: ${e.message}")
