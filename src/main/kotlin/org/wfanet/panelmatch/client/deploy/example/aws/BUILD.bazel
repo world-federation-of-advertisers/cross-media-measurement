@@ -19,6 +19,8 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/aws/s3",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signatures",
     ],
 )
 

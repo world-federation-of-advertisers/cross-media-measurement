@@ -22,25 +22,28 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder
 import org.wfanet.measurement.common.crypto.SignatureAlgorithm
 
-/**
- * Generates a PEM format CSR using Bouncy Castle for a given key pair, organization, common name,
- * and signature algorithm.
- */
-fun generateCsrFromKeyPair(
-  keyPair: KeyPair,
-  organization: String,
-  commonName: String,
-  signatureAlgorithm: SignatureAlgorithm,
-): String {
-  val signer = JcaContentSignerBuilder(signatureAlgorithm.javaName).build(keyPair.private)
-  val pkcs10Csr =
-    JcaPKCS10CertificationRequestBuilder(
-        X500Principal("O=$organization, CN=$commonName"),
-        keyPair.public,
-      )
-      .build(signer)
-  return StringWriter().use { stringWriter ->
-    JcaPEMWriter(stringWriter).use { pemWriter -> pemWriter.writeObject(pkcs10Csr) }
-    stringWriter.toString()
+object CertificateSigningRequests {
+
+  /**
+   * Generates a PEM format CSR for a given key pair, organization, common name, and signature
+   * algorithm.
+   */
+  fun generateCsrFromKeyPair(
+    keyPair: KeyPair,
+    organization: String,
+    commonName: String,
+    signatureAlgorithm: SignatureAlgorithm,
+  ): String {
+    val signer = JcaContentSignerBuilder(signatureAlgorithm.javaName).build(keyPair.private)
+    val pkcs10Csr =
+      JcaPKCS10CertificationRequestBuilder(
+          X500Principal("O=$organization, CN=$commonName"),
+          keyPair.public,
+        )
+        .build(signer)
+    return StringWriter().use { stringWriter ->
+      JcaPEMWriter(stringWriter).use { pemWriter -> pemWriter.writeObject(pkcs10Csr) }
+      stringWriter.toString()
+    }
   }
 }

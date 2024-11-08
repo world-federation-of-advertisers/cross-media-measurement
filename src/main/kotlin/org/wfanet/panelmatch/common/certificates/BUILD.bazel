@@ -31,10 +31,10 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "generate_csr",
-    srcs = ["GenerateCsr.kt"],
+    name = "certificate_signing_requests",
+    srcs = ["CertificateSigningRequests.kt"],
     deps = [
-        "//imports/java/org/bouncycastle/bcpkix",
+        "//imports/java/org/bouncycastle:bcpkix",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signatures",
     ],
 )
