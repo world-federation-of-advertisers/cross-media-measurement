@@ -14,7 +14,7 @@
 
 import json
 import math
-import pandas as pd
+import numpy as np
 import sys
 
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
@@ -74,7 +74,7 @@ def processReportSummary(report_summary: report_summary_pb2.ReportSummary()):
   # Processes cumulative measurements first.
   for entry in report_summary.measurement_details:
     if entry.set_operation == "cumulative":
-      data_providers = frozenset(entry.data_providers)
+      data_providers = frozenset(sorted(entry.data_providers))
       measurements = [
           Measurement(result.reach, result.standard_deviation,
                       result.metric)
@@ -93,11 +93,52 @@ def processReportSummary(report_summary: report_summary_pb2.ReportSummary()):
           for result in entry.measurement_results
       ]
       if entry.measurement_policy == "ami":
-        total_ami_measurements[frozenset(entry.data_providers)] = measurements[
-          0]
+        total_ami_measurements[frozenset(sorted(entry.data_providers))] = \
+          measurements[0]
       elif entry.measurement_policy == "mrc":
-        total_mrc_measurements[frozenset(entry.data_providers)] = measurements[
-          0]
+        total_mrc_measurements[frozenset(sorted(entry.data_providers))] = \
+          measurements[0]
+
+  unique_reach_map = {}
+  unique_reach_count = 0;
+  for entry in report_summary.measurement_details:
+    if (entry.set_operation == "difference") and (
+        entry.unique_reach_target != ""):
+      subset = frozenset(sorted([edp for edp in entry.data_providers if
+                                 edp != entry.unique_reach_target]))
+      measurements = [
+          Measurement(result.reach, result.standard_deviation, result.metric)
+          for result in entry.measurement_results
+      ]
+      if entry.measurement_policy == "ami":
+        superset_measurement = total_ami_measurements[
+          frozenset(sorted(entry.data_providers))]
+        if subset in total_ami_measurements.keys():
+          unique_reach_map[entry.metric] = (superset_measurement.name, total_ami_measurements[subset].name)
+        else:
+          measurement = Measurement(superset_measurement.value - measurements[0].value,
+                                    math.sqrt(
+                                      superset_measurement.sigma**2 + measurements[0].sigma**2),
+                                    "unique_reach_metric_ami_" + str(unique_reach_count).zfill(5))
+          total_ami_measurements[subset] = measurement
+          unique_reach_map[measurements[0].name] = (superset_measurement.name, measurement.name)
+
+      elif entry.measurement_policy == "mrc":
+        superset_measurement = total_mrc_measurements[
+          frozenset(sorted(entry.data_providers))]
+        if subset in total_mrc_measurements.keys():
+          unique_reach_map[entry.metric] = (
+          superset_measurement.name, total_mrc_measurements[subset].name)
+        else:
+          measurement = Measurement(superset_measurement.value - entry.value,
+                                    math.sqrt(
+                                      superset_measurement.sigma**2 + entry.sigma**2),
+                                    "unique_reach_metric_mrc_" + str(unique_reach_count).zfill(5))
+          total_mrc_measurements[subset] = measurement
+          unique_reach_map[entry.metric] = (
+          superset_measurement.name, measurement.name)
+
+      unique_reach_count += 1
 
   # Builds the report based on the above measurements.
   report = Report(

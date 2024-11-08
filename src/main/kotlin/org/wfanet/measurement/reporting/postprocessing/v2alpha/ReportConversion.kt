@@ -53,7 +53,7 @@ object ReportConversion {
       "measurement_policy=AMI" in tag -> return "ami"
       "measurement_policy=MRC" in tag -> return "mrc"
       "measurement_policy=CUSTOM" in tag -> return "custom"
-      else -> error("Measurement policy must be ami, or mrc, or custom.")
+      else -> error("Measurement policy must be ami, or mrc, or custom, but get $tag.")
     }
   }
 
@@ -77,6 +77,12 @@ object ReportConversion {
     return targetPart?.let { it.substringAfter("target=").split(",") }
       ?: error("There must be at least one target.")
   }
+
+  fun getUniqueReachTarget(tag: String): String {
+    val parts = tag.split(", ")
+    val uniqueReachTargetPart = parts.find { it.startsWith("unique_Reach_Target=") }
+    return uniqueReachTargetPart?.substringAfter("unique_Reach_Target=") ?: ""
+  }
 }
 
 fun Report.toReportSummaries(): List<ReportSummary> {
@@ -85,7 +91,7 @@ fun Report.toReportSummaries(): List<ReportSummary> {
   val measurementPoliciesByReportingSet =
     reportingMetricEntriesList.associate { entry ->
       val reportingSet = entry.key
-      val tag = tags.getValue(reportingSet)
+      val tag = tags.getValue(reportingSet).replace("{", "").replace("}", "")
       reportingSet to
         ReportingSetSummary(
           ReportConversion.getMeasurementPolicy(tag),
@@ -93,12 +99,19 @@ fun Report.toReportSummaries(): List<ReportSummary> {
         )
     }
 
+  val uniqueReachTargetByReportingSet =
+    reportingMetricEntriesList.associate { entry ->
+      val reportingSet = entry.key
+      val tag = tags.getValue(reportingSet)
+      reportingSet to ReportConversion.getUniqueReachTarget(tag)
+    }
+
   val metricCalculationSpecs =
     reportingMetricEntriesList.flatMapTo(mutableSetOf()) { it.value.metricCalculationSpecsList }
 
   val setOperationByMetricCalculationSpec =
     metricCalculationSpecs.associate { spec ->
-      val tag = tags.getValue(spec)
+      val tag = tags.getValue(spec).replace("{", "").replace("}", "")
       spec to
         SetOperationSummary(
           ReportConversion.isCumulative(tag),
@@ -128,6 +141,7 @@ fun Report.toReportSummaries(): List<ReportSummary> {
             dataProviders += measurementPoliciesByReportingSet[key.second]!!.dataProviders
             isCumulative = setOperationByMetricCalculationSpec[key.first]!!.isCumulative
             setOperation = setOperationByMetricCalculationSpec[key.first]!!.setOperation
+            uniqueReachTarget = uniqueReachTargetByReportingSet[key.second]!!
             var measurementList =
               value
                 .flatMap { it.resultAttributesList }

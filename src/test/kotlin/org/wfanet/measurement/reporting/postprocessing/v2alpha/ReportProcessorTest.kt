@@ -26,6 +26,20 @@ import org.wfanet.measurement.reporting.v2alpha.Report
 @RunWith(JUnit4::class)
 class ReportProcessorTest {
   @Test
+  fun `run correct report with unique reach successfully`() {
+    val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_unique_reach_small.json").toFile()
+    val reportAsJson = reportFile.readText()
+
+    val report = ReportConversion.getReportFromJsonString(reportAsJson)
+    // assertThat(report.hasConsistentMeasurements()).isEqualTo(false)
+    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
+    val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+    print("Updated report***************")
+    print(updatedReport)
+    assertThat(updatedReport.hasConsistentMeasurements()).isEqualTo(true)
+  }
+
+  @Test
   fun `run correct report successfully`() {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_large.json").toFile()
     val reportAsJson = reportFile.readText()

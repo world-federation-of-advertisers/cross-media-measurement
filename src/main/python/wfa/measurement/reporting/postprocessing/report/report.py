@@ -256,23 +256,16 @@ class Report:
         raise ValueError(
             "key {1} does not have a corresponding report".format(parent)
         )
-      for child in metric_subsets_by_parent[parent]:
-        if not (child in metric_reports):
-          raise ValueError(
-              "key {1} does not have a corresponding report".format(child)
-          )
+      # for child in metric_subsets_by_parent[parent]:
+      #   if not (child in metric_reports):
+      #     raise ValueError(
+      #         "key {1} does not have a corresponding report".format(child)
+      #     )
 
     self._metric_index = {}
     for index, metric in enumerate(metric_reports.keys()):
       self._metric_index[metric] = index
 
-    self._edp_combination_index = {}
-    for index, edp_combination in enumerate(
-        next(iter(metric_reports.values())).get_cumulative_edp_combinations()
-    ):
-      self._edp_combination_index[edp_combination] = index
-
-    self._num_edp_combinations = len(self._edp_combination_index.keys())
     self._num_periods = next(
         iter(metric_reports.values())).get_number_of_periods()
 

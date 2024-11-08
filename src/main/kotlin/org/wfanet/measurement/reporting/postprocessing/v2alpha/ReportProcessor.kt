@@ -76,6 +76,7 @@ interface ReportProcessor {
       for (reportSummary in reportSummaries) {
         correctedMeasurementsMap.putAll(processReportSummary(reportSummary))
       }
+      print(correctedMeasurementsMap)
       val updatedReport = updateReport(report, correctedMeasurementsMap)
       return updatedReport
     }
@@ -100,10 +101,12 @@ interface ReportProcessor {
         outputStream.flush()
       }
 
+      print(reportSummary)
       // Reads the output of the above process.
       val processOutput =
         BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }
 
+      print(processOutput)
       val exitCode = process.waitFor()
       require(exitCode == 0) { "Failed to process the report with exitCode $exitCode." }
 
@@ -111,8 +114,10 @@ interface ReportProcessor {
 
       // Converts the process output to the correction map.
       val correctedMeasurementsMap = mutableMapOf<String, Long>()
-      GsonBuilder().create().fromJson(processOutput, Map::class.java).forEach { (key, value) ->
-        correctedMeasurementsMap[key as String] = (value as Double).toLong()
+      if (false) {
+        GsonBuilder().create().fromJson(processOutput, Map::class.java).forEach { (key, value) ->
+          correctedMeasurementsMap[key as String] = (value as Double).toLong()
+        }
       }
 
       return correctedMeasurementsMap
