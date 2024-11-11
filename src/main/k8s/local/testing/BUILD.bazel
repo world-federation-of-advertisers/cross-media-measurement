@@ -1,4 +1,5 @@
-load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS",  "TEST_K8S_SETTINGS")
+load("@wfa_common_jvm//build:defs.bzl", "expand_template")
+load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS", "TEST_K8S_SETTINGS")
 load("//build/k8s:defs.bzl", "kustomization_dir")
 load("//src/main/k8s:macros.bzl", "cue_dump")
 
@@ -13,8 +14,6 @@ package(
 SECRET_NAME = "certs-and-configs"
 
 DB_SECRET_NAME = "db-creds"
-
-MC_CONFIG_SECRET_NAME = "mc-config"
 
 cue_dump(
     name = "duchies",
