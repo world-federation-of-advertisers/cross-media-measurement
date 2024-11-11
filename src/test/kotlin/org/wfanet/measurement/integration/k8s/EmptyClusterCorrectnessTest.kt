@@ -111,6 +111,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     val worker1Cert: String,
     val worker2Cert: String,
     val measurementConsumer: String,
+    val measurementConsumerCert: String,
     val apiKey: String,
     val dataProviders: Map<String, Resources.Resource>,
   ) {
@@ -120,6 +121,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         var worker1Cert: String? = null
         var worker2Cert: String? = null
         var measurementConsumer: String? = null
+        var measurementConsumerCert: String? = null
         var apiKey: String? = null
         val dataProviders = mutableMapOf<String, Resources.Resource>()
 
@@ -129,6 +131,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
             Resources.Resource.ResourceCase.MEASUREMENT_CONSUMER -> {
               measurementConsumer = resource.name
               apiKey = resource.measurementConsumer.apiKey
+              measurementConsumerCert = resource.measurementConsumer.certificate
             }
             Resources.Resource.ResourceCase.DATA_PROVIDER -> {
               val displayName = resource.dataProvider.displayName
@@ -149,12 +152,13 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         }
 
         return ResourceInfo(
-          requireNotNull(aggregatorCert),
-          requireNotNull(worker1Cert),
-          requireNotNull(worker2Cert),
-          requireNotNull(measurementConsumer),
-          requireNotNull(apiKey),
-          dataProviders,
+          aggregatorCert = requireNotNull(aggregatorCert),
+          worker1Cert = requireNotNull(worker1Cert),
+          worker2Cert = requireNotNull(worker2Cert),
+          measurementConsumer = requireNotNull(measurementConsumer),
+          measurementConsumerCert = requireNotNull(measurementConsumerCert),
+          apiKey = requireNotNull(apiKey),
+          dataProviders = dataProviders,
         )
       }
     }
@@ -331,7 +335,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
               .replace("{worker1_cert_name}", resourceInfo.worker1Cert)
               .replace("{worker2_cert_name}", resourceInfo.worker2Cert)
               .replace("{mc_name}", resourceInfo.measurementConsumer)
-              .replace("{mc_api_key", resourceInfo.apiKey)
+              .replace("{mc_api_key}", resourceInfo.apiKey)
+              .replace("{mc_cert_name}", resourceInfo.measurementConsumerCert)
               .let {
                 var config = it
                 for ((displayName, resource) in resourceInfo.dataProviders) {
