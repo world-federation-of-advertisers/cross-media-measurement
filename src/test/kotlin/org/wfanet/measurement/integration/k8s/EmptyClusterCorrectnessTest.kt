@@ -312,10 +312,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val appliedObjects: List<KubernetesObject> =
         withContext(Dispatchers.IO) {
           val outputDir = tempDir.newFolder("cmms")
-          extractTar(
-            getRuntimePath(LOCAL_K8S_TESTING_PATH.resolve("cmms.tar")).toFile(),
-            outputDir,
-          )
+          extractTar(getRuntimePath(LOCAL_K8S_TESTING_PATH.resolve("cmms.tar")).toFile(), outputDir)
 
           val configFilesDir = outputDir.toPath().resolve(CONFIG_FILES_PATH).toFile()
           logger.info("Copying $akidPrincipalMap to $CONFIG_FILES_PATH")
@@ -323,11 +320,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
           val configTemplate: File = outputDir.resolve("config.yaml")
           kustomize(
-            outputDir
-              .toPath()
-              .resolve(LOCAL_K8S_TESTING_PATH)
-              .resolve("cmms")
-              .toFile(),
+            outputDir.toPath().resolve(LOCAL_K8S_TESTING_PATH).resolve("cmms").toFile(),
             configTemplate,
           )
 
@@ -338,6 +331,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
               .replace("{worker1_cert_name}", resourceInfo.worker1Cert)
               .replace("{worker2_cert_name}", resourceInfo.worker2Cert)
               .replace("{mc_name}", resourceInfo.measurementConsumer)
+              .replace("{mc_api_key", resourceInfo.apiKey)
               .let {
                 var config = it
                 for ((displayName, resource) in resourceInfo.dataProviders) {
