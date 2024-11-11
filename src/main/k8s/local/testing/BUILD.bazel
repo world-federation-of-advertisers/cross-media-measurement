@@ -1,4 +1,4 @@
-load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
+load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS", "TEST_K8S_SETTINGS")
 load("//build/k8s:defs.bzl", "kustomization_dir")
 load("//src/main/k8s:macros.bzl", "cue_dump")
 
