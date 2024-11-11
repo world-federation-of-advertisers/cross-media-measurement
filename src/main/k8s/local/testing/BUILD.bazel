@@ -1,4 +1,4 @@
-load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS", "TEST_K8S_SETTINGS")
+load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 load("//build/k8s:defs.bzl", "kustomization_dir")
 load("//src/main/k8s:macros.bzl", "cue_dump")
 
@@ -13,6 +13,8 @@ package(
 SECRET_NAME = "certs-and-configs"
 
 DB_SECRET_NAME = "db-creds"
+
+MC_CONFIG_SECRET_NAME = "mc-config"
 
 cue_dump(
     name = "duchies",
@@ -75,6 +77,30 @@ kustomization_dir(
     },
 )
 
+expand_template(
+    name = "gen_measurement_consumer_config",
+    out = "measurement_consumer_config.textproto",
+    substitutions = {
+        "{key}": TEST_K8S_SETTINGS.mc_name,
+        "{api_key}": TEST_K8S_SETTINGS.mc_api_key,
+        "{signing_certificate_name}": TEST_K8S_SETTINGS.mc_cert_name,
+    },
+    tags = ["manual"],
+    template = "measurement_consumer_config.tmpl.textproto",
+)
+
+kustomization_dir(
+    name = "mc_config",
+    srcs = [
+        "mc_config_kustomization.yaml",
+        ":measurement_consumer_config.textproto",
+    ],
+    renames = {
+        "mc_config_kustomization.yaml": "kustomization.yaml",
+    },
+    tags = ["manual"],
+)
+
 kustomization_dir(
     name = "cmms",
     srcs = [
@@ -90,7 +116,7 @@ kustomization_dir(
     deps = [
         ":config_files",
         ":db_creds",
-        "//src/main/k8s/local:mc_config",
+        ":mc_config",
         "//src/main/k8s/testing/secretfiles:kustomization",
     ],
 )
