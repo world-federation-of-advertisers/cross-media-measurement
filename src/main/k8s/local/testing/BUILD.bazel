@@ -90,6 +90,7 @@ kustomization_dir(
     deps = [
         ":config_files",
         ":db_creds",
+        "//src/main/k8s/local:mc_config",
         "//src/main/k8s/testing/secretfiles:kustomization",
     ],
 )
