@@ -1,0 +1,95 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.access.v1alpha;
+
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "wfa/measurement/access/v1alpha/policy.proto";
+
+option java_package = "org.wfanet.measurement.access.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "PoliciesServiceProto";
+
+// Service for interacting with `Policy` resources.
+service Policies {
+  // Retrieves a `Policy` by name.
+  rpc GetPolicy(GetPolicyRequest) returns (Policy) {
+    option (google.api.method_signature) = "name";
+  }
+
+  // Creates a `Policy`.
+  rpc CreatePolicy(CreatePolicyRequest) returns (Policy) {
+    option (google.api.method_signature) = "policy,policy_id";
+  }
+
+  // Updates a `Policy`.
+  //
+  // (-- api-linter: core::0134::method-signature=disabled
+  //     aip.dev/not-precedent: Partial update not supported. --)
+  rpc UpdatePolicy(UpdatePolicyRequest) returns (Policy) {
+    option (google.api.method_signature) = "policy";
+  }
+
+  // Looks up a `Policy` by lookup key.
+  rpc LookupPolicy(LookupPolicyRequest) returns (Policy);
+}
+
+// Request message for the `GetPolicy` method.
+message GetPolicyRequest {
+  // Resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "access.halo-cmm.org/Policy" }
+  ];
+}
+
+// Request message for `CreatePolicy` method.
+message CreatePolicyRequest {
+  // Resource to create.
+  Policy policy = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // Resource ID.
+  //
+  // This must confirm to RFC-1034 with the following exceptions:
+  // * IDs are case-sensitive.
+  string policy_id = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for the `LookupPolicy` method.
+message LookupPolicyRequest {
+  // Lookup key. Required.
+  oneof lookup_key {
+    // Name of the resource to which the policy applies.
+    string protected_resource = 1 [
+      (google.api.resource_reference) = { type: "*" },
+      (google.api.field_behavior) = OPTIONAL
+    ];
+  }
+}
+
+// Request message for the `UpdatePolicy` method.
+//
+// (-- api-linter: core::0134::request-mask-required=disabled
+//     aip.dev/not-precedent: Partial update not supported. --)
+message UpdatePolicyRequest {
+  // Resource to update.
+  //
+  // The `name` field is used to identify the resource. The `etag` field is
+  // required.
+  Policy policy = 1 [(google.api.field_behavior) = REQUIRED];
+}
