@@ -256,11 +256,11 @@ class Report:
         raise ValueError(
             "key {1} does not have a corresponding report".format(parent)
         )
-      # for child in metric_subsets_by_parent[parent]:
-      #   if not (child in metric_reports):
-      #     raise ValueError(
-      #         "key {1} does not have a corresponding report".format(child)
-      #     )
+      for child in metric_subsets_by_parent[parent]:
+        if not (child in metric_reports):
+          raise ValueError(
+              "key {1} does not have a corresponding report".format(child)
+          )
 
     self._metric_index = {}
     for index, metric in enumerate(metric_reports.keys()):
@@ -272,12 +272,14 @@ class Report:
     # Assign an index to each measurement.
     measurement_index = 0
     self._measurement_name_to_index = {}
+    self._max_standard_deviation = 0
     for metric in metric_reports.keys():
       for edp_combination in metric_reports[
         metric].get_whole_campaign_edp_combinations():
         measurement = metric_reports[metric].get_whole_campaign_measurement(
             edp_combination)
         self._measurement_name_to_index[measurement.name] = measurement_index
+        self._max_standard_deviation = max(self._max_standard_deviation, measurement.sigma)
         measurement_index += 1
       for edp_combination in metric_reports[
         metric].get_cumulative_edp_combinations():
@@ -285,9 +287,11 @@ class Report:
           measurement = metric_reports[metric].get_cumulative_measurement(
               edp_combination, period)
           self._measurement_name_to_index[measurement.name] = measurement_index
+          self._max_standard_deviation = max(self._max_standard_deviation, measurement.sigma)
           measurement_index += 1
 
     self._num_vars = measurement_index
+
 
   def get_metric_report(self, metric: str) -> MetricReport:
     return self._metric_reports[metric]
@@ -535,7 +539,7 @@ class Report:
             metric].get_cumulative_measurement(edp_combination, period)
           spec.add_measurement(
               self._get_measurement_index(measurement),
-              measurement,
+              Measurement(measurement.value, measurement.sigma/self._max_standard_deviation, measurement.name),
           )
       for edp_combination in self._metric_reports[
         metric].get_whole_campaign_edp_combinations():
@@ -543,7 +547,7 @@ class Report:
           metric].get_whole_campaign_measurement(edp_combination)
         spec.add_measurement(
             self._get_measurement_index(measurement),
-            measurement,
+            Measurement(measurement.value, measurement.sigma/self._max_standard_deviation, measurement.name),
         )
 
   def _get_measurement_index(self, measurement: Measurement):

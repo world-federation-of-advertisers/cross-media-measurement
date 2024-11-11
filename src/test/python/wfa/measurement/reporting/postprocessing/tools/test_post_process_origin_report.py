@@ -46,9 +46,9 @@ MRC_MEASUREMENTS = {
 }
 
 SIGMAS = {
-    'edp1': 1.0,
-    'edp2': 1.0,
-    'union': 1.0,
+    'edp1': 13000.0,
+    'edp2': 13000.0,
+    'union': 13000.0,
 }
 
 

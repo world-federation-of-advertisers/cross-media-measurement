@@ -2,70 +2,70 @@
   "name": "measurementConsumers/TjyUnormbAg/reports/a9c1a2b3fc74ebf8c5ab81d7763aa70",
   "reportingMetricEntries": [
     {
-      "key": "measurementConsumers/TjyUnormbAg/reportingSets/b01ec2ea39471594af8859bc4c8656",
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_LkJlb3UZkY8",
       "value": {
         "metricCalculationSpecs": [
-          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/b6e136ee0492f872552636976e355",
-          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/e462278bf24447d9a5965651e4a26d0"
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union",
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
         ]
       }
     },
     {
-      "key": "measurementConsumers/TjyUnormbAg/reportingSets/aac5d6413c45fc9f5022eff8688132",
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/unique_reach_LkJlb3UZkY8",
       "value": {
         "metricCalculationSpecs": [
-          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/e445cb03e4614b5c2034735ef17f6"
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/difference"
         ]
       }
     },
     {
-      "key": "measurementConsumers/TjyUnormbAg/reportingSets/b2fcb66554e842bcaa9812c8fb69346c",
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/LkJlb3UZkY8_TbsgjIrmbj0",
       "value": {
         "metricCalculationSpecs": [
-          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/e445cb03e4614b5c2034735ef17f6"
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/difference"
         ]
       }
     },
     {
-      "key": "measurementConsumers/TjyUnormbAg/reportingSets/af2d5064443bfae79002b0234e48d",
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/unique_reach_TbsgjIrmbj0",
       "value": {
         "metricCalculationSpecs": [
-          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/e445cb03e4614b5c2034735ef17f6"
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/difference"
         ]
       }
     },
     {
-      "key": "measurementConsumers/TjyUnormbAg/reportingSets/cbb6d9e8ffd4e86884eab16cffeb900",
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_a0tmyormbgQ",
       "value": {
         "metricCalculationSpecs": [
-          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/b6e136ee0492f872552636976e355",
-          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/e462278bf24447d9a5965651e4a26d0"
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union",
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
         ]
       }
     },
     {
-      "key": "measurementConsumers/TjyUnormbAg/reportingSets/fa2c65cf4154b6dbaf3e187f66e0",
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/all_edps",
       "value": {
         "metricCalculationSpecs": [
-          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/b6e136ee0492f872552636976e355",
-          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/e462278bf24447d9a5965651e4a26d0"
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union",
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
         ]
       }
     },
     {
-      "key": "measurementConsumers/TjyUnormbAg/reportingSets/cbb417149704b019741b198a6bb49e0",
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_TbsgjIrmbj0",
       "value": {
         "metricCalculationSpecs": [
-          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/b6e136ee0492f872552636976e355",
-          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/e462278bf24447d9a5965651e4a26d0"
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union",
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
         ]
       }
     },
     {
-      "key": "measurementConsumers/TjyUnormbAg/reportingSets/e83732baf684b8ca30f8da7907021ce",
+      "key": "measurementConsumers/TjyUnormbAg/reportingSets/unique_reach_a0tmyormbgQ",
       "value": {
         "metricCalculationSpecs": [
-          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/e445cb03e4614b5c2034735ef17f6"
+          "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/difference"
         ]
       }
     }
@@ -75,7 +75,7 @@
   "metricCalculationResults": [
     {
       "displayName": "METRICS_frequency_impressions_reach_CUMULATIVE_false",
-      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/b01ec2ea39471594af8859bc4c8656",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_LkJlb3UZkY8",
       "resultAttributes": [
         {
           "groupingPredicates": [],
@@ -170,7 +170,7 @@
             ]
           },
           "filter": "",
-          "metric": "measurementConsumers/TjyUnormbAg/metrics/a0cca6039-8ba0-4bc9-81e8-81469f8840d3",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/union/single_edp_LkJlb3UZkY8",
           "state": "SUCCEEDED"
         },
         {
@@ -218,11 +218,11 @@
           "state": "SUCCEEDED"
         }
       ],
-      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/b6e136ee0492f872552636976e355"
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
     },
     {
       "displayName": "METRICS_reach_CUMULATIVE_true",
-      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/b01ec2ea39471594af8859bc4c8656",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_LkJlb3UZkY8",
       "resultAttributes": [
         {
           "groupingPredicates": [],
@@ -256,7 +256,7 @@
           },
           "metricResult": {
             "reach": {
-              "value": "0",
+              "value": "30000",
               "univariateStatistics": {
                 "standardDeviation": 137708.79990420337
               }
@@ -266,15 +266,15 @@
             ]
           },
           "filter": "",
-          "metric": "measurementConsumers/TjyUnormbAg/metrics/a611cd145-8618-4fba-9109-7aabea17e2c3",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/cumulative/single_edp_LkJlb3UZkY8",
           "state": "SUCCEEDED"
         }
       ],
-      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/e462278bf24447d9a5965651e4a26d0"
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
     },
     {
       "displayName": "METRICS_reach_CUMULATIVE_false",
-      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/aac5d6413c45fc9f5022eff8688132",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/unique_reach_LkJlb3UZkY8",
       "resultAttributes": [
         {
           "groupingPredicates": [],
@@ -308,7 +308,7 @@
           },
           "metricResult": {
             "reach": {
-              "value": "200",
+              "value": "2000",
               "univariateStatistics": {
                 "standardDeviation": 262192.75285658167
               }
@@ -319,15 +319,15 @@
             ]
           },
           "filter": "",
-          "metric": "measurementConsumers/TjyUnormbAg/metrics/a1302b107-ddaa-4736-9357-eef6f7f83d78",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/difference/unique_reach_LkJlb3UZkY8",
           "state": "SUCCEEDED"
         }
       ],
-      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/e445cb03e4614b5c2034735ef17f6"
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/difference"
     },
     {
       "displayName": "METRICS_reach_CUMULATIVE_false",
-      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/b2fcb66554e842bcaa9812c8fb69346c",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/LkJlb3UZkY8_TbsgjIrmbj0",
       "resultAttributes": [
         {
           "groupingPredicates": [],
@@ -376,11 +376,11 @@
           "state": "SUCCEEDED"
         }
       ],
-      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/e445cb03e4614b5c2034735ef17f6"
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/difference"
     },
     {
       "displayName": "METRICS_reach_CUMULATIVE_false",
-      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/af2d5064443bfae79002b0234e48d",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/unique_reach_TbsgjIrmbj0",
       "resultAttributes": [
         {
           "groupingPredicates": [],
@@ -425,15 +425,15 @@
             ]
           },
           "filter": "",
-          "metric": "measurementConsumers/TjyUnormbAg/metrics/a71098bcd-4d84-4fa8-adc5-47dbb368615e",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/difference/unique_reach_TbsgjIrmbj0",
           "state": "SUCCEEDED"
         }
       ],
-      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/e445cb03e4614b5c2034735ef17f6"
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/difference"
     },
     {
       "displayName": "METRICS_frequency_impressions_reach_CUMULATIVE_false",
-      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/cbb6d9e8ffd4e86884eab16cffeb900",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_a0tmyormbgQ",
       "resultAttributes": [
         {
           "groupingPredicates": [],
@@ -572,15 +572,15 @@
             ]
           },
           "filter": "",
-          "metric": "measurementConsumers/TjyUnormbAg/metrics/af5a0dfb9-09b3-4a1a-a6b0-b7d81cafc241",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/union/single_edp_a0tmyormbgQ",
           "state": "SUCCEEDED"
         }
       ],
-      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/b6e136ee0492f872552636976e355"
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
     },
     {
       "displayName": "METRICS_reach_CUMULATIVE_true",
-      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/cbb6d9e8ffd4e86884eab16cffeb900",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_a0tmyormbgQ",
       "resultAttributes": [
         {
           "groupingPredicates": [],
@@ -624,15 +624,15 @@
             ]
           },
           "filter": "",
-          "metric": "measurementConsumers/TjyUnormbAg/metrics/a022f5100-05b2-4563-8045-3076f0ee67d9",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/cumulative/single_edp_a0tmyormbgQ",
           "state": "SUCCEEDED"
         }
       ],
-      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/e462278bf24447d9a5965651e4a26d0"
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
     },
     {
       "displayName": "METRICS_frequency_impressions_reach_CUMULATIVE_false",
-      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/fa2c65cf4154b6dbaf3e187f66e0",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/all_edps",
       "resultAttributes": [
         {
           "groupingPredicates": [],
@@ -727,7 +727,7 @@
             ]
           },
           "filter": "",
-          "metric": "measurementConsumers/TjyUnormbAg/metrics/a1d51b95e-194b-490d-bc7e-69e948ba25d4",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/union/all_edps",
           "state": "SUCCEEDED"
         },
         {
@@ -775,11 +775,11 @@
           "state": "SUCCEEDED"
         }
       ],
-      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/b6e136ee0492f872552636976e355"
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
     },
     {
       "displayName": "METRICS_reach_CUMULATIVE_true",
-      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/fa2c65cf4154b6dbaf3e187f66e0",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/all_edps",
       "resultAttributes": [
         {
           "groupingPredicates": [],
@@ -823,15 +823,15 @@
             ]
           },
           "filter": "",
-          "metric": "measurementConsumers/TjyUnormbAg/metrics/a4ce3d32a-5ea0-4658-bd90-2cfdfe899182",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/cumulative/all_edps",
           "state": "SUCCEEDED"
         }
       ],
-      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/e462278bf24447d9a5965651e4a26d0"
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
     },
     {
       "displayName": "METRICS_frequency_impressions_reach_CUMULATIVE_false",
-      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/cbb417149704b019741b198a6bb49e0",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_TbsgjIrmbj0",
       "resultAttributes": [
         {
           "groupingPredicates": [],
@@ -926,7 +926,7 @@
             ]
           },
           "filter": "",
-          "metric": "measurementConsumers/TjyUnormbAg/metrics/a0d9cee90-5ba4-41b2-9ca7-da72cb818e31",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/union/single_edp_TbsgjIrmbj0",
           "state": "SUCCEEDED"
         },
         {
@@ -974,11 +974,11 @@
           "state": "SUCCEEDED"
         }
       ],
-      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/b6e136ee0492f872552636976e355"
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union"
     },
     {
       "displayName": "METRICS_reach_CUMULATIVE_true",
-      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/cbb417149704b019741b198a6bb49e0",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_TbsgjIrmbj0",
       "resultAttributes": [
         {
           "groupingPredicates": [],
@@ -1022,15 +1022,15 @@
             ]
           },
           "filter": "",
-          "metric": "measurementConsumers/TjyUnormbAg/metrics/a6e09e1ad-6e39-4e10-8385-b417447c4539",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/cumulative/single_edp_TbsgjIrmbj0",
           "state": "SUCCEEDED"
         }
       ],
-      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/e462278bf24447d9a5965651e4a26d0"
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative"
     },
     {
       "displayName": "METRICS_reach_CUMULATIVE_false",
-      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/e83732baf684b8ca30f8da7907021ce",
+      "reportingSet": "measurementConsumers/TjyUnormbAg/reportingSets/unique_reach_a0tmyormbgQ",
       "resultAttributes": [
         {
           "groupingPredicates": [],
@@ -1075,11 +1075,11 @@
             ]
           },
           "filter": "",
-          "metric": "measurementConsumers/TjyUnormbAg/metrics/adf76f93b-618b-455d-8433-e1115b8f01b8",
+          "metric": "measurementConsumers/TjyUnormbAg/metrics/difference/unique_reach_a0tmyormbgQ",
           "state": "SUCCEEDED"
         }
       ],
-      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/e445cb03e4614b5c2034735ef17f6"
+      "metricCalculationSpec": "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/difference"
     }
   ],
   "reportSchedule": "",
@@ -1087,17 +1087,17 @@
     "brands": "'Good Buy' 'Homemade Cheese' 'Supermarket'",
     "campaign_name": "dc3edps",
     "end_date": "2024-01-08T10:00:00Z",
-    "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/b6e136ee0492f872552636976e355": "{common_filter=-, cumulative=false, grouping=-, metric_frequency=-, metrics=frequency2,impressions, set_operation=union}",
-    "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/e445cb03e4614b5c2034735ef17f6": "{common_filter=-, cumulative=false, grouping=-, metric_frequency=-, metrics=reach, set_operation=difference}",
-    "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/e462278bf24447d9a5965651e4a26d0": "{common_filter=-, cumulative=true, grouping=-, metric_frequency=weekly1, metrics=reach, set_operation=cumulative}",
-    "measurementConsumers/TjyUnormbAg/reportingSets/aac5d6413c45fc9f5022eff8688132": "{anchor=dataProviders/LkJlb3UZkY8, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=b01ec2ea39471594af8859bc4c8656, measured_entity=dataProviders/LkJlb3UZkY8, measurement_entities=dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=DISPLAY OTHER VIDEO, position_in_incrementality=, primitive_egroup_id=, rhs_reporting_set_ids=cbb417149704b019741b198a6bb49e0 cbb6d9e8ffd4e86884eab16cffeb900, set_operation=difference,incrementality, target=dataProviders/LkJlb3UZkY8,dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, unique_Reach_Target=dataProviders/LkJlb3UZkY8, version=1.0, video_completion=, viewability=}",
-    "measurementConsumers/TjyUnormbAg/reportingSets/af2d5064443bfae79002b0234e48d": "{anchor=dataProviders/LkJlb3UZkY8, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=cbb417149704b019741b198a6bb49e0, measured_entity=dataProviders/TbsgjIrmbj0, measurement_entities=dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=DISPLAY OTHER VIDEO, position_in_incrementality=, primitive_egroup_id=, rhs_reporting_set_ids=b01ec2ea39471594af8859bc4c8656 cbb6d9e8ffd4e86884eab16cffeb900, set_operation=difference,incrementality, target=dataProviders/LkJlb3UZkY8,dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, unique_Reach_Target=dataProviders/TbsgjIrmbj0, version=1.0, video_completion=, viewability=}",
-    "measurementConsumers/TjyUnormbAg/reportingSets/b01ec2ea39471594af8859bc4c8656": "{anchor=dataProviders/LkJlb3UZkY8, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=, measured_entity=dataProviders/LkJlb3UZkY8, measurement_entities=dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=OTHER, position_in_incrementality=, primitive_egroup_id=LqROIPcxtwU, rhs_reporting_set_ids=, set_operation=union,incrementality,cumulative,marked unions for reach only, target=dataProviders/LkJlb3UZkY8, unique_Reach_Target=, version=1.0, video_completion=, viewability=}",
-    "measurementConsumers/TjyUnormbAg/reportingSets/b2fcb66554e842bcaa9812c8fb69346c": "{anchor=dataProviders/LkJlb3UZkY8, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=cbb417149704b019741b198a6bb49e0, measured_entity=dataProviders/TbsgjIrmbj0, measurement_entities=dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=DISPLAY OTHER, position_in_incrementality=measuredEntity2, primitive_egroup_id=, rhs_reporting_set_ids=b01ec2ea39471594af8859bc4c8656, set_operation=difference,incrementality, target=dataProviders/LkJlb3UZkY8,dataProviders/TbsgjIrmbj0, unique_Reach_Target=, version=1.0, video_completion=, viewability=}",
-    "measurementConsumers/TjyUnormbAg/reportingSets/cbb417149704b019741b198a6bb49e0": "{anchor=dataProviders/LkJlb3UZkY8, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=, measured_entity=dataProviders/TbsgjIrmbj0, measurement_entities=dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=DISPLAY, position_in_incrementality=, primitive_egroup_id=AxhBSBJE3JE, rhs_reporting_set_ids=, set_operation=union,incrementality,cumulative,marked unions for reach only, target=dataProviders/TbsgjIrmbj0, unique_Reach_Target=, version=1.0, video_completion=, viewability=}",
-    "measurementConsumers/TjyUnormbAg/reportingSets/cbb6d9e8ffd4e86884eab16cffeb900": "{anchor=dataProviders/LkJlb3UZkY8, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=, measured_entity=dataProviders/a0tmyormbgQ, measurement_entities=dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=VIDEO, position_in_incrementality=, primitive_egroup_id=J6vqyPc8j_I, rhs_reporting_set_ids=, set_operation=union,incrementality,cumulative,marked unions for reach only, target=dataProviders/a0tmyormbgQ, unique_Reach_Target=, version=1.0, video_completion=, viewability=}",
-    "measurementConsumers/TjyUnormbAg/reportingSets/e83732baf684b8ca30f8da7907021ce": "{anchor=dataProviders/LkJlb3UZkY8, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=cbb6d9e8ffd4e86884eab16cffeb900, measured_entity=dataProviders/a0tmyormbgQ, measurement_entities=dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=DISPLAY OTHER VIDEO, position_in_incrementality=measuredEntity3, primitive_egroup_id=, rhs_reporting_set_ids=b01ec2ea39471594af8859bc4c8656 cbb417149704b019741b198a6bb49e0, set_operation=difference,incrementality, target=dataProviders/LkJlb3UZkY8,dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, unique_Reach_Target=dataProviders/a0tmyormbgQ, version=1.0, video_completion=, viewability=}",
-    "measurementConsumers/TjyUnormbAg/reportingSets/fa2c65cf4154b6dbaf3e187f66e0": "{anchor=dataProviders/LkJlb3UZkY8, campaign_id=9a7d3316-83d6-404f-9408-cfbbe5ed6d40, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=b01ec2ea39471594af8859bc4c8656 cbb417149704b019741b198a6bb49e0 cbb6d9e8ffd4e86884eab16cffeb900, measured_entity=dataProviders/LkJlb3UZkY8,dataProviders/a0tmyormbgQ,dataProviders/TbsgjIrmbj0, measurement_entities=dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=DISPLAY OTHER VIDEO, position_in_incrementality=, primitive_egroup_id=, rhs_reporting_set_ids=, set_operation=union,incrementality,cumulative,marked unions for reach only, target=dataProviders/LkJlb3UZkY8,dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, unique_Reach_Target=, version=1.0, video_completion=, viewability=}",
+    "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union": "{common_filter=-, cumulative=false, grouping=-, metric_frequency=-, metrics=frequency2,impressions, set_operation=union}",
+    "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/difference": "{common_filter=-, cumulative=false, grouping=-, metric_frequency=-, metrics=reach, set_operation=difference}",
+    "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative": "{common_filter=-, cumulative=true, grouping=-, metric_frequency=weekly1, metrics=reach, set_operation=cumulative}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/unique_reach_LkJlb3UZkY8": "{anchor=dataProviders/LkJlb3UZkY8, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=single_edp_LkJlb3UZkY8, measured_entity=dataProviders/LkJlb3UZkY8, measurement_entities=dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=DISPLAY OTHER VIDEO, position_in_incrementality=, primitive_egroup_id=, rhs_reporting_set_ids=single_edp_TbsgjIrmbj0 single_edp_a0tmyormbgQ, set_operation=difference,incrementality, target=dataProviders/LkJlb3UZkY8,dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, unique_Reach_Target=dataProviders/LkJlb3UZkY8, version=1.0, video_completion=, viewability=}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/unique_reach_TbsgjIrmbj0": "{anchor=dataProviders/LkJlb3UZkY8, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=single_edp_TbsgjIrmbj0, measured_entity=dataProviders/TbsgjIrmbj0, measurement_entities=dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=DISPLAY OTHER VIDEO, position_in_incrementality=, primitive_egroup_id=, rhs_reporting_set_ids=single_edp_LkJlb3UZkY8 single_edp_a0tmyormbgQ, set_operation=difference,incrementality, target=dataProviders/LkJlb3UZkY8,dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, unique_Reach_Target=dataProviders/TbsgjIrmbj0, version=1.0, video_completion=, viewability=}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_LkJlb3UZkY8": "{anchor=dataProviders/LkJlb3UZkY8, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=, measured_entity=dataProviders/LkJlb3UZkY8, measurement_entities=dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=OTHER, position_in_incrementality=, primitive_egroup_id=LqROIPcxtwU, rhs_reporting_set_ids=, set_operation=union,incrementality,cumulative,marked unions for reach only, target=dataProviders/LkJlb3UZkY8, unique_Reach_Target=, version=1.0, video_completion=, viewability=}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/LkJlb3UZkY8_TbsgjIrmbj0": "{anchor=dataProviders/LkJlb3UZkY8, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=single_edp_TbsgjIrmbj0, measured_entity=dataProviders/TbsgjIrmbj0, measurement_entities=dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=DISPLAY OTHER, position_in_incrementality=measuredEntity2, primitive_egroup_id=, rhs_reporting_set_ids=single_edp_LkJlb3UZkY8, set_operation=difference,incrementality, target=dataProviders/LkJlb3UZkY8,dataProviders/TbsgjIrmbj0, unique_Reach_Target=, version=1.0, video_completion=, viewability=}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_TbsgjIrmbj0": "{anchor=dataProviders/LkJlb3UZkY8, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=, measured_entity=dataProviders/TbsgjIrmbj0, measurement_entities=dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=DISPLAY, position_in_incrementality=, primitive_egroup_id=AxhBSBJE3JE, rhs_reporting_set_ids=, set_operation=union,incrementality,cumulative,marked unions for reach only, target=dataProviders/TbsgjIrmbj0, unique_Reach_Target=, version=1.0, video_completion=, viewability=}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/single_edp_a0tmyormbgQ": "{anchor=dataProviders/LkJlb3UZkY8, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=, measured_entity=dataProviders/a0tmyormbgQ, measurement_entities=dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=VIDEO, position_in_incrementality=, primitive_egroup_id=J6vqyPc8j_I, rhs_reporting_set_ids=, set_operation=union,incrementality,cumulative,marked unions for reach only, target=dataProviders/a0tmyormbgQ, unique_Reach_Target=, version=1.0, video_completion=, viewability=}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/unique_reach_a0tmyormbgQ": "{anchor=dataProviders/LkJlb3UZkY8, campaign_id=, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=single_edp_a0tmyormbgQ, measured_entity=dataProviders/a0tmyormbgQ, measurement_entities=dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=DISPLAY OTHER VIDEO, position_in_incrementality=measuredEntity3, primitive_egroup_id=, rhs_reporting_set_ids=single_edp_LkJlb3UZkY8 single_edp_TbsgjIrmbj0, set_operation=difference,incrementality, target=dataProviders/LkJlb3UZkY8,dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, unique_Reach_Target=dataProviders/a0tmyormbgQ, version=1.0, video_completion=, viewability=}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/all_edps": "{anchor=dataProviders/LkJlb3UZkY8, campaign_id=9a7d3316-83d6-404f-9408-cfbbe5ed6d40, channels=, incrementality_type=ENTITY, lhs_reporting_set_ids=single_edp_LkJlb3UZkY8 single_edp_TbsgjIrmbj0 single_edp_a0tmyormbgQ, measured_entity=dataProviders/LkJlb3UZkY8,dataProviders/a0tmyormbgQ,dataProviders/TbsgjIrmbj0, measurement_entities=dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, measurement_policy=AMI, measurement_policy_incrementality=AMI, media_type=DISPLAY OTHER VIDEO, position_in_incrementality=, primitive_egroup_id=, rhs_reporting_set_ids=, set_operation=union,incrementality,cumulative,marked unions for reach only, target=dataProviders/LkJlb3UZkY8,dataProviders/TbsgjIrmbj0,dataProviders/a0tmyormbgQ, unique_Reach_Target=, version=1.0, video_completion=, viewability=}",
     "media_types": "DISPLAY OTHER VIDEO",
     "report_name": "DC_3edps_cross_incr",
     "start_date": "2024-01-01T00:00:00Z",
