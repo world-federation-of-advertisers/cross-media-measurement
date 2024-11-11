@@ -104,14 +104,13 @@ class ReportingUserSimulator(
 
     val createdReport =
       try {
-        reportsClient
-          .createReport(
-            createReportRequest {
-              parent = measurementConsumerName
-              this.report = report
-              reportId = "a-$runId"
-            }
-          )
+        reportsClient.createReport(
+          createReportRequest {
+            parent = measurementConsumerName
+            this.report = report
+            reportId = "a-$runId"
+          }
+        )
       } catch (e: StatusException) {
         throw Exception("Error creating Report", e)
       }
@@ -127,8 +126,8 @@ class ReportingUserSimulator(
       return buildList {
         var response: ListEventGroupsResponse = ListEventGroupsResponse.getDefaultInstance()
         do {
-          response = eventGroupsClient
-            .listEventGroups(
+          response =
+            eventGroupsClient.listEventGroups(
               listEventGroupsRequest {
                 parent = measurementConsumerName
                 pageSize = 1000
@@ -145,8 +144,7 @@ class ReportingUserSimulator(
 
   private suspend fun getDataProvider(dataProviderName: String): DataProvider {
     try {
-      return dataProvidersClient
-        .getDataProvider(getDataProviderRequest { name = dataProviderName })
+      return dataProvidersClient.getDataProvider(getDataProviderRequest { name = dataProviderName })
     } catch (e: StatusException) {
       throw Exception("Error getting DataProvider $dataProviderName", e)
     }
@@ -158,14 +156,13 @@ class ReportingUserSimulator(
     }
 
     try {
-      return reportingSetsClient
-        .createReportingSet(
-          createReportingSetRequest {
-            parent = measurementConsumerName
-            reportingSet = primitiveReportingSet
-            reportingSetId = "a-123"
-          }
-        )
+      return reportingSetsClient.createReportingSet(
+        createReportingSetRequest {
+          parent = measurementConsumerName
+          reportingSet = primitiveReportingSet
+          reportingSetId = "a-123"
+        }
+      )
     } catch (e: StatusException) {
       throw Exception("Error creating ReportingSet", e)
     }
@@ -173,41 +170,40 @@ class ReportingUserSimulator(
 
   private suspend fun createMetricCalculationSpec(): MetricCalculationSpec {
     try {
-      return metricCalculationSpecsClient
-        .createMetricCalculationSpec(
-          createMetricCalculationSpecRequest {
-            parent = measurementConsumerName
-            metricCalculationSpecId = "a-123"
-            metricCalculationSpec = metricCalculationSpec {
-              displayName = "union reach"
-              metricSpecs += metricSpec {
-                reach =
-                  MetricSpecKt.reachParams {
-                    singleDataProviderParams =
-                      MetricSpecKt.samplingAndPrivacyParams {
-                        privacyParams = MetricSpecKt.differentialPrivacyParams {}
-                      }
-                    multipleDataProviderParams =
-                      MetricSpecKt.samplingAndPrivacyParams {
-                        privacyParams = MetricSpecKt.differentialPrivacyParams {}
-                      }
-                  }
-              }
-              metricFrequencySpec =
-                MetricCalculationSpecKt.metricFrequencySpec {
-                  weekly =
-                    MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                      dayOfWeek = DayOfWeek.WEDNESDAY
+      return metricCalculationSpecsClient.createMetricCalculationSpec(
+        createMetricCalculationSpecRequest {
+          parent = measurementConsumerName
+          metricCalculationSpecId = "a-123"
+          metricCalculationSpec = metricCalculationSpec {
+            displayName = "union reach"
+            metricSpecs += metricSpec {
+              reach =
+                MetricSpecKt.reachParams {
+                  singleDataProviderParams =
+                    MetricSpecKt.samplingAndPrivacyParams {
+                      privacyParams = MetricSpecKt.differentialPrivacyParams {}
+                    }
+                  multipleDataProviderParams =
+                    MetricSpecKt.samplingAndPrivacyParams {
+                      privacyParams = MetricSpecKt.differentialPrivacyParams {}
                     }
                 }
-              trailingWindow =
-                MetricCalculationSpecKt.trailingWindow {
-                  count = 1
-                  increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
-                }
             }
+            metricFrequencySpec =
+              MetricCalculationSpecKt.metricFrequencySpec {
+                weekly =
+                  MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                    dayOfWeek = DayOfWeek.WEDNESDAY
+                  }
+              }
+            trailingWindow =
+              MetricCalculationSpecKt.trailingWindow {
+                count = 1
+                increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+              }
           }
-        )
+        }
+      )
     } catch (e: StatusException) {
       throw Exception("Error creating MetricCalculationSpec", e)
     }
@@ -217,8 +213,7 @@ class ReportingUserSimulator(
     while (true) {
       val retrievedReport =
         try {
-          reportsClient
-            .getReport(getReportRequest { name = reportName })
+          reportsClient.getReport(getReportRequest { name = reportName })
         } catch (e: StatusException) {
           throw Exception("Error getting Report", e)
         }

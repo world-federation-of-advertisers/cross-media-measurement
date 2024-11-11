@@ -83,6 +83,7 @@ kustomization_dir(
         "//src/main/k8s/local:emulators",
         "//src/main/k8s/local:kingdom",
         "//src/main/k8s/local:postgres_database",
+        "//src/main/k8s/local:reporting_v2",
     ],
     generate_kustomization = True,
     tags = ["manual"],

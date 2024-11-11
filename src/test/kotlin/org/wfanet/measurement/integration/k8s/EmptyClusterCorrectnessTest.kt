@@ -177,7 +177,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     override val testHarness: MeasurementConsumerSimulator
       get() = _testHarness
 
-
     private lateinit var _reportingTestHarness: ReportingUserSimulator
     override val reportingTestHarness: ReportingUserSimulator
       get() = _reportingTestHarness
@@ -287,15 +286,15 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         measurementConsumerName = measurementConsumerData.name,
         dataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
         eventGroupsClient =
-        org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub(
-          publicApiChannel
-        ),
+          org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub(
+            publicApiChannel
+          ),
         reportingSetsClient =
-        org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub(
-          publicApiChannel
-        ),
+          org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub(
+            publicApiChannel
+          ),
         metricCalculationSpecsClient =
-        MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub(publicApiChannel),
+          MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub(publicApiChannel),
         reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
       )
     }
@@ -312,8 +311,11 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private suspend fun loadFullCmms(resourceInfo: ResourceInfo, akidPrincipalMap: File) {
       val appliedObjects: List<KubernetesObject> =
         withContext(Dispatchers.IO) {
-          val outputDir = tempDir.newFolder("cmms_with_reporting_v2")
-          extractTar(getRuntimePath(LOCAL_K8S_TESTING_PATH.resolve("cmms_with_reporting_v2.tar")).toFile(), outputDir)
+          val outputDir = tempDir.newFolder("cmms")
+          extractTar(
+            getRuntimePath(LOCAL_K8S_TESTING_PATH.resolve("cmms.tar")).toFile(),
+            outputDir,
+          )
 
           val configFilesDir = outputDir.toPath().resolve(CONFIG_FILES_PATH).toFile()
           logger.info("Copying $akidPrincipalMap to $CONFIG_FILES_PATH")
@@ -321,7 +323,11 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
           val configTemplate: File = outputDir.resolve("config.yaml")
           kustomize(
-            outputDir.toPath().resolve(LOCAL_K8S_TESTING_PATH).resolve("cmms_with_reporting_v2").toFile(),
+            outputDir
+              .toPath()
+              .resolve(LOCAL_K8S_TESTING_PATH)
+              .resolve("cmms")
+              .toFile(),
             configTemplate,
           )
 
@@ -498,7 +504,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
     private const val KINGDOM_INTERNAL_DEPLOYMENT_NAME = "gcp-kingdom-data-server-deployment"
     private const val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"
-    private const val REPORTING_PUBLIC_DEPLOYMENT_NAME = "reporting-v2alpha-public-api-server-deployment"
+    private const val REPORTING_PUBLIC_DEPLOYMENT_NAME =
+      "reporting-v2alpha-public-api-server-deployment"
     private const val NUM_DATA_PROVIDERS = 6
     private val EDP_DISPLAY_NAMES: List<String> = (1..NUM_DATA_PROVIDERS).map { "edp$it" }
     private val READY_TIMEOUT = Duration.ofMinutes(2L)
