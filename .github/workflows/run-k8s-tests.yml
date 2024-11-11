@@ -52,7 +52,7 @@ jobs:
         MC_NAME: ${{ vars.MC_NAME }}
         MC_API_KEY: ${{ secrets.MC_API_KEY }}
         GCLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
-        REPORTING_PUBLIC_API_TARGET: v2alpha.reporting.dev.halo-cmm.org:8443
+        REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci

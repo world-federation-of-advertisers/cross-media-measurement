@@ -38,7 +38,7 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
   private val testHarness: MeasurementConsumerSimulator
     get() = measurementSystem.testHarness
 
-  private val reportingTestHarness: ReportingUserSimulator?
+  private val reportingTestHarness: ReportingUserSimulator
     get() = measurementSystem.reportingTestHarness
 
   @Test(timeout = 1 * 60 * 1000)
@@ -69,15 +69,13 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
 
   @Test(timeout = 1 * 60 * 1000)
   fun `report can be created`() = runBlocking {
-    if (reportingTestHarness != null) {
-      reportingTestHarness!!.testCreateReport("$runId-test-report")
-    }
+    reportingTestHarness.testCreateReport("$runId-test-report")
   }
 
   interface MeasurementSystem {
     val runId: String
     val testHarness: MeasurementConsumerSimulator
-    val reportingTestHarness: ReportingUserSimulator?
+    val reportingTestHarness: ReportingUserSimulator
   }
 
   companion object {

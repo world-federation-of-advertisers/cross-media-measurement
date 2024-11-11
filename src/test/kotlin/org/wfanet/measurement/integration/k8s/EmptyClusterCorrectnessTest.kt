@@ -74,6 +74,8 @@ import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
 import org.wfanet.measurement.loadtest.resourcesetup.Resources
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt
+import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt
 
 /**
  * Test for correctness of the CMMS on a single "empty" Kubernetes cluster using the `local`
@@ -175,8 +177,10 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     override val testHarness: MeasurementConsumerSimulator
       get() = _testHarness
 
-    override val reportingTestHarness: ReportingUserSimulator?
-      get() = null
+
+    private lateinit var _reportingTestHarness: ReportingUserSimulator
+    override val reportingTestHarness: ReportingUserSimulator
+      get() = _reportingTestHarness
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
@@ -186,6 +190,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
               withTimeout(Duration.ofMinutes(5)) {
                 val measurementConsumerData = populateCluster()
                 _testHarness = createTestHarness(measurementConsumerData)
+                _reportingTestHarness = createReportingUserSimulator(measurementConsumerData)
               }
             }
             base.evaluate()
@@ -263,6 +268,38 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       )
     }
 
+    private suspend fun createReportingUserSimulator(
+      measurementConsumerData: MeasurementConsumerData
+    ): ReportingUserSimulator {
+      val reportingPublicPod: V1Pod = getPod(REPORTING_PUBLIC_DEPLOYMENT_NAME)
+
+      val publicApiForwarder = PortForwarder(reportingPublicPod, REPORTING_SERVER_PORT)
+      portForwarders.add(publicApiForwarder)
+
+      val publicApiAddress: InetSocketAddress =
+        withContext(Dispatchers.IO) { publicApiForwarder.start() }
+      val publicApiChannel: Channel =
+        buildMutualTlsChannel(publicApiAddress.toTarget(), MEASUREMENT_CONSUMER_SIGNING_CERTS)
+          .also { channels.add(it) }
+          .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
+
+      return ReportingUserSimulator(
+        measurementConsumerName = measurementConsumerData.name,
+        dataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
+        eventGroupsClient =
+        org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub(
+          publicApiChannel
+        ),
+        reportingSetsClient =
+        org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub(
+          publicApiChannel
+        ),
+        metricCalculationSpecsClient =
+        MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub(publicApiChannel),
+        reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
+      )
+    }
+
     fun stopPortForwarding() {
       for (channel in channels) {
         channel.shutdown()
@@ -275,8 +312,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private suspend fun loadFullCmms(resourceInfo: ResourceInfo, akidPrincipalMap: File) {
       val appliedObjects: List<KubernetesObject> =
         withContext(Dispatchers.IO) {
-          val outputDir = tempDir.newFolder("cmms")
-          extractTar(getRuntimePath(LOCAL_K8S_TESTING_PATH.resolve("cmms.tar")).toFile(), outputDir)
+          val outputDir = tempDir.newFolder("cmms_with_reporting_v2")
+          extractTar(getRuntimePath(LOCAL_K8S_TESTING_PATH.resolve("cmms_with_reporting_v2.tar")).toFile(), outputDir)
 
           val configFilesDir = outputDir.toPath().resolve(CONFIG_FILES_PATH).toFile()
           logger.info("Copying $akidPrincipalMap to $CONFIG_FILES_PATH")
@@ -284,7 +321,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
           val configTemplate: File = outputDir.resolve("config.yaml")
           kustomize(
-            outputDir.toPath().resolve(LOCAL_K8S_TESTING_PATH).resolve("cmms").toFile(),
+            outputDir.toPath().resolve(LOCAL_K8S_TESTING_PATH).resolve("cmms_with_reporting_v2").toFile(),
             configTemplate,
           )
 
@@ -457,9 +494,11 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     }
 
     private const val SERVER_PORT: Int = 8443
+    private const val REPORTING_SERVER_PORT: Int = 9443
     private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
     private const val KINGDOM_INTERNAL_DEPLOYMENT_NAME = "gcp-kingdom-data-server-deployment"
     private const val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"
+    private const val REPORTING_PUBLIC_DEPLOYMENT_NAME = "reporting-v2alpha-public-api-server-deployment"
     private const val NUM_DATA_PROVIDERS = 6
     private val EDP_DISPLAY_NAMES: List<String> = (1..NUM_DATA_PROVIDERS).map { "edp$it" }
     private val READY_TIMEOUT = Duration.ofMinutes(2L)

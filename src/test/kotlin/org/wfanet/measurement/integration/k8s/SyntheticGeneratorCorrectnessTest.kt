@@ -51,7 +51,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt
  * The computation composition is using ACDP by assumption.
  *
  * This currently assumes that the CMMS instance is using the certificates and keys from this Bazel
- * workspace.
+ * workspace. It also assumes that there is a Reporting system connected to the CMMS.
  */
 class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
   private class RunningMeasurementSystem : MeasurementSystem, TestRule {
@@ -63,7 +63,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
     override val testHarness: MeasurementConsumerSimulator
       get() = _testHarness
 
-    override val reportingTestHarness: ReportingUserSimulator?
+    override val reportingTestHarness: ReportingUserSimulator
       get() = _reportingTestHarness
 
     private val channels = mutableListOf<ManagedChannel>()
@@ -131,7 +131,6 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
 
       return ReportingUserSimulator(
         measurementConsumerName = TEST_CONFIG.measurementConsumer,
-        apiAuthenticationKey = TEST_CONFIG.apiAuthenticationKey,
         dataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
         eventGroupsClient =
           org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub(

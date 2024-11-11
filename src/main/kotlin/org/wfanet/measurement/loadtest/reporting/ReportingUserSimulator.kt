@@ -27,10 +27,10 @@ import kotlinx.coroutines.delay
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
-import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt
@@ -54,7 +54,6 @@ import org.wfanet.measurement.reporting.v2alpha.reportingSet
 /** Simulator for Reporting operations on the Reporting public API. */
 class ReportingUserSimulator(
   private val measurementConsumerName: String,
-  private val apiAuthenticationKey: String,
   private val dataProvidersClient: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   private val eventGroupsClient: EventGroupsGrpcKt.EventGroupsCoroutineStub,
   private val reportingSetsClient: ReportingSetsGrpcKt.ReportingSetsCoroutineStub,
@@ -106,7 +105,6 @@ class ReportingUserSimulator(
     val createdReport =
       try {
         reportsClient
-          .withAuthenticationKey(apiAuthenticationKey)
           .createReport(
             createReportRequest {
               parent = measurementConsumerName
@@ -126,15 +124,20 @@ class ReportingUserSimulator(
 
   private suspend fun listEventGroups(): List<EventGroup> {
     try {
-      return eventGroupsClient
-        .withAuthenticationKey(apiAuthenticationKey)
-        .listEventGroups(
-          listEventGroupsRequest {
-            parent = measurementConsumerName
-            pageSize = 1000
-          }
-        )
-        .eventGroupsList
+      return buildList {
+        var response: ListEventGroupsResponse = ListEventGroupsResponse.getDefaultInstance()
+        do {
+          response = eventGroupsClient
+            .listEventGroups(
+              listEventGroupsRequest {
+                parent = measurementConsumerName
+                pageSize = 1000
+                pageToken = response.nextPageToken
+              }
+            )
+          addAll(response.eventGroupsList)
+        } while (response.nextPageToken.isNotEmpty())
+      }
     } catch (e: StatusException) {
       throw Exception("Error listing EventGroups", e)
     }
@@ -143,7 +146,6 @@ class ReportingUserSimulator(
   private suspend fun getDataProvider(dataProviderName: String): DataProvider {
     try {
       return dataProvidersClient
-        .withAuthenticationKey(apiAuthenticationKey)
         .getDataProvider(getDataProviderRequest { name = dataProviderName })
     } catch (e: StatusException) {
       throw Exception("Error getting DataProvider $dataProviderName", e)
@@ -157,7 +159,6 @@ class ReportingUserSimulator(
 
     try {
       return reportingSetsClient
-        .withAuthenticationKey(apiAuthenticationKey)
         .createReportingSet(
           createReportingSetRequest {
             parent = measurementConsumerName
@@ -173,7 +174,6 @@ class ReportingUserSimulator(
   private suspend fun createMetricCalculationSpec(): MetricCalculationSpec {
     try {
       return metricCalculationSpecsClient
-        .withAuthenticationKey(apiAuthenticationKey)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerName
@@ -218,7 +218,6 @@ class ReportingUserSimulator(
       val retrievedReport =
         try {
           reportsClient
-            .withAuthenticationKey(apiAuthenticationKey)
             .getReport(getReportRequest { name = reportName })
         } catch (e: StatusException) {
           throw Exception("Error getting Report", e)
