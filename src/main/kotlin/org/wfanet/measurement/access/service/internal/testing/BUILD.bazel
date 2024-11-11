@@ -1,0 +1,45 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/access/deploy:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "test_config",
+    srcs = ["TestConfig.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/common:tls_client_principal_mapping",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "principals_service_test",
+    srcs = ["PrincipalsServiceTest.kt"],
+    deps = [
+        ":test_config",
+        "//src/main/proto/wfa/measurement/internal/access:principals_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "permissions_service_test",
+    srcs = ["PermissionsServiceTest.kt"],
+    deps = [
+        ":test_config",
+        "//src/main/proto/wfa/measurement/internal/access:permissions_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)

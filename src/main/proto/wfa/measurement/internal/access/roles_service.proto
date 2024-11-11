@@ -1,0 +1,64 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.access;
+
+import "google/protobuf/empty.proto";
+import "wfa/measurement/internal/access/role.proto";
+
+option java_package = "org.wfanet.measurement.internal.access";
+option java_multiple_files = true;
+option java_outer_classname = "RolesServiceProto";
+
+service Roles {
+  rpc GetRole(GetRoleRequest) returns (Role);
+
+  // Lists Roles ordered by `role_resource_id`.
+  rpc ListRoles(ListRolesRequest) returns (ListRolesResponse);
+
+  rpc CreateRole(Role) returns (Role);
+
+  rpc UpdateRole(Role) returns (Role);
+
+  rpc DeleteRole(DeleteRoleRequest) returns (google.protobuf.Empty);
+}
+
+message GetRoleRequest {
+  string role_resource_id = 1;
+}
+
+message DeleteRoleRequest {
+  string role_resource_id = 2;
+}
+
+message ListRolesRequest {
+  // Maximum number of Roles to return.
+  //
+  // If not specified, implies unlimited.
+  int32 limit = 1;
+
+  // Number of Roles to skip.
+  int32 offset = 2;
+}
+
+message ListRolesResponse {
+  repeated Role roles = 1;
+
+  // Offset for requesting subsequent results.
+  //
+  // If not specified, there are no more results.
+  int32 next_offset = 2;
+}
