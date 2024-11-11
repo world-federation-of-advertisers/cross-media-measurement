@@ -20,7 +20,7 @@ from threading import Semaphore
 from typing import Any
 
 SOLVER = "highs"
-
+MAX_ATTEMPTS = 10
 SEMAPHORE = Semaphore()
 
 
@@ -174,7 +174,7 @@ class Solver:
                           extras={'status': 'trivial'},
                           problem=self._problem())
     else:
-      while attempt_count < 10:
+      while attempt_count < MAX_ATTEMPTS:
         # TODO: check if qpsolvers is thread safe,
         #  and remove this semaphore.
         SEMAPHORE.acquire()
