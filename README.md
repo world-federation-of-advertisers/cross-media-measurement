@@ -1,4 +1,4 @@
-# Halo CMM Measurement System
+# Halo Cross Media Measurement System
 
 **Table of Contents**
 
