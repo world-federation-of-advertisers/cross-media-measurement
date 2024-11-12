@@ -574,8 +574,9 @@ fun InternalModelRelease.toModelRelease(): ModelRelease {
         )
         .toName()
     createTime = source.createTime
-    population = PopulationKey(externalIdToApiId(source.externalDataProviderId), externalIdToApiId(source.externalPopulationId)).toName()
-
+    if(source.externalDataProviderId > 0 && source.externalPopulationId > 0) {
+      population = PopulationKey(externalIdToApiId(source.externalDataProviderId), externalIdToApiId(source.externalPopulationId)).toName()
+    }
   }
 }
 
