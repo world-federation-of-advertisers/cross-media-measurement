@@ -19,6 +19,7 @@ package wfa.measurement.internal.kingdom;
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/kingdom/certificate.proto";
 import "wfa/measurement/internal/kingdom/computation_participant.proto";
+import "wfa/measurement/internal/kingdom/duchy_measurement_log_entry.proto";
 import "wfa/measurement/internal/kingdom/measurement_details.proto";
 import "wfa/measurement/internal/kingdom/participant_requisition_params.proto";
 import "wfa/measurement/internal/kingdom/protocol_config.proto";
@@ -37,8 +38,10 @@ message Measurement {
     // ComputationParticipants.
     COMPUTATION = 1;
 
-    // Denormalized view, which includes all fields.
-    FULL = 2;
+    // View for computation that includes ComputationParticipants and additional
+    // log entries for ComputationParticipants, but does not include child
+    // Requisitions.
+    COMPUTATION_STATS = 2;
   }
 
   fixed64 external_measurement_consumer_id = 1;
@@ -127,12 +130,17 @@ message Measurement {
 
   // Child ComputationParticipants of this Measurement. Output-only.
   //
-  // Only set for COMPUTATION view.
+  // Only set for COMPUTATION and COMPUTATION_STATS views.
   repeated ComputationParticipant computation_participants = 13;
 
   // Output only. This may be sent on cancel and delete requests to ensure the
   // client has an up-to-date Measurement before proceeding.
   string etag = 14;
+
+  // All log entries across all child ComputationParticipants. Output-only.
+  //
+  // Only set for COMPUTATION_STATS view.
+  repeated DuchyMeasurementLogEntry log_entries = 15;
 }
 
 message Requisition {
@@ -202,6 +210,8 @@ message Requisition {
     Measurement.State state = 6;
 
     int32 data_providers_count = 7;
+
+    google.protobuf.Timestamp create_time = 9;
   }
   // Denormalized fields from the parent Measurement. Output-only.
   ParentMeasurement parent_measurement = 12;

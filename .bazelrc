@@ -18,15 +18,22 @@ build --java_language_version=11
 # Pass environment variables.
 test --test_env TESTCONTAINERS_RYUK_DISABLED=true
 
-# Disable remote cache upload by default.
-build --noremote_upload_local_results
+# Configuration for remote cache.
+build --noremote_upload_local_results  # Do not upload by default
+build --remote_download_outputs=minimal
+build --remote_timeout=3600
+build:remote-cache --remote_cache=grpcs://halo-cmm.buildbuddy.io
+build:remote-cache --experimental_remote_cache_compression
+build:remote-cache --experimental_remote_cache_compression_threshold=100
 
 # Configuration for continuous integration (CI).
 common:ci --lockfile_mode=error
 build:ci --compilation_mode=opt
-build:ci --host_platform //build/platforms:ubuntu_22_04
-common:remote-cache --remote_cache=https://storage.googleapis.com/halo-cmm-build-cache/cross-media-measurement
-common:remote-cache --google_default_credentials
+build:ci --build_metadata=ROLE=CI
+build:ci --build_metadata=VISIBILITY=PUBLIC
+build:ci --config=remote-cache
+build:ci --config=results
+build:ci --config=remote
 
 # Configuration for GitHub Container Registry
 build:ghcr --define container_registry=ghcr.io
@@ -40,3 +47,4 @@ import %workspace%/container.bazelrc
 import %workspace%/maven.bazelrc
 import %workspace%/remote.bazelrc
 import %workspace%/results.bazelrc
+try-import %workspace%/auth.bazelrc

@@ -21,8 +21,6 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
 import io.grpc.Channel
-import io.opentelemetry.api.GlobalOpenTelemetry
-import io.opentelemetry.api.OpenTelemetry
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runBlocking
@@ -150,10 +148,6 @@ abstract class HonestMajorityShareShuffleMillJob : Runnable {
           .makeKmsPrivateKeyStore(TinkKeyStore(storageClient), keyUri)
       }
 
-    // OpenTelemetry is usually enabled using the Java agent, in which case this will grab the
-    // shared instance.
-    val openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get()
-
     val mill =
       HonestMajorityShareShuffleMill(
         millId = millId,
@@ -166,7 +160,6 @@ abstract class HonestMajorityShareShuffleMillJob : Runnable {
         systemComputationsClient = systemComputationsClient,
         systemComputationLogEntriesClient = systemComputationLogEntriesClient,
         computationStatsClient = computationStatsClient,
-        privateKeyStore = privateKeyStore,
         certificateClient = publicCertificatesClient,
         workerStubs = computationControlClientMap,
         cryptoWorker = JniHonestMajorityShareShuffleCryptor(),
@@ -175,7 +168,7 @@ abstract class HonestMajorityShareShuffleMillJob : Runnable {
             parseTextProto(it, ProtocolsSetupConfig.getDefaultInstance()).honestMajorityShareShuffle
           },
         workLockDuration = flags.workLockDuration,
-        openTelemetry = openTelemetry,
+        privateKeyStore = privateKeyStore,
         requestChunkSizeBytes = flags.requestChunkSizeBytes,
       )
 

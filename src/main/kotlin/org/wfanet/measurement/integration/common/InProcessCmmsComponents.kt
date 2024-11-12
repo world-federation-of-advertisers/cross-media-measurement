@@ -261,9 +261,12 @@ class InProcessCmmsComponents(
     return PopulationData(
       populationDataProviderName = populationDataProviderResource.name,
       populationMeasurementModelLineName = measurementModelLineName,
-      populationInfo= populationInfo,
+      populationInfo = populationInfo,
       typeRegistry = typeRegistry
     )
+  }
+  fun getDataProviderResourceNames(): List<String> {
+    return edpDisplayNameToResourceMap.values.map { it.name }
   }
 
   fun startDaemons() = runBlocking {

@@ -747,6 +747,16 @@ class ReportsServiceTest {
             }
           }
         )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1705392000 // January 16, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1705564800 // January 18, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
       }
 
       val frequencySpec =
@@ -865,6 +875,16 @@ class ReportsServiceTest {
             }
             endTime = timestamp {
               seconds = 1709280000 // March 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1709280000 // March 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1709625600 // March 5, 2024 at 12:00 AM, America/Los_Angeles
             }
           }
         )
@@ -997,6 +1017,16 @@ class ReportsServiceTest {
           }
         }
       )
+      add(
+        interval {
+          startTime = timestamp {
+            seconds = 1709280000 // March 1, 2024 at 12:00 AM, America/Los_Angeles
+          }
+          endTime = timestamp {
+            seconds = 1709625600 // March 5, 2024 at 12:00 AM, America/Los_Angeles
+          }
+        }
+      )
     }
 
     val frequencySpec =
@@ -1117,6 +1147,16 @@ class ReportsServiceTest {
             }
           }
         )
+        add(
+          interval {
+            startTime = timestamp {
+              seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+            }
+            endTime = timestamp {
+              seconds = 1709625600 // March 5, 2024 at 12:00 AM, America/Los_Angeles
+            }
+          }
+        )
       }
 
       val frequencySpec =
@@ -1126,6 +1166,65 @@ class ReportsServiceTest {
 
       assertReportCreatedWithReportingInterval(reportingInterval, timeIntervals, frequencySpec)
     }
+
+  @Test
+  fun `createReport returns report without including interval past the report_end`() = runBlocking {
+    val reportingInterval =
+      ReportKt.reportingInterval {
+        reportStart = dateTime {
+          year = 2024
+          month = 1
+          day = 1 // Monday
+          utcOffset = duration { seconds = 60 * 60 * -8 }
+        }
+        reportEnd = date {
+          year = 2024
+          month = 1
+          day = 12
+        }
+      }
+
+    val timeIntervals: List<Interval> = buildList {
+      add(
+        interval {
+          startTime = timestamp {
+            seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+          }
+          endTime = timestamp {
+            seconds = 1704268800 // January 3, 2024 at 12:00 AM, America/Los_Angeles
+          }
+        }
+      )
+      add(
+        interval {
+          startTime = timestamp {
+            seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+          }
+          endTime = timestamp {
+            seconds = 1704873600 // January 10, 2024 at 12:00 AM, America/Los_Angeles
+          }
+        }
+      )
+      add(
+        interval {
+          startTime = timestamp {
+            seconds = 1704096000 // January 1, 2024 at 12:00 AM, America/Los_Angeles
+          }
+          endTime = timestamp {
+            seconds = 1705046400 // January 12, 2024 at 12:00 AM, America/Los_Angeles
+          }
+        }
+      )
+    }
+
+    val frequencySpec =
+      MetricCalculationSpecKt.metricFrequencySpec {
+        weekly =
+          MetricCalculationSpecKt.MetricFrequencySpecKt.weekly { dayOfWeek = DayOfWeek.WEDNESDAY }
+      }
+
+    assertReportCreatedWithReportingInterval(reportingInterval, timeIntervals, frequencySpec)
+  }
 
   @Test
   fun `createReport returns report with two metrics when multiple filters`() = runBlocking {
@@ -2779,68 +2878,6 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun `createReport throws INVALID_ARGUMENT when reporting interval results in 0 time intervals`() {
-    runBlocking {
-      whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any()))
-        .thenReturn(
-          batchGetMetricCalculationSpecsResponse {
-            metricCalculationSpecs +=
-              INTERNAL_REACH_METRIC_CALCULATION_SPEC.copy {
-                details =
-                  INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.copy {
-                    metricFrequencySpec =
-                      MetricCalculationSpecKt.metricFrequencySpec {
-                        monthly =
-                          MetricCalculationSpecKt.MetricFrequencySpecKt.monthly { dayOfMonth = 15 }
-                      }
-                    trailingWindow =
-                      MetricCalculationSpecKt.trailingWindow {
-                        count = 1
-                        increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
-                      }
-                  }
-              }
-          }
-        )
-    }
-
-    val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
-      report =
-        PENDING_REACH_REPORT.copy {
-          clearName()
-          clearTime()
-          clearCreateTime()
-          clearState()
-          reportingInterval =
-            ReportKt.reportingInterval {
-              reportStart = dateTime {
-                year = 2023
-                month = 1
-                day = 1
-                utcOffset = duration { seconds = 60 * 60 * -8 }
-              }
-              reportEnd = date {
-                year = 2023
-                month = 1
-                day = 5
-              }
-            }
-        }
-      reportId = "report-id"
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
-          runBlocking { service.createReport(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("No time intervals")
-  }
-
-  @Test
   fun `createReport throws INVALID_ARGUMENT when report_start after report_end`() {
     val request = createReportRequest {
       parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
@@ -2854,6 +2891,44 @@ class ReportsServiceTest {
             ReportKt.reportingInterval {
               reportStart = dateTime {
                 year = 3000
+                month = 1
+                day = 1
+                timeZone = timeZone { id = "America/Los_Angeles" }
+              }
+              reportEnd = date {
+                year = 2024
+                month = 1
+                day = 1
+              }
+            }
+        }
+      reportId = "report-id"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("report_end")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when report_start same as report_end`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearName()
+          clearTime()
+          clearCreateTime()
+          clearState()
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2024
                 month = 1
                 day = 1
                 timeZone = timeZone { id = "America/Los_Angeles" }
@@ -4197,6 +4272,7 @@ class ReportsServiceTest {
       }
 
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::createReport)
+      .ignoringRepeatedFieldOrder()
       .isEqualTo(
         internalCreateReportRequest {
           report = internalRequestingReport
@@ -4295,10 +4371,13 @@ class ReportsServiceTest {
           )
         )
       }
+
       val internalInitialReport =
         internalRequestingReport.copy {
           externalReportId = reportIdBase + "report-id"
           createTime = Instant.now().toProtoTime()
+
+          reportingMetricEntries.clear()
 
           val initialReportingMetrics =
             reportingMetrics.mapIndexed { requestId, request ->
@@ -4315,8 +4394,11 @@ class ReportsServiceTest {
             )
           )
         }
+
       val internalPendingReport =
         internalInitialReport.copy {
+          reportingMetricEntries.clear()
+
           val pendingReportingMetrics =
             reportingMetrics.mapIndexed { requestId, request ->
               request.copy {

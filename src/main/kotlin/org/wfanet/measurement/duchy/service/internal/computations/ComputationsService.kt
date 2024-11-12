@@ -113,9 +113,15 @@ class ComputationsService(
     request: CreateComputationRequest
   ): CreateComputationResponse {
     // TODO: validate CreateComputationRequest
-
-    if (computationsDatabase.readComputationToken(request.globalComputationId) != null) {
-      throw Status.fromCode(Status.Code.ALREADY_EXISTS).asRuntimeException()
+    val token = computationsDatabase.readComputationToken(request.globalComputationId)
+    if (token != null) {
+      throw Status.fromCode(Status.Code.ALREADY_EXISTS)
+        .withDescription(
+          "Computation already exists. " +
+            "computationId=${token.localComputationId}, " +
+            "stage=${token.computationStage}, version=${token.version}"
+        )
+        .asRuntimeException()
     }
 
     val initialStage =

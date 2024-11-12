@@ -181,6 +181,7 @@ private const val DUCHY_CERTIFICATE_NAME = "$DUCHY_NAME/certificates/AAAAAAAAAHs
 private val DATA_PROVIDER_NONCE_HASH: ByteString =
   HexString("97F76220FEB39EE6F262B1F0C8D40F221285EEDE105748AE98F7DC241198D69F").bytes
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
+private val CREATED_AFTER: Timestamp = Instant.ofEpochSecond(0).toProtoTime()
 private val CREATED_BEFORE: Timestamp = Instant.now().toProtoTime()
 private val UPDATED_AFTER: Timestamp = Instant.ofEpochSecond(0).toProtoTime()
 private val UPDATED_BEFORE: Timestamp = Instant.now().toProtoTime()
@@ -1545,6 +1546,7 @@ class MeasurementsServiceTest {
     val request = listMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       filter = filter {
+        createdAfter = CREATED_AFTER
         createdBefore = CREATED_BEFORE
         updatedBefore = UPDATED_BEFORE
         updatedAfter = UPDATED_AFTER
@@ -1574,6 +1576,7 @@ class MeasurementsServiceTest {
           filter =
             StreamMeasurementsRequestKt.filter {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+              createdAfter = CREATED_AFTER
               createdBefore = CREATED_BEFORE
               updatedBefore = UPDATED_BEFORE
               updatedAfter = UPDATED_AFTER
@@ -1616,6 +1619,7 @@ class MeasurementsServiceTest {
           updateTime = UPDATE_TIME
           externalMeasurementId = EXTERNAL_MEASUREMENT_ID
         }
+        createdAfter = CREATED_AFTER
         createdBefore = CREATED_BEFORE
         updatedBefore = UPDATED_BEFORE
         updatedAfter = UPDATED_AFTER
@@ -1623,6 +1627,7 @@ class MeasurementsServiceTest {
       pageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
       filter = filter {
         states += publicStates
+        createdAfter = CREATED_AFTER
         createdBefore = CREATED_BEFORE
         updatedBefore = UPDATED_BEFORE
         updatedAfter = UPDATED_AFTER
@@ -1645,6 +1650,7 @@ class MeasurementsServiceTest {
           externalMeasurementId =
             apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_2)!!.measurementId)
         }
+        createdAfter = CREATED_AFTER
         createdBefore = CREATED_BEFORE
         updatedBefore = UPDATED_BEFORE
         updatedAfter = UPDATED_AFTER
@@ -1665,6 +1671,7 @@ class MeasurementsServiceTest {
             StreamMeasurementsRequestKt.filter {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               states += internalStates
+              createdAfter = CREATED_AFTER
               createdBefore = CREATED_BEFORE
               updatedBefore = UPDATED_BEFORE
               updatedAfter = UPDATED_AFTER
@@ -1696,11 +1703,13 @@ class MeasurementsServiceTest {
           updateTime = UPDATE_TIME
           externalMeasurementId = EXTERNAL_MEASUREMENT_ID
         }
+        createdAfter = CREATED_AFTER
         createdBefore = CREATED_BEFORE
         updatedBefore = UPDATED_BEFORE
         updatedAfter = UPDATED_AFTER
       }
       filter = filter {
+        createdAfter = CREATED_AFTER
         createdBefore = CREATED_BEFORE
         updatedBefore = UPDATED_BEFORE
         updatedAfter = UPDATED_AFTER
@@ -1724,6 +1733,7 @@ class MeasurementsServiceTest {
           filter =
             StreamMeasurementsRequestKt.filter {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+              createdAfter = CREATED_AFTER
               createdBefore = CREATED_BEFORE
               updatedBefore = UPDATED_BEFORE
               updatedAfter = UPDATED_AFTER
@@ -1752,11 +1762,13 @@ class MeasurementsServiceTest {
           updateTime = UPDATE_TIME
           externalMeasurementId = EXTERNAL_MEASUREMENT_ID
         }
+        createdAfter = CREATED_AFTER
         createdBefore = CREATED_BEFORE
         updatedBefore = UPDATED_BEFORE
         updatedAfter = UPDATED_AFTER
       }
       filter = filter {
+        createdAfter = CREATED_AFTER
         createdBefore = CREATED_BEFORE
         updatedBefore = UPDATED_BEFORE
         updatedAfter = UPDATED_AFTER
@@ -1780,6 +1792,7 @@ class MeasurementsServiceTest {
           filter =
             StreamMeasurementsRequestKt.filter {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+              createdAfter = CREATED_AFTER
               createdBefore = CREATED_BEFORE
               updatedBefore = UPDATED_BEFORE
               updatedAfter = UPDATED_AFTER
@@ -1794,6 +1807,40 @@ class MeasurementsServiceTest {
             }
         }
       )
+  }
+
+  @Test
+  fun `listMeasurements with no filters returns response`() {
+    val request = listMeasurementsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listMeasurements(request) }
+      }
+
+    val expected = listMeasurementsResponse {
+      measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME }
+      measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME_2 }
+      measurements += MEASUREMENT.copy { name = MEASUREMENT_NAME_3 }
+    }
+
+    val streamMeasurementsRequest: StreamMeasurementsRequest = captureFirst {
+      verify(internalMeasurementsMock).streamMeasurements(capture())
+    }
+
+    assertThat(streamMeasurementsRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        streamMeasurementsRequest {
+          limit = DEFAULT_LIMIT + 1
+          filter =
+            StreamMeasurementsRequestKt.filter {
+              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
 
   @Test

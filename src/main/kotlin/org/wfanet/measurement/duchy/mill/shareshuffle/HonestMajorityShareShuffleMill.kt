@@ -15,8 +15,8 @@
 package org.wfanet.measurement.duchy.mill.shareshuffle
 
 import com.google.protobuf.ByteString
+import io.grpc.Status
 import io.grpc.StatusException
-import io.opentelemetry.api.OpenTelemetry
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
@@ -47,6 +47,7 @@ import org.wfanet.measurement.consent.client.duchy.signEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.verifyRandomSeed
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
+import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.TransientErrorException
 import org.wfanet.measurement.duchy.mill.CRYPTO_CPU_DURATION
 import org.wfanet.measurement.duchy.mill.CRYPTO_WALL_CLOCK_DURATION
 import org.wfanet.measurement.duchy.mill.Certificate
@@ -107,7 +108,6 @@ class HonestMajorityShareShuffleMill(
   private val cryptoWorker: HonestMajorityShareShuffleCryptor,
   private val protocolSetupConfig: HonestMajorityShareShuffleSetupConfig,
   workLockDuration: Duration,
-  openTelemetry: OpenTelemetry,
   private val privateKeyStore: PrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle>? = null,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
@@ -128,7 +128,6 @@ class HonestMajorityShareShuffleMill(
     requestChunkSizeBytes = requestChunkSizeBytes,
     maximumAttempts = maximumAttempts,
     clock = clock,
-    openTelemetry = openTelemetry,
   ) {
   init {
     if (protocolSetupConfig.role != AGGREGATOR) {
@@ -335,7 +334,15 @@ class HonestMajorityShareShuffleMill(
           getCertificateRequest { name = dataProviderCertificateName }
         )
       } catch (e: StatusException) {
-        throw PermanentErrorException("Fail to get certificate for $dataProviderCertificateName", e)
+        val message = "Fail to get certificate for $dataProviderCertificateName"
+        when (e.status.code) {
+          // TODO(@renjiezh): immediately retry for UNAVAILABLE and DEADLINE_EXCEEDED based on
+          // gRPC service config.
+          Status.Code.UNAVAILABLE,
+          Status.Code.DEADLINE_EXCEEDED,
+          Status.Code.ABORTED -> throw TransientErrorException(message, e)
+          else -> throw PermanentErrorException(message, e)
+        }
       }
 
     val x509Certificate: X509Certificate = readCertificate(dataProviderCertificate.x509Der)

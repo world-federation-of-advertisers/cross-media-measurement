@@ -35,7 +35,6 @@ def java_image(
     This is a replacement for the java_image rule which sets common attrs.
     """
     tags = tags or []
-    tags.append("no-remote-cache")
 
     _java_image(
         name = name,
@@ -43,7 +42,7 @@ def java_image(
         base = base,
         labels = {"org.opencontainers.image.source": MEASUREMENT_SYSTEM_REPO},
         cmd_args = args,
-        tags = tags,
+        tags = tags + ["no-remote-cache"],
         visibility = visibility,
         **kwargs
     )

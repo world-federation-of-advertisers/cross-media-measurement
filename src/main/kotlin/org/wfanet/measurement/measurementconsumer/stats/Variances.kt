@@ -16,7 +16,9 @@
 
 package org.wfanet.measurement.measurementconsumer.stats
 
+import com.google.common.math.DoubleMath.fuzzyCompare
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.pow
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
@@ -81,6 +83,8 @@ interface Variances {
 
 /** Default implementation of [Variances]. */
 object VariancesImpl : Variances {
+  private const val TOLERANCE = 1E-6
+
   /**
    * Computes the variance of a reach measurement that is computed using the deterministic count
    * distinct methodology.
@@ -157,6 +161,12 @@ object VariancesImpl : Variances {
       multiplier: Int) =
       relativeFrequencyMeasurementVarianceParams
 
+    require(totalReach >= 0) { "Total reach must be non-negative, but got $totalReach." }
+    require(reachRatio >= 0.0 && reachRatio <= 1.0) {
+      "Reach ratio must be greater than or equal to 0 and less than or equal to 1, but got " +
+        "$reachRatio."
+    }
+
     // When reach is too small, we have little info to estimate frequency, and thus the estimate of
     // relative frequency is equivalent to a uniformly random guess at probability.
     if (
@@ -189,6 +199,17 @@ object VariancesImpl : Variances {
     reachRatio: Double,
     reachRatioVariance: Double,
   ): Double {
+    require(totalReach >= 0) { "Total reach must be non-negative, but got $totalReach." }
+    require(totalReachVariance >= 0) {
+      "Total reach variance must not be negative, but got $totalReachVariance."
+    }
+    require(reachRatio >= 0.0 && reachRatio <= 1.0) {
+      "Reach ratio must be greater than or equal to 0 and less than or equal to 1, but got " +
+        "$reachRatio."
+    }
+    require(reachRatioVariance >= 0) {
+      "Reach ratio variance must not be negative, but got $reachRatioVariance."
+    }
     val variance =
       reachRatioVariance * totalReachVariance +
         reachRatioVariance * totalReach.toDouble().pow(2) +
@@ -206,7 +227,9 @@ object VariancesImpl : Variances {
     maximumFrequencyPerUser: Double,
     noiseMechanism: NoiseMechanism,
   ): Double {
-    require(measurementValue >= 0.0) { "The scalar measurement value cannot be negative." }
+    require(measurementValue >= 0.0) {
+      "The scalar measurement value ($measurementValue) cannot be negative."
+    }
     val noiseVariance: Double = computeDirectNoiseVariance(dpParams, noiseMechanism)
     val variance =
       (maximumFrequencyPerUser *
@@ -226,6 +249,7 @@ object VariancesImpl : Variances {
     sketchParams: LiquidLegionsSketchParams,
     varianceParams: ReachMeasurementVarianceParams,
   ): Double {
+    verifyLiquidLegionsSketchParams(sketchParams)
     val noiseVariance: Double =
       computeDirectNoiseVariance(
         varianceParams.measurementParams.dpParams,
@@ -257,6 +281,7 @@ object VariancesImpl : Variances {
     sketchParams: LiquidLegionsSketchParams,
     params: FrequencyMeasurementVarianceParams,
   ): FrequencyVariances {
+    verifyLiquidLegionsSketchParams(sketchParams)
     return frequencyVariance(
       params,
       constructLiquidLegionsSketchFrequencyRelativeVariance(sketchParams, params.measurementParams),
@@ -274,6 +299,7 @@ object VariancesImpl : Variances {
   ): (
     relativeFrequencyMeasurementVarianceParams: RelativeFrequencyMeasurementVarianceParams
   ) -> Double {
+    verifyLiquidLegionsSketchParams(sketchParams)
     val frequencyNoiseVariance: Double =
       computeDirectNoiseVariance(measurementParams.dpParams, measurementParams.noiseMechanism)
     return { relativeFrequencyMeasurementVarianceParams ->
@@ -291,11 +317,16 @@ object VariancesImpl : Variances {
     sketchParams: LiquidLegionsSketchParams,
     varianceParams: ReachMeasurementVarianceParams,
   ): Double {
+    verifyLiquidLegionsSketchParams(sketchParams)
     val distributedGaussianNoiseVariance: Double =
       computeDistributedNoiseVariance(
         varianceParams.measurementParams.dpParams,
         varianceParams.measurementParams.noiseMechanism,
       )
+    require(distributedGaussianNoiseVariance >= 0.0) {
+      "Distributed Gaussian noise variance must not be negative, but got " +
+        "$distributedGaussianNoiseVariance."
+    }
 
     val variance =
       LiquidLegions.inflatedReachCovariance(
@@ -320,6 +351,7 @@ object VariancesImpl : Variances {
     sketchParams: LiquidLegionsSketchParams,
     params: FrequencyMeasurementVarianceParams,
   ): FrequencyVariances {
+    verifyLiquidLegionsSketchParams(sketchParams)
     return frequencyVariance(
       params,
       constructLiquidLegionsV2FrequencyRelativeVariance(sketchParams, params.measurementParams),
@@ -337,9 +369,12 @@ object VariancesImpl : Variances {
   ): (
     relativeFrequencyMeasurementVarianceParams: RelativeFrequencyMeasurementVarianceParams
   ) -> Double {
+    verifyLiquidLegionsSketchParams(sketchParams)
     val frequencyNoiseVariance: Double =
       computeDistributedNoiseVariance(measurementParams.dpParams, measurementParams.noiseMechanism)
-
+    require(frequencyNoiseVariance >= 0.0) {
+      "Frequency noise variance must not be negative, but got $frequencyNoiseVariance."
+    }
     return { relativeFrequencyMeasurementVarianceParams ->
       LiquidLegions.liquidLegionsFrequencyRelativeVariance(
         sketchParams = sketchParams,
@@ -400,19 +435,24 @@ object VariancesImpl : Variances {
         totalReach: Long, totalReachVariance: Double, reachRatio: Double, reachRatioVariance: Double,
       ) -> Double,
   ): FrequencyVariances {
-    require(params.totalReach >= 0.0) { "The total reach value cannot be negative." }
+    require(params.totalReach >= 0.0) {
+      "The total reach value (${params.totalReach}) cannot be negative."
+    }
     require(params.reachMeasurementVariance >= 0.0) {
-      "The reach variance value cannot be negative."
+      "The reach variance value (${params.reachMeasurementVariance}) cannot be negative."
     }
 
     val maximumFrequency = params.measurementParams.maximumFrequency
 
     var suffixSum = 0.0
-    // There is no estimate of zero-frequency reach
+    // There is no estimate of zero-frequency reach.
     val kPlusRelativeFrequencyDistribution: Map<Int, Double> =
       (maximumFrequency downTo 1).associateWith { frequency ->
         suffixSum += params.relativeFrequencyDistribution.getOrDefault(frequency, 0.0)
-        suffixSum
+        require(fuzzyCompare(suffixSum, 1.0, TOLERANCE) <= 0) {
+          "kPlus relative frequency must not exceed 1, but got $suffixSum."
+        }
+        min(1.0, suffixSum)
       }
 
     val relativeVariances: Map<Int, Double> =
@@ -501,9 +541,11 @@ object VariancesImpl : Variances {
     frequencyVectorSize: Long,
     frequencyParams: FrequencyMeasurementVarianceParams,
   ): FrequencyVariances {
-    require(frequencyParams.totalReach >= 0.0) { "The total reach value cannot be negative." }
+    require(frequencyParams.totalReach >= 0.0) {
+      "The total reach value (${frequencyParams.totalReach}) cannot be negative."
+    }
     require(frequencyParams.reachMeasurementVariance >= 0.0) {
-      "The reach variance value cannot be negative."
+      "The reach variance value (${frequencyParams.reachMeasurementVariance}) cannot be negative."
     }
 
     val maximumFrequency = frequencyParams.measurementParams.maximumFrequency
@@ -519,7 +561,10 @@ object VariancesImpl : Variances {
     val kPlusRelativeFrequencyDistribution: Map<Int, Double> =
       (maximumFrequency downTo 1).associateWith { frequency ->
         suffixSum += frequencyParams.relativeFrequencyDistribution.getOrDefault(frequency, 0.0)
-        suffixSum
+        require(fuzzyCompare(suffixSum, 1.0, TOLERANCE) <= 0) {
+          "kPlus relative frequency must not exceed 1, but got $suffixSum."
+        }
+        min(1.0, suffixSum)
       }
 
     val countVariances: Map<Int, Double> =
@@ -607,9 +652,11 @@ object VariancesImpl : Variances {
         totalReach: Long, totalReachVariance: Double, reachRatio: Double, reachRatioVariance: Double,
       ) -> Double,
   ): FrequencyVariances {
-    require(params.totalReach >= 0.0) { "The total reach value cannot be negative." }
+    require(params.totalReach >= 0.0) {
+      "The total reach value (${params.totalReach}) cannot be negative."
+    }
     require(params.reachMeasurementVariance >= 0.0) {
-      "The reach variance value cannot be negative."
+      "The reach variance value (${params.reachMeasurementVariance}) cannot be negative."
     }
 
     val maximumFrequency = params.measurementParams.maximumFrequency
@@ -619,7 +666,10 @@ object VariancesImpl : Variances {
     val kPlusRelativeFrequencyDistribution: Map<Int, Double> =
       (maximumFrequency downTo 1).associateWith { frequency ->
         suffixSum += params.relativeFrequencyDistribution.getOrDefault(frequency, 0.0)
-        suffixSum
+        require(fuzzyCompare(suffixSum, 1.0, TOLERANCE) <= 0) {
+          "kPlus relative frequency must not exceed 1, but got $suffixSum."
+        }
+        min(1.0, suffixSum)
       }
 
     val countVariances: Map<Int, Double> =
@@ -752,7 +802,8 @@ object VariancesImpl : Variances {
 
     require(params.weightedMeasurementVarianceParamsList.size == 1) {
       "Only support variance calculation of frequency metrics computed on union-only set " +
-        "expressions."
+        "expressions. Expected exactly 1 weighted measurement variance params, but got " +
+        "${params.weightedMeasurementVarianceParamsList.size}."
     }
 
     val weightedMeasurementVarianceParams = params.weightedMeasurementVarianceParamsList.first()
@@ -844,7 +895,8 @@ object VariancesImpl : Variances {
 
     require(params.weightedMeasurementVarianceParamsList.size == 1) {
       "Only support variance calculation of impression metrics computed on union-only set " +
-        "expressions."
+        "expressions. Expected exactly 1 weighted measurement variance params, but got " +
+        "${params.weightedMeasurementVarianceParamsList.size}."
     }
 
     val weightedMeasurementVarianceParams = params.weightedMeasurementVarianceParamsList.first()
@@ -907,7 +959,8 @@ object VariancesImpl : Variances {
 
     require(params.weightedMeasurementVarianceParamsList.size == 1) {
       "Only support variance calculation of watch duration metrics computed on union-only set " +
-        "expressions."
+        "expressions. Expected exactly 1 weighted measurement variance params, but got " +
+        "${params.weightedMeasurementVarianceParamsList.size}."
     }
 
     val weightedMeasurementVarianceParams = params.weightedMeasurementVarianceParamsList.first()

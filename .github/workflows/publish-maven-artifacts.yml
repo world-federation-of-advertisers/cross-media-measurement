@@ -25,8 +25,6 @@ jobs:
   publish-artifacts:
     name: Publish Maven artifacts
     runs-on: ubuntu-22.04
-    permissions:
-      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -52,31 +50,19 @@ jobs:
           version: 7.1.2
           sha256: 8d5c459ab21b411b8be059a8bdf59f0d3eabf9dff943d5eccb80e36e525cc09d
 
-      # Authenticate to Google Cloud for access to remote cache.
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ vars.BAZEL_BUILD_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.BAZEL_BUILD_SERVICE_ACCOUNT }}
+      - name: Write auth.bazelrc
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: |
+          cat << EOF > auth.bazelrc
+          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+          EOF
 
       - name: Write ~/.bazelrc
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
-          common --config=remote-cache
           EOF
-
-      - name: Get Bazel cache params
-        id: get-cache-params
-        run: |
-          repo_cache_path="$(bazelisk info repository_cache)"
-          echo "repo-cache-path=${repo_cache_path}" >> $GITHUB_OUTPUT
-
-      - name: Restore repository cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.get-cache-params.outputs.repo-cache-path }}
-          key: ${{ vars.BAZEL_REPO_CACHE_KEY }}
 
       # Patch MODULE.bazel and MODULE.bazel.lock to specify version.
       # TODO(bazelbuild/bazel#22919): Use alternative mechanism when available.

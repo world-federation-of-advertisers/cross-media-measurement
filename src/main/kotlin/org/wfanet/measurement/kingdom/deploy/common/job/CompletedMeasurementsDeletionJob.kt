@@ -16,8 +16,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.common.job
 
-import io.opentelemetry.api.GlobalOpenTelemetry
-import io.opentelemetry.api.OpenTelemetry
 import java.time.Clock
 import java.time.Duration
 import kotlin.properties.Delegates
@@ -94,8 +92,6 @@ class CompletedMeasurementsDeletionJob private constructor() : Runnable {
 
     val internalMeasurementsClient = MeasurementsCoroutineStub(channel)
 
-    val openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get()
-
     val completedMeasurementsDeletion =
       CompletedMeasurementsDeletion(
         internalMeasurementsClient,
@@ -103,7 +99,6 @@ class CompletedMeasurementsDeletionJob private constructor() : Runnable {
         measurementsTimeToLive,
         dryRun,
         Clock.systemUTC(),
-        openTelemetry,
       )
     completedMeasurementsDeletion.run()
   }

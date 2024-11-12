@@ -21,6 +21,7 @@ import "list"
 	resourceName:     string
 	certResourceName: string
 	publisherId:      int
+	supportHmss:      bool | *false
 }
 
 #RequisitionFulfillmentServiceConfig: {
@@ -72,6 +73,7 @@ import "list"
 				"--kingdom-public-api-cert-host=localhost",
 				"--log-sketch-details=\(_logSketchDetails)",
 				"--health-file=\(HealthFile)",
+				"--known-event-group-metadata-type=/etc/\(#AppName)/config-files/known_event_group_metadata_type_set.pb",
 			] + _requisitionFulfillmentServiceFlags + _additional_args
 		}
 		spec: template: spec: {
@@ -109,7 +111,7 @@ import "list"
 		"\(deployment._name)": {
 			_app_label: deployment.spec.template.metadata.labels.app
 			_egresses: {
-				// Need to be able to access Kingdom and BigQuery.
+				// Need to be able to access Kingdom.
 				any: {}
 			}
 		}

@@ -74,10 +74,49 @@ message RequisitionsTableRow {
   int64 completion_duration_seconds_squared = 11;
 }
 
+message ComputationParticipantStagesTableRow {
+  string measurement_consumer_id = 1;
+  string measurement_id = 2;
+  string computation_id = 3;
+  string duchy_id = 4;
+
+  MeasurementType measurement_type = 5;
+
+  enum Result {
+    RESULT_UNSPECIFIED = 0;
+    SUCCEEDED = 1;
+    FAILED = 2;
+  }
+  Result result = 6;
+
+  string stage_name = 7;
+
+  google.protobuf.Timestamp stage_start_time = 8;
+
+  // Difference between start of this stage and start of next stage.
+  int64 completion_duration_seconds = 9;
+  int64 completion_duration_seconds_squared = 10;
+}
+
 message LatestMeasurementReadTableRow {
   // Since BigQuery timestamp is microsecond precision, this is in nanoseconds
   // and is stored as an integer.
   int64 update_time = 1;
   int64 external_measurement_consumer_id = 2;
   int64 external_measurement_id = 3;
+}
+
+message LatestRequisitionReadTableRow {
+  // Since BigQuery timestamp is microsecond precision, this is in nanoseconds
+  // and is stored as an integer.
+  int64 update_time = 1;
+  int64 external_data_provider_id = 2;
+  int64 external_requisition_id = 3;
+}
+
+message LatestComputationReadTableRow {
+  // Since BigQuery timestamp is microsecond precision, this is in nanoseconds
+  // and is stored as an integer.
+  int64 update_time = 1;
+  int64 external_computation_id = 2;
 }

@@ -87,6 +87,7 @@ message ListMeasurementsPageToken {
   google.protobuf.Timestamp updated_after = 5;
   google.protobuf.Timestamp updated_before = 6;
   google.protobuf.Timestamp created_before = 7;
+  google.protobuf.Timestamp created_after = 8;
 }
 
 message ListRequisitionsPageToken {
@@ -97,6 +98,7 @@ message ListRequisitionsPageToken {
   fixed64 external_data_provider_id = 4;
   repeated Requisition.State states = 5;
   message PreviousPageEnd {
+    google.protobuf.Timestamp update_time = 3;
     fixed64 external_data_provider_id = 1;
     fixed64 external_requisition_id = 2;
   }
