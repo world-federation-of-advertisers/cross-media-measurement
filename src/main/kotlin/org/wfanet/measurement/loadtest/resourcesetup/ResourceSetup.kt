@@ -111,16 +111,16 @@ private const val SLEEP_INTERVAL_MILLIS = 10000L
 class ResourceSetup(
   private val internalAccountsClient: AccountsGrpcKt.AccountsCoroutineStub,
   private val internalDataProvidersClient: DataProvidersGrpcKt.DataProvidersCoroutineStub,
-  private val internalModelProvidersClient: ModelProvidersGrpcKt.ModelProvidersCoroutineStub,
+  private val internalModelProvidersClient: ModelProvidersGrpcKt.ModelProvidersCoroutineStub? = null,
   private val accountsClient: AccountsCoroutineStub,
   private val apiKeysClient: ApiKeysCoroutineStub,
   private val internalCertificatesClient: CertificatesGrpcKt.CertificatesCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
-  private val internalModelSuitesClient: ModelSuitesGrpcKt.ModelSuitesCoroutineStub,
-  private val internalModelLinesClient: ModelLinesGrpcKt.ModelLinesCoroutineStub,
-  private val internalPopulationsClient: PopulationsGrpcKt.PopulationsCoroutineStub,
-  private val internalModelReleasesClient: ModelReleasesGrpcKt.ModelReleasesCoroutineStub,
-  private val internalModelRolloutsClient: ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub,
+  private val internalModelSuitesClient: ModelSuitesGrpcKt.ModelSuitesCoroutineStub? = null,
+  private val internalModelLinesClient: ModelLinesGrpcKt.ModelLinesCoroutineStub? = null,
+  private val internalPopulationsClient: PopulationsGrpcKt.PopulationsCoroutineStub? = null,
+  private val internalModelReleasesClient: ModelReleasesGrpcKt.ModelReleasesCoroutineStub? = null,
+  private val internalModelRolloutsClient: ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub? = null,
   private val runId: String,
   private val requiredDuchies: List<String>,
   private val bazelConfigName: String = DEFAULT_BAZEL_CONFIG_NAME,
@@ -300,6 +300,7 @@ class ResourceSetup(
 
   /** Create an internal modelProvider. */
   suspend fun createInternalModelProvider(): InternalModelProvider {
+    require(internalModelProvidersClient != null)
     return try {
       internalModelProvidersClient.createModelProvider(
         internalModelProvider { }
@@ -311,6 +312,7 @@ class ResourceSetup(
 
   /** Create a modelSuite. */
   suspend fun createModelSuite(modelProvider: ModelProvider): org.wfanet.measurement.internal.kingdom.ModelSuite {
+    require(internalModelSuitesClient != null)
     return internalModelSuitesClient.createModelSuite(
       org.wfanet.measurement.internal.kingdom.modelSuite {
         externalModelProviderId = modelProvider.externalModelProviderId
@@ -321,6 +323,7 @@ class ResourceSetup(
   }
 
   suspend fun createModelLine(modelSuite: org.wfanet.measurement.internal.kingdom.ModelSuite): ModelLine {
+    require(internalModelLinesClient != null)
     val modelLine = modelLine {
       externalModelProviderId = modelSuite.externalModelProviderId
       externalModelSuiteId = modelSuite.externalModelSuiteId
@@ -336,6 +339,7 @@ class ResourceSetup(
     modelSuite: org.wfanet.measurement.internal.kingdom.ModelSuite,
     population: Population,
   ): ModelRelease {
+    require(internalModelReleasesClient != null)
     val modelRelease = modelRelease {
       externalModelProviderId = modelSuite.externalModelProviderId
       externalModelSuiteId = modelSuite.externalModelSuiteId
@@ -348,6 +352,7 @@ class ResourceSetup(
   suspend fun createPopulation(
     dataProvider: DataProvider,
   ): Population {
+    require(internalPopulationsClient != null)
     val population =
       internalPopulationsClient.createPopulation(
         population {
@@ -361,6 +366,7 @@ class ResourceSetup(
   }
 
   suspend fun createModelRollout(modelLine: ModelLine, modelRelease: ModelRelease): ModelRollout {
+    require(internalModelRolloutsClient != null)
     val modelRollout = modelRollout {
       externalModelProviderId = modelLine.externalModelProviderId
       externalModelSuiteId = modelLine.externalModelSuiteId
