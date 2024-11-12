@@ -81,6 +81,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
 
   private fun initMcSimulator() {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val populationData = inProcessCmmsComponents.getPopulationData()
     val eventQuery =
       MetadataSyntheticGeneratorEventQuery(
         SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
@@ -103,6 +104,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
         InProcessCmmsComponents.TRUSTED_CERTIFICATES,
         eventQuery,
         NoiseMechanism.CONTINUOUS_GAUSSIAN,
+        populationData = populationData,
       )
   }
 
@@ -114,6 +116,11 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
   @After
   fun stopDuchyDaemons() {
     inProcessCmmsComponents.stopDuchyDaemons()
+  }
+
+  @After
+  fun stopPopulationRequisitionFulfillerDaemon() {
+    inProcessCmmsComponents.stopPopulationRequisitionFulfillerDaemon()
   }
 
   @Test
@@ -209,6 +216,14 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
 
   // TODO(@renjiez): Add Multi-round test given the same input to verify correctness.
 
+  @Test
+  fun `create a population measurement`() =
+    runBlocking {
+      // Use frontend simulator to create a population measurement
+      mcSimulator.testPopulation(
+        "1234",
+      )
+    }
   companion object {
     // Epsilon can vary from 0.0001 to 1.0, delta = 1e-15 is a realistic value.
     // Set epsilon higher without exceeding privacy budget so the noise is smaller in the

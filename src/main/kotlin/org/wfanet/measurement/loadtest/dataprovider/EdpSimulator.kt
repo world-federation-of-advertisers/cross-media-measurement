@@ -69,12 +69,12 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.honestMajorityShareShuffle
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
@@ -144,7 +144,7 @@ import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults.computeIm
 /** A simulator handling EDP businesses. */
 class EdpSimulator(
   private val edpData: DataProviderData,
-  measurementConsumerName: String,
+  private val measurementConsumerName: String,
   private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
   certificatesStub: CertificatesCoroutineStub,
   private val dataProvidersStub: DataProvidersCoroutineStub,
@@ -183,18 +183,21 @@ class EdpSimulator(
     requisitionsStub,
     throttler,
     trustedCertificates,
-    measurementConsumerName,
   ),
   Health by health {
-  val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
+  private val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
 
-  val supportedProtocols = buildSet {
+  private val supportedProtocols = buildSet {
     add(ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
     add(ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2)
     if (hmssVidIndexMap != null) {
       add(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
     }
   }
+
+  private val measurementConsumerKey =
+    checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
+
 
   /** A sequence of operations done in the simulator. */
   override suspend fun run() {

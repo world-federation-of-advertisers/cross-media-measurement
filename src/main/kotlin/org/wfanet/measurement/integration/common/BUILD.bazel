@@ -29,6 +29,12 @@ java_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:measurements_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:public_keys_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:requisitions_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:model_rollouts_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:model_releases_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:model_suites_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:model_lines_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:populations_service",
+
     ],
 )
 
@@ -110,6 +116,10 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/common:key_handles",
+        "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:population_requisition_fulfiller",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:bad_templates_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
     ],
 )
 
@@ -194,6 +204,36 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "in_process_population_requisition_fulfiller",
+    srcs = [
+        "InProcessPopulationRequisitionFulfiller.kt",
+    ],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    ],
+    deps = [
+        ":all_kingdom_services",
+        ":configs",
+        ":synthetic_generation_specs",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:population_spec_converter",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",
+        "@wfa_common_jvm//imports/java/io/grpc:core",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_kt_jvm_proto",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing:testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:model_releases_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:model_rollouts_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:api_key_authentication_server_interceptor"
+    ],
+)
+
+kt_jvm_library(
     name = "in_process_cmms_components",
     srcs = [
         "InProcessCmmsComponents.kt",
@@ -206,6 +246,7 @@ kt_jvm_library(
         ":in_process_duchy",
         ":in_process_edp_simulator",
         ":in_process_kingdom",
+        ":in_process_population_requisition_fulfiller",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",

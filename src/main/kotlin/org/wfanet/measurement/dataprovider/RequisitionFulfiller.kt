@@ -30,7 +30,6 @@ import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
@@ -75,11 +74,7 @@ abstract class RequisitionFulfiller(
   private val requisitionsStub: RequisitionsCoroutineStub,
   val throttler: Throttler,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
-  protected val measurementConsumerName: String,
 ) {
-  protected val measurementConsumerKey =
-    checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
-
   protected data class Specifications(
     val measurementSpec: MeasurementSpec,
     val requisitionSpec: RequisitionSpec,
