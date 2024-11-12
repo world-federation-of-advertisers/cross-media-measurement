@@ -1,4 +1,4 @@
-# WFA Measurement System
+# Halo CMM Measurement System
 
 **Table of Contents**
 
