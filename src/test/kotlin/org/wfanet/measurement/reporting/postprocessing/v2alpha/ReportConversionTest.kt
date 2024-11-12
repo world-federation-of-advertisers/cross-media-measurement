@@ -37,7 +37,7 @@ class ReportConversionTest {
         measurementPolicy = "ami"
         setOperation = "cumulative"
         isCumulative = true
-        dataProviders += "dataProviders/LkJlb3UZkY8"
+        dataProviders += "edp2"
         measurementResults += measurementResult {
           reach = 24129432
           standardDeviation = 1.0
@@ -58,7 +58,7 @@ class ReportConversionTest {
         measurementPolicy = "ami"
         setOperation = "union"
         isCumulative = false
-        dataProviders += "dataProviders/LkJlb3UZkY8"
+        dataProviders += "edp2"
         measurementResults += measurementResult {
           reach = 1000
           standardDeviation = 102011.27564649425
@@ -80,42 +80,42 @@ class ReportConversionTest {
       measurementDetails += measurementDetail {
         measurementPolicy = "ami"
         setOperation = "union"
-        dataProviders += "dataProviders/LkJlb3UZkY8"
+        dataProviders += "edp2"
         measurementResults += measurementResult {
           reach = 74640
           standardDeviation = 102032.8580350049
-          metric = "measurementConsumers/TjyUnormbAg/metrics/union/single_edp_LkJlb3UZkY8"
+          metric = "measurementConsumers/TjyUnormbAg/metrics/union/single_edp_edp2"
         }
       }
       measurementDetails += measurementDetail {
         measurementPolicy = "ami"
         setOperation = "cumulative"
         isCumulative = true
-        dataProviders += "dataProviders/LkJlb3UZkY8"
+        dataProviders += "edp2"
         measurementResults += measurementResult {
           reach = 30000
           standardDeviation = 137708.79990420336
-          metric = "measurementConsumers/TjyUnormbAg/metrics/cumulative/single_edp_LkJlb3UZkY8"
+          metric = "measurementConsumers/TjyUnormbAg/metrics/cumulative/single_edp_edp2"
         }
       }
       measurementDetails += measurementDetail {
         measurementPolicy = "ami"
         setOperation = "difference"
-        dataProviders += "dataProviders/LkJlb3UZkY8"
-        dataProviders += "dataProviders/TbsgjIrmbj0"
-        dataProviders += "dataProviders/a0tmyormbgQ"
-        uniqueReachTarget = "dataProviders/LkJlb3UZkY8"
+        dataProviders += "edp2"
+        dataProviders += "edp1"
+        dataProviders += "edp3"
+        uniqueReachTarget = "edp2"
         measurementResults += measurementResult {
           reach = 2000
           standardDeviation = 262192.75285658165
-          metric = "measurementConsumers/TjyUnormbAg/metrics/difference/unique_reach_LkJlb3UZkY8"
+          metric = "measurementConsumers/TjyUnormbAg/metrics/difference/unique_reach_edp2"
         }
       }
       measurementDetails += measurementDetail {
         measurementPolicy = "ami"
         setOperation = "difference"
-        dataProviders += "dataProviders/LkJlb3UZkY8"
-        dataProviders += "dataProviders/TbsgjIrmbj0"
+        dataProviders += "edp2"
+        dataProviders += "edp1"
         measurementResults += measurementResult {
           reach = 400
           standardDeviation = 230564.3972774748
@@ -125,42 +125,42 @@ class ReportConversionTest {
       measurementDetails += measurementDetail {
         measurementPolicy = "ami"
         setOperation = "difference"
-        dataProviders += "dataProviders/LkJlb3UZkY8"
-        dataProviders += "dataProviders/TbsgjIrmbj0"
-        dataProviders += "dataProviders/a0tmyormbgQ"
-        uniqueReachTarget = "dataProviders/TbsgjIrmbj0"
+        dataProviders += "edp2"
+        dataProviders += "edp1"
+        dataProviders += "edp3"
+        uniqueReachTarget = "edp1"
         measurementResults += measurementResult {
           reach = 300
           standardDeviation = 261177.24408350687
-          metric = "measurementConsumers/TjyUnormbAg/metrics/difference/unique_reach_TbsgjIrmbj0"
+          metric = "measurementConsumers/TjyUnormbAg/metrics/difference/unique_reach_edp1"
         }
       }
       measurementDetails += measurementDetail {
         measurementPolicy = "ami"
         setOperation = "union"
-        dataProviders += "dataProviders/a0tmyormbgQ"
+        dataProviders += "edp3"
         measurementResults += measurementResult {
           reach = 187439
           standardDeviation = 102065.46555734947
-          metric = "measurementConsumers/TjyUnormbAg/metrics/union/single_edp_a0tmyormbgQ"
+          metric = "measurementConsumers/TjyUnormbAg/metrics/union/single_edp_edp3"
         }
       }
       measurementDetails += measurementDetail {
         measurementPolicy = "ami"
         setOperation = "cumulative"
         isCumulative = true
-        dataProviders += "dataProviders/a0tmyormbgQ"
+        dataProviders += "edp3"
         measurementResults += measurementResult {
           standardDeviation = 137708.79990420336
-          metric = "measurementConsumers/TjyUnormbAg/metrics/cumulative/single_edp_a0tmyormbgQ"
+          metric = "measurementConsumers/TjyUnormbAg/metrics/cumulative/single_edp_edp3"
         }
       }
       measurementDetails += measurementDetail {
         measurementPolicy = "ami"
         setOperation = "union"
-        dataProviders += "dataProviders/LkJlb3UZkY8"
-        dataProviders += "dataProviders/TbsgjIrmbj0"
-        dataProviders += "dataProviders/a0tmyormbgQ"
+        dataProviders += "edp2"
+        dataProviders += "edp1"
+        dataProviders += "edp3"
         measurementResults += measurementResult {
           reach = 91199
           standardDeviation = 137993.02905314422
@@ -171,9 +171,9 @@ class ReportConversionTest {
         measurementPolicy = "ami"
         setOperation = "cumulative"
         isCumulative = true
-        dataProviders += "dataProviders/LkJlb3UZkY8"
-        dataProviders += "dataProviders/TbsgjIrmbj0"
-        dataProviders += "dataProviders/a0tmyormbgQ"
+        dataProviders += "edp2"
+        dataProviders += "edp1"
+        dataProviders += "edp3"
         measurementResults += measurementResult {
           reach = 48300
           standardDeviation = 184559.25807765796
@@ -183,34 +183,34 @@ class ReportConversionTest {
       measurementDetails += measurementDetail {
         measurementPolicy = "ami"
         setOperation = "union"
-        dataProviders += "dataProviders/TbsgjIrmbj0"
+        dataProviders += "edp1"
         measurementResults += measurementResult {
           standardDeviation = 102011.27564649425
-          metric = "measurementConsumers/TjyUnormbAg/metrics/union/single_edp_TbsgjIrmbj0"
+          metric = "measurementConsumers/TjyUnormbAg/metrics/union/single_edp_edp1"
         }
       }
       measurementDetails += measurementDetail {
         measurementPolicy = "ami"
         setOperation = "cumulative"
         isCumulative = true
-        dataProviders += "dataProviders/TbsgjIrmbj0"
+        dataProviders += "edp1"
         measurementResults += measurementResult {
           reach = 189700
           standardDeviation = 137776.9714846423
-          metric = "measurementConsumers/TjyUnormbAg/metrics/cumulative/single_edp_TbsgjIrmbj0"
+          metric = "measurementConsumers/TjyUnormbAg/metrics/cumulative/single_edp_edp1"
         }
       }
       measurementDetails += measurementDetail {
         measurementPolicy = "ami"
         setOperation = "difference"
-        dataProviders += "dataProviders/LkJlb3UZkY8"
-        dataProviders += "dataProviders/TbsgjIrmbj0"
-        dataProviders += "dataProviders/a0tmyormbgQ"
-        uniqueReachTarget = "dataProviders/a0tmyormbgQ"
+        dataProviders += "edp2"
+        dataProviders += "edp1"
+        dataProviders += "edp3"
+        uniqueReachTarget = "edp3"
         measurementResults += measurementResult {
           reach = 100
           standardDeviation = 261663.2405567259
-          metric = "measurementConsumers/TjyUnormbAg/metrics/difference/unique_reach_a0tmyormbgQ"
+          metric = "measurementConsumers/TjyUnormbAg/metrics/difference/unique_reach_edp3"
         }
       }
     }
