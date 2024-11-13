@@ -54,6 +54,7 @@ import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.channelFlow
@@ -265,6 +266,8 @@ class KubernetesClientImpl(
             println("Pod status $name: ${it.`object`.status}")
             println("Pod spec $name: ${it.`object`.spec.toJson()}")
           }
+
+        delay(Duration.ofSeconds(5).toMillis())
 
         when (WatchEventType.valueOf(response.type)) {
           WatchEventType.ADDED,
