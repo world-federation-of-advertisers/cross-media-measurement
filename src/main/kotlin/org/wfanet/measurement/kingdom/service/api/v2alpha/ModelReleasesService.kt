@@ -33,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleaseKey
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase as ModelReleasesCoroutineService
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
+import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.listModelReleasesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelReleasesResponse
@@ -44,7 +45,6 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.ModelRelease as InternalModelRelease
-import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequestKt.afterFilter

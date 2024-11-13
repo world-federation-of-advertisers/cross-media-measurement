@@ -554,7 +554,10 @@ fun ModelSuite.toInternal(modelProviderKey: ModelProviderKey): InternalModelSuit
 
 /** Converts a public [ModelRelease] to an internal [InternalModelRelease] */
 @Suppress("UnusedReceiverParameter") //
-fun ModelRelease.toInternal(modelSuiteKey: ModelSuiteKey, populationKey: PopulationKey): InternalModelRelease {
+fun ModelRelease.toInternal(
+  modelSuiteKey: ModelSuiteKey,
+  populationKey: PopulationKey,
+): InternalModelRelease {
   return internalModelRelease {
     externalModelProviderId = apiIdToExternalId(modelSuiteKey.modelProviderId)
     externalModelSuiteId = apiIdToExternalId(modelSuiteKey.modelSuiteId)
@@ -576,7 +579,12 @@ fun InternalModelRelease.toModelRelease(): ModelRelease {
         )
         .toName()
     createTime = source.createTime
-    population = PopulationKey(externalIdToApiId(source.externalDataProviderId), externalIdToApiId(source.externalPopulationId)).toName()
+    population =
+      PopulationKey(
+          externalIdToApiId(source.externalDataProviderId),
+          externalIdToApiId(source.externalPopulationId),
+        )
+        .toName()
   }
 }
 

@@ -33,12 +33,14 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesRequest
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleaseKey
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
+import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
@@ -70,8 +72,6 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getModelReleaseRequest as internalGetModelReleaseRequest
 import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRelease
 import org.wfanet.measurement.internal.kingdom.streamModelReleasesRequest as internalStreamModelReleasesRequest
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
 
@@ -104,7 +104,6 @@ private val EXTERNAL_DATA_PROVIDER_ID =
   apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
 private val EXTERNAL_POPULATION_ID =
   apiIdToExternalId(PopulationKey.fromName(POPULATION_NAME)!!.populationId)
-
 
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 
