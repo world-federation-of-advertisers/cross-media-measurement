@@ -122,6 +122,7 @@ class ReportingUserSimulator(
   }
 
   private suspend fun listEventGroups(): List<EventGroup> {
+    println("measurement consumer name: $measurementConsumerName")
     try {
       return buildList {
         var response: ListEventGroupsResponse = ListEventGroupsResponse.getDefaultInstance()
