@@ -258,7 +258,7 @@ class KubernetesClientImpl(
           coreApi
             .listNamespacedPod(namespace)
             .fieldSelector("metadata.name=$name")
-            .timeoutSeconds(timeout.seconds.toInt())
+            .timeoutSeconds(1)
             .watch(true)
             .buildCall(null)
         )
@@ -266,8 +266,6 @@ class KubernetesClientImpl(
             println("Pod status $name: ${it.`object`.status}")
             println("Pod spec $name: ${it.`object`.spec.toJson()}")
           }
-
-        delay(Duration.ofSeconds(5).toMillis())
 
         when (WatchEventType.valueOf(response.type)) {
           WatchEventType.ADDED,
