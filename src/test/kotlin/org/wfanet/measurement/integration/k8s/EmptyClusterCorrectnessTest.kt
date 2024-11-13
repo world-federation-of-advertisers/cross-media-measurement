@@ -75,6 +75,7 @@ import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
 import org.wfanet.measurement.loadtest.resourcesetup.Resources
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt
+import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt
 
 /**
@@ -294,7 +295,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
             publicApiChannel
           ),
         reportingSetsClient =
-          org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub(
+          ReportingSetsGrpcKt.ReportingSetsCoroutineStub(
             publicApiChannel
           ),
         metricCalculationSpecsClient =
