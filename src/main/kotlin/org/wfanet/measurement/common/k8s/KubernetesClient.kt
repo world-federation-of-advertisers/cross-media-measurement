@@ -54,7 +54,6 @@ import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.channelFlow
@@ -254,19 +253,6 @@ class KubernetesClientImpl(
           .buildCall(null)
       )
       .filter { response: Watch.Response<V1Deployment> ->
-        watch<V1Pod>(
-          coreApi
-            .listNamespacedPod(namespace)
-            .fieldSelector("metadata.name=$name")
-            .timeoutSeconds(1)
-            .watch(true)
-            .buildCall(null)
-        )
-          .collect {
-            println("Pod status $name: ${it.`object`.status}")
-            println("Pod spec $name: ${it.`object`.spec.toJson()}")
-          }
-
         when (WatchEventType.valueOf(response.type)) {
           WatchEventType.ADDED,
           WatchEventType.MODIFIED -> true
