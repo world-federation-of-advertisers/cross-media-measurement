@@ -253,6 +253,16 @@ class KubernetesClientImpl(
           .buildCall(null)
       )
       .filter { response: Watch.Response<V1Deployment> ->
+        watch<V1Pod>(
+          coreApi
+            .listNamespacedPod(namespace)
+            .fieldSelector("metadata.name=$name")
+            .timeoutSeconds(timeout.seconds.toInt())
+            .watch(true)
+            .buildCall(null)
+        )
+          .collect { println("Pod status $name: ${it.`object`.status}") }
+
         when (WatchEventType.valueOf(response.type)) {
           WatchEventType.ADDED,
           WatchEventType.MODIFIED -> true
