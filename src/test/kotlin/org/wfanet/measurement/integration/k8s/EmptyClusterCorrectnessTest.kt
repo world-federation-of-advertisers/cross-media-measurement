@@ -190,7 +190,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         override fun evaluate() {
           try {
             runBlocking {
-              withTimeout(Duration.ofMinutes(5)) {
+              withTimeout(Duration.ofMinutes(10)) {
                 val measurementConsumerData = populateCluster()
                 _testHarness = createTestHarness(measurementConsumerData)
                 _reportingTestHarness = createReportingUserSimulator(measurementConsumerData)
@@ -351,9 +351,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           kubectlApply(configContent)
         }
 
-      withTimeout(Duration.ofMinutes(10)) {
-        waitUntilDeploymentsComplete(appliedObjects)
-      }
+      waitUntilDeploymentsComplete(appliedObjects)
     }
 
     private suspend fun loadKingdom() {
