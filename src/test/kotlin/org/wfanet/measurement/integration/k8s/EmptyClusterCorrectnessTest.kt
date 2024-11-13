@@ -277,7 +277,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     ): ReportingUserSimulator {
       val reportingPublicPod: V1Pod = getPod(REPORTING_PUBLIC_DEPLOYMENT_NAME)
 
-      val publicApiForwarder = PortForwarder(reportingPublicPod, REPORTING_SERVER_PORT)
+      val publicApiForwarder = PortForwarder(reportingPublicPod, SERVER_PORT)
       portForwarders.add(publicApiForwarder)
 
       val publicApiAddress: InetSocketAddress =
@@ -500,7 +500,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     }
 
     private const val SERVER_PORT: Int = 8443
-    private const val REPORTING_SERVER_PORT: Int = 9443
     private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
     private const val KINGDOM_INTERNAL_DEPLOYMENT_NAME = "gcp-kingdom-data-server-deployment"
     private const val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"

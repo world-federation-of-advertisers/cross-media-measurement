@@ -54,7 +54,6 @@ class EventGroupsService(
   private val celEnvProvider: CelEnvProvider,
 ) : EventGroupsCoroutineImplBase() {
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
-    println("testing testing testing")
     val parentKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid."
