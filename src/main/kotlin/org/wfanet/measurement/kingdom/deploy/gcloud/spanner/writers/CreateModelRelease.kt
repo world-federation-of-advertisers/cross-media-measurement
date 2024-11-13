@@ -29,6 +29,7 @@ import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ModelRelease
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PopulationNotFoundException
 
 class CreateModelRelease(private val modelRelease: ModelRelease) :
   SpannerWriter<ModelRelease, ModelRelease>() {
@@ -45,7 +46,7 @@ class CreateModelRelease(private val modelRelease: ModelRelease) :
     val externalPopulationId = ExternalId(modelRelease.externalPopulationId)
     val populationData: Struct =
       readPopulationData(externalDataProviderId, externalPopulationId)
-        ?: throw ModelSuiteNotFoundException(externalDataProviderId, externalPopulationId)
+        ?: throw PopulationNotFoundException(externalDataProviderId, externalPopulationId)
 
     val internalModelReleaseId = idGenerator.generateInternalId()
     val externalModelReleaseId = idGenerator.generateExternalId()
