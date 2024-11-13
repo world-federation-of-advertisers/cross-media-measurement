@@ -261,7 +261,10 @@ class KubernetesClientImpl(
             .watch(true)
             .buildCall(null)
         )
-          .collect { println("Pod status $name: ${it.`object`.status}") }
+          .collect {
+            println("Pod status $name: ${it.`object`.status}")
+            println("Pod spec $name: ${it.`object`.spec.toJson()}")
+          }
 
         when (WatchEventType.valueOf(response.type)) {
           WatchEventType.ADDED,
