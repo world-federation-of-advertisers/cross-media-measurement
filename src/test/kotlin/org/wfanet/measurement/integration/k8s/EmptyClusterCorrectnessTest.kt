@@ -425,6 +425,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       return ResourceSetupOutput(
         resources,
         outputDir.resolve(ResourceSetup.AKID_PRINCIPAL_MAP_FILE),
+        outputDir.resolve(ResourceSetup.MEASUREMENT_CONSUMER_CONFIG_FILE),
       )
     }
 
@@ -486,6 +487,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     data class ResourceSetupOutput(
       val resources: List<Resources.Resource>,
       val akidPrincipalMap: File,
+      val measurementConsumerConfig: File,
     )
   }
 

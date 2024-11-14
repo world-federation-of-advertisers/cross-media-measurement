@@ -65,6 +65,8 @@ import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
+import org.wfanet.measurement.config.reporting.measurementConsumerConfig
+import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
@@ -211,6 +213,23 @@ class ResourceSetup(
     }
     output.resolve(AKID_PRINCIPAL_MAP_FILE).writer().use { writer ->
       TextFormat.printer().print(akidMap, writer)
+    }
+
+    val measurementConsumerConfig = measurementConsumerConfigs {
+      for (resource in resources) {
+        when (resource.resourceCase) {
+          Resources.Resource.ResourceCase.MEASUREMENT_CONSUMER ->
+            configs.put(resource.name, measurementConsumerConfig {
+              apiKey = resource.measurementConsumer.apiKey
+              signingCertificateName = resource.measurementConsumer.certificate
+              signingPrivateKeyPath = MEASUREMENT_CONSUMER_SIGNING_PRIVATE_KEY_PATH
+            })
+          else -> continue
+        }
+      }
+    }
+    output.resolve(MEASUREMENT_CONSUMER_CONFIG_FILE).writer().use { writer ->
+      TextFormat.printer().print(measurementConsumerConfig, writer)
     }
 
     val configName = bazelConfigName
@@ -413,6 +432,8 @@ class ResourceSetup(
     const val RESOURCES_OUTPUT_FILE = "resources.textproto"
     const val AKID_PRINCIPAL_MAP_FILE = "authority_key_identifier_to_principal_map.textproto"
     const val BAZEL_RC_FILE = "resource-setup.bazelrc"
+    const val MEASUREMENT_CONSUMER_CONFIG_FILE = "measurement_consumer_config.textproto"
+    const val MEASUREMENT_CONSUMER_SIGNING_PRIVATE_KEY_PATH = "mc_cs_private.der"
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
