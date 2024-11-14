@@ -192,10 +192,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         override fun evaluate() {
           try {
             runBlocking {
-              withTimeout(Duration.ofMinutes(10)) {
+              withTimeout(Duration.ofMinutes(5)) {
                 val measurementConsumerData = populateCluster()
                 _testHarness = createTestHarness(measurementConsumerData)
-                delay(240000)
                 _reportingTestHarness = createReportingUserSimulator(measurementConsumerData)
               }
             }
@@ -285,7 +284,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val publicApiAddress: InetSocketAddress =
         withContext(Dispatchers.IO) { publicApiForwarder.start() }
       val publicApiChannel: Channel =
-        buildMutualTlsChannel(publicApiAddress.toTarget(), MEASUREMENT_CONSUMER_SIGNING_CERTS)
+        buildMutualTlsChannel(publicApiAddress.toTarget(), REPORTING_SIGNING_CERTS)
           .also { channels.add(it) }
           .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
 
