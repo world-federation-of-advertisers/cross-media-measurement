@@ -251,14 +251,7 @@ abstract class MillBase(
     try {
       processComputationImpl(token)
     } catch (e: Exception) {
-      try {
-        // The token version may have already changed. We need the latest token in order to complete
-        // or enqueue the computation.
-        val latestToken = getLatestComputationToken(globalId)
-        handleExceptions(latestToken, e)
-      } catch (e: Exception) {
-        handleExceptions(token, e)
-      }
+      handleExceptions(token, e)
     }
     logger.info("$globalId@$millId: Processed computation ")
 
@@ -271,6 +264,22 @@ abstract class MillBase(
 
   private suspend fun handleExceptions(token: ComputationToken, e: Exception) {
     val globalId = token.globalComputationId
+    val latestToken =
+      try {
+        getLatestComputationToken(globalId)
+      } catch (e: Exception) {
+        logger.log(Level.WARNING, e) {
+          "$globalId@$millId: Fail to get latest token during exception handling."
+        }
+        return
+      }
+    if (latestToken.version != token.version) {
+      logger.log(Level.WARNING, e) {
+        "$globalId@$millId: Skip exception handling as token has been outdated."
+      }
+      return
+    }
+
     when (e) {
       is ComputationDataClients.TransientErrorException -> {
         if (token.attempt > maximumAttempts) {
