@@ -17,20 +17,13 @@ package org.wfanet.measurement.integration.common
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.google.protobuf.ByteString
-import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Message
-import com.google.protobuf.TypeRegistry
 import io.grpc.serviceconfig.ServiceConfig
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Instant
 import org.jetbrains.annotations.Blocking
-import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
-import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
@@ -39,8 +32,6 @@ import org.wfanet.measurement.common.crypto.tink.TinkPublicKeyHandle
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
-import org.wfanet.measurement.common.pack
-//import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.toInstant
@@ -52,7 +43,6 @@ import org.wfanet.measurement.internal.kingdom.HmssProtocolConfigConfig
 import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
-import org.wfanet.measurement.populationdataprovider.PopulationInfo
 
 private val SECRET_FILES_PATH: Path =
   checkNotNull(
@@ -173,76 +163,6 @@ fun createEntityContent(displayName: String) =
       loadEncryptionPublicKey("${displayName}_enc_public.tink").toEncryptionPublicKey(),
     signingKey = loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der"),
   )
-
-/** Builds a PopulationInfo used by PopulationRequisitionFulfiller. */
-@Blocking
-fun createPopulationInfo(): PopulationInfo {
-  val person1 = person {
-    ageGroup = Person.AgeGroup.YEARS_18_TO_34
-    gender = Person.Gender.MALE
-    socialGradeGroup = Person.SocialGradeGroup.A_B_C1
-  }
-  val person2 = person {
-    ageGroup = Person.AgeGroup.YEARS_35_TO_54
-    gender = Person.Gender.MALE
-    socialGradeGroup = Person.SocialGradeGroup.A_B_C1
-  }
-  val person3 = person {
-    ageGroup = Person.AgeGroup.YEARS_18_TO_34
-    gender = Person.Gender.FEMALE
-    socialGradeGroup = Person.SocialGradeGroup.A_B_C1
-  }
-
-  val attribute1 = person1.pack()
-  val attribute2 = person2.pack()
-  val attribute3 = person3.pack()
-
-  val vidRange1 = PopulationSpecKt.vidRange {
-    startVid = 1
-    endVidInclusive = 100
-  }
-  val vidRange2 = PopulationSpecKt.vidRange {
-    startVid = 101
-    endVidInclusive = 300
-  }
-  val vidRange3 = PopulationSpecKt.vidRange {
-    startVid = 301
-    endVidInclusive = 600
-  }
-
-  // Male 18-34
-  val subPopulation1 = PopulationSpecKt.subPopulation {
-    attributes += listOf(attribute1)
-    vidRanges += listOf(vidRange1)
-  }
-  // Male 35-54
-  val subPopulation2 = PopulationSpecKt.subPopulation {
-    attributes += listOf(attribute2)
-    vidRanges += listOf(vidRange2)
-  }
-  // Female 18-34
-  val subPopulation3 = PopulationSpecKt.subPopulation {
-    attributes += listOf(attribute3)
-    vidRanges += listOf(vidRange3)
-  }
-
-  val populationSpec = populationSpec {
-    subpopulations += listOf(subPopulation1, subPopulation2, subPopulation3)
-  }
-  val populationInfo = PopulationInfo(populationSpec, TestEvent.getDescriptor())
-
-  return populationInfo
-}
-
-/** Builds a TypeRegistry used by PopulationRequisitionFulfiller. */
-@Blocking
-fun createTypeRegistry(descriptorList: List<Descriptor>): TypeRegistry {
-  val typeRegistryBuilder = TypeRegistry.newBuilder()
-  descriptorList.forEach{
-    typeRegistryBuilder.add(it)
-  }
-  return typeRegistryBuilder.build()
-}
 
 /**
  * Default grpc service config map to apply to all services.

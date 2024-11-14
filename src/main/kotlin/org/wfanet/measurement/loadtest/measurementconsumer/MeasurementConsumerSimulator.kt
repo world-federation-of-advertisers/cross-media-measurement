@@ -121,6 +121,8 @@ import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as S
 import com.google.protobuf.TypeRegistry
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.population
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Dummy
@@ -178,8 +180,12 @@ class MeasurementConsumerSimulator(
     val measurement: Measurement,
     val measurementSpec: MeasurementSpec,
     val requisitions: List<RequisitionInfo>,
+  )
+
+  data class PopulationMeasurementInfo(
     val populationInfo: PopulationInfo,
     val typeRegistry: TypeRegistry,
+    val measurementInfo: MeasurementInfo,
   )
 
   private data class MeasurementComputationInfo(
@@ -631,14 +637,14 @@ class MeasurementConsumerSimulator(
     logger.info { "Creating population Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
-    val measurementInfo: MeasurementInfo =
+    val populationMeasurementInfo: PopulationMeasurementInfo =
       createPopulationMeasurement(
         measurementConsumer,
         runId,
         ::newPopulationMeasurementSpec,
       )
 
-    val measurementName = measurementInfo.measurement.name
+    val measurementName = populationMeasurementInfo.measurementInfo.measurement.name
     logger.info { "Created population Measurement $measurementName" }
 
     // Get the CMMS computed result and compare it with the expected result.
@@ -647,7 +653,7 @@ class MeasurementConsumerSimulator(
     }
     logger.info("Got population result from Kingdom: $populationResult")
 
-      val expectedResult = getExpectedResult(measurementInfo)
+      val expectedResult = getExpectedPopulationResult(populationMeasurementInfo)
       logger.info("Expected result: $expectedResult")
 
       assertThat(populationResult.population.value).isEqualTo(expectedResult.population.value)
@@ -835,7 +841,7 @@ class MeasurementConsumerSimulator(
           val nonce = Random.Default.nextLong()
           nonceHashes.add(Hashing.hashSha256(nonce))
           val dataProvider = keyToDataProviderMap.getValue(dataProviderKey)
-          buildRequisitionInfo(dataProvider, eventGroups, measurementConsumer, nonce, false)
+          buildRequisitionInfo(dataProvider, eventGroups, measurementConsumer, nonce)
         }
 
     val measurementSpec = newMeasurementSpec(measurementConsumer.publicKey.message, nonceHashes)
@@ -849,15 +855,20 @@ class MeasurementConsumerSimulator(
     runId: String,
     newMeasurementSpec:
     (packedMeasurementPublicKey: ProtoAny, nonceHashes: List<ByteString>) -> MeasurementSpec,
-  ): MeasurementInfo {
+  ): PopulationMeasurementInfo {
     val nonce = Random.Default.nextLong()
     val nonceHashes = mutableListOf<ByteString>()
     nonceHashes.add(Hashing.hashSha256(nonce))
     val populationDataProvider = getDataProvider(populationData.populationDataProviderName)
-    val requisitions = listOf(buildRequisitionInfo(populationDataProvider, listOf(), measurementConsumer, nonce, true))
+    val requisitions = listOf(buildPopulationMeasurementRequisitionInfo(populationDataProvider, measurementConsumer, nonce))
     val measurementSpec = newMeasurementSpec(measurementConsumer.publicKey.message, nonceHashes)
 
-    return createMeasurementInfo(measurementConsumer, measurementSpec, requisitions, runId)
+    val measurementInfo = createMeasurementInfo(measurementConsumer, measurementSpec, requisitions, runId)
+    return PopulationMeasurementInfo(
+      populationData.populationInfo,
+      populationData.typeRegistry,
+      measurementInfo
+    )
   }
 
   private suspend fun createMeasurementInfo(
@@ -885,7 +896,7 @@ class MeasurementConsumerSimulator(
         throw Exception("Error creating Measurement", e)
       }
 
-    return MeasurementInfo(measurement, measurementSpec, requisitions, populationData.populationInfo, populationData.typeRegistry)
+    return MeasurementInfo(measurement, measurementSpec, requisitions)
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
@@ -1024,7 +1035,7 @@ class MeasurementConsumerSimulator(
         getExpectedReachAndFrequencyResult(measurementInfo)
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> error("Should not be reached.")
       MeasurementSpec.MeasurementTypeCase.DURATION -> getExpectedDurationResult()
-      MeasurementSpec.MeasurementTypeCase.POPULATION -> getExpectedPopulationResult(measurementInfo)
+      MeasurementSpec.MeasurementTypeCase.POPULATION -> error("Should not be reached.")
       MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
         error("measurement_type not set")
     }
@@ -1051,12 +1062,13 @@ class MeasurementConsumerSimulator(
     }
   }
 
-  private fun getExpectedPopulationResult(measurementInfo: MeasurementInfo): Result {
+  private fun getExpectedPopulationResult(populationMeasurementInfo: PopulationMeasurementInfo): Result {
+    val measurementInfo = populationMeasurementInfo.measurementInfo
     val requisition = measurementInfo.requisitions[0]
         val requisitionSpec = requisition.requisitionSpec
         val requisitionFilterExpression = requisitionSpec.population.filter.expression
 
-        val operativeFields = measurementInfo.populationInfo.eventMessageDescriptor.fields
+        val operativeFields = populationMeasurementInfo.populationInfo.eventMessageDescriptor.fields
           .flatMap { templateField ->
             templateField.messageType.fields.map { templateFieldDescriptor ->
               if (
@@ -1070,7 +1082,7 @@ class MeasurementConsumerSimulator(
           }
           .filterNotNull()
           .toSet()
-        val eventMessageDescriptor = measurementInfo.populationInfo.eventMessageDescriptor
+        val eventMessageDescriptor = populationMeasurementInfo.populationInfo.eventMessageDescriptor
         val program: Program =
           EventFilters.compileProgram(
             eventMessageDescriptor,
@@ -1080,7 +1092,7 @@ class MeasurementConsumerSimulator(
         return result {
           population =
             MeasurementKt.ResultKt.population {
-              value = computePopulation(measurementInfo.populationInfo, program, measurementInfo.typeRegistry)
+              value = computePopulation(populationMeasurementInfo.populationInfo, program, populationMeasurementInfo.typeRegistry)
             }
         }
   }
@@ -1260,19 +1272,8 @@ class MeasurementConsumerSimulator(
     eventGroups: List<EventGroup>,
     measurementConsumer: MeasurementConsumer,
     nonce: Long,
-    isPopulationMeasurement: Boolean,
   ): RequisitionInfo {
-    val requisitionSpec = if(isPopulationMeasurement){
-      requisitionSpec {
-        population = population {
-          filter = eventFilter {
-            expression = populationFilterExpression
-          }
-        }
-        measurementPublicKey = measurementConsumer.publicKey.message
-        this.nonce = nonce
-      }
-    } else {
+    val requisitionSpec =
        requisitionSpec {
         for (eventGroup in eventGroups) {
           events =
@@ -1290,13 +1291,35 @@ class MeasurementConsumerSimulator(
         measurementPublicKey = measurementConsumer.publicKey.message
         this.nonce = nonce
       }
-    }
     val signedRequisitionSpec =
       signRequisitionSpec(requisitionSpec, measurementConsumerData.signingKey)
     val dataProviderEntry =
       dataProvider.toDataProviderEntry(signedRequisitionSpec, Hashing.hashSha256(nonce))
 
     return RequisitionInfo(dataProviderEntry, requisitionSpec, eventGroups)
+  }
+
+  private fun buildPopulationMeasurementRequisitionInfo(
+    dataProvider: DataProvider,
+    measurementConsumer: MeasurementConsumer,
+    nonce: Long,
+  ): RequisitionInfo {
+    val requisitionSpec =
+      requisitionSpec {
+        population = population {
+          filter = eventFilter {
+            expression = populationFilterExpression
+          }
+        }
+        measurementPublicKey = measurementConsumer.publicKey.message
+        this.nonce = nonce
+      }
+    val signedRequisitionSpec =
+      signRequisitionSpec(requisitionSpec, measurementConsumerData.signingKey)
+    val dataProviderEntry =
+      dataProvider.toDataProviderEntry(signedRequisitionSpec, Hashing.hashSha256(nonce))
+
+    return RequisitionInfo(dataProviderEntry, requisitionSpec, listOf())
   }
 
   private fun DataProvider.toDataProviderEntry(
@@ -1349,8 +1372,8 @@ class MeasurementConsumerSimulator(
         "(video_ad.viewed_fraction > 0.25 || video_ad.viewed_fraction == 0.25)"
 
     private val DEFAULT_POPULATION_DATA = PopulationData(
-      populationDataProviderName = "dataProviders/AAAAAAAAAHs",
-      populationMeasurementModelLineName = "modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelLines/AAAAAAAAAHs",
+      populationDataProviderName = DataProvider.getDefaultInstance().name,
+      populationMeasurementModelLineName = ModelLine.getDefaultInstance().name,
       populationInfo= PopulationInfo(PopulationSpec.getDefaultInstance(), Dummy.getDescriptor()),
       typeRegistry = TypeRegistry.getEmptyTypeRegistry()
     )

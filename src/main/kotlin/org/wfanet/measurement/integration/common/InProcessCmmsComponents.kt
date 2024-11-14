@@ -34,6 +34,7 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Dummy
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.identity.DuchyInfo
@@ -49,6 +50,7 @@ import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.service.api.v2alpha.toModelLine
 import org.wfanet.measurement.kingdom.service.api.v2alpha.toPopulation
+import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.PopulationData
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
@@ -224,14 +226,14 @@ class InProcessCmmsComponents(
   private suspend fun createPopulationResources(resourceSetup: ResourceSetup) {
     val internalDataProvider = resourceSetup.createInternalDataProvider(createEntityContent(PDP_DISPLAY_NAME))
     val internalModelProvider = resourceSetup.createInternalModelProvider()
-    val internalModelSuite = resourceSetup.createModelSuite(internalModelProvider)
-    val internalModelLine = resourceSetup.createModelLine(internalModelSuite)
-    val population = resourceSetup.createPopulation(internalDataProvider)
-    val internalModelRelease = resourceSetup.createModelRelease(internalModelSuite, population)
-    resourceSetup.createModelRollout(internalModelLine, internalModelRelease)
+    val internalModelSuite = resourceSetup.createInternalModelSuite(internalModelProvider)
+    val internalModelLine = resourceSetup.createInternalModelLine(internalModelSuite)
+    val population = resourceSetup.createInternalPopulation(internalDataProvider)
+    val internalModelRelease = resourceSetup.createInternalModelRelease(internalModelSuite, population)
+    resourceSetup.createInternalModelRollout(internalModelLine, internalModelRelease)
     measurementModelLineName = internalModelLine.toModelLine().name
     val populationKey = PopulationKey.fromName(population.toPopulation().name) ?: PopulationKey.defaultValue
-    populationInfo = createPopulationInfo()
+    populationInfo = PopulationInfo(SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE.toPopulationSpec(), TestEvent.getDescriptor())
     populationInfoMap = mapOf(populationKey to populationInfo)
     val externalDataProviderId = externalIdToApiId(internalDataProvider.externalDataProviderId)
     val externalCertificateId =
@@ -245,7 +247,7 @@ class InProcessCmmsComponents(
         ResourceKt.dataProvider { certificate = externalDataProviderCertificateKeyName }
     }
 
-    typeRegistry = createTypeRegistry(listOf(Person.getDescriptor(), Dummy.getDescriptor()))
+    typeRegistry = TypeRegistry.newBuilder().add(listOf(Person.getDescriptor(), Dummy.getDescriptor())).build()
   }
 
   fun getMeasurementConsumerData(): MeasurementConsumerData {
