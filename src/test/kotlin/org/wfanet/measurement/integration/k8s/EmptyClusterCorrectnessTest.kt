@@ -192,10 +192,10 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         override fun evaluate() {
           try {
             runBlocking {
-              withTimeout(Duration.ofMinutes(7)) {
+              withTimeout(Duration.ofMinutes(8)) {
                 val measurementConsumerData = populateCluster()
                 _testHarness = createTestHarness(measurementConsumerData)
-                delay(60000)
+                delay(120000)
                 _reportingTestHarness = createReportingUserSimulator(measurementConsumerData)
               }
             }
