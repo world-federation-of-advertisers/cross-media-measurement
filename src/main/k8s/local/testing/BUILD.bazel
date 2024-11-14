@@ -78,18 +78,6 @@ kustomization_dir(
 )
 
 kustomization_dir(
-    name = "mc_config",
-    srcs = [
-        "mc_config_kustomization.yaml",
-        ":measurement_consumer_config.textproto",
-    ],
-    renames = {
-        "mc_config_kustomization.yaml": "kustomization.yaml",
-    },
-    tags = ["manual"],
-)
-
-kustomization_dir(
     name = "cmms",
     srcs = [
         ":duchies",
@@ -104,7 +92,7 @@ kustomization_dir(
     deps = [
         ":config_files",
         ":db_creds",
-        ":mc_config",
+        "//src/main/k8s/local:mc_config",
         "//src/main/k8s/testing/secretfiles:kustomization",
     ],
 )

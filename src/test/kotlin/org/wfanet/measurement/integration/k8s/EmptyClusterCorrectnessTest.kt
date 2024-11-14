@@ -225,7 +225,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val resourceSetupOutput =
         runResourceSetup(duchyCerts, edpEntityContents, measurementConsumerContent)
       val resourceInfo = ResourceInfo.from(resourceSetupOutput.resources)
-      loadFullCmms(resourceInfo, resourceSetupOutput.akidPrincipalMap)
+      loadFullCmms(resourceInfo, resourceSetupOutput.akidPrincipalMap, resourceSetupOutput.measurementConsumerConfig)
 
       val encryptionPrivateKey: TinkPrivateKeyHandle =
         withContext(Dispatchers.IO) {
@@ -313,7 +313,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       }
     }
 
-    private suspend fun loadFullCmms(resourceInfo: ResourceInfo, akidPrincipalMap: File) {
+    private suspend fun loadFullCmms(resourceInfo: ResourceInfo, akidPrincipalMap: File, measurementConsumerConfig: File) {
       val appliedObjects: List<KubernetesObject> =
         withContext(Dispatchers.IO) {
           val outputDir = tempDir.newFolder("cmms")
@@ -322,6 +322,10 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           val configFilesDir = outputDir.toPath().resolve(CONFIG_FILES_PATH).toFile()
           logger.info("Copying $akidPrincipalMap to $CONFIG_FILES_PATH")
           akidPrincipalMap.copyTo(configFilesDir.resolve(akidPrincipalMap.name))
+
+          val mcConfigDir = outputDir.toPath().resolve(MC_CONFIG_PATH).toFile()
+          logger.info("Copying $measurementConsumerConfig to $MC_CONFIG_PATH")
+          measurementConsumerConfig.copyTo(mcConfigDir.resolve(measurementConsumerConfig.name))
 
           val configTemplate: File = outputDir.resolve("config.yaml")
           kustomize(
@@ -514,6 +518,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")
     private val LOCAL_K8S_TESTING_PATH = LOCAL_K8S_PATH.resolve("testing")
     private val CONFIG_FILES_PATH = LOCAL_K8S_TESTING_PATH.resolve("config_files")
+    private val MC_CONFIG_PATH = LOCAL_K8S_TESTING_PATH.resolve("mc_config")
     private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_local_images.bash")
 
     private val tempDir = TemporaryFolder()
