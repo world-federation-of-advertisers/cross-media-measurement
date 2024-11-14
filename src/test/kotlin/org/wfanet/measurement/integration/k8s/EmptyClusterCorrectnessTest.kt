@@ -32,6 +32,7 @@ import java.time.Duration
 import java.util.UUID
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.time.withTimeout
 import kotlinx.coroutines.withContext
@@ -191,9 +192,10 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         override fun evaluate() {
           try {
             runBlocking {
-              withTimeout(Duration.ofMinutes(5)) {
+              withTimeout(Duration.ofMinutes(6)) {
                 val measurementConsumerData = populateCluster()
                 _testHarness = createTestHarness(measurementConsumerData)
+                delay(30000)
                 _reportingTestHarness = createReportingUserSimulator(measurementConsumerData)
               }
             }
