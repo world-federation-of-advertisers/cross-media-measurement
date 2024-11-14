@@ -559,7 +559,7 @@
               "reach": {
                 "value": "31569000",
                 "univariateStatistics": {
-                  "standardDeviation": 102011.27564649425
+                  "standardDeviation": 1.0
                 }
               },
               "frequencyHistogram": {
@@ -682,7 +682,7 @@
               "reach": {
                 "value": "31569000",
                 "univariateStatistics": {
-                  "standardDeviation": 102011.27564649425
+                  "standardDeviation": 1.0
                 }
               },
               "frequencyHistogram": {
