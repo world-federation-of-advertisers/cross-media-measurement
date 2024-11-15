@@ -228,7 +228,6 @@ class ResourceSetup(
         }
       }
     }
-    println("measurement consumer config: $measurementConsumerConfig")
     output.resolve(MEASUREMENT_CONSUMER_CONFIG_FILE).writer().use { writer ->
       TextFormat.printer().print(measurementConsumerConfig, writer)
     }

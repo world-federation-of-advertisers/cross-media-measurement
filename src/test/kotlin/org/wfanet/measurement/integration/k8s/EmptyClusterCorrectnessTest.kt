@@ -315,6 +315,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     }
 
     private suspend fun loadFullCmms(resourceInfo: ResourceInfo, akidPrincipalMap: File, measurementConsumerConfig: File) {
+      println("print akidPrincipalMap: $akidPrincipalMap")
+      println("print measurementConsumerConfig: $measurementConsumerConfig")
       val appliedObjects: List<KubernetesObject> =
         withContext(Dispatchers.IO) {
           val outputDir = tempDir.newFolder("cmms")
