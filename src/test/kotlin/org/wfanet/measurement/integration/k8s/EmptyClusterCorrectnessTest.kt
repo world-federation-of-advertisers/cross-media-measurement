@@ -330,8 +330,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           logger.info("Copying $measurementConsumerConfig to $MC_CONFIG_PATH")
           measurementConsumerConfig.copyTo(mcConfigDir.resolve(measurementConsumerConfig.name))
 
-          println("measurement consumer config text: ${parseTextProto(measurementConsumerConfig, MeasurementConsumerConfigs.getDefaultInstance())}")
-
           val configTemplate: File = outputDir.resolve("config.yaml")
           kustomize(
             outputDir.toPath().resolve(LOCAL_K8S_TESTING_PATH).resolve("cmms").toFile(),

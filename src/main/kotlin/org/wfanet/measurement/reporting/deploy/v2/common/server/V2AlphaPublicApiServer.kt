@@ -109,6 +109,8 @@ private object V2AlphaPublicApiServer {
     @CommandLine.Mixin v2AlphaPublicServerFlags: V2AlphaPublicServerFlags,
     @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
   ) {
+    println("encryption key pair config: ${encryptionKeyPairMap.keyPairs.entries}")
+
     val clientCerts =
       SigningCerts.fromPemFiles(
         certificateFile = commonServerFlags.tlsFlags.certFile,
@@ -143,8 +145,6 @@ private object V2AlphaPublicApiServer {
         v2AlphaFlags.measurementConsumerConfigFile,
         MeasurementConsumerConfigs.getDefaultInstance(),
       )
-
-    println("measurement consumer config: $measurementConsumerConfigs")
 
     val internalMeasurementConsumersCoroutineStub =
       InternalMeasurementConsumersCoroutineStub(channel)
