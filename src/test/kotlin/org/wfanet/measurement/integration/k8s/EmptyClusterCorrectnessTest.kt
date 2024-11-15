@@ -59,7 +59,9 @@ import org.wfanet.measurement.common.k8s.KubernetesClient
 import org.wfanet.measurement.common.k8s.KubernetesClientImpl
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.MC_DISPLAY_NAME
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
@@ -327,6 +329,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           val mcConfigDir = outputDir.toPath().resolve(MC_CONFIG_PATH).toFile()
           logger.info("Copying $measurementConsumerConfig to $MC_CONFIG_PATH")
           measurementConsumerConfig.copyTo(mcConfigDir.resolve(measurementConsumerConfig.name))
+
+          println("measurement consumer config text: ${parseTextProto(measurementConsumerConfig, MeasurementConsumerConfigs.getDefaultInstance())}")
 
           val configTemplate: File = outputDir.resolve("config.yaml")
           kustomize(
