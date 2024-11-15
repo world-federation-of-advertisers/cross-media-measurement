@@ -79,10 +79,7 @@ kustomization_dir(
 
 kustomization_dir(
     name = "mc_config",
-    srcs = [
-        "mc_config_kustomization.yaml",
-        "//src/main/k8s/local/testing/secretfiles:measurement_consumer_config.textproto",
-    ],
+    srcs = ["mc_config_kustomization.yaml"],
     renames = {
         "mc_config_kustomization.yaml": "kustomization.yaml",
     },
