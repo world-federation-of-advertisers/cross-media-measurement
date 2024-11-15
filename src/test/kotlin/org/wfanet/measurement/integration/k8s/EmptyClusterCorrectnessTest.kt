@@ -315,8 +315,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     }
 
     private suspend fun loadFullCmms(resourceInfo: ResourceInfo, akidPrincipalMap: File, measurementConsumerConfig: File) {
-      println("print akidPrincipalMap: $akidPrincipalMap")
-      println("print measurementConsumerConfig: $measurementConsumerConfig")
       val appliedObjects: List<KubernetesObject> =
         withContext(Dispatchers.IO) {
           val outputDir = tempDir.newFolder("cmms")
@@ -356,13 +354,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                 config
               }
 
-          println("config content: $configContent")
           kubectlApply(configContent)
         }
-
-      for (appliedObject in appliedObjects) {
-        println("appliedObject: ${appliedObject.metadata.name}")
-      }
       waitUntilDeploymentsComplete(appliedObjects)
     }
 

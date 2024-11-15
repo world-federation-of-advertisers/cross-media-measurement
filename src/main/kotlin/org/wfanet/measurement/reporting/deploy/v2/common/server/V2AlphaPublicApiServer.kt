@@ -144,6 +144,8 @@ private object V2AlphaPublicApiServer {
         MeasurementConsumerConfigs.getDefaultInstance(),
       )
 
+    println("measurement consumer config: $measurementConsumerConfigs")
+
     val internalMeasurementConsumersCoroutineStub =
       InternalMeasurementConsumersCoroutineStub(channel)
     runBlocking {
