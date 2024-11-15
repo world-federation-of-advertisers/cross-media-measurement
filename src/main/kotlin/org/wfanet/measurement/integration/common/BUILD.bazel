@@ -29,12 +29,11 @@ java_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:measurements_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:public_keys_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:requisitions_service",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:model_rollouts_service",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:model_releases_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:model_suites_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:model_lines_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:model_releases_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:model_rollouts_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:populations_service",
-
     ],
 )
 
@@ -268,6 +267,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:simulator",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:synthetic_generator_event_query",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metadata_principal_server_interceptor",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",

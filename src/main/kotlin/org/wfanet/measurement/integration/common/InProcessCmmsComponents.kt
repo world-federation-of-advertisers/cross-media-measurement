@@ -29,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
@@ -48,7 +49,6 @@ import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
-import org.wfanet.measurement.kingdom.service.api.v2alpha.toModelLine
 import org.wfanet.measurement.kingdom.service.api.v2alpha.toPopulation
 import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -160,13 +160,14 @@ class InProcessCmmsComponents(
   private lateinit var mcResourceName: String
   private lateinit var apiAuthenticationKey: String
   private lateinit var edpDisplayNameToResourceMap: Map<String, Resources.Resource>
-  private lateinit var populationDataProviderResource: Resources.Resource
   private lateinit var duchyCertMap: Map<String, String>
   private lateinit var eventGroups: List<EventGroup>
-  private lateinit var measurementModelLineName: String
-  private lateinit var populationInfoMap: Map<PopulationKey, PopulationInfo>
+  private lateinit var populationDataProviderResource: Resources.Resource
+  private lateinit var populationKey: PopulationKey
   private lateinit var populationInfo: PopulationInfo
+  private lateinit var populationInfoMap: Map<PopulationKey, PopulationInfo>
   private lateinit var typeRegistry: TypeRegistry
+  private lateinit var internalModelProviderName: String
 
   private suspend fun createAllResources() {
     val resourceSetup =
@@ -225,16 +226,6 @@ class InProcessCmmsComponents(
 
   private suspend fun createPopulationResources(resourceSetup: ResourceSetup) {
     val internalDataProvider = resourceSetup.createInternalDataProvider(createEntityContent(PDP_DISPLAY_NAME))
-    val internalModelProvider = resourceSetup.createInternalModelProvider()
-    val internalModelSuite = resourceSetup.createInternalModelSuite(internalModelProvider)
-    val internalModelLine = resourceSetup.createInternalModelLine(internalModelSuite)
-    val population = resourceSetup.createInternalPopulation(internalDataProvider)
-    val internalModelRelease = resourceSetup.createInternalModelRelease(internalModelSuite, population)
-    resourceSetup.createInternalModelRollout(internalModelLine, internalModelRelease)
-    measurementModelLineName = internalModelLine.toModelLine().name
-    val populationKey = PopulationKey.fromName(population.toPopulation().name) ?: PopulationKey.defaultValue
-    populationInfo = PopulationInfo(SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE.toPopulationSpec(), TestEvent.getDescriptor())
-    populationInfoMap = mapOf(populationKey to populationInfo)
     val externalDataProviderId = externalIdToApiId(internalDataProvider.externalDataProviderId)
     val externalCertificateId =
       externalIdToApiId(internalDataProvider.certificate.externalCertificateId)
@@ -247,7 +238,19 @@ class InProcessCmmsComponents(
         ResourceKt.dataProvider { certificate = externalDataProviderCertificateKeyName }
     }
 
+    val internalModelProvider = resourceSetup.createInternalModelProvider()
+    internalModelProviderName = ModelProviderKey(externalIdToApiId(internalModelProvider.externalModelProviderId)).toName()
+
+    val population = resourceSetup.createInternalPopulation(internalDataProvider)
+    populationKey = PopulationKey.fromName(population.toPopulation().name) ?: PopulationKey.defaultValue
+    populationInfo = PopulationInfo(SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE.toPopulationSpec(), TestEvent.getDescriptor())
+    populationInfoMap = mapOf(populationKey to populationInfo)
+
     typeRegistry = TypeRegistry.newBuilder().add(listOf(Person.getDescriptor(), Dummy.getDescriptor())).build()
+  }
+
+  fun getTypeRegistry(): TypeRegistry {
+    return typeRegistry
   }
 
   fun getMeasurementConsumerData(): MeasurementConsumerData {
@@ -262,13 +265,21 @@ class InProcessCmmsComponents(
   fun getPopulationData(): PopulationData {
     return PopulationData(
       populationDataProviderName = populationDataProviderResource.name,
-      populationMeasurementModelLineName = measurementModelLineName,
       populationInfo = populationInfo,
-      typeRegistry = typeRegistry
+      populationKey = populationKey,
     )
   }
+
   fun getDataProviderResourceNames(): List<String> {
     return edpDisplayNameToResourceMap.values.map { it.name }
+  }
+
+  fun getPopulationDataProviderName(): String {
+    return populationDataProviderResource.name
+  }
+
+  fun getModelProviderName(): String {
+    return internalModelProviderName
   }
 
   fun startDaemons() = runBlocking {

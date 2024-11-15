@@ -30,10 +30,9 @@ class CreateModelSuite(private val modelSuite: ModelSuite) :
   SpannerWriter<ModelSuite, ModelSuite>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelSuite {
-    println()
+
     val modelProviderId: InternalId =
       readModelProviderId(ExternalId(modelSuite.externalModelProviderId))
-    println("JOJI IN CREATE MODEL SUITE $modelProviderId")
 
     val internalModelSuiteId = idGenerator.generateInternalId()
     val externalModelSuiteId = idGenerator.generateExternalId()

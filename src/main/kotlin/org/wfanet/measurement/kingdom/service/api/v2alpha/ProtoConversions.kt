@@ -140,6 +140,8 @@ import org.wfanet.measurement.internal.kingdom.modelRollout as internalModelRoll
 import org.wfanet.measurement.internal.kingdom.modelShard as internalModelShard
 import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
 import org.wfanet.measurement.internal.kingdom.population as internalPopulation
+import com.google.protobuf.Timestamp
+import com.google.type.Date
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 
@@ -736,9 +738,10 @@ fun InternalModelRollout.toModelRollout(): ModelRollout {
           source.rolloutPeriodEndTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
       }
     }
-
-    rolloutFreezeDate =
-      source.rolloutFreezeTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
+    if(source.rolloutFreezeTime !== Timestamp.getDefaultInstance()) {
+      rolloutFreezeDate =
+        source.rolloutFreezeTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
+    }
     if (source.externalPreviousModelRolloutId != 0L) {
       previousModelRollout =
         ModelRolloutKey(
@@ -808,12 +811,15 @@ fun ModelRollout.toInternal(
       }
     }
 
-    rolloutFreezeTime =
-      publicModelRollout.rolloutFreezeDate
-        .toLocalDate()
-        .atStartOfDay()
-        .toInstant(ZoneOffset.UTC)
-        .toProtoTime()
+    if(publicModelRollout.rolloutFreezeDate !== Date.getDefaultInstance()) {
+      rolloutFreezeTime =
+        publicModelRollout.rolloutFreezeDate
+          .toLocalDate()
+          .atStartOfDay()
+          .toInstant(ZoneOffset.UTC)
+          .toProtoTime()
+    }
+
     externalModelReleaseId = apiIdToExternalId(modelReleaseKey.modelReleaseId)
   }
 }
