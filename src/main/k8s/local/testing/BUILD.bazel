@@ -69,6 +69,17 @@ kustomization_dir(
 )
 
 kustomization_dir(
+    name = "config_files_for_panel_match",
+    srcs = [
+        "config_files_for_panel_match_kustomization.yaml",
+        "//src/main/k8s/testing/data:synthetic_generation_specs_small",
+        "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
+        "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
+    ],
+    renames = {"config_files_for_panel_match_kustomization.yaml": "kustomization.yaml"},
+)
+
+kustomization_dir(
     name = "db_creds",
     srcs = ["db_creds_kustomization.yaml"],
     renames = {
@@ -115,7 +126,7 @@ kustomization_dir(
     generate_kustomization = True,
     tags = ["manual"],
     deps = [
-        ":config_files",
+        ":config_files_for_panel_match",
         "//src/main/k8s/testing/secretfiles:kustomization",
     ],
 )

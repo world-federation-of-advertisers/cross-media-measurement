@@ -55,6 +55,10 @@ import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdTo
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
 import org.wfanet.measurement.config.authorityKeyToPrincipalMap
+import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt
+import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
+import org.wfanet.measurement.config.reporting.measurementConsumerConfig
+import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
@@ -65,10 +69,6 @@ import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
-import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt
-import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
-import org.wfanet.measurement.config.reporting.measurementConsumerConfig
-import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
@@ -221,11 +221,14 @@ class ResourceSetup(
       for (resource in resources) {
         when (resource.resourceCase) {
           Resources.Resource.ResourceCase.MEASUREMENT_CONSUMER ->
-            configs.put(resource.name, measurementConsumerConfig {
-              apiKey = resource.measurementConsumer.apiKey
-              signingCertificateName = resource.measurementConsumer.certificate
-              signingPrivateKeyPath = MEASUREMENT_CONSUMER_SIGNING_PRIVATE_KEY_PATH
-            })
+            configs.put(
+              resource.name,
+              measurementConsumerConfig {
+                apiKey = resource.measurementConsumer.apiKey
+                signingCertificateName = resource.measurementConsumer.certificate
+                signingPrivateKeyPath = MEASUREMENT_CONSUMER_SIGNING_PRIVATE_KEY_PATH
+              },
+            )
           else -> continue
         }
       }
@@ -238,13 +241,15 @@ class ResourceSetup(
       for (resource in resources) {
         when (resource.resourceCase) {
           Resources.Resource.ResourceCase.MEASUREMENT_CONSUMER ->
-            principalKeyPairs += EncryptionKeyPairConfigKt.principalKeyPairs {
-              principal = resource.name
-              keyPairs += EncryptionKeyPairConfigKt.keyPair {
-                publicKeyFile = MEASUREMENT_CONSUMER_ENCRYPTION_PUBLIC_KEY_PATH
-                privateKeyFile = MEASUREMENT_CONSUMER_ENCRYPTION_PRIVATE_KEY_PATH
+            principalKeyPairs +=
+              EncryptionKeyPairConfigKt.principalKeyPairs {
+                principal = resource.name
+                keyPairs +=
+                  EncryptionKeyPairConfigKt.keyPair {
+                    publicKeyFile = MEASUREMENT_CONSUMER_ENCRYPTION_PUBLIC_KEY_PATH
+                    privateKeyFile = MEASUREMENT_CONSUMER_ENCRYPTION_PRIVATE_KEY_PATH
+                  }
               }
-            }
           else -> continue
         }
       }

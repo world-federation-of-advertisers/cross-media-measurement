@@ -32,7 +32,6 @@ import java.time.Duration
 import java.util.UUID
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.time.withTimeout
 import kotlinx.coroutines.withContext
@@ -59,9 +58,7 @@ import org.wfanet.measurement.common.k8s.KubernetesClient
 import org.wfanet.measurement.common.k8s.KubernetesClientImpl
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
-import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.MC_DISPLAY_NAME
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
@@ -228,7 +225,12 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val resourceSetupOutput =
         runResourceSetup(duchyCerts, edpEntityContents, measurementConsumerContent)
       val resourceInfo = ResourceInfo.from(resourceSetupOutput.resources)
-      loadFullCmms(resourceInfo, resourceSetupOutput.akidPrincipalMap, resourceSetupOutput.measurementConsumerConfig, resourceSetupOutput.encryptionKeyPairConfig)
+      loadFullCmms(
+        resourceInfo,
+        resourceSetupOutput.akidPrincipalMap,
+        resourceSetupOutput.measurementConsumerConfig,
+        resourceSetupOutput.encryptionKeyPairConfig,
+      )
 
       val encryptionPrivateKey: TinkPrivateKeyHandle =
         withContext(Dispatchers.IO) {
@@ -297,10 +299,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub(
             publicApiChannel
           ),
-        reportingSetsClient =
-          ReportingSetsGrpcKt.ReportingSetsCoroutineStub(
-            publicApiChannel
-          ),
+        reportingSetsClient = ReportingSetsGrpcKt.ReportingSetsCoroutineStub(publicApiChannel),
         metricCalculationSpecsClient =
           MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub(publicApiChannel),
         reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
@@ -316,7 +315,12 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       }
     }
 
-    private suspend fun loadFullCmms(resourceInfo: ResourceInfo, akidPrincipalMap: File, measurementConsumerConfig: File, encryptionKeyPairConfig: File) {
+    private suspend fun loadFullCmms(
+      resourceInfo: ResourceInfo,
+      akidPrincipalMap: File,
+      measurementConsumerConfig: File,
+      encryptionKeyPairConfig: File,
+    ) {
       val appliedObjects: List<KubernetesObject> =
         withContext(Dispatchers.IO) {
           val outputDir = tempDir.newFolder("cmms")
