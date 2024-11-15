@@ -33,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleaseKey
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase as ModelReleasesCoroutineService
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
+import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.listModelReleasesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelReleasesResponse
@@ -62,6 +63,10 @@ class ModelReleasesService(private val internalClient: ModelReleasesCoroutineStu
       grpcRequireNotNull(ModelSuiteKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid"
       }
+    val populationKey =
+      grpcRequireNotNull(PopulationKey.fromName(request.modelRelease.population)) {
+        "Population is either unspecified or invalid"
+      }
 
     when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
       is ModelProviderPrincipal -> {
@@ -78,7 +83,7 @@ class ModelReleasesService(private val internalClient: ModelReleasesCoroutineStu
       }
     }
 
-    val createModelReleaseRequest = request.modelRelease.toInternal(parentKey)
+    val createModelReleaseRequest = request.modelRelease.toInternal(parentKey, populationKey)
     return try {
       internalClient.createModelRelease(createModelReleaseRequest).toModelRelease()
     } catch (e: StatusException) {
