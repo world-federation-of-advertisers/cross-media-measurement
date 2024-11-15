@@ -140,7 +140,7 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
       return object : Statement() {
         override fun evaluate() {
           runBlocking {
-            withTimeout(Duration.ofMinutes(5)) {
+            withTimeout(Duration.ofMinutes(6)) {
               _testHarness = createTestHarness(populateCluster())
             }
           }
