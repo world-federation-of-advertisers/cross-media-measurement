@@ -140,7 +140,7 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
       return object : Statement() {
         override fun evaluate() {
           runBlocking {
-            withTimeout(Duration.ofMinutes(6)) {
+            withTimeout(Duration.ofMinutes(5)) {
               _testHarness = createTestHarness(populateCluster())
             }
           }
@@ -494,7 +494,7 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
 
     private val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")
     private val LOCAL_K8S_TESTING_PATH = LOCAL_K8S_PATH.resolve("testing")
-    private val CONFIG_FILES_PATH = LOCAL_K8S_TESTING_PATH.resolve("config_files_for_panel_match")
+    private val CONFIG_FILES_PATH = LOCAL_K8S_TESTING_PATH.resolve("config_files")
     private val LOCAL_K8S_PANELMATCH_PATH = Paths.get("src", "main", "k8s", "panelmatch", "local")
     private val PANELMATCH_CONFIG_FILES_PATH = LOCAL_K8S_PANELMATCH_PATH.resolve("config_files")
 

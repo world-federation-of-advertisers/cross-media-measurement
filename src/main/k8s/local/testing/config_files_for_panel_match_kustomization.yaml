@@ -13,7 +13,7 @@
 # limitations under the License.
 
 configMapGenerator:
-- name: config-files-for-panel-match
+- name: config-files
   files:
   - authority_key_identifier_to_principal_map.textproto
   - synthetic_population_spec_small.textproto
