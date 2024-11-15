@@ -109,7 +109,6 @@ private object V2AlphaPublicApiServer {
     @CommandLine.Mixin v2AlphaPublicServerFlags: V2AlphaPublicServerFlags,
     @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
   ) {
-    println("encryption key pair config: ${encryptionKeyPairMap.keyPairs.entries}")
 
     val clientCerts =
       SigningCerts.fromPemFiles(

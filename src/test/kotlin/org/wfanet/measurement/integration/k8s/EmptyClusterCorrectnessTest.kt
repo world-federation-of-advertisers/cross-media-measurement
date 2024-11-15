@@ -228,7 +228,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val resourceSetupOutput =
         runResourceSetup(duchyCerts, edpEntityContents, measurementConsumerContent)
       val resourceInfo = ResourceInfo.from(resourceSetupOutput.resources)
-      loadFullCmms(resourceInfo, resourceSetupOutput.akidPrincipalMap, resourceSetupOutput.measurementConsumerConfig)
+      loadFullCmms(resourceInfo, resourceSetupOutput.akidPrincipalMap, resourceSetupOutput.measurementConsumerConfig, resourceSetupOutput.encryptionKeyPairConfig)
 
       val encryptionPrivateKey: TinkPrivateKeyHandle =
         withContext(Dispatchers.IO) {
@@ -316,7 +316,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       }
     }
 
-    private suspend fun loadFullCmms(resourceInfo: ResourceInfo, akidPrincipalMap: File, measurementConsumerConfig: File) {
+    private suspend fun loadFullCmms(resourceInfo: ResourceInfo, akidPrincipalMap: File, measurementConsumerConfig: File, encryptionKeyPairConfig: File) {
       val appliedObjects: List<KubernetesObject> =
         withContext(Dispatchers.IO) {
           val outputDir = tempDir.newFolder("cmms")
@@ -325,6 +325,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           val configFilesDir = outputDir.toPath().resolve(CONFIG_FILES_PATH).toFile()
           logger.info("Copying $akidPrincipalMap to $CONFIG_FILES_PATH")
           akidPrincipalMap.copyTo(configFilesDir.resolve(akidPrincipalMap.name))
+
+          logger.info("Copying $encryptionKeyPairConfig to $CONFIG_FILES_PATH")
+          encryptionKeyPairConfig.copyTo(configFilesDir.resolve(encryptionKeyPairConfig.name))
 
           val mcConfigDir = outputDir.toPath().resolve(MC_CONFIG_PATH).toFile()
           logger.info("Copying $measurementConsumerConfig to $MC_CONFIG_PATH")
@@ -432,6 +435,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         resources,
         outputDir.resolve(ResourceSetup.AKID_PRINCIPAL_MAP_FILE),
         outputDir.resolve(ResourceSetup.MEASUREMENT_CONSUMER_CONFIG_FILE),
+        outputDir.resolve(ResourceSetup.ENCRYPTION_KEY_PAIR_CONFIG_FILE),
       )
     }
 
@@ -494,6 +498,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val resources: List<Resources.Resource>,
       val akidPrincipalMap: File,
       val measurementConsumerConfig: File,
+      val encryptionKeyPairConfig: File,
     )
   }
 

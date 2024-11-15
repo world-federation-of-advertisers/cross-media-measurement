@@ -65,6 +65,8 @@ import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
+import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt
+import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.internal.kingdom.dataProviderDetails
@@ -230,6 +232,25 @@ class ResourceSetup(
     }
     output.resolve(MEASUREMENT_CONSUMER_CONFIG_FILE).writer().use { writer ->
       TextFormat.printer().print(measurementConsumerConfig, writer)
+    }
+
+    val encryptionKeyPairConfig = encryptionKeyPairConfig {
+      for (resource in resources) {
+        when (resource.resourceCase) {
+          Resources.Resource.ResourceCase.MEASUREMENT_CONSUMER ->
+            principalKeyPairs += EncryptionKeyPairConfigKt.principalKeyPairs {
+              principal = resource.name
+              keyPairs += EncryptionKeyPairConfigKt.keyPair {
+                publicKeyFile = MEASUREMENT_CONSUMER_ENCRYPTION_PUBLIC_KEY_PATH
+                privateKeyFile = MEASUREMENT_CONSUMER_ENCRYPTION_PRIVATE_KEY_PATH
+              }
+            }
+          else -> continue
+        }
+      }
+    }
+    output.resolve(ENCRYPTION_KEY_PAIR_CONFIG_FILE).writer().use { writer ->
+      TextFormat.printer().print(encryptionKeyPairConfig, writer)
     }
 
     val configName = bazelConfigName
@@ -433,7 +454,10 @@ class ResourceSetup(
     const val AKID_PRINCIPAL_MAP_FILE = "authority_key_identifier_to_principal_map.textproto"
     const val BAZEL_RC_FILE = "resource-setup.bazelrc"
     const val MEASUREMENT_CONSUMER_CONFIG_FILE = "measurement_consumer_config.textproto"
+    const val ENCRYPTION_KEY_PAIR_CONFIG_FILE = "encryption_key_pair_config.textproto"
     const val MEASUREMENT_CONSUMER_SIGNING_PRIVATE_KEY_PATH = "mc_cs_private.der"
+    const val MEASUREMENT_CONSUMER_ENCRYPTION_PUBLIC_KEY_PATH = "mc_enc_public.tink"
+    const val MEASUREMENT_CONSUMER_ENCRYPTION_PRIVATE_KEY_PATH = "mc_enc_private.tink"
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
