@@ -16,7 +16,6 @@ configMapGenerator:
 - name: config-files
   files:
   - authority_key_identifier_to_principal_map.textproto
-  - metric_spec_config.textproto
   - synthetic_population_spec_small.textproto
   - synthetic_event_group_spec_small_1.textproto
   - synthetic_event_group_spec_small_2.textproto
