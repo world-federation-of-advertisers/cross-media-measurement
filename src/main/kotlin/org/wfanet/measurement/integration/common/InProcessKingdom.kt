@@ -54,6 +54,11 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelLinesService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelReleasesService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelRolloutsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelSuitesService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.PopulationsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.PublicKeysService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withAccountAuthenticationServerInterceptor
@@ -62,11 +67,6 @@ import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationLogEntri
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationParticipantsService as SystemComputationParticipantsService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationsService as SystemComputationsService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionsService as SystemRequisitionsService
-import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelLinesService
-import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelRolloutsService
-import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelReleasesService
-import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelSuitesService
-import org.wfanet.measurement.kingdom.service.api.v2alpha.PopulationsService
 import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceSetup
 
 /** TestRule that starts and stops all Kingdom gRPC services. */
@@ -134,7 +134,6 @@ class InProcessKingdom(
           SystemComputationLogEntriesService(internalMeasurementLogEntriesClient),
           SystemComputationParticipantsService(internalComputationParticipantsClient),
           SystemRequisitionsService(internalRequisitionsClient),
-
         )
         .forEach { addService(it.withMetadataDuchyIdentities()) }
     }
@@ -226,22 +225,46 @@ class InProcessKingdom(
   val internalCertificatesClient by lazy { InternalCertificatesCoroutineStub(internalApiChannel) }
 
   /** Provides access to ModelProvider creation. */
-  val internalModelProvidersClient by lazy { org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineStub(internalApiChannel) }
+  val internalModelProvidersClient by lazy {
+    org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineStub(
+      internalApiChannel
+    )
+  }
 
   /** Provides access to ModelRollout creation. */
-  val internalModelRolloutsClient by lazy { org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(internalApiChannel) }
+  val internalModelRolloutsClient by lazy {
+    org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(
+      internalApiChannel
+    )
+  }
 
   /** Provides access to ModelRelease creation. */
-  val internalModelReleasesClient by lazy { org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub(internalApiChannel) }
+  val internalModelReleasesClient by lazy {
+    org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub(
+      internalApiChannel
+    )
+  }
 
   /** Provides access to ModelSuite creation. */
-  val internalModelSuitesClient by lazy { org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineStub(internalApiChannel) }
+  val internalModelSuitesClient by lazy {
+    org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineStub(
+      internalApiChannel
+    )
+  }
 
   /** Provides access to ModelLine creation. */
-  val internalModelLinesClient by lazy { org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineStub(internalApiChannel) }
+  val internalModelLinesClient by lazy {
+    org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineStub(
+      internalApiChannel
+    )
+  }
 
   /** Provides access to Population creation. */
-  val internalPopulationsClient by lazy { org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineStub(internalApiChannel) }
+  val internalPopulationsClient by lazy {
+    org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineStub(
+      internalApiChannel
+    )
+  }
 
   override fun apply(statement: Statement, description: Description): Statement {
     return chainRulesSequentially(internalDataServer, systemApiServer, publicApiServer)

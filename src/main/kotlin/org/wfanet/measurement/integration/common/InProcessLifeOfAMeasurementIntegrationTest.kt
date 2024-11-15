@@ -47,13 +47,13 @@ import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelSuite
+import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
-import org.wfanet.measurement.common.identity.withPrincipalName
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 /**
@@ -94,23 +94,28 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
   }
 
   private val publicModelSuitesClient by lazy {
-    ModelSuitesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel).withPrincipalName(modelProviderName)
+    ModelSuitesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+      .withPrincipalName(modelProviderName)
   }
 
   private val publicModelLinesClient by lazy {
-    ModelLinesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel).withPrincipalName(modelProviderName)
+    ModelLinesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+      .withPrincipalName(modelProviderName)
   }
 
   private val publicPopulationsClient by lazy {
-    PopulationsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel).withPrincipalName(populationDataProviderName)
+    PopulationsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+      .withPrincipalName(populationDataProviderName)
   }
 
   private val publicModelReleasesClient by lazy {
-    ModelReleasesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel).withPrincipalName(modelProviderName)
+    ModelReleasesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+      .withPrincipalName(modelProviderName)
   }
 
   private val publicModelRolloutClient by lazy {
-    ModelRolloutsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel).withPrincipalName(modelProviderName)
+    ModelRolloutsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+      .withPrincipalName(modelProviderName)
   }
 
   private lateinit var modelProviderName: String
@@ -261,17 +266,16 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
   // TODO(@renjiez): Add Multi-round test given the same input to verify correctness.
 
   @Test
-  fun `create a population measurement`() =
-    runBlocking {
-      val modelSuite = publicModelSuitesClient.createModelSuite(
+  fun `create a population measurement`() = runBlocking {
+    val modelSuite =
+      publicModelSuitesClient.createModelSuite(
         createModelSuiteRequest {
           parent = modelProviderName
-          modelSuite = modelSuite {
-            displayName = MODEL_SUITE_DISPLAY_NAME
-          }
+          modelSuite = modelSuite { displayName = MODEL_SUITE_DISPLAY_NAME }
         }
       )
-      val modelLine = publicModelLinesClient.createModelLine(
+    val modelLine =
+      publicModelLinesClient.createModelLine(
         createModelLineRequest {
           parent = modelSuite.name
           modelLine = modelLine {
@@ -281,39 +285,38 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
         }
       )
 
-      val populationData = inProcessCmmsComponents.getPopulationData()
+    val populationData = inProcessCmmsComponents.getPopulationData()
 
-      val modelRelease = publicModelReleasesClient.createModelRelease(
+    val modelRelease =
+      publicModelReleasesClient.createModelRelease(
         createModelReleaseRequest {
           parent = modelSuite.name
-          modelRelease = modelRelease {
-            population = populationData.populationKey.toName()
-          }
+          modelRelease = modelRelease { population = populationData.populationKey.toName() }
         }
       )
 
-      publicModelRolloutClient.createModelRollout(
-        createModelRolloutRequest {
-          parent = modelLine.name
-          modelRollout = modelRollout {
-            this.modelRelease = modelRelease.name
-            gradualRolloutPeriod = dateInterval {
-              startDate = ROLLOUT_PERIOD_START_DATE
-              endDate = ROLLOUT_PERIOD_END_DATE
-            }
+    publicModelRolloutClient.createModelRollout(
+      createModelRolloutRequest {
+        parent = modelLine.name
+        modelRollout = modelRollout {
+          this.modelRelease = modelRelease.name
+          gradualRolloutPeriod = dateInterval {
+            startDate = ROLLOUT_PERIOD_START_DATE
+            endDate = ROLLOUT_PERIOD_END_DATE
           }
         }
-      )
+      }
+    )
 
-      // Use frontend simulator to create a population measurement
-      mcSimulator.testPopulation(
-        "1234",
-        populationData,
-        modelLine.name,
-        DEFAULT_POPULATION_FILTER_EXPRESSION,
-        inProcessCmmsComponents.getTypeRegistry()
-      )
-    }
+    // Use frontend simulator to create a population measurement
+    mcSimulator.testPopulation(
+      "1234",
+      populationData,
+      modelLine.name,
+      DEFAULT_POPULATION_FILTER_EXPRESSION,
+      inProcessCmmsComponents.getTypeRegistry()
+    )
+  }
   companion object {
     // Epsilon can vary from 0.0001 to 1.0, delta = 1e-15 is a realistic value.
     // Set epsilon higher without exceeding privacy budget so the noise is smaller in the
@@ -327,7 +330,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
 
     private val MODEL_LINE_ACTIVE_START_TIME = Instant.now().plusSeconds(2000L).toProtoTime()
 
-    private const val DEFAULT_POPULATION_FILTER_EXPRESSION = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+    private const val DEFAULT_POPULATION_FILTER_EXPRESSION =
+      "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
 
     private val ROLLOUT_PERIOD_START_DATE = date {
       year = 2025

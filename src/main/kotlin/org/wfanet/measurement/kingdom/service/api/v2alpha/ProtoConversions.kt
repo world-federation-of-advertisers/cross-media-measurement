@@ -14,8 +14,10 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.Timestamp
 import com.google.protobuf.any
 import com.google.protobuf.util.Timestamps
+import com.google.type.Date
 import com.google.type.interval
 import java.time.ZoneOffset
 import org.wfanet.measurement.api.Version
@@ -140,8 +142,6 @@ import org.wfanet.measurement.internal.kingdom.modelRollout as internalModelRoll
 import org.wfanet.measurement.internal.kingdom.modelShard as internalModelShard
 import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
 import org.wfanet.measurement.internal.kingdom.population as internalPopulation
-import com.google.protobuf.Timestamp
-import com.google.type.Date
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 
@@ -738,7 +738,7 @@ fun InternalModelRollout.toModelRollout(): ModelRollout {
           source.rolloutPeriodEndTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
       }
     }
-    if(source.rolloutFreezeTime !== Timestamp.getDefaultInstance()) {
+    if (source.rolloutFreezeTime !== Timestamp.getDefaultInstance()) {
       rolloutFreezeDate =
         source.rolloutFreezeTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
     }
@@ -811,7 +811,7 @@ fun ModelRollout.toInternal(
       }
     }
 
-    if(publicModelRollout.rolloutFreezeDate !== Date.getDefaultInstance()) {
+    if (publicModelRollout.rolloutFreezeDate !== Date.getDefaultInstance()) {
       rolloutFreezeTime =
         publicModelRollout.rolloutFreezeDate
           .toLocalDate()

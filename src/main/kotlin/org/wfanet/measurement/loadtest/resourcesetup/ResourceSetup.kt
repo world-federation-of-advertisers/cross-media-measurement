@@ -21,6 +21,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.io.File
 import java.time.Clock
+import java.time.Instant
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -53,6 +54,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdToken
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
 import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
@@ -60,30 +62,28 @@ import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
-import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
-import org.wfanet.measurement.internal.kingdom.account as internalAccount
-import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
-import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
-import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
-import org.wfanet.measurement.internal.kingdom.modelProvider as internalModelProvider
-import java.time.Instant
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ModelLine as InternalModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt
-import org.wfanet.measurement.internal.kingdom.dataProviderDetails
+import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelRelease as InternalModelRelease
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelRollout as InternalModelRollout
-import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt
 import org.wfanet.measurement.internal.kingdom.Population as InternalPopulation
 import org.wfanet.measurement.internal.kingdom.PopulationKt
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt
+import org.wfanet.measurement.internal.kingdom.account as internalAccount
+import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
+import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
+import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
+import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.internal.kingdom.eventTemplate
 import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
+import org.wfanet.measurement.internal.kingdom.modelProvider as internalModelProvider
 import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRelease
 import org.wfanet.measurement.internal.kingdom.modelRollout as internalModelRollout
 import org.wfanet.measurement.internal.kingdom.population as internalPopulation
@@ -118,7 +118,8 @@ class ResourceSetup(
   private val requiredDuchies: List<String>,
   private val bazelConfigName: String = DEFAULT_BAZEL_CONFIG_NAME,
   private val outputDir: File? = null,
-  private val internalModelProvidersClient: ModelProvidersGrpcKt.ModelProvidersCoroutineStub? = null,
+  private val internalModelProvidersClient: ModelProvidersGrpcKt.ModelProvidersCoroutineStub? =
+    null,
   private val internalModelSuitesClient: ModelSuitesGrpcKt.ModelSuitesCoroutineStub? = null,
   private val internalModelLinesClient: ModelLinesGrpcKt.ModelLinesCoroutineStub? = null,
   private val internalPopulationsClient: PopulationsGrpcKt.PopulationsCoroutineStub? = null,
@@ -301,9 +302,7 @@ class ResourceSetup(
   suspend fun createInternalModelProvider(): InternalModelProvider {
     require(internalModelProvidersClient != null)
     return try {
-      internalModelProvidersClient.createModelProvider(
-        internalModelProvider { }
-      )
+      internalModelProvidersClient.createModelProvider(internalModelProvider {})
     } catch (e: StatusException) {
       throw Exception("Error creating ModelProvider", e)
     }
@@ -355,16 +354,19 @@ class ResourceSetup(
   ): InternalPopulation {
     require(internalPopulationsClient != null)
     return internalPopulationsClient.createPopulation(
-        internalPopulation {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          description = "DESCRIPTION"
-          populationBlob = PopulationKt.populationBlob { modelBlobUri = "BLOB_URI" }
-          eventTemplate = eventTemplate { fullyQualifiedType = "TYPE" }
-        }
-      )
+      internalPopulation {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        description = "DESCRIPTION"
+        populationBlob = PopulationKt.populationBlob { modelBlobUri = "BLOB_URI" }
+        eventTemplate = eventTemplate { fullyQualifiedType = "TYPE" }
+      }
+    )
   }
 
-  suspend fun createInternalModelRollout(modelLine: InternalModelLine, modelRelease: InternalModelRelease): InternalModelRollout {
+  suspend fun createInternalModelRollout(
+    modelLine: InternalModelLine,
+    modelRelease: InternalModelRelease
+  ): InternalModelRollout {
     require(internalModelRolloutsClient != null)
     return internalModelRolloutsClient.createModelRollout(
       internalModelRollout {

@@ -63,7 +63,11 @@ object MeasurementResults {
   }
 
   /** Computes population using the "deterministic count" methodology. */
-  fun computePopulation(populationInfo: PopulationInfo, program: Program, typeRegistry: TypeRegistry): Long {
+  fun computePopulation(
+    populationInfo: PopulationInfo,
+    program: Program,
+    typeRegistry: TypeRegistry
+  ): Long {
     return PopulationRequisitionFulfiller.computePopulation(populationInfo, program, typeRegistry)
   }
 }

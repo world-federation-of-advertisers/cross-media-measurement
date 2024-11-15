@@ -55,61 +55,81 @@ class InProcessPopulationRequisitionFulfiller(
   private lateinit var populationRequisitionFulfillerJob: Job
   private val kingdomDataServices by lazy { dataServicesProvider() }
   private val internalApiChannel by lazy { internalDataServer.channel }
-  private val internalApiKeysClient by lazy { ApiKeysGrpcKt.ApiKeysCoroutineStub(internalApiChannel) }
-
+  private val internalApiKeysClient by lazy {
+    ApiKeysGrpcKt.ApiKeysCoroutineStub(internalApiChannel)
+  }
 
   private val modelRolloutsClient by lazy {
-    ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName)
+    ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(kingdomPublicApiChannel)
+      .withPrincipalName(resourceName)
   }
 
   private val modelReleasesClient by lazy {
-    ModelReleasesGrpcKt.ModelReleasesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName)
+    ModelReleasesGrpcKt.ModelReleasesCoroutineStub(kingdomPublicApiChannel)
+      .withPrincipalName(resourceName)
   }
 
   private val certificatesClient by lazy {
-    CertificatesGrpcKt.CertificatesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName)
+    CertificatesGrpcKt.CertificatesCoroutineStub(kingdomPublicApiChannel)
+      .withPrincipalName(resourceName)
   }
 
   private val requisitionsClient by lazy {
-    RequisitionsGrpcKt.RequisitionsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName)
+    RequisitionsGrpcKt.RequisitionsCoroutineStub(kingdomPublicApiChannel)
+      .withPrincipalName(resourceName)
   }
 
-  private val internalCertificatesClient by lazy { org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub(internalApiChannel) }
+  private val internalCertificatesClient by lazy {
+    org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub(
+      internalApiChannel
+    )
+  }
   private val internalRequisitionsClient by lazy {
-    org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub(internalApiChannel)
+    org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub(
+      internalApiChannel
+    )
   }
-  private val internalModelRolloutsClient by lazy { org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(internalApiChannel) }
-  private val internalModelReleasesClient by lazy { org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub(internalApiChannel) }
-
-
+  private val internalModelRolloutsClient by lazy {
+    org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(
+      internalApiChannel
+    )
+  }
+  private val internalModelReleasesClient by lazy {
+    org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub(
+      internalApiChannel
+    )
+  }
 
   private val internalDataServer =
     GrpcTestServerRule(
       logAllRequests = verboseGrpcLogging,
       defaultServiceConfig = DEFAULT_SERVICE_CONFIG_MAP,
     ) {
-      logger.info("Building Kingdom's internal Data services used by Population Requisition Fulfiller.")
+      logger.info(
+        "Building Kingdom's internal Data services used by Population Requisition Fulfiller."
+      )
       kingdomDataServices.buildDataServices().toList().forEach { addService(it) }
     }
 
-
   private val publicApiServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
-      logger.info("Building Kingdom's public API services used by Population Requisition Fulfiller.")
-      listOf(
-        CertificatesService(internalCertificatesClient)
-          .withMetadataPrincipalIdentities()
-          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-        RequisitionsService(internalRequisitionsClient)
-          .withMetadataPrincipalIdentities()
-          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-        ModelRolloutsService(internalModelRolloutsClient)
-          .withMetadataPrincipalIdentities()
-          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-        ModelReleasesService(internalModelReleasesClient)
-          .withMetadataPrincipalIdentities()
-          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+      logger.info(
+        "Building Kingdom's public API services used by Population Requisition Fulfiller."
       )
+      listOf(
+          CertificatesService(internalCertificatesClient)
+            .withMetadataPrincipalIdentities()
+            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+          RequisitionsService(internalRequisitionsClient)
+            .withMetadataPrincipalIdentities()
+            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+          ModelRolloutsService(internalModelRolloutsClient)
+            .withMetadataPrincipalIdentities()
+            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+          ModelReleasesService(internalModelReleasesClient)
+            .withMetadataPrincipalIdentities()
+            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+        )
         .forEach { addService(it) }
     }
 

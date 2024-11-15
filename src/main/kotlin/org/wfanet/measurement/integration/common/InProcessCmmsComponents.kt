@@ -119,23 +119,25 @@ class InProcessCmmsComponents(
   }
 
   private val populationRequisitionFulfiller: InProcessPopulationRequisitionFulfiller by lazy {
-      InProcessPopulationRequisitionFulfiller(
-        pdpData = DataProviderData(
+    InProcessPopulationRequisitionFulfiller(
+      pdpData =
+        DataProviderData(
           populationDataProviderResource.name,
           PDP_DISPLAY_NAME,
           loadEncryptionPrivateKey("${PDP_DISPLAY_NAME}_enc_private.tink"),
           loadSigningKey("${PDP_DISPLAY_NAME}_cs_cert.der", "${PDP_DISPLAY_NAME}_cs_private.der"),
-          DataProviderCertificateKey.fromName(populationDataProviderResource.dataProvider.certificate)!!
+          DataProviderCertificateKey.fromName(
+            populationDataProviderResource.dataProvider.certificate
+          )!!
         ),
-        populationDataProviderResource.name,
-        populationInfoMap,
-        typeRegistry,
-        kingdom.publicApiChannel,
-        dataServicesProvider = { kingdomDataServices },
-        TRUSTED_CERTIFICATES,
-        verboseGrpcLogging = false,
-      )
-
+      populationDataProviderResource.name,
+      populationInfoMap,
+      typeRegistry,
+      kingdom.publicApiChannel,
+      dataServicesProvider = { kingdomDataServices },
+      TRUSTED_CERTIFICATES,
+      verboseGrpcLogging = false,
+    )
   }
 
   val ruleChain: TestRule by lazy {
@@ -225,7 +227,8 @@ class InProcessCmmsComponents(
   }
 
   private suspend fun createPopulationResources(resourceSetup: ResourceSetup) {
-    val internalDataProvider = resourceSetup.createInternalDataProvider(createEntityContent(PDP_DISPLAY_NAME))
+    val internalDataProvider =
+      resourceSetup.createInternalDataProvider(createEntityContent(PDP_DISPLAY_NAME))
     val externalDataProviderId = externalIdToApiId(internalDataProvider.externalDataProviderId)
     val externalCertificateId =
       externalIdToApiId(internalDataProvider.certificate.externalCertificateId)
@@ -239,14 +242,21 @@ class InProcessCmmsComponents(
     }
 
     val internalModelProvider = resourceSetup.createInternalModelProvider()
-    internalModelProviderName = ModelProviderKey(externalIdToApiId(internalModelProvider.externalModelProviderId)).toName()
+    internalModelProviderName =
+      ModelProviderKey(externalIdToApiId(internalModelProvider.externalModelProviderId)).toName()
 
     val population = resourceSetup.createInternalPopulation(internalDataProvider)
-    populationKey = PopulationKey.fromName(population.toPopulation().name) ?: PopulationKey.defaultValue
-    populationInfo = PopulationInfo(SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE.toPopulationSpec(), TestEvent.getDescriptor())
+    populationKey =
+      PopulationKey.fromName(population.toPopulation().name) ?: PopulationKey.defaultValue
+    populationInfo =
+      PopulationInfo(
+        SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE.toPopulationSpec(),
+        TestEvent.getDescriptor()
+      )
     populationInfoMap = mapOf(populationKey to populationInfo)
 
-    typeRegistry = TypeRegistry.newBuilder().add(listOf(Person.getDescriptor(), Dummy.getDescriptor())).build()
+    typeRegistry =
+      TypeRegistry.newBuilder().add(listOf(Person.getDescriptor(), Dummy.getDescriptor())).build()
   }
 
   fun getTypeRegistry(): TypeRegistry {

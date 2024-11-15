@@ -198,7 +198,6 @@ class EdpSimulator(
   private val measurementConsumerKey =
     checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
 
-
   /** A sequence of operations done in the simulator. */
   override suspend fun run() {
     dataProvidersStub.replaceDataAvailabilityInterval(
