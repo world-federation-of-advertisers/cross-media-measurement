@@ -345,8 +345,8 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
             outputDir,
           )
 
-          val configFilesDir = outputDir.toPath().resolve(CONFIG_FILES_PATH).toFile()
-          logger.info("Copying $akidPrincipalMap to $CONFIG_FILES_PATH")
+          val configFilesDir = outputDir.toPath().resolve(PANELMATCH_CONFIG_FILES_PATH).toFile()
+          logger.info("Copying $akidPrincipalMap to $PANELMATCH_CONFIG_FILES_PATH")
           akidPrincipalMap.copyTo(configFilesDir.resolve(akidPrincipalMap.name))
 
           val configFile: File = outputDir.resolve("config.yaml")
@@ -494,9 +494,8 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
 
     private val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")
     private val LOCAL_K8S_TESTING_PATH = LOCAL_K8S_PATH.resolve("testing")
-    private val CONFIG_FILES_PATH = LOCAL_K8S_TESTING_PATH.resolve("config_files")
     private val LOCAL_K8S_PANELMATCH_PATH = Paths.get("src", "main", "k8s", "panelmatch", "local")
-    private val PANELMATCH_CONFIG_FILES_PATH = LOCAL_K8S_PANELMATCH_PATH.resolve("config_files")
+    private val PANELMATCH_CONFIG_FILES_PATH = LOCAL_K8S_PANELMATCH_PATH.resolve("config_files_for_panel_match")
 
     private const val KINGDOM_INTERNAL_DEPLOYMENT_NAME = "gcp-kingdom-data-server-deployment"
     private const val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"

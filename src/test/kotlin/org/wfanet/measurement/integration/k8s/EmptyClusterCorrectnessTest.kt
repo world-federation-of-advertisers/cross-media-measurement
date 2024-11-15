@@ -365,6 +365,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
           kubectlApply(configContent)
         }
+
       waitUntilDeploymentsComplete(appliedObjects)
     }
 
