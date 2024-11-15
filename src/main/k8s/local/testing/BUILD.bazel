@@ -77,7 +77,7 @@ kustomization_dir(
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
     ],
     renames = {
-        "config_files_for_panel_match_kustomization.yaml": "kustomization.yaml",
+        "config_files_kustomization.yaml": "kustomization.yaml",
         "empty_encryption_key_pair_config.textproto": "encryption_key_pair_config.textproto",
     },
 )
