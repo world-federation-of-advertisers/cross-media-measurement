@@ -66,7 +66,7 @@ object MeasurementResults {
   fun computePopulation(
     populationInfo: PopulationInfo,
     program: Program,
-    typeRegistry: TypeRegistry
+    typeRegistry: TypeRegistry,
   ): Long {
     return PopulationRequisitionFulfiller.computePopulation(populationInfo, program, typeRegistry)
   }

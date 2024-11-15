@@ -128,7 +128,7 @@ class InProcessCmmsComponents(
           loadSigningKey("${PDP_DISPLAY_NAME}_cs_cert.der", "${PDP_DISPLAY_NAME}_cs_private.der"),
           DataProviderCertificateKey.fromName(
             populationDataProviderResource.dataProvider.certificate
-          )!!
+          )!!,
         ),
       populationDataProviderResource.name,
       populationInfoMap,
@@ -177,10 +177,6 @@ class InProcessCmmsComponents(
         internalAccountsClient = kingdom.internalAccountsClient,
         internalDataProvidersClient = kingdom.internalDataProvidersClient,
         internalModelProvidersClient = kingdom.internalModelProvidersClient,
-        internalModelSuitesClient = kingdom.internalModelSuitesClient,
-        internalModelLinesClient = kingdom.internalModelLinesClient,
-        internalModelReleasesClient = kingdom.internalModelReleasesClient,
-        internalModelRolloutsClient = kingdom.internalModelRolloutsClient,
         internalPopulationsClient = kingdom.internalPopulationsClient,
         accountsClient = publicAccountsClient,
         apiKeysClient = publicApiKeysClient,
@@ -251,7 +247,7 @@ class InProcessCmmsComponents(
     populationInfo =
       PopulationInfo(
         SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE.toPopulationSpec(),
-        TestEvent.getDescriptor()
+        TestEvent.getDescriptor(),
       )
     populationInfoMap = mapOf(populationKey to populationInfo)
 

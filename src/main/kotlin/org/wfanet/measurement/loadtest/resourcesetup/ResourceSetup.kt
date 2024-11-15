@@ -21,7 +21,6 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.io.File
 import java.time.Clock
-import java.time.Instant
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -54,7 +53,6 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdToken
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
 import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
@@ -63,16 +61,8 @@ import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
-import org.wfanet.measurement.internal.kingdom.ModelLine as InternalModelLine
-import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
-import org.wfanet.measurement.internal.kingdom.ModelRelease as InternalModelRelease
-import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt
-import org.wfanet.measurement.internal.kingdom.ModelRollout as InternalModelRollout
-import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt
-import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
-import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt
 import org.wfanet.measurement.internal.kingdom.Population as InternalPopulation
 import org.wfanet.measurement.internal.kingdom.PopulationKt
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt
@@ -82,10 +72,7 @@ import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreation
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.internal.kingdom.eventTemplate
-import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
 import org.wfanet.measurement.internal.kingdom.modelProvider as internalModelProvider
-import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRelease
-import org.wfanet.measurement.internal.kingdom.modelRollout as internalModelRollout
 import org.wfanet.measurement.internal.kingdom.population as internalPopulation
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
@@ -120,11 +107,7 @@ class ResourceSetup(
   private val outputDir: File? = null,
   private val internalModelProvidersClient: ModelProvidersGrpcKt.ModelProvidersCoroutineStub? =
     null,
-  private val internalModelSuitesClient: ModelSuitesGrpcKt.ModelSuitesCoroutineStub? = null,
-  private val internalModelLinesClient: ModelLinesGrpcKt.ModelLinesCoroutineStub? = null,
   private val internalPopulationsClient: PopulationsGrpcKt.PopulationsCoroutineStub? = null,
-  private val internalModelReleasesClient: ModelReleasesGrpcKt.ModelReleasesCoroutineStub? = null,
-  private val internalModelRolloutsClient: ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub? = null,
 ) {
   data class MeasurementConsumerAndKey(
     val measurementConsumer: MeasurementConsumer,
@@ -308,50 +291,7 @@ class ResourceSetup(
     }
   }
 
-  /** Create a modelSuite. */
-  suspend fun createInternalModelSuite(modelProvider: InternalModelProvider): InternalModelSuite {
-    require(internalModelSuitesClient != null)
-    return internalModelSuitesClient.createModelSuite(
-      org.wfanet.measurement.internal.kingdom.modelSuite {
-        externalModelProviderId = modelProvider.externalModelProviderId
-        displayName = "displayName"
-        description = "description"
-      }
-    )
-  }
-
-  suspend fun createInternalModelLine(modelSuite: InternalModelSuite): InternalModelLine {
-    require(internalModelLinesClient != null)
-    return internalModelLinesClient.createModelLine(
-      internalModelLine {
-        externalModelProviderId = modelSuite.externalModelProviderId
-        externalModelSuiteId = modelSuite.externalModelSuiteId
-        displayName = "displayName"
-        description = "description"
-        activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
-        type = InternalModelLine.Type.DEV
-      }
-    )
-  }
-
-  suspend fun createInternalModelRelease(
-    modelSuite: InternalModelSuite,
-    population: InternalPopulation,
-  ): InternalModelRelease {
-    require(internalModelReleasesClient != null)
-    return internalModelReleasesClient.createModelRelease(
-      internalModelRelease {
-        externalModelProviderId = modelSuite.externalModelProviderId
-        externalModelSuiteId = modelSuite.externalModelSuiteId
-        externalDataProviderId = population.externalDataProviderId
-        externalPopulationId = population.externalPopulationId
-      }
-    )
-  }
-
-  suspend fun createInternalPopulation(
-    dataProvider: InternalDataProvider,
-  ): InternalPopulation {
+  suspend fun createInternalPopulation(dataProvider: InternalDataProvider): InternalPopulation {
     require(internalPopulationsClient != null)
     return internalPopulationsClient.createPopulation(
       internalPopulation {
@@ -359,23 +299,6 @@ class ResourceSetup(
         description = "DESCRIPTION"
         populationBlob = PopulationKt.populationBlob { modelBlobUri = "BLOB_URI" }
         eventTemplate = eventTemplate { fullyQualifiedType = "TYPE" }
-      }
-    )
-  }
-
-  suspend fun createInternalModelRollout(
-    modelLine: InternalModelLine,
-    modelRelease: InternalModelRelease
-  ): InternalModelRollout {
-    require(internalModelRolloutsClient != null)
-    return internalModelRolloutsClient.createModelRollout(
-      internalModelRollout {
-        externalModelProviderId = modelLine.externalModelProviderId
-        externalModelSuiteId = modelLine.externalModelSuiteId
-        externalModelLineId = modelLine.externalModelLineId
-        rolloutPeriodStartTime = Instant.now().plusSeconds(100L).toProtoTime()
-        rolloutPeriodEndTime = Instant.now().plusSeconds(200L).toProtoTime()
-        externalModelReleaseId = modelRelease.externalModelReleaseId
       }
     )
   }

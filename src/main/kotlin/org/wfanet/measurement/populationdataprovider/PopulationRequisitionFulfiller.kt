@@ -277,7 +277,7 @@ class PopulationRequisitionFulfiller(
     fun computePopulation(
       populationInfo: PopulationInfo,
       program: Program,
-      typeRegistry: TypeRegistry
+      typeRegistry: TypeRegistry,
     ): Long {
       return populationInfo.populationSpec.subpopulationsList.sumOf {
         val attributesList = it.attributesList
@@ -287,7 +287,7 @@ class PopulationRequisitionFulfiller(
             attributesList,
             populationInfo.eventMessageDescriptor,
             program,
-            typeRegistry
+            typeRegistry,
           )
         if (shouldSumPopulation) {
           vidRanges.sumOf { jt -> jt.size() }
@@ -306,7 +306,7 @@ class PopulationRequisitionFulfiller(
       attributeList: List<Any>,
       eventMessageDescriptor: Descriptor,
       program: Program,
-      typeRegistry: TypeRegistry
+      typeRegistry: TypeRegistry,
     ): Boolean {
       // Event message that will be passed to CEL program
       val eventMessage: DynamicMessage.Builder = DynamicMessage.newBuilder(eventMessageDescriptor)

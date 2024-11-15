@@ -177,13 +177,7 @@ class EdpSimulator(
   private val health: SettableHealth = SettableHealth(),
   private val blockingCoroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
 ) :
-  RequisitionFulfiller(
-    edpData,
-    certificatesStub,
-    requisitionsStub,
-    throttler,
-    trustedCertificates,
-  ),
+  RequisitionFulfiller(edpData, certificatesStub, requisitionsStub, throttler, trustedCertificates),
   Health by health {
   private val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
 

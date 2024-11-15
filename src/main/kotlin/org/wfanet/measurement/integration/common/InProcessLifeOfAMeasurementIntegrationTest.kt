@@ -314,9 +314,10 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
       populationData,
       modelLine.name,
       DEFAULT_POPULATION_FILTER_EXPRESSION,
-      inProcessCmmsComponents.getTypeRegistry()
+      inProcessCmmsComponents.getTypeRegistry(),
     )
   }
+
   companion object {
     // Epsilon can vary from 0.0001 to 1.0, delta = 1e-15 is a realistic value.
     // Set epsilon higher without exceeding privacy budget so the noise is smaller in the
