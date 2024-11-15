@@ -354,9 +354,13 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                 config
               }
 
+          println("config content: $configContent")
           kubectlApply(configContent)
         }
 
+      for (appliedObject in appliedObjects) {
+        println("appliedObject: ${appliedObject.metadata.name}")
+      }
       waitUntilDeploymentsComplete(appliedObjects)
     }
 
