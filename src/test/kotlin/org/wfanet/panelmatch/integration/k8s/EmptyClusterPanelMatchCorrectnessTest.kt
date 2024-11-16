@@ -350,6 +350,7 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
           akidPrincipalMap.copyTo(configFilesDir.resolve(akidPrincipalMap.name))
 
           val configFile: File = outputDir.resolve("config.yaml")
+          println("config file: $configFile")
           kustomize(
             outputDir
               .toPath()
@@ -358,8 +359,6 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
               .toFile(),
             configFile,
           )
-
-          println("config file: $configFile")
 
           kubectlApply(configFile, k8sClient)
         }
