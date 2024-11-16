@@ -347,6 +347,7 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
 
           val configFilesDir = outputDir.toPath().resolve(CONFIG_FILES_PATH).toFile()
           logger.info("Copying $akidPrincipalMap to $CONFIG_FILES_PATH")
+          println("config files dir: ${configFilesDir.absolutePath}")
           akidPrincipalMap.copyTo(configFilesDir.resolve(akidPrincipalMap.name))
 
           val configFile: File = outputDir.resolve("config.yaml")
