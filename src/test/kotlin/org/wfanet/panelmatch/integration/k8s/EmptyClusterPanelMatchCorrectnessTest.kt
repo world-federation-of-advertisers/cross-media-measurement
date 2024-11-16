@@ -347,10 +347,8 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
 
           val configFilesDir = outputDir.toPath().resolve(CONFIG_FILES_PATH).toFile()
           logger.info("Copying $akidPrincipalMap to $CONFIG_FILES_PATH")
-          println("config files dir contents: ${configFilesDir.list()}")
           akidPrincipalMap.copyTo(configFilesDir.resolve(akidPrincipalMap.name))
 
-          println("akid copied")
           val configFile: File = outputDir.resolve("config.yaml")
           kustomize(
             outputDir
@@ -360,6 +358,8 @@ class EmptyClusterPanelMatchCorrectnessTest : AbstractPanelMatchCorrectnessTest(
               .toFile(),
             configFile,
           )
+
+          println("config file: $configFile")
 
           kubectlApply(configFile, k8sClient)
         }
