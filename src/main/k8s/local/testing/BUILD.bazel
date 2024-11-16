@@ -75,6 +75,7 @@ kustomization_dir(
         "empty_encryption_key_pair_config.textproto",
         "//src/main/k8s/testing/data:synthetic_generation_specs_small",
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
+        "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
     ],
     renames = {
         "config_files_kustomization.yaml": "kustomization.yaml",
