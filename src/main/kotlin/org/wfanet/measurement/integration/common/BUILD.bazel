@@ -280,6 +280,7 @@ kt_jvm_library(
     ],
     deps = [
         ":in_process_cmms_components",
+        "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/batch:measurement_system_prober",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
