@@ -231,6 +231,10 @@ maven.install(
         # CEL
         "org.projectnessie.cel:cel-core",
         "org.projectnessie.cel:cel-generated-pb",
+
+        # RabbitMQ
+        # TODO(@marcopremier): Remove this once common-jvm PR #286 is merged
+        "com.rabbitmq:amqp-client:5.22.0",
     ],
     boms = [
         "org.apache.beam:beam-sdks-java-bom:" + APACHE_BEAM_VERSION,
