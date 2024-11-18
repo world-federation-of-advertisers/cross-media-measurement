@@ -22,11 +22,14 @@ import com.google.type.date
 import com.google.type.dateTime
 import com.google.type.timeZone
 import io.grpc.StatusException
+import java.time.Duration
 import java.util.logging.Logger
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.time.delay
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
+import org.wfanet.measurement.common.ExponentialBackoff
+import org.wfanet.measurement.common.coerceAtMost
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt
@@ -60,6 +63,8 @@ class ReportingUserSimulator(
   private val metricCalculationSpecsClient:
     MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub,
   private val reportsClient: ReportsGrpcKt.ReportsCoroutineStub,
+  private val initialResultPollingDelay: Duration = Duration.ofSeconds(1),
+  private val maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
 ) {
   suspend fun testCreateReport(runId: String) {
     logger.info("Creating report...")
@@ -130,7 +135,6 @@ class ReportingUserSimulator(
             eventGroupsClient.listEventGroups(
               listEventGroupsRequest {
                 parent = measurementConsumerName
-                pageSize = 1000
                 pageToken = response.nextPageToken
               }
             )
@@ -210,6 +214,9 @@ class ReportingUserSimulator(
   }
 
   private suspend fun pollForCompletedReport(reportName: String): Report {
+    val backoff =
+      ExponentialBackoff(initialDelay = initialResultPollingDelay, randomnessFactor = 0.0)
+    var attempt = 1
     while (true) {
       val retrievedReport =
         try {
@@ -224,7 +231,13 @@ class ReportingUserSimulator(
         Report.State.FAILED -> return retrievedReport
         Report.State.RUNNING,
         Report.State.UNRECOGNIZED,
-        Report.State.STATE_UNSPECIFIED -> delay(5000)
+        Report.State.STATE_UNSPECIFIED -> {
+          val resultPollingDelay =
+            backoff.durationForAttempt(attempt).coerceAtMost(maximumResultPollingDelay)
+          logger.info { "Report not completed yet. Waiting for ${resultPollingDelay.seconds} seconds." }
+          delay(resultPollingDelay)
+          attempt++
+        }
       }
     }
   }
