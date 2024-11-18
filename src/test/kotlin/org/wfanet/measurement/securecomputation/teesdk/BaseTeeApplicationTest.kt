@@ -36,15 +36,10 @@ class BaseTeeApplicationImpl(
   ) {
   val processedMessages: MutableList<TestWork> = mutableListOf()
   val messageProcessed = CompletableDeferred<Unit>()
-  val subscriptionReady = CompletableDeferred<Unit>()
 
   override suspend fun runWork(message: TestWork) {
     processedMessages.add(message)
     messageProcessed.complete(Unit)
-  }
-  override suspend fun startListening() {
-    subscriptionReady.complete(Unit)
-    super.startListening()
   }
 
 }
@@ -52,34 +47,40 @@ class BaseTeeApplicationImpl(
 class BaseTeeApplicationTest {
 
   @Test
-  fun `test processing protobuf message`() = runBlocking {
+  fun `test processing protobuf message`() {
 
-    val inMemoryQueueClient = InMemoryQueueClient(Dispatchers.IO)
-    val app =
-      BaseTeeApplicationImpl(
-        queueClient = inMemoryQueueClient,
-        parser = TestWork.parser(),
-      )
+    runBlocking {
+      val inMemoryQueueClient = InMemoryQueueClient(Dispatchers.IO)
+      val app =
+        BaseTeeApplicationImpl(
+          queueClient = inMemoryQueueClient,
+          parser = TestWork.parser(),
+        )
 
-    launch {
-      app.startListening()
+      launch {
+        app.run()
+      }
+
+      val testWork =
+        TestWork.newBuilder()
+          .setName("testWorks/123")
+          .setUserName("Alice")
+          .setUserAge("30")
+          .setUserCountry("US")
+          .build()
+
+      launch {
+        app.messageProcessed.await()
+        assertThat(app.processedMessages.contains(testWork)).isTrue()
+        inMemoryQueueClient.close()
+        app.close()
+      }
+
+      launch {
+        inMemoryQueueClient.sendMessage(testWork.toByteArray())
+      }
+
     }
-
-    app.subscriptionReady.await()
-
-    val testWork =
-      TestWork.newBuilder()
-        .setName("testWorks/123")
-        .setUserName("Alice")
-        .setUserAge("30")
-        .setUserCountry("US")
-        .build()
-
-    inMemoryQueueClient.sendMessage(testWork.toByteArray())
-    app.messageProcessed.await()
-    assertThat(app.processedMessages.contains(testWork)).isTrue()
-    inMemoryQueueClient.close()
-    app.close()
 
   }
 }

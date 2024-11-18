@@ -41,10 +41,17 @@ abstract class BaseTeeApplication<T : Message>(
 ) : AutoCloseable {
 
   /**
+   * Starts the TEE application by listening for messages on the specified queue.
+   */
+  suspend fun run () {
+    startListening()
+  }
+
+  /**
    * Begins listening for messages on the specified queue. Each message is processed as it arrives.
    * If an error occurs during the message flow, it is logged and handling continues.
    */
-  suspend open fun startListening() {
+  private suspend fun startListening() {
     try {
       val messageChannel: ReceiveChannel<QueueClient.QueueMessage<T>> =
         queueClient.subscribe(queueName, parser)
