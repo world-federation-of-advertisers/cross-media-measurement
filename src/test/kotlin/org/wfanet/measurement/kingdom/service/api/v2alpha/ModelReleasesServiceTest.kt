@@ -33,12 +33,14 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesRequest
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleaseKey
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
+import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
@@ -86,6 +88,8 @@ private const val MODEL_RELEASE_NAME = "$MODEL_SUITE_NAME/modelReleases/AAAAAAAA
 private const val MODEL_RELEASE_NAME_2 = "$MODEL_SUITE_NAME/modelReleases/AAAAAAAAAJs"
 private const val MODEL_RELEASE_NAME_3 = "$MODEL_SUITE_NAME/modelReleases/AAAAAAAAAKs"
 private const val MODEL_RELEASE_NAME_4 = "$MODEL_SUITE_NAME_2/modelReleases/AAAAAAAAAHs"
+private val POPULATION_NAME = "$DATA_PROVIDER_NAME/populations/AAAAAAAAAHs"
+
 private val EXTERNAL_MODEL_PROVIDER_ID =
   apiIdToExternalId(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!.modelProviderId)
 private val EXTERNAL_MODEL_SUITE_ID =
@@ -96,6 +100,10 @@ private val EXTERNAL_MODEL_RELEASE_ID_2 =
   apiIdToExternalId(ModelReleaseKey.fromName(MODEL_RELEASE_NAME_2)!!.modelReleaseId)
 private val EXTERNAL_MODEL_RELEASE_ID_3 =
   apiIdToExternalId(ModelReleaseKey.fromName(MODEL_RELEASE_NAME_3)!!.modelReleaseId)
+private val EXTERNAL_DATA_PROVIDER_ID =
+  apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
+private val EXTERNAL_POPULATION_ID =
+  apiIdToExternalId(PopulationKey.fromName(POPULATION_NAME)!!.populationId)
 
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 
@@ -104,11 +112,14 @@ private val INTERNAL_MODEL_RELEASE: InternalModelRelease = internalModelRelease 
   externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
   externalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID
   createTime = CREATE_TIME
+  externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+  externalPopulationId = EXTERNAL_POPULATION_ID
 }
 
 private val MODEL_RELEASE: ModelRelease = modelRelease {
   name = MODEL_RELEASE_NAME
   createTime = CREATE_TIME
+  population = POPULATION_NAME
 }
 
 @RunWith(JUnit4::class)
