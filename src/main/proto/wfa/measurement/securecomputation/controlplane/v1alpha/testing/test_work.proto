@@ -35,8 +35,10 @@ message TestWork {
   // Resource name.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 
+  // User Name used for testing.
   string user_name = 2 [(google.api.field_behavior) = REQUIRED];
+  // User Age used for testing.
   string user_age = 3 [(google.api.field_behavior) = REQUIRED];
+  // User Country used for testing.
   string user_country = 4 [(google.api.field_behavior) = REQUIRED];
-
 }

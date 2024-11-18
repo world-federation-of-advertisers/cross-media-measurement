@@ -32,9 +32,7 @@ import org.wfanet.measurement.common.rabbitmq.QueueClient
  * @param T The type of message that this application will process.
  * @param queueName The name of the queue to which this application subscribes.
  * @param queueClient A client that manages connections and interactions with the queue.
- * @param parser A `Parser` from `com.google.protobuf` used to parse raw `ByteArray` data from the
- * queue into the desired message type [T], typically a Protobuf message.
- *   type [T].
+ * @param parser [Parser] used to parse serialized queue messages into [T] instances.
  */
 abstract class BaseTeeApplication<T : Message>(
   private val queueName: String,
@@ -56,7 +54,6 @@ abstract class BaseTeeApplication<T : Message>(
         .catch { e -> logger.severe("Error in message flow: ${e.message}") }
         .collect {
           queueMessage -> processMessage(queueMessage)
-          println("~~~~~~~~~~~~~~~~~~~~~~~~ collecting message")
         }
     } catch (e: Exception) {
       logger.severe("Connection error in startListening: ${e.message}")
