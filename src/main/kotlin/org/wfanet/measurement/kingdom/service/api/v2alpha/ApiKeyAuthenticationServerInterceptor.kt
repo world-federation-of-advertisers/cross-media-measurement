@@ -68,7 +68,9 @@ class ApiKeyAuthenticationServerInterceptor(
     } catch (e: StatusException) {
       val status =
         when (e.status.code) {
-          Status.Code.NOT_FOUND -> Status.UNAUTHENTICATED.withDescription("API key is invalid")
+          Status.Code.INVALID_ARGUMENT,
+          Status.Code.NOT_FOUND ->
+            Status.UNAUTHENTICATED.withDescription("API key is unauthenticated")
           Status.Code.CANCELLED -> Status.CANCELLED
           Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
           else -> Status.UNKNOWN
@@ -81,12 +83,17 @@ class ApiKeyAuthenticationServerInterceptor(
 
   private suspend fun authenticateAuthenticationKey(
     authenticationKey: String
-  ): MeasurementConsumer =
-    internalApiKeysClient.authenticateApiKey(
-      authenticateApiKeyRequest {
-        authenticationKeyHash = Hashing.hashSha256(apiIdToExternalId(authenticationKey))
+  ): MeasurementConsumer {
+    val keyHash =
+      try {
+        Hashing.hashSha256(apiIdToExternalId(authenticationKey))
+      } catch (e: Exception) {
+        throw Status.INVALID_ARGUMENT.withDescription("API key is invalid").asException()
       }
+    return internalApiKeysClient.authenticateApiKey(
+      authenticateApiKeyRequest { authenticationKeyHash = keyHash }
     )
+  }
 }
 
 fun ServerServiceDefinition.withApiKeyAuthenticationServerInterceptor(
