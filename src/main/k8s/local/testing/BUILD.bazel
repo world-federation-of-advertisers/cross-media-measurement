@@ -66,7 +66,7 @@ kustomization_dir(
         "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
     ],
     renames = {"config_files_kustomization.yaml": "kustomization.yaml"},
-    tags = ["manual"],/
+    tags = ["manual"],
 )
 
 kustomization_dir(
