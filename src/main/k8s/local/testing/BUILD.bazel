@@ -94,7 +94,7 @@ kustomization_dir(
 
 kustomization_dir(
     name = "mc_config",
-    srcs = ["//src/main/local:mc_config_kustomization.yaml"],
+    srcs = ["//src/main/k8s/local:mc_config_kustomization.yaml"],
     renames = {
         "mc_config_kustomization.yaml": "kustomization.yaml",
     },

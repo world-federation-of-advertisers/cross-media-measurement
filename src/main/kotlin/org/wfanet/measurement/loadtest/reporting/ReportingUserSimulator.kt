@@ -234,7 +234,9 @@ class ReportingUserSimulator(
         Report.State.STATE_UNSPECIFIED -> {
           val resultPollingDelay =
             backoff.durationForAttempt(attempt).coerceAtMost(maximumResultPollingDelay)
-          logger.info { "Report not completed yet. Waiting for ${resultPollingDelay.seconds} seconds." }
+          logger.info {
+            "Report not completed yet. Waiting for ${resultPollingDelay.seconds} seconds."
+          }
           delay(resultPollingDelay)
           attempt++
         }
