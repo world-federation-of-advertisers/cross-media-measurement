@@ -227,55 +227,55 @@ private object V2AlphaPublicApiServer {
         .build()
         .withShutdownTimeout(Duration.ofSeconds(30))
 
-  val services: List<ServerServiceDefinition> =
-    listOf(
-      DataProvidersService(KingdomDataProvidersCoroutineStub(kingdomChannel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      EventGroupMetadataDescriptorsService(
-          KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
-        )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      EventGroupsService(
-          KingdomEventGroupsCoroutineStub(kingdomChannel),
-          InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
-          celEnvCacheProvider,
-        )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      metricsService.withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      ReportingSetsService(InternalReportingSetsCoroutineStub(channel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      ReportsService(
-          InternalReportsCoroutineStub(channel),
-          InternalMetricCalculationSpecsCoroutineStub(channel),
-          MetricsCoroutineStub(inProcessChannel),
-          metricSpecConfig,
-          SecureRandom().asKotlinRandom(),
-          reportingApiServerFlags.allowSamplingIntervalWrapping,
-        )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      ReportSchedulesService(
-          InternalReportSchedulesCoroutineStub(channel),
-          InternalReportingSetsCoroutineStub(channel),
-          KingdomDataProvidersCoroutineStub(kingdomChannel),
-          KingdomEventGroupsCoroutineStub(kingdomChannel),
-        )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      ReportScheduleIterationsService(InternalReportScheduleIterationsCoroutineStub(channel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      MetricCalculationSpecsService(
-          InternalMetricCalculationSpecsCoroutineStub(channel),
-          metricSpecConfig,
-          SecureRandom().asKotlinRandom(),
-        )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-    )
-  CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
-  inProcessChannel.shutdown()
-  inProcessServer.shutdown()
-  inProcessExecutorService.shutdown()
-  inProcessServer.awaitTermination()
-  inProcessExecutorService.awaitTermination(30, TimeUnit.SECONDS)
-}
+    val services: List<ServerServiceDefinition> =
+      listOf(
+        DataProvidersService(KingdomDataProvidersCoroutineStub(kingdomChannel))
+          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+        EventGroupMetadataDescriptorsService(
+            KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
+          )
+          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+        EventGroupsService(
+            KingdomEventGroupsCoroutineStub(kingdomChannel),
+            InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
+            celEnvCacheProvider,
+          )
+          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+        metricsService.withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+        ReportingSetsService(InternalReportingSetsCoroutineStub(channel))
+          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+        ReportsService(
+            InternalReportsCoroutineStub(channel),
+            InternalMetricCalculationSpecsCoroutineStub(channel),
+            MetricsCoroutineStub(inProcessChannel),
+            metricSpecConfig,
+            SecureRandom().asKotlinRandom(),
+            reportingApiServerFlags.allowSamplingIntervalWrapping,
+          )
+          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+        ReportSchedulesService(
+            InternalReportSchedulesCoroutineStub(channel),
+            InternalReportingSetsCoroutineStub(channel),
+            KingdomDataProvidersCoroutineStub(kingdomChannel),
+            KingdomEventGroupsCoroutineStub(kingdomChannel),
+          )
+          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+        ReportScheduleIterationsService(InternalReportScheduleIterationsCoroutineStub(channel))
+          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+        MetricCalculationSpecsService(
+            InternalMetricCalculationSpecsCoroutineStub(channel),
+            metricSpecConfig,
+            SecureRandom().asKotlinRandom(),
+          )
+          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+      )
+    CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
+    inProcessChannel.shutdown()
+    inProcessServer.shutdown()
+    inProcessExecutorService.shutdown()
+    inProcessServer.awaitTermination()
+    inProcessExecutorService.awaitTermination(30, TimeUnit.SECONDS)
+  }
 
   class V2AlphaPublicServerFlags {
     @CommandLine.Option(

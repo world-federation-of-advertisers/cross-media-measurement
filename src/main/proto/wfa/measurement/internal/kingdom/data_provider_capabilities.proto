@@ -22,4 +22,10 @@ option java_multiple_files = true;
 message DataProviderCapabilities {
   // Whether the Honest Majority Share Shuffle (HMSS) protocol is supported.
   bool honest_majority_share_shuffle_supported = 1;
+  // Whether the VID sampling interval wrapping around 1 is supported for LLv2
+  // protocol.
+  bool llv2_vid_sampling_interval_wrapping_supported = 2;
+  // Whether the VID sampling interval wrapping around 1 is supported for HMSS
+  // protocol.
+  bool hmss_vid_sampling_interval_wrapping_supported = 3;
 }

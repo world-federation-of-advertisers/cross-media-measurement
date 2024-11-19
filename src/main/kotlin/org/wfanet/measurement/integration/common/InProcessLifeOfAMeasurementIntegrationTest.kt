@@ -25,6 +25,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
@@ -133,6 +134,20 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
       mcSimulator.testReachAndFrequency(
         "1234",
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+      )
+    }
+
+  @Test
+  fun `create a Hmss RF measurement with wrapping vid interval and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create a reach and frequency measurement and verify its result.
+      mcSimulator.testReachAndFrequency(
+        "1234",
+        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+        vidSamplingInterval {
+          start = 0.5f
+          width = 1.0f
+        },
       )
     }
 

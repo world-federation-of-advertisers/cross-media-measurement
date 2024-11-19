@@ -250,6 +250,8 @@ private fun InternalDataProviderCapabilities.toCapabilities(): DataProvider.Capa
   val source = this
   return DataProviderKt.capabilities {
     honestMajorityShareShuffleSupported = source.honestMajorityShareShuffleSupported
+    hmssVidSamplingIntervalWrappingSupported = source.hmssVidSamplingIntervalWrappingSupported
+    llv2VidSamplingIntervalWrappingSupported = source.llv2VidSamplingIntervalWrappingSupported
   }
 }
 
@@ -257,5 +259,7 @@ private fun DataProvider.Capabilities.toInternal(): InternalDataProviderCapabili
   val source = this
   return internalDataProviderCapabilities {
     honestMajorityShareShuffleSupported = source.honestMajorityShareShuffleSupported
+    hmssVidSamplingIntervalWrappingSupported = source.hmssVidSamplingIntervalWrappingSupported
+    llv2VidSamplingIntervalWrappingSupported = source.llv2VidSamplingIntervalWrappingSupported
   }
 }
