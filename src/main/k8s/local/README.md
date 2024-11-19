@@ -33,28 +33,6 @@ The example commands below assume that your container registry is hosted at
 Tip: Add the `--define` options in your `.bazelrc` under the `halo-local` build
 configuration so that you can just pass `--config=halo-local`.
 
-## Delete Existing Local Cluster
-
-Only execute this part if you want to delete existing local cluster, and create
-a new one. We assume the cluster is named 'kind'
-
-Delete the KIND cluster:
-
-```shell
-kind delete cluster --name=kind
-```
-
-Delete the local registry container:
-
-```shell
-docker rm -f kind-registry
-```
-
-Prune Docker resources (optional, recommended):
-```shell
-docker system prune -a
-```
-
 ## Automated Test Run
 
 If you just want to run the correctness test, you can use the
@@ -72,6 +50,28 @@ You can clear it out between runs:
 
 ```shell
 kubectl delete all --namespace=default --all
+```
+
+## Delete Existing Local Cluster
+
+Only execute this part if you want to delete existing local cluster before creating
+a new one. We assume the cluster is named 'kind'
+
+Delete the KIND cluster:
+
+```shell
+kind delete cluster --name=kind
+```
+
+Delete the local registry container:
+
+```shell
+docker rm -f kind-registry
+```
+
+Prune Docker resources (optional, recommended):
+```shell
+docker system prune -a
 ```
 
 ## Building and Pushing Container Images
@@ -133,7 +133,7 @@ kubectl port-forward --address=localhost services/v2alpha-public-api-server 8443
 kubectl port-forward --address=localhost services/gcp-kingdom-data-server 9443:8443
 ```
 
-Then run the tool, outputting to some directory (e.g. `/tmp/resource-setup`,
+Then run the tool, outputting to some directory (e.g. `/tmp/cmms/resource-setup`,
 make sure this directory has been created):
 
 ```shell
@@ -141,7 +141,7 @@ src/main/k8s/testing/resource_setup.sh \
   --kingdom-public-api-target=localhost:8443 \
   --kingdom-internal-api-target=localhost:9443 \
   --bazel-config-name=halo-local \
-  --output-dir=/tmp/resource-setup
+  --output-dir=/tmp/cmms/resource-setup
 ```
 
 Note: You can stop the port forwarding at this point. Future steps involve
@@ -337,6 +337,26 @@ bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGen
   --define=kingdom_public_api_target=localhost:8443 \
   --define=mc_name=measurementConsumers/Rcn7fKd25C8 \
   --define=mc_api_key=W9q4zad246g
+```
+
+## Debugging Tips
+
+List cron jobs:
+
+```shell
+kubectl get cronjobs
+```
+
+Stream live updates of pods:
+
+```shell
+kubectl get pods --watch
+```
+
+Display the logs of a pod:
+
+```shell
+kubectl logs <pod-name>
 ```
 
 ## Old Guide
