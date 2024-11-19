@@ -33,6 +33,28 @@ The example commands below assume that your container registry is hosted at
 Tip: Add the `--define` options in your `.bazelrc` under the `halo-local` build
 configuration so that you can just pass `--config=halo-local`.
 
+## Delete Existing Local Cluster
+
+Only execute this part if you want to delete existing local cluster, and create
+a new one. We assume the cluster is named 'kind'
+
+Delete the KIND cluster:
+
+```shell
+kind delete cluster --name=kind
+```
+
+Delete the local registry container:
+
+```shell
+docker rm -f kind-registry
+```
+
+Prune Docker resources (optional, recommended):
+```shell
+docker system prune -a
+```
+
 ## Automated Test Run
 
 If you just want to run the correctness test, you can use the
@@ -228,11 +250,12 @@ kubectl port-forward --address=localhost services/reporting-v2alpha-public-api-s
 The code is instrumented with OpenTelemetry. To enable metrics collection in the
 cluster, we use the
 [OpenTelemetry Operator for Kubernetes](https://github.com/open-telemetry/opentelemetry-operator).
-This depends on [cert-manager](https://github.com/cert-manager/cert-manager) so
-we install that first:
+This depends on [cert-manager](https://github.com/cert-manager/cert-manager), so
+we install that first. Make sure their versions are the same as versions listed in
+[install-otel-operator/action.yml](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/6f9b14b912099d0ce0ddd02f67b67377c7a3daa9/.github/actions/install-otel-operator/action.yml#L4):
 
 ```shell
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.2/cert-manager.yaml
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.5/cert-manager.yaml
 ```
 
 Once that is installed, then install the Operator:
