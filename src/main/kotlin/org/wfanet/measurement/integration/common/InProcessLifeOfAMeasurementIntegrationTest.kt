@@ -95,38 +95,27 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
 
   private val publicModelSuitesClient by lazy {
     ModelSuitesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
-      .withPrincipalName(modelProviderName)
+      .withPrincipalName(inProcessCmmsComponents.modelProviderResourceName)
   }
 
   private val publicModelLinesClient by lazy {
     ModelLinesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
-      .withPrincipalName(modelProviderName)
-  }
-
-  private val publicPopulationsClient by lazy {
-    PopulationsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
-      .withPrincipalName(populationDataProviderName)
+      .withPrincipalName(inProcessCmmsComponents.modelProviderResourceName)
   }
 
   private val publicModelReleasesClient by lazy {
     ModelReleasesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
-      .withPrincipalName(modelProviderName)
+      .withPrincipalName(inProcessCmmsComponents.modelProviderResourceName)
   }
 
   private val publicModelRolloutClient by lazy {
     ModelRolloutsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
-      .withPrincipalName(modelProviderName)
+      .withPrincipalName(inProcessCmmsComponents.modelProviderResourceName)
   }
-
-  private lateinit var modelProviderName: String
-
-  private lateinit var populationDataProviderName: String
 
   @Before
   fun startDaemons() {
     inProcessCmmsComponents.startDaemons()
-    modelProviderName = inProcessCmmsComponents.getModelProviderName()
-    populationDataProviderName = inProcessCmmsComponents.getPopulationDataProviderName()
     initMcSimulator()
   }
 
@@ -270,7 +259,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
     val modelSuite =
       publicModelSuitesClient.createModelSuite(
         createModelSuiteRequest {
-          parent = modelProviderName
+          parent = inProcessCmmsComponents.modelProviderResourceName
           modelSuite = modelSuite { displayName = MODEL_SUITE_DISPLAY_NAME }
         }
       )

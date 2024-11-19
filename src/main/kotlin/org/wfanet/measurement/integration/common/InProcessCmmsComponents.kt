@@ -131,10 +131,9 @@ class InProcessCmmsComponents(
           )!!,
         ),
       populationDataProviderResource.name,
-      populationInfoMap,
+      mapOf(populationKey to populationInfo),
       typeRegistry,
       kingdom.publicApiChannel,
-      dataServicesProvider = { kingdomDataServices },
       TRUSTED_CERTIFICATES,
       verboseGrpcLogging = false,
     )
@@ -159,6 +158,9 @@ class InProcessCmmsComponents(
     ApiKeysGrpcKt.ApiKeysCoroutineStub(kingdom.publicApiChannel)
   }
 
+  val modelProviderResourceName: String
+    get() = _modelProviderResourceName
+
   private lateinit var mcResourceName: String
   private lateinit var apiAuthenticationKey: String
   private lateinit var edpDisplayNameToResourceMap: Map<String, Resources.Resource>
@@ -167,9 +169,8 @@ class InProcessCmmsComponents(
   private lateinit var populationDataProviderResource: Resources.Resource
   private lateinit var populationKey: PopulationKey
   private lateinit var populationInfo: PopulationInfo
-  private lateinit var populationInfoMap: Map<PopulationKey, PopulationInfo>
   private lateinit var typeRegistry: TypeRegistry
-  private lateinit var internalModelProviderName: String
+  private lateinit var _modelProviderResourceName: String
 
   private suspend fun createAllResources() {
     val resourceSetup =
@@ -238,18 +239,16 @@ class InProcessCmmsComponents(
     }
 
     val internalModelProvider = resourceSetup.createInternalModelProvider()
-    internalModelProviderName =
+    _modelProviderResourceName =
       ModelProviderKey(externalIdToApiId(internalModelProvider.externalModelProviderId)).toName()
 
     val population = resourceSetup.createInternalPopulation(internalDataProvider)
-    populationKey =
-      PopulationKey.fromName(population.toPopulation().name) ?: PopulationKey.defaultValue
+    populationKey = PopulationKey.fromName(population.toPopulation().name)!!
     populationInfo =
       PopulationInfo(
         SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE.toPopulationSpec(),
         TestEvent.getDescriptor(),
       )
-    populationInfoMap = mapOf(populationKey to populationInfo)
 
     typeRegistry =
       TypeRegistry.newBuilder().add(listOf(Person.getDescriptor(), Dummy.getDescriptor())).build()
@@ -278,14 +277,6 @@ class InProcessCmmsComponents(
 
   fun getDataProviderResourceNames(): List<String> {
     return edpDisplayNameToResourceMap.values.map { it.name }
-  }
-
-  fun getPopulationDataProviderName(): String {
-    return populationDataProviderResource.name
-  }
-
-  fun getModelProviderName(): String {
-    return internalModelProviderName
   }
 
   fun startDaemons() = runBlocking {

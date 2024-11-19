@@ -60,18 +60,12 @@ class InProcessPopulationRequisitionFulfiller(
   private val populationInfoMap: Map<PopulationKey, PopulationInfo>,
   val typeRegistry: TypeRegistry,
   private val kingdomPublicApiChannel: Channel,
-  dataServicesProvider: () -> DataServices,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   val verboseGrpcLogging: Boolean = true,
   daemonContext: CoroutineContext = Dispatchers.Default,
 ) : TestRule {
   private val daemonScope = CoroutineScope(daemonContext)
   private lateinit var populationRequisitionFulfillerJob: Job
-  private val kingdomDataServices by lazy { dataServicesProvider() }
-  private val internalApiChannel by lazy { internalDataServer.channel }
-  private val internalApiKeysClient by lazy {
-    ApiKeysGrpcKt.ApiKeysCoroutineStub(internalApiChannel)
-  }
 
   private val modelRolloutsClient by lazy {
     ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(kingdomPublicApiChannel)
@@ -92,60 +86,6 @@ class InProcessPopulationRequisitionFulfiller(
     RequisitionsGrpcKt.RequisitionsCoroutineStub(kingdomPublicApiChannel)
       .withPrincipalName(resourceName)
   }
-
-  private val internalCertificatesClient by lazy {
-    org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub(
-      internalApiChannel
-    )
-  }
-  private val internalRequisitionsClient by lazy {
-    org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub(
-      internalApiChannel
-    )
-  }
-  private val internalModelRolloutsClient by lazy {
-    org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(
-      internalApiChannel
-    )
-  }
-  private val internalModelReleasesClient by lazy {
-    org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub(
-      internalApiChannel
-    )
-  }
-
-  private val internalDataServer =
-    GrpcTestServerRule(
-      logAllRequests = verboseGrpcLogging,
-      defaultServiceConfig = DEFAULT_SERVICE_CONFIG_MAP,
-    ) {
-      logger.info(
-        "Building Kingdom's internal Data services used by Population Requisition Fulfiller."
-      )
-      kingdomDataServices.buildDataServices().toList().forEach { addService(it) }
-    }
-
-  private val publicApiServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
-      logger.info(
-        "Building Kingdom's public API services used by Population Requisition Fulfiller."
-      )
-      listOf(
-          CertificatesService(internalCertificatesClient)
-            .withMetadataPrincipalIdentities()
-            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          RequisitionsService(internalRequisitionsClient)
-            .withMetadataPrincipalIdentities()
-            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          ModelRolloutsService(internalModelRolloutsClient)
-            .withMetadataPrincipalIdentities()
-            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          ModelReleasesService(internalModelReleasesClient)
-            .withMetadataPrincipalIdentities()
-            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-        )
-        .forEach { addService(it) }
-    }
 
   fun start() {
     populationRequisitionFulfillerJob =
@@ -175,16 +115,9 @@ class InProcessPopulationRequisitionFulfiller(
     populationRequisitionFulfillerJob.cancelAndJoin()
   }
 
-  /** Provides a gRPC channel to the duchy's public API. */
-  val publicApiChannel: Channel
-    get() = publicApiServer.channel
-
-  override fun apply(statement: Statement, description: Description) =
-    object : Statement() {
-      override fun evaluate() {
-        publicApiServer.apply(statement, description)
-      }
-    }
+  override fun apply(statement: Statement, description: Description): Statement {
+    return statement
+  }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

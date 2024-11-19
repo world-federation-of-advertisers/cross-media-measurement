@@ -150,7 +150,7 @@ class PopulationRequisitionFulfiller(
     }
   }
 
-  suspend fun getPopulationInfo(measurementSpec: MeasurementSpec): PopulationInfo {
+  private suspend fun getPopulationInfo(measurementSpec: MeasurementSpec): PopulationInfo {
     val modelRelease: ModelRelease = getModelRelease(measurementSpec)
 
     val populationId: PopulationKey =

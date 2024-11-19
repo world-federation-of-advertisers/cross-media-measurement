@@ -41,6 +41,11 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCo
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt.PublicKeysCoroutineStub as InternalPublicKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub as InternalRecurringExchangesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub as InternalModelRolloutsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub as InternalModelReleasesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineStub as InternalModelSuitesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineStub as InternalModelLinesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineStub as InternalPopulationsCoroutineStub
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import org.wfanet.measurement.kingdom.service.api.v2alpha.AccountsService
@@ -232,36 +237,36 @@ class InProcessKingdom(
   }
 
   /** Provides access to ModelRollout creation. */
-  val internalModelRolloutsClient by lazy {
-    org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(
+  private val internalModelRolloutsClient by lazy {
+    InternalModelRolloutsCoroutineStub(
       internalApiChannel
     )
   }
 
   /** Provides access to ModelRelease creation. */
-  val internalModelReleasesClient by lazy {
-    org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub(
+  private val internalModelReleasesClient by lazy {
+    InternalModelReleasesCoroutineStub(
       internalApiChannel
     )
   }
 
   /** Provides access to ModelSuite creation. */
-  val internalModelSuitesClient by lazy {
-    org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineStub(
+  private val internalModelSuitesClient by lazy {
+    InternalModelSuitesCoroutineStub(
       internalApiChannel
     )
   }
 
   /** Provides access to ModelLine creation. */
-  val internalModelLinesClient by lazy {
-    org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineStub(
+  private val internalModelLinesClient by lazy {
+    InternalModelLinesCoroutineStub(
       internalApiChannel
     )
   }
 
   /** Provides access to Population creation. */
   val internalPopulationsClient by lazy {
-    org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineStub(
+    InternalPopulationsCoroutineStub(
       internalApiChannel
     )
   }

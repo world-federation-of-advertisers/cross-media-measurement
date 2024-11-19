@@ -738,7 +738,7 @@ fun InternalModelRollout.toModelRollout(): ModelRollout {
           source.rolloutPeriodEndTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
       }
     }
-    if (source.rolloutFreezeTime !== Timestamp.getDefaultInstance()) {
+    if (source.hasRolloutFreezeTime()) {
       rolloutFreezeDate =
         source.rolloutFreezeTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
     }
@@ -811,7 +811,7 @@ fun ModelRollout.toInternal(
       }
     }
 
-    if (publicModelRollout.rolloutFreezeDate !== Date.getDefaultInstance()) {
+    if (publicModelRollout.hasRolloutFreezeDate()) {
       rolloutFreezeTime =
         publicModelRollout.rolloutFreezeDate
           .toLocalDate()
