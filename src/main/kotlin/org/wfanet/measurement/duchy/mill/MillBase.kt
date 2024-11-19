@@ -287,6 +287,7 @@ abstract class MillBase(
         message = "Failing computation due to too many failed attempts. Last message: ${e.message}",
         cause = e,
       )
+      return
     }
 
     if (latestToken.version != token.version) {
