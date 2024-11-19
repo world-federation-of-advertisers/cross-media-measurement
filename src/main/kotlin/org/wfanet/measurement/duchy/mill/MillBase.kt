@@ -273,6 +273,22 @@ abstract class MillBase(
         }
         return
       }
+
+    if (latestToken.computationStage == endingStage) {
+      logger.log(Level.WARNING, e) {
+        "$globalId@$millId: Skip exception handling as computation has been terminated."
+      }
+      return
+    }
+
+    if (token.attempt > maximumAttempts) {
+      failComputation(
+        token,
+        message = "Failing computation due to too many failed attempts. Last message: ${e.message}",
+        cause = e,
+      )
+    }
+
     if (latestToken.version != token.version) {
       logger.log(Level.WARNING, e) {
         "$globalId@$millId: Skip exception handling as token has been outdated."
@@ -282,25 +298,17 @@ abstract class MillBase(
 
     when (e) {
       is ComputationDataClients.TransientErrorException -> {
-        if (token.attempt > maximumAttempts) {
-          failComputation(
+        logger.log(Level.WARNING, e) { "$globalId@$millId: TRANSIENT error" }
+        sendStatusUpdateToKingdom(
+          globalId,
+          buildErrorLogEntry(
             token,
-            message = "Failing computation due to too many failed attempts.",
-            cause = e,
-          )
-        } else {
-          logger.log(Level.WARNING, e) { "$globalId@$millId: TRANSIENT error" }
-          sendStatusUpdateToKingdom(
-            globalId,
-            buildErrorLogEntry(
-              token,
-              "Transient error processing Computation $globalId at attempt ${token.attempt} of " +
-                "stage ${token.computationStage}: ${e.message}",
-            ),
-          )
-          // Enqueue the computation again for future retry
-          enqueueComputation(token)
-        }
+            "Transient error processing Computation $globalId at attempt ${token.attempt} of " +
+              "stage ${token.computationStage}: ${e.message}",
+          ),
+        )
+        // Enqueue the computation again for future retry
+        enqueueComputation(token)
       }
       is StatusException -> throw IllegalStateException("Programming bug: uncaught gRPC error", e)
       else -> {
