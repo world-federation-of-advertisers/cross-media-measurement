@@ -78,11 +78,11 @@ kustomization_dir(
         "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
     ],
     data = ["//src/main/k8s/local:exported_files"],
-    deps = ["//src/main/k8s/local/empty_encryption_key_pair_config.textproto"],
     renames = {
         "config_files_kustomization.yaml": "kustomization.yaml",
         "empty_encryption_key_pair_config.textproto": "encryption_key_pair_config.textproto",
     },
+    deps = ["//src/main/k8s/local/empty_encryption_key_pair_config.textproto"],
 )
 
 kustomization_dir(
@@ -96,11 +96,11 @@ kustomization_dir(
 kustomization_dir(
     name = "mc_config",
     data = ["//src/main/k8s/local:exported_files"],
-    deps = ["//src/main/k8s/local/mc_config_kustomization.yaml"],
     renames = {
         "mc_config_kustomization.yaml": "kustomization.yaml",
     },
     tags = ["manual"],
+    deps = ["//src/main/k8s/local/mc_config_kustomization.yaml"],
 )
 
 kustomization_dir(
