@@ -73,7 +73,7 @@ kustomization_dir(
     name = "config_files_for_panel_match",
     srcs = [
         "config_files_kustomization.yaml",
-        "//src/main/k8s/local:empty_encryption_key_pair_config.textproto",
+        "empty_encryption_key_pair_config.textproto",
         "//src/main/k8s/testing/data:synthetic_generation_specs_small",
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
         "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
@@ -94,7 +94,7 @@ kustomization_dir(
 
 kustomization_dir(
     name = "mc_config",
-    srcs = ["//src/main/k8s/local:mc_config_kustomization.yaml"],
+    srcs = ["mc_config_kustomization.yaml"],
     renames = {
         "mc_config_kustomization.yaml": "kustomization.yaml",
     },
