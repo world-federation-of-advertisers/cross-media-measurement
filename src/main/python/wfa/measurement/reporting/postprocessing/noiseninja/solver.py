@@ -132,17 +132,17 @@ class Solver:
     variables[child] = 1
     self._add_gt_term(variables)
 
-  def _add_loss_term(self, variables, k: float):
+  def _add_loss_term(self, variables: np.array, k: float):
     for v1, coeff1 in enumerate(variables):
       self.q[0][v1] += coeff1 * k
       for v2, coeff2 in enumerate(variables):
         self.P[v1][v2] += coeff1 * coeff2
 
-  def _add_eq_term(self, variables, k: float):
+  def _add_eq_term(self, variables: np.array, k: float):
     self.A.append(variables)
     self.b.append(k)
 
-  def _add_gt_term(self, variables):
+  def _add_gt_term(self, variables: np.array):
     self.G.append(variables)
     self.h.append([0])
 
@@ -197,6 +197,6 @@ class Solver:
       result[self.variable_map[var]] = solution.x[var]
     return result
 
-  def solve_and_translate(self):
+  def solve_and_translate(self) -> dict[int, float]:
     solution = self.solve()
     return self.translate_solution(solution)

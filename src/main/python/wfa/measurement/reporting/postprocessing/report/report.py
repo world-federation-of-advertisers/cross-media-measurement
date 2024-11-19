@@ -18,12 +18,12 @@ import numpy as np
 
 from noiseninja.noised_measurements import SetMeasurementsSpec, Measurement
 from noiseninja.solver import Solver
-from typing import FrozenSet
+from typing import FrozenSet, Tuple
 from itertools import combinations
 from functools import reduce
 
 
-def get_subset_relationships(edp_combinations: list[FrozenSet[str]]):
+def get_subset_relationships(edp_combinations: list[FrozenSet[str]]) -> list[Tuple[int, int]]:
   """Returns a list of tuples where first element in the tuple is the parent
   and second element is the subset."""
   subset_relationships = []
@@ -36,7 +36,7 @@ def get_subset_relationships(edp_combinations: list[FrozenSet[str]]):
   return subset_relationships
 
 
-def is_cover(target_set, possible_cover):
+def is_cover(target_set: set[int], possible_cover: list[set[int]]) -> bool:
   """Checks if a collection of sets covers a target set.
 
   Args:
@@ -52,7 +52,8 @@ def is_cover(target_set, possible_cover):
   )
   return union_of_possible_cover == target_set
 
-def get_covers(target_set, other_sets):
+
+def get_covers(target_set: set[int], other_sets: list[set[int]]) -> list[Tuple[set[int], list[set[int]]]]:
   """Finds all combinations of sets from `other_sets` that cover `target_set`.
 
   This function identifies all possible combinations of sets within `other_sets`
@@ -68,7 +69,7 @@ def get_covers(target_set, other_sets):
     The first element of the tuple is the `target_set`, and the second element
     is a tuple containing the sets from `other_sets` that cover it.
   """
-  def generate_all_length_combinations(data):
+  def generate_all_length_combinations(data: list[int]) -> list[set[int]]:
     """Generates all possible combinations of elements from a list.
 
     Args:
@@ -94,7 +95,7 @@ def get_covers(target_set, other_sets):
   return cover_relationship
 
 
-def get_cover_relationships(edp_combinations: list[FrozenSet[str]]):
+def get_cover_relationships(edp_combinations: list[FrozenSet[str]]) -> list[Tuple[set[int], list[set[int]]]]:
   """Returns covers as defined here: # https://en.wikipedia.org/wiki/Cover_(topology).
   For each set (s_i) in the list, enumerate combinations of all sets excluding this one.
   For each of these considered combinations, take their union and check if it is equal to
@@ -164,42 +165,42 @@ class MetricReport:
         }
     )
 
-  def get_cumulative_measurement(self, edp_combination: str, period: int):
+  def get_cumulative_measurement(self, edp_combination: str, period: int) -> Measurement:
     return self._reach_time_series[edp_combination][
       period]
 
-  def get_whole_campaign_measurement(self, edp_combination: str):
+  def get_whole_campaign_measurement(self, edp_combination: str) -> Measurement:
     return self._reach_whole_campaign[edp_combination]
 
-  def get_cumulative_edp_combinations(self):
+  def get_cumulative_edp_combinations(self) -> set[list[int]]:
     return set(self._reach_time_series.keys())
 
-  def get_whole_campaign_edp_combinations(self):
+  def get_whole_campaign_edp_combinations(self) -> set[list[int]]:
     return set(self._reach_whole_campaign.keys())
 
-  def get_cumulative_edp_combinations_count(self):
+  def get_cumulative_edp_combinations_count(self) -> int:
     return len(self._reach_time_series.keys())
 
-  def get_whole_campaign_edp_combinations_count(self):
+  def get_whole_campaign_edp_combinations_count(self) -> int:
     return len(self._reach_whole_campaign.keys())
 
-  def get_number_of_periods(self):
+  def get_number_of_periods(self) -> int:
     return len(next(iter(self._reach_time_series.values())))
 
-  def get_cumulative_subset_relationships(self):
+  def get_cumulative_subset_relationships(self) -> list[Tuple[int, int]]:
     return get_subset_relationships(list(self._reach_time_series))
 
-  def get_whole_campaign_subset_relationships(self):
+  def get_whole_campaign_subset_relationships(self) -> list[Tuple[int, int]]:
     return get_subset_relationships(list(self._reach_whole_campaign))
 
-  def get_cumulative_cover_relationships(self):
+  def get_cumulative_cover_relationships(self) -> list[Tuple[set[int], list[set[int]]]]:
     return get_cover_relationships(list(self._reach_time_series))
 
-  def get_whole_campaign_cover_relationships(self):
+  def get_whole_campaign_cover_relationships(self) -> list[Tuple[set[int], list[set[int]]]]:
     return get_cover_relationships(list(self._reach_whole_campaign))
 
   @staticmethod
-  def _sample_with_noise(measurement: Measurement):
+  def _sample_with_noise(measurement: Measurement) -> Measurement:
     return Measurement(
         measurement.value + random.gauss(0, measurement.sigma),
         measurement.sigma
@@ -292,7 +293,7 @@ class Report:
 
     self._num_vars = measurement_index
 
-  def get_metric_report(self, metric: str) -> MetricReport:
+  def get_metric_report(self, metric: str) -> "MetricReport":
     return self._metric_reports[metric]
 
   def get_metrics(self) -> set[str]:
@@ -306,7 +307,7 @@ class Report:
     solution = Solver(spec).solve_and_translate()
     return self.report_from_solution(solution, spec)
 
-  def report_from_solution(self, solution, spec):
+  def report_from_solution(self, solution, spec) -> "Report":
     return Report(
         metric_reports={
             metric: self._metric_report_from_solution(metric, solution)
@@ -360,7 +361,7 @@ class Report:
         )
     return array
 
-  def to_set_measurement_spec(self):
+  def to_set_measurement_spec(self) -> SetMeasurementsSpec:
     spec = SetMeasurementsSpec()
     self._add_measurements_to_spec(spec)
     self._add_set_relations_to_spec(spec)
@@ -549,24 +550,24 @@ class Report:
             measurement,
         )
 
-  def _get_measurement_index(self, measurement: Measurement):
+  def _get_measurement_index(self, measurement: Measurement) -> int:
     return self._measurement_name_to_index[measurement.name]
 
   def _get_cumulative_measurement_index(self, metric: str,
-      edp_combination: str, period: int):
+      edp_combination: str, period: int) -> int:
     return self._get_measurement_index(
         self._metric_reports[metric].get_cumulative_measurement(
             edp_combination, period)
     )
 
   def _get_whole_campaign_measurement_index(self, metric: str,
-      edp_combination: str):
+      edp_combination: str) -> int:
     return self._get_measurement_index(
         self._metric_reports[metric].get_whole_campaign_measurement(
             edp_combination)
     )
 
-  def _metric_report_from_solution(self, metric, solution):
+  def _metric_report_from_solution(self, metric, solution) -> "MetricReport":
     solution_time_series = {}
     solution_whole_campaign = {}
     for edp_combination in self._metric_reports[

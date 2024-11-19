@@ -46,7 +46,7 @@ class SetMeasurementsSpec:
                         https://en.wikipedia.org/wiki/Cover_(topology).
         _measurements_by_set: A dictionary mapping a set ID to a list of
                               Measurement objects associated with that set.
-    """
+  """
 
   def __init__(self):
     self._subsets_by_set = defaultdict(list[int])
@@ -65,16 +65,16 @@ class SetMeasurementsSpec:
   def all_sets(self) -> set[int]:
     return set(i for i in self._measurements_by_set.keys())
 
-  def get_covers_of_set(self, set_id: int):
+  def get_covers_of_set(self, set_id: int) -> list[list[int]]:
     return self._covers_by_set[set_id]
 
-  def get_subsets(self, parent_set_id):
+  def get_subsets(self, parent_set_id: int) -> list[int]:
     return self._subsets_by_set[parent_set_id]
 
-  def get_measurements(self, measured_set_id):
+  def get_measurements(self, measured_set_id: int) -> list[Measurement]:
     return self._measurements_by_set.get(measured_set_id)
 
-  def get_measurement_metric(self, measured_set_id):
+  def get_measurement_metric(self, measured_set_id: int) -> str:
     measurement = self._measurements_by_set.get(measured_set_id)
     return measurement[0].name
 

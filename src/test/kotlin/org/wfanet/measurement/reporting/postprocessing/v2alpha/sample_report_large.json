@@ -92,7 +92,7 @@
                       "standardDeviation": 0.28867513459481287
                     },
                     "kPlusUnivariateStatistics": {
-                      "standardDeviation": 102011.27564649425
+                      "standardDeviation": 1.0
                     },
                     "relativeKPlusUnivariateStatistics": {
                     }
@@ -215,7 +215,7 @@
                       "standardDeviation": 0.28867513459481287
                     },
                     "kPlusUnivariateStatistics": {
-                      "standardDeviation": 102011.27564649425
+                      "standardDeviation": 1.0
                     },
                     "relativeKPlusUnivariateStatistics": {
                     }
@@ -338,7 +338,7 @@
                       "standardDeviation": 0.28867513459481287
                     },
                     "kPlusUnivariateStatistics": {
-                      "standardDeviation": 102011.27564649425
+                      "standardDeviation": 1.0
                     },
                     "relativeKPlusUnivariateStatistics": {
                     }
@@ -457,7 +457,7 @@
                       "standardDeviation": 0.28867513459481287
                     },
                     "kPlusUnivariateStatistics": {
-                      "standardDeviation": 102011.27564649425
+                      "standardDeviation": 1.0
                     },
                     "relativeKPlusUnivariateStatistics": {
                     }
@@ -559,7 +559,7 @@
               "reach": {
                 "value": "31569000",
                 "univariateStatistics": {
-                  "standardDeviation": 102011.27564649425
+                  "standardDeviation": 1.0
                 }
               },
               "frequencyHistogram": {
@@ -576,7 +576,7 @@
                       "standardDeviation": 0.28867513459481287
                     },
                     "kPlusUnivariateStatistics": {
-                      "standardDeviation": 102011.27564649425
+                      "standardDeviation": 1.0
                     },
                     "relativeKPlusUnivariateStatistics": {
                     }
@@ -682,7 +682,7 @@
               "reach": {
                 "value": "31569000",
                 "univariateStatistics": {
-                  "standardDeviation": 102011.27564649425
+                  "standardDeviation": 1.0
                 }
               },
               "frequencyHistogram": {
@@ -699,7 +699,7 @@
                       "standardDeviation": 0.28867513459481287
                     },
                     "kPlusUnivariateStatistics": {
-                      "standardDeviation": 102011.27564649425
+                      "standardDeviation": 1.0
                     },
                     "relativeKPlusUnivariateStatistics": {
                     }

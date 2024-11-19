@@ -13,47 +13,19 @@
 # limitations under the License.
 
 import json
-import math
-import pandas as pd
 import sys
 
-from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
-  report_summary_pb2
-from functools import partial
+from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import report_summary_pb2
 from noiseninja.noised_measurements import Measurement
 from report.report import Report, MetricReport
+from typing import FrozenSet
 
 # This is a demo script that has the following assumptions :
-#   1. There are 2 EDPs one with Name Google, the other Linear TV.
-#   2. CUSTOM filters are not yet supported in this tool.
-#   3. AMI is a parent of MRC and there are no other relationships between metrics.
-#   4. The standard deviation for all Measurements are assumed to be 1
-#   5. Frequency results are not corrected.
-#   6. Impression results are not corrected.
+# 1. CUSTOM filters are not yet supported in this tool.
+# 2. AMI is a parent of MRC and there are no other relationships between metrics.
+# 3. Impression results are not corrected.
 
 SIGMA = 1
-
-AMI_FILTER = "AMI"
-MRC_FILTER = "MRC"
-
-# TODO(uakyol) : Read the EDP names dynamically from the excel sheet
-# TODO(uakyol) : Make this work for 3 EDPs
-EDP_ONE = "Google"
-EDP_TWO = "Linear TV"
-TOTAL_CAMPAIGN = "Total Campaign"
-
-edp_names = [EDP_ONE, EDP_TWO]
-
-CUML_REACH_PREFIX = "Cuml. Reach"
-
-EDP_MAP = {
-    edp_name: {"sheet": f"{CUML_REACH_PREFIX} ({edp_name})", "ind": ind}
-    for ind, edp_name in enumerate(edp_names + [TOTAL_CAMPAIGN])
-}
-
-CUML_REACH_COL_NAME = "Cumulative Reach 1+"
-TOTAL_REACH_COL_NAME = "Total Reach (1+)"
-FILTER_COL_NAME = "Impression Filter"
 
 ami = "ami"
 mrc = "mrc"
