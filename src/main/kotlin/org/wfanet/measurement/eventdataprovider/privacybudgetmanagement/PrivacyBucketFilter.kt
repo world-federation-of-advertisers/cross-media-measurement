@@ -60,7 +60,11 @@ class PrivacyBucketFilter(
 
     val vidsIntervalStartPoints =
       PrivacyLandscape.vidsIntervalStartPoints.filter {
-        it in vidSamplingIntervalStart..vidSamplingIntervalEnd
+        if (vidSamplingIntervalEnd > vidSamplingIntervalStart) {
+          it in vidSamplingIntervalStart..vidSamplingIntervalEnd
+        } else {
+          it <= vidSamplingIntervalStart || it >= vidSamplingIntervalEnd
+        }
       }
     val today = clock.instant().atZone(ZoneOffset.UTC).toLocalDate()
     val dates =

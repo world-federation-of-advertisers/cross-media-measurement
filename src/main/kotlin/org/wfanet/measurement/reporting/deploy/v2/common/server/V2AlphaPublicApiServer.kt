@@ -250,6 +250,7 @@ private object V2AlphaPublicApiServer {
             MetricsCoroutineStub(inProcessChannel),
             metricSpecConfig,
             SecureRandom().asKotlinRandom(),
+            reportingApiServerFlags.allowSamplingIntervalWrapping,
           )
           .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
         ReportSchedulesService(

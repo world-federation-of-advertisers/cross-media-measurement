@@ -16,9 +16,6 @@
 
 package org.wfanet.measurement.measurementconsumer.stats
 
-import kotlin.math.max
-import kotlin.math.min
-
 /** Functions to compute different covariances. */
 object Covariances {
   /**
@@ -202,23 +199,48 @@ object Covariances {
     )
   }
 
+  /** Returns a list of non-wrapping interval represented by pairs of <start, end> */
+  private fun VidSamplingInterval.toNonWrappingIntervals(): List<ClosedRange<Double>> {
+    val start = this.start
+    val end = this.start + this.width
+
+    return if (end > 1.0) {
+      listOf(0.0..(end - 1.0), start..1.0)
+    } else {
+      listOf(start..end)
+    }
+  }
+
   /** Computes the width of the union of two sampling intervals. */
   private fun computeUnionSamplingWidth(
     vidSamplingInterval: VidSamplingInterval,
     otherVidSamplingInterval: VidSamplingInterval,
   ): Double {
-    return max(
-      vidSamplingInterval.start + vidSamplingInterval.width,
-      otherVidSamplingInterval.start + otherVidSamplingInterval.width,
-    ) -
-      min(vidSamplingInterval.start, otherVidSamplingInterval.start) -
-      max(
-        0.0,
-        otherVidSamplingInterval.start - vidSamplingInterval.start - vidSamplingInterval.width,
-      ) -
-      max(
-        0.0,
-        vidSamplingInterval.start - otherVidSamplingInterval.start - otherVidSamplingInterval.width,
-      )
+    val intervals = mutableListOf<ClosedRange<Double>>()
+
+    intervals += vidSamplingInterval.toNonWrappingIntervals()
+    intervals += otherVidSamplingInterval.toNonWrappingIntervals()
+
+    intervals.sortWith(compareBy { it.start })
+
+    var currentStart = intervals[0].start
+    var currentEnd = intervals[0].endInclusive
+    var totalWidth = 0.0
+
+    for (i in 1 until intervals.size) {
+      val interval = intervals[i]
+      if (interval.start <= currentEnd) {
+        // Overlap
+        currentEnd = maxOf(currentEnd, interval.endInclusive)
+      } else {
+        // No overlap
+        totalWidth += currentEnd - currentStart
+        currentStart = interval.start
+        currentEnd = interval.endInclusive
+      }
+    }
+    totalWidth += currentEnd - currentStart
+
+    return totalWidth
   }
 }

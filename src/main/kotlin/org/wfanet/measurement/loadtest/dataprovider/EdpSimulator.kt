@@ -215,6 +215,7 @@ class EdpSimulator(
         capabilities =
           DataProviderKt.capabilities {
             honestMajorityShareShuffleSupported = (hmssVidIndexMap != null)
+            hmssVidSamplingIntervalWrappingSupported = (hmssVidIndexMap != null)
           }
       }
     )
