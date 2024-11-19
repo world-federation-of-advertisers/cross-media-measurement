@@ -27,7 +27,6 @@ exports_files(
         "empty_encryption_key_pair_config.textproto",
         "mc_config_kustomization.yaml",
     ],
-    name = "exported_files",
 )
 
 cue_library(
