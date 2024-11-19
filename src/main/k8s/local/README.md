@@ -238,7 +238,7 @@ kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/
 Once that is installed, then install the Operator:
 
 ```shell
-kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.88.0/opentelemetry-operator.yaml
+kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.99.0/opentelemetry-operator.yaml
 ```
 
 ### Deploy OpenTelemetry Resources
