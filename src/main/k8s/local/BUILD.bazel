@@ -22,10 +22,13 @@ DB_SECRET_NAME = "db-creds"
 
 MC_CONFIG_SECRET_NAME = "mc-config"
 
-exports_files([
-    "empty_encryption_key_pair_config.textproto",
-    "mc_config_kustomization.yaml",
-])
+exports_files(
+    [
+        "empty_encryption_key_pair_config.textproto",
+        "mc_config_kustomization.yaml",
+    ],
+    name = "exported_files",
+)
 
 cue_library(
     name = "config_cue",
