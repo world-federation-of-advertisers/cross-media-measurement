@@ -81,7 +81,7 @@ kustomization_dir(
         "config_files_kustomization.yaml": "kustomization.yaml",
         "empty_encryption_key_pair_config.textproto": "encryption_key_pair_config.textproto",
     },
-    deps = ["//src/main/k8s/local/empty_encryption_key_pair_config.textproto"],
+    deps = ["//src/main/k8s/local:empty_encryption_key_pair_config.textproto"],
 )
 
 kustomization_dir(
@@ -98,7 +98,7 @@ kustomization_dir(
         "mc_config_kustomization.yaml": "kustomization.yaml",
     },
     tags = ["manual"],
-    deps = ["//src/main/k8s/local/mc_config_kustomization.yaml"],
+    deps = ["//src/main/k8s/local:mc_config_kustomization.yaml"],
 )
 
 kustomization_dir(
