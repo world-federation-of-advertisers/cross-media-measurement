@@ -33,7 +33,7 @@ fun sampleVids(
     vidSamplingIntervalStart < 1 &&
       vidSamplingIntervalStart >= 0 &&
       vidSamplingIntervalWidth > 0 &&
-      vidSamplingIntervalStart + vidSamplingIntervalWidth <= 1
+      vidSamplingIntervalWidth <= 1
   ) {
     "Invalid vidSamplingInterval: start = $vidSamplingIntervalStart, width = " +
       "$vidSamplingIntervalWidth"
