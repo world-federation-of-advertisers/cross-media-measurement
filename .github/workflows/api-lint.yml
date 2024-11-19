@@ -59,3 +59,4 @@ jobs:
 
     - run: tools/api-lint wfa/measurement/system
     - run: tools/api-lint wfa/measurement/securecomputation
+    - run: tools/api-lint wfa/measurement/access
