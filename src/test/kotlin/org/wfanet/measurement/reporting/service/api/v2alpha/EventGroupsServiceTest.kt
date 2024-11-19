@@ -26,6 +26,7 @@ import java.nio.file.Paths
 import java.time.Duration
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -33,6 +34,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -50,6 +52,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
@@ -105,11 +108,12 @@ class EventGroupsServiceTest {
     addService(publicKingdomEventGroupMetadataDescriptorsMock)
   }
 
+  private lateinit var celEnvCacheProvider: CelEnvCacheProvider
   private lateinit var service: EventGroupsService
 
   @Before
   fun initService() {
-    val celEnvCacheProvider =
+    celEnvCacheProvider =
       CelEnvCacheProvider(
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
         EventGroup.getDescriptor(),
@@ -123,6 +127,11 @@ class EventGroupsServiceTest {
         ENCRYPTION_KEY_PAIR_STORE,
         celEnvCacheProvider,
       )
+  }
+
+  @After
+  fun closeCelEnvCacheProvider() {
+    celEnvCacheProvider.close()
   }
 
   @Test
@@ -231,6 +240,76 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups returns only event groups that match filter when filter has metadata`() {
+    val testMessage = testMetadataMessage { publisherId = 5 }
+
+    val cmmsEventGroup2 =
+      CMMS_EVENT_GROUP.copy {
+        encryptedMetadata =
+          encryptMetadata(
+            CmmsEventGroupKt.metadata {
+              eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+              metadata = Any.pack(testMessage)
+            },
+            ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey(),
+          )
+      }
+
+    runBlocking {
+      whenever(publicKingdomEventGroupsMock.listEventGroups(any()))
+        .thenReturn(
+          listEventGroupsResponse { eventGroups += listOf(CMMS_EVENT_GROUP, cmmsEventGroup2) }
+        )
+    }
+
+    val response =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking {
+          service.listEventGroups(
+            listEventGroupsRequest {
+              parent = MEASUREMENT_CONSUMER_NAME
+              filter = "metadata.metadata.publisher_id > 5"
+            }
+          )
+        }
+      }
+
+    assertThat(response.eventGroupsList).containsExactly(EVENT_GROUP)
+
+    verifyProtoArgument(publicKingdomEventGroupsMock, EventGroupsCoroutineImplBase::listEventGroups)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        cmmsListEventGroupsRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          pageSize = DEFAULT_PAGE_SIZE
+        }
+      )
+  }
+
+  @Test
+  fun `listEventGroups returns only event groups that match filter when filter has metadata using a known type`() {
+    celEnvCacheProvider.close()
+    celEnvCacheProvider =
+      CelEnvCacheProvider(
+        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
+        EventGroup.getDescriptor(),
+        Duration.ofSeconds(5),
+        listOf(TestMetadataMessage.getDescriptor().file),
+      )
+    service =
+      EventGroupsService(
+        EventGroupsCoroutineStub(grpcTestServerRule.channel),
+        ENCRYPTION_KEY_PAIR_STORE,
+        celEnvCacheProvider,
+      )
+    publicKingdomEventGroupMetadataDescriptorsMock.stub {
+      onBlocking { listEventGroupMetadataDescriptors(any()) }
+        .thenReturn(
+          listEventGroupMetadataDescriptorsResponse {
+            eventGroupMetadataDescriptors +=
+              EVENT_GROUP_METADATA_DESCRIPTOR.copy { clearDescriptorSet() }
+          }
+        )
+    }
     val testMessage = testMetadataMessage { publisherId = 5 }
 
     val cmmsEventGroup2 =
@@ -593,14 +672,6 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups throws FAILED_PRECONDITION when store doesn't have private key`() {
-    val celEnvCacheProvider =
-      CelEnvCacheProvider(
-        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        EventGroup.getDescriptor(),
-        Duration.ofSeconds(5),
-        emptyList(),
-      )
-
     service =
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
