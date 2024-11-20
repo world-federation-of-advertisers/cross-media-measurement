@@ -52,28 +52,6 @@ You can clear it out between runs:
 kubectl delete all --namespace=default --all
 ```
 
-## Delete Existing Local Cluster
-
-Only execute this part if you want to delete existing local cluster before creating
-a new one. Let's say the cluster is named `kind`.
-
-Delete the KIND cluster:
-
-```shell
-kind delete cluster --name=kind
-```
-
-Delete the local registry container:
-
-```shell
-docker rm -f kind-registry
-```
-
-Prune Docker resources (optional, recommended):
-```shell
-docker system prune -a
-```
-
 ## Building and Pushing Container Images
 
 ```shell
@@ -249,7 +227,7 @@ cluster, we use the
 [OpenTelemetry Operator for Kubernetes](https://github.com/open-telemetry/opentelemetry-operator).
 This depends on [cert-manager](https://github.com/cert-manager/cert-manager), so
 we install that first. Make sure their versions are the same as versions listed in
-[install-otel-operator/action.yml](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/6f9b14b912099d0ce0ddd02f67b67377c7a3daa9/.github/actions/install-otel-operator/action.yml#L4):
+[install-otel-operator/action.yml](/.github/actions/install-otel-operator/action.yml#L4):
 
 ```shell
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.5/cert-manager.yaml
@@ -338,24 +316,6 @@ bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGen
 
 ## Debugging Tips
 
-List cron jobs:
-
-```shell
-kubectl get cronjobs
-```
-
-Stream live updates of pods:
-
-```shell
-kubectl get pods --watch
-```
-
-Display the logs of a pod:
-
-```shell
-kubectl logs <pod-name>
-```
-
 To quickly test changes on a deployed cluster, build and push container
 images first with a new image_tag, and then edit corresponding resource's
 `image` field in its configuration with `kubectl edit`
@@ -366,8 +326,9 @@ tools/bazel-container-run //src/main/docker:push_all_local_images \
   --define image_repo_prefix=halo --define image_tag=<image_tag>
 ```
 
-an example: kubectl edit cronjob/measurement-system-prober-cronjob 
-```shell
+an example: kubectl edit cronjob/measurement-system-prober-cronjob:
+
+```yaml
   image: localhost:5001/halo/kingdom/measurement-system-prober:<image_tag>
 ```
 
@@ -475,3 +436,25 @@ do this using `minikube ssh` or using the
 Note: If you are using rootless Docker or rootless Podman, you may need to also
 enable IP forwarding on your host machine. See
 https://github.com/kubernetes/minikube/issues/18667
+
+### Delete Existing Kind Cluster
+
+Only execute this part if you want to delete existing local cluster before creating
+a new one. Let's say the cluster is named `kind`.
+
+Delete the KIND cluster:
+
+```shell
+kind delete cluster --name=kind
+```
+
+Delete the local registry container:
+
+```shell
+docker rm -f kind-registry
+```
+
+Prune Docker resources (optional, recommended):
+```shell
+docker system prune -a
+```
