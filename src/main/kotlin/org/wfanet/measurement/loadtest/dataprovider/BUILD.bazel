@@ -105,8 +105,8 @@ kt_jvm_library(
     srcs = ["MeasurementResults.kt"],
     deps = [
         "//imports/java/org/projectnessie/cel",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
         "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:population_requisition_fulfiller",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
     ]
 )
 
