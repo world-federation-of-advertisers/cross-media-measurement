@@ -125,6 +125,7 @@ jobs:
       working-directory: ${{ env.AWS_MODULE_PATH }}
       run: >
         terraform plan
+        -refresh=false
         -input=false
         -var="aws_region=$AWS_REGION"
         -var="postgres_instance_name=$POSTGRES_INSTANCE"
