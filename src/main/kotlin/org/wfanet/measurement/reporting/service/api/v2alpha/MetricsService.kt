@@ -227,6 +227,8 @@ class MetricsService(
   private val secureRandom: Random,
   signingPrivateKeyDir: File,
   trustedCertificates: Map<ByteString, X509Certificate>,
+  defaultVidModelLine: String,
+  measurementConsumerModelLines: Map<String, String>,
   certificateCacheExpirationDuration: Duration = Duration.ofMinutes(60),
   dataProviderCacheExpirationDuration: Duration = Duration.ofMinutes(60),
   keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
@@ -254,6 +256,8 @@ class MetricsService(
       dataProviderCacheExpirationDuration = dataProviderCacheExpirationDuration,
       keyReaderContext,
       cacheLoaderContext,
+      defaultVidModelLine,
+      measurementConsumerModelLines,
     )
 
   private class MeasurementSupplier(
@@ -270,6 +274,8 @@ class MetricsService(
     dataProviderCacheExpirationDuration: Duration,
     private val keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
     cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
+    private val defaultModelLine: String,
+    private val measurementConsumerModelLines: Map<String, String>,
   ) {
     private data class ResourceNameApiAuthenticationKey(
       val name: String,
@@ -457,6 +463,7 @@ class MetricsService(
 
           val unsignedMeasurementSpec: MeasurementSpec =
             buildUnsignedMeasurementSpec(
+              measurementConsumer.name,
               packedMeasurementEncryptionPublicKey,
               dataProviders.map { it.value.nonceHash },
               metricSpec,
@@ -490,6 +497,7 @@ class MetricsService(
 
     /** Builds an unsigned [MeasurementSpec]. */
     private fun buildUnsignedMeasurementSpec(
+      measurementConsumerName: String,
       packedMeasurementEncryptionPublicKey: ProtoAny,
       nonceHashes: List<ByteString>,
       metricSpec: InternalMetricSpec,
@@ -534,7 +542,9 @@ class MetricsService(
               "Unset metric type should've already raised error."
             }
         }
-        // TODO(@jojijac0b): Add modelLine
+        // TODO(@jojijac0b): Finish support for modelLine
+        modelLine =
+          measurementConsumerModelLines.getOrDefault(measurementConsumerName, defaultModelLine)
       }
     }
 
