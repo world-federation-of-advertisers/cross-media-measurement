@@ -55,7 +55,7 @@ kubectl delete all --namespace=default --all
 ## Delete Existing Local Cluster
 
 Only execute this part if you want to delete existing local cluster before creating
-a new one. We assume the cluster is named 'kind'
+a new one. Let's say the cluster is named `kind`.
 
 Delete the KIND cluster:
 
@@ -357,6 +357,21 @@ Display the logs of a pod:
 
 ```shell
 kubectl logs <pod-name>
+```
+
+To quickly test changes on a deployed cluster, build and push container
+images first with a new image_tag, and then edit corresponding resource's
+`image` field in its configuration with `kubectl edit`
+
+```shell
+tools/bazel-container-run //src/main/docker:push_all_local_images \
+  --define container_registry=registry.dev.svc.cluster.local:5001 \
+  --define image_repo_prefix=halo --define image_tag=<image_tag>
+```
+
+an example: kubectl edit cronjob/measurement-system-prober-cronjob 
+```shell
+  image: localhost:5001/halo/kingdom/measurement-system-prober:<image_tag>
 ```
 
 ## Old Guide
