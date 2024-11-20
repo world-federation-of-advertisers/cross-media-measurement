@@ -202,6 +202,79 @@ EOF
 
 }
 
+resource "google_bigquery_table" "computation_participant_stages" {
+  dataset_id = google_bigquery_dataset.operational_metrics.dataset_id
+  table_id   = "computation_participant_stages"
+
+  deletion_protection = true
+
+  time_partitioning {
+    field = "stage_start_time"
+    type  = "MONTH"
+  }
+
+  schema = <<EOF
+[
+  {
+    "name": "measurement_consumer_id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "measurement_id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "computation_id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "duchy_id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "measurement_type",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "REACH_AND_FREQUENCY and REACH"
+  },
+  {
+    "name": "result",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "SUCCEEDED or FAILED"
+  },
+  {
+    "name": "stage_name",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "stage_start_time",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "completion_duration_seconds",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "description": "Difference between start of this stage and start of next stage",
+    "defaultValueExpression": "0"
+  },
+  {
+    "name": "completion_duration_seconds_squared",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "defaultValueExpression": "0"
+  }
+]
+EOF
+
+}
+
 resource "google_bigquery_table" "latest_measurement_read" {
   dataset_id = google_bigquery_dataset.operational_metrics.dataset_id
   table_id   = "latest_measurement_read"
@@ -229,6 +302,68 @@ resource "google_bigquery_table" "latest_measurement_read" {
     "name": "external_measurement_id",
     "type": "INTEGER",
     "mode": "REQUIRED"
+  }
+]
+EOF
+
+}
+
+resource "google_bigquery_table" "latest_requisition_read" {
+  dataset_id = google_bigquery_dataset.operational_metrics.dataset_id
+  table_id   = "latest_requisition_read"
+
+  deletion_protection = true
+
+  time_partitioning {
+    expiration_ms = 3888000000 // 45 days
+    type          = "MONTH"
+  }
+
+  schema = <<EOF
+[
+  {
+    "name": "update_time",
+    "type": "INTEGER",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "external_data_provider_id",
+    "type": "INTEGER",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "external_requisition_id",
+    "type": "INTEGER",
+    "mode": "REQUIRED"
+  }
+]
+EOF
+
+}
+
+resource "google_bigquery_table" "latest_computation_read" {
+  dataset_id = google_bigquery_dataset.operational_metrics.dataset_id
+  table_id   = "latest_computation_read"
+
+  deletion_protection = true
+
+  time_partitioning {
+    expiration_ms = 3888000000 // 45 days
+    type          = "MONTH"
+  }
+
+  schema = <<EOF
+[
+  {
+    "name": "update_time",
+    "type": "INTEGER",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "external_computation_id",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "defaultValueExpression": "0"
   }
 ]
 EOF

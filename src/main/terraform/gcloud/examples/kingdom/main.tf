@@ -29,10 +29,9 @@ module "common" {
 }
 
 resource "google_spanner_instance" "spanner_instance" {
-  name             = var.spanner_instance_name
-  config           = var.spanner_instance_config
-  display_name     = "Halo CMMS"
-  processing_units = 100
+  name         = var.spanner_instance_name
+  config       = var.spanner_instance_config
+  display_name = "Halo CMMS"
 }
 
 module "kingdom_cluster" {

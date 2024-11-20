@@ -25,7 +25,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
-import org.wfanet.measurement.gcloud.spanner.toProtoEnum
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.gcloud.spanner.toProtoJson
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
@@ -325,7 +325,7 @@ class ComputationMutations<
     m.set("ComputationStage").to(computationStageEnumToLongValues(stage).stage)
     m.set("BlobId").to(blobId)
     pathToBlob?.let { m.set("PathToBlob").to(nonNullValueString(it)) }
-    dependencyType?.let { m.set("DependencyType").toProtoEnum(it) }
+    dependencyType?.let { m.set("DependencyType").toInt64(it) }
     return m.build()
   }
 

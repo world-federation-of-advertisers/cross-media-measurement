@@ -82,8 +82,8 @@ import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.requisitionRefusal as internalRequisitionRefusal
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 
-private const val DEFAULT_PAGE_SIZE = 50
-private const val MAX_PAGE_SIZE = 1000
+private const val DEFAULT_PAGE_SIZE = 10
+private const val MAX_PAGE_SIZE = 500
 
 class RequisitionsService(private val internalRequisitionStub: RequisitionsCoroutineStub) :
   RequisitionsCoroutineImplBase() {
@@ -359,6 +359,7 @@ private fun InternalRequisition.toRequisition(): Requisition {
       }
     }
     measurementState = this@toRequisition.parentMeasurement.state.toState()
+    updateTime = this@toRequisition.updateTime
   }
 }
 
@@ -547,8 +548,12 @@ private fun buildInternalStreamRequisitionsRequest(
               )
               .asRuntimeException()
           }
-          externalDataProviderIdAfter = pageToken.lastRequisition.externalDataProviderId
-          externalRequisitionIdAfter = pageToken.lastRequisition.externalRequisitionId
+          after =
+            StreamRequisitionsRequestKt.FilterKt.after {
+              updateTime = pageToken.lastRequisition.updateTime
+              externalDataProviderId = pageToken.lastRequisition.externalDataProviderId
+              externalRequisitionId = pageToken.lastRequisition.externalRequisitionId
+            }
         }
       }
     // Fetch one extra to determine if we need to set next_page_token in response.
@@ -574,6 +579,7 @@ private fun buildNextPageToken(
     states += filter.statesList
     measurementStates += filter.measurementStatesList
     lastRequisition = previousPageEnd {
+      updateTime = internalRequisitions[internalRequisitions.lastIndex - 1].updateTime
       externalDataProviderId =
         internalRequisitions[internalRequisitions.lastIndex - 1].externalDataProviderId
       externalRequisitionId =

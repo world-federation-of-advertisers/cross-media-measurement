@@ -384,31 +384,6 @@ EDP_SIMULATOR_TAGS = {
 }
 
 cue_dump(
-    name = "bigquery_edp_simulator_gke",
-    srcs = ["bigquery_edp_simulator_gke.cue"],
-    cue_tags = dict(EDP_SIMULATOR_TAGS.items() + {
-        "bigquery_dataset": SIMULATOR_K8S_SETTINGS.bigquery_dataset,
-        "bigquery_table": SIMULATOR_K8S_SETTINGS.bigquery_table,
-    }.items()),
-    tags = ["manual"],
-    deps = [":edp_simulator_gke"],
-)
-
-kustomization_dir(
-    name = "bigquery_edp_simulators",
-    testonly = True,
-    srcs = [
-        "resource_requirements.yaml",
-        ":bigquery_edp_simulator_gke",
-    ],
-    generate_kustomization = True,
-    tags = ["manual"],
-    deps = [
-        "//src/main/k8s/testing/secretfiles:kustomization",
-    ],
-)
-
-cue_dump(
     name = "synthetic_generator_edp_simulator_gke",
     srcs = ["synthetic_generator_edp_simulator_gke.cue"],
     cue_tags = EDP_SIMULATOR_TAGS,
@@ -422,6 +397,7 @@ kustomization_dir(
     srcs = [
         "synthetic_generator_config_files_kustomization.yaml",
         "//src/main/k8s/testing/data:synthetic_generation_specs_large",
+        "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
     ],
     renames = {
         "synthetic_generator_config_files_kustomization.yaml": "kustomization.yaml",

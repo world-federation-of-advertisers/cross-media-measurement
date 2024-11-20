@@ -47,6 +47,9 @@ maven_export(
     name = "maven",
     lib_name = "deploy",
     maven_coordinates = MAVEN_COORDINATES,
-    tags = ["no-javadocs"],
+    tags = [
+        "no-javadocs",
+        "no-remote-cache",
+    ],
     visibility = ["//visibility:private"],
 )

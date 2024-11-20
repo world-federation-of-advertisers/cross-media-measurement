@@ -7,4 +7,3 @@ Reusable module for EDP simulators on Google Cloud.
 The following resources are assumed to already exist:
 
 *   A GKE cluster.
-*   A BigQuery table containing labeled test events.

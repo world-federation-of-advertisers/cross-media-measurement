@@ -27,6 +27,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt
 import org.wfanet.measurement.kingdom.deploy.common.server.KingdomApiServerFlags
 import picocli.CommandLine
 
@@ -61,6 +62,7 @@ private fun run(
       .withDefaultDeadline(kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
 
   val measurementsClient = MeasurementsGrpcKt.MeasurementsCoroutineStub(channel)
+  val requisitionsClient = RequisitionsGrpcKt.RequisitionsCoroutineStub(channel)
 
   val bigQuery: BigQuery =
     BigQueryOptions.newBuilder()
@@ -73,19 +75,27 @@ private fun run(
     val datasetId = operationalMetricsFlags.bigQueryDataSet
     val measurementsTableId = operationalMetricsFlags.measurementsTable
     val requisitionsTableId = operationalMetricsFlags.requisitionsTable
+    val computationParticipantStagesTableId =
+      operationalMetricsFlags.computationParticipantStagesTable
     val latestMeasurementReadTableId = operationalMetricsFlags.latestMeasurementReadTable
+    val latestRequisitionReadTableId = operationalMetricsFlags.latestRequisitionReadTable
+    val latestComputationReadTableId = operationalMetricsFlags.latestComputationReadTable
 
     BigQueryWriteClient.create().use { bigQueryWriteClient ->
       val operationalMetricsExport =
         OperationalMetricsExport(
           measurementsClient = measurementsClient,
+          requisitionsClient = requisitionsClient,
           bigQuery = bigQuery,
           bigQueryWriteClient = bigQueryWriteClient,
           projectId = projectId,
           datasetId = datasetId,
           latestMeasurementReadTableId = latestMeasurementReadTableId,
+          latestRequisitionReadTableId = latestRequisitionReadTableId,
+          latestComputationReadTableId = latestComputationReadTableId,
           measurementsTableId = measurementsTableId,
           requisitionsTableId = requisitionsTableId,
+          computationParticipantStagesTableId = computationParticipantStagesTableId,
         )
 
       operationalMetricsExport.execute()
@@ -129,10 +139,34 @@ class OperationalMetricsFlags {
     private set
 
   @CommandLine.Option(
+    names = ["--computation-participant-stages-table"],
+    description = ["Computation Participant Stages table ID"],
+    required = true,
+  )
+  lateinit var computationParticipantStagesTable: String
+    private set
+
+  @CommandLine.Option(
     names = ["--latest-measurement-read-table"],
     description = ["Latest Measurement Read table ID"],
     required = true,
   )
   lateinit var latestMeasurementReadTable: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--latest-requisition-read-table"],
+    description = ["Latest Requisition Read table ID"],
+    required = true,
+  )
+  lateinit var latestRequisitionReadTable: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--latest-computation-read-table"],
+    description = ["Latest Computation Read table ID"],
+    required = true,
+  )
+  lateinit var latestComputationReadTable: String
     private set
 }

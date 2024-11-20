@@ -1088,6 +1088,54 @@ class VariancesTest {
   }
 
   @Test
+  fun `computeMeasurementVariance for LiquidLegionsSketch throws InvalINVALID_ARGUMENT when sketch size is invalid`() {
+    val decayRate = 1e-3
+    val sketchSize = 0L
+    val reach = 2L
+    val vidSamplingIntervalWidth = 0.1
+    val dpParams = DpParams(0.1, 1e-9)
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        dpParams,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val reachMeasurementVarianceParams =
+      ReachMeasurementVarianceParams(reach, reachMeasurementParams)
+
+    assertFailsWith<IllegalArgumentException> {
+      VariancesImpl.computeMeasurementVariance(
+        LiquidLegionsSketchMethodology(decayRate, sketchSize),
+        reachMeasurementVarianceParams,
+      )
+    }
+  }
+
+  @Test
+  fun `computeMeasurementVariance for LiquidLegionsSketch throws InvalINVALID_ARGUMENT when decay rate is invalid`() {
+    val decayRate = -5.0
+    val sketchSize = 10L
+    val reach = 2L
+    val vidSamplingIntervalWidth = 0.1
+    val dpParams = DpParams(0.1, 1e-9)
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        dpParams,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val reachMeasurementVarianceParams =
+      ReachMeasurementVarianceParams(reach, reachMeasurementParams)
+
+    assertFailsWith<IllegalArgumentException> {
+      VariancesImpl.computeMeasurementVariance(
+        LiquidLegionsSketchMethodology(decayRate, sketchSize),
+        reachMeasurementVarianceParams,
+      )
+    }
+  }
+
+  @Test
   fun `computeMeasurementVariance returns a value for LiquidLegionsSketch reach when reach is small, sampling width is small, and small decay rate`() {
     val decayRate = 1e-3
     val sketchSize = 100000L
@@ -1299,6 +1347,54 @@ class VariancesTest {
     val expected = 28922934034.98562
     val tolerance = computeErrorTolerance(variance, expected)
     assertThat(variance).isWithin(tolerance).of(expected)
+  }
+
+  @Test
+  fun `computeMeasurementVariance for LiquidLegionsV2 throws InvalINVALID_ARGUMENT when sketch size is invalid`() {
+    val decayRate = 1e-3
+    val sketchSize = 0L
+    val reach = 2L
+    val vidSamplingIntervalWidth = 0.1
+    val dpParams = DpParams(0.1, 1e-9)
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        dpParams,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val reachMeasurementVarianceParams =
+      ReachMeasurementVarianceParams(reach, reachMeasurementParams)
+
+    assertFailsWith<IllegalArgumentException> {
+      VariancesImpl.computeMeasurementVariance(
+        LiquidLegionsV2Methodology(decayRate, sketchSize, 0L),
+        reachMeasurementVarianceParams,
+      )
+    }
+  }
+
+  @Test
+  fun `computeMeasurementVariance for LiquidLegionsV2 throws InvalINVALID_ARGUMENT when decay rate is invalid`() {
+    val decayRate = -5.0
+    val sketchSize = 10L
+    val reach = 2L
+    val vidSamplingIntervalWidth = 0.1
+    val dpParams = DpParams(0.1, 1e-9)
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        dpParams,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val reachMeasurementVarianceParams =
+      ReachMeasurementVarianceParams(reach, reachMeasurementParams)
+
+    assertFailsWith<IllegalArgumentException> {
+      VariancesImpl.computeMeasurementVariance(
+        LiquidLegionsV2Methodology(decayRate, sketchSize, 0L),
+        reachMeasurementVarianceParams,
+      )
+    }
   }
 
   @Test
@@ -2450,6 +2546,211 @@ class VariancesTest {
     assertThat(nKPlusVars.getValue(1))
       .isWithin(computeErrorTolerance(nKPlusVars.getValue(1), expectedNKPlus))
       .of(expectedNKPlus)
+  }
+
+  @Test
+  fun `computeMeasurementVariance returns for deterministic reach-frequency when total reach is zero and zero relative frequencies `() {
+    val vidSamplingIntervalWidth = 5e-2
+    val totalReach = 0L
+    val reachDpParams = DpParams(0.5, 1e-15)
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        reachDpParams,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val reachMeasurementVarianceParams =
+      ReachMeasurementVarianceParams(totalReach, reachMeasurementParams)
+    val reachMeasurementVariance =
+      VariancesImpl.computeMeasurementVariance(
+        DeterministicMethodology,
+        reachMeasurementVarianceParams,
+      )
+
+    val maximumFrequency = 5
+    val relativeFrequencyDistribution = (1..maximumFrequency).associateWith { 0.0 }
+    val frequencyDpParams = DpParams(0.2, 1e-15)
+    val frequencyMeasurementParams =
+      FrequencyMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        frequencyDpParams,
+        NoiseMechanism.GAUSSIAN,
+        maximumFrequency,
+      )
+    val frequencyMeasurementVarianceParams =
+      FrequencyMeasurementVarianceParams(
+        totalReach,
+        reachMeasurementVariance,
+        relativeFrequencyDistribution,
+        frequencyMeasurementParams,
+      )
+
+    val (rKVars, rKPlusVars, nKVars, nKPlusVars) =
+      VariancesImpl.computeMeasurementVariance(
+        DeterministicMethodology,
+        frequencyMeasurementVarianceParams,
+      )
+
+    val expectedRK =
+      listOf(
+        0.08333333333333336,
+        0.08333333333333336,
+        0.08333333333333336,
+        0.08333333333333336,
+        0.08333333333333336,
+      )
+    val expectedRKPlus =
+      listOf(
+        0.0,
+        0.08333333333333336,
+        0.08333333333333336,
+        0.08333333333333336,
+        0.08333333333333336,
+      )
+    val expectedNK =
+      listOf(
+        7244.988593451251,
+        7244.988593451251,
+        7244.988593451251,
+        7244.988593451251,
+        7244.988593451251,
+      )
+    val expectedNKPlus =
+      listOf(0.0, 7244.988593451251, 7244.988593451251, 7244.988593451251, 7244.988593451251)
+
+    for (frequency in 1..maximumFrequency) {
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
+    }
+  }
+
+  @Test
+  fun `computeMeasurementVariance returns for deterministic reach-frequency when total reach is zero and regular relative frequencies `() {
+    val vidSamplingIntervalWidth = 5e-2
+    val totalReach = 0L
+    val reachDpParams = DpParams(0.5, 1e-15)
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        reachDpParams,
+        NoiseMechanism.GAUSSIAN,
+      )
+    val reachMeasurementVarianceParams =
+      ReachMeasurementVarianceParams(totalReach, reachMeasurementParams)
+    val reachMeasurementVariance =
+      VariancesImpl.computeMeasurementVariance(
+        DeterministicMethodology,
+        reachMeasurementVarianceParams,
+      )
+
+    val maximumFrequency = 5
+    val relativeFrequencyDistribution =
+      mapOf(
+        1 to 0.4351145038167939,
+        2 to 0.0,
+        3 to 0.3816793893129771,
+        4 to 0.1832061068702290,
+        5 to 0.0,
+      )
+    val frequencyDpParams = DpParams(0.2, 1e-15)
+    val frequencyMeasurementParams =
+      FrequencyMeasurementParams(
+        VidSamplingInterval(0.0, vidSamplingIntervalWidth),
+        frequencyDpParams,
+        NoiseMechanism.GAUSSIAN,
+        maximumFrequency,
+      )
+    val frequencyMeasurementVarianceParams =
+      FrequencyMeasurementVarianceParams(
+        totalReach,
+        reachMeasurementVariance,
+        relativeFrequencyDistribution,
+        frequencyMeasurementParams,
+      )
+
+    val (rKVars, rKPlusVars, nKVars, nKPlusVars) =
+      VariancesImpl.computeMeasurementVariance(
+        DeterministicMethodology,
+        frequencyMeasurementVarianceParams,
+      )
+
+    val expectedRK =
+      listOf(
+        0.08333333333333336,
+        0.08333333333333336,
+        0.08333333333333336,
+        0.08333333333333336,
+        0.08333333333333336,
+      )
+    val expectedRKPlus =
+      listOf(
+        0.0,
+        0.08333333333333336,
+        0.08333333333333336,
+        0.08333333333333336,
+        0.08333333333333336,
+      )
+    val expectedNK =
+      listOf(
+        23699.39297634332,
+        7243.321926784585,
+        19905.73424562018,
+        10160.74172504431,
+        7243.321926784585,
+      )
+    val expectedNKPlus =
+      listOf(
+        86919.86312141502,
+        34979.06986996207,
+        34979.06986996207,
+        10160.74172504431,
+        7243.321926784585,
+      )
+
+    for (frequency in 1..maximumFrequency) {
+      assertThat(rKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(rKVars.getValue(frequency), expectedRK[frequency - 1]))
+        .of(expectedRK[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(rKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(rKPlusVars.getValue(frequency), expectedRKPlus[frequency - 1])
+        )
+        .of(expectedRKPlus[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(nKVars.getValue(frequency))
+        .isWithin(computeErrorTolerance(nKVars.getValue(frequency), expectedNK[frequency - 1]))
+        .of(expectedNK[frequency - 1])
+    }
+    for (frequency in 1..maximumFrequency) {
+      assertThat(nKPlusVars.getValue(frequency))
+        .isWithin(
+          computeErrorTolerance(nKPlusVars.getValue(frequency), expectedNKPlus[frequency - 1])
+        )
+        .of(expectedNKPlus[frequency - 1])
+    }
   }
 
   @Test
@@ -4122,7 +4423,7 @@ class VariancesTest {
                 noiseMechanism = NoiseMechanism.GAUSSIAN,
               ),
           ),
-        methodology = LiquidLegionsV2Methodology(0.0, 1e6.toLong(), 1e8.toLong()),
+        methodology = LiquidLegionsV2Methodology(0.001, 1e6.toLong(), 1e8.toLong()),
       )
 
     val otherWeightedReachMeasurementVarianceParams =
@@ -4170,7 +4471,7 @@ class VariancesTest {
                 noiseMechanism = NoiseMechanism.GAUSSIAN,
               ),
           ),
-        methodology = LiquidLegionsV2Methodology(0.0, 1e6.toLong(), 1e8.toLong()),
+        methodology = LiquidLegionsV2Methodology(0.001, 1e6.toLong(), 1e8.toLong()),
       )
 
     val otherWeightedReachMeasurementVarianceParams =
@@ -4182,7 +4483,7 @@ class VariancesTest {
             reach = 1L,
             measurementParams =
               ReachMeasurementParams(
-                vidSamplingInterval = VidSamplingInterval(0.3, 0.8),
+                vidSamplingInterval = VidSamplingInterval(0.3, 0.7),
                 dpParams = DpParams(0.1, 1e-9),
                 noiseMechanism = NoiseMechanism.GAUSSIAN,
               ),
@@ -4197,7 +4498,7 @@ class VariancesTest {
 
     val variance = VariancesImpl.computeMetricVariance(params)
 
-    val expected = 21253.74748438153
+    val expected = 22459.91623264358
     val tolerance = computeErrorTolerance(variance, expected)
     assertThat(variance).isWithin(tolerance).of(expected)
   }
@@ -4218,7 +4519,7 @@ class VariancesTest {
                 noiseMechanism = NoiseMechanism.GAUSSIAN,
               ),
           ),
-        methodology = LiquidLegionsV2Methodology(0.0, 1e6.toLong(), 1e8.toLong()),
+        methodology = LiquidLegionsV2Methodology(0.001, 1e6.toLong(), 1e8.toLong()),
       )
 
     val otherWeightedReachMeasurementVarianceParams =
@@ -4230,7 +4531,7 @@ class VariancesTest {
             reach = 1L,
             measurementParams =
               ReachMeasurementParams(
-                vidSamplingInterval = VidSamplingInterval(0.5, 1.0),
+                vidSamplingInterval = VidSamplingInterval(0.5, 0.5),
                 dpParams = DpParams(0.1, 1e-9),
                 noiseMechanism = NoiseMechanism.GAUSSIAN,
               ),
@@ -4245,7 +4546,7 @@ class VariancesTest {
 
     val variance = VariancesImpl.computeMetricVariance(params)
 
-    val expected = 19836.523148381533
+    val expected = 27400.78312697515
     val tolerance = computeErrorTolerance(variance, expected)
     assertThat(variance).isWithin(tolerance).of(expected)
   }
@@ -4266,7 +4567,7 @@ class VariancesTest {
                 noiseMechanism = NoiseMechanism.GAUSSIAN,
               ),
           ),
-        methodology = LiquidLegionsV2Methodology(0.0, 1e6.toLong(), 1e8.toLong()),
+        methodology = LiquidLegionsV2Methodology(0.001, 1e6.toLong(), 1e8.toLong()),
       )
 
     val varianceSingleMeasurement =
@@ -4285,7 +4586,7 @@ class VariancesTest {
             reach = 1L,
             measurementParams =
               ReachMeasurementParams(
-                vidSamplingInterval = VidSamplingInterval(0.5, 1.0),
+                vidSamplingInterval = VidSamplingInterval(0.5, 0.5),
                 dpParams = DpParams(0.1, 1e-9),
                 noiseMechanism = NoiseMechanism.GAUSSIAN,
               ),
@@ -4316,12 +4617,12 @@ class VariancesTest {
             reach = 4L,
             measurementParams =
               ReachMeasurementParams(
-                vidSamplingInterval = VidSamplingInterval(0.1, 1.0),
+                vidSamplingInterval = VidSamplingInterval(0.1, 0.9),
                 dpParams = DpParams(0.1, 1e-9),
                 noiseMechanism = NoiseMechanism.GAUSSIAN,
               ),
           ),
-        methodology = LiquidLegionsV2Methodology(0.0, 1e6.toLong(), 1e8.toLong()),
+        methodology = LiquidLegionsV2Methodology(0.001, 1e6.toLong(), 1e8.toLong()),
       )
 
     val weightedReachMeasurementVarianceParams =
@@ -4369,7 +4670,7 @@ class VariancesTest {
 
     val variance = VariancesImpl.computeMetricVariance(params)
 
-    val expected = 10554.13919363766
+    val expected = 11568.523587919317
     val tolerance = computeErrorTolerance(variance, expected)
     assertThat(variance).isWithin(tolerance).of(expected)
   }

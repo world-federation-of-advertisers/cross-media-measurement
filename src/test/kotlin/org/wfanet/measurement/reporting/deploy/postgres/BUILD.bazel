@@ -3,7 +3,10 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "PostgresMeasurementsServiceTest",
     srcs = ["PostgresMeasurementsServiceTest.kt"],
-    tags = ["cpu:2"],
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
     test_class = "org.wfanet.measurement.reporting.deploy.postgres.PostgresMeasurementsServiceTest",
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
@@ -19,7 +22,10 @@ kt_jvm_test(
 kt_jvm_test(
     name = "PostgresReportingSetsServiceTest",
     srcs = ["PostgresReportingSetsServiceTest.kt"],
-    tags = ["cpu:2"],
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
     test_class = "org.wfanet.measurement.reporting.deploy.postgres.PostgresReportingSetsServiceTest",
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
@@ -35,7 +41,10 @@ kt_jvm_test(
 kt_jvm_test(
     name = "PostgresReportsServiceTest",
     srcs = ["PostgresReportsServiceTest.kt"],
-    tags = ["cpu:2"],
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
     test_class = "org.wfanet.measurement.reporting.deploy.postgres.PostgresReportsServiceTest",
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",

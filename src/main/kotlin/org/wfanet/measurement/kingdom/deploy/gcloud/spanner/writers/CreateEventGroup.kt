@@ -19,6 +19,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.copy
@@ -83,7 +84,7 @@ class CreateEventGroup(private val request: CreateEventGroupRequest) :
       if (request.eventGroup.hasDetails()) {
         set("EventGroupDetails").to(request.eventGroup.details)
       }
-      set("State" to EventGroup.State.ACTIVE)
+      set("State").toInt64(EventGroup.State.ACTIVE)
     }
 
     return request.eventGroup.copy {

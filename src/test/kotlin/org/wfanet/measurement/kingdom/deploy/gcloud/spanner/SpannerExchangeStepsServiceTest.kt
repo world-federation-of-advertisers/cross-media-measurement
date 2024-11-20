@@ -15,11 +15,13 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import java.time.Clock
+import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
@@ -33,7 +35,9 @@ import org.wfanet.measurement.kingdom.service.internal.testing.ExchangeStepsServ
 @RunWith(JUnit4::class)
 class SpannerExchangeStepsServiceTest : ExchangeStepsServiceTest() {
 
-  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.KINGDOM_CHANGELOG_PATH)
+  @get:Rule
+  val spannerDatabase =
+    SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.KINGDOM_CHANGELOG_PATH)
   private val clock = Clock.systemUTC()
 
   override fun newExchangeStepsService(
@@ -73,5 +77,9 @@ class SpannerExchangeStepsServiceTest : ExchangeStepsServiceTest() {
   ): KingdomDataServices {
     return SpannerDataServices(serviceClock, idGenerator, spannerDatabase.databaseClient)
       .buildDataServices()
+  }
+
+  companion object {
+    @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
   }
 }

@@ -16,13 +16,14 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
+import com.google.protobuf.DynamicMessage
+import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
 import java.io.File
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.parseTextProto
@@ -50,6 +51,27 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
   private lateinit var eventMessageDescriptorSetFiles: List<File>
 
   @CommandLine.Option(
+    names = ["--known-event-group-metadata-type"],
+    description =
+      [
+        "File path to FileDescriptorSet containing known EventGroup metadata types.",
+        "This is in addition to standard protobuf well-known types.",
+        "Can be specified multiple times.",
+      ],
+    required = false,
+    defaultValue = "",
+  )
+  private fun setKnownEventGroupMetadataTypes(files: List<File>) {
+    knownEventGroupMetadataTypes =
+      ProtoReflection.buildFileDescriptors(
+        loadFileDescriptorSets(files),
+        WELL_KNOWN_METADATA_TYPES.asIterable(),
+      )
+  }
+
+  private lateinit var knownEventGroupMetadataTypes: List<Descriptors.FileDescriptor>
+
+  @CommandLine.Option(
     names = ["--population-spec"],
     description = ["Path to SyntheticPopulationSpec message in text format."],
     required = true,
@@ -67,19 +89,55 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
   )
   private lateinit var eventGroupSpecFileByReferenceIdSuffix: Map<String, File>
 
+  @CommandLine.Option(
+    names = ["--event-group-metadata"],
+    description =
+      [
+        "Key-value pair of EventGroup reference ID suffix and file path of " +
+          "EventGroup metadata message in protobuf text format.",
+        "This can be specified multiple times.",
+      ],
+    required = true,
+  )
+  private lateinit var eventGroupMetadataFileByReferenceIdSuffix: Map<String, File>
+
+  @CommandLine.Option(
+    names = ["--event-group-metadata-type-url"],
+    description =
+      [
+        "Type URL of the EventGroup metadata message type.",
+        "This must be a known EventGroup metadata type.",
+      ],
+    required = false,
+    defaultValue = DEFAULT_METADATA_TYPE_URL,
+  )
+  private lateinit var eventGroupMetadataTypeUrl: String
+
+  @CommandLine.Option(
+    names = ["--support-hmss"],
+    description = ["Whether to support HMSS protocol requisitions."],
+  )
+  private var supportHmss: Boolean = false
+
   override fun run() {
+    val typeRegistry: TypeRegistry = buildTypeRegistry()
     val syntheticPopulationSpec =
       parseTextProto(populationSpecFile, SyntheticPopulationSpec.getDefaultInstance())
     val eventGroupSpecByReferenceIdSuffix =
       eventGroupSpecFileByReferenceIdSuffix.mapValues {
         parseTextProto(it.value, SyntheticEventGroupSpec.getDefaultInstance())
       }
-    val eventMessageRegistry: TypeRegistry = buildEventMessageRegistry()
+    val metadataByReferenceIdSuffix: Map<String, Message> =
+      eventGroupMetadataFileByReferenceIdSuffix.mapValues {
+        val descriptor: Descriptors.Descriptor =
+          typeRegistry.getNonNullDescriptorForTypeUrl(eventGroupMetadataTypeUrl)
+        parseTextProto(it.value, DynamicMessage.getDefaultInstance(descriptor), typeRegistry)
+      }
     val eventMessageDescriptor: Descriptors.Descriptor =
-      eventMessageRegistry.getDescriptorForTypeUrl(syntheticPopulationSpec.eventMessageTypeUrl)
+      typeRegistry.getNonNullDescriptorForTypeUrl(syntheticPopulationSpec.eventMessageTypeUrl)
 
     val eventQuery =
-      object : SyntheticGeneratorEventQuery(syntheticPopulationSpec, eventMessageRegistry) {
+      object : SyntheticGeneratorEventQuery(syntheticPopulationSpec, typeRegistry) {
         override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
           val suffix =
             EdpSimulator.getEventGroupReferenceIdSuffix(eventGroup, flags.dataProviderDisplayName)
@@ -87,33 +145,60 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
         }
       }
     val populationSpec = syntheticPopulationSpec.toPopulationSpec()
-    val hmssVidIndexMap = InMemoryVidIndexMap.build(populationSpec)
+    val hmssVidIndexMap = if (supportHmss) InMemoryVidIndexMap.build(populationSpec) else null
 
     run(
       eventQuery,
       EdpSimulator.buildEventTemplates(eventMessageDescriptor),
-      eventGroupSpecByReferenceIdSuffix,
-      listOf(SyntheticEventGroupSpec.getDescriptor().file),
+      metadataByReferenceIdSuffix,
+      knownEventGroupMetadataTypes,
       hmssVidIndexMap,
     )
   }
 
-  private fun buildEventMessageRegistry(): TypeRegistry {
-    val builder = TypeRegistry.newBuilder().add(TestEvent.getDescriptor())
-    if (::eventMessageDescriptorSetFiles.isInitialized) {
-      val fileDescriptorSets: List<DescriptorProtos.FileDescriptorSet> =
-        eventMessageDescriptorSetFiles.map {
-          parseTextProto(it, DescriptorProtos.FileDescriptorSet.getDefaultInstance())
+  private fun buildTypeRegistry(): TypeRegistry {
+    return TypeRegistry.newBuilder()
+      .apply {
+        add(ProtoReflection.WELL_KNOWN_TYPES.flatMap { it.messageTypes })
+        add(knownEventGroupMetadataTypes.flatMap { it.messageTypes })
+        add(TestEvent.getDescriptor())
+        if (::eventMessageDescriptorSetFiles.isInitialized) {
+          add(
+            ProtoReflection.buildDescriptors(loadFileDescriptorSets(eventMessageDescriptorSetFiles))
+          )
         }
-      builder.add(ProtoReflection.buildDescriptors(fileDescriptorSets))
+      }
+      .build()
+  }
+
+  private fun loadFileDescriptorSets(
+    files: Iterable<File>
+  ): List<DescriptorProtos.FileDescriptorSet> {
+    return files.map { file ->
+      file.inputStream().use { input -> DescriptorProtos.FileDescriptorSet.parseFrom(input) }
     }
-    return builder.build()
   }
 
   companion object {
     private const val TEST_EVENT_MESSAGE_TYPE =
       "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+    private const val SYNTHETIC_EVENT_GROUP_SPEC_MESSAGE_TYPE =
+      "wfa.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec"
+    private const val DEFAULT_METADATA_TYPE_URL =
+      "${ProtoReflection.DEFAULT_TYPE_URL_PREFIX}/$SYNTHETIC_EVENT_GROUP_SPEC_MESSAGE_TYPE"
+    private val WELL_KNOWN_METADATA_TYPES =
+      ProtoReflection.WELL_KNOWN_TYPES.asSequence() + SyntheticEventGroupSpec.getDescriptor().file
+
+    init {
+      check(TestEvent.getDescriptor().fullName == TEST_EVENT_MESSAGE_TYPE)
+      check(
+        SyntheticEventGroupSpec.getDescriptor().fullName == SYNTHETIC_EVENT_GROUP_SPEC_MESSAGE_TYPE
+      )
+    }
   }
 }
 
 fun main(args: Array<String>) = commandLineMain(SyntheticGeneratorEdpSimulatorRunner(), args)
+
+private fun TypeRegistry.getNonNullDescriptorForTypeUrl(typeUrl: String): Descriptors.Descriptor =
+  checkNotNull(getDescriptorForTypeUrl(typeUrl)) { "Descriptor not found for type URL $typeUrl" }

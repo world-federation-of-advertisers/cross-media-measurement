@@ -28,13 +28,18 @@ import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntryDetails
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementDetails
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurement
+import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
@@ -94,7 +99,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
         when (view) {
           Measurement.View.DEFAULT -> DEFAULT_VIEW_SQL
           Measurement.View.COMPUTATION -> COMPUTATION_VIEW_SQL
-          Measurement.View.FULL -> FULL_VIEW_SQL
+          Measurement.View.COMPUTATION_STATS -> COMPUTATION_STATS_VIEW_SQL
           Measurement.View.UNRECOGNIZED -> error("Invalid view $view")
         }
       appendClause(sql)
@@ -172,7 +177,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
       when (view) {
         Measurement.View.DEFAULT -> fillDefaultView(struct)
         Measurement.View.COMPUTATION -> fillComputationView(struct)
-        Measurement.View.FULL -> fillFullView(struct)
+        Measurement.View.COMPUTATION_STATS -> fillComputationStatsView(struct)
         Measurement.View.UNRECOGNIZED ->
           throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
       }
@@ -370,6 +375,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
                 DuchyMeasurementLogEntries.DuchyId = ComputationParticipants.DuchyId
                 AND DuchyMeasurementLogEntries.MeasurementConsumerId = ComputationParticipants.MeasurementConsumerId
                 AND DuchyMeasurementLogEntries.MeasurementId = ComputationParticipants.MeasurementId
+                AND MeasurementLogEntries.MeasurementLogDetails.has_error
               ORDER BY MeasurementLogEntries.CreateTime DESC
             ) AS DuchyMeasurementLogEntries
           FROM
@@ -388,7 +394,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
             PublicApiVersion
           FROM
             DuchyMeasurementResults
-            JOIN DuchyCertificates USING (CertificateId)
+            JOIN DuchyCertificates USING (DuchyId, CertificateId)
           WHERE
             Measurements.MeasurementConsumerId = DuchyMeasurementResults.MeasurementConsumerId
             AND Measurements.MeasurementId = DuchyMeasurementResults.MeasurementId
@@ -399,7 +405,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
       """
         .trimIndent()
 
-    private val FULL_VIEW_SQL =
+    private val COMPUTATION_STATS_VIEW_SQL =
       """
       SELECT
         ExternalMeasurementConsumerId,
@@ -414,32 +420,6 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
         Measurements.CreateTime,
         Measurements.UpdateTime,
         Measurements.State AS MeasurementState,
-        ARRAY(
-          SELECT AS STRUCT
-            ExternalDataProviderId,
-            Requisitions.UpdateTime,
-            Requisitions.ExternalRequisitionId,
-            Requisitions.State AS RequisitionState,
-            Requisitions.FulfillingDuchyId,
-            Requisitions.RequisitionDetails,
-            ExternalDataProviderCertificateId,
-            SubjectKeyIdentifier,
-            NotValidBefore,
-            NotValidAfter,
-            RevocationState,
-            CertificateDetails,
-          FROM
-            Requisitions
-            JOIN DataProviders USING (DataProviderId)
-            JOIN DataProviderCertificates ON (
-              DataProviderCertificates.DataProviderId = Requisitions.DataProviderId
-              AND DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId
-            )
-            JOIN Certificates USING (CertificateId)
-          WHERE
-            Requisitions.MeasurementConsumerId = Measurements.MeasurementConsumerId
-            AND Requisitions.MeasurementId = Measurements.MeasurementId
-        ) AS Requisitions,
         ARRAY(
           SELECT AS STRUCT
             ExternalDuchyCertificateId,
@@ -483,7 +463,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
             PublicApiVersion
           FROM
             DuchyMeasurementResults
-            JOIN DuchyCertificates USING (CertificateId)
+            JOIN DuchyCertificates USING (DuchyId, CertificateId)
           WHERE
             Measurements.MeasurementConsumerId = DuchyMeasurementResults.MeasurementConsumerId
             AND Measurements.MeasurementId = DuchyMeasurementResults.MeasurementId
@@ -575,14 +555,6 @@ private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
   val requisitionsStructs = struct.getStructList("Requisitions")
   val dataProvidersCount = requisitionsStructs.size
 
-  if (struct.isNull("ExternalComputationId")) {
-    for (requisitionStruct in requisitionsStructs) {
-      requisitions +=
-        RequisitionReader.buildRequisition(struct, requisitionStruct, mapOf(), dataProvidersCount)
-    }
-    return
-  }
-
   val externalMeasurementId = ExternalId(struct.getLong("ExternalMeasurementId"))
   val externalMeasurementConsumerId = ExternalId(struct.getLong("ExternalMeasurementConsumerId"))
   val externalComputationId = ExternalId(struct.getLong("ExternalComputationId"))
@@ -617,82 +589,74 @@ private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
   }
 }
 
-private fun MeasurementKt.Dsl.fillFullView(struct: Struct) {
+private fun MeasurementKt.Dsl.fillComputationStatsView(struct: Struct) {
   fillMeasurementCommon(struct)
-  val requisitionsStructs = struct.getStructList("Requisitions")
-  val dataProvidersCount = requisitionsStructs.size
-  val measurementSucceeded = state == Measurement.State.SUCCEEDED
+
+  val externalMeasurementId = ExternalId(struct.getLong("ExternalMeasurementId"))
+  val externalMeasurementConsumerId = ExternalId(struct.getLong("ExternalMeasurementConsumerId"))
+  val externalComputationId = ExternalId(struct.getLong("ExternalComputationId"))
 
   // Map of external Duchy ID to ComputationParticipant struct.
-  var participantStructs: Map<String, Struct> = mapOf()
-  if (!struct.isNull("ExternalComputationId")) {
-    val externalMeasurementId = ExternalId(struct.getLong("ExternalMeasurementId"))
-    val externalMeasurementConsumerId = ExternalId(struct.getLong("ExternalMeasurementConsumerId"))
-    val externalComputationId = ExternalId(struct.getLong("ExternalComputationId"))
-
-    participantStructs =
-      struct.getStructList("ComputationParticipants").associateBy {
-        val duchyId = it.getLong("DuchyId")
-        checkNotNull(DuchyIds.getExternalId(duchyId)) {
-          "Duchy with internal ID $duchyId not found"
-        }
-      }
-
-    for ((externalDuchyId, participantStruct) in participantStructs) {
-      computationParticipants +=
-        ComputationParticipantReader.buildComputationParticipant(
-          externalMeasurementConsumerId = externalMeasurementConsumerId,
-          externalMeasurementId = externalMeasurementId,
-          externalDuchyId = externalDuchyId,
-          externalComputationId = externalComputationId,
-          measurementDetails = details,
-          struct = participantStruct,
-        )
+  val participantStructs: Map<String, Struct> =
+    struct.getStructList("ComputationParticipants").associateBy {
+      val duchyId = it.getLong("DuchyId")
+      checkNotNull(DuchyIds.getExternalId(duchyId)) { "Duchy with internal ID $duchyId not found" }
     }
+
+  for ((externalDuchyId, participantStruct) in participantStructs) {
+    computationParticipants +=
+      ComputationParticipantReader.buildComputationParticipant(
+        externalMeasurementConsumerId = externalMeasurementConsumerId,
+        externalMeasurementId = externalMeasurementId,
+        externalDuchyId = externalDuchyId,
+        externalComputationId = externalComputationId,
+        measurementDetails = details,
+        struct = participantStruct,
+      )
+
+    logEntries +=
+      buildLogEntries(
+        externalMeasurementConsumerId = externalMeasurementConsumerId,
+        externalMeasurementId = externalMeasurementId,
+        externalDuchyId = externalDuchyId,
+        struct = participantStruct,
+      )
   }
+}
 
-  for (requisitionStruct in struct.getStructList("Requisitions")) {
-    requisitions +=
-      RequisitionReader.buildRequisition(
-        struct,
-        requisitionStruct,
-        participantStructs,
-        dataProvidersCount,
-      )
+private fun buildLogEntries(
+  externalMeasurementConsumerId: ExternalId,
+  externalMeasurementId: ExternalId,
+  externalDuchyId: String,
+  struct: Struct,
+): Collection<DuchyMeasurementLogEntry> {
+  val logEntryStructs = struct.getStructList("DuchyMeasurementLogEntries")
+  return buildList {
+    for (logEntryStruct in logEntryStructs) {
+      val measurementLogEntryDetails =
+        logEntryStruct.getProtoMessage(
+          "MeasurementLogDetails",
+          MeasurementLogEntryDetails.getDefaultInstance(),
+        )
+      val duchyMeasurementLogEntryDetails =
+        logEntryStruct.getProtoMessage(
+          "DuchyMeasurementLogDetails",
+          DuchyMeasurementLogEntryDetails.getDefaultInstance(),
+        )
 
-    val requisitionDetails =
-      requisitionStruct.getProtoMessage(
-        "RequisitionDetails",
-        RequisitionDetails.getDefaultInstance(),
-      )
-    val externalDataProviderId = requisitionStruct.getLong("ExternalDataProviderId")
-    val externalDataProviderCertificateId =
-      requisitionStruct.getLong("ExternalDataProviderCertificateId")
-    dataProviders[externalDataProviderId] = dataProviderValue {
-      this.externalDataProviderCertificateId = externalDataProviderCertificateId
-      dataProviderPublicKey = requisitionDetails.dataProviderPublicKey
-      encryptedRequisitionSpec = requisitionDetails.encryptedRequisitionSpec
-      nonceHash = requisitionDetails.nonceHash
-
-      // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
-      // fields.
-      dataProviderPublicKeySignature = requisitionDetails.dataProviderPublicKeySignature
-      dataProviderPublicKeySignatureAlgorithmOid =
-        requisitionDetails.dataProviderPublicKeySignatureAlgorithmOid
-    }
-
-    if (measurementSucceeded && !requisitionDetails.encryptedData.isEmpty) {
-      results += resultInfo {
-        this.externalDataProviderId = externalDataProviderId
-        externalCertificateId =
-          if (requisitionDetails.externalCertificateId != 0L) {
-            requisitionDetails.externalCertificateId
-          } else {
-            externalDataProviderCertificateId
+      add(
+        duchyMeasurementLogEntry {
+          logEntry = measurementLogEntry {
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId.value
+            this.externalMeasurementId = externalMeasurementId.value
+            createTime = logEntryStruct.getTimestamp("CreateTime").toProto()
+            details = measurementLogEntryDetails
           }
-        encryptedResult = requisitionDetails.encryptedData
-        apiVersion = requisitionDetails.encryptedDataApiVersion.ifEmpty { Version.V2_ALPHA.string }
-      }
+          this.externalDuchyId = externalDuchyId
+          externalComputationLogEntryId = logEntryStruct.getLong("ExternalComputationLogEntryId")
+          details = duchyMeasurementLogEntryDetails
+        }
+      )
     }
   }
 }

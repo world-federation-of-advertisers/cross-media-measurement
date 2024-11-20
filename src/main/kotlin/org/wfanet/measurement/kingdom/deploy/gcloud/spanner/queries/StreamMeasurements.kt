@@ -42,6 +42,7 @@ class StreamMeasurements(
     private const val UPDATED_AFTER = "updatedAfter"
     private const val UPDATED_BEFORE = "updatedBefore"
     private const val CREATED_BEFORE = "createdBefore"
+    private const val CREATED_AFTER = "createdAfter"
     private const val STATES_PARAM = "states"
     private const val DUCHY_ID_PARAM = "duchyId"
 
@@ -61,7 +62,7 @@ class StreamMeasurements(
       return MeasurementReader(view).apply {
         this.orderByClause = orderByClause
         fillStatementBuilder {
-          appendWhereClause(requestFilter)
+          appendWhereClause(view, requestFilter)
           appendClause(orderByClause)
           if (limit > 0) {
             appendClause("LIMIT @$LIMIT_PARAM")
@@ -73,18 +74,29 @@ class StreamMeasurements(
 
     private fun getOrderByClause(view: Measurement.View): String {
       return when (view) {
-        Measurement.View.COMPUTATION ->
+        Measurement.View.COMPUTATION,
+        Measurement.View.COMPUTATION_STATS ->
           "ORDER BY Measurements.UpdateTime ASC, ExternalComputationId ASC"
-        Measurement.View.DEFAULT,
-        Measurement.View.FULL ->
+        Measurement.View.DEFAULT ->
           "ORDER BY Measurements.UpdateTime ASC, ExternalMeasurementConsumerId ASC, " +
             "ExternalMeasurementId ASC"
         Measurement.View.UNRECOGNIZED -> error("Unrecognized View")
       }
     }
 
-    private fun Statement.Builder.appendWhereClause(filter: StreamMeasurementsRequest.Filter) {
+    private fun Statement.Builder.appendWhereClause(
+      view: Measurement.View,
+      filter: StreamMeasurementsRequest.Filter,
+    ) {
       val conjuncts = mutableListOf<String>()
+
+      if (
+        filter.hasExternalComputationId ||
+          view == Measurement.View.COMPUTATION ||
+          view == Measurement.View.COMPUTATION_STATS
+      ) {
+        conjuncts.add("ExternalComputationId IS NOT NULL")
+      }
 
       if (filter.externalMeasurementConsumerId != 0L) {
         conjuncts.add("ExternalMeasurementConsumerId = @$EXTERNAL_MEASUREMENT_CONSUMER_ID_PARAM")
@@ -128,6 +140,11 @@ class StreamMeasurements(
       if (filter.hasCreatedBefore()) {
         conjuncts.add("Measurements.CreateTime < @$CREATED_BEFORE")
         bind(CREATED_BEFORE to filter.createdBefore.toGcloudTimestamp())
+      }
+
+      if (filter.hasCreatedAfter()) {
+        conjuncts.add("Measurements.CreateTime > @$CREATED_AFTER")
+        bind(CREATED_AFTER to filter.createdAfter.toGcloudTimestamp())
       }
 
       if (filter.externalDuchyId.isNotEmpty()) {
@@ -199,6 +216,9 @@ class StreamMeasurements(
             throw IllegalArgumentException("key not set")
         }
       }
+
+      // Include shard ID to use sharded index on UpdateTime appropriately.
+      conjuncts.add("MeasurementIndexShardId != -1")
 
       if (conjuncts.isEmpty()) {
         return
