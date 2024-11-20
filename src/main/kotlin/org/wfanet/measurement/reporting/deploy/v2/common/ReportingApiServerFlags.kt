@@ -44,4 +44,26 @@ class ReportingApiServerFlags {
   )
   lateinit var eventGroupMetadataDescriptorCacheDuration: Duration
     private set
+
+  @CommandLine.Option(
+    names = ["--default-vid-model-line"],
+    description = ["The default VID model line to be used by EDPs when fulfilling requisitions."],
+    defaultValue = "",
+    required = false,
+  )
+  lateinit var defaultVidModelLine: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--measurement-consumer-model-lines"],
+    description =
+      [
+        "A map of measurement consumer names to model lines. This map indicates which model line " +
+          "to use each measurement consumer. Entries in this map override the default."
+      ],
+    defaultValue = "",
+    required = false,
+  )
+  lateinit var measurementConsumerModelLines: Map<String, String>
+    private set
 }

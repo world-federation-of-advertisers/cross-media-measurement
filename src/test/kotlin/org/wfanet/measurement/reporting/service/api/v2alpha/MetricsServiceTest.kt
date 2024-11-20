@@ -490,6 +490,10 @@ private val ENCRYPTION_KEY_PAIR_STORE =
     )
   )
 
+private val DEFAULT_VID_MODEL_LINE = "the-model-line"
+private val MEASUREMENT_CONSUMER_MODEL_LINES =
+  mapOf<String, String>(MEASUREMENT_CONSUMERS.values.first().name to "mc-model-line")
+
 private val DATA_PROVIDER_PUBLIC_KEY = encryptionPublicKey {
   format = EncryptionPublicKey.Format.TINK_KEYSET
   data = SECRETS_DIR.resolve("edp1_enc_public.tink").readByteString()
@@ -1000,6 +1004,7 @@ private val BASE_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
   // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this field.
   serializedMeasurementPublicKey = measurementPublicKey.value
+  modelLine = MEASUREMENT_CONSUMER_MODEL_LINES[MEASUREMENT_CONSUMERS.values.first().name]!!
 }
 
 // CMMS incremental reach measurements
@@ -2449,6 +2454,8 @@ class MetricsServiceTest {
         listOf(AGGREGATOR_ROOT_CERTIFICATE, DATA_PROVIDER_ROOT_CERTIFICATE).associateBy {
           it.subjectKeyIdentifier!!
         },
+        DEFAULT_VID_MODEL_LINE,
+        MEASUREMENT_CONSUMER_MODEL_LINES,
       )
   }
 
