@@ -303,7 +303,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
       populationData,
       modelLine.name,
       DEFAULT_POPULATION_FILTER_EXPRESSION,
-      inProcessCmmsComponents.getTypeRegistry(),
+      inProcessCmmsComponents.typeRegistry,
     )
   }
 

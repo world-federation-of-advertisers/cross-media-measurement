@@ -161,6 +161,9 @@ class InProcessCmmsComponents(
   val modelProviderResourceName: String
     get() = _modelProviderResourceName
 
+  val typeRegistry: TypeRegistry
+    get() = _typeRegistry
+
   private lateinit var mcResourceName: String
   private lateinit var apiAuthenticationKey: String
   private lateinit var edpDisplayNameToResourceMap: Map<String, Resources.Resource>
@@ -169,7 +172,7 @@ class InProcessCmmsComponents(
   private lateinit var populationDataProviderResource: Resources.Resource
   private lateinit var populationKey: PopulationKey
   private lateinit var populationInfo: PopulationInfo
-  private lateinit var typeRegistry: TypeRegistry
+  private lateinit var _typeRegistry: TypeRegistry
   private lateinit var _modelProviderResourceName: String
 
   private suspend fun createAllResources() {
@@ -250,12 +253,8 @@ class InProcessCmmsComponents(
         TestEvent.getDescriptor(),
       )
 
-    typeRegistry =
+    _typeRegistry =
       TypeRegistry.newBuilder().add(listOf(Person.getDescriptor(), Dummy.getDescriptor())).build()
-  }
-
-  fun getTypeRegistry(): TypeRegistry {
-    return typeRegistry
   }
 
   fun getMeasurementConsumerData(): MeasurementConsumerData {
