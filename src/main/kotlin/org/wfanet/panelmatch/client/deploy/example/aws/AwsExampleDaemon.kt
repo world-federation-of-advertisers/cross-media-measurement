@@ -22,6 +22,8 @@ import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.apache.beam.sdk.options.SdkHarnessOptions
 import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.crypto.SignatureAlgorithm
+import org.wfanet.measurement.common.crypto.generateKeyPair
 import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.deploy.CertificateAuthorityFlags
@@ -58,6 +60,15 @@ private class AwsExampleDaemon : ExampleDaemon() {
     required = true,
   )
   lateinit var certificateAuthorityArn: String
+    private set
+
+  @Option(
+    names = ["--certificate-authority-csr-signature-algorithm"],
+    description =
+      ["Signature algorithm to use for CSRs sent to the AWS CA. One of \${COMPLETION-CANDIDATES}"],
+    required = true,
+  )
+  lateinit var certificateAuthorityCsrSignatureAlgorithm: SignatureAlgorithm
     private set
 
   @Option(
@@ -137,7 +148,13 @@ private class AwsExampleDaemon : ExampleDaemon() {
     get() = defaults.sharedStorageInfo
 
   override val certificateAuthority by lazy {
-    CertificateAuthority(caFlags.context, certificateAuthorityArn, PrivateCaClient())
+    CertificateAuthority(
+      context = caFlags.context,
+      certificateAuthorityArn = certificateAuthorityArn,
+      client = PrivateCaClient(),
+      signatureAlgorithm = certificateAuthorityCsrSignatureAlgorithm,
+      generateKeyPair = { generateKeyPair(certificateAuthorityCsrSignatureAlgorithm.keyAlgorithm) },
+    )
   }
 
   override val stepExecutor by lazy {
@@ -149,6 +166,20 @@ private class AwsExampleDaemon : ExampleDaemon() {
       validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock),
     )
   }
+
+  // TODO(world-federation-of-advertisers/cross-media-measurement#1929): Make this a real property
+  //   on SignatureAlgorithm and replace this with the new property.
+  private val SignatureAlgorithm.keyAlgorithm: String
+    get() {
+      return when (this) {
+        SignatureAlgorithm.ECDSA_WITH_SHA256,
+        SignatureAlgorithm.ECDSA_WITH_SHA384,
+        SignatureAlgorithm.ECDSA_WITH_SHA512 -> "EC"
+        SignatureAlgorithm.SHA_256_WITH_RSA_ENCRYPTION,
+        SignatureAlgorithm.SHA_384_WITH_RSA_ENCRYPTION,
+        SignatureAlgorithm.SHA_512_WITH_RSA_ENCRYPTION -> "RSA"
+      }
+    }
 }
 
 /** Reference Google Cloud implementation of a daemon for executing Exchange Workflows. */
