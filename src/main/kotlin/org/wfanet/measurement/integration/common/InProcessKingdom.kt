@@ -38,14 +38,14 @@ import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutin
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineStub as InternalMeasurementLogEntriesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineStub as InternalModelLinesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub as InternalModelReleasesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub as InternalModelRolloutsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineStub as InternalModelSuitesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineStub as InternalPopulationsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt.PublicKeysCoroutineStub as InternalPublicKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub as InternalRecurringExchangesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub as InternalModelRolloutsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub as InternalModelReleasesCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineStub as InternalModelSuitesCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineStub as InternalModelLinesCoroutineStub
-import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineStub as InternalPopulationsCoroutineStub
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import org.wfanet.measurement.kingdom.service.api.v2alpha.AccountsService
@@ -238,38 +238,26 @@ class InProcessKingdom(
 
   /** Provides access to ModelRollout creation. */
   private val internalModelRolloutsClient by lazy {
-    InternalModelRolloutsCoroutineStub(
-      internalApiChannel
-    )
+    InternalModelRolloutsCoroutineStub(internalApiChannel)
   }
 
   /** Provides access to ModelRelease creation. */
   private val internalModelReleasesClient by lazy {
-    InternalModelReleasesCoroutineStub(
-      internalApiChannel
-    )
+    InternalModelReleasesCoroutineStub(internalApiChannel)
   }
 
   /** Provides access to ModelSuite creation. */
   private val internalModelSuitesClient by lazy {
-    InternalModelSuitesCoroutineStub(
-      internalApiChannel
-    )
+    InternalModelSuitesCoroutineStub(internalApiChannel)
   }
 
   /** Provides access to ModelLine creation. */
   private val internalModelLinesClient by lazy {
-    InternalModelLinesCoroutineStub(
-      internalApiChannel
-    )
+    InternalModelLinesCoroutineStub(internalApiChannel)
   }
 
   /** Provides access to Population creation. */
-  val internalPopulationsClient by lazy {
-    InternalPopulationsCoroutineStub(
-      internalApiChannel
-    )
-  }
+  val internalPopulationsClient by lazy { InternalPopulationsCoroutineStub(internalApiChannel) }
 
   override fun apply(statement: Statement, description: Description): Statement {
     return chainRulesSequentially(internalDataServer, systemApiServer, publicApiServer)

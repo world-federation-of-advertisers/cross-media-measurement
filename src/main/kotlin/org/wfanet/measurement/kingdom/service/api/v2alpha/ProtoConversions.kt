@@ -14,10 +14,8 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import com.google.protobuf.Timestamp
 import com.google.protobuf.any
 import com.google.protobuf.util.Timestamps
-import com.google.type.Date
 import com.google.type.interval
 import java.time.ZoneOffset
 import org.wfanet.measurement.api.Version
