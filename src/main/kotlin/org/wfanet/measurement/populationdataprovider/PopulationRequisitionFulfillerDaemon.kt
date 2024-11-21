@@ -46,7 +46,7 @@ import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 
 class PopulationRequisitionFulfillerFlags {
-  @CommandLine.Option(
+  @Option(
     names = ["--kingdom-system-api-target"],
     description = ["gRPC target (authority) of the Kingdom system API server"],
     required = true,
@@ -54,7 +54,7 @@ class PopulationRequisitionFulfillerFlags {
   lateinit var target: String
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--kingdom-system-api-cert-host"],
     description =
       [
@@ -71,7 +71,7 @@ class PopulationRequisitionFulfillerFlags {
   lateinit var tlsFlags: TlsFlags
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--data-provider-resource-name"],
     description = ["The public API resource name of this data provider."],
     required = true,
@@ -79,7 +79,7 @@ class PopulationRequisitionFulfillerFlags {
   lateinit var dataProviderResourceName: String
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--data-provider-certificate-resource-name"],
     description = ["The public API resource name for data provider consent signaling."],
     required = true,
@@ -87,7 +87,7 @@ class PopulationRequisitionFulfillerFlags {
   lateinit var dataProviderCertificateResourceName: String
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--data-provider-display-name"],
     description = ["The display name of this data provider."],
     required = true,
@@ -95,7 +95,7 @@ class PopulationRequisitionFulfillerFlags {
   lateinit var dataProviderDisplayName: String
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--data-provider-encryption-private-keyset"],
     description = ["The PDP's encryption private Tink Keyset."],
     required = true,
@@ -103,7 +103,7 @@ class PopulationRequisitionFulfillerFlags {
   lateinit var pdpEncryptionPrivateKeyset: File
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--data-provider-consent-signaling-private-key-der-file"],
     description = ["The PDP's consent signaling private key (DER format) file."],
     required = true,
@@ -111,7 +111,7 @@ class PopulationRequisitionFulfillerFlags {
   lateinit var pdpCsPrivateKeyDerFile: File
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--data-provider-consent-signaling-certificate-der-file"],
     description = ["The PDP's consent signaling private key (DER format) file."],
     required = true,
@@ -119,7 +119,7 @@ class PopulationRequisitionFulfillerFlags {
   lateinit var pdpCsCertificateDerFile: File
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--throttler-minimum-interval"],
     description = ["Minimum throttle interval"],
     defaultValue = "2s",
@@ -138,9 +138,9 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
   protected lateinit var flags: PopulationRequisitionFulfillerFlags
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--event-message-descriptor-set"],
-    description = ["Serialized FileDescriptorSet for the event message and its dependencies."],
+    description = ["Serialized FileDescriptorSet for the event message and its dependencies. This can be specified multiple times"],
     required = false,
   )
   private lateinit var eventMessageDescriptorSetFiles: List<File>
@@ -150,7 +150,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
     private set
 
   class PopulationKeyAndInfo {
-    @Option(names = ["--population-key"], required = true)
+    @Option(names = ["--population-key-resource-name"], required = true)
     lateinit var populationKey: String
       private set
 
@@ -163,8 +163,8 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
     @Option(names = ["--population-spec"], required = true)
     lateinit var populationSpecFile: File
       private set
-    @Option(names = ["--event-message-descriptor"], required = true)
-    lateinit var eventMessageDescriptorFile: File
+    @Option(names = ["--event-message-type-url"], required = true)
+    lateinit var eventMessageTypeUrl: String
       private set
   }
 
@@ -216,7 +216,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
 
     val typeRegistry = buildTypeRegistry()
 
-    val populationInfoMap = buildPopulationInfoMap(populationKeyAndInfo)
+    val populationInfoMap = buildPopulationInfoMap(typeRegistry)
 
     var populationRequisitionFulfiller =
       PopulationRequisitionFulfiller(
@@ -247,20 +247,17 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
     return builder.build()
   }
 
-  private fun buildPopulationInfoMap(
-    populationKeyAndInfoList: List<PopulationKeyAndInfo>
-  ): Map<PopulationKey, org.wfanet.measurement.populationdataprovider.PopulationInfo> {
-    return populationKeyAndInfoList.associate {
-      grpcRequireNotNull(PopulationKey.fromName(it.populationKey)) to
-        PopulationInfo(
-          parseTextProto(it.populationInfo.populationSpecFile, PopulationSpec.getDefaultInstance()),
-          parseTextProto(
-              it.populationInfo.eventMessageDescriptorFile,
-              DescriptorProtos.FileDescriptorSet.getDefaultInstance()
-            )
-            .descriptorForType,
-        )
-    }
+  private fun buildPopulationInfoMap(typeRegistry: TypeRegistry):
+    Map<PopulationKey, org.wfanet.measurement.populationdataprovider.PopulationInfo> {
+      return populationKeyAndInfo.associate {
+        grpcRequireNotNull(PopulationKey.fromName(it.populationKey)) to
+          PopulationInfo(
+            parseTextProto(
+              it.populationInfo.populationSpecFile,
+              PopulationSpec.getDefaultInstance()),
+            typeRegistry.getDescriptorForTypeUrl(it.populationInfo.eventMessageTypeUrl)
+          )
+      }
   }
 }
 
