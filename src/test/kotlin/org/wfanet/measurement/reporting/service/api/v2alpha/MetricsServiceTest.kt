@@ -2478,7 +2478,7 @@ class MetricsServiceTest {
           it.subjectKeyIdentifier!!
         },
         DEFAULT_VID_MODEL_LINE,
-        mapOf<String, String>(),
+        measurementConsumerModelLines = mapOf<String, String>(),
       )
   }
 

@@ -55,11 +55,12 @@ class ReportingApiServerFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--measurement-consumer-model-lines"],
+    names = ["--measurement-consumer-model-line"],
     description =
       [
-        "A map of measurement consumer names to model lines. This map indicates which model line " +
-          "to use each measurement consumer. Entries in this map override the default."
+        "Key-value pair of MeasurementConsumer resource name and VID ModelLine resource name. " +
+          "This can be specified multiple times. Entries in this map override the default VID " +
+          "ModelLine."
       ],
     defaultValue = "",
     required = false,
