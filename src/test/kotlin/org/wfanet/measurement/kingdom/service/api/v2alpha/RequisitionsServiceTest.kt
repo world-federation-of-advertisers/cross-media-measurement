@@ -127,7 +127,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionSt
 
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 
-private const val DEFAULT_LIMIT = 50
+private const val DEFAULT_LIMIT = 10
 
 private const val WILDCARD_NAME = "dataProviders/-"
 

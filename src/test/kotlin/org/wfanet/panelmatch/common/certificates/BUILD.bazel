@@ -1,6 +1,22 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
+    name = "CertificateSigningRequestsTest",
+    timeout = "short",
+    srcs = ["CertificateSigningRequestsTest.kt"],
+    test_class = "org.wfanet.panelmatch.common.certificates.CertificateSigningRequestsTest",
+    deps = [
+        "//imports/java/org/bouncycastle:bcpkix",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/certificates:certificate_signing_requests",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:pem_io",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signatures",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+    ],
+)
+
+kt_jvm_test(
     name = "KingdomlessCertificateManagerTest",
     timeout = "short",
     srcs = ["KingdomlessCertificateManagerTest.kt"],

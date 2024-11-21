@@ -1128,7 +1128,7 @@ class EventGroupsServiceTest {
     }
     assertThat(streamEventGroupsRequest)
       .comparingExpectedFieldsOnly()
-      .isEqualTo(streamEventGroupsRequest { limit = 51 })
+      .isEqualTo(streamEventGroupsRequest { limit = 11 })
   }
 
   @Test
