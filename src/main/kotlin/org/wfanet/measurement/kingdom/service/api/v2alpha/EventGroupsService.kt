@@ -450,8 +450,8 @@ class EventGroupsService(private val internalEventGroupsStub: InternalEventGroup
   }
 
   companion object {
-    private const val DEFAULT_PAGE_SIZE = 50
-    private const val MAX_PAGE_SIZE = 1000
+    private const val DEFAULT_PAGE_SIZE = 10
+    private const val MAX_PAGE_SIZE = 500
   }
 }
 

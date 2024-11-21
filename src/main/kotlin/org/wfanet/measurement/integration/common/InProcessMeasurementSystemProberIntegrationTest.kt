@@ -1,0 +1,168 @@
+/*
+ * Copyright 2024 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.integration.common
+
+import com.google.common.truth.Truth.assertThat
+import io.grpc.StatusException
+import java.io.File
+import java.nio.file.Paths
+import java.time.Clock
+import java.time.Duration
+import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Before
+import org.junit.BeforeClass
+import org.junit.Rule
+import org.junit.Test
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ListMeasurementsResponse
+import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
+import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.identity.withPrincipalName
+import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.kingdom.batch.MeasurementSystemProber
+import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
+
+abstract class InProcessMeasurementSystemProberIntegrationTest(
+  kingdomDataServicesRule: ProviderRule<DataServices>,
+  duchyDependenciesRule:
+    ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
+) {
+
+  @get:Rule
+  val inProcessCmmsComponents =
+    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
+
+  private val publicMeasurementsClient by lazy {
+    MeasurementsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+  }
+
+  private val publicMeasurementConsumersClient by lazy {
+    MeasurementConsumersCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+  }
+
+  private val publicEventGroupsClient by lazy {
+    EventGroupsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+      .withPrincipalName(inProcessCmmsComponents.getMeasurementConsumerData().name)
+  }
+
+  private val publicDataProvidersClient by lazy {
+    DataProvidersCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+  }
+
+  private val publicRequisitionsClient by lazy {
+    RequisitionsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+  }
+
+  private lateinit var prober: MeasurementSystemProber
+
+  @Before
+  fun startDaemons() {
+    inProcessCmmsComponents.startDaemons()
+    initMeasurementSystemProber()
+  }
+
+  @Before
+  fun initMeasurementSystemProber() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val secretsDir: File =
+      getRuntimePath(
+          Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+        )!!
+        .toFile()
+    val privateKeyDerFile = secretsDir.resolve("${MC_DISPLAY_NAME}_cs_private.der")
+    val durationBetweenMeasurement: Duration = Duration.ofSeconds(10)
+    val measurementLookBackDuration = Duration.ofDays(1)
+    val clock = Clock.systemUTC()
+    prober =
+      MeasurementSystemProber(
+        measurementConsumerData.name,
+        inProcessCmmsComponents.getDataProviderResourceNames(),
+        measurementConsumerData.apiAuthenticationKey,
+        privateKeyDerFile,
+        measurementLookBackDuration,
+        durationBetweenMeasurement,
+        publicMeasurementConsumersClient,
+        publicMeasurementsClient,
+        publicDataProvidersClient,
+        publicEventGroupsClient,
+        publicRequisitionsClient,
+        clock,
+      )
+  }
+
+  @After
+  fun stopEdpSimulators() {
+    inProcessCmmsComponents.stopEdpSimulators()
+  }
+
+  @After
+  fun stopDuchyDaemons() {
+    inProcessCmmsComponents.stopDuchyDaemons()
+  }
+
+  @Test
+  fun `prober creates the first measurement`(): Unit = runBlocking {
+    prober.run()
+    val measurements = listMeasurements()
+    assertThat(measurements.size).isEqualTo(1)
+  }
+
+  private suspend fun listMeasurements(): List<Measurement> {
+    var nextPageToken = ""
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+
+    do {
+      val response: ListMeasurementsResponse =
+        try {
+          publicMeasurementsClient
+            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+            .listMeasurements(
+              listMeasurementsRequest {
+                parent = measurementConsumerData.name
+                pageToken = nextPageToken
+              }
+            )
+        } catch (e: StatusException) {
+          throw Exception(
+            "Unable to list measurements for measurement consumer ${measurementConsumerData.name}",
+            e,
+          )
+        }
+      if (response.measurementsList.isNotEmpty()) {
+        return response.measurementsList
+      }
+      nextPageToken = response.nextPageToken
+    } while (nextPageToken.isNotEmpty())
+    return emptyList()
+  }
+
+  companion object {
+    @BeforeClass
+    @JvmStatic
+    fun initConfig() {
+      InProcessCmmsComponents.initConfig()
+    }
+  }
+}

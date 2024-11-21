@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "bcpkix",
+    actual = "@maven//:org_bouncycastle_bcpkix_jdk18on",
+)

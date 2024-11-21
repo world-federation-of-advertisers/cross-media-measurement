@@ -69,7 +69,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.honestMajorityShareShuffle
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt

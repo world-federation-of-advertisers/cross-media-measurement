@@ -127,11 +127,15 @@ class CelEnvCacheProvider(
     val eventGroupMetadataDescriptors: List<EventGroupMetadataDescriptor> =
       getEventGroupMetadataDescriptors()
 
-    val fileDescriptors: List<Descriptors.FileDescriptor> =
-      ProtoReflection.buildFileDescriptors(
-        eventGroupMetadataDescriptors.map { it.descriptorSet },
-        allKnownMetadataTypes,
-      )
+    val fileDescriptors: Set<Descriptors.FileDescriptor> =
+      allKnownMetadataTypes.toMutableSet().apply {
+        addAll(
+          ProtoReflection.buildFileDescriptors(
+            eventGroupMetadataDescriptors.map { it.descriptorSet },
+            allKnownMetadataTypes,
+          )
+        )
+      }
 
     val env = buildCelEnvironment(fileDescriptors)
     val typeRegistry: TypeRegistry = buildTypeRegistry(fileDescriptors)
@@ -205,10 +209,6 @@ class CelEnvCacheProvider(
     }
   }
 
-  private fun buildTypeRegistry(fileDescriptors: List<Descriptors.FileDescriptor>): TypeRegistry {
-    return TypeRegistry.newBuilder().add(fileDescriptors.flatMap { it.messageTypes }).build()
-  }
-
   /** Suspends until any in-flight sync operations are complete. */
   suspend fun waitForSync() {
     initialSyncJob.join()
@@ -232,5 +232,11 @@ class CelEnvCacheProvider(
     @VisibleForTesting internal val RETRY_DELAY: Duration = Duration.ofMillis(100)
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private fun buildTypeRegistry(
+      fileDescriptors: Iterable<Descriptors.FileDescriptor>
+    ): TypeRegistry {
+      return TypeRegistry.newBuilder().add(fileDescriptors.flatMap { it.messageTypes }).build()
+    }
   }
 }
