@@ -177,17 +177,11 @@ class EdpSimulator(
   private val health: SettableHealth = SettableHealth(),
   private val blockingCoroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
 ) :
-  RequisitionFulfiller(
-    edpData,
-    certificatesStub,
-    requisitionsStub,
-    throttler,
-    trustedCertificates,
-  ),
+  RequisitionFulfiller(edpData, certificatesStub, requisitionsStub, throttler, trustedCertificates),
   Health by health {
-  val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
+  private val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
 
-  val supportedProtocols = buildSet {
+  private val supportedProtocols = buildSet {
     add(ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
     add(ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2)
     if (hmssVidIndexMap != null) {
@@ -195,7 +189,7 @@ class EdpSimulator(
     }
   }
 
-  val measurementConsumerKey =
+  private val measurementConsumerKey =
     checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
 
   /** A sequence of operations done in the simulator. */

@@ -61,11 +61,19 @@ import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.Population as InternalPopulation
+import org.wfanet.measurement.internal.kingdom.PopulationKt
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt
 import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.dataProviderDetails
+import org.wfanet.measurement.internal.kingdom.eventTemplate
+import org.wfanet.measurement.internal.kingdom.modelProvider as internalModelProvider
+import org.wfanet.measurement.internal.kingdom.population as internalPopulation
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 import org.wfanet.measurement.loadtest.common.ConsoleOutput
@@ -97,6 +105,9 @@ class ResourceSetup(
   private val requiredDuchies: List<String>,
   private val bazelConfigName: String = DEFAULT_BAZEL_CONFIG_NAME,
   private val outputDir: File? = null,
+  private val internalModelProvidersClient: ModelProvidersGrpcKt.ModelProvidersCoroutineStub? =
+    null,
+  private val internalPopulationsClient: PopulationsGrpcKt.PopulationsCoroutineStub? = null,
 ) {
   data class MeasurementConsumerAndKey(
     val measurementConsumer: MeasurementConsumer,
@@ -268,6 +279,28 @@ class ResourceSetup(
     } catch (e: StatusException) {
       throw Exception("Error creating DataProvider", e)
     }
+  }
+
+  /** Create an internal modelProvider. */
+  suspend fun createInternalModelProvider(): InternalModelProvider {
+    require(internalModelProvidersClient != null)
+    return try {
+      internalModelProvidersClient.createModelProvider(internalModelProvider {})
+    } catch (e: StatusException) {
+      throw Exception("Error creating ModelProvider", e)
+    }
+  }
+
+  suspend fun createInternalPopulation(dataProvider: InternalDataProvider): InternalPopulation {
+    require(internalPopulationsClient != null)
+    return internalPopulationsClient.createPopulation(
+      internalPopulation {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        description = "DESCRIPTION"
+        populationBlob = PopulationKt.populationBlob { modelBlobUri = "BLOB_URI" }
+        eventTemplate = eventTemplate { fullyQualifiedType = "TYPE" }
+      }
+    )
   }
 
   suspend fun createAccountWithRetries(): InternalAccount {
