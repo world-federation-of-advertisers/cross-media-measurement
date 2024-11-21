@@ -107,7 +107,7 @@ kt_jvm_library(
         "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:population_requisition_fulfiller",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
-    ]
+    ],
 )
 
 kt_jvm_library(
