@@ -125,10 +125,10 @@ private fun run(
       commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
       defaultVidModelLine = "",
       measurementConsumerModelLines = mapOf(),
-      Duration.ofMinutes(60),
-      Duration.ofMinutes(60),
-      Dispatchers.IO,
-      Dispatchers.Default,
+      certificateCacheExpirationDuration = Duration.ofMinutes(60),
+      dataProviderCacheExpirationDuration = Duration.ofMinutes(60),
+      keyReaderContext = Dispatchers.IO,
+      cacheLoaderContext = Dispatchers.Default,
     )
 
   val inProcessMetricsServerName = InProcessServerBuilder.generateName()
