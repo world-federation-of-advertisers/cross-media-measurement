@@ -136,7 +136,6 @@ class PopulationRequisitionFulfiller(
           }
 
         val populationInfo: PopulationInfo = populationInfoMap.getValue(populationId)
-        populationInfo.eventMessageDescriptor.fields
         PopulationSpecValidator.validateVidRangesList(populationInfo.populationSpec).getOrThrow()
 
         val requisitionFilterExpression = requisitionSpec.population.filter.expression
