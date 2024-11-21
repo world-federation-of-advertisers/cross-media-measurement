@@ -736,9 +736,10 @@ fun InternalModelRollout.toModelRollout(): ModelRollout {
           source.rolloutPeriodEndTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
       }
     }
-
-    rolloutFreezeDate =
-      source.rolloutFreezeTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
+    if (source.hasRolloutFreezeTime()) {
+      rolloutFreezeDate =
+        source.rolloutFreezeTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
+    }
     if (source.externalPreviousModelRolloutId != 0L) {
       previousModelRollout =
         ModelRolloutKey(
@@ -808,12 +809,15 @@ fun ModelRollout.toInternal(
       }
     }
 
-    rolloutFreezeTime =
-      publicModelRollout.rolloutFreezeDate
-        .toLocalDate()
-        .atStartOfDay()
-        .toInstant(ZoneOffset.UTC)
-        .toProtoTime()
+    if (publicModelRollout.hasRolloutFreezeDate()) {
+      rolloutFreezeTime =
+        publicModelRollout.rolloutFreezeDate
+          .toLocalDate()
+          .atStartOfDay()
+          .toInstant(ZoneOffset.UTC)
+          .toProtoTime()
+    }
+
     externalModelReleaseId = apiIdToExternalId(modelReleaseKey.modelReleaseId)
   }
 }
