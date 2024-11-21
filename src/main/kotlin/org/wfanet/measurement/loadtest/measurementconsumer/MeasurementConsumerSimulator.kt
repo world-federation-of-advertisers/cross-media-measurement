@@ -31,6 +31,10 @@ import kotlin.math.log2
 import kotlin.math.max
 import kotlin.math.sqrt
 import kotlin.random.Random
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.time.delay
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.Certificate
@@ -92,6 +96,9 @@ import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.flattenConcat
+import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.coerceAtMost
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
@@ -812,11 +819,13 @@ class MeasurementConsumerSimulator(
     maxDataProviders: Int = 20,
   ): MeasurementInfo {
     val eventGroups: List<EventGroup> =
-      listEventGroups(measurementConsumer.name).filter {
-        it.eventGroupReferenceId.startsWith(
-          TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
-        )
-      }
+      listEventGroups(measurementConsumer.name)
+        .filter {
+          it.eventGroupReferenceId.startsWith(
+            TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
+          )
+        }
+        .toList()
     check(eventGroups.isNotEmpty()) { "No event groups found for ${measurementConsumer.name}" }
     val nonceHashes = mutableListOf<ByteString>()
     val keyToDataProviderMap: Map<DataProviderKey, DataProvider> =
@@ -1255,16 +1264,25 @@ class MeasurementConsumerSimulator(
     }
   }
 
-  private suspend fun listEventGroups(measurementConsumer: String): List<EventGroup> {
-    val request = listEventGroupsRequest { parent = measurementConsumer }
-    try {
-      return eventGroupsClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .listEventGroups(request)
-        .eventGroupsList
-    } catch (e: StatusException) {
-      throw Exception("Error listing event groups for MC $measurementConsumer", e)
-    }
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  private fun listEventGroups(measurementConsumer: String): Flow<EventGroup> {
+    return eventGroupsClient
+      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+      .listResources { pageToken ->
+        val response =
+          try {
+            listEventGroups(
+              listEventGroupsRequest {
+                parent = measurementConsumer
+                this.pageToken = pageToken
+              }
+            )
+          } catch (e: StatusException) {
+            throw Exception("Error listing event groups for MC $measurementConsumer", e)
+          }
+        ResourceList(response.eventGroupsList, response.nextPageToken)
+      }
+      .flattenConcat()
   }
 
   private fun extractDataProviderKey(eventGroupName: String): DataProviderKey {
@@ -1283,7 +1301,7 @@ class MeasurementConsumerSimulator(
     }
   }
 
-  private suspend fun buildRequisitionInfo(
+  private fun buildRequisitionInfo(
     dataProvider: DataProvider,
     eventGroups: List<EventGroup>,
     measurementConsumer: MeasurementConsumer,
