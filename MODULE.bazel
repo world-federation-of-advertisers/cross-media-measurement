@@ -231,6 +231,9 @@ maven.install(
         # CEL
         "org.projectnessie.cel:cel-core",
         "org.projectnessie.cel:cel-generated-pb",
+
+        # Bouncy Castle
+        "org.bouncycastle:bcpkix-jdk18on:1.79",
     ],
     boms = [
         "org.apache.beam:beam-sdks-java-bom:" + APACHE_BEAM_VERSION,
