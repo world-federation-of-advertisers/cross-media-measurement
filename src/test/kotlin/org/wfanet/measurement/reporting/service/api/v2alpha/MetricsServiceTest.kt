@@ -490,9 +490,9 @@ private val ENCRYPTION_KEY_PAIR_STORE =
     )
   )
 
-private val DEFAULT_VID_MODEL_LINE = "the-model-line"
-private val MEASUREMENT_CONSUMER_MODEL_LINES =
-  mapOf<String, String>(MEASUREMENT_CONSUMERS.values.first().name to "mc-model-line")
+const private val DEFAULT_VID_MODEL_LINE = "the-model-line"
+private val MEASUREMENT_CONSUMER_MODEL_LINES: Map<String, String> =
+  mapOf(MEASUREMENT_CONSUMERS.values.first().name to "mc-model-line")
 
 private val DATA_PROVIDER_PUBLIC_KEY = encryptionPublicKey {
   format = EncryptionPublicKey.Format.TINK_KEYSET
@@ -2429,6 +2429,7 @@ class MetricsServiceTest {
   }
 
   private lateinit var service: MetricsService
+  private lateinit var service2: MetricsService
 
   @Before
   fun initService() {
@@ -2456,6 +2457,28 @@ class MetricsServiceTest {
         },
         DEFAULT_VID_MODEL_LINE,
         MEASUREMENT_CONSUMER_MODEL_LINES,
+      )
+
+    // create a second service with an empty measurement consumer model line map
+    service2 =
+      MetricsService(
+        METRIC_SPEC_CONFIG,
+        InternalReportingSetsGrpcKt.ReportingSetsCoroutineStub(grpcTestServerRule.channel),
+        InternalMetricsGrpcKt.MetricsCoroutineStub(grpcTestServerRule.channel),
+        variancesMock,
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
+        DataProvidersGrpcKt.DataProvidersCoroutineStub(grpcTestServerRule.channel),
+        MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
+        CertificatesGrpcKt.CertificatesCoroutineStub(grpcTestServerRule.channel),
+        MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
+        ENCRYPTION_KEY_PAIR_STORE,
+        randomMock,
+        SECRETS_DIR,
+        listOf(AGGREGATOR_ROOT_CERTIFICATE, DATA_PROVIDER_ROOT_CERTIFICATE).associateBy {
+          it.subjectKeyIdentifier!!
+        },
+        DEFAULT_VID_MODEL_LINE,
+        mapOf<String, String>(),
       )
   }
 
@@ -2595,6 +2618,7 @@ class MetricsServiceTest {
             start = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_START
             width = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_WIDTH
           }
+        modelLine = DEFAULT_VID_MODEL_LINE
       }
 
     val internalMeasurement = internalMeasurement {
@@ -2728,9 +2752,10 @@ class MetricsServiceTest {
       metricId = "metric-id"
     }
 
+    // Use service2 so we can test for the default vid model line.
     val result =
       withMeasurementConsumerPrincipal(request.parent, CONFIG) {
-        runBlocking { service.createMetric(request) }
+        runBlocking { service2.createMetric(request) }
       }
 
     val pendingReachMetricWithSingleDataProviderParams =
