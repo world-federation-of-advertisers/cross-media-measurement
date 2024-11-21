@@ -117,6 +117,15 @@ jobs:
         -backend-config="bucket=$TF_STORAGE_BUCKET"
         -backend-config="region=$AWS_REGION"
 
+    - name: terraform remove state - aws
+      env:
+        POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
+        AWS_S3_BUCKET: ${{ vars.AWS_S3_BUCKET }}
+        ENVIRONMENT: ${{ inputs.environment }}
+      working-directory: ${{ env.AWS_MODULE_PATH }}
+      run: >
+        terraform state rm 'module.worker2_cluster_addons["worker2"]'
+
     - name: terraform plan - aws
       env:
         POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
@@ -125,7 +134,7 @@ jobs:
       working-directory: ${{ env.AWS_MODULE_PATH }}
       run: >
         terraform plan
-        -refresh=false
+        -refresh=true
         -input=false
         -var="aws_region=$AWS_REGION"
         -var="postgres_instance_name=$POSTGRES_INSTANCE"
