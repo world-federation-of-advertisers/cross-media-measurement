@@ -123,6 +123,8 @@ private fun run(
       SecureRandom().asKotlinRandom(),
       v2AlphaFlags.signingPrivateKeyStoreDir,
       commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
+      defaultVidModelLine = "",
+      measurementConsumerModelLines = mapOf(),
       Duration.ofMinutes(60),
       Duration.ofMinutes(60),
       Dispatchers.IO,
