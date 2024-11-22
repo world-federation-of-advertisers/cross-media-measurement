@@ -69,10 +69,14 @@ import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
+import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
 import org.wfanet.measurement.loadtest.resourcesetup.Resources
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt
+import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt
+import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt
 
 /**
  * Test for correctness of the CMMS on a single "empty" Kubernetes cluster using the `local`
@@ -108,6 +112,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     val worker1Cert: String,
     val worker2Cert: String,
     val measurementConsumer: String,
+    val measurementConsumerCert: String,
     val apiKey: String,
     val dataProviders: Map<String, Resources.Resource>,
   ) {
@@ -117,6 +122,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         var worker1Cert: String? = null
         var worker2Cert: String? = null
         var measurementConsumer: String? = null
+        var measurementConsumerCert: String? = null
         var apiKey: String? = null
         val dataProviders = mutableMapOf<String, Resources.Resource>()
 
@@ -126,6 +132,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
             Resources.Resource.ResourceCase.MEASUREMENT_CONSUMER -> {
               measurementConsumer = resource.name
               apiKey = resource.measurementConsumer.apiKey
+              measurementConsumerCert = resource.measurementConsumer.certificate
             }
             Resources.Resource.ResourceCase.DATA_PROVIDER -> {
               val displayName = resource.dataProvider.displayName
@@ -146,12 +153,13 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         }
 
         return ResourceInfo(
-          requireNotNull(aggregatorCert),
-          requireNotNull(worker1Cert),
-          requireNotNull(worker2Cert),
-          requireNotNull(measurementConsumer),
-          requireNotNull(apiKey),
-          dataProviders,
+          aggregatorCert = requireNotNull(aggregatorCert),
+          worker1Cert = requireNotNull(worker1Cert),
+          worker2Cert = requireNotNull(worker2Cert),
+          measurementConsumer = requireNotNull(measurementConsumer),
+          measurementConsumerCert = requireNotNull(measurementConsumerCert),
+          apiKey = requireNotNull(apiKey),
+          dataProviders = dataProviders,
         )
       }
     }
@@ -174,6 +182,10 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     override val testHarness: MeasurementConsumerSimulator
       get() = _testHarness
 
+    private lateinit var _reportingTestHarness: ReportingUserSimulator
+    override val reportingTestHarness: ReportingUserSimulator
+      get() = _reportingTestHarness
+
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
         override fun evaluate() {
@@ -182,6 +194,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
               withTimeout(Duration.ofMinutes(5)) {
                 val measurementConsumerData = populateCluster()
                 _testHarness = createTestHarness(measurementConsumerData)
+                _reportingTestHarness = createReportingUserSimulator(measurementConsumerData)
               }
             }
             base.evaluate()
@@ -212,7 +225,12 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val resourceSetupOutput =
         runResourceSetup(duchyCerts, edpEntityContents, measurementConsumerContent)
       val resourceInfo = ResourceInfo.from(resourceSetupOutput.resources)
-      loadFullCmms(resourceInfo, resourceSetupOutput.akidPrincipalMap)
+      loadFullCmms(
+        resourceInfo,
+        resourceSetupOutput.akidPrincipalMap,
+        resourceSetupOutput.measurementConsumerConfig,
+        resourceSetupOutput.encryptionKeyPairConfig,
+      )
 
       val encryptionPrivateKey: TinkPrivateKeyHandle =
         withContext(Dispatchers.IO) {
@@ -259,6 +277,35 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       )
     }
 
+    private suspend fun createReportingUserSimulator(
+      measurementConsumerData: MeasurementConsumerData
+    ): ReportingUserSimulator {
+      val reportingPublicPod: V1Pod = getPod(REPORTING_PUBLIC_DEPLOYMENT_NAME)
+
+      val publicApiForwarder = PortForwarder(reportingPublicPod, SERVER_PORT)
+      portForwarders.add(publicApiForwarder)
+
+      val publicApiAddress: InetSocketAddress =
+        withContext(Dispatchers.IO) { publicApiForwarder.start() }
+      val publicApiChannel: Channel =
+        buildMutualTlsChannel(publicApiAddress.toTarget(), REPORTING_SIGNING_CERTS)
+          .also { channels.add(it) }
+          .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
+
+      return ReportingUserSimulator(
+        measurementConsumerName = measurementConsumerData.name,
+        dataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
+        eventGroupsClient =
+          org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub(
+            publicApiChannel
+          ),
+        reportingSetsClient = ReportingSetsGrpcKt.ReportingSetsCoroutineStub(publicApiChannel),
+        metricCalculationSpecsClient =
+          MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub(publicApiChannel),
+        reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
+      )
+    }
+
     fun stopPortForwarding() {
       for (channel in channels) {
         channel.shutdown()
@@ -268,7 +315,12 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       }
     }
 
-    private suspend fun loadFullCmms(resourceInfo: ResourceInfo, akidPrincipalMap: File) {
+    private suspend fun loadFullCmms(
+      resourceInfo: ResourceInfo,
+      akidPrincipalMap: File,
+      measurementConsumerConfig: File,
+      encryptionKeyPairConfig: File,
+    ) {
       val appliedObjects: List<KubernetesObject> =
         withContext(Dispatchers.IO) {
           val outputDir = tempDir.newFolder("cmms")
@@ -277,6 +329,13 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           val configFilesDir = outputDir.toPath().resolve(CONFIG_FILES_PATH).toFile()
           logger.info("Copying $akidPrincipalMap to $CONFIG_FILES_PATH")
           akidPrincipalMap.copyTo(configFilesDir.resolve(akidPrincipalMap.name))
+
+          logger.info("Copying $encryptionKeyPairConfig to $CONFIG_FILES_PATH")
+          encryptionKeyPairConfig.copyTo(configFilesDir.resolve(encryptionKeyPairConfig.name))
+
+          val mcConfigDir = outputDir.toPath().resolve(MC_CONFIG_PATH).toFile()
+          logger.info("Copying $measurementConsumerConfig to $MC_CONFIG_PATH")
+          measurementConsumerConfig.copyTo(mcConfigDir.resolve(measurementConsumerConfig.name))
 
           val configTemplate: File = outputDir.resolve("config.yaml")
           kustomize(
@@ -291,6 +350,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
               .replace("{worker1_cert_name}", resourceInfo.worker1Cert)
               .replace("{worker2_cert_name}", resourceInfo.worker2Cert)
               .replace("{mc_name}", resourceInfo.measurementConsumer)
+              .replace("{mc_api_key}", resourceInfo.apiKey)
+              .replace("{mc_cert_name}", resourceInfo.measurementConsumerCert)
               .let {
                 var config = it
                 for ((displayName, resource) in resourceInfo.dataProviders) {
@@ -378,6 +439,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       return ResourceSetupOutput(
         resources,
         outputDir.resolve(ResourceSetup.AKID_PRINCIPAL_MAP_FILE),
+        outputDir.resolve(ResourceSetup.MEASUREMENT_CONSUMER_CONFIG_FILE),
+        outputDir.resolve(ResourceSetup.ENCRYPTION_KEY_PAIR_CONFIG_FILE),
       )
     }
 
@@ -439,6 +502,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     data class ResourceSetupOutput(
       val resources: List<Resources.Resource>,
       val akidPrincipalMap: File,
+      val measurementConsumerConfig: File,
+      val encryptionKeyPairConfig: File,
     )
   }
 
@@ -456,6 +521,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private val DEFAULT_RPC_DEADLINE = Duration.ofSeconds(30)
     private const val KINGDOM_INTERNAL_DEPLOYMENT_NAME = "gcp-kingdom-data-server-deployment"
     private const val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"
+    private const val REPORTING_PUBLIC_DEPLOYMENT_NAME =
+      "reporting-v2alpha-public-api-server-deployment"
     private const val NUM_DATA_PROVIDERS = 6
     private val EDP_DISPLAY_NAMES: List<String> = (1..NUM_DATA_PROVIDERS).map { "edp$it" }
     private val READY_TIMEOUT = Duration.ofMinutes(2L)
@@ -463,6 +530,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")
     private val LOCAL_K8S_TESTING_PATH = LOCAL_K8S_PATH.resolve("testing")
     private val CONFIG_FILES_PATH = LOCAL_K8S_TESTING_PATH.resolve("config_files")
+    private val MC_CONFIG_PATH = LOCAL_K8S_TESTING_PATH.resolve("mc_config")
     private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_local_images.bash")
 
     private val tempDir = TemporaryFolder()

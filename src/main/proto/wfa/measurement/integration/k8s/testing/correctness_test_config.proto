@@ -38,4 +38,13 @@ message CorrectnessTestConfig {
 
   // Authentication key for the CMMS public API.
   string api_authentication_key = 4;
+
+  // gRPC target of Reporting public API server.
+  string reporting_public_api_target = 5;
+
+  // Expected hostname (DNS-ID) in the reporting public API server's TLS
+  // certificate.
+  //
+  // If not specified, standard TLS DNS-ID derivation will be used.
+  string reporting_public_api_cert_host = 6;
 }
