@@ -1,0 +1,13 @@
+message CmmWork {
+   message VidLabelelingWork {
+    string inputEventsPath = 1;
+    string outputEventsPath = 2;
+    string vidModelPath = 3;
+   }
+   message ResultCalculationWork {
+   }
+   oneof {
+      VidLabelingWork = 1;
+      ResultCalculationWork = 2;
+   }
+}
