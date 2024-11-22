@@ -19,18 +19,23 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
-import org.wfanet.measurement.common.rabbitmq.QueueClient
-import org.wfanet.measurement.common.rabbitmq.testing.InMemoryQueueClient
+import org.wfanet.measurement.queue.QueueClient
+import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.testing.TestWork
 import com.google.protobuf.Parser
 import kotlinx.coroutines.launch
+import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
+import com.google.pubsub.v1.PubsubMessage
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 
 class BaseTeeApplicationImpl(
+  queueName: String,
   queueClient: QueueClient,
   parser: Parser<TestWork>,
 ) :
   BaseTeeApplication<TestWork>(
-    queueName = "test-queue",
+    queueName = queueName,
     queueClient = queueClient,
     parser = parser,
   ) {
@@ -47,40 +52,45 @@ class BaseTeeApplicationImpl(
 class BaseTeeApplicationTest {
 
   @Test
-  fun `test processing protobuf message`() {
+  fun `test processing protobuf message`() = runBlocking {
 
-    runBlocking {
-      val inMemoryQueueClient = InMemoryQueueClient(Dispatchers.IO)
+    val projectId = "test-project"
+    val subscriptionId = "test-subscription"
+    val topicId = "test-topic"
+
+      val emulatorClient = GooglePubSubEmulatorClient()
+      emulatorClient.startEmulator()
+
+      val topicName = emulatorClient.createTopic(projectId, topicId)
+      emulatorClient.createSubscription(projectId, subscriptionId, topicName)
+      val subscriberStub = emulatorClient.createSubscriberStub()
+      val pubSubClient = GooglePubSubClient(projectId = projectId, subscriberStub = subscriberStub)
       val app =
         BaseTeeApplicationImpl(
-          queueClient = inMemoryQueueClient,
+          queueName = subscriptionId,
+          queueClient = pubSubClient,
           parser = TestWork.parser(),
         )
-
-      launch {
+      val job = launch {
         app.run()
       }
 
-      val testWork =
-        TestWork.newBuilder()
-          .setName("testWorks/123")
-          .setUserName("Alice")
-          .setUserAge("30")
-          .setUserCountry("US")
-          .build()
+        val publisher = emulatorClient.createPublisher(projectId, topicId)
+        val message = "UserName1"
+        val testWork = createTestWork(message)
+        val pubsubMessage: PubsubMessage =
+          PubsubMessage.newBuilder().setData(testWork.toByteString()).build()
+        publisher.publish(pubsubMessage)
 
-      launch {
         app.messageProcessed.await()
         assertThat(app.processedMessages.contains(testWork)).isTrue()
-        inMemoryQueueClient.close()
-        app.close()
-      }
 
-      launch {
-        inMemoryQueueClient.sendMessage(testWork.toByteArray())
-      }
-
-    }
+        job.cancelAndJoin()
 
   }
+
+  private fun createTestWork(message: String): TestWork {
+    return TestWork.newBuilder().setUserName(message).setUserAge("25").setUserCountry("US").build()
+  }
+
 }

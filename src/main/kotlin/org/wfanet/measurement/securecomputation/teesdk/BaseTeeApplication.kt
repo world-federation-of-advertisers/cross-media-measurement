@@ -23,7 +23,7 @@ import java.util.logging.Logger
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.consumeAsFlow
-import org.wfanet.measurement.common.rabbitmq.QueueClient
+import org.wfanet.measurement.queue.QueueClient
 
 /**
  * BaseTeeApplication is an abstract base class for TEE applications that automatically subscribes
@@ -55,7 +55,6 @@ abstract class BaseTeeApplication<T : Message>(
     try {
       val messageChannel: ReceiveChannel<QueueClient.QueueMessage<T>> =
         queueClient.subscribe(queueName, parser)
-
       messageChannel
         .consumeAsFlow()
         .catch { e -> logger.severe("Error in message flow: ${e.message}") }
