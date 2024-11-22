@@ -16,18 +16,16 @@ package org.wfanet.measurement.securecomputation.teesdk
 
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.queue.QueueClient
 import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.testing.TestWork
+import org.wfa.measurement.queue.TestWork
 import com.google.protobuf.Parser
 import kotlinx.coroutines.launch
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import com.google.pubsub.v1.PubsubMessage
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.delay
 
 class BaseTeeApplicationImpl(
   queueName: String,
