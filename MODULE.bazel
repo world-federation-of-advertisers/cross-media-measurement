@@ -211,16 +211,6 @@ maven.artifact(
     ],
     group = "org.apache.beam",
 )
-maven.artifact(
-    testonly = True,
-    artifact = "testcontainers",
-    group = "org.testcontainers",
-)
-maven.artifact(
-    testonly = True,
-    artifact = "gcloud",
-    group = "org.testcontainers",
-)
 maven.install(
     artifacts = [
         "com.google.crypto.tink:tink-awskms:1.9.1",
@@ -233,13 +223,13 @@ maven.install(
         "org.slf4j:slf4j-simple:1.7.32",
 
         # Google Cloud
-        "com.google.cloud:google-cloud-bigquerystorage:3.10.3",
-        "com.google.cloud:google-cloud-security-private-ca:2.56.0",
+        "com.google.cloud:google-cloud-bigquerystorage",
+        "com.google.cloud:google-cloud-security-private-ca",
         # TODO(googleapis/java-cloud-bom#5279): Remove when managed by BOM.
         "com.google.apis:google-api-services-storage:v1-rev20240706-2.0.0",
 
         # AWS
-        "software.amazon.awssdk:acmpca:2.29.19",
+        "software.amazon.awssdk:acmpca",
 
         # Apache Beam
         "org.apache.beam:beam-runners-direct-java",
@@ -249,12 +239,10 @@ maven.install(
         # CEL
         "org.projectnessie.cel:cel-core",
         "org.projectnessie.cel:cel-generated-pb",
-        "com.google.cloud:google-cloud-pubsub:1.134.2",
     ],
     boms = [
         "org.apache.beam:beam-sdks-java-bom:" + APACHE_BEAM_VERSION,
         "org.projectnessie.cel:cel-bom:0.5.0",
-        "org.testcontainers:testcontainers-bom:1.19.3",
     ],
     fail_if_repin_required = True,
     fetch_sources = True,  # For IDE integration.
