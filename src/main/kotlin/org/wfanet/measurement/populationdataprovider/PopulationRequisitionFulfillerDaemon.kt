@@ -231,7 +231,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
       grpcRequireNotNull(PopulationKey.fromName(it.populationKey)) to
         PopulationInfo(
           parseTextProto(it.populationInfo.populationSpecFile, PopulationSpec.getDefaultInstance()),
-          typeRegistry.getDescriptorForTypeUrl(it.populationInfo.eventMessageTypeUrl)
+          typeRegistry.getDescriptorForTypeUrl(it.populationInfo.eventMessageTypeUrl),
         )
     }
   }
