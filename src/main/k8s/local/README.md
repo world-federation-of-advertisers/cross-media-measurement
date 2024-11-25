@@ -198,8 +198,8 @@ This is an alternate version of the section above. This assumes you've already
 done the Initial Setup and have the output from the `ResourceSetup` tool.
 
 Use the command in the above section to build the tar archive, swapping the
-target with `//src/main/k8s/local:cmms_with_reporting.tar`. Extract this archive
-to some directory (e.g. `/tmp/cmms`).
+target with `//src/main/k8s/local:cmms_with_reporting_v2.tar`. Extract this
+archive to some directory (e.g. `/tmp/cmms`).
 
 Copy the `authority_key_identifier_to_principal_map.textproto` output from the
 `ResourceSetup` tool to the `src/main/k8s/local/config_files` path within this
@@ -209,11 +209,8 @@ You can then apply the Kustomization from the directory where you extracted the
 archive:
 
 ```shell
-kubectl apply -k src/main/k8s/local/cmms_with_reporting/
+kubectl apply -k src/main/k8s/local/cmms_with_reporting_v2/
 ```
-
-To deploy Reporting V2, swap out `cmms_with_reporting` with
-`cmms_with_reporting_v2`.
 
 To use the Reporting CLI tool, you need to forward the port again. For example:
 

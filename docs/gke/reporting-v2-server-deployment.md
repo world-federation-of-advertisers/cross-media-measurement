@@ -1,10 +1,5 @@
 # Halo Reporting V2 Server Deployment on GKE
 
-## Important Note
-
-This is the deployment guide for the new V2. For the old V1, see
-[Reporting V1](reporting-server-deployment.md).
-
 ## Background
 
 The configuration for the [`dev` environment](../../src/main/k8s/dev) can be
