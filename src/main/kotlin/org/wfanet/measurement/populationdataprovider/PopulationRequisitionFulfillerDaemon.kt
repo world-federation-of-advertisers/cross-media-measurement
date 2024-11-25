@@ -45,98 +45,83 @@ import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 
-class PopulationRequisitionFulfillerFlags {
-  @Option(
-    names = ["--kingdom-system-api-target"],
-    description = ["gRPC target (authority) of the Kingdom system API server"],
-    required = true,
-  )
-  lateinit var target: String
-    private set
-
-  @Option(
-    names = ["--kingdom-system-api-cert-host"],
-    description =
-      [
-        "Expected hostname (DNS-ID) in the Kingdom system API server's TLS certificate.",
-        "This overrides derivation of the TLS DNS-ID from --kingdom-system-api-target.",
-      ],
-    required = false,
-  )
-  var certHost: String? = null
-    private set
-
-  /** The PdpSimulator pod's own tls certificates. */
-  @CommandLine.Mixin
-  lateinit var tlsFlags: TlsFlags
-    private set
-
-  @Option(
-    names = ["--data-provider-resource-name"],
-    description = ["The public API resource name of this data provider."],
-    required = true,
-  )
-  lateinit var dataProviderResourceName: String
-    private set
-
-  @Option(
-    names = ["--data-provider-certificate-resource-name"],
-    description = ["The public API resource name for data provider consent signaling."],
-    required = true,
-  )
-  lateinit var dataProviderCertificateResourceName: String
-    private set
-
-  @Option(
-    names = ["--data-provider-display-name"],
-    description = ["The display name of this data provider."],
-    required = true,
-  )
-  lateinit var dataProviderDisplayName: String
-    private set
-
-  @Option(
-    names = ["--data-provider-encryption-private-keyset"],
-    description = ["The PDP's encryption private Tink Keyset."],
-    required = true,
-  )
-  lateinit var pdpEncryptionPrivateKeyset: File
-    private set
-
-  @Option(
-    names = ["--data-provider-consent-signaling-private-key-der-file"],
-    description = ["The PDP's consent signaling private key (DER format) file."],
-    required = true,
-  )
-  lateinit var pdpCsPrivateKeyDerFile: File
-    private set
-
-  @Option(
-    names = ["--data-provider-consent-signaling-certificate-der-file"],
-    description = ["The PDP's consent signaling private key (DER format) file."],
-    required = true,
-  )
-  lateinit var pdpCsCertificateDerFile: File
-    private set
-
-  @Option(
-    names = ["--throttler-minimum-interval"],
-    description = ["Minimum throttle interval"],
-    defaultValue = "2s",
-  )
-  lateinit var throttlerMinimumInterval: Duration
-    private set
-}
-
 class PopulationRequisitionFulfillerDaemon : Runnable {
   @Command(
     name = "PopulationRequisitionFulfillerDaemon",
     mixinStandardHelpOptions = true,
     showDefaultValues = true,
   )
+
+  @Option(
+    names = ["--kingdom-system-api-target"],
+    description = ["gRPC target (authority) of the Kingdom system API server"],
+    required = true,
+  )
+  private lateinit var target: String
+
+  @Option(
+    names = ["--kingdom-system-api-cert-host"],
+    description =
+    [
+      "Expected hostname (DNS-ID) in the Kingdom system API server's TLS certificate.",
+      "This overrides derivation of the TLS DNS-ID from --kingdom-system-api-target.",
+    ],
+    required = false,
+  )
+  private var certHost: String? = null
+
+  /** The PdpSimulator pod's own tls certificates. */
   @CommandLine.Mixin
-  protected lateinit var flags: PopulationRequisitionFulfillerFlags
-    private set
+  private lateinit var tlsFlags: TlsFlags
+
+  @Option(
+    names = ["--data-provider-resource-name"],
+    description = ["The public API resource name of this data provider."],
+    required = true,
+  )
+  private lateinit var dataProviderResourceName: String
+
+  @Option(
+    names = ["--data-provider-certificate-resource-name"],
+    description = ["The public API resource name for data provider consent signaling."],
+    required = true,
+  )
+  private lateinit var dataProviderCertificateResourceName: String
+
+  @Option(
+    names = ["--data-provider-display-name"],
+    description = ["The display name of this data provider."],
+    required = true,
+  )
+  private lateinit var dataProviderDisplayName: String
+
+  @Option(
+    names = ["--data-provider-encryption-private-keyset"],
+    description = ["The PDP's encryption private Tink Keyset."],
+    required = true,
+  )
+  private lateinit var pdpEncryptionPrivateKeyset: File
+
+  @Option(
+    names = ["--data-provider-consent-signaling-private-key-der-file"],
+    description = ["The PDP's consent signaling private key (DER format) file."],
+    required = true,
+  )
+  private lateinit var pdpCsPrivateKeyDerFile: File
+
+  @Option(
+    names = ["--data-provider-consent-signaling-certificate-der-file"],
+    description = ["The PDP's consent signaling private key (DER format) file."],
+    required = true,
+  )
+  private lateinit var pdpCsCertificateDerFile: File
+
+  @Option(
+    names = ["--throttler-minimum-interval"],
+    description = ["Minimum throttle interval"],
+    defaultValue = "2s",
+  )
+  private lateinit var throttlerMinimumInterval: Duration
 
   @Option(
     names = ["--event-message-descriptor-set"],
@@ -146,11 +131,10 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
   private lateinit var eventMessageDescriptorSetFiles: List<File>
 
   @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*")
-  lateinit var populationKeyAndInfo: List<PopulationKeyAndInfo>
-    private set
+  private lateinit var populationKeyAndInfo: List<PopulationKeyAndInfo>
 
-  class PopulationKeyAndInfo {
-    @Option(names = ["--population-key-resource-name"], required = true)
+  private class PopulationKeyAndInfo {
+    @Option(names = ["--population-resource-name"], required = true)
     lateinit var populationKey: String
       private set
 
@@ -159,7 +143,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
       private set
   }
 
-  class PopulationInfo {
+  private class PopulationInfo {
     @Option(names = ["--population-spec"], required = true)
     lateinit var populationSpecFile: File
       private set
@@ -170,55 +154,50 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
 
   override fun run() {
     val certificate: X509Certificate =
-      flags.pdpCsCertificateDerFile.inputStream().use { input -> readCertificate(input) }
+      pdpCsCertificateDerFile.inputStream().use { input -> readCertificate(input) }
     val signingKeyHandle =
       SigningKeyHandle(
         certificate,
         readPrivateKey(
-          flags.pdpCsPrivateKeyDerFile.readByteString(),
+          pdpCsPrivateKeyDerFile.readByteString(),
           certificate.publicKey.algorithm,
         ),
       )
     val certificateKey =
-      DataProviderCertificateKey.fromName(flags.dataProviderCertificateResourceName)!!
+      DataProviderCertificateKey.fromName(dataProviderCertificateResourceName)!!
     val pdpData =
       DataProviderData(
-        flags.dataProviderResourceName,
-        flags.dataProviderDisplayName,
-        loadPrivateKey(flags.pdpEncryptionPrivateKeyset),
+        dataProviderResourceName,
+        dataProviderDisplayName,
+        loadPrivateKey(pdpEncryptionPrivateKeyset),
         signingKeyHandle,
         certificateKey,
       )
 
     val clientCerts =
       SigningCerts.fromPemFiles(
-        certificateFile = flags.tlsFlags.certFile,
-        privateKeyFile = flags.tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
+        certificateFile = tlsFlags.certFile,
+        privateKeyFile = tlsFlags.privateKeyFile,
+        trustedCertCollectionFile = tlsFlags.certCollectionFile,
       )
 
-    val channelTarget = flags.target
-    val channelCertHost = flags.certHost
+    val channelTarget: String = target
+    val channelCertHost: String? = certHost
 
-    val certificatesChannel = buildMutualTlsChannel(channelTarget, clientCerts, channelCertHost)
-    val certificatesStub = CertificatesCoroutineStub(certificatesChannel)
+    val publicApiChannel = buildMutualTlsChannel(channelTarget, clientCerts, channelCertHost)
 
-    val requisitionsChannel = buildMutualTlsChannel(channelTarget, clientCerts, channelCertHost)
-    val requisitionsStub = RequisitionsCoroutineStub(requisitionsChannel)
+    val certificatesStub = CertificatesCoroutineStub(publicApiChannel)
+    val requisitionsStub = RequisitionsCoroutineStub(publicApiChannel)
+    val modelRolloutsStub = ModelRolloutsCoroutineStub(publicApiChannel)
+    val modelReleasesStub = ModelReleasesCoroutineStub(publicApiChannel)
 
-    val modelRolloutsChannel = buildMutualTlsChannel(channelTarget, clientCerts, channelCertHost)
-    val modelRolloutsStub = ModelRolloutsCoroutineStub(modelRolloutsChannel)
-
-    val modelReleasesChannel = buildMutualTlsChannel(channelTarget, clientCerts, channelCertHost)
-    val modelReleasesStub = ModelReleasesCoroutineStub(modelReleasesChannel)
-
-    val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval)
+    val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
 
     val typeRegistry = buildTypeRegistry()
 
     val populationInfoMap = buildPopulationInfoMap(typeRegistry)
 
-    var populationRequisitionFulfiller =
+    val populationRequisitionFulfiller =
       PopulationRequisitionFulfiller(
         pdpData,
         certificatesStub,
