@@ -19,7 +19,6 @@ package(
 )
 
 exports_files([
-    "measurement_spec_config.textproto",
     "metric_spec_config.textproto",
 ])
 
