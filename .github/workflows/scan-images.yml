@@ -66,16 +66,13 @@ jobs:
           - kingdom/system-api
           - duchy/herald
           - duchy/spanner-computations
-          - reporting/postgres-data-server
           - kingdom/exchanges-deletion
-          - reporting/v1alpha-public-api
-          - reporting/postgres-update-schema
-          - reporting/v2/v2alpha-public-api
-          - reporting/v2/postgres-update-schema
           - panel-exchange/gcloud-example-daemon
           - panel-exchange/aws-example-daemon
-          - simulator/synthetic-generator-edp
+          - reporting/v2/v2alpha-public-api
+          - reporting/v2/postgres-update-schema
           - reporting/v2/postgres-internal-server
+          - simulator/synthetic-generator-edp
           - duchy/postgres-update-schema
           - duchy/gcloud-postgres-update-schema
           - duchy/postgres-internal-server

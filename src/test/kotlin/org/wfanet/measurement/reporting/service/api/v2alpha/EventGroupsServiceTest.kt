@@ -19,11 +19,13 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
+import io.grpc.Deadline
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Duration
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -110,6 +112,7 @@ class EventGroupsServiceTest {
 
   private lateinit var celEnvCacheProvider: CelEnvCacheProvider
   private lateinit var service: EventGroupsService
+  private val fakeTicker = SettableSystemTicker()
 
   @Before
   fun initService() {
@@ -126,6 +129,7 @@ class EventGroupsServiceTest {
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
         ENCRYPTION_KEY_PAIR_STORE,
         celEnvCacheProvider,
+        fakeTicker,
       )
   }
 
@@ -152,13 +156,13 @@ class EventGroupsServiceTest {
     whenever(publicKingdomEventGroupsMock.listEventGroups(any()))
       .thenReturn(
         listEventGroupsResponse {
-          nextPageToken = "1"
           eventGroups += cmmsEventGroup2
+          nextPageToken = "1"
         }
       )
       .thenReturn(
         listEventGroupsResponse {
-          eventGroups += listOf(CMMS_EVENT_GROUP, cmmsEventGroup2)
+          eventGroups += CMMS_EVENT_GROUP
           nextPageToken = "2"
         }
       )
@@ -170,6 +174,7 @@ class EventGroupsServiceTest {
             listEventGroupsRequest {
               parent = MEASUREMENT_CONSUMER_NAME
               filter = "metadata.metadata.publisher_id > 5"
+              pageSize = 1
             }
           )
         }
@@ -200,7 +205,10 @@ class EventGroupsServiceTest {
           eventGroups += CMMS_EVENT_GROUP
         }
       )
-
+      .then {
+        // Advance time.
+        fakeTicker.setNanoTime(fakeTicker.nanoTime() + TimeUnit.SECONDS.toNanos(30))
+      }
     val response =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
         runBlocking {
@@ -443,7 +451,12 @@ class EventGroupsServiceTest {
     val response =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
         runBlocking {
-          service.listEventGroups(listEventGroupsRequest { parent = MEASUREMENT_CONSUMER_NAME })
+          service.listEventGroups(
+            listEventGroupsRequest {
+              parent = MEASUREMENT_CONSUMER_NAME
+              pageSize = 2
+            }
+          )
         }
       }
 
@@ -455,7 +468,7 @@ class EventGroupsServiceTest {
       .isEqualTo(
         cmmsListEventGroupsRequest {
           parent = MEASUREMENT_CONSUMER_NAME
-          pageSize = DEFAULT_PAGE_SIZE
+          pageSize = 2
         }
       )
   }
@@ -811,6 +824,22 @@ class EventGroupsServiceTest {
           eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
           metadata = Any.pack(TEST_MESSAGE)
         }
+    }
+  }
+
+  /**
+   * Fake [Deadline.Ticker] implementation that allows time to be specified to override delegation
+   * to the system ticker.
+   */
+  private class SettableSystemTicker : Deadline.Ticker() {
+    private var nanoTime: Long? = null
+
+    fun setNanoTime(value: Long) {
+      nanoTime = value
+    }
+
+    override fun nanoTime(): Long {
+      return this.nanoTime ?: Deadline.getSystemTicker().nanoTime()
     }
   }
 }

@@ -201,25 +201,6 @@ cue_dump(
 )
 
 cue_dump(
-    name = "reporting",
-    srcs = ["reporting.cue"],
-    cue_tags = {
-        "secret_name": SECRET_NAME,
-        "db_secret_name": DB_SECRET_NAME,
-        "mc_config_secret_name": MC_CONFIG_SECRET_NAME,
-        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
-        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
-        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
-    },
-    tags = ["manual"],
-    deps = [
-        ":config_cue",
-        "//src/main/k8s:postgres",
-        "//src/main/k8s:reporting",
-    ],
-)
-
-cue_dump(
     name = "reporting_v2",
     srcs = ["reporting_v2.cue"],
     cue_tags = {
@@ -292,7 +273,6 @@ kustomization_dir(
         "empty_encryption_key_pair_config.textproto",
         "//src/main/k8s/testing/data:synthetic_generation_specs_small",
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
-        "//src/main/k8s/testing/secretfiles:measurement_spec_config.textproto",
         "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
     ],
     renames = {
@@ -309,7 +289,6 @@ kustomization_dir(
         ":encryption_key_pair_config.textproto",
         "//src/main/k8s/testing/data:synthetic_generation_specs_small",
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
-        "//src/main/k8s/testing/secretfiles:measurement_spec_config.textproto",
         "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
     ],
     renames = {
@@ -380,26 +359,6 @@ kustomization_dir(
     deps = [
         ":config_files",
         ":db_creds",
-        "//src/main/k8s/testing/secretfiles:kustomization",
-    ],
-)
-
-kustomization_dir(
-    name = "cmms_with_reporting",
-    srcs = [
-        ":duchies",
-        ":edp_simulators",
-        ":emulators",
-        ":kingdom",
-        ":postgres_database",
-        ":reporting",
-    ],
-    generate_kustomization = True,
-    tags = ["manual"],
-    deps = [
-        ":config_files",
-        ":db_creds",
-        ":mc_config",
         "//src/main/k8s/testing/secretfiles:kustomization",
     ],
 )
