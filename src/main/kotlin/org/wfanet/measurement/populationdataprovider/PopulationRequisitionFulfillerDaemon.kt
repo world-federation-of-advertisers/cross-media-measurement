@@ -51,7 +51,6 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
     mixinStandardHelpOptions = true,
     showDefaultValues = true,
   )
-
   @Option(
     names = ["--kingdom-system-api-target"],
     description = ["gRPC target (authority) of the Kingdom system API server"],
@@ -62,17 +61,16 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
   @Option(
     names = ["--kingdom-system-api-cert-host"],
     description =
-    [
-      "Expected hostname (DNS-ID) in the Kingdom system API server's TLS certificate.",
-      "This overrides derivation of the TLS DNS-ID from --kingdom-system-api-target.",
-    ],
+      [
+        "Expected hostname (DNS-ID) in the Kingdom system API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --kingdom-system-api-target.",
+      ],
     required = false,
   )
   private var certHost: String? = null
 
   /** The PdpSimulator pod's own tls certificates. */
-  @CommandLine.Mixin
-  private lateinit var tlsFlags: TlsFlags
+  @CommandLine.Mixin private lateinit var tlsFlags: TlsFlags
 
   @Option(
     names = ["--data-provider-resource-name"],
@@ -125,7 +123,10 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
 
   @Option(
     names = ["--event-message-descriptor-set"],
-    description = ["Serialized FileDescriptorSet for the event message and its dependencies. This can be specified multiple times"],
+    description =
+      [
+        "Serialized FileDescriptorSet for the event message and its dependencies. This can be specified multiple times"
+      ],
     required = false,
   )
   private lateinit var eventMessageDescriptorSetFiles: List<File>
@@ -147,6 +148,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
     @Option(names = ["--population-spec"], required = true)
     lateinit var populationSpecFile: File
       private set
+
     @Option(names = ["--event-message-type-url"], required = true)
     lateinit var eventMessageTypeUrl: String
       private set
@@ -158,13 +160,9 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
     val signingKeyHandle =
       SigningKeyHandle(
         certificate,
-        readPrivateKey(
-          pdpCsPrivateKeyDerFile.readByteString(),
-          certificate.publicKey.algorithm,
-        ),
+        readPrivateKey(pdpCsPrivateKeyDerFile.readByteString(), certificate.publicKey.algorithm),
       )
-    val certificateKey =
-      DataProviderCertificateKey.fromName(dataProviderCertificateResourceName)!!
+    val certificateKey = DataProviderCertificateKey.fromName(dataProviderCertificateResourceName)!!
     val pdpData =
       DataProviderData(
         dataProviderResourceName,
@@ -226,17 +224,16 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
     return builder.build()
   }
 
-  private fun buildPopulationInfoMap(typeRegistry: TypeRegistry):
-    Map<PopulationKey, org.wfanet.measurement.populationdataprovider.PopulationInfo> {
-      return populationKeyAndInfo.associate {
-        grpcRequireNotNull(PopulationKey.fromName(it.populationKey)) to
-          PopulationInfo(
-            parseTextProto(
-              it.populationInfo.populationSpecFile,
-              PopulationSpec.getDefaultInstance()),
-            typeRegistry.getDescriptorForTypeUrl(it.populationInfo.eventMessageTypeUrl)
-          )
-      }
+  private fun buildPopulationInfoMap(
+    typeRegistry: TypeRegistry
+  ): Map<PopulationKey, org.wfanet.measurement.populationdataprovider.PopulationInfo> {
+    return populationKeyAndInfo.associate {
+      grpcRequireNotNull(PopulationKey.fromName(it.populationKey)) to
+        PopulationInfo(
+          parseTextProto(it.populationInfo.populationSpecFile, PopulationSpec.getDefaultInstance()),
+          typeRegistry.getDescriptorForTypeUrl(it.populationInfo.eventMessageTypeUrl)
+        )
+    }
   }
 }
 
