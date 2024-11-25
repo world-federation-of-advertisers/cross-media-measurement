@@ -63,8 +63,25 @@ kustomization_dir(
         "config_files_kustomization.yaml",
         "//src/main/k8s/testing/data:synthetic_generation_specs_small",
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
+        "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
     ],
     renames = {"config_files_kustomization.yaml": "kustomization.yaml"},
+    tags = ["manual"],
+)
+
+kustomization_dir(
+    name = "config_files_for_panel_match",
+    srcs = [
+        "config_files_kustomization.yaml",
+        "empty_encryption_key_pair_config.textproto",
+        "//src/main/k8s/testing/data:synthetic_generation_specs_small",
+        "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
+        "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
+    ],
+    renames = {
+        "config_files_kustomization.yaml": "kustomization.yaml",
+        "empty_encryption_key_pair_config.textproto": "encryption_key_pair_config.textproto",
+    },
 )
 
 kustomization_dir(
@@ -76,6 +93,15 @@ kustomization_dir(
 )
 
 kustomization_dir(
+    name = "mc_config",
+    srcs = ["mc_config_kustomization.yaml"],
+    renames = {
+        "mc_config_kustomization.yaml": "kustomization.yaml",
+    },
+    tags = ["manual"],
+)
+
+kustomization_dir(
     name = "cmms",
     srcs = [
         ":duchies",
@@ -83,12 +109,14 @@ kustomization_dir(
         "//src/main/k8s/local:emulators",
         "//src/main/k8s/local:kingdom",
         "//src/main/k8s/local:postgres_database",
+        "//src/main/k8s/local:reporting_v2",
     ],
     generate_kustomization = True,
     tags = ["manual"],
     deps = [
         ":config_files",
         ":db_creds",
+        ":mc_config",
         "//src/main/k8s/testing/secretfiles:kustomization",
     ],
 )
@@ -103,7 +131,7 @@ kustomization_dir(
     generate_kustomization = True,
     tags = ["manual"],
     deps = [
-        ":config_files",
+        ":config_files_for_panel_match",
         "//src/main/k8s/testing/secretfiles:kustomization",
     ],
 )

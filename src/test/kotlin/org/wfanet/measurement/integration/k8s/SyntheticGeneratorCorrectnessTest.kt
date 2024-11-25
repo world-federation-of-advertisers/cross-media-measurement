@@ -41,6 +41,9 @@ import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
+import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt
+import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt
 
 /**
  * Test for correctness of an existing CMMS on Kubernetes where the EDP simulators use
@@ -48,15 +51,20 @@ import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGene
  * The computation composition is using ACDP by assumption.
  *
  * This currently assumes that the CMMS instance is using the certificates and keys from this Bazel
- * workspace.
+ * workspace. It also assumes that there is a Reporting system connected to the CMMS.
  */
 class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
   private class RunningMeasurementSystem : MeasurementSystem, TestRule {
     override val runId: String by lazy { UUID.randomUUID().toString() }
 
     private lateinit var _testHarness: MeasurementConsumerSimulator
+    private lateinit var _reportingTestHarness: ReportingUserSimulator
+
     override val testHarness: MeasurementConsumerSimulator
       get() = _testHarness
+
+    override val reportingTestHarness: ReportingUserSimulator
+      get() = _reportingTestHarness
 
     private val channels = mutableListOf<ManagedChannel>()
 
@@ -65,6 +73,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         override fun evaluate() {
           try {
             _testHarness = createTestHarness()
+            _reportingTestHarness = createReportingTestHarness()
             base.evaluate()
           } finally {
             shutDownChannels()
@@ -107,6 +116,33 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
         eventQuery,
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
+      )
+    }
+
+    private fun createReportingTestHarness(): ReportingUserSimulator {
+      val publicApiChannel =
+        buildMutualTlsChannel(
+            TEST_CONFIG.reportingPublicApiTarget,
+            REPORTING_SIGNING_CERTS,
+            TEST_CONFIG.reportingPublicApiCertHost,
+          )
+          .also { channels.add(it) }
+          .withDefaultDeadline(RPC_DEADLINE_DURATION)
+
+      return ReportingUserSimulator(
+        measurementConsumerName = TEST_CONFIG.measurementConsumer,
+        dataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
+        eventGroupsClient =
+          org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub(
+            publicApiChannel
+          ),
+        reportingSetsClient =
+          org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub(
+            publicApiChannel
+          ),
+        metricCalculationSpecsClient =
+          MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub(publicApiChannel),
+        reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
       )
     }
 

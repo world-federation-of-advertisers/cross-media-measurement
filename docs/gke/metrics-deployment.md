@@ -30,7 +30,7 @@ free to use whichever you prefer.
 Deploy a Halo component. See the related guides:
 [Create Kingdom Cluster](kingdom-deployment.md),
 [Create Duchy Cluster](duchy-deployment.md), or
-[Create Reporting Cluster](reporting-server-deployment.md).
+[Create Reporting Cluster](reporting-server-v2-deployment.md).
 
 ## Google Cloud APIs
 

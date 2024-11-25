@@ -22,6 +22,9 @@ import java.io.File
 import java.nio.file.Paths
 import java.time.Clock
 import java.time.Duration
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -30,13 +33,15 @@ import org.junit.Rule
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ListMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.flattenConcat
+import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -129,33 +134,32 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
     assertThat(measurements.size).isEqualTo(1)
   }
 
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun listMeasurements(): List<Measurement> {
-    var nextPageToken = ""
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
 
-    do {
-      val response: ListMeasurementsResponse =
-        try {
-          publicMeasurementsClient
-            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-            .listMeasurements(
-              listMeasurementsRequest {
-                parent = measurementConsumerData.name
-                pageToken = nextPageToken
-              }
-            )
-        } catch (e: StatusException) {
-          throw Exception(
-            "Unable to list measurements for measurement consumer ${measurementConsumerData.name}",
-            e,
-          )
+    val measurementLists: Flow<ResourceList<Measurement>> =
+      publicMeasurementsClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .listResources { pageToken ->
+          val response =
+            try {
+              listMeasurements(
+                listMeasurementsRequest {
+                  parent = measurementConsumerData.name
+                  this.pageToken = pageToken
+                }
+              )
+            } catch (e: StatusException) {
+              throw Exception(
+                "Unable to list measurements for measurement consumer ${measurementConsumerData.name}",
+                e,
+              )
+            }
+          ResourceList(response.measurementsList, response.nextPageToken)
         }
-      if (response.measurementsList.isNotEmpty()) {
-        return response.measurementsList
-      }
-      nextPageToken = response.nextPageToken
-    } while (nextPageToken.isNotEmpty())
-    return emptyList()
+
+    return measurementLists.flattenConcat().toList()
   }
 
   companion object {
