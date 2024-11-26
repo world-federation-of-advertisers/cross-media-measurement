@@ -111,7 +111,7 @@ kubectl port-forward --address=localhost services/v2alpha-public-api-server 8443
 kubectl port-forward --address=localhost services/gcp-kingdom-data-server 9443:8443
 ```
 
-Then run the tool, outputting to some directory (e.g. `/tmp/resource-setup`,
+Then run the tool, outputting to some directory (e.g. `/tmp/cmms/resource-setup`,
 make sure this directory has been created):
 
 ```shell
@@ -119,7 +119,7 @@ src/main/k8s/testing/resource_setup.sh \
   --kingdom-public-api-target=localhost:8443 \
   --kingdom-internal-api-target=localhost:9443 \
   --bazel-config-name=halo-local \
-  --output-dir=/tmp/resource-setup
+  --output-dir=/tmp/cmms/resource-setup
 ```
 
 Note: You can stop the port forwarding at this point. Future steps involve
@@ -225,17 +225,18 @@ kubectl port-forward --address=localhost services/reporting-v2alpha-public-api-s
 The code is instrumented with OpenTelemetry. To enable metrics collection in the
 cluster, we use the
 [OpenTelemetry Operator for Kubernetes](https://github.com/open-telemetry/opentelemetry-operator).
-This depends on [cert-manager](https://github.com/cert-manager/cert-manager) so
-we install that first:
+This depends on [cert-manager](https://github.com/cert-manager/cert-manager), so
+we install that first. Make sure their versions are the same as versions listed in
+[install-otel-operator/action.yml](/.github/actions/install-otel-operator/action.yml#L4):
 
 ```shell
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.2/cert-manager.yaml
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.5/cert-manager.yaml
 ```
 
 Once that is installed, then install the Operator:
 
 ```shell
-kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.88.0/opentelemetry-operator.yaml
+kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.99.0/opentelemetry-operator.yaml
 ```
 
 ### Deploy OpenTelemetry Resources
@@ -311,6 +312,24 @@ bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGen
   --define=kingdom_public_api_target=localhost:8443 \
   --define=mc_name=measurementConsumers/Rcn7fKd25C8 \
   --define=mc_api_key=W9q4zad246g
+```
+
+## Debugging Tips
+
+To quickly test changes on a deployed cluster, build and push container
+images first with a new image_tag, and then edit corresponding resource's
+`image` field in its configuration with `kubectl edit`
+
+```shell
+tools/bazel-container-run //src/main/docker:push_all_local_images \
+  --define container_registry=registry.dev.svc.cluster.local:5001 \
+  --define image_repo_prefix=halo --define image_tag=<image_tag>
+```
+
+an example: kubectl edit cronjob/measurement-system-prober-cronjob:
+
+```yaml
+  image: localhost:5001/halo/kingdom/measurement-system-prober:<image_tag>
 ```
 
 ## Old Guide
@@ -417,3 +436,25 @@ do this using `minikube ssh` or using the
 Note: If you are using rootless Docker or rootless Podman, you may need to also
 enable IP forwarding on your host machine. See
 https://github.com/kubernetes/minikube/issues/18667
+
+### Delete Existing Kind Cluster
+
+Only execute this part if you want to delete existing local cluster before creating
+a new one. Let's say the cluster is named `kind`.
+
+Delete the KIND cluster:
+
+```shell
+kind delete cluster --name=kind
+```
+
+Delete the local registry container:
+
+```shell
+docker rm -f kind-registry
+```
+
+Prune Docker resources (optional, recommended):
+```shell
+docker system prune -a
+```
