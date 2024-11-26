@@ -49,7 +49,7 @@ import picocli.CommandLine.Option
   name = "PopulationRequisitionFulfillerDaemon",
   mixinStandardHelpOptions = true,
   showDefaultValues = true,
-  description = ["Fulfills a population requisition."]
+  description = ["Fulfills a population requisition."],
 )
 class PopulationRequisitionFulfillerDaemon : Runnable {
   @Option(
