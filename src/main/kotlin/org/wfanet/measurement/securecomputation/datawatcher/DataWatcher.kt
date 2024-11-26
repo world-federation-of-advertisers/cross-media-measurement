@@ -14,11 +14,11 @@ class DataWatcher(val dataWatcherConfigs: List<DataWatcherConfig>) : CloudEvents
             val blobKey = storageData.name
             val bucket = storageData.bucket
             val blobUrl = "gs://\$bucket/\$blobKey"
-    
+
             dataWatcherConfigs.forEach { config ->
                 val regex = config.sourcePathRegex.toRegex()
                 if (regex.matches(blobUrl)) {
-                    config.sinkConfig.queue?.let {
+                    config.queue?.let {
                         println(it.queueName)
                     }
                 }

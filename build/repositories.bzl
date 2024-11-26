@@ -76,3 +76,9 @@ def wfa_measurement_system_repositories():
         sha256 = "652379dec5174ed7fa8fe4223d0adf9a1d610ff0aa02e1bd1e74f79834b526a6",
         version = "0.2.0",
     )
+
+    wfa_repo_archive(
+        name = "wfa_virtual_people_core_serving",
+        repo = "virtual-people-core-serving",
+        version = "0.2.0",
+    )

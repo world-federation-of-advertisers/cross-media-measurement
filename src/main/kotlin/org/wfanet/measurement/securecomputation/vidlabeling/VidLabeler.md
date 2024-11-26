@@ -1,7 +1,7 @@
 # CLASS
 ## VidLabelerApp
 * Labels events using a VID model
-* Extends BaseTeeApplication: https://raw.githubusercontent.com/world-federation-of-advertisers/cross-media-measurement/4f82708fb53e2a12f7c32fe77be87bb47a48000b/src/test/kotlin/org/wfanet/measurement/securecomputation/teesdk/BaseTeeApplicationTest.kt
+* Extends BaseTeeApplication: https://raw.githubusercontent.com/world-federation-of-advertisers/cross-media-measurement/765788c615d0405c4927aabdc74e05995925aeb3/src/test/kotlin/org/wfanet/measurement/securecomputation/teesdk/BaseTeeApplicationTest.kt
 * Use BaseTeeApplicationImpl as an example
 * Instead of TestWork, accepts CmmWork
 
