@@ -1,0 +1,18 @@
+message DataWatcherConfig {
+  // The path to watch
+  string source_path_regex = 1;
+
+  message QueueConfig {
+    string queue_name = 1;
+    Any app_config = 3;
+  }
+
+  message CloudFunctionConfig {
+    // TBD
+  }
+
+  oneof sink_config {
+    QueueConfig queue = 1;
+    CloudFunctionConfig cloud_function = 2;
+  }
+}
