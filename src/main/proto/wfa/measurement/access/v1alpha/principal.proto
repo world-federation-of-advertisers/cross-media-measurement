@@ -1,0 +1,72 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.access.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+
+option java_package = "org.wfanet.measurement.access.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "PrincipalProto";
+
+// Resource representing a principal (API caller).
+message Principal {
+  option (google.api.resource) = {
+    type: "access.halo-cmm.org/Principal"
+    pattern: "principals/{principal}"
+    singular: "principal"
+    plural: "principals"
+  };
+
+  // Resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // An OAuth user identity.
+  message OAuthUser {
+    // OAuth issuer identifier.
+    string issuer = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
+
+    // OAuth subject identifier.
+    string subject = 2 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
+  }
+  // A TLS client.
+  message TlsClient {
+    // Authority key identifier (AKID).
+    //
+    // (-- api-linter: core::0140::abbreviations=disabled
+    //     aip.dev/not-precedent: Refers to an external concept. --)
+    bytes authority_key_identifier = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
+  }
+  // The identity associated with the principal. Required.
+  //
+  // Must be unique across all `Principal` resources.
+  oneof identity {
+    // Single user.
+    OAuthUser user = 2;
+    // TLS client.
+    TlsClient tls_client = 3;
+  }
+}
