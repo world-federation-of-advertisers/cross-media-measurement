@@ -6,7 +6,7 @@
 * Instead of TestWork, accepts CmmWork
 
 # CONSTRUCTORS
-## VidLabelerApp `(queueName: String, queueClient: QueueClient, parser: Parser<CmmWork>)
+## VidLabelerApp `(queueName: String, queueSubscriber: QueueSubscriber, parser: Parser<CmmWork>)
 ### USAGE
 * for the labeler see https://raw.githubusercontent.com/world-federation-of-advertisers/virtual-people-core-serving/refs/heads/main/src/test/kotlin/org/wfanet/virtualpeople/core/labeler/LabelerTest.kt
 * storage client see https://raw.githubusercontent.com/world-federation-of-advertisers/common-jvm/refs/heads/main/src/test/kotlin/org/wfanet/measurement/storage/MesosRecordIoStorageClientTest.kt
