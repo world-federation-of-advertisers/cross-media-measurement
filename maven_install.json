@@ -1110,13 +1110,6 @@
       },
       "version": "5.6"
     },
-    "com.rabbitmq:amqp-client": {
-      "shasums": {
-        "jar": "f5df000445bbab12f650d4cd9224c57c2e416eb75a7b80f5734c670fbf932b1e",
-        "sources": "de7f700b6922dba8fdd84f84d43531b061085521329686009b37818ec13e4bd6"
-      },
-      "version": "5.22.0"
-    },
     "com.squareup.okhttp3:logging-interceptor": {
       "shasums": {
         "jar": "f3e8d5f0903c250c2b55d2f47fcfe008e80634385da8385161c7a63aaed0c74c",
@@ -1207,6 +1200,20 @@
         "sources": "a6e1a96c8135795b705b9a10f76184a7d83bf201886ffc6e94e4997d4fe67fb6"
       },
       "version": "4.7.6"
+    },
+    "io.cloudevents:cloudevents-api": {
+      "shasums": {
+        "jar": "1eb08784349017f4d9bf7e31cd9107c7e1dd15138f60507168a3a68b0206cf5b",
+        "sources": "5a7aa69e3075a40249e3f8a3887c4c54d1c1471d0c0293e3718ff9ae42ac0d98"
+      },
+      "version": "4.0.1"
+    },
+    "io.cloudevents:cloudevents-core": {
+      "shasums": {
+        "jar": "f6226bac64b9fd84b15ec2111eb50b512febec55bbf40495cce841946b8dc120",
+        "sources": "6d05d3cb64fdf4fa482e8cacfe817c0b9de466cd40102f9add4b0b725b2278b4"
+      },
+      "version": "4.0.1"
     },
     "io.cloudevents:cloudevents-api": {
       "shasums": {
@@ -4891,9 +4898,6 @@
       "org.apache.commons:commons-lang3",
       "org.apache.commons:commons-text"
     ],
-    "com.rabbitmq:amqp-client": [
-      "org.slf4j:slf4j-api"
-    ],
     "com.squareup.okhttp3:logging-interceptor": [
       "com.squareup.okhttp3:okhttp",
       "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
@@ -7498,18 +7502,6 @@
       "com.opencsv.processor",
       "com.opencsv.stream.reader",
       "com.opencsv.validators"
-    ],
-    "com.rabbitmq:amqp-client": [
-      "com.rabbitmq.client",
-      "com.rabbitmq.client.impl",
-      "com.rabbitmq.client.impl.nio",
-      "com.rabbitmq.client.impl.recovery",
-      "com.rabbitmq.client.observation",
-      "com.rabbitmq.client.observation.micrometer",
-      "com.rabbitmq.tools",
-      "com.rabbitmq.tools.json",
-      "com.rabbitmq.tools.jsonrpc",
-      "com.rabbitmq.utility"
     ],
     "com.squareup.okhttp3:logging-interceptor": [
       "okhttp3.logging"
@@ -12516,8 +12508,6 @@
       "com.ongres.stringprep:stringprep:jar:sources",
       "com.opencsv:opencsv",
       "com.opencsv:opencsv:jar:sources",
-      "com.rabbitmq:amqp-client",
-      "com.rabbitmq:amqp-client:jar:sources",
       "com.squareup.okhttp3:logging-interceptor",
       "com.squareup.okhttp3:logging-interceptor:jar:sources",
       "com.squareup.okhttp3:okhttp",
