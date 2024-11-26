@@ -25,6 +25,8 @@ import org.wfa.measurement.queue.TestWork
 import org.wfanet.measurement.gcloud.pubsub.subscriber.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.queue.QueueSubscriber
+import org.junit.After
+import org.junit.Before
 
 class BaseTeeApplicationImpl(
   queueName: String,
@@ -47,17 +49,30 @@ class BaseTeeApplicationImpl(
 
 class BaseTeeApplicationTest {
 
+  private val projectId = "test-project"
+  private val subscriptionId = "test-subscription"
+  private val topicId = "test-topic"
+
+  private val emulatorClient: GooglePubSubEmulatorClient
+
+  init {
+    emulatorClient = GooglePubSubEmulatorClient()
+    emulatorClient.startEmulator()
+  }
+  @Before
+  fun setup() {
+    emulatorClient.createTopic(projectId, topicId)
+    emulatorClient.createSubscription(projectId, subscriptionId, topicId)
+  }
+
+  @After
+  fun tearDown() {
+    emulatorClient.deleteTopic(projectId, topicId)
+    emulatorClient.deleteSubscription(projectId, subscriptionId)
+  }
+
   @Test
   fun `test processing protobuf message`() = runBlocking {
-    val projectId = "test-project"
-    val subscriptionId = "test-subscription"
-    val topicId = "test-topic"
-
-    val emulatorClient = GooglePubSubEmulatorClient()
-    emulatorClient.startEmulator()
-
-    val topicName = emulatorClient.createTopic(projectId, topicId)
-    emulatorClient.createSubscription(projectId, subscriptionId, topicName)
     val pubSubClient = Subscriber(projectId = projectId, googlePubSubClient = emulatorClient)
     val app =
       BaseTeeApplicationImpl(
