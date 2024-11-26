@@ -36,13 +36,13 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
-class WorkItemsServiceTest {
+class GooglePubSubWorkItemsServiceTest {
 
   private lateinit var connectionFactory: ConnectionFactory
   private lateinit var monitorChannel: Channel
   private lateinit var monitorConnection: Connection
   private val testQueue = "test-queue"
-  private lateinit var workItemsService: WorkItemsService
+  private lateinit var workItemsService: GooglePubSubWorkItemsService
 
   @Before
   fun setup() {
@@ -63,7 +63,7 @@ class WorkItemsServiceTest {
     monitorConnection = connectionFactory.newConnection()
     monitorChannel = monitorConnection.createChannel()
     workItemsService =
-      WorkItemsService(
+      GooglePubSubWorkItemsService(
         rabbitMqHost = "localhost",
         rabbitMqPort = 5672,
         rabbitMqUsername = "guest",
@@ -187,7 +187,7 @@ class WorkItemsServiceTest {
     workItemsService.close()
 
     workItemsService =
-      WorkItemsService(
+      GooglePubSubWorkItemsService(
         rabbitMqHost = "localhost",
         rabbitMqPort = 5672,
         rabbitMqUsername = "guest",
