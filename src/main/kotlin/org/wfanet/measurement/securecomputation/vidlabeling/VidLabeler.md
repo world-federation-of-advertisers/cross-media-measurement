@@ -6,7 +6,7 @@
 * Instead of TestWork, accepts CmmWork
 
 # CONSTRUCTORS
-## VidLabelerApp `(queueName: String, queueSubscriber: QueueSubscriber, parser: Parser<CmmWork>)
+## VidLabelerApp `(storageClient: StorageClient, queueName: String, queueSubscriber: QueueSubscriber, parser: Parser<CmmWork>)
 ### USAGE
 * for the labeler see https://raw.githubusercontent.com/world-federation-of-advertisers/virtual-people-core-serving/refs/heads/main/src/test/kotlin/org/wfanet/virtualpeople/core/labeler/LabelerTest.kt
 * storage client see https://raw.githubusercontent.com/world-federation-of-advertisers/common-jvm/refs/heads/main/src/test/kotlin/org/wfanet/measurement/storage/MesosRecordIoStorageClientTest.kt
@@ -29,9 +29,8 @@
 ## runWork(work: CmmWork)
 ### Usage
 ### IMPL
-* Reads input and output paths from proto
-* Construct a MesoRecordIOStorageClient using InMemoryStorageClient - https://raw.githubusercontent.com/world-federation-of-advertisers/common-jvm/refs/heads/main/src/test/kotlin/org/wfanet/measurement/storage/MesosRecordIoStorageClientTest.kt
-* Read the vidModelPath using the InMemoryStorageClient, flatten all the bytes and parse it as a CompiledNode 
+* Read the vidModelPath using the storageClient from the constructor, flatten all the bytes and parse it as a CompiledNode
 * Construct a Labeler using the compiled Node - https://raw.githubusercontent.com/world-federation-of-advertisers/virtual-people-core-serving/refs/heads/main/src/main/kotlin/org/wfanet/virtualpeople/core/labeler/Labeler.kt
+* Reads input and output paths from proto work (CmmWork)
+* Construct a MesoRecordIOStorageClient using storageClient from constructor - https://raw.githubusercontent.com/world-federation-of-advertisers/common-jvm/refs/heads/main/src/test/kotlin/org/wfanet/measurement/storage/MesosRecordIoStorageClientTest.kt
 * Call labelPath(inputBlobKey: String, outputBlobKey: String, labeler: Labeler, storageClient: MesoRecordIOStorageClient)
-
