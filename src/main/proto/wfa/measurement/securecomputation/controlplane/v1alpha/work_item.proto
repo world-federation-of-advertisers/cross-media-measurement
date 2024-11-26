@@ -19,6 +19,8 @@ package wfa.measurement.securecomputation.controlplane.v1alpha;
 import "google/protobuf/any.proto";
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "wfa/measurement/securecomputation/controlplane/v1alpha/queue.proto";
+
 
 option java_package = "org.wfanet.measurement.securecomputation.controlplane.v1alpha";
 option java_multiple_files = true;
@@ -38,7 +40,7 @@ message WorkItem {
 
   // The queue into which this `WorkItem` must be enqueued.
   // Available queues are specified in a configuration file.
-  string queue = 2 [
+  Queue queue = 2 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
       type: "control-plane.secure-computation.halo-cmm.org/Queue"
