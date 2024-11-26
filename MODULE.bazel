@@ -40,6 +40,14 @@ bazel_dep(
     version = "0.94.0",
     repo_name = "wfa_common_jvm",
 )
+
+# DO_NOT_SUBMIT (world-federation-of-advertisers/common-jvm#286)
+archive_override(
+    module_name = "common-jvm",
+    strip_prefix = "common-jvm-ec0231b2c9b932379232ade2a8553eba6ba92302",
+    urls = "https://github.com/world-federation-of-advertisers/common-jvm/archive/ec0231b2c9b932379232ade2a8553eba6ba92302.tar.gz",
+)
+
 bazel_dep(
     name = "common-cpp",
     version = "0.13.0",
@@ -231,10 +239,6 @@ maven.install(
         # CEL
         "org.projectnessie.cel:cel-core",
         "org.projectnessie.cel:cel-generated-pb",
-
-        # RabbitMQ
-        # TODO(@marcopremier): Remove this once common-jvm PR #286 is merged
-        "com.rabbitmq:amqp-client:5.22.0",
     ],
     boms = [
         "org.apache.beam:beam-sdks-java-bom:" + APACHE_BEAM_VERSION,
