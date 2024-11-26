@@ -356,6 +356,8 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/upb/0.0.0-20230516-61a97ef/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/virtual-people-common/0.4.0/MODULE.bazel": "ca8d37024da40821df69f73296977b5aaa6064ff90907206a7dec1f4a94a25e3",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/virtual-people-common/0.4.0/source.json": "9a51d5a3137c8e4f679f65ff69c552f8f4202a1f90a5b9f8f858da0a9b0744f4",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/virtual-people-core-serving/0.2.1/MODULE.bazel": "a5ee8c27565a503ff23439dc8744aecfd032794362b5195861c5eeaaf11ace75",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/virtual-people-core-serving/0.2.1/source.json": "36bc5ea151a7f14fe2ac8bb789a2af3b01d6ddd3b472d0bd7348a16968425b81",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/xz/5.4.5.bcr.1/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/zlib/1.2.11/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/zlib/1.2.12/MODULE.bazel": "not found",
