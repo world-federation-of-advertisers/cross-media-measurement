@@ -18,7 +18,7 @@ package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
 import com.google.protobuf.ByteString
 
-interface WorkItemService {
+interface WorkItemsService {
 
   fun publishMessage(projectId: String, queueName: String, messageContent: ByteString)
   fun queueExists(projectId: String, queueName: String): Boolean
