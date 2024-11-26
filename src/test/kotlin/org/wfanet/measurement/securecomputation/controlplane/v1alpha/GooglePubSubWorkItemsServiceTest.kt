@@ -35,13 +35,13 @@ import org.junit.After
 import org.junit.Assert.assertThrows
 
 @RunWith(JUnit4::class)
-class WorkItemsServiceTest {
+class GooglePubSubWorkItemsServiceTest {
 
   private lateinit var connectionFactory: ConnectionFactory
   private lateinit var monitorChannel: Channel
   private lateinit var monitorConnection: Connection
-  private val testQueue = "test-queue-${System.currentTimeMillis()}"
-  private lateinit var workItemsService: WorkItemsService
+  private val testQueue = "test-queue"
+  private lateinit var workItemsService: GooglePubSubWorkItemsService
 
   @Before
   fun setup() {
@@ -61,14 +61,13 @@ class WorkItemsServiceTest {
     // Setup monitor channel for queue inspection
     monitorConnection = connectionFactory.newConnection()
     monitorChannel = monitorConnection.createChannel()
-
-    // Initialize the service
-    workItemsService = WorkItemsService(
-      rabbitMqHost = "localhost",
-      rabbitMqPort = 5672,
-      rabbitMqUsername = "guest",
-      rabbitMqPassword = "guest"
-    )
+    workItemsService =
+      GooglePubSubWorkItemsService(
+        rabbitMqHost = "localhost",
+        rabbitMqPort = 5672,
+        rabbitMqUsername = "guest",
+        rabbitMqPassword = "guest",
+      )
   }
 
   @After
@@ -144,15 +143,51 @@ class WorkItemsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
     assertThat(exception.status.description).contains("Queue 'non-existent-queue' does not exist")
 
-    val workItemParams2 = Any.pack(StringValue.of("test-params"))
-    val request2 = CreateWorkItemRequest.newBuilder()
-      .setWorkItemId("test-work-item-2")
-      .setWorkItem(
-        WorkItem.newBuilder()
-          .setName("workItems/test-work-item-2")
-          .setQueue(testQueue)
-          .setWorkItemParams(workItemParams2)
-          .build()
+    val secondRequest = createTestRequest("test-work-item-4")
+    runBlocking { workItemsService.createWorkItem(secondRequest) }
+    delay(100)
+    assertThat(getQueueInfo().messageCount).isEqualTo(1)
+  }
+
+  @Test
+  fun `test missing queue name throws INVALID_ARGUMENT`() = runBlocking {
+    val workItemParams = Any.pack(StringValue.of("test-params"))
+    val request =
+      CreateWorkItemRequest.newBuilder()
+        .setWorkItemId("test-work-item-3")
+        .setWorkItem(
+          WorkItem.newBuilder()
+            .setName("workItems/test-work-item-3")
+            .setWorkItemParams(workItemParams)
+            .build()
+        )
+        .build()
+
+    val exception =
+      assertThrows(StatusException::class.java) {
+        runBlocking { workItemsService.createWorkItem(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description).contains("Queue '' does not exist")
+  }
+
+  @Test
+  fun `test check messages persistence after connection failure`() = runBlocking {
+    assertThat(getQueueInfo().messageCount).isEqualTo(0)
+
+    val request = createTestRequest("test-work-item-4")
+    workItemsService.createWorkItem(request)
+    delay(100)
+    assertThat(getQueueInfo().messageCount).isEqualTo(1)
+    workItemsService.close()
+
+    workItemsService =
+      GooglePubSubWorkItemsService(
+        rabbitMqHost = "localhost",
+        rabbitMqPort = 5672,
+        rabbitMqUsername = "guest",
+        rabbitMqPassword = "guest",
       )
       .build()
     runBlocking { workItemsService.createWorkItem(request2) }
