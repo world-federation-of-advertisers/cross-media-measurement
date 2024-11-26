@@ -45,12 +45,13 @@ import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 
+@Command(
+  name = "PopulationRequisitionFulfillerDaemon",
+  mixinStandardHelpOptions = true,
+  showDefaultValues = true,
+  description = ["Fulfills a population requisition."]
+)
 class PopulationRequisitionFulfillerDaemon : Runnable {
-  @Command(
-    name = "PopulationRequisitionFulfillerDaemon",
-    mixinStandardHelpOptions = true,
-    showDefaultValues = true,
-  )
   @Option(
     names = ["--kingdom-system-api-target"],
     description = ["gRPC target (authority) of the Kingdom system API server"],
@@ -136,7 +137,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
 
   private class PopulationKeyAndInfo {
     @Option(names = ["--population-resource-name"], required = true)
-    lateinit var populationKey: String
+    lateinit var populationResourceName: String
       private set
 
     @CommandLine.ArgGroup(exclusive = false, multiplicity = "1")
@@ -228,7 +229,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
     typeRegistry: TypeRegistry
   ): Map<PopulationKey, org.wfanet.measurement.populationdataprovider.PopulationInfo> {
     return populationKeyAndInfo.associate {
-      grpcRequireNotNull(PopulationKey.fromName(it.populationKey)) to
+      grpcRequireNotNull(PopulationKey.fromName(it.populationResourceName)) to
         PopulationInfo(
           parseTextProto(it.populationInfo.populationSpecFile, PopulationSpec.getDefaultInstance()),
           typeRegistry.getDescriptorForTypeUrl(it.populationInfo.eventMessageTypeUrl),
