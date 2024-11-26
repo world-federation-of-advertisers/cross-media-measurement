@@ -23,7 +23,7 @@ import java.util.logging.Logger
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.consumeAsFlow
-import org.wfanet.measurement.queue.QueueClient
+import org.wfanet.measurement.queue.QueueSubscriber
 
 /**
  * BaseTeeApplication is an abstract base class for TEE applications that automatically subscribes
@@ -31,12 +31,12 @@ import org.wfanet.measurement.queue.QueueClient
  *
  * @param T The type of message that this application will process.
  * @param queueName The name of the queue to which this application subscribes.
- * @param queueClient A client that manages connections and interactions with the queue.
+ * @param queueSubscriber A client that manages connections and interactions with the queue.
  * @param parser [Parser] used to parse serialized queue messages into [T] instances.
  */
 abstract class BaseTeeApplication<T : Message>(
   private val queueName: String,
-  private val queueClient: QueueClient,
+  private val queueSubscriber: QueueSubscriber,
   private val parser: Parser<T>,
 ) : AutoCloseable {
 
@@ -53,8 +53,8 @@ abstract class BaseTeeApplication<T : Message>(
    */
   private suspend fun startListening() {
     try {
-      val messageChannel: ReceiveChannel<QueueClient.QueueMessage<T>> =
-        queueClient.subscribe(queueName, parser)
+      val messageChannel: ReceiveChannel<QueueSubscriber.QueueMessage<T>> =
+        queueSubscriber.subscribe(queueName, parser)
       messageChannel
         .consumeAsFlow()
         .catch { e -> logger.severe("Error in message flow: ${e.message}") }
@@ -73,7 +73,7 @@ abstract class BaseTeeApplication<T : Message>(
    *
    * @param queueMessage The raw message received from the queue.
    */
-  private suspend fun processMessage(queueMessage: QueueClient.QueueMessage<T>) {
+  private suspend fun processMessage(queueMessage: QueueSubscriber.QueueMessage<T>) {
     try {
       runWork(queueMessage.body)
       queueMessage.ack()
@@ -90,7 +90,7 @@ abstract class BaseTeeApplication<T : Message>(
 
   override fun close() {
     try {
-      queueClient.close()
+      queueSubscriber.close()
     } catch (e: Exception) {
       logger.severe("Error during close: ${e.message}")
     }

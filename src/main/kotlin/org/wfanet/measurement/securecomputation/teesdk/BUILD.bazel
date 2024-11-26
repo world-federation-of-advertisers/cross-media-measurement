@@ -8,6 +8,6 @@ kt_jvm_library(
     deps = [
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/queue:queue_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/queue:queue_subscriber",
     ],
 )

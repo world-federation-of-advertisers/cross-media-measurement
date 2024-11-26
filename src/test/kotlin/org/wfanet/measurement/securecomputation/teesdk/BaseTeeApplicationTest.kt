@@ -23,16 +23,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfa.measurement.queue.TestWork
-import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
+import org.wfanet.measurement.queue.QueueSubscriber
+import org.wfanet.measurement.gcloud.pubsub.subscriber.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
-import org.wfanet.measurement.queue.QueueClient
 
 class BaseTeeApplicationImpl(
   queueName: String,
-  queueClient: QueueClient,
+  queueSubscriber: QueueSubscriber,
   parser: Parser<TestWork>,
 ) :
-  BaseTeeApplication<TestWork>(queueName = queueName, queueClient = queueClient, parser = parser) {
+  BaseTeeApplication<TestWork>(queueName = queueName, queueSubscriber = queueSubscriber, parser = parser) {
   val processedMessages: MutableList<TestWork> = mutableListOf()
   val messageProcessed = CompletableDeferred<Unit>()
 
@@ -55,12 +55,11 @@ class BaseTeeApplicationTest {
 
     val topicName = emulatorClient.createTopic(projectId, topicId)
     emulatorClient.createSubscription(projectId, subscriptionId, topicName)
-    val subscriberStub = emulatorClient.createSubscriberStub()
-    val pubSubClient = GooglePubSubClient(projectId = projectId, subscriberStub = subscriberStub)
+    val pubSubClient = Subscriber(projectId = projectId, googlePubSubClient = emulatorClient)
     val app =
       BaseTeeApplicationImpl(
         queueName = subscriptionId,
-        queueClient = pubSubClient,
+        queueSubscriber = pubSubClient,
         parser = TestWork.parser(),
       )
     val job = launch { app.run() }
