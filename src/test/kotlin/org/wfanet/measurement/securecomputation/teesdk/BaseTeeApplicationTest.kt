@@ -16,23 +16,26 @@ package org.wfanet.measurement.securecomputation.teesdk
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Parser
-import com.google.pubsub.v1.PubsubMessage
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfa.measurement.queue.TestWork
-import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.gcloud.pubsub.subscriber.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
+import org.wfanet.measurement.queue.QueueSubscriber
 
 class BaseTeeApplicationImpl(
   queueName: String,
   queueSubscriber: QueueSubscriber,
   parser: Parser<TestWork>,
 ) :
-  BaseTeeApplication<TestWork>(queueName = queueName, queueSubscriber = queueSubscriber, parser = parser) {
+  BaseTeeApplication<TestWork>(
+    queueName = queueName,
+    queueSubscriber = queueSubscriber,
+    parser = parser,
+  ) {
   val processedMessages: MutableList<TestWork> = mutableListOf()
   val messageProcessed = CompletableDeferred<Unit>()
 
@@ -64,12 +67,10 @@ class BaseTeeApplicationTest {
       )
     val job = launch { app.run() }
 
-    val publisher = emulatorClient.createPublisher(projectId, topicId)
     val message = "UserName1"
     val testWork = createTestWork(message)
-    val pubsubMessage: PubsubMessage =
-      PubsubMessage.newBuilder().setData(testWork.toByteString()).build()
-    publisher.publish(pubsubMessage)
+
+    emulatorClient.publishMessage(projectId, topicId, testWork.toByteString())
 
     app.messageProcessed.await()
     assertThat(app.processedMessages.contains(testWork)).isTrue()
