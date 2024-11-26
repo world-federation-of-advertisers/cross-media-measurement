@@ -30,6 +30,7 @@ kt_jvm_library(
     name = "google_pub_sub_work_items_service",
     srcs = ["GooglePubSubWorkItemsService.kt"],
     deps = [
+        ":work_items_service",
         ":publisher_provider",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
