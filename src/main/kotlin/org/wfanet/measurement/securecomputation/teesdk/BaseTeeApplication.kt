@@ -75,10 +75,10 @@ abstract class BaseTeeApplication<T : Message>(
       queueMessage.ack()
     } catch (e: InvalidProtocolBufferException) {
       logger.severe("Failed to parse protobuf message: ${e.message}")
-      queueMessage.nack(requeue = false)
+      queueMessage.nack()
     } catch (e: Exception) {
       logger.severe("Error processing message: ${e.message}")
-      queueMessage.nack(requeue = true)
+      queueMessage.nack()
     }
   }
 

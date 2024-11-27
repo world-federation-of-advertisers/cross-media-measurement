@@ -20,13 +20,15 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import org.junit.Test
 import org.wfa.measurement.queue.TestWork
-import org.wfanet.measurement.gcloud.pubsub.subscriber.Subscriber
+import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
+import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.queue.QueueSubscriber
+import org.junit.Test
 import org.junit.After
 import org.junit.Before
+import org.junit.Rule
 
 class BaseTeeApplicationImpl(
   queueName: String,
@@ -49,26 +51,33 @@ class BaseTeeApplicationImpl(
 
 class BaseTeeApplicationTest {
 
+  @Rule
+  @JvmField val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
+
   private val projectId = "test-project"
   private val subscriptionId = "test-subscription"
   private val topicId = "test-topic"
 
-  private val emulatorClient: GooglePubSubEmulatorClient
+  private lateinit var emulatorClient: GooglePubSubEmulatorClient
 
-  init {
-    emulatorClient = GooglePubSubEmulatorClient()
-    emulatorClient.startEmulator()
-  }
   @Before
   fun setup() {
-    emulatorClient.createTopic(projectId, topicId)
-    emulatorClient.createSubscription(projectId, subscriptionId, topicId)
+    runBlocking {
+      emulatorClient = GooglePubSubEmulatorClient(
+        host = pubSubEmulatorProvider.host,
+        port = pubSubEmulatorProvider.port
+      )
+      emulatorClient.createTopic(projectId, topicId)
+      emulatorClient.createSubscription(projectId, subscriptionId, topicId)
+    }
   }
 
   @After
   fun tearDown() {
-    emulatorClient.deleteTopic(projectId, topicId)
-    emulatorClient.deleteSubscription(projectId, subscriptionId)
+    runBlocking {
+      emulatorClient.deleteTopic(projectId, topicId)
+      emulatorClient.deleteSubscription(projectId, subscriptionId)
+    }
   }
 
   @Test
@@ -85,7 +94,7 @@ class BaseTeeApplicationTest {
     val message = "UserName1"
     val testWork = createTestWork(message)
 
-    emulatorClient.publishMessage(projectId, topicId, testWork.toByteString())
+    emulatorClient.publishMessage(projectId, topicId, testWork)
 
     app.messageProcessed.await()
     assertThat(app.processedMessages.contains(testWork)).isTrue()
