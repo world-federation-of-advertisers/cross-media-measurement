@@ -20,10 +20,13 @@ import com.google.protobuf.DynamicMessage
 import com.google.protobuf.kotlin.unpack
 import io.grpc.Context
 import io.grpc.Deadline
+import io.grpc.Deadline.Ticker
 import io.grpc.Status
 import io.grpc.StatusException
 import java.security.GeneralSecurityException
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.transformWhile
 import org.projectnessie.cel.common.types.Err
 import org.projectnessie.cel.common.types.ref.Val
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -31,9 +34,12 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as CmmsEventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse as CmmsListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -52,6 +58,7 @@ class EventGroupsService(
   private val cmmsEventGroupsStub: CmmsEventGroupsCoroutineStub,
   private val encryptionKeyPairStore: EncryptionKeyPairStore,
   private val celEnvProvider: CelEnvProvider,
+  private val ticker: Ticker = Deadline.getSystemTicker(),
 ) : EventGroupsCoroutineImplBase() {
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
     val parentKey =
@@ -71,66 +78,79 @@ class EventGroupsService(
       }
     }
 
+    val deadline: Deadline =
+      Context.current().deadline
+        ?: Deadline.after(RPC_DEFAULT_DEADLINE_MILLIS, TimeUnit.MILLISECONDS, ticker)
     val apiAuthenticationKey: String = principal.config.apiKey
 
     grpcRequire(request.pageSize >= 0) { "page_size cannot be negative" }
 
-    val pageSize =
-      when {
-        request.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
-        request.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
-        else -> request.pageSize
-      }
+    val limit =
+      if (request.pageSize > 0) request.pageSize.coerceAtMost(MAX_PAGE_SIZE) else DEFAULT_PAGE_SIZE
+    val parent = parentKey.toName()
+    val eventGroupLists: Flow<ResourceList<EventGroup>> =
+      cmmsEventGroupsStub.withAuthenticationKey(apiAuthenticationKey).listResources(
+        limit,
+        request.pageToken,
+      ) { pageToken, remaining ->
+        val response: CmmsListEventGroupsResponse =
+          listEventGroups(
+            listEventGroupsRequest {
+              this.parent = parent
+              this.pageSize = remaining
+              this.pageToken = pageToken
+            }
+          )
 
-    var nextPageToken = request.pageToken
-    val deadline = Context.current().deadline ?: Deadline.after(30, TimeUnit.SECONDS)
-    do {
-      val cmmsListEventGroupResponse =
-        try {
-          cmmsEventGroupsStub
-            .withAuthenticationKey(apiAuthenticationKey)
-            .listEventGroups(
-              listEventGroupsRequest {
-                parent = parentKey.toName()
-                this.pageSize = pageSize
-                pageToken = nextPageToken
+        val eventGroups: List<EventGroup> =
+          response.eventGroupsList.map {
+            val cmmsMetadata: CmmsEventGroup.Metadata? =
+              if (it.hasEncryptedMetadata()) {
+                decryptMetadata(it, principal.resourceKey.toName())
+              } else {
+                null
               }
-            )
-        } catch (e: StatusException) {
-          throw when (e.status.code) {
-              Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-              Status.Code.CANCELLED -> Status.CANCELLED
-              else -> Status.UNKNOWN
-            }
-            .withCause(e)
-            .asRuntimeException()
-        }
-      val cmmsEventGroups = cmmsListEventGroupResponse.eventGroupsList
 
-      val eventGroups =
-        cmmsEventGroups.map {
-          val cmmsMetadata: CmmsEventGroup.Metadata? =
-            if (it.hasEncryptedMetadata()) {
-              decryptMetadata(it, principal.resourceKey.toName())
-            } else {
-              null
-            }
+            it.toEventGroup(cmmsMetadata)
+          }
 
-          it.toEventGroup(cmmsMetadata)
-        }
-
-      val filteredEventGroups = filterEventGroups(eventGroups, request.filter)
-      if (filteredEventGroups.size > 0) {
-        return listEventGroupsResponse {
-          this.eventGroups += filteredEventGroups
-          this.nextPageToken = cmmsListEventGroupResponse.nextPageToken
-        }
-      } else {
-        nextPageToken = cmmsListEventGroupResponse.nextPageToken
+        ResourceList(filterEventGroups(eventGroups, request.filter), response.nextPageToken)
       }
-    } while (deadline.timeRemaining(TimeUnit.SECONDS) > 5)
 
-    return listEventGroupsResponse { this.nextPageToken = nextPageToken }
+    var hasResponse = false
+    return listEventGroupsResponse {
+      try {
+        eventGroupLists
+          .transformWhile {
+            emit(it)
+            deadline.timeRemaining(TimeUnit.MILLISECONDS) > RPC_DEADLINE_OVERHEAD_MILLIS
+          }
+          .collect { eventGroupList ->
+            this.eventGroups += eventGroupList
+            nextPageToken = eventGroupList.nextPageToken
+            hasResponse = true
+          }
+      } catch (e: StatusException) {
+        when (e.status.code) {
+          Status.Code.DEADLINE_EXCEEDED,
+          Status.Code.CANCELLED -> {
+            if (!hasResponse) {
+              // Only throw an error if we don't have any response yet. Otherwise, just return what
+              // we have so far.
+              throw Status.DEADLINE_EXCEEDED.withDescription(
+                  "Timed out listing EventGroups from backend"
+                )
+                .withCause(e)
+                .asRuntimeException()
+            }
+          }
+          else ->
+            throw Status.UNKNOWN.withDescription("Error listing EventGroups from backend")
+              .withCause(e)
+              .asRuntimeException()
+        }
+      }
+    }
   }
 
   private suspend fun filterEventGroups(
@@ -259,8 +279,13 @@ class EventGroupsService(
   companion object {
     private const val METADATA_FIELD = "metadata.metadata"
 
-    private const val MIN_PAGE_SIZE = 1
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 1000
+
+    /** Overhead to allow for RPC deadlines in milliseconds. */
+    private const val RPC_DEADLINE_OVERHEAD_MILLIS = 100L
+
+    /** Default RPC deadline in milliseconds. */
+    private const val RPC_DEFAULT_DEADLINE_MILLIS = 30_000L
   }
 }

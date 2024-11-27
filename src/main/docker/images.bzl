@@ -96,6 +96,11 @@ COMMON_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_edp_simulator_runner_image",
         repository = _PREFIX + "/simulator/synthetic-generator-edp",
     ),
+    struct(
+        name = "population_requisition_fulfiller_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:population_requisition_fulfiller_daemon_image",
+        repository = _PREFIX + "/measurement/population-data-provider",
+    ),
 ]
 
 # List of specs for all Docker containers to push to a container registry.
@@ -232,40 +237,6 @@ LOCAL_IMAGES = [
     ),
 ]
 
-REPORTING_COMMON_IMAGES = [
-    struct(
-        name = "reporting_v1alpha_public_api_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server:v1alpha_public_api_server_image",
-        repository = _PREFIX + "/reporting/v1alpha-public-api",
-    ),
-]
-
-REPORTING_LOCAL_IMAGES = [
-    struct(
-        name = "reporting_data_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/server:postgres_reporting_data_server_image",
-        repository = _PREFIX + "/reporting/local-postgres-internal",
-    ),
-    struct(
-        name = "reporting_postgres_update_schema_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/tools:update_schema_image",
-        repository = _PREFIX + "/reporting/local-postgres-update-schema",
-    ),
-]
-
-REPORTING_GKE_IMAGES = [
-    struct(
-        name = "gcloud_reporting_data_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/gcloud/postgres/server:gcloud_postgres_reporting_data_server_image",
-        repository = _PREFIX + "/reporting/postgres-data-server",
-    ),
-    struct(
-        name = "gcloud_reporting_postgres_update_schema_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/gcloud/postgres/tools:update_schema_image",
-        repository = _PREFIX + "/reporting/postgres-update-schema",
-    ),
-]
-
 REPORTING_V2_COMMON_IMAGES = [
     struct(
         name = "reporting_v2alpha_public_api_server_image",
@@ -305,12 +276,12 @@ REPORTING_V2_GKE_IMAGES = [
     ),
 ]
 
-ALL_GKE_IMAGES = COMMON_IMAGES + GKE_IMAGES + REPORTING_COMMON_IMAGES + REPORTING_GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_GKE_IMAGES
+ALL_GKE_IMAGES = COMMON_IMAGES + GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_GKE_IMAGES
 
-ALL_LOCAL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + REPORTING_COMMON_IMAGES + REPORTING_LOCAL_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_LOCAL_IMAGES
+ALL_LOCAL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_LOCAL_IMAGES
 
-ALL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + GKE_IMAGES + REPORTING_COMMON_IMAGES + REPORTING_LOCAL_IMAGES + REPORTING_GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_LOCAL_IMAGES + REPORTING_V2_GKE_IMAGES + EKS_IMAGES
+ALL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_LOCAL_IMAGES + REPORTING_V2_GKE_IMAGES + EKS_IMAGES
 
-ALL_REPORTING_GKE_IMAGES = REPORTING_COMMON_IMAGES + REPORTING_GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_GKE_IMAGES
+ALL_REPORTING_GKE_IMAGES = REPORTING_V2_COMMON_IMAGES + REPORTING_V2_GKE_IMAGES
 
 ALL_EKS_IMAGES = COMMON_IMAGES + EKS_IMAGES

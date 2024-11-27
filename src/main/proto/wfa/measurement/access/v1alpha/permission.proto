@@ -1,0 +1,47 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.access.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+
+option java_package = "org.wfanet.measurement.access.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "PermissionProto";
+
+// Resource representing a single permission.
+message Permission {
+  option (google.api.resource) = {
+    type: "access.halo-cmm.org/Permission"
+    pattern: "permissions/{permission}"
+    singular: "permission"
+    plural: "permissions"
+  };
+
+  // Resource name.
+  //
+  // The resource ID will confirm to RFC-1034 with the following exceptions:
+  // * IDs are case-sensitive.
+  // * IDs may contain `.` as an interior character.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // Set of resource types that this `Permission` can apply to.
+  repeated string resource_types = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = UNORDERED_LIST
+  ];
+}
