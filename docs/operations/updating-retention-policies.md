@@ -42,21 +42,21 @@ must have been in specified state before qualifying for a retention operation.
 
 ### Current Kingdom Retention Cronjobs
 
--   **completed-measurements-deletion-cronjob**
+- **completed-measurements-deletion-cronjob**
 
-    Measurements will be deleted if they are in a terminal state and the time
-    since their last update time exceeds the `time-to-live` duration set.
+  Measurements will be deleted if they are in a terminal state and the time
+  since their last update time exceeds the `time-to-live` duration set.
 
--   **exchanges-deletion-cronjob**
+- **exchanges-deletion-cronjob**
 
-    Exchanges will be deleted if the days since their exchange date exceeds the
-    amount of days set in `days-to-live` flag.
+  Exchanges will be deleted if the days since their exchange date exceeds the
+  amount of days set in `days-to-live` flag.
 
--   **pending-measurements-cancellation-cronjob**
+- **pending-measurements-cancellation-cronjob**
 
-    Measurements will be transitioned to a `CANCELLED` state if they are in a
-    non-terminal state and the time since their created time exceeds the
-    `time-to-live` duration set.
+  Measurements will be transitioned to a `CANCELLED` state if they are in a
+  non-terminal state and the time since their created time exceeds the
+  `time-to-live` duration set.
 
 ### Modifying Retention Cronjobs
 
@@ -65,20 +65,20 @@ currently running Jobs. These modifications can be applied to the
 [`CronJobSpec`](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/cron-job-v1/#CronJobSpec)
 for each cronjob you wish to modify.
 
--   The `schedule` field can be found in the CronJobSpec under the path
-    `spec.schedule`, should look similar to `30 * * * *` and can be modified
-    using the Cron syntax to update the frequency at which jobs are created to
-    enforce the retention policy.
+- The `schedule` field can be found in the CronJobSpec under the path
+  `spec.schedule`, should look similar to `30 * * * *` and can be modified
+  using the Cron syntax to update the frequency at which jobs are created to
+  enforce the retention policy.
 
--   Other configurable options are passed as container args and can be found
-    under the path `spec.jobTemplate.spec.template.spec.containers.0.args`.
-    There you can update the `--dry-run=false` arg with a different boolean
-    value to enable/disable the retention operations. You can also find the
-    `--days-to-live` or `--time-to-live` arg which control the time allowed to
-    pass before a retention procedure should apply. The `days-to-live` arg is
-    specified as an int and the `time-to-live` arg is specified as a
-    human-readable duration. See
-    [Human-Readable Duration](#human-readable-duration) in the Appendix.
+- Other configurable options are passed as container args and can be found
+  under the path `spec.jobTemplate.spec.template.spec.containers.0.args`.
+  There you can update the `--dry-run=false` arg with a different boolean
+  value to enable/disable the retention operations. You can also find the
+  `--days-to-live` or `--time-to-live` arg which control the time allowed to
+  pass before a retention procedure should apply. The `days-to-live` arg is
+  specified as an int and the `time-to-live` arg is specified as a
+  human-readable duration. See
+  [Human-Readable Duration](#human-readable-duration) in the Appendix.
 
 If you wish to modify a cronjob's `schedule`, `dry-run`, or `time-to-live`
 settings, you can interactively modify the config with a command like:
@@ -98,13 +98,14 @@ To modify cronjobs in a non-interactive manner, see
 ### Human-Readable Duration
 
 Human-readable format consists of a sequence elements each consisting of a
-decimal number followed by a unit suffix. The valid suffixes are:
+decimal number followed by a unit suffix.
+The valid suffixes are:
 
-*   `d` - days
-*   `h` - hours
-*   `m` - minutes
-*   `s` - seconds
-*   `ms` - milliseconds
-*   `ns` - nanoseconds
+* `d` - days
+* `h` - hours
+* `m` - minutes
+* `s` - seconds
+* `ms` - milliseconds
+* `ns` - nanoseconds
 
 For example, `3h50m` means 3 hours and 50 minutes.
