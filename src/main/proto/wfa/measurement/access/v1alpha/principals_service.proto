@@ -38,14 +38,6 @@ service Principals {
     option (google.api.method_signature) = "principal,principal_id";
   }
 
-  // Updates a `Principal`.
-  //
-  // (-- api-linter: core::0134::method-signature=disabled
-  //     aip.dev/not-precedent: Partial update not supported. --)
-  rpc UpdatePrincipal(UpdatePrincipalRequest) returns (Principal) {
-    option (google.api.method_signature) = "principal";
-  }
-
   // Deletes a `Principal`.
   //
   // This will also remove the `Principal` from all `Policy` bindings.
@@ -76,20 +68,6 @@ message CreatePrincipalRequest {
   // This must confirm to RFC-1034 with the following exceptions:
   // * IDs are case-sensitive.
   string principal_id = 2 [(google.api.field_behavior) = REQUIRED];
-}
-
-// Request message for the `UpdatePrincipal` method.
-//
-// `Principal` identity types cannot be changed. This means that a user
-// `Principal` cannot be updated to a TLS client `Principal`, or vice-versa.
-//
-// (-- api-linter: core::0134::request-mask-required=disabled
-//     aip.dev/not-precedent: Partial update not supported. --)
-message UpdatePrincipalRequest {
-  // Resource to update.
-  //
-  // The `name` field is used to identify the resource.
-  Principal principal = 1 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Request message for `DeletePrincipal` method.

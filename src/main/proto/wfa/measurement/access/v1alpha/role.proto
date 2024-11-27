@@ -45,7 +45,7 @@ message Role {
   //
   // Each of the permissions must have all of the resource types indicated in
   // `resource_type`.
-  repeated string permission = 3 [
+  repeated string permissions = 3 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = UNORDERED_LIST,
     (google.api.resource_reference).type = "access.halo-cmm.org/Permission"
