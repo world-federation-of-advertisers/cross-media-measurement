@@ -45,6 +45,8 @@ class ReportingApiServerFlags {
   lateinit var eventGroupMetadataDescriptorCacheDuration: Duration
     private set
 
+  // TODO(world-federation-of-advertisers/cross-media-measurement#1937): Remove these flags as
+  // part of determining a better way to set the model line.
   @CommandLine.Option(
     names = ["--default-vid-model-line"],
     description = ["The default VID model line to be used by EDPs when fulfilling requisitions."],
