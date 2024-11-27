@@ -4,7 +4,9 @@
 
 The configuration for the [`dev` environment](../../src/main/k8s/dev) can be
 used as the basis for deploying CMMS components using Google Kubernetes Engine
-(GKE) on another Google Cloud project. UPD ***Disclaimer***:
+(GKE) on another Google Cloud project.
+
+***Disclaimer***:
 
 -   This guide is just one way of achieving the goal, not necessarily the best
     approach.
