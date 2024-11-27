@@ -542,7 +542,7 @@ class MetricsService(
               "Unset metric type should've already raised error."
             }
         }
-        // TODO(@jojijac0b): Finish support for modelLine
+        // TODO(@jojijac0b): Complete support for VID Model Line
         modelLine =
           measurementConsumerModelLines.getOrDefault(measurementConsumerName, defaultModelLine)
       }
