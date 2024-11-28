@@ -28,8 +28,6 @@ service Principals {
 
   rpc CreateUserPrincipal(CreateUserPrincipalRequest) returns (Principal);
 
-  rpc UpdateUserPrincipal(UpdateUserPrincipalRequest) returns (Principal);
-
   // Deletes a `Principal`.
   //
   // TLS client principals may not be deleted by this method.
@@ -44,11 +42,6 @@ message GetPrincipalRequest {
 }
 
 message CreateUserPrincipalRequest {
-  string principal_resource_id = 1;
-  Principal.OAuthUser user = 2;
-}
-
-message UpdateUserPrincipalRequest {
   string principal_resource_id = 1;
   Principal.OAuthUser user = 2;
 }
