@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.wfa.measurement.queue.TestWork
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
+import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -83,6 +84,7 @@ class BaseTeeApplicationTest {
   @Test
   fun `test processing protobuf message`() = runBlocking {
     val pubSubClient = Subscriber(projectId = projectId, googlePubSubClient = emulatorClient)
+    val publisher = Publisher(projectId, emulatorClient)
     val app =
       BaseTeeApplicationImpl(
         queueName = subscriptionId,
@@ -94,7 +96,7 @@ class BaseTeeApplicationTest {
     val message = "UserName1"
     val testWork = createTestWork(message)
 
-    emulatorClient.publishMessage(projectId, topicId, testWork)
+    publisher.publishMessage(topicId, testWork)
 
     app.messageProcessed.await()
     assertThat(app.processedMessages.contains(testWork)).isTrue()
