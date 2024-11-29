@@ -16,51 +16,51 @@
 
 package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
-import com.google.protobuf.ByteString
-//import com.rabbitmq.client.Channel
-//import com.rabbitmq.client.Connection
-//import com.rabbitmq.client.ConnectionFactory
 import io.grpc.Status
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
+import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
-import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
-import com.google.pubsub.v1.PubsubMessage
+import com.google.protobuf.Message
+import kotlinx.coroutines.runBlocking
 
 class GooglePubSubWorkItemsService(
-  private val googlePubSubClient: GooglePubSubClient = DefaultGooglePubSubClient()
-//  private val rabbitMqHost: String,
-//  private val rabbitMqPort: Int,
-//  private val rabbitMqUsername: String,
-//  private val rabbitMqPassword: String,
-//  private val publisherProvider: ((projectId: String, topicId: String) -> Publisher)? = null
+  private val projectId: String,
+  googlePubSubClient: GooglePubSubClient
 ) : WorkItemsCoroutineImplBase(), WorkItemsService {
+
+  private val publisher: Publisher = Publisher(projectId, googlePubSubClient)
 
   override suspend fun createWorkItem(
     request: CreateWorkItemRequest
   ): WorkItem {
 
     val workItem = request.workItem
-    val projectId = workItem.queue.projectId
-    val topicId = workItem.queue.name
-    if (queueExists(projectId, topicId) == false) {
-      throw Status.NOT_FOUND.withDescription("Google Pub/Sub topicId '$topicId' does not exist in project '$projectId'")
-        .asRuntimeException()
+    val topicId = workItem.queue
+
+    try {
+      publishMessage(topicId, workItem.workItemParams)
+    } catch (e: Exception) {
+      throw when {
+        e.message?.contains("Topic id: $topicId does not exist") == true -> {
+          Status.NOT_FOUND
+            .withDescription("Google Pub/Sub topicId '$topicId' does not exist in project '$projectId'")
+            .asRuntimeException()
+        }
+
+        else -> {
+          Status.UNKNOWN
+            .withDescription("An unknown error occurred: ${e.message}")
+            .asRuntimeException()
+        }
+      }
     }
-
-    val serializedWorkItem = workItem.toByteString()
-
-    // Publish the WorkItem to Pub/Sub
-    publishMessage(projectId, topicId, serializedWorkItem)
-
     return workItem
   }
 
-  override fun publishMessage(projectId: String, queueName: String, messageContent: ByteString) {
-    googlePubSubClient.publishMessage(projectId, queueName, messageContent)
-  }
-
-  override fun queueExists(projectId: String, queueName: String): Boolean {
-    return googlePubSubClient.topicExists(projectId, queueName)
+  override fun publishMessage(queueName: String, message: Message) {
+    runBlocking {
+      publisher.publishMessage(queueName, message)
+    }
   }
 
 }
