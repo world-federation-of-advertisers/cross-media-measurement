@@ -3,26 +3,15 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 package(default_visibility = ["//visibility:public"])
 
 kt_jvm_library(
-    name = "publisher_provider",
-    srcs = ["PublisherProvider.kt"],
-    deps = [
-        "@wfa_common_jvm//imports/java/com/google/cloud/pubsub",
-    ],
-)
-
-kt_jvm_library(
     name = "work_items_service",
     srcs = ["WorkItemsService.kt"],
     deps = [
-        ":publisher_provider",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
-        #        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        #        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
-        #        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
 )
 
@@ -31,16 +20,11 @@ kt_jvm_library(
     srcs = ["GooglePubSubWorkItemsService.kt"],
     deps = [
         ":work_items_service",
-        ":publisher_provider",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:google_pub_sub_client",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:default_google_pub_sub_client",
-        #        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        #        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
-        #        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:publisher",
     ],
 )
