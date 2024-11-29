@@ -40,7 +40,7 @@ message WorkItem {
 
   // The queue into which this `WorkItem` must be enqueued.
   // Available queues are specified in a configuration file.
-  Queue queue = 2 [
+  string queue = 2 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
       type: "control-plane.secure-computation.halo-cmm.org/Queue"
