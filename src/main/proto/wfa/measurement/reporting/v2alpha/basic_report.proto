@@ -1,0 +1,419 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "google/type/datetime.proto";
+import "google/type/interval.proto";
+import "wfa/measurement/reporting/v2alpha/media_type.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "BasicReportProto";
+
+// Resource representing a Basic Report.
+// TODO(@kungfucraig): Add annotations once the shape of the proto is agreed
+// upon.
+// TODO(@kungfucraig): Delete unsupported options.
+// NOTE: This is a rough draft of the proto we believe will support both
+// Phase I and Phase II. This will also be supported in Phase III and beyond,
+// but will be generalized. In particular Reporting Sets will play a much more
+// central role in the definition.
+message BasicReport {
+  option (google.api.resource) = {
+    type: "reporting.halo-cmm.org/BasicReport"
+    pattern: "measurementConsumers/{measurement_consumer}/basicReports/{basic_report}"
+  };
+
+  // Resource name.
+  string name = 1;
+
+  // Human readable title of the report.
+  string title = 2;
+
+  // This is the name of a Reporting Set that includes all of the Event Groups
+  // that are to be reported on.
+  //
+  // This Reporting Set may include Event Groups that span Data Providers and
+  // Media Types. Subsets of these can be reported on and are specified as
+  // part of the PageSpec.
+  //
+  // NOTE: In the long-run this is optional and reporting sets could be
+  // specified directly in the PageSpec.
+  string campaign_group = 3;
+
+  // The interval over which Metrics are generated. This interval is
+  // closed on both sides.
+  message ReportingInterval {
+    // The date and time of the start of the report. The year,
+    // month, day, and time_offset are all required.
+    // If `utc_offset` is set, daylight savings is ignored and days will
+    // be 24 hours based on the time of day specified here. If `time_zone` is
+    // set, days will be based on the calendar and daylight savings will be
+    // considered; if 5 AM is chosen, the day will start with 5 AM year-round.
+    // This side of the interval is closed.
+    google.type.DateTime report_start = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
+
+    // The end date of the report. The time is considered to be the same as
+    // that specified in the report start. This side of the interval is closed.
+    google.type.Date report_end = 2 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
+  }
+  ReportingInterval reporting_interval = 4;
+
+  // Specification of for custom viewability and completion filter.
+  message CustomImpressionQualificationFilter {
+    // Specification for a quantile
+    enum Quantile {
+      QUANTILE_UNSPECIFIED = 0;
+      ZERO = 1;
+      TWENTY_FIVE = 2;
+      FIFTY = 3;
+      SEVENTY_FIVE = 4;
+      ONE_HUNDRED = 5;
+    }
+
+    // Specify a percent as a fraction or as a quantile
+    message Percent {
+      oneof value {
+        float fraction = 1;
+        Quantile quantile = 2;
+      }
+    }
+    Percent viewability = 1;
+    Percent completion = 2;
+  }
+
+  // Used to filter impressions by viewability and percent completion.
+  // If particular filter values are not applicable to the media they
+  // are applied to it is an error (e.g. display cannot
+  // be filtered by percent completion)
+  message ImpressionQualificationFilter {
+    // The MediaType this filter applies to.
+    MediaType media_type = 1;
+    // Request that impressions be filtered by a configured
+    // filter type (e.g. AMI, MRC)
+    // The valid values and their configurations are specified as
+    // part of the local market measurement policy.
+    repeated string filter_names = 2;
+
+    // A user defined filter.
+    CustomImpressionQualificationFilter custom = 3;
+  }
+
+  // The set of filters for this report.
+  //
+  // An entry in this map must exist for every MediaType used in
+  // any PageSpec.
+  repeated ImpressionQualificationFilter impression_qualification_filters = 5;
+
+  // Specifies how to Group output metrics.
+  message Grouping {
+    // The name of a report template field to group by.
+    // Only those event template fields that are tagged as groupable
+    // and in the common template are supported.
+    // Moreover, they must be enums (e.g. age bucket).
+    repeated string dimension_name = 1;
+  }
+
+  // The set of additional filters to be applied to the page of results.
+  // Only those event templates that are specified in the "common" event
+  // template may be provided as filters. (e.g. age bucket)
+  message Filter {
+    message Term {
+      // The name of event template (aka dimension) to filter on
+      string dimension_name = 1;
+      // The value of the event template to filter
+      string value = 2;
+      // Whether the filter should be negated. This will not be
+      // supported initially.
+      // bool negate = 3;
+    }
+    // To begin with this will be a single term, but may be extended
+    // to a disjunction of terms in the future.
+    Term term = 1;
+  }
+
+  enum ReportingUnitType {
+    // Default value. Unused.
+    ANCHORING_TYPE_UNSPECIFIED = 0;
+    // The artifact used by the achoring is a Data Provider name
+    DATA_PROVIDER = 1;
+    // The artifact used by the achoring is a Reporting Set
+    // (not yet supported)
+    // REPORTING_SET = 2;
+  }
+
+  // Specify an anchoring order for incremental reach reports.
+  // For example if the order is "rs1, rs2, rs3" then the following
+  // are reported:
+  // 1. The reach of rs1
+  // 2. The reach of (rs1+rs2) - rs1 (i.e. the unique contribution of rs2)
+  // 3. The reach of (rs1+rs2+rs3) - (rs1+rs2) (i.e. the unique contribution
+  //    of rs3 with respect to rs1 and rs2.
+  message AnchoredReachSpec {
+    // The type of resource present in the anchoring.
+    ReportingUnitType anchoring_type = 1;
+    // A list of resources of the type specified by the AnchoringType
+    repeated string anchoring = 2;
+  }
+
+  // Specify the units to report on. These may be any unit
+  // that is allowed by the ReportingUnitType.
+  message ReportingUnitSpec {
+    // The reporting unit type.
+    ReportingUnitType reporting_unit_type = 1;
+    // A list of resource names that correspond to the reporting unit type.
+    repeated string reporting_units = 2;
+  }
+
+  // Specifies the Frequency, Groupings, and Filters for calculating
+  // a set of Metrics
+  // NOTE: Instead of reuse at this level we could consider reusable definitions
+  // for each of Frequency+cumulative, grouping, and filters.
+  message CalculationSpec {
+    // The frequency at which metrics are reported.
+    enum Frequency {
+      FREQUENCY_UNSPECIFIED = 0;
+      // Report metrics daily from the report start time to the report end time
+      // (not yet supported)
+      // DAILY = 1;
+      // Report metrics weekly from the report start time to the report end time
+      // The day of the week metrics are reported for is the same as that of
+      //
+      // NB: Is this adequate? I don't think so... Discuss.
+      //
+      // the report start time. If the end date is not the same day of the week
+      // a partial week will be reported and the last value will conincide with
+      // the last day of the report.
+      WEEKLY = 2;
+      // Report metrics across the entire span from report start to report end.
+      TOTAL = 3;
+    }
+    // The frequency for this page of results.
+    Frequency frequency = 1;
+
+    // Options for computing metrics across time.
+    message LongitudinalOptions {
+      // Produce non-cumulative metrics at the frequency specified
+      bool non_cumulative = 1;
+      // Produce cumulative metrics at the frequency specified.
+      bool cumulative = 2;
+      // Produce the unique count of the metric for the frequency specified.
+      //
+      // For example, selecting this option in conjuction with a weekly reach
+      // metric  would provide the weekly unique reach for with respect to
+      // all previous weeks.
+      // (not yet supported)
+      // Discuss: There should probably be an option for week over week unique
+      // too? Should check the modeling API proposal to see if that's necessary.
+      // bool unique = 3;
+    }
+    LongitudinalOptions longitudinal_options = 2;
+
+    Grouping grouping = 4;
+
+    // A conjunction of filters
+    repeated Filter filters = 5;
+  }
+  // A map of calculation specs that can be reused across
+  // Page Specs.
+  map<string, CalculationSpec> calculation_spec_map = 6;
+
+  // The definition for a page of results
+  message PageSpec {
+    // The title of the page
+    string title = 1;
+
+    // Specifies the calculation spec to be used by this Page
+    // Spec.
+    string calculation_spec_key = 2;
+
+    // If specified the total population for the specified groupings and
+    // filters that are associated with calculation spec is reported.
+    bool population_size = 3;
+
+    // The set of Metrics to be computed
+    message MetricSpec {
+      // The unit(s) to report on. These define a subset of the
+      // campaign group.
+      ReportingUnitSpec reporting_unit_spec = 1;
+
+      // When specified filters the reporting unit spec to the subset
+      // of items that correspond to the given media types.
+      //
+      // One set of metrics is produced per MediaType. On top of this, for each
+      // MediaType, a set of Metrics is produced per ImpressionQualitifcation
+      // specified for that MediaType.
+      repeated MediaType media_types = 2;
+
+      // The types of available metrics.
+      message MetricType {
+        // This is the union reach of all reporting sets.
+        bool reach = 1;
+
+        // This is the union percent reach of all reporting sets.
+        bool percent_reach = 2;
+
+        // This is the union k plus reach for all reporting sets up
+        // to the frequency specified.
+        int32 k_plus_reach = 3;
+
+        // If specified percent k plus reach is computed. This
+        // option requires that a positive value be given for k_plus_reach.
+        bool percent_k_plus_reach = 4;
+
+        // If set, this will cause the unique reach of each reporting set
+        // in the reporting_set_entry_names to be computed with respect to
+        // all other reporting sets. It is an error to specify this if only
+        // a single reporting set is specified.
+        // For example if reporting_sets=[RS1, RS2, RS3] the unique reach
+        // of RS1, RS2, and RS3 are computed.
+        bool unique_reach = 5;
+
+        // If specified the average frequency is reported.
+        bool average_frequency = 6;
+
+        // If specified the impression count is reported.
+        bool impressions = 7;
+
+        // If specified grps are reported.
+        bool grps = 8;
+      }
+      MetricType metric_type = 3;
+    }
+
+    // Specifies the anchored reach calculations to perform.
+    // See the very long comment on MetricSpec about how filters
+    // and reporting sets interact. That also applies here.
+    message AnchoredReachSpecs {
+      repeated AnchoredReachSpec specs = 1;
+    }
+
+    // TODO(@kungfucraig): Add 2-two EDP combinations
+
+    // How to compute this page of results.
+    oneof selector {
+      // The specification of the Metrics to be computed.
+      MetricSpec metric_spec = 7;
+      AnchoredReachSpecs anchored_reach_specs = 8;
+    }
+  }
+
+  // The definitions set of pages create create.
+  repeated PageSpec page_specs = 7;
+
+  // A page of results. This should be interpretable without any knowledge of
+  // the report definition
+  message Page {
+    // The title of the page.
+    string title = 1;
+
+    // The metadata associated with a particular result.
+    message ResultMetadata {
+      // The time interval over which the result is computed.
+      google.type.Interval time_interval = 1;
+
+      // A summary of the reporting unit that includes its
+      // resource name and display name.
+      message ReportingUnitSummary {
+        ReportingUnitType reporting_unit_type = 1;
+        string name = 2;
+        string display_name = 3;
+      }
+      // The reporting units for which the result was computed.
+      repeated ReportingUnitSummary reporting_units = 2;
+
+      // The media type associated with the Reporting Sets (e.g. video,
+      // cross-media)
+      MediaType media_type = 3;
+
+      // The qualification filter used when computing the result.
+      oneof qualification_filter {
+        string qualification_filter_name = 6;
+        CustomImpressionQualificationFilter custom_qualification_filter = 7;
+      }
+
+      // Specifies a dimension and value grouped by.
+      message ResultGroup {
+        string dimension_name = 1;
+        string value = 2;
+      }
+      // The set of groupings used for this Result.
+      repeated ResultGroup grouping = 4;
+      // The set of filters used for this result.
+      repeated Filter filters = 5;
+    }
+
+    // The value of a result.
+    message ResultValue {
+      // The size of the population for the filters/grouping specified
+      int32 population_size = 9;
+
+      // The result when the page selector is metric_type
+      message MetricResult {
+        int32 reach = 1;
+        float percent_reach = 2;
+        // Index is frequency - 1.
+        repeated int32 k_plus_reach = 3;
+        repeated float percent_k_plus_reach = 4;
+        int32 unique_reach = 5;
+        float average_frequency = 6;
+        int32 impressions = 7;
+        float grps = 8;
+      }
+
+      // The result for one AnchoredReach spec
+      message AnchoredReachResult {
+        // The specification of the anchored reach used for this calculation
+        AnchoredReachSpec spec = 1;
+        // This is in the same order as the reporting setsin the spec.
+        repeated int64 reach = 2;
+      }
+      // The result when the anchored reach selector is specified.
+      message AnchoredReachResults {
+        // These are order the same as in the page definition.
+        repeated AnchoredReachResults results = 1;
+      }
+
+      // The reported result as specified by the Page Definition selector.
+      oneof result {
+        MetricResult metric_result = 1;
+        AnchoredReachResults anchored_reach_results = 2;
+      }
+    }
+
+    // A single result and its metadata. This is essentialy a row of
+    // results in a page of results.
+    message Result {
+      ResultMetadata metadata = 1;
+      ResultValue value = 2;
+    }
+    // All of the results for a Page
+    repeated Result results = 2;
+  }
+  // The results for all Page Definitions.
+  repeated Page pages = 8;
+}
