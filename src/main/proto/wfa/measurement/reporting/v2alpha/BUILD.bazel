@@ -12,6 +12,26 @@ IMPORT_PREFIX = "/src/main/proto"
 # Resources and shared message types.
 
 proto_library(
+    name = "basic_report_proto",
+    srcs = ["basic_report.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":media_type_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_googleapis//google/type:datetime_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "basic_report_kt_jvm_proto",
+    deps = [":basic_report_proto"],
+)
+
+proto_library(
     name = "event_group_proto",
     srcs = ["event_group.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -25,6 +45,19 @@ proto_library(
 kt_jvm_proto_library(
     name = "event_group_kt_jvm_proto",
     deps = [":event_group_proto"],
+)
+
+proto_library(
+    name = "media_type_proto",
+    srcs = ["media_type.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "media_type_kt_jvm_proto",
+    deps = [":media_type_proto"],
 )
 
 proto_library(
