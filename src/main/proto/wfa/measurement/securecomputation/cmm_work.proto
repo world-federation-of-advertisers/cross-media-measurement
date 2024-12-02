@@ -25,11 +25,11 @@ option java_outer_classname = "CmmWorkProto";
 
 message CmmWork {
    message VidLabelingWork {
-    string inputEventsPath = 1;
-    string outputEventsPath = 2;
-    string vidModelPath = 3;
+    string base_path = 1;
+    string vid_model_path = 2;
    }
    message ResultCalculationWork {
+    // TODO
    }
    oneof WorkType {
       VidLabelingWork vid_labeling_work = 1;
