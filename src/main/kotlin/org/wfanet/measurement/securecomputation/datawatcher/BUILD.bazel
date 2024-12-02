@@ -6,8 +6,9 @@ kt_jvm_library(
     name = "data_watcher",
     srcs = ["DataWatcher.kt"],
     deps = [
-        "//src/main/proto/wfa/measurement/securecomputation:data_watcher_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/securecomputation:data_watcher_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage",
         "@wfa_common_jvm//imports/java/com/google/events",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",

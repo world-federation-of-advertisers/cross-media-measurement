@@ -28,8 +28,8 @@ kt_jvm_proto_library(
 )
 
 proto_library(
-    name = "data_watcher_proto",
-    srcs = ["data_watcher.proto"],
+    name = "data_watcher_config_proto",
+    srcs = ["data_watcher_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         "@com_google_googleapis//google/api:field_behavior_proto",
@@ -39,6 +39,6 @@ proto_library(
 )
 
 kt_jvm_proto_library(
-    name = "data_watcher_kt_jvm_proto",
-    deps = [":data_watcher_proto"],
+    name = "data_watcher_config_kt_jvm_proto",
+    deps = [":data_watcher_config_proto"],
 )
