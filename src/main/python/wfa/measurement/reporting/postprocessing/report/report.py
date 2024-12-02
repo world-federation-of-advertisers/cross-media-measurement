@@ -24,7 +24,8 @@ from itertools import combinations
 from functools import reduce
 
 
-def get_subset_relationships(edp_combinations: list[FrozenSet[str]]) -> list[Tuple[FrozenSet[str], FrozenSet[str]]]:
+def get_subset_relationships(edp_combinations: list[FrozenSet[str]]) -> list[
+  Tuple[FrozenSet[str], FrozenSet[str]]]:
   """Returns a list of tuples where first element in the tuple is the parent
   and second element is the subset."""
   subset_relationships = []
@@ -36,7 +37,8 @@ def get_subset_relationships(edp_combinations: list[FrozenSet[str]]) -> list[Tup
   return subset_relationships
 
 
-def is_cover(target_set: FrozenSet[str], possible_cover: list[FrozenSet[str]]) -> bool:
+def is_cover(target_set: FrozenSet[str],
+    possible_cover: list[FrozenSet[str]]) -> bool:
   """Checks if a collection of sets covers a target set.
 
   Args:
@@ -53,7 +55,8 @@ def is_cover(target_set: FrozenSet[str], possible_cover: list[FrozenSet[str]]) -
   return union_of_possible_cover == target_set
 
 
-def get_covers(target_set: FrozenSet[str], other_sets: list[FrozenSet[str]]) -> list[Tuple[FrozenSet[str], list[FrozenSet[str]]]]:
+def get_covers(target_set: FrozenSet[str], other_sets: list[FrozenSet[str]]) -> \
+list[Tuple[FrozenSet[str], list[FrozenSet[str]]]]:
   """Finds all combinations of sets from `other_sets` that cover `target_set`.
 
   This function identifies all possible combinations of sets within `other_sets`
@@ -69,7 +72,9 @@ def get_covers(target_set: FrozenSet[str], other_sets: list[FrozenSet[str]]) -> 
     The first element of the tuple is the `target_set`, and the second element
     is a tuple containing the sets from `other_sets` that cover it.
   """
-  def generate_all_length_combinations(data: list[Any]) -> list[tuple[Any, ...]]:
+
+  def generate_all_length_combinations(data: list[Any]) -> list[
+    tuple[Any, ...]]:
     """Generates all possible combinations of elements from a list.
 
     Args:
@@ -95,7 +100,8 @@ def get_covers(target_set: FrozenSet[str], other_sets: list[FrozenSet[str]]) -> 
   return cover_relationship
 
 
-def get_cover_relationships(edp_combinations: list[FrozenSet[str]]) -> list[Tuple[FrozenSet[str], list[FrozenSet[str]]]]:
+def get_cover_relationships(edp_combinations: list[FrozenSet[str]]) -> list[
+  Tuple[FrozenSet[str], list[FrozenSet[str]]]]:
   """Returns covers as defined here: # https://en.wikipedia.org/wiki/Cover_(topology).
   For each set (s_i) in the list, enumerate combinations of all sets excluding this one.
   For each of these considered combinations, take their union and check if it is equal to
@@ -165,11 +171,13 @@ class MetricReport:
         }
     )
 
-  def get_cumulative_measurement(self, edp_combination: FrozenSet[str], period: int) -> Measurement:
+  def get_cumulative_measurement(self, edp_combination: FrozenSet[str],
+      period: int) -> Measurement:
     return self._reach_time_series[edp_combination][
       period]
 
-  def get_whole_campaign_measurement(self, edp_combination: FrozenSet[str]) -> Measurement:
+  def get_whole_campaign_measurement(self,
+      edp_combination: FrozenSet[str]) -> Measurement:
     return self._reach_whole_campaign[edp_combination]
 
   def get_cumulative_edp_combinations(self) -> set[FrozenSet[str]]:
@@ -187,16 +195,20 @@ class MetricReport:
   def get_number_of_periods(self) -> int:
     return len(next(iter(self._reach_time_series.values())))
 
-  def get_cumulative_subset_relationships(self) -> list[Tuple[FrozenSet[str], FrozenSet[str]]]:
+  def get_cumulative_subset_relationships(self) -> list[
+    Tuple[FrozenSet[str], FrozenSet[str]]]:
     return get_subset_relationships(list(self._reach_time_series))
 
-  def get_whole_campaign_subset_relationships(self) -> list[Tuple[FrozenSet[str], FrozenSet[str]]]:
+  def get_whole_campaign_subset_relationships(self) -> list[
+    Tuple[FrozenSet[str], FrozenSet[str]]]:
     return get_subset_relationships(list(self._reach_whole_campaign))
 
-  def get_cumulative_cover_relationships(self) -> list[Tuple[FrozenSet[str], list[FrozenSet[str]]]]:
+  def get_cumulative_cover_relationships(self) -> list[
+    Tuple[FrozenSet[str], list[FrozenSet[str]]]]:
     return get_cover_relationships(list(self._reach_time_series))
 
-  def get_whole_campaign_cover_relationships(self) -> list[Tuple[FrozenSet[str], list[FrozenSet[str]]]]:
+  def get_whole_campaign_cover_relationships(self) -> list[
+    Tuple[FrozenSet[str], list[FrozenSet[str]]]]:
     return get_cover_relationships(list(self._reach_whole_campaign))
 
   @staticmethod
@@ -224,7 +236,8 @@ class Report:
                                                             which inconsistencies
                                                             in cumulative
                                                             measurements are
-                                                            allowed.
+                                                            allowed. This is for
+                                                            TV measurements.
     """
 
   def __init__(
@@ -307,7 +320,8 @@ class Report:
     solution = Solver(spec).solve_and_translate()
     return self.report_from_solution(solution, spec)
 
-  def report_from_solution(self, solution: Solution, spec: SetMeasurementsSpec) -> "Report":
+  def report_from_solution(self, solution: Solution,
+      spec: SetMeasurementsSpec) -> "Report":
     return Report(
         metric_reports={
             metric: self._metric_report_from_solution(metric, solution)
@@ -434,7 +448,8 @@ class Report:
   # TODO(@ple13):Use timestamp to check if the last cumulative measurement covers
   # the whole campaign. If yes, make sure that the two measurements are equal
   # instead of less than or equal.
-  def _add_cumulative_whole_campaign_relations_to_spec(self, spec: SetMeasurementsSpec):
+  def _add_cumulative_whole_campaign_relations_to_spec(self,
+      spec: SetMeasurementsSpec):
     # Adds relations between cumulative and whole campaign measurements.
     # For an edp combination, the last cumulative measurement is less than or
     # equal to the whole campaign measurement.
@@ -567,7 +582,8 @@ class Report:
             edp_combination)
     )
 
-  def _metric_report_from_solution(self, metric: str, solution: Solution) -> "MetricReport":
+  def _metric_report_from_solution(self, metric: str,
+      solution: Solution) -> "MetricReport":
     solution_time_series = {}
     solution_whole_campaign = {}
     for edp_combination in self._metric_reports[
