@@ -232,7 +232,7 @@ class GooglePubSubWorkItemsServiceTest {
       topics.forEach { topicId ->
         googlePubSubClient.deleteTopic(projectId, topicId)
       }
-      
+
     }
   }
 
