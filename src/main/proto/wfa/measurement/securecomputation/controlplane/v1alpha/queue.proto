@@ -35,7 +35,4 @@ message Queue {
   // Resource name.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 
-  // The project id this [Queue] belongs to.
-  string project_id = 2 [(google.api.field_behavior) = REQUIRED];
-
 }

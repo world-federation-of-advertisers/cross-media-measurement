@@ -17,215 +17,242 @@
 package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
 import com.google.common.truth.Truth.assertThat
+import org.junit.Assert.assertThrows
 import com.google.protobuf.Any
-import com.google.protobuf.StringValue
 import io.grpc.Status
-import io.grpc.StatusException
-import kotlinx.coroutines.delay
+import io.grpc.StatusRuntimeException
+import java.util.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import org.junit.After
-import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import com.google.pubsub.v1.TopicName
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.CompletableDeferred
+import org.junit.After
+import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
+import org.junit.Rule
 import org.threeten.bp.Duration
-
+import org.wfa.measurement.queue.testing.TestWork
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 
 @RunWith(JUnit4::class)
 class GooglePubSubWorkItemsServiceTest {
 
-//  private lateinit var connectionFactory: ConnectionFactory
-//  private lateinit var monitorChannel: Channel
-//  private lateinit var monitorConnection: Connection
-  private val testProjectId = "test-project-id"
-  private val testQueue = "test-queue"
+  @Rule
+  @JvmField val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
+
+  private val projectId = "test-project-id"
+  private val topicId = "test-topid-id"
+  private val workItemId = "test-work-item-1"
+  private val subscriptionId = "test-subscription-id"
   private lateinit var workItemsService: GooglePubSubWorkItemsService
-  private val googlePubSubClient = GooglePubSubEmulatorClient()
+  private lateinit var googlePubSubClient: GooglePubSubEmulatorClient
 
   @Before
   fun setup() {
-    googlePubSubClient.startEmulator()
-    workItemsService =
-      GooglePubSubWorkItemsService(
-        googlePubSubClient
-      )
+    googlePubSubClient = GooglePubSubEmulatorClient(
+      host = pubSubEmulatorProvider.host,
+      port = pubSubEmulatorProvider.port,
+    )
+    workItemsService = GooglePubSubWorkItemsService(projectId, googlePubSubClient)
+    runBlocking {
+      if (googlePubSubClient.topicExists(projectId, topicId)) {
+        googlePubSubClient.deleteTopic(projectId, topicId)
+      }
+    }
   }
 
   @After
-  fun cleanup() {
-    try {
-      googlePubSubClient.stopEmulator()
-    } catch (e: Exception) {
-      println("Failed to close monitor channel: ${e.message}")
+  fun clear() {
+    runBlocking {
+      if (googlePubSubClient.topicExists(projectId, topicId)) {
+        googlePubSubClient.deleteTopic(projectId, topicId)
+      }
     }
-
   }
 
 
   @Test
   fun `test successful work item creation`() = runBlocking {
 
-    if (googlePubSubClient.topicExists(testProjectId, testQueue)) {
-      googlePubSubClient.deleteTopic(testProjectId, testQueue)
-    }
-    val topic = googlePubSubClient.createTopic(testProjectId, testQueue)
-    val topicName = TopicName.of(testProjectId, testQueue)
-    val subscription = googlePubSubClient.createSubscription(testProjectId, "subscription_id", topicName)
+    googlePubSubClient.createTopic(projectId, topicId)
+    googlePubSubClient.createSubscription(projectId, subscriptionId, topicId)
 
-//    googlePubSubClient.createTopic(testProjectId, testQueue)
-    val workItemParams = Any.pack(StringValue.of("test-params"))
-    val request =
-      CreateWorkItemRequest.newBuilder()
-        .setWorkItemId("test-work-item-1")
-        .setWorkItem(
-          WorkItem.newBuilder()
-            .setName("workItems/test-work-item-1")
-            .setQueue(
-              Queue.newBuilder()
-                .setName(testQueue)
-                .setProjectId(testProjectId)
-                .build()
-            )
-            .setWorkItemParams(workItemParams)
-            .build()
-        )
-        .build()
+    val workItemParams = createWorkItemParams()
+    val request = createTestRequest(workItemId, workItemParams, topicId)
 
     val response = workItemsService.createWorkItem(request)
-    assertThat(response.name).isEqualTo("workItems/test-work-item-1")
-//    assertThat(response.queue).isEqualTo(testQueue)
+    assertThat(response.name).isEqualTo("workItems/$workItemId")
     assertThat(response.workItemParams).isEqualTo(workItemParams)
 
-    val subscriber = googlePubSubClient.buildSubscriber(
-      projectId = testProjectId,
-      subscriptionId = "subscription_id",
-      ackExtensionPeriod = Duration.ofHours(6),
-    ) { message, consumer ->
+    val deferred = CompletableDeferred<String>()
+
+    withTimeout(1000) {
+      val subscriber = googlePubSubClient.buildSubscriber(
+        projectId = projectId,
+        subscriptionId = "test-subscription-id",
+        ackExtensionPeriod = Duration.ofHours(6),
+      ) { message, consumer ->
         try {
 
-          println("~~~~~~~~~~~~~~~~~~~~~~~~~ message received~~~")
+          val anyMessage = Any.parseFrom(message.data.toByteArray())
+          val testWork = anyMessage.unpack(TestWork::class.java)
+          deferred.complete(testWork.userName)
+          consumer.ack()
 
         } catch (e: Exception) {
           consumer.nack()
         }
-    }
+      }
 
-    subscriber.startAsync().awaitRunning()
-    delay(300)
-//    assertThat(getQueueInfo().messageCount).isEqualTo(1)
+      subscriber.startAsync().awaitRunning()
+      val result = deferred.await()
+      assertThat(result).isEqualTo("test-user-name")
+    }
   }
 
-//  @Test
-//  fun `test non-existent queue throws PERMISSION_DENIED`() = runBlocking {
-//    val workItemParams = Any.pack(StringValue.of("test-params"))
-//    val request =
-//      CreateWorkItemRequest.newBuilder()
-//        .setWorkItemId("test-work-item-2")
-//        .setWorkItem(
-//          WorkItem.newBuilder()
-//            .setName("workItems/test-work-item-2")
-//            .setQueue("non-existent-queue")
-//            .setWorkItemParams(workItemParams)
-//            .build()
-//        )
-//        .build()
-//
-//    val exception =
-//      assertThrows(StatusException::class.java) {
-//        runBlocking { workItemsService.createWorkItem(request) }
-//      }
-//
-//    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-//    assertThat(exception.status.description).contains("Queue 'non-existent-queue' does not exist")
-//
-//    val secondRequest = createTestRequest("test-work-item-4")
-//    runBlocking { workItemsService.createWorkItem(secondRequest) }
-//    delay(100)
-//    assertThat(getQueueInfo().messageCount).isEqualTo(1)
-//  }
-//
-//  @Test
-//  fun `test missing queue name throws INVALID_ARGUMENT`() = runBlocking {
-//    val workItemParams = Any.pack(StringValue.of("test-params"))
-//    val request =
-//      CreateWorkItemRequest.newBuilder()
-//        .setWorkItemId("test-work-item-3")
-//        .setWorkItem(
-//          WorkItem.newBuilder()
-//            .setName("workItems/test-work-item-3")
-//            .setWorkItemParams(workItemParams)
-//            .build()
-//        )
-//        .build()
-//
-//    val exception =
-//      assertThrows(StatusException::class.java) {
-//        runBlocking { workItemsService.createWorkItem(request) }
-//      }
-//
-//    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-//    assertThat(exception.status.description).contains("Queue '' does not exist")
-//  }
-//
-//  @Test
-//  fun `test check messages persistence after connection failure`() = runBlocking {
-//    assertThat(getQueueInfo().messageCount).isEqualTo(0)
-//
-//    val request = createTestRequest("test-work-item-4")
-//    workItemsService.createWorkItem(request)
-//    delay(100)
-//    assertThat(getQueueInfo().messageCount).isEqualTo(1)
-//    workItemsService.close()
-//
-//    workItemsService =
-//      GooglePubSubWorkItemsService(
-//        rabbitMqHost = "localhost",
-//        rabbitMqPort = 5672,
-//        rabbitMqUsername = "guest",
-//        rabbitMqPassword = "guest",
-//      )
-//
-//    val request2 = createTestRequest("test-work-item-5")
-//    workItemsService.createWorkItem(request2)
-//    delay(100)
-//    assertThat(getQueueInfo().messageCount).isEqualTo(2)
-//  }
-//
-//  @Test
-//  fun `test sending multiple messages in sequence`() = runBlocking {
-//    val numMessages = 1000
-//    assertThat(getQueueInfo().messageCount).isEqualTo(0)
-//
-//    repeat(numMessages) { index ->
-//      val request = createTestRequest("test-work-item-multiple-$index")
-//      val response = workItemsService.createWorkItem(request)
-//      assertThat(response.name).isEqualTo("workItems/test-work-item-multiple-$index")
-//    }
-//
-//    withTimeout(5000) {
-//      while (getQueueInfo().messageCount < numMessages) {
-//        delay(100)
-//      }
-//    }
-//    assertThat(getQueueInfo().messageCount).isEqualTo(numMessages)
-//  }
+  @Test
+  fun `test non-existent queue throws NOT_FOUND`() = runBlocking {
+    val request = createTestRequest(workItemId, createWorkItemParams(), topicId)
 
-//  private fun createTestRequest(workItemId: String): CreateWorkItemRequest {
-//    val workItemParams = Any.pack(StringValue.of("test-params"))
-//    return CreateWorkItemRequest.newBuilder()
-//      .setWorkItemId(workItemId)
-//      .setWorkItem(
-//        WorkItem.newBuilder()
-//          .setName("workItems/$workItemId")
-//          .setQueue(testQueue)
-//          .setWorkItemParams(workItemParams)
-//          .build()
-//      )
-//      .build()
-//  }
+    val exception =
+      assertThrows(StatusRuntimeException::class.java) {
+        runBlocking { workItemsService.createWorkItem(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+
+  }
+
+  @Test
+  fun `test sending multiple messages in sequence`() {
+    runBlocking {
+
+      googlePubSubClient.createTopic(projectId, topicId)
+      googlePubSubClient.createSubscription(projectId, subscriptionId, topicId)
+
+      val numMessages = 1000
+      val receivedMessages = Collections.synchronizedList(mutableListOf<String>())
+      val allMessagesReceived = CompletableDeferred<Boolean>()
+      val subscriber = googlePubSubClient.buildSubscriber(
+        projectId = projectId,
+        subscriptionId = subscriptionId,
+        ackExtensionPeriod = Duration.ofHours(6),
+      ) { message, consumer ->
+        try {
+          val anyMessage = Any.parseFrom(message.data.toByteArray())
+          val testWork = anyMessage.unpack(TestWork::class.java)
+
+          receivedMessages.add(testWork.userName)
+          consumer.ack()
+          if (receivedMessages.size == numMessages) {
+            allMessagesReceived.complete(true)
+          }
+        } catch (e: Exception) {
+          consumer.nack()
+        }
+      }
+
+      subscriber.startAsync().awaitRunning()
+
+      repeat(numMessages) { index ->
+        val request = createTestRequest("test-work-item-multiple-$index", createWorkItemParams(), topicId)
+        val response = workItemsService.createWorkItem(request)
+        assertThat(response.name).isEqualTo("workItems/test-work-item-multiple-$index")
+      }
+
+      withTimeout(10_000) {
+        allMessagesReceived.await()
+      }
+
+      subscriber.stopAsync().awaitTerminated()
+      assertThat(receivedMessages.size).isEqualTo(numMessages)
+    }
+  }
+
+  @Test
+  fun `test sending messages to multiple subscribers`() {
+    runBlocking {
+      val firstTopic = "$topicId-1"
+      val secondTopic = "$topicId-2"
+      val firstSubscription = "$subscriptionId-1"
+      val secondSubscription = "$subscriptionId-2"
+      val topics = listOf(firstTopic, secondTopic)
+      val subscriptions = listOf(firstSubscription, secondSubscription)
+
+      topics.forEach { topic ->
+        googlePubSubClient.createTopic(projectId, topic)
+      }
+      topics.zip(subscriptions).forEach { (topic, sub) ->
+        googlePubSubClient.createSubscription(projectId, sub, topic)
+      }
+
+      val messagesPerTopic = 5
+      val receivedMessages = Collections.synchronizedMap(mutableMapOf<String, MutableList<String>>())
+      val allMessagesReceived = CompletableDeferred<Boolean>()
+
+      receivedMessages[firstSubscription] = Collections.synchronizedList(mutableListOf())
+      receivedMessages[secondSubscription] = Collections.synchronizedList(mutableListOf())
+
+      val subscribers = subscriptions.map { sub ->
+        googlePubSubClient.buildSubscriber(
+          projectId = projectId,
+          subscriptionId = sub,
+          ackExtensionPeriod = Duration.ofHours(6)
+        ) { message, consumer ->
+          try {
+            val anyMessage = Any.parseFrom(message.data.toByteArray())
+            val testWork = anyMessage.unpack(TestWork::class.java)
+
+            receivedMessages.get(sub)!!.add(testWork.userName)
+
+            val totalSize = receivedMessages.values.sumOf { it.size }
+            consumer.ack()
+            if (totalSize == messagesPerTopic * topics.size) {
+              allMessagesReceived.complete(true)
+            }
+          } catch (e: Exception) {
+            consumer.nack()
+          }
+        }
+      }
+
+      subscribers.forEach { it.startAsync().awaitRunning() }
+
+      listOf(firstTopic, secondTopic).forEach { topic ->
+        repeat(messagesPerTopic) { index ->
+          val request = createTestRequest("test-work-item-multiple-$index", createWorkItemParams(), topic)
+          val response = workItemsService.createWorkItem(request)
+          assertThat(response.name).isEqualTo("workItems/test-work-item-multiple-$index")
+        }
+      }
+
+      withTimeout(10_000) {
+        allMessagesReceived.await()
+      }
+
+      subscribers.forEach { it.stopAsync().awaitTerminated() }
+
+      receivedMessages.values.forEach { messages ->
+        assertThat(messages.size).isEqualTo(messagesPerTopic)
+      }
+    }
+  }
+
+  private fun createWorkItemParams(): Any {
+    return Any.pack(TestWork.newBuilder().setUserName("test-user-name").setUserAge("25").setUserCountry("US").build())
+  }
+  private fun createTestRequest(workItemId: String, workItemParams: Any, topicId: String): CreateWorkItemRequest {
+    val workItem = WorkItem.newBuilder()
+      .setName("workItems/$workItemId")
+      .setQueue(topicId)
+      .setWorkItemParams(workItemParams)
+      .build()
+    return CreateWorkItemRequest.newBuilder()
+      .setWorkItemId(workItemId)
+      .setWorkItem(workItem)
+      .build()
+  }
 }
+
