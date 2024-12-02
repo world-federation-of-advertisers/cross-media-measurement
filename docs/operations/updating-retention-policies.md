@@ -82,7 +82,7 @@ for each cronjob you wish to modify.
   `--days-to-live` or `--time-to-live` arg which control the time allowed to
   pass before a retention procedure should apply. The `days-to-live` arg is
   specified as an int and the `time-to-live` arg is specified as a
-  human-readable duration. See [Human-Readable Duration](#human-readable-duration)
+  human-readable duration. See [Human-Readable Duration](#human-readable-duration) 
   in the Appendix.
 
 If you wish to modify a cronjob's `schedule`, `dry-run`, or `time-to-live`
@@ -101,7 +101,7 @@ To modify cronjobs in a non-interactive manner, see
 ## Appendix
 ### Human-Readable Duration
 
-Human-readable format consists of a sequence elements each consisting of a
+Human-readable format consists of a sequence elements each consisting of a 
 decimal number followed by a unit suffix. 
 The valid suffixes are: 
 * `d` - days 
