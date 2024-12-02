@@ -22,7 +22,6 @@ import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.DoubleGauge
-import io.opentelemetry.api.metrics.LongCounter
 import java.io.File
 import java.security.SecureRandom
 import java.time.Clock
@@ -105,29 +104,15 @@ class MeasurementSystemProber(
         "Unix epoch timestamp (in seconds) of the update time of requisition associated with a particular EDP for the most recently issued Measurement"
       )
       .build()
-  private val lastTerminalMeasurementTimeUpdateCounter: LongCounter =
-    Instrumentation.meter
-      .counterBuilder("${PROBER_NAMESPACE}.last_terminal_measurement.update_count")
-      .setUnit("updates")
-      .setDescription("Number of expected updates of last terminal measurement timestamp")
-      .build()
-  private val lastTerminalRequisitionTimeUpdateCounter: LongCounter =
-    Instrumentation.meter
-      .counterBuilder("${PROBER_NAMESPACE}.last_terminal_requisition.update_count")
-      .setUnit("updates")
-      .setDescription("Number of expected updates of last terminal requisition timestamp")
-      .build()
 
   suspend fun run() {
     val lastUpdatedMeasurement = getLastUpdatedMeasurement()
     if (lastUpdatedMeasurement != null) {
       updateLastTerminalRequisitionGauge(lastUpdatedMeasurement)
-      lastTerminalRequisitionTimeUpdateCounter.add(1)
       if (lastUpdatedMeasurement.state in COMPLETED_MEASUREMENT_STATES) {
         lastTerminalMeasurementTimeGauge.set(
           lastUpdatedMeasurement.updateTime.toInstant().toEpochMilli() / MILLISECONDS_PER_SECOND
         )
-        lastTerminalMeasurementTimeUpdateCounter.add(1)
       }
     }
     if (shouldCreateNewMeasurement(lastUpdatedMeasurement)) {

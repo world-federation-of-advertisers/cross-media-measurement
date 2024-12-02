@@ -99,18 +99,17 @@ To modify cronjobs in a non-interactive manner, see
 [`kubectl patch`](https://kubernetes.io/docs/tasks/manage-kubernetes-objects/update-api-object-kubectl-patch/).
 
 ## Appendix
-
 ### Human-Readable Duration
 
 Human-readable format consists of a sequence elements each consisting of a
-decimal number followed by a unit suffix.
-The valid suffixes are:
+decimal number followed by a unit suffix. 
+The valid suffixes are: 
 
-* `d` - days
-* `h` - hours
-* `m` - minutes
-* `s` - seconds
-* `ms` - milliseconds
-* `ns` - nanoseconds
+* `d` - days 
+* `h` - hours 
+* `m` - minutes 
+* `s` - seconds 
+* `ms` - milliseconds 
+* `ns` - nanoseconds 
 
 For example, `3h50m` means 3 hours and 50 minutes.

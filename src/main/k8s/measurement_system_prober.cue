@@ -17,31 +17,31 @@ package k8s
 import ("strings")
 
 #MeasurementSystemProber: {
-	_mc_name:              string
-	_private_key_der_file: string
-	_api_key:              string
-	_edp1_name:            string
-	_edp2_name:            string
-	_edp3_name:            string
-	_edp4_name:            string
-	_edp5_name:            string
-	_edp6_name:            string
-	_edpResourceNames: [_edp1_name, _edp2_name, _edp3_name, _edp4_name, _edp5_name, _edp6_name]
-	_verboseGrpcClientLogging:  bool | *false
-	_kingdom_public_api_target: string
+	_mcName:            string
+	_privateKeyDerFile: string
+	_apiKey:            string
+	_edp1Name:          string
+	_edp2Name:          string
+	_edp3Name:          string
+	_edp4Name:          string
+	_edp5Name:          string
+	_edp6Name:          string
+	_edpResourceNames: [_edp1Name, _edp2Name, _edp3Name, _edp4Name, _edp5Name, _edp6Name]
+	_verboseGrpcClientLogging: bool | *false
+	_kingdomPublicApiTarget:   string
+	_mcSecretName:             string
 
-	_private_key_der_file_flag:              "--private-key-der-file=/var/run/secrets/files/mc_cs_private.der"
-	_kingdom_tls_cert_file_flag:             "--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem"
-	_kingdom_tls_key_file_flag:              "--tls-key-file=/var/run/secrets/files/kingdom_tls.key"
-	_kingdom_cert_collection_file_flag:      "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
-	_kingdom_public_api_target_flag:         "--kingdom-public-api-target=\(_kingdom_public_api_target)"
-	_kingdom_public_api_cert_host_flag:      "--kingdom-public-api-cert-host=localhost"
-	_debug_verbose_grpc_client_logging_flag: "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
+	_privateKeyDerFileFlag:             "--private-key-der-file=/var/run/secrets/files/mc_cs_private.der"
+	_tlsCertFileFlag:                   "--tls-cert-file=/var/run/secrets/files/mc_tls.pem"
+	_tlsKeyFileFlag:                    "--tls-key-file=/var/run/secrets/files/mc_tls.key"
+	_certCollectionFileFlag:            "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
+	_kingdomPublicApiTargetFlag:        "--kingdom-public-api-target=\(_kingdomPublicApiTarget)"
+	_kingdomPublicApiCertHostFlag:      "--kingdom-public-api-cert-host=localhost"
+	_debugVerboseGrpcClientLoggingFlag: "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
 
-	_kingdom_secret_name: string
 	_imageSuffixes: [string]: string
 	_imageSuffixes: {
-		"measurement-system-prober": string | *"kingdom/measurement-system-prober"
+		"measurement-system-prober": string | *"prober/measurement-system-prober"
 	}
 	_imageConfigs: [string]: #ImageConfig
 	_imageConfigs: {
@@ -58,7 +58,7 @@ import ("strings")
 
 	cronJobs: [Name=_]: #CronJob & {
 		_name:       strings.TrimSuffix(Name, "-cronjob")
-		_secretName: _kingdom_secret_name
+		_secretName: _mcSecretName
 		_system:     "kingdom"
 		_container: {
 			image: _images[_name]
@@ -68,22 +68,22 @@ import ("strings")
 	cronJobs: {
 		"measurement-system-prober": {
 			_container: args: [
-				"--measurement-consumer=\(_mc_name)",
-				_private_key_der_file_flag,
-				"--api-key=\(_api_key)",
-				_kingdom_tls_key_file_flag,
-				_kingdom_tls_cert_file_flag,
-				_kingdom_cert_collection_file_flag,
-				_kingdom_public_api_target_flag,
-				_kingdom_public_api_cert_host_flag,
+				"--measurement-consumer=\(_mcName)",
+				_privateKeyDerFileFlag,
+				"--api-key=\(_apiKey)",
+				_tlsKeyFileFlag,
+				_tlsCertFileFlag,
+				_certCollectionFileFlag,
+				_kingdomPublicApiTargetFlag,
+				_kingdomPublicApiCertHostFlag,
 				"--measurement-lookback-duration=1d",
 				"--duration-between-measurements=1d",
-				"--data-provider=\(_edp1_name)",
-				"--data-provider=\(_edp2_name)",
-				"--data-provider=\(_edp3_name)",
-				"--data-provider=\(_edp4_name)",
-				"--data-provider=\(_edp5_name)",
-				"--data-provider=\(_edp6_name)",
+				"--data-provider=\(_edp1Name)",
+				"--data-provider=\(_edp2Name)",
+				"--data-provider=\(_edp3Name)",
+				"--data-provider=\(_edp4Name)",
+				"--data-provider=\(_edp5Name)",
+				"--data-provider=\(_edp6Name)",
 			]
 			spec: schedule: "* * * * *"
 		}
