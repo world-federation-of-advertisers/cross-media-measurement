@@ -16,6 +16,9 @@
 
 package org.wfanet.measurement.kingdom.deploy.common.job
 
+import java.io.File
+import java.time.Duration
+import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
@@ -25,12 +28,11 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.kingdom.batch.MeasurementSystemProber
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
-import java.io.File
-import java.time.Duration
 
 private class MeasurementSystemProberFlags {
   @Option(
@@ -81,6 +83,14 @@ private class MeasurementSystemProberFlags {
   var certHost: String? = null
     private set
 
+  @set:Option(
+    names = ["--debug-verbose-grpc-client-logging"],
+    description = ["Enables full gRPC request and response logging for outgoing gRPCs"],
+    defaultValue = "false",
+  )
+  var debugVerboseGrpcClientLogging by Delegates.notNull<Boolean>()
+    private set
+
   @Option(
     names = ["--data-provider"],
     description = ["Data provider API resource name (can be specified multiple times)"],
@@ -129,6 +139,7 @@ private fun run(@Mixin flags: MeasurementSystemProberFlags) {
     )
 
   val channel = buildMutualTlsChannel(flags.target, clientCerts, flags.certHost)
+    .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
 
   val measurementsService =
     org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub(channel)
