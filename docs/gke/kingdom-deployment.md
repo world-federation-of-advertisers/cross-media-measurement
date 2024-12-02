@@ -47,7 +47,6 @@ The cluster will be populated with the following:
     -   `completed-measurements-deletion-cronjob`
     -   `pending-measurements-cancellation-cronjob`
     -   `exchanges-deletion-cronjob`
-    -   `measurement-system-prober-cronjob`
 -   NetworkPolicy
     -   `default-deny-network-policy`
     -   `kube-dns-network-policy`
