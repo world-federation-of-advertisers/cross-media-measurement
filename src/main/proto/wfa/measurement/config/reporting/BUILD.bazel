@@ -28,17 +28,6 @@ kt_jvm_proto_library(
 )
 
 proto_library(
-    name = "measurement_spec_config_proto",
-    srcs = ["measurement_spec_config.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-)
-
-kt_jvm_proto_library(
-    name = "measurement_spec_config_kt_jvm_proto",
-    deps = [":measurement_spec_config_proto"],
-)
-
-proto_library(
     name = "metric_spec_config_proto",
     srcs = ["metric_spec_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,

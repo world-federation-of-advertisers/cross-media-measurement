@@ -103,6 +103,11 @@ kt_jvm_library(
 kt_jvm_library(
     name = "measurement_results",
     srcs = ["MeasurementResults.kt"],
+    deps = [
+        "//imports/java/org/projectnessie/cel",
+        "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:population_requisition_fulfiller",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
 )
 
 kt_jvm_library(
@@ -118,6 +123,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common:health",
+        "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_fulfiller",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
