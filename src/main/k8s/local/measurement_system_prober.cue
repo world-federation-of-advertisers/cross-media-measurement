@@ -17,7 +17,7 @@ objectSets: [for objectSet in measurementSystemProber {objectSet}]
 measurementSystemProber: #MeasurementSystemProber & {
 	_mcName:                   _mc_resource_name
 	_apiKey:                   _mc_api_key
-	_mcSecretName:             _secret_name
+	_secretName:               _secret_name
 	_verboseGrpcClientLogging: true
 	_edp1Name:                 _edp1
 	_edp2Name:                 _edp2
