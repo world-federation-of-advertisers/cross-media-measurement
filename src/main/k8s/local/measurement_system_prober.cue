@@ -15,15 +15,15 @@ _edp6:             string @tag("edp6_name")
 objectSets: [for objectSet in measurementSystemProber {objectSet}]
 
 measurementSystemProber: #MeasurementSystemProber & {
-	_mc_name:                   _mc_resource_name
-	_api_key:                   _mc_api_key
-	_kingdom_secret_name:       _secret_name
-	_verboseGrpcClientLogging:  true
-	_edp1_name:                 _edp1
-	_edp2_name:                 _edp2
-	_edp3_name:                 _edp3
-	_edp4_name:                 _edp4
-	_edp5_name:                 _edp5
-	_edp6_name:                 _edp6
-	_kingdom_public_api_target: #KingdomPublicApiTarget
+	_mcName:                   _mc_resource_name
+	_apiKey:                   _mc_api_key
+	_mcSecretName:             _secret_name
+	_verboseGrpcClientLogging: true
+	_edp1Name:                 _edp1
+	_edp2Name:                 _edp2
+	_edp3Name:                 _edp3
+	_edp4Name:                 _edp4
+	_edp5Name:                 _edp5
+	_edp6Name:                 _edp6
+	_kingdomPublicApiTarget:   #KingdomPublicApiTarget
 }

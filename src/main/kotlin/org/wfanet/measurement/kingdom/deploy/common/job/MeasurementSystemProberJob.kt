@@ -16,8 +16,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.common.job
 
-import java.io.File
-import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
@@ -31,28 +29,8 @@ import org.wfanet.measurement.kingdom.batch.MeasurementSystemProber
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
-
-private class KingdomPublicApiFlags {
-  @Option(
-    names = ["--kingdom-public-api-target"],
-    description = ["gRPC target (authority) of the Kingdom public API server"],
-    required = true,
-  )
-  lateinit var target: String
-    private set
-
-  @Option(
-    names = ["--kingdom-public-api-cert-host"],
-    description =
-      [
-        "Expected hostname (DNS-ID) in the Kingdom public API server's TLS certificate.",
-        "This overrides derivation of the TLS DNS-ID from --kingdom-public-api-target.",
-      ],
-    required = false,
-  )
-  var certHost: String? = null
-    private set
-}
+import java.io.File
+import java.time.Duration
 
 private class MeasurementSystemProberFlags {
   @Option(
@@ -83,8 +61,24 @@ private class MeasurementSystemProberFlags {
   lateinit var tlsFlags: TlsFlags
     private set
 
-  @Mixin
-  lateinit var kingdomPublicApiFlags: KingdomPublicApiFlags
+  @Option(
+    names = ["--kingdom-public-api-target"],
+    description = ["gRPC target (authority) of the Kingdom public API server"],
+    required = true,
+  )
+  lateinit var target: String
+    private set
+
+  @Option(
+    names = ["--kingdom-public-api-cert-host"],
+    description =
+      [
+        "Expected hostname (DNS-ID) in the Kingdom public API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --kingdom-public-api-target.",
+      ],
+    required = false,
+  )
+  var certHost: String? = null
     private set
 
   @Option(
@@ -134,12 +128,7 @@ private fun run(@Mixin flags: MeasurementSystemProberFlags) {
       trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
     )
 
-  val channel =
-    buildMutualTlsChannel(
-      flags.kingdomPublicApiFlags.target,
-      clientCerts,
-      flags.kingdomPublicApiFlags.certHost,
-    )
+  val channel = buildMutualTlsChannel(flags.target, clientCerts, flags.certHost)
 
   val measurementsService =
     org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub(channel)
