@@ -104,7 +104,6 @@ To modify cronjobs in a non-interactive manner, see
 Human-readable format consists of a sequence elements each consisting of a
 decimal number followed by a unit suffix. 
 The valid suffixes are: 
-
 * `d` - days 
 * `h` - hours 
 * `m` - minutes 
