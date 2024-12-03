@@ -1,39 +1,59 @@
-package com.google.cloud.functions
+package org.wfanet.measurement.securecomputation
 
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsService
+import com.google.events.cloud.storage.v1.StorageObjectData
+import org.wfanet.measurement.securecomputation.DataWatcherConfig.DiscoveredWork
+import org.wfanet.measurement.securecomputation.DataWatcherConfig
 import com.google.cloud.functions.CloudEventsFunction
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GooglePubSubWorkItemsService
-import wfa.measurement.securecomputation.DataWatcherConfig
-import io.cloudevents.CloudEvent
-import com.google.events.cloud.storage.v1.StorageObjectData
+import java.nio.charset.StandardCharsets
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.common.pack
 import com.google.protobuf.Any
+import io.cloudevents.CloudEvent
+import com.google.protobuf.InvalidProtocolBufferException
+import com.google.protobuf.util.JsonFormat
 import java.util.UUID
-import java.util.logging.Logger
-import java.util.regex.Pattern
+import kotlinx.coroutines.runBlocking
 
 class DataWatcher(
-  private val workItemsService: GooglePubSubWorkItemsService,
-  private val topicId: String,
-  private val dataWacherConfigs: List<DataWatcherConfig>
+    private val workItemsService: GooglePubSubWorkItemsService,
+    private val projectId: String,
+    private val dataWatcherConfigs: List<DataWatcherConfig>
 ) : CloudEventsFunction {
-  override fun accept(event: CloudEvent) {
-    val data = event.data ?: return
-    val storageObjectData = StorageObjectData.parseFrom(data.toBytes())
-    val blobKey = storageObjectData.name
-    val bucket = storageObjectData.bucket
-    val blobUrl = "gs://\\${bucket}/\\${blobKey}"
-    val logger = Logger.getLogger(DataWatcher::class.java.name)
-    dataWacherConfigs.forEach { config ->
-      val pattern = Pattern.compile(config.sourcePathRegex)
-      if (pattern.matcher(blobUrl).matches()) {
-        val workItemId = UUID.randomUUID().toString()
-        val workItemParams = config.queue.appConfig
-        val request = createTestRequest(workItemId, workItemParams, topicId)
-        try {
-          workItemsService.createWorkItem(request)
-        } catch (e: Exception) {
-          logger.severe("Failed to publish work item: \\${e.message}")
+
+    override fun accept(event: CloudEvent) {
+        val cloudEventData = String(event.getData().toBytes(), StandardCharsets.UTF_8)
+        val builder = StorageObjectData.newBuilder()
+        JsonFormat.parser().merge(cloudEventData, builder)
+        val data = builder.build()
+        val bucket = data.getBucket()
+        val blobKey = data.getName()
+        val path = "gs://" + bucket + "/" + blobKey
+        dataWatcherConfigs.forEach { config ->
+            val regex = config.sourcePathRegex.toRegex()
+            if (regex.matches(path)) {
+                val queueConfig = config.queue
+                val workItemId = UUID.randomUUID().toString()
+                val workItemParams = DataWatcherConfig.DiscoveredWork.newBuilder()
+                    .setType(queueConfig.appConfig.pack())
+                    .setPath(path)
+                    .build()
+                    .pack()
+                val workItem = WorkItem.newBuilder()
+                    .setName("workItems/" + workItemId)
+                    .setQueue(queueConfig.queueName)
+                    .setWorkItemParams(workItemParams)
+                    .build()
+                val createWorkItemRequest = CreateWorkItemRequest.newBuilder()
+                    .setWorkItemId(workItemId)
+                    .setWorkItem(workItem)
+                    .build()
+                runBlocking {
+                    workItemsService.createWorkItem(createWorkItemRequest)
+                }
+            }
         }
-      }
     }
-  }
 }

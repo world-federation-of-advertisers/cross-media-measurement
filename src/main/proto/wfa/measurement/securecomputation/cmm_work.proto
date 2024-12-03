@@ -24,15 +24,15 @@ option java_multiple_files = true;
 option java_outer_classname = "CmmWorkProto";
 
 message CmmWork {
-   message VidLabelingWork {
+  message VidLabelingWork {
     string base_path = 1;
     string vid_model_path = 2;
-   }
-   message ResultCalculationWork {
+  }
+  message ResultCalculationWork {
     // TODO
-   }
-   oneof WorkType {
-      VidLabelingWork vid_labeling_work = 1;
-      ResultCalculationWork result_calculation_work = 2;
-   }
+  }
+  oneof WorkType {
+    VidLabelingWork vid_labeling_work = 1;
+    ResultCalculationWork result_calculation_work = 2;
+  }
 }
