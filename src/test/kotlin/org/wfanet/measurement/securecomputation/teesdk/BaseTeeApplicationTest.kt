@@ -16,23 +16,31 @@ package org.wfanet.measurement.securecomputation.teesdk
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Parser
-import com.google.pubsub.v1.PubsubMessage
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import org.junit.Test
 import org.wfa.measurement.queue.TestWork
-import org.wfanet.measurement.queue.QueueSubscriber
-import org.wfanet.measurement.gcloud.pubsub.subscriber.Subscriber
+import org.wfanet.measurement.gcloud.pubsub.Subscriber
+import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
+import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
+import org.wfanet.measurement.queue.QueueSubscriber
+import org.junit.Test
+import org.junit.After
+import org.junit.Before
+import org.junit.Rule
 
 class BaseTeeApplicationImpl(
   queueName: String,
   queueSubscriber: QueueSubscriber,
   parser: Parser<TestWork>,
 ) :
-  BaseTeeApplication<TestWork>(queueName = queueName, queueSubscriber = queueSubscriber, parser = parser) {
+  BaseTeeApplication<TestWork>(
+    queueName = queueName,
+    queueSubscriber = queueSubscriber,
+    parser = parser,
+  ) {
   val processedMessages: MutableList<TestWork> = mutableListOf()
   val messageProcessed = CompletableDeferred<Unit>()
 
@@ -44,18 +52,39 @@ class BaseTeeApplicationImpl(
 
 class BaseTeeApplicationTest {
 
+  @Rule
+  @JvmField val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
+
+  private val projectId = "test-project"
+  private val subscriptionId = "test-subscription"
+  private val topicId = "test-topic"
+
+  private lateinit var emulatorClient: GooglePubSubEmulatorClient
+
+  @Before
+  fun setup() {
+    runBlocking {
+      emulatorClient = GooglePubSubEmulatorClient(
+        host = pubSubEmulatorProvider.host,
+        port = pubSubEmulatorProvider.port
+      )
+      emulatorClient.createTopic(projectId, topicId)
+      emulatorClient.createSubscription(projectId, subscriptionId, topicId)
+    }
+  }
+
+  @After
+  fun tearDown() {
+    runBlocking {
+      emulatorClient.deleteTopic(projectId, topicId)
+      emulatorClient.deleteSubscription(projectId, subscriptionId)
+    }
+  }
+
   @Test
   fun `test processing protobuf message`() = runBlocking {
-    val projectId = "test-project"
-    val subscriptionId = "test-subscription"
-    val topicId = "test-topic"
-
-    val emulatorClient = GooglePubSubEmulatorClient()
-    emulatorClient.startEmulator()
-
-    val topicName = emulatorClient.createTopic(projectId, topicId)
-    emulatorClient.createSubscription(projectId, subscriptionId, topicName)
     val pubSubClient = Subscriber(projectId = projectId, googlePubSubClient = emulatorClient)
+    val publisher = Publisher(projectId, emulatorClient)
     val app =
       BaseTeeApplicationImpl(
         queueName = subscriptionId,
@@ -64,12 +93,10 @@ class BaseTeeApplicationTest {
       )
     val job = launch { app.run() }
 
-    val publisher = emulatorClient.createPublisher(projectId, topicId)
     val message = "UserName1"
     val testWork = createTestWork(message)
-    val pubsubMessage: PubsubMessage =
-      PubsubMessage.newBuilder().setData(testWork.toByteString()).build()
-    publisher.publish(pubsubMessage)
+
+    publisher.publishMessage(topicId, testWork)
 
     app.messageProcessed.await()
     assertThat(app.processedMessages.contains(testWork)).isTrue()

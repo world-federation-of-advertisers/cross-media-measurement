@@ -40,10 +40,8 @@ abstract class BaseTeeApplication<T : Message>(
   private val parser: Parser<T>,
 ) : AutoCloseable {
 
-  /**
-   * Starts the TEE application by listening for messages on the specified queue.
-   */
-  suspend fun run () {
+  /** Starts the TEE application by listening for messages on the specified queue. */
+  suspend fun run() {
     startListening()
   }
 
@@ -58,9 +56,7 @@ abstract class BaseTeeApplication<T : Message>(
       messageChannel
         .consumeAsFlow()
         .catch { e -> logger.severe("Error in message flow: ${e.message}") }
-        .collect {
-          queueMessage -> processMessage(queueMessage)
-        }
+        .collect { queueMessage -> processMessage(queueMessage) }
     } catch (e: Exception) {
       logger.severe("Connection error in startListening: ${e.message}")
     }
@@ -79,10 +75,10 @@ abstract class BaseTeeApplication<T : Message>(
       queueMessage.ack()
     } catch (e: InvalidProtocolBufferException) {
       logger.severe("Failed to parse protobuf message: ${e.message}")
-      queueMessage.nack(requeue = false)
+      queueMessage.nack()
     } catch (e: Exception) {
       logger.severe("Error processing message: ${e.message}")
-      queueMessage.nack(requeue = true)
+      queueMessage.nack()
     }
   }
 
