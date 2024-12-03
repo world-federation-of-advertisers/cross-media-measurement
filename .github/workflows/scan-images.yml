@@ -82,7 +82,7 @@ jobs:
           - duchy/aws-requisition-fulfillment
           - duchy/aws-postgres-internal-server
           - panel-exchange/forwarded-storage-daemon
-          - kingdom/measurement-system-prober
+          - prober/measurement-system-prober
     steps:
       - name: Get SARIF file path
         id: get-sarif-file-path
