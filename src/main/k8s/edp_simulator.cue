@@ -73,6 +73,7 @@ import "list"
 				"--kingdom-public-api-cert-host=localhost",
 				"--log-sketch-details=\(_logSketchDetails)",
 				"--health-file=\(HealthFile)",
+				"--known-event-group-metadata-type=/etc/\(#AppName)/config-files/known_event_group_metadata_type_set.pb",
 			] + _requisitionFulfillmentServiceFlags + _additional_args
 		}
 		spec: template: spec: {

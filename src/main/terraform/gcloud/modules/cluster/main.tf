@@ -65,6 +65,8 @@ resource "google_container_cluster" "cluster" {
     }
   }
 
+  deletion_protection = var.deletion_protection
+
   lifecycle {
     ignore_changes = [
       # This only affects the default node pool, which is immediately deleted.

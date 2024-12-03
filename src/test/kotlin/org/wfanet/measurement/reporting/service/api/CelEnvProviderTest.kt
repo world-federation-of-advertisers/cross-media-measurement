@@ -53,9 +53,9 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.reporting.v1alpha.EventGroup
-import org.wfanet.measurement.reporting.v1alpha.EventGroupKt
-import org.wfanet.measurement.reporting.v1alpha.eventGroup
+import org.wfanet.measurement.reporting.v2alpha.EventGroup
+import org.wfanet.measurement.reporting.v2alpha.EventGroupKt
+import org.wfanet.measurement.reporting.v2alpha.eventGroup
 
 private const val METADATA_FIELD = "metadata.metadata"
 private const val MAX_PAGE_SIZE = 1000

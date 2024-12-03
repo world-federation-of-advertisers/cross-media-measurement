@@ -51,7 +51,8 @@ class Solver:
     self.variable_map = dict(
         (variable_index_by_set_id[i], i) for i in variable_index_by_set_id)
 
-  def _init_base_value(self, set_measurement_spec, variable_index_by_set_id):
+  def _init_base_value(self, set_measurement_spec: SetMeasurementsSpec,
+      variable_index_by_set_id: dict[int, int]):
     mean_measurement_by_variable: dict[int, float] = {}
     for measured_set in set_measurement_spec.all_sets():
       mean_measurement_by_variable[
@@ -64,8 +65,8 @@ class Solver:
         (mean_measurement_by_variable[i]
          for i in range(0, self.num_variables))))
 
-  def _add_measurement_targets(self, set_measurement_spec,
-      variable_index_by_set_id):
+  def _add_measurement_targets(self, set_measurement_spec: SetMeasurementsSpec,
+      variable_index_by_set_id: dict[int, int]):
     for (measured_set, variable) in variable_index_by_set_id.items():
       variables = np.zeros(self.num_variables)
       variables[variable] = 1
@@ -78,8 +79,8 @@ class Solver:
               np.multiply(variables, 1 / measurement.sigma),
               -measurement.value / measurement.sigma)
 
-  @staticmethod
-  def _map_sets_to_variables(set_measurement_spec) -> dict[int, int]:
+  def _map_sets_to_variables(set_measurement_spec: SetMeasurementsSpec) -> dict[
+    int, int]:
     variable_index_by_set_id: dict[int, int] = {}
     num_variables = 0
     for measured_set in set_measurement_spec.all_sets():
@@ -87,7 +88,7 @@ class Solver:
       num_variables += 1
     return variable_index_by_set_id
 
-  def _init_qp(self, num_variables):
+  def _init_qp(self, num_variables: int):
     self.num_variables = num_variables
     # Minimize 1/2 x^T P x + q^T x
     self.P = np.zeros(shape=(num_variables, num_variables))
@@ -99,21 +100,23 @@ class Solver:
     self.A = []
     self.b = []
 
-  def _add_subsets(self, set_measurement_spec, variable_index_by_set_id):
+  def _add_subsets(self, set_measurement_spec: SetMeasurementsSpec,
+      variable_index_by_set_id: dict[int, int]):
     for measured_set in set_measurement_spec.all_sets():
       for subset in set(set_measurement_spec.get_subsets(measured_set)):
         self._add_parent_gt_child_term(
             variable_index_by_set_id[measured_set],
             variable_index_by_set_id[subset])
 
-  def _add_covers(self, set_measurement_spec, variable_index_by_set_id):
+  def _add_covers(self, set_measurement_spec: SetMeasurementsSpec,
+      variable_index_by_set_id: dict[int, int]):
     for measured_set in set_measurement_spec.all_sets():
       for cover in set_measurement_spec.get_covers_of_set(measured_set):
         self._add_cover_set_constraint(
             list(variable_index_by_set_id[i] for i in cover),
             variable_index_by_set_id[measured_set])
 
-  def _add_cover_set_constraint(self, cover_variables: list[int],
+  def _add_cover_set_constraint(self, cover_variables: set[int],
       set_variable: int):
     variables = np.zeros(self.num_variables)
     variables.put(cover_variables, -1)
@@ -132,17 +135,17 @@ class Solver:
     variables[child] = 1
     self._add_gt_term(variables)
 
-  def _add_loss_term(self, variables, k: float):
+  def _add_loss_term(self, variables: np.array, k: float):
     for v1, coeff1 in enumerate(variables):
       self.q[0][v1] += coeff1 * k
       for v2, coeff2 in enumerate(variables):
         self.P[v1][v2] += coeff1 * coeff2
 
-  def _add_eq_term(self, variables, k: float):
+  def _add_eq_term(self, variables: np.array, k: float):
     self.A.append(variables)
     self.b.append(k)
 
-  def _add_gt_term(self, variables):
+  def _add_gt_term(self, variables: np.array):
     self.G.append(variables)
     self.h.append([0])
 
@@ -192,11 +195,11 @@ class Solver:
     return solution
 
   def translate_solution(self, solution: Solution) -> dict[int, float]:
-    result: dict[int, Any] = {}
+    result: dict[int, float] = {}
     for var in range(0, self.num_variables):
       result[self.variable_map[var]] = solution.x[var]
     return result
 
-  def solve_and_translate(self):
+  def solve_and_translate(self) -> dict[int, float]:
     solution = self.solve()
     return self.translate_solution(solution)

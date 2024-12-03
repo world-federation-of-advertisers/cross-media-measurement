@@ -89,6 +89,7 @@ edpSimulators: {
 			_additional_args: [
 				"--population-spec=\(_populationSpec)",
 				"--event-group-spec==\(edpConfig.eventGroupSpec)",
+				"--event-group-metadata==\(edpConfig.eventGroupSpec)",
 				if (edpConfig.supportHmss) {"--support-hmss"},
 			]
 
