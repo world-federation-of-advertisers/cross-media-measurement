@@ -145,7 +145,7 @@ class ReportProcessorTest {
         val metricReportByPolicy = it.toReportByPolicy()
         if (
           !metricReportByPolicy["ami"]!!.hasConsistentMeasurements() ||
-          !metricReportByPolicy["mrc"]!!.hasConsistentMeasurements()
+            !metricReportByPolicy["mrc"]!!.hasConsistentMeasurements()
         ) {
           return false
         }

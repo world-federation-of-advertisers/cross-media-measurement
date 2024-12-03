@@ -568,10 +568,24 @@ class Report:
         )
 
   def _normalized_sigma(self, sigma: float) -> float:
-    if sigma < 1e-6:
-      return sigma
-    return max(sigma / self._max_standard_deviation,
-               MIN_STANDARD_VARIATION_RATIO)
+    """Normalizes the standard deviation.
+
+    Args:
+      sigma: The standard deviation to normalize.
+
+    Returns:
+      The normalized standard deviation, capped at
+      MIN_STANDARD_VARIATION_RATIO.
+    """
+
+    # Zero value for sigma means that this measurement will not be corrected,
+    # thus the normalized value of zero is not capped at
+    # MIN_STANDARD_VARIATION_RATIO.
+    if not sigma:
+      return 0.0
+
+    normalized_sigma = sigma / self._max_standard_deviation
+    return max(normalized_sigma, MIN_STANDARD_VARIATION_RATIO)
 
   def _get_measurement_index(self, measurement: Measurement) -> int:
     return self._measurement_name_to_index[measurement.name]
