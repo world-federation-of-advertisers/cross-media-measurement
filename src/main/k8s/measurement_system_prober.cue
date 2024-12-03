@@ -29,7 +29,7 @@ import ("strings")
 	_edpResourceNames: [_edp1Name, _edp2Name, _edp3Name, _edp4Name, _edp5Name, _edp6Name]
 	_verboseGrpcClientLogging: bool | *false
 	_kingdomPublicApiTarget:   string
-	_secretName:             string
+	_secretName:               string
 
 	_privateKeyDerFileFlag:             "--private-key-der-file=/var/run/secrets/files/mc_cs_private.der"
 	_tlsCertFileFlag:                   "--tls-cert-file=/var/run/secrets/files/mc_tls.pem"
