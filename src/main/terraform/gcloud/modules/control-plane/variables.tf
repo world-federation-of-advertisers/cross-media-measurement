@@ -39,3 +39,9 @@ variable "ack_deadline_seconds" {
   type        = number
   default     = 60
 }
+
+variable "undelivered_messages_threshold" {
+  description = "Threshold for undelivered messages that triggers an alert."
+  type        = number
+  default     = 50
+}

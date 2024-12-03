@@ -24,6 +24,7 @@ locals {
   pubsub_configurations = {
     "topic-demo"   = { subscription_name = "subscription-demo" }
   }
+  undelivered_messages_threshold = 100
 }
 
 module "pubsub_topics" {
@@ -31,6 +32,7 @@ module "pubsub_topics" {
   source                 = "../../modules/control-plane"
   topic_name             = each.key
   subscription_name      = each.value.subscription_name
+  undelivered_messages_threshold = local.undelivered_messages_threshold
 
   ack_deadline_seconds   = lookup(each.value, "ack_deadline_seconds", null)
   retain_acked_messages  = lookup(each.value, "retain_acked_messages", null)
