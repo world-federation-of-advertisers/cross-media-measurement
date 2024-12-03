@@ -138,8 +138,9 @@ private fun run(@Mixin flags: MeasurementSystemProberFlags) {
       trustedCertCollectionFile = flags.tlsFlags.certCollectionFile,
     )
 
-  val channel = buildMutualTlsChannel(flags.target, clientCerts, flags.certHost)
-    .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
+  val channel =
+    buildMutualTlsChannel(flags.target, clientCerts, flags.certHost)
+      .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
 
   val measurementsService =
     org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub(channel)
