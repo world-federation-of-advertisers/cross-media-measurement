@@ -79,8 +79,8 @@ class ReportingUserSimulator(
         .firstOrNull {
           getDataProvider(it.cmmsDataProvider).capabilities.honestMajorityShareShuffleSupported
         } ?: listEventGroups().first()
-    val createdPrimitiveReportingSet = createPrimitiveReportingSet(eventGroup)
-    val createdMetricCalculationSpec = createMetricCalculationSpec()
+    val createdPrimitiveReportingSet = createPrimitiveReportingSet(eventGroup, runId)
+    val createdMetricCalculationSpec = createMetricCalculationSpec(runId)
 
     val report = report {
       reportingMetricEntries +=
@@ -154,7 +154,7 @@ class ReportingUserSimulator(
     }
   }
 
-  private suspend fun createPrimitiveReportingSet(eventGroup: EventGroup): ReportingSet {
+  private suspend fun createPrimitiveReportingSet(eventGroup: EventGroup, runId: String): ReportingSet {
     val primitiveReportingSet = reportingSet {
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
     }
@@ -164,7 +164,7 @@ class ReportingUserSimulator(
         createReportingSetRequest {
           parent = measurementConsumerName
           reportingSet = primitiveReportingSet
-          reportingSetId = "a-123"
+          reportingSetId = "a-$runId"
         }
       )
     } catch (e: StatusException) {
@@ -172,12 +172,12 @@ class ReportingUserSimulator(
     }
   }
 
-  private suspend fun createMetricCalculationSpec(): MetricCalculationSpec {
+  private suspend fun createMetricCalculationSpec(runId: String): MetricCalculationSpec {
     try {
       return metricCalculationSpecsClient.createMetricCalculationSpec(
         createMetricCalculationSpecRequest {
           parent = measurementConsumerName
-          metricCalculationSpecId = "a-123"
+          metricCalculationSpecId = "a-$runId"
           metricCalculationSpec = metricCalculationSpec {
             displayName = "union reach"
             metricSpecs += metricSpec {
