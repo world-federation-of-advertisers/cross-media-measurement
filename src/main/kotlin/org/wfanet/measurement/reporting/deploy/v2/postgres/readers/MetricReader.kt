@@ -345,17 +345,10 @@ class MetricReader(private val readContext: ReadContext) {
       """
         .trimIndent()
 
-    val sqlJoins: String =
-      """
-      JOIN Metrics USING(MeasurementConsumerId)
-      JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, MetricId)
-      """
-        .trimIndent()
-
     val sql =
       StringBuilder(
         """
-          WITH ReusableMetricIDs AS (
+          WITH ReusableMetricIds AS (
             SELECT MetricId
             FROM
               Metrics JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, MetricId)
@@ -370,7 +363,8 @@ class MetricReader(private val readContext: ReadContext) {
           $sqlSelect
           FROM
             MeasurementConsumers
-            $sqlJoins
+            JOIN Metrics USING(MeasurementConsumerId)
+            JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, MetricId)
           WHERE Metrics.MetricId IN (SELECT MetricId FROM ReusableMetricIDs)
         """
           .trimIndent()
