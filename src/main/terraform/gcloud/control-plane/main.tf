@@ -14,12 +14,10 @@
 
 terraform {
   backend "gcs" {
-    prefix = "terraform/state/halo-cmms"
+    prefix = "terraform/state/halo-control-plane"
   }
 }
 
 provider "google" {}
-
-data "google_client_config" "default" {}
 
 # Topics here

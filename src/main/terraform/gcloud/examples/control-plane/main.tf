@@ -1,4 +1,4 @@
-# Copyright 2023 The Cross-Media Measurement Authors
+# Copyright 2024 The Cross-Media Measurement Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,13 +14,11 @@
 
 terraform {
   backend "gcs" {
-    prefix = "terraform/state/halo-cmms"
+    prefix = "terraform/state/halo-control-plane"
   }
 }
 
 provider "google" { }
-
-data "google_client_config" "default" {}
 
 locals {
   pubsub_configurations = {
@@ -38,13 +36,3 @@ module "pubsub_topics" {
   retain_acked_messages  = lookup(each.value, "retain_acked_messages", null)
   message_retention_duration = lookup(each.value, "message_retention_duration", null)
 }
-
-# module "pubsub_topics" {
-#   for_each               = local.pubsub_configurations
-#   source                 = "../../modules/control-plane"
-#   topic_name             = each.key
-#   subscription_name      = each.value.subscription_name
-#   ack_deadline_seconds   = each.value.ack_deadline_seconds
-#   retain_acked_messages  = each.value.retain_acked_messages
-#   message_retention_duration = each.value.message_retention_duration
-# }
