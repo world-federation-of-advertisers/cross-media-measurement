@@ -18,17 +18,12 @@ _mc_name:                  string @tag("mc_name")
 _pdp_name:                 string @tag("pdp1_name")
 _pdp_cert_name:            string @tag("pdp1_cert_name")
 _population_resource_name: string @tag("population_key")
-_populationSpec:           "/etc/\(#AppName)/config-files/synthetic_population_spec_large.textproto"
-
 _secret_name:              string @tag("secret_name")
+_populationSpec:           "/etc/\(#AppName)/config-files/synthetic_population_spec_large.textproto"
 
 _pdpResourceNames: [_pdp1_name]
 _pdpCertResourceNames: [_pdp1_cert_name]
 _populationResourceNames: [_population_resource_name]
-
-_populationSpecs: [
-    _populationSpec
-]
 
 _populationRequisitionFulfillerConfigs: [...#PopulationRequisitionFulfillerConfig]
 _populationRequisitionFulfillerConfigs: [
@@ -36,7 +31,7 @@ _populationRequisitionFulfillerConfigs: [
         dataProviderDisplayName: "pdp1"
         dataProviderResourceName: _pdp_name
         dataProviderCertResourceName: _pdp_cert_name
-        populationConfigs: [
+        populationKeyAndInfoList: [
             {
                 populationResourceName: _population_resource_name
                 populationSpecFile: _populationSpec
@@ -51,11 +46,13 @@ objectSets: [ for fulfiller in populationRequisitionFulfillers {[fulfiller.deplo
 populationRequisitionFulfillers: {
     for config in _populationRequisitionFulfillerConfigs {
         "\(config.dataProviderDisplayName)": #PopulationRequisitionFulfiller & {
+            _imageConfig: repoSuffix: "measurement/population-requisition-fulfiller"
+            _populationRequisitionFulfillerSecretName: _secret_name
             _config: config
             deployment: spec: template: spec: {
                 _mounts: "config-files": #ConfigMapMount
                 _dependencies: [
-                    "kingdom-system-api-server"
+                    "kingdom-system-api-server",
                 ]
             }
         }

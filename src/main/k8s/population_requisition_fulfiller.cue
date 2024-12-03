@@ -15,10 +15,6 @@
 package k8s
 
 #KingdomSystemApiTarget: (#Target & {name: "system-api-server"}).target
-#KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
-
-_populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec_large.textproto"
-
 
 #PopulationRequisitionFulfillerConfig: {
     dataProviderDisplayName:     string
@@ -26,10 +22,10 @@ _populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec_large.
     dataProviderCertResourceName: string
     throttlerMinimumInterval:     string | *"2s"
     eventMessageDescriptorSets:   [...string]
-    populationConfigs: [...#PopulationConfig]
+    populationKeyAndInfoList: [...#PopulationKeyAndInfo]
 }
 
-#PopulationConfig: {
+#PopulationKeyAndInfo: {
     populationResourceName: string
     populationSpecFile:     string
     eventMessageTypeUrl:    string
@@ -37,12 +33,17 @@ _populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec_large.
 
 #PopulationRequisitionFulfiller: {
     _config: #PopulationRequisitionFulfillerConfig
+    _imageConfig: #ImageConfig
+    _populationRequisitionFulfillerSecretName:  string
 
     let DisplayName = _config.dataProviderDisplayName
 
     deployment: #Deployment & {
-        _name: "population-requisition-fulfiller-" + DisplayName
+        _name: DisplayName + "-simulator"
+        _secretName: _populationRequisitionFulfillerSecretName
+     	_system:     "population"
         _container: {
+        	image: _imageConfig.image
             args: [
                 "--kingdom-system-api-target=\(#KingdomSystemApiTarget)",
                 "--kingdom-system-api-cert-host=localhost",
@@ -55,12 +56,10 @@ _populationSpec: "/etc/\(#AppName)/config-files/synthetic_population_spec_large.
                 "--throttler-minimum-interval=\(_config.throttlerMinimumInterval)",
             ] + [ for set in _config.eventMessageDescriptorSets {
                 "--event-message-descriptor-set=\(set)"
-            }] + [ for config in _config.populationConfigs {
-                "--population-resource-name=\(config.populationResourceName)"
-            }] + [ for config in _config.populationConfigs {
-                "--population-spec=\(_populationSpec)"
-            }] + [ for config in _config.populationConfigs {
-                "--event-message-type-url=\(config.eventMessageTypeUrl)"
+            }] + [ for config in _config.populationKeyAndInfoList {
+                "--population-resource-name=\(config.populationResourceName)",
+                "--population-spec=\(config.populationSpecFile)",
+                "--event-message-type-url=\(config.eventMessageTypeUrl)",
             }]
         }
     }
