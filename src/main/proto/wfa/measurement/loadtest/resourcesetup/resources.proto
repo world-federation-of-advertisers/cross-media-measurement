@@ -38,10 +38,23 @@ message Resources {
     message DuchyCertificate {
       string duchy_id = 1;
     }
+
+    message Population {
+      string population_id = 1;
+    }
+
+    message PopulationDataProvider {
+      bytes authority_key_identifier = 1;
+      string display_name = 2;
+      string certificate = 3;
+    }
+
     oneof resource {
       MeasurementConsumer measurement_consumer = 2;
       DataProvider data_provider = 3;
       DuchyCertificate duchy_certificate = 4;
+      Population population = 5;
+      PopulationDataProvider population_data_provider = 6;
     }
   }
   repeated Resource resources = 1;

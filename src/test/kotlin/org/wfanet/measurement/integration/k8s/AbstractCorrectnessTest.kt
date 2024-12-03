@@ -67,6 +67,15 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     )
   }
 
+  @Test
+  fun `population measurement completes with expected result`() = runBlocking {
+//
+//    testHarness.testPopulation(
+//      "$runId-population",
+//      DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+//    )
+  }
+
   @Test(timeout = 1 * 60 * 1000)
   fun `report can be created`() = runBlocking {
     reportingTestHarness.testCreateReport("$runId-test-report")

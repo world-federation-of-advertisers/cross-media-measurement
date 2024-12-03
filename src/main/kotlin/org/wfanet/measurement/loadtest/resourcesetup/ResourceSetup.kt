@@ -21,6 +21,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.io.File
 import java.time.Clock
+import java.time.Instant
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -65,8 +66,16 @@ import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelLine as InternalModelLine
+import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelRelease as InternalModelRelease
+import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelRollout as InternalModelRollout
+import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
+import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt
 import org.wfanet.measurement.internal.kingdom.Population as InternalPopulation
 import org.wfanet.measurement.internal.kingdom.PopulationKt
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt
@@ -76,8 +85,13 @@ import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreation
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.internal.kingdom.eventTemplate
+import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
+import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRelease
+import org.wfanet.measurement.internal.kingdom.modelRollout as internalModelRollout
 import org.wfanet.measurement.internal.kingdom.modelProvider as internalModelProvider
 import org.wfanet.measurement.internal.kingdom.population as internalPopulation
+import org.wfanet.measurement.api.v2alpha.PopulationKey
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 import org.wfanet.measurement.loadtest.common.ConsoleOutput
@@ -109,9 +123,13 @@ class ResourceSetup(
   private val requiredDuchies: List<String>,
   private val bazelConfigName: String = DEFAULT_BAZEL_CONFIG_NAME,
   private val outputDir: File? = null,
-  private val internalModelProvidersClient: ModelProvidersGrpcKt.ModelProvidersCoroutineStub? =
-    null,
+  private val internalModelProvidersClient: ModelProvidersGrpcKt.ModelProvidersCoroutineStub? = null,
   private val internalPopulationsClient: PopulationsGrpcKt.PopulationsCoroutineStub? = null,
+  private val internalModelSuitesClient: ModelSuitesGrpcKt.ModelSuitesCoroutineStub? = null,
+  private val internalModelLinesClient: ModelLinesGrpcKt.ModelLinesCoroutineStub? = null,
+  private val internalModelReleasesClient: ModelReleasesGrpcKt.ModelReleasesCoroutineStub? = null,
+  private val internalModelRolloutsClient: ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub? = null
+
 ) {
   data class MeasurementConsumerAndKey(
     val measurementConsumer: MeasurementConsumer,
@@ -120,9 +138,10 @@ class ResourceSetup(
 
   /** Process to create resources. */
   suspend fun process(
-    dataProviderContents: List<EntityContent>,
+    edpContents: List<EntityContent>,
     measurementConsumerContent: EntityContent,
     duchyCerts: List<DuchyCert>,
+    pdp: EntityContent,
   ): List<Resources.Resource> {
     logger.info("Starting with RunID: $runId ...")
     val resources = mutableListOf<Resources.Resource>()
@@ -157,7 +176,7 @@ class ResourceSetup(
     )
 
     // Step 2: Create the EDPs.
-    dataProviderContents.forEach {
+    edpContents.forEach {
       val internalDataProvider: InternalDataProvider = createInternalDataProvider(it)
       val dataProviderId: String = externalIdToApiId(internalDataProvider.externalDataProviderId)
       val dataProviderResourceName: String = DataProviderKey(dataProviderId).toName()
@@ -192,6 +211,44 @@ class ResourceSetup(
         }
       )
     }
+
+    // Step 4: Create the resources related to Population.
+    val internalPopulationDataProvider = createInternalDataProvider(pdp)
+    val dataProviderId: String = externalIdToApiId(internalPopulationDataProvider.externalDataProviderId)
+    val dataProviderResourceName: String = DataProviderKey(dataProviderId).toName()
+    val certificateId: String =
+      externalIdToApiId(internalPopulationDataProvider.certificate.externalCertificateId)
+    val dataProviderCertificateKeyName: String =
+      DataProviderCertificateKey(dataProviderId, certificateId).toName()
+    logger.info("Successfully created internal population data provider: $dataProviderResourceName")
+    resources.add(
+      resource {
+        name = dataProviderResourceName
+        populationDataProvider =
+          ResourcesKt.ResourceKt.populationDataProvider {
+            displayName = pdp.displayName
+            certificate = dataProviderCertificateKeyName
+            // Assume signing cert uses same issuer as TLS client cert.
+            authorityKeyIdentifier =
+              checkNotNull(pdp.signingKey.certificate.authorityKeyIdentifier)
+          }
+      }
+    )
+
+    val internalPopulation = createInternalPopulation(internalPopulationDataProvider)
+    val populationId = externalIdToApiId(internalPopulation.externalPopulationId)
+    val populationResourceName = PopulationKey(dataProviderId, populationId).toName()
+    resources.add(
+      resource {
+        name = populationResourceName
+        population = ResourcesKt.ResourceKt.population { this.populationId = populationId}
+      }
+    )
+    val internalModelProvider = createInternalModelProvider()
+    val internalModelSuite = createInternalModelSuite(internalModelProvider)
+    val internalModelLine = createInternalModelLine(internalModelSuite)
+    val internalModelRelease = createInternalModelRelease(internalModelSuite, internalPopulation)
+    createInternalModelRollout(internalModelLine, internalModelRelease)
 
     withContext(Dispatchers.IO) { writeOutput(resources) }
     logger.info("Resource setup was successful.")
@@ -296,6 +353,14 @@ class ResourceSetup(
             val duchyId = resource.duchyCertificate.duchyId
             writer.appendLine("build:$configName --define=${duchyId}_cert_name=${resource.name}")
           }
+          Resources.Resource.ResourceCase.POPULATION -> {
+            val populationId = resource.population.populationId
+            writer.appendLine("build:$configName --define=${populationId}_cert_name=${resource.name}")
+          }
+          Resources.Resource.ResourceCase.POPULATION_DATA_PROVIDER -> {
+            val displayName = resource.populationDataProvider.displayName
+            writer.appendLine("build:$configName --define=${displayName}_cert_name=${resource.name}")
+          }
           Resources.Resource.ResourceCase.RESOURCE_NOT_SET -> error("Bad resource case")
         }
       }
@@ -347,6 +412,62 @@ class ResourceSetup(
       }
     )
   }
+
+  /** Create a modelSuite. */
+  suspend fun createInternalModelSuite(modelProvider: InternalModelProvider): InternalModelSuite {
+    require(internalModelSuitesClient != null)
+    return internalModelSuitesClient.createModelSuite(
+      org.wfanet.measurement.internal.kingdom.modelSuite {
+        externalModelProviderId = modelProvider.externalModelProviderId
+        displayName = "displayName"
+        description = "description"
+      }
+    )
+  }
+
+  suspend fun createInternalModelLine(modelSuite: InternalModelSuite): InternalModelLine {
+    require(internalModelLinesClient != null)
+    return internalModelLinesClient.createModelLine(
+      internalModelLine {
+        externalModelProviderId = modelSuite.externalModelProviderId
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+        displayName = "displayName"
+        description = "description"
+        activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+        type = InternalModelLine.Type.DEV
+      }
+    )
+  }
+
+  suspend fun createInternalModelRelease(
+    modelSuite: InternalModelSuite,
+    population: InternalPopulation,
+  ): InternalModelRelease {
+    require(internalModelReleasesClient != null)
+    return internalModelReleasesClient.createModelRelease(
+      internalModelRelease {
+        externalModelProviderId = modelSuite.externalModelProviderId
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+        externalDataProviderId = population.externalDataProviderId
+        externalPopulationId = population.externalPopulationId
+      }
+    )
+  }
+
+  suspend fun createInternalModelRollout(modelLine: InternalModelLine, modelRelease: InternalModelRelease): InternalModelRollout {
+    require(internalModelRolloutsClient != null)
+    return internalModelRolloutsClient.createModelRollout(
+      internalModelRollout {
+        externalModelProviderId = modelLine.externalModelProviderId
+        externalModelSuiteId = modelLine.externalModelSuiteId
+        externalModelLineId = modelLine.externalModelLineId
+        rolloutPeriodStartTime = Instant.now().plusSeconds(100L).toProtoTime()
+        rolloutPeriodEndTime = Instant.now().plusSeconds(200L).toProtoTime()
+        externalModelReleaseId = modelRelease.externalModelReleaseId
+      }
+    )
+  }
+
 
   suspend fun createAccountWithRetries(): InternalAccount {
     // The initial account is created via the Kingdom Internal API by the Kingdom operator.
