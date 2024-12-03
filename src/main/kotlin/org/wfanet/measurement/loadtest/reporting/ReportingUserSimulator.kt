@@ -154,7 +154,10 @@ class ReportingUserSimulator(
     }
   }
 
-  private suspend fun createPrimitiveReportingSet(eventGroup: EventGroup, runId: String): ReportingSet {
+  private suspend fun createPrimitiveReportingSet(
+    eventGroup: EventGroup,
+    runId: String,
+  ): ReportingSet {
     val primitiveReportingSet = reportingSet {
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
     }
