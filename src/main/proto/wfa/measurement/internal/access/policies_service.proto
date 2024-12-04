@@ -23,14 +23,47 @@ option java_multiple_files = true;
 option java_outer_classname = "PoliciesServiceProto";
 
 service Policies {
+  // Gets the Policy with the specified resource ID.
+  //
+  // Error reasons:
+  // * `POLICY_NOT_FOUND`
   rpc GetPolicy(GetPolicyRequest) returns (Policy);
 
+  // Creates a new Policy.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_TYPE_NOT_SUPPORTED`
+  // * `POLICY_ALREADY_EXISTS`
+  // * `ROLE_NOT_FOUND`
+  // * `PRINCIPAL_NOT_FOUND`
   rpc CreatePolicy(Policy) returns (Policy);
 
+  // Looks up a Policy by lookup key.
+  //
+  // Error reasons:
+  // * `POLICY_NOT_FOUND_FOR_PROTECTED_RESOURCE`
   rpc LookupPolicy(LookupPolicyRequest) returns (Policy);
 
+  // Adds members to a Policy binding.
+  //
+  // Error reasons:
+  // * `POLICY_NOT_FOUND`
+  // * `ETAG_MISMATCH`
+  // * `ROLE_NOT_FOUND`
+  // * `PRINCIPAL_NOT_FOUND`
+  // * `PRINCIPAL_TYPE_NOT_SUPPORTED`
+  // * `POLICY_BINDING_MEMBERSHIP_ALREADY_EXISTS`
   rpc AddPolicyBindingMembers(AddPolicyBindingMembersRequest) returns (Policy);
 
+  // Removes members from a Policy binding.
+  //
+  // Error reasons:
+  // * `POLICY_NOT_FOUND`
+  // * `ETAG_MISMATCH`
+  // * `ROLE_NOT_FOUND`
+  // * `PRINCIPAL_NOT_FOUND`
+  // * `PRINCIPAL_TYPE_NOT_SUPPORTED`
+  // * `POLICY_BINDING_MEMBERSHIP_NOT_FOUND`
   rpc RemovePolicyBindingMembers(RemovePolicyBindingMembersRequest)
       returns (Policy);
 }
