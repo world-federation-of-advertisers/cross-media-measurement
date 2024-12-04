@@ -5,13 +5,14 @@ import com.google.protobuf.Any
 import org.wfanet.measurement.securecomputation.CmmWork
 import org.wfanet.measurement.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
-import org.wfanet.measurement.securecomputation.teesdk.VidLabelerApp
-import org.wfanet.measurement.storage.testing.GcsSubscribingStorageClientTest
+import org.wfanet.measurement.securecomputation.vidlabeling.VidLabelerApp
+import org.wfanet.measurement.storage.GcsSubscribingStorageClientTest
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.virtualpeople.core.labeler.LabelerInput
 import org.wfanet.virtualpeople.common.LabelerOutput
-import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
+import org.wfanet.measurement.gcloud.pubsub.GooglePubSubEmulatorClient
 import java.util.logging.Logger
+import org.mockito.kotlin.mock
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout

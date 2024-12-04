@@ -1,5 +1,14 @@
 # CLASS
 ## SimpleIntegrationTest
+### Usage
+* Package org.wfanet.measurement.securecomputation
+* Here are some imports you will need:
+* org.mockito.kotlin.mock
+* org.wfanet.virtualpeople.common.labelerInput
+* kotlinx.coroutines.flow.flowOf
+* com.google.protobuf.ByteString
+* org.wfanet.measurement.securecomputation.vidlabeling.VidLabelerApp
+* 
 
 # CONSTRUCTORS
 

@@ -1,26 +1,20 @@
 package org.wfanet.measurement.securecomputation.vidlabeling
 
 import org.wfanet.virtualpeople.common.LabelerInput
-import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.chunked
 import org.wfanet.measurement.securecomputation.CmmWork
 import org.wfanet.measurement.securecomputation.DataWatcherConfig.DiscoveredWork
-import org.wfanet.measurement.securecomputation.DataWatcherConfig
 import com.google.protobuf.kotlin.toByteString
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
 import com.google.protobuf.Parser
 import org.wfanet.measurement.storage.StorageClient
 import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapMerge
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import kotlinx.coroutines.flow.reduce
 import org.wfanet.virtualpeople.core.labeler.Labeler
-import com.google.protobuf.Any
 import org.wfanet.virtualpeople.common.CompiledNode
 
 class VidLabelerApp(

@@ -1,4 +1,4 @@
-package org.wfanet.measurement.securecomputation
+package org.wfanet.measurement.securecomputation.datawatcher
 
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsService
 import com.google.events.cloud.storage.v1.StorageObjectData
