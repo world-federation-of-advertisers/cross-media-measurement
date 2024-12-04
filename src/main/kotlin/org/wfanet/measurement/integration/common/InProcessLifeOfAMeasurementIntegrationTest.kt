@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.type.date
+import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -26,10 +28,27 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCorou
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.createModelLineRequest
+import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
+import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.api.v2alpha.modelRelease
+import org.wfanet.measurement.api.v2alpha.modelRollout
+import org.wfanet.measurement.api.v2alpha.modelSuite
+import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
@@ -73,6 +92,26 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
     RequisitionsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
   }
 
+  private val publicModelSuitesClient by lazy {
+    ModelSuitesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+      .withPrincipalName(inProcessCmmsComponents.modelProviderResourceName)
+  }
+
+  private val publicModelLinesClient by lazy {
+    ModelLinesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+      .withPrincipalName(inProcessCmmsComponents.modelProviderResourceName)
+  }
+
+  private val publicModelReleasesClient by lazy {
+    ModelReleasesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+      .withPrincipalName(inProcessCmmsComponents.modelProviderResourceName)
+  }
+
+  private val publicModelRolloutClient by lazy {
+    ModelRolloutsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+      .withPrincipalName(inProcessCmmsComponents.modelProviderResourceName)
+  }
+
   @Before
   fun startDaemons() {
     inProcessCmmsComponents.startDaemons()
@@ -114,6 +153,11 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
   @After
   fun stopDuchyDaemons() {
     inProcessCmmsComponents.stopDuchyDaemons()
+  }
+
+  @After
+  fun stopPopulationRequisitionFulfillerDaemon() {
+    inProcessCmmsComponents.stopPopulationRequisitionFulfillerDaemon()
   }
 
   @Test
@@ -209,6 +253,59 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
 
   // TODO(@renjiez): Add Multi-round test given the same input to verify correctness.
 
+  @Test
+  fun `create a population measurement`() = runBlocking {
+    val modelSuite =
+      publicModelSuitesClient.createModelSuite(
+        createModelSuiteRequest {
+          parent = inProcessCmmsComponents.modelProviderResourceName
+          modelSuite = modelSuite { displayName = MODEL_SUITE_DISPLAY_NAME }
+        }
+      )
+    val modelLine =
+      publicModelLinesClient.createModelLine(
+        createModelLineRequest {
+          parent = modelSuite.name
+          modelLine = modelLine {
+            activeStartTime = MODEL_LINE_ACTIVE_START_TIME
+            type = ModelLine.Type.PROD
+          }
+        }
+      )
+
+    val populationData = inProcessCmmsComponents.getPopulationData()
+
+    val modelRelease =
+      publicModelReleasesClient.createModelRelease(
+        createModelReleaseRequest {
+          parent = modelSuite.name
+          modelRelease = modelRelease { population = populationData.populationKey.toName() }
+        }
+      )
+
+    publicModelRolloutClient.createModelRollout(
+      createModelRolloutRequest {
+        parent = modelLine.name
+        modelRollout = modelRollout {
+          this.modelRelease = modelRelease.name
+          gradualRolloutPeriod = dateInterval {
+            startDate = ROLLOUT_PERIOD_START_DATE
+            endDate = ROLLOUT_PERIOD_END_DATE
+          }
+        }
+      }
+    )
+
+    // Use frontend simulator to create a population measurement
+    mcSimulator.testPopulation(
+      "1234",
+      populationData,
+      modelLine.name,
+      DEFAULT_POPULATION_FILTER_EXPRESSION,
+      inProcessCmmsComponents.typeRegistry,
+    )
+  }
+
   companion object {
     // Epsilon can vary from 0.0001 to 1.0, delta = 1e-15 is a realistic value.
     // Set epsilon higher without exceeding privacy budget so the noise is smaller in the
@@ -216,6 +313,25 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
     private val OUTPUT_DP_PARAMS = differentialPrivacyParams {
       epsilon = 1.0
       delta = 1e-15
+    }
+
+    private const val MODEL_SUITE_DISPLAY_NAME = "ModelSuite1"
+
+    private val MODEL_LINE_ACTIVE_START_TIME = Instant.now().plusSeconds(2000L).toProtoTime()
+
+    private const val DEFAULT_POPULATION_FILTER_EXPRESSION =
+      "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+
+    private val ROLLOUT_PERIOD_START_DATE = date {
+      year = 2025
+      month = 1
+      day = 2
+    }
+
+    private val ROLLOUT_PERIOD_END_DATE = date {
+      year = 2025
+      month = 1
+      day = 3
     }
 
     @BeforeClass

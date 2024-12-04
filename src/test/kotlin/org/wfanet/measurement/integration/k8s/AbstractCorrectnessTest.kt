@@ -28,6 +28,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadSigningKey
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
+import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 
 /** Test for correctness of the CMMS on Kubernetes. */
 abstract class AbstractCorrectnessTest(private val measurementSystem: MeasurementSystem) {
@@ -36,6 +37,9 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
 
   private val testHarness: MeasurementConsumerSimulator
     get() = measurementSystem.testHarness
+
+  private val reportingTestHarness: ReportingUserSimulator
+    get() = measurementSystem.reportingTestHarness
 
   @Test(timeout = 1 * 60 * 1000)
   fun `impression measurement completes with expected result`() = runBlocking {
@@ -63,9 +67,15 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     )
   }
 
+  @Test(timeout = 1 * 60 * 1000)
+  fun `report can be created`() = runBlocking {
+    reportingTestHarness.testCreateReport("$runId-test-report")
+  }
+
   interface MeasurementSystem {
     val runId: String
     val testHarness: MeasurementConsumerSimulator
+    val reportingTestHarness: ReportingUserSimulator
   }
 
   companion object {
@@ -92,6 +102,14 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     val MEASUREMENT_CONSUMER_SIGNING_CERTS: SigningCerts by lazy {
       val secretFiles = getRuntimePath(SECRET_FILES_PATH)
       val trustedCerts = secretFiles.resolve("mc_trusted_certs.pem").toFile()
+      val cert = secretFiles.resolve("mc_tls.pem").toFile()
+      val key = secretFiles.resolve("mc_tls.key").toFile()
+      SigningCerts.fromPemFiles(cert, key, trustedCerts)
+    }
+
+    val REPORTING_SIGNING_CERTS: SigningCerts by lazy {
+      val secretFiles = getRuntimePath(SECRET_FILES_PATH)
+      val trustedCerts = secretFiles.resolve("reporting_root.pem").toFile()
       val cert = secretFiles.resolve("mc_tls.pem").toFile()
       val key = secretFiles.resolve("mc_tls.key").toFile()
       SigningCerts.fromPemFiles(cert, key, trustedCerts)

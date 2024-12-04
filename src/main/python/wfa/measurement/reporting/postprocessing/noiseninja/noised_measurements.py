@@ -14,65 +14,72 @@
 
 from collections import defaultdict
 
+
 class Measurement:
-    """Represents a measurement with a mean value and a standard deviation"""
+  """Represents a measurement with a mean value and a standard deviation"""
+  value: float
+  sigma: float
+  name: str
 
-    value: float
-    sigma: float
-    metric_name: str
+  def __init__(self, value: float, sigma: float, name: str):
+    self.value = value
+    self.sigma = sigma
+    self.name = name
 
-    def __init__(self, value: float, sigma: float, metric_name: str):
-        self.value = value
-        self.sigma = sigma
-        self.metric_name = metric_name
-
-    def __repr__(self):
-        return 'Measurement({:.2f}, {:.2f}, {})\n'.format(self.value, self.sigma, self.metric_name)
+  def __repr__(self):
+    return 'Measurement({:.2f}, {:.2f}, {})\n'.format(self.value, self.sigma,
+                                                      self.name)
 
 
 class SetMeasurementsSpec:
-    """Stores information about the relationships between sets and their
-    measurements."""
+  """Stores information about relationships between sets and measurements.
 
-    __subsets_by_set: dict[int, list[int]]
-    # https://en.wikipedia.org/wiki/Cover_(topology)
-    __covers_by_set: dict[int, list[list[int]]]
-    __measurements_by_set: dict[int, list[Measurement]]
+    This class maintains data about subset relationships, cover relationships,
+    and measurements associated with sets. It provides methods to add and
+    retrieve this information.
 
-    def __init__(self):
-        self.__subsets_by_set = defaultdict(list[int])
-        self.__covers_by_set = defaultdict(list[list[int]])
-        self.__measurements_by_set = defaultdict(list[Measurement])
+    Attributes:
+        _subsets_by_set: A dictionary mapping a set ID to a list of its subset
+                         set IDs.
+        _covers_by_set: A dictionary mapping a set ID to a list of its covers,
+                        where each cover is a list of set IDs. See
+                        https://en.wikipedia.org/wiki/Cover_(topology).
+        _measurements_by_set: A dictionary mapping a set ID to a list of
+                              Measurement objects associated with that set.
+  """
 
-    def add_subset_relation(self, parent_set_id: int, child_set_id: int):
-        self.__subsets_by_set[parent_set_id].append(child_set_id)
+  def __init__(self):
+    self._subsets_by_set = defaultdict(list[int])
+    self._covers_by_set = defaultdict(list[list[int]])
+    self._measurements_by_set = defaultdict(list[Measurement])
 
-    def add_cover(self, parent: int, children: list[int]):
-        self.__covers_by_set[parent].append(children)
-        for child in children:
-            self.add_subset_relation(parent, child)
+  def add_subset_relation(self, parent_set_id: int, child_set_id: int):
+    self._subsets_by_set[parent_set_id].append(child_set_id)
 
-    def add_measurement(self, set_id: int, measurement: Measurement):
-        self.__measurements_by_set[set_id].append(measurement)
+  def add_cover(self, parent: int, children: list[int]):
+    self._covers_by_set[parent].append(children)
 
-    def all_sets(self) -> set[int]:
-        return set(i for i in self.__measurements_by_set.keys())
+  def add_measurement(self, set_id: int, measurement: Measurement):
+    self._measurements_by_set[set_id].append(measurement)
 
-    def get_covers_of_set(self, set_id: int):
-        return self.__covers_by_set[set_id]
+  def all_sets(self) -> set[int]:
+    return set(i for i in self._measurements_by_set.keys())
 
-    def get_subsets(self, parent_set_id):
-        return self.__subsets_by_set[parent_set_id]
+  def get_covers_of_set(self, set_id: int) -> list[list[int]]:
+    return self._covers_by_set[set_id]
 
-    def get_measurements(self, measured_set_id):
-        return self.__measurements_by_set.get(measured_set_id)
+  def get_subsets(self, parent_set_id: int) -> list[int]:
+    return self._subsets_by_set[parent_set_id]
 
-    def get_measurement_metric(self, measured_set_id):
-        measurement = self.__measurements_by_set.get(measured_set_id)
-        return measurement[0].metric_name
+  def get_measurements(self, measured_set_id: int) -> list[Measurement]:
+    return self._measurements_by_set.get(measured_set_id)
 
-    def __repr__(self):
-        return (('SetMeasurementsSpec('
-                 'subsets_by_set={},covers_by_set={},measurements_by_set={})')
-                .format(self.__subsets_by_set, self.__covers_by_set,
-                        self.__measurements_by_set))
+  def get_measurement_metric(self, measured_set_id: int) -> str:
+    measurement = self._measurements_by_set.get(measured_set_id)
+    return measurement[0].name
+
+  def __repr__(self):
+    return (('SetMeasurementsSpec('
+             'subsets_by_set={},covers_by_set={},measurements_by_set={})')
+            .format(self._subsets_by_set, self._covers_by_set,
+                    self._measurements_by_set))

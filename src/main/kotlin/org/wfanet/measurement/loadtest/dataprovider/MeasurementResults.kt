@@ -16,6 +16,11 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.protobuf.TypeRegistry
+import org.projectnessie.cel.Program
+import org.wfanet.measurement.populationdataprovider.PopulationInfo
+import org.wfanet.measurement.populationdataprovider.PopulationRequisitionFulfiller
+
 /** Utilities for computing Measurement results. */
 object MeasurementResults {
   data class ReachAndFrequency(val reach: Int, val relativeFrequencyDistribution: Map<Int, Double>)
@@ -55,5 +60,14 @@ object MeasurementResults {
     val eventsPerVid: Map<Long, Int> = sampledVids.groupingBy { it }.eachCount()
     // Cap each count at `maxFrequency`.
     return eventsPerVid.values.sumOf { count -> count.coerceAtMost(maxFrequency).toLong() }
+  }
+
+  /** Computes population using the "deterministic count" methodology. */
+  fun computePopulation(
+    populationInfo: PopulationInfo,
+    program: Program,
+    typeRegistry: TypeRegistry,
+  ): Long {
+    return PopulationRequisitionFulfiller.computePopulation(populationInfo, program, typeRegistry)
   }
 }
