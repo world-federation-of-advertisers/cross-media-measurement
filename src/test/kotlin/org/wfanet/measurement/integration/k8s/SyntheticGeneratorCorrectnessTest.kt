@@ -31,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
+import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
@@ -59,12 +60,25 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
 
     private lateinit var _testHarness: MeasurementConsumerSimulator
     private lateinit var _reportingTestHarness: ReportingUserSimulator
+    private lateinit var _populationKey: PopulationKey
+    private lateinit var _populationDataProviderName: String
+    private lateinit var _modelLineName: String
 
     override val testHarness: MeasurementConsumerSimulator
       get() = _testHarness
 
     override val reportingTestHarness: ReportingUserSimulator
       get() = _reportingTestHarness
+
+    override val populationKey: PopulationKey
+      get() = _populationKey
+
+    override val populationDataProviderName: String?
+      get() = _populationDataProviderName
+
+    override val modelLineName: String?
+      get() = _modelLineName
+
 
     private val channels = mutableListOf<ManagedChannel>()
 

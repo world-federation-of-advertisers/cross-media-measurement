@@ -18,6 +18,8 @@ kt_jvm_library(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:synthetic_generation_specs",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:population_spec_converter",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:simulator",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/reporting:simulator",
         "@wfa_common_jvm//imports/java/com/google/common/truth",

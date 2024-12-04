@@ -49,6 +49,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
+import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
@@ -119,6 +120,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     val population: String,
     val populationDataProvider: String,
     val populationDataProviderCert: String,
+    val modelLine: String,
     val dataProviders: Map<String, Resources.Resource>,
   ) {
     companion object {
@@ -132,6 +134,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         var population: String? = null
         var populationDataProvider: String? = null
         var populationDataProviderCert: String? = null
+        var modelLine: String? = null
         val dataProviders = mutableMapOf<String, Resources.Resource>()
 
         for (resource in resources) {
@@ -163,6 +166,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
               populationDataProvider = resource.name
               populationDataProviderCert = resource.populationDataProvider.certificate
             }
+            Resources.Resource.ResourceCase.MODEL_LINE -> {
+              modelLine = resource.name
+            }
             Resources.Resource.ResourceCase.RESOURCE_NOT_SET -> error("Unhandled type")
           }
         }
@@ -177,7 +183,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           dataProviders = dataProviders,
           population = requireNotNull(population),
           populationDataProvider = requireNotNull(populationDataProvider),
-          populationDataProviderCert = requireNotNull(populationDataProviderCert)
+          populationDataProviderCert = requireNotNull(populationDataProviderCert),
+          modelLine = requireNotNull(modelLine)
         )
       }
     }
@@ -197,12 +204,26 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     override val runId: String by runId
 
     private lateinit var _testHarness: MeasurementConsumerSimulator
+    private lateinit var _populationDataProviderName: String
+    private lateinit var _modelLineName: String
+
     override val testHarness: MeasurementConsumerSimulator
       get() = _testHarness
 
     private lateinit var _reportingTestHarness: ReportingUserSimulator
     override val reportingTestHarness: ReportingUserSimulator
       get() = _reportingTestHarness
+
+    private lateinit var _populationKey: PopulationKey
+    override val populationKey: PopulationKey
+      get() = _populationKey
+
+    override val populationDataProviderName: String?
+      get() = _populationDataProviderName
+
+    override val modelLineName: String?
+      get() = _modelLineName
+
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
@@ -372,6 +393,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
               .replace("{mc_api_key}", resourceInfo.apiKey)
               .replace("{mc_cert_name}", resourceInfo.measurementConsumerCert)
               .replace("{population_key}", resourceInfo.population)
+              .replace("pdp1_name", resourceInfo.populationDataProvider)
+              .replace("pdp1_cert_name", resourceInfo.populationDataProviderCert)
               .let {
                 var config = it
                 for ((displayName, resource) in resourceInfo.dataProviders) {
@@ -385,6 +408,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
           kubectlApply(configContent)
         }
+      _populationKey = PopulationKey.fromName(resourceInfo.population)!!
 
       waitUntilDeploymentsComplete(appliedObjects)
     }
@@ -549,7 +573,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private const val NUM_DATA_PROVIDERS = 6
     private val EDP_DISPLAY_NAMES: List<String> = (1..NUM_DATA_PROVIDERS).map { "edp$it" }
     private val READY_TIMEOUT = Duration.ofMinutes(2L)
-    private val PDP_DISPLAY_NAME = "pdp1"
+    private const val PDP_DISPLAY_NAME = "pdp1"
 
     private val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")
     private val LOCAL_K8S_TESTING_PATH = LOCAL_K8S_PATH.resolve("testing")

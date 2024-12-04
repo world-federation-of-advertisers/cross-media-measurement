@@ -244,11 +244,23 @@ class ResourceSetup(
         population = ResourcesKt.ResourceKt.population { this.populationId = populationId}
       }
     )
+    logger.info("Successfully created internal population: $populationResourceName")
+
     val internalModelProvider = createInternalModelProvider()
     val internalModelSuite = createInternalModelSuite(internalModelProvider)
     val internalModelLine = createInternalModelLine(internalModelSuite)
+    val modelLineId = externalIdToApiId(internalModelLine.externalModelLineId)
+    val modelLineResourceName = PopulationKey(modelLineId, populationId).toName()
+
     val internalModelRelease = createInternalModelRelease(internalModelSuite, internalPopulation)
     createInternalModelRollout(internalModelLine, internalModelRelease)
+
+    resources.add(
+      resource {
+        name = modelLineResourceName
+        modelLine = ResourcesKt.ResourceKt.modelLine { this.modelLineId = modelLineId }
+      }
+    )
 
     withContext(Dispatchers.IO) { writeOutput(resources) }
     logger.info("Resource setup was successful.")
@@ -360,6 +372,10 @@ class ResourceSetup(
           Resources.Resource.ResourceCase.POPULATION_DATA_PROVIDER -> {
             val displayName = resource.populationDataProvider.displayName
             writer.appendLine("build:$configName --define=${displayName}_cert_name=${resource.name}")
+          }
+          Resources.Resource.ResourceCase.MODEL_LINE -> {
+            val modelLineId = resource.modelLine.modelLineId
+            writer.appendLine("build:$configName --define=${modelLineId}_cert_name=${resource.name}")
           }
           Resources.Resource.ResourceCase.RESOURCE_NOT_SET -> error("Bad resource case")
         }
