@@ -29,6 +29,9 @@ option java_outer_classname = "PrincipalsServiceProto";
 // Service for interacting with `Principal` resources.
 service Principals {
   // Retrieves a `Principal` by resource name.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_NOT_FOUND`
   rpc GetPrincipal(GetPrincipalRequest) returns (Principal) {
     option (google.api.method_signature) = "name";
   }
