@@ -21,6 +21,7 @@ import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
 import "google/type/date.proto";
 import "google/type/datetime.proto";
+import "google/type/dayofweek.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/reporting/v2alpha/media_type.proto";
 
@@ -32,10 +33,8 @@ option java_outer_classname = "BasicReportProto";
 // TODO(@kungfucraig): Add annotations once the shape of the proto is agreed
 // upon.
 // TODO(@kungfucraig): Delete unsupported options.
-// NOTE: This is a rough draft of the proto we believe will support both
-// Phase I and Phase II. This will also be supported in Phase III and beyond,
-// but will be generalized. In particular Reporting Sets will play a much more
-// central role in the definition.
+// TODO(@kungfucraig): Remove the fields not required for Phase I.
+// TODO(@kungfucraig): Add n-way EDP combinations
 message BasicReport {
   option (google.api.resource) = {
     type: "reporting.halo-cmm.org/BasicReport"
@@ -51,15 +50,12 @@ message BasicReport {
   // This is the name of a Reporting Set that includes all of the Event Groups
   // that are to be reported on.
   //
-  // This Reporting Set may include Event Groups that span Data Providers and
-  // Media Types. Subsets of these can be reported on and are specified as
-  // part of the PageSpec.
-  //
-  // NOTE: In the long-run this is optional and reporting sets could be
-  // specified directly in the PageSpec.
+  // A primitive Reporting Set that contains the set of Event Groups that can
+  // be reported on. Event Groups may span Data Providers and Media Types.
+  // Subsets of these can be reported on and are determined by PageSpec.
   string campaign_group = 3;
 
-  // The interval over which Metrics are generated. This interval is
+  // The time interval over which Metrics are generated. This interval is
   // closed on both sides.
   message ReportingInterval {
     // The date and time of the start of the report. The year,
@@ -75,7 +71,9 @@ message BasicReport {
     ];
 
     // The end date of the report. The time is considered to be the same as
-    // that specified in the report start. This side of the interval is closed.
+    // that specified in the report start. This side of the interval is closed
+    // with respect to the date, but open with respect to the time specified by
+    // report_start.
     google.type.Date report_end = 2 [
       (google.api.field_behavior) = REQUIRED,
       (google.api.field_behavior) = IMMUTABLE
@@ -106,20 +104,24 @@ message BasicReport {
     Percent completion = 2;
   }
 
-  // Used to filter impressions by viewability and percent completion.
-  // If particular filter values are not applicable to the media they
-  // are applied to it is an error (e.g. display cannot
-  // be filtered by percent completion)
+  // Specification of a impression filter by viewability and percent completion
+  // for a specified MediaType.
+  //
+  // If particular filter values or names are not applicable to the media they
+  // are applied to it is an error (e.g. display cannot be filtered by
+  // percent completion)
   message ImpressionQualificationFilter {
     // The MediaType this filter applies to.
     MediaType media_type = 1;
+
     // Request that impressions be filtered by a configured
     // filter type (e.g. AMI, MRC)
+    //
     // The valid values and their configurations are specified as
-    // part of the local market measurement policy.
+    // part of the local market Measurement Policy.
     repeated string filter_names = 2;
 
-    // A user defined filter.
+    // Custom filter specification.
     CustomImpressionQualificationFilter custom = 3;
   }
 
@@ -129,18 +131,19 @@ message BasicReport {
   // any PageSpec.
   repeated ImpressionQualificationFilter impression_qualification_filters = 5;
 
-  // Specifies how to Group output metrics.
+  // Specifies the dimensions to Group output metrics on.
   message Grouping {
     // The name of a report template field to group by.
+    //
     // Only those event template fields that are tagged as groupable
     // and in the common template are supported.
-    // Moreover, they must be enums (e.g. age bucket).
     repeated string dimension_name = 1;
   }
 
-  // The set of additional filters to be applied to the page of results.
+  // The set of filters to be applied to a page of results.
+  //
   // Only those event templates that are specified in the "common" event
-  // template may be provided as filters. (e.g. age bucket)
+  // template may be provided as filters.
   message Filter {
     message Term {
       // The name of event template (aka dimension) to filter on
@@ -158,19 +161,30 @@ message BasicReport {
 
   enum ReportingUnitType {
     // Default value. Unused.
-    ANCHORING_TYPE_UNSPECIFIED = 0;
-    // The artifact used by the achoring is a Data Provider name
+    REPORTING_TYPE_UNSPECIFIED = 0;
+    // The artifact used by the reporting unit is a Data Provider name
     DATA_PROVIDER = 1;
-    // The artifact used by the achoring is a Reporting Set
+    // The artifact used by the reporting unit is a Reporting Set
     // (not yet supported)
     // REPORTING_SET = 2;
+  }
+
+  // Specifies the units to report on.
+  //
+  // These may be any unit that is allowed by the ReportingUnitType.
+  message ReportingUnitSpec {
+    // The reporting unit type.
+    ReportingUnitType reporting_unit_type = 1;
+    // A list of resource names that correspond to the reporting unit type.
+    repeated string reporting_units = 2;
   }
 
   // Specify an anchoring order for incremental reach reports.
   // For example if the order is "rs1, rs2, rs3" then the following
   // are reported:
   // 1. The reach of rs1
-  // 2. The reach of (rs1+rs2) - rs1 (i.e. the unique contribution of rs2)
+  // 2. The reach of (rs1+rs2) - rs1 (i.e. the unique contribution of rs2 with
+  //    respect to rs2)
   // 3. The reach of (rs1+rs2+rs3) - (rs1+rs2) (i.e. the unique contribution
   //    of rs3 with respect to rs1 and rs2.
   message AnchoredReachSpec {
@@ -180,46 +194,35 @@ message BasicReport {
     repeated string anchoring = 2;
   }
 
-  // Specify the units to report on. These may be any unit
-  // that is allowed by the ReportingUnitType.
-  message ReportingUnitSpec {
-    // The reporting unit type.
-    ReportingUnitType reporting_unit_type = 1;
-    // A list of resource names that correspond to the reporting unit type.
-    repeated string reporting_units = 2;
-  }
-
   // Specifies the Frequency, Groupings, and Filters for calculating
   // a set of Metrics
-  // NOTE: Instead of reuse at this level we could consider reusable definitions
-  // for each of Frequency+cumulative, grouping, and filters.
   message CalculationSpec {
     // The frequency at which metrics are reported.
-    enum Frequency {
-      FREQUENCY_UNSPECIFIED = 0;
-      // Report metrics daily from the report start time to the report end time
-      // (not yet supported)
-      // DAILY = 1;
-      // Report metrics weekly from the report start time to the report end time
-      // The day of the week metrics are reported for is the same as that of
+    message FrequencySpec {
+      // Specifies that metrics should be calculated on a weekly basis with
+      // respect to the given day of the week.
       //
-      // NB: Is this adequate? I don't think so... Discuss.
-      //
-      // the report start time. If the end date is not the same day of the week
-      // a partial week will be reported and the last value will conincide with
-      // the last day of the report.
-      WEEKLY = 2;
+      // If the day of the week is not the same as the start or end day of the
+      // report partial weeks will reported for the first and/or last value
+      // in the result set.
+      message Weekly {
+        google.type.DayOfWeek day_of_week = 1;
+      }
+      // Report metrics daily
+      bool daily = 1;
+      // Report metrics weekly
+      Weekly weekly = 2;
       // Report metrics across the entire span from report start to report end.
-      TOTAL = 3;
+      bool total = 3;
     }
-    // The frequency for this page of results.
-    Frequency frequency = 1;
+    // The reporting frequency for this page of results.
+    FrequencySpec frequency = 1;
 
     // Options for computing metrics across time.
     message LongitudinalOptions {
-      // Produce non-cumulative metrics at the frequency specified
+      // Produce non-cumulative metrics at the frequencies specified
       bool non_cumulative = 1;
-      // Produce cumulative metrics at the frequency specified.
+      // Produce cumulative metrics at the frequencies specified.
       bool cumulative = 2;
       // Produce the unique count of the metric for the frequency specified.
       //
@@ -233,6 +236,7 @@ message BasicReport {
     }
     LongitudinalOptions longitudinal_options = 2;
 
+    // Metric grouping
     Grouping grouping = 4;
 
     // A conjunction of filters
@@ -247,50 +251,53 @@ message BasicReport {
     // The title of the page
     string title = 1;
 
-    // Specifies the calculation spec to be used by this Page
-    // Spec.
-    string calculation_spec_key = 2;
+    // The Calculation Spec to be used by this Page Spec.
+    //
+    // The value in this field must match a key in the
+    // calculation_spec_map
+    string calculation_spec = 2;
 
     // If specified the total population for the specified groupings and
     // filters that are associated with calculation spec is reported.
     bool population_size = 3;
 
     // The set of Metrics to be computed
+    //
+    // One set of metrics is produced per MediaType and for each Media Type
+    // for each ImpressionQualificationFilter specified for that MediaType.
     message MetricSpec {
       // The unit(s) to report on. These define a subset of the
       // campaign group.
       ReportingUnitSpec reporting_unit_spec = 1;
 
-      // When specified filters the reporting unit spec to the subset
-      // of items that correspond to the given media types.
-      //
-      // One set of metrics is produced per MediaType. On top of this, for each
-      // MediaType, a set of Metrics is produced per ImpressionQualitifcation
-      // specified for that MediaType.
+      // For each value specified creates a set of metrics for
+      // the given Media Type. If no units of the given Media Type
+      // exist in the ReportingUnitSpec then an error is reported.
       repeated MediaType media_types = 2;
 
       // The types of available metrics.
       message MetricType {
-        // This is the union reach of all reporting sets.
+        // This is the union reach of all reporting units.
         bool reach = 1;
 
-        // This is the union percent reach of all reporting sets.
+        // This is the union percent reach of all reporting units.
         bool percent_reach = 2;
 
-        // This is the union k plus reach for all reporting sets up
-        // to the frequency specified.
+        // This is the union k plus reach for all reporting units up
+        // to the frequency specified. Value must be positive.
         int32 k_plus_reach = 3;
 
         // If specified percent k plus reach is computed. This
         // option requires that a positive value be given for k_plus_reach.
         bool percent_k_plus_reach = 4;
 
-        // If set, this will cause the unique reach of each reporting set
-        // in the reporting_set_entry_names to be computed with respect to
-        // all other reporting sets. It is an error to specify this if only
-        // a single reporting set is specified.
-        // For example if reporting_sets=[RS1, RS2, RS3] the unique reach
-        // of RS1, RS2, and RS3 are computed.
+        // If set, this will cause the unique reach of each reporting unit
+        // in the reporting_unit_spec to be computed with respect to
+        // all other reporting units.
+        //
+        // It is an error to specify this if only a single reporting unit is
+        // specified. For example if reporting_sets=[RS1, RS2, RS3] the unique
+        // reach of RS1, RS2, and RS3 are computed.
         bool unique_reach = 5;
 
         // If specified the average frequency is reported.
@@ -306,27 +313,22 @@ message BasicReport {
     }
 
     // Specifies the anchored reach calculations to perform.
-    // See the very long comment on MetricSpec about how filters
-    // and reporting sets interact. That also applies here.
     message AnchoredReachSpecs {
       repeated AnchoredReachSpec specs = 1;
     }
 
-    // TODO(@kungfucraig): Add 2-two EDP combinations
-
     // How to compute this page of results.
     oneof selector {
-      // The specification of the Metrics to be computed.
       MetricSpec metric_spec = 7;
       AnchoredReachSpecs anchored_reach_specs = 8;
     }
   }
 
-  // The definitions set of pages create create.
+  // The definitions set of pages to create.
   repeated PageSpec page_specs = 7;
 
   // A page of results. This should be interpretable without any knowledge of
-  // the report definition
+  // the page definitions
   message Page {
     // The title of the page.
     string title = 1;
@@ -339,21 +341,27 @@ message BasicReport {
       // A summary of the reporting unit that includes its
       // resource name and display name.
       message ReportingUnitSummary {
-        ReportingUnitType reporting_unit_type = 1;
         string name = 2;
         string display_name = 3;
       }
-      // The reporting units for which the result was computed.
-      repeated ReportingUnitSummary reporting_units = 2;
 
-      // The media type associated with the Reporting Sets (e.g. video,
+      // A summary of the reporting units associated with this page.
+      message ReportingUnitSummaries {
+        ReportingUnitType reporting_unit_type = 1;
+        repeated ReportingUnitSummary reporting_unit_summary = 2;
+      }
+
+      // The reporting units for which the result was computed.
+      ReportingUnitSummaries reporting_units = 2;
+
+      // The media type associated with the Reporting Units (e.g. video,
       // cross-media)
       MediaType media_type = 3;
 
       // The qualification filter used when computing the result.
       oneof qualification_filter {
-        string qualification_filter_name = 6;
-        CustomImpressionQualificationFilter custom_qualification_filter = 7;
+        string name = 6;
+        CustomImpressionQualificationFilter custom = 7;
       }
 
       // Specifies a dimension and value grouped by.
@@ -389,12 +397,12 @@ message BasicReport {
       message AnchoredReachResult {
         // The specification of the anchored reach used for this calculation
         AnchoredReachSpec spec = 1;
-        // This is in the same order as the reporting setsin the spec.
+        // This is in the same order as the reporting sets in the spec.
         repeated int64 reach = 2;
       }
       // The result when the anchored reach selector is specified.
       message AnchoredReachResults {
-        // These are order the same as in the page definition.
+        // These are ordered the same as in the page definition.
         repeated AnchoredReachResults results = 1;
       }
 
