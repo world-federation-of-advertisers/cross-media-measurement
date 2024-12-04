@@ -32,6 +32,8 @@ data class SetOperationSummary(
   val setOperation: String,
 )
 
+// TODO(@ple13): Declare protobuf messages for reporting set and metric calculation spec and parse
+// them as JSON objects.
 object ReportConversion {
   fun getReportFromJsonString(reportAsJsonString: String): Report {
     val protoBuilder = Report.newBuilder()
@@ -78,6 +80,7 @@ object ReportConversion {
       ?: error("There must be at least one target.")
   }
 
+  // TODO(@ple13): Move this function to a separate Origin-specific package.
   fun getUniqueReachTarget(tag: String): String {
     val parts = tag.split(", ")
     val uniqueReachTargetPart = parts.find { it.startsWith("unique_Reach_Target=") }
@@ -85,6 +88,7 @@ object ReportConversion {
   }
 }
 
+// TODO(@ple13): Move this function to a separate Origin-specific package.
 fun Report.toReportSummaries(): List<ReportSummary> {
   require(state == Report.State.SUCCEEDED) { "Unsucceeded report is not supported." }
 
