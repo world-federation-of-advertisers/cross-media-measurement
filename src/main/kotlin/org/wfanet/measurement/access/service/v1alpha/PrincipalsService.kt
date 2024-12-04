@@ -19,15 +19,18 @@ package org.wfanet.measurement.access.service.v1alpha
 import io.grpc.Status
 import io.grpc.StatusException
 import org.wfanet.measurement.access.service.InvalidFieldValueException
+import org.wfanet.measurement.access.service.PrincipalAlreadyExistsException
 import org.wfanet.measurement.access.service.PrincipalKey
 import org.wfanet.measurement.access.service.PrincipalNotFoundException
 import org.wfanet.measurement.access.service.RequiredFieldNotSetException
 import org.wfanet.measurement.access.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.access.v1alpha.CreatePrincipalRequest
 import org.wfanet.measurement.access.v1alpha.GetPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.Principal
 import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
 import org.wfanet.measurement.internal.access.Principal as InternalPrincipal
 import org.wfanet.measurement.internal.access.PrincipalsGrpcKt.PrincipalsCoroutineStub as InternalPrincipalsCoroutineStub
+import org.wfanet.measurement.internal.access.createUserPrincipalRequest as internalCreateUserPrincipalRequest
 import org.wfanet.measurement.internal.access.getPrincipalRequest as internalGetPrincipalRequest
 
 class PrincipalsService(private val internalPrincipalsStub: InternalPrincipalsCoroutineStub) :
@@ -55,6 +58,53 @@ class PrincipalsService(private val internalPrincipalsStub: InternalPrincipalsCo
           InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER,
           InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT,
           InternalErrors.Reason.PRINCIPAL_ALREADY_EXISTS,
+          InternalErrors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED,
+          InternalErrors.Reason.PERMISSION_NOT_FOUND,
+          InternalErrors.Reason.PERMISSION_NOT_FOUND_FOR_ROLE,
+          InternalErrors.Reason.ROLE_NOT_FOUND,
+          InternalErrors.Reason.ROLE_ALREADY_EXISTS,
+          InternalErrors.Reason.POLICY_NOT_FOUND,
+          InternalErrors.Reason.POLICY_NOT_FOUND_FOR_PROTECTED_RESOURCE,
+          InternalErrors.Reason.POLICY_ALREADY_EXISTS,
+          InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_ALREADY_EXISTS,
+          InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_NOT_FOUND,
+          InternalErrors.Reason.RESOURCE_TYPE_NOT_FOUND_IN_PERMISSION,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.ETAG_MISMATCH,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return internalResponse.toPrincipal()
+  }
+
+  override suspend fun createPrincipal(request: CreatePrincipalRequest): Principal {
+    if (!request.principal.user.isInitialized) {
+      throw RequiredFieldNotSetException("principal.user")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.principalId.isEmpty()) {
+      throw RequiredFieldNotSetException("principalId")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val internalResponse: InternalPrincipal =
+      try {
+        internalPrincipalsStub.createUserPrincipal(
+          internalCreateUserPrincipalRequest {
+            principalResourceId = request.principalId
+            user = request.principal.user.toOAuthUser()
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.PRINCIPAL_ALREADY_EXISTS ->
+            PrincipalAlreadyExistsException(e).asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          InternalErrors.Reason.PRINCIPAL_NOT_FOUND,
+          InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER,
+          InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT,
           InternalErrors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED,
           InternalErrors.Reason.PERMISSION_NOT_FOUND,
           InternalErrors.Reason.PERMISSION_NOT_FOUND_FOR_ROLE,
