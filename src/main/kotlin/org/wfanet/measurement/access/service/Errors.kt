@@ -45,7 +45,7 @@ object Errors {
     RESOURCE_TYPE_NOT_FOUND_IN_PERMISSION,
     REQUIRED_FIELD_NOT_SET,
     INVALID_FIELD_VALUE,
-    ETAG_MISMATCH
+    ETAG_MISMATCH,
   }
 
   enum class Metadata(val key: String) {
@@ -61,7 +61,7 @@ object Errors {
     ISSUER("issuer"),
     SUBJECT("subject"),
     REQUEST_ETAG("requestEtag"),
-    ETAG("etag")
+    ETAG("etag"),
   }
 }
 
@@ -150,6 +150,14 @@ class PrincipalNotFoundException(name: String, cause: Throwable? = null) :
     Errors.Reason.PRINCIPAL_NOT_FOUND,
     "Principal $name not found",
     mapOf(Errors.Metadata.PRINCIPAL to name),
+    cause,
+  )
+
+class PrincipalAlreadyExistsException(cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.PRINCIPAL_ALREADY_EXISTS,
+    "Principal already exists",
+    emptyMap(),
     cause,
   )
 
