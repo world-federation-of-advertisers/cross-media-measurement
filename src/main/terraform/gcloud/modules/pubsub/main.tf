@@ -27,29 +27,3 @@ resource "google_pubsub_subscription" "subscription" {
   retain_acked_messages      = var.retain_acked_messages
   message_retention_duration = var.message_retention_duration
 }
-
-resource "google_monitoring_alert_policy" "pubsub_alert" {
-  display_name = "Pub/Sub Message Alert"
-  combiner     = "OR"
-
-  conditions {
-    display_name = "High Number of Undelivered Messages"
-    condition_threshold {
-      filter          = "resource.type=\"pubsub_subscription\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\" AND resource.label.subscription_id=\"${google_pubsub_subscription.subscription.name}\""
-      comparison      = "COMPARISON_GT"
-      threshold_value = var.undelivered_messages_threshold
-      duration        = "60s"
-
-      aggregations {
-        alignment_period     = "60s"
-        per_series_aligner   = "ALIGN_MAX"
-        cross_series_reducer = "REDUCE_NONE"
-      }
-    }
-  }
-
-  documentation {
-    content  = "Alert when the number of undelivered messages exceeds the threshold."
-    mime_type = "text/markdown"
-  }
-}
