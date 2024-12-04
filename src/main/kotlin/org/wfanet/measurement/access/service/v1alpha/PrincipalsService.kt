@@ -80,7 +80,7 @@ class PrincipalsService(private val internalPrincipalsStub: InternalPrincipalsCo
   }
 
   override suspend fun createPrincipal(request: CreatePrincipalRequest): Principal {
-    if (!request.principal.user.isInitialized) {
+    if (!request.principal.hasUser()) {
       throw RequiredFieldNotSetException("principal.user")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
