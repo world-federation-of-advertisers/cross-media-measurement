@@ -22,6 +22,7 @@ import org.wfanet.measurement.access.service.InvalidFieldValueException
 import org.wfanet.measurement.access.service.PrincipalAlreadyExistsException
 import org.wfanet.measurement.access.service.PrincipalKey
 import org.wfanet.measurement.access.service.PrincipalNotFoundException
+import org.wfanet.measurement.access.service.PrincipalTypeNotSupportedException
 import org.wfanet.measurement.access.service.RequiredFieldNotSetException
 import org.wfanet.measurement.access.service.internal.Errors as InternalErrors
 import org.wfanet.measurement.access.v1alpha.CreatePrincipalRequest
@@ -80,13 +81,28 @@ class PrincipalsService(private val internalPrincipalsStub: InternalPrincipalsCo
   }
 
   override suspend fun createPrincipal(request: CreatePrincipalRequest): Principal {
-    if (!request.principal.hasUser()) {
-      throw RequiredFieldNotSetException("principal.user")
+    when (request.principal.identityCase) {
+      Principal.IdentityCase.USER -> {}
+      Principal.IdentityCase.TLS_CLIENT ->
+        throw PrincipalTypeNotSupportedException()
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      else ->
+        throw InvalidFieldValueException("principal.user")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.principal.user.issuer.isEmpty()) {
+      throw RequiredFieldNotSetException("principal.user.issuer")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.principal.user.subject.isEmpty()) {
+      throw RequiredFieldNotSetException("principal.user.subject")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     if (request.principalId.isEmpty()) {
-      throw RequiredFieldNotSetException("principalId")
+      throw RequiredFieldNotSetException("principal_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
@@ -95,7 +111,7 @@ class PrincipalsService(private val internalPrincipalsStub: InternalPrincipalsCo
         internalPrincipalsStub.createUserPrincipal(
           internalCreateUserPrincipalRequest {
             principalResourceId = request.principalId
-            user = request.principal.user.toOAuthUser()
+            user = request.principal.user.toInternal()
           }
         )
       } catch (e: StatusException) {
