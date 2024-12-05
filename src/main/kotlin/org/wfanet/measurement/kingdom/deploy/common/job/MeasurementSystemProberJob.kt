@@ -18,6 +18,7 @@ package org.wfanet.measurement.kingdom.deploy.common.job
 
 import java.io.File
 import java.time.Duration
+import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
@@ -27,10 +28,8 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.kingdom.batch.MeasurementSystemProber
-import org.wfanet.measurement.kingdom.deploy.common.server.KingdomApiServerFlags
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
@@ -64,8 +63,32 @@ private class MeasurementSystemProberFlags {
   lateinit var tlsFlags: TlsFlags
     private set
 
-  @Mixin
-  lateinit var kingdomApiServerFlags: KingdomApiServerFlags
+  @Option(
+    names = ["--kingdom-public-api-target"],
+    description = ["gRPC target (authority) of the Kingdom public API server"],
+    required = true,
+  )
+  lateinit var target: String
+    private set
+
+  @Option(
+    names = ["--kingdom-public-api-cert-host"],
+    description =
+      [
+        "Expected hostname (DNS-ID) in the Kingdom public API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --kingdom-public-api-target.",
+      ],
+    required = false,
+  )
+  var certHost: String? = null
+    private set
+
+  @set:Option(
+    names = ["--debug-verbose-grpc-client-logging"],
+    description = ["Enables full gRPC request and response logging for outgoing gRPCs"],
+    defaultValue = "false",
+  )
+  var debugVerboseGrpcClientLogging by Delegates.notNull<Boolean>()
     private set
 
   @Option(
@@ -75,17 +98,6 @@ private class MeasurementSystemProberFlags {
     arity = "1..*",
   )
   lateinit var dataProvider: List<String>
-    private set
-
-  @Option(
-    names = ["--simulator-event-group-name"],
-    description =
-      [
-        "QA event group name to use for requisitions and measurements. This identifies that a prober is being launched in a QA environment"
-      ],
-    required = false,
-  )
-  lateinit var simulatorEventGroupName: String
     private set
 
   @Option(
@@ -127,13 +139,8 @@ private fun run(@Mixin flags: MeasurementSystemProberFlags) {
     )
 
   val channel =
-    buildMutualTlsChannel(
-        flags.kingdomApiServerFlags.internalApiFlags.target,
-        clientCerts,
-        flags.kingdomApiServerFlags.internalApiFlags.certHost,
-      )
-      .withVerboseLogging(flags.kingdomApiServerFlags.debugVerboseGrpcClientLogging)
-      .withDefaultDeadline(flags.kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
+    buildMutualTlsChannel(flags.target, clientCerts, flags.certHost)
+      .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
 
   val measurementsService =
     org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub(channel)

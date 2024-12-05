@@ -95,6 +95,7 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.LoadingCache
+import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.Hashing
@@ -1717,7 +1718,7 @@ class MetricsService(
   }
 
   companion object {
-    private val RESOURCE_ID_REGEX = Regex("^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$")
+    private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

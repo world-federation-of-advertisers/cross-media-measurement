@@ -22,6 +22,7 @@ import io.grpc.StatusException
 import kotlin.random.Random
 import org.projectnessie.cel.Env
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -287,7 +288,7 @@ class MetricCalculationSpecsService(
   }
 
   companion object {
-    private val RESOURCE_ID_REGEX = Regex("^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$")
+    private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
     private const val MIN_PAGE_SIZE = 1
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 1000
