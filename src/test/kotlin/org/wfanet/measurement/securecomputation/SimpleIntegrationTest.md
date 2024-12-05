@@ -6,8 +6,39 @@
 * Wrap the class in @RunWith(JUnit4::class)
 * Package org.wfanet.measurement.securecomputation
   Set up a test rule for the GooglePubSubEmulatorProvider
-  @Rule 
+  @Rule
   @JvmField val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
+
+  private lateinit var workItemsService: GooglePubSubWorkItemsService
+  private lateinit var googlePubSubClient: GooglePubSubEmulatorClient
+
+  private val projectId = "test-project-id"
+  private val topicId = "test-topid-id"
+  private val workItemId = "test-work-item-1"
+  private val subscriptionId = "test-subscription-id"
+
+  @Before
+  fun setup() {
+    googlePubSubClient = GooglePubSubEmulatorClient(
+      host = pubSubEmulatorProvider.host,
+      port = pubSubEmulatorProvider.port,
+    )
+    workItemsService = GooglePubSubWorkItemsService(projectId, googlePubSubClient)
+    runBlocking {
+      if (googlePubSubClient.topicExists(projectId, topicId)) {
+        googlePubSubClient.deleteTopic(projectId, topicId)
+      }
+    }
+  }
+
+  @After
+  fun clear() {
+    runBlocking {
+      if (googlePubSubClient.topicExists(projectId, topicId)) {
+        googlePubSubClient.deleteTopic(projectId, topicId)
+      }
+    }
+  }
 * Here are some imports you will need:
 * org.mockito.kotlin.mock
 * org.wfanet.virtualpeople.common.labelerInput
@@ -33,6 +64,8 @@
 * org.junit.runner.RunWith 
 * org.junit.runners.JUnit4
 * org.junit.Rule
+* kotlinx.coroutines.launch
+* kotlinx.coroutines.cancelAndJoin
 
 # CONSTRUCTORS
 
@@ -58,7 +91,7 @@ d. create a storageClient of type InMemoryStorageClient
    b. set the output events path to the temp folder location
    c. set the vid model location to the temp folder location 
    Pack the CmmWork into an Any and set that as the appConfig
-   Set the queue_name as well
+   Set the queue_name as well to the topicId
    Set the regex to match the input events path
 4. Construct a DataWatcher using that config - See DataWatcher.kt
    val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
@@ -80,8 +113,9 @@ b. https://raw.githubusercontent.com/world-federation-of-advertisers/virtual-peo
 10. Create a VidLabelerApp that uses that same pubSubClient - See VidLaberlApp.kt
     Example: https://raw.githubusercontent.com/world-federation-of-advertisers/cross-media-measurement/marcopremier/tee-sdk-base-class/src/test/kotlin/org/wfanet/measurement/securecomputation/teesdk/BaseTeeApplicationTest.kt
     val queueSubscriber = Subscriber(projectId = projectId, googlePubSubClient = emulatorClient)
-    val vidLabelerApp = VidLabelerApp(mesosStorageClient, "test-queue", queueSubscriber, DiscoveredWork.parser())
-    vidLabelerApp.run()
-11. Create a loop to wait up to 30 seconds for the LabelerOutput to be written to the output events folder
+    val vidLabelerApp = VidLabelerApp(mesosStorageClient, subscriptionId, queueSubscriber, DiscoveredWork.parser())
+    val job = launch { vidLabelerApp.run() }
+11. Create a loop to wait up to 30 seconds delaying 100ms each time you check for the LabelerOutput to be written to the output events folder
 12. Parse the output events of LabelerOutput
+13. cancel the job - job.cancelAndJoin()
 

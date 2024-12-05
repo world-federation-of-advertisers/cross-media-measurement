@@ -44,6 +44,8 @@ import org.junit.runners.JUnit4
 import org.junit.Rule
 import org.junit.After
 import org.junit.Before
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancelAndJoin
 
 @RunWith(JUnit4::class)
 class SimpleIntegrationTest() {
@@ -85,6 +87,8 @@ class SimpleIntegrationTest() {
     @Test
     fun vidLabel() {
       runBlocking {
+        googlePubSubClient.createTopic(projectId, topicId)
+        googlePubSubClient.createSubscription(projectId, subscriptionId, topicId)
         println("Starting")
         val inputEventsPath = "gs://bucket/input-events"
         val outputEventsPath = "gs://bucket/output-events"
@@ -98,9 +102,9 @@ class SimpleIntegrationTest() {
         storageClient.writeBlob(vidModelPath, flowOf(vidModelData))
 
         val dataWatcherConfig = DataWatcherConfig.newBuilder()
-          .setSourcePathRegex("gs://bucket/.*")
+          .setSourcePathRegex("gs://bucket/input.*")
           .setQueue(DataWatcherConfig.QueueConfig.newBuilder()
-            .setQueueName("test-queue")
+            .setQueueName(topicId)
             .setAppConfig(Any.pack(CmmWork.newBuilder().setVidLabelingWork(CmmWork.VidLabelingWork.newBuilder()
               .setInputBasePath(inputEventsPath)
               .setOutputBasePath(outputEventsPath)
@@ -121,21 +125,28 @@ class SimpleIntegrationTest() {
         }
         storageClient.writeBlob(inputEventsPath, flowOf(labelerInputData))
 
-        val queueSubscriber = Subscriber("test-project-id", googlePubSubClient)
-        val vidLabelerApp = VidLabelerApp(mesosRecordIoStorageClient, "test-queue", queueSubscriber, DiscoveredWork.parser())
-        vidLabelerApp.run()
+        val queueSubscriber = Subscriber(projectId, googlePubSubClient)
+        val vidLabelerApp = VidLabelerApp(mesosRecordIoStorageClient, subscriptionId, queueSubscriber, DiscoveredWork.parser())
+        println("Running VID")
+        val job = launch { vidLabelerApp.run() }
 
         val labelerOutputPath = "gs://bucket/output-events/labeler-output"
+        println("waiting")
         withTimeout(5000) {
           while (true) {
             val blob = mesosRecordIoStorageClient.getBlob(labelerOutputPath)
             if (blob != null) {
               val labelerOutputData = blob.read().toList()
               // Parse and validate labeler output
+              println("Found Data")
               break
+            } else {
+              println("Did not find data")
             }
+            delay(100)
           }
         }
+        job.cancelAndJoin()
 
     }
   }

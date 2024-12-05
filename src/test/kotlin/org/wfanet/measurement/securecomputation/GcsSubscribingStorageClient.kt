@@ -48,7 +48,7 @@ class GcsSubscribingStorageClient(private val storageClient: StorageClient) : St
   }
 
   override suspend fun getBlob(blobKey: String): StorageClient.Blob? {
-    return getBlob(blobKey)
+    return storageClient.getBlob(blobKey)
   }
 
   fun subscribe(function: CloudEventsFunction) {
