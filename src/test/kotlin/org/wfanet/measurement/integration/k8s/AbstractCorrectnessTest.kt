@@ -57,7 +57,7 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     get() = measurementSystem.modelLineName
 
   private val populationDataProviderName: String?
-    get() = measurementSystem.modelLineName
+    get() = measurementSystem.populationDataProviderName
 
   @Test(timeout = 1 * 60 * 1000)
   fun `impression measurement completes with expected result`() = runBlocking {

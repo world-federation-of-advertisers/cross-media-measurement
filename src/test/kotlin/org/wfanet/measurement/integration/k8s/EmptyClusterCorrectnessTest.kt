@@ -397,8 +397,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
               .replace("{mc_api_key}", resourceInfo.apiKey)
               .replace("{mc_cert_name}", resourceInfo.measurementConsumerCert)
               .replace("{population_key}", resourceInfo.population)
-              .replace("pdp1_name", resourceInfo.populationDataProvider)
-              .replace("pdp1_cert_name", resourceInfo.populationDataProviderCert)
+              .replace("{pdp1_name}", resourceInfo.populationDataProvider)
+              .replace("{pdp1_cert_name}", resourceInfo.populationDataProviderCert)
               .let {
                 var config = it
                 for ((displayName, resource) in resourceInfo.dataProviders) {
@@ -413,6 +413,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           kubectlApply(configContent)
         }
       _populationKey = PopulationKey.fromName(resourceInfo.population)!!
+      _modelLineName = resourceInfo.modelLine
+      _populationDataProviderName = resourceInfo.populationDataProvider
 
       waitUntilDeploymentsComplete(appliedObjects)
     }
