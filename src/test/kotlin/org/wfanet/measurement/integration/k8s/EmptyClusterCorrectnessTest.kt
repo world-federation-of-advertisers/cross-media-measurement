@@ -67,7 +67,11 @@ import org.wfanet.measurement.integration.common.createEntityContent
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
@@ -472,7 +476,11 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                   outputDir = outputDir,
                   requiredDuchies = listOf("aggregator", "worker1", "worker2"),
                   internalModelProvidersClient = ModelProvidersGrpcKt.ModelProvidersCoroutineStub(internalChannel),
-                  internalPopulationsClient = PopulationsGrpcKt.PopulationsCoroutineStub(internalChannel)
+                  internalPopulationsClient = PopulationsGrpcKt.PopulationsCoroutineStub(internalChannel),
+                  internalModelSuitesClient = ModelSuitesGrpcKt.ModelSuitesCoroutineStub(internalChannel),
+                  internalModelLinesClient = ModelLinesGrpcKt.ModelLinesCoroutineStub(internalChannel),
+                  internalModelReleasesClient = ModelReleasesGrpcKt.ModelReleasesCoroutineStub(internalChannel),
+                  internalModelRolloutsClient = ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(internalChannel),
                 )
               withContext(Dispatchers.IO) {
                 resourceSetup
