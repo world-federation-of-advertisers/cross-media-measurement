@@ -24,16 +24,32 @@ option java_multiple_files = true;
 option java_outer_classname = "PrincipalsServiceProto";
 
 service Principals {
+  // Gets a Principal by its resource ID.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_NOT_FOUND`
   rpc GetPrincipal(GetPrincipalRequest) returns (Principal);
 
+  // Creates a new user Principal.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_ALREADY_EXISTS`
   rpc CreateUserPrincipal(CreateUserPrincipalRequest) returns (Principal);
 
   // Deletes a `Principal`.
   //
   // TLS client principals may not be deleted by this method.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_NOT_FOUND`
+  // * `PRINCIPAL_TYPE_NOT_SUPPORTED`
   rpc DeletePrincipal(DeletePrincipalRequest) returns (google.protobuf.Empty);
 
   // Looks up a `Principal` by lookup key.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT`
+  // * `PRINCIPAL_NOT_FOUND_FOR_USER`
   rpc LookupPrincipal(LookupPrincipalRequest) returns (Principal);
 }
 
