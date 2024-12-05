@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
+import com.google.protobuf.Any
 import io.grpc.Status
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.gcloud.pubsub.Publisher
@@ -28,7 +29,7 @@ class GooglePubSubWorkItemsService(
   googlePubSubClient: GooglePubSubClient
 ) : WorkItemsCoroutineImplBase(), WorkItemsService {
 
-  private val publisher: Publisher = Publisher(projectId, googlePubSubClient)
+  private val publisher: Publisher<Message> = Publisher(projectId, googlePubSubClient)
 
   override suspend fun createWorkItem(
     request: CreateWorkItemRequest

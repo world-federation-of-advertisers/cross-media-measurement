@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.storage.testing
+package org.wfanet.measurement.securecomputation
 
 import com.google.cloud.functions.CloudEventsFunction
 import com.google.events.cloud.storage.v1.StorageObjectData

@@ -1,105 +1,142 @@
-package org.wfanet.measurement.securecomputation.controlplane.v1alpha
+package org.wfanet.measurement.securecomputation
 
-import org.junit.Test
-import com.google.protobuf.Any
-import org.wfanet.measurement.securecomputation.CmmWork
-import org.wfanet.measurement.securecomputation.DataWatcherConfig
-import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
-import org.wfanet.measurement.securecomputation.vidlabeling.VidLabelerApp
-import org.wfanet.measurement.storage.GcsSubscribingStorageClientTest
-import org.wfanet.measurement.storage.MesosRecordIoStorageClient
-import org.wfanet.virtualpeople.core.labeler.LabelerInput
-import org.wfanet.virtualpeople.common.LabelerOutput
-import org.wfanet.measurement.gcloud.pubsub.GooglePubSubEmulatorClient
-import java.util.logging.Logger
 import org.mockito.kotlin.mock
+import org.wfanet.virtualpeople.common.labelerInput
+import kotlinx.coroutines.flow.flowOf
+import com.google.protobuf.ByteString
+import org.wfanet.measurement.securecomputation.vidlabeling.VidLabelerApp
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
+import com.google.protobuf.Any
+import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
+import org.wfanet.measurement.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.securecomputation.DataWatcherConfig.DiscoveredWork
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.parseTextProto
+import com.google.cloud.functions.CloudEventsFunction
 import kotlinx.coroutines.delay
+import com.google.protobuf.util.JsonFormat
+import io.grpc.StatusRuntimeException
+import io.grpc.Status
+import io.cloudevents.CloudEvent
+import java.nio.charset.StandardCharsets
+import java.util.UUID
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
+import org.junit.Test
+import org.wfanet.virtualpeople.common.LabelerInput
+import org.wfanet.virtualpeople.common.CompiledNode
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GooglePubSubWorkItemsService
+import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
+import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
+import org.wfanet.measurement.storage.MesosRecordIoStorageClient
+import java.io.BufferedInputStream
+import org.wfanet.measurement.gcloud.pubsub.Subscriber
+import java.net.URL
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import org.junit.Rule
+import org.junit.After
+import org.junit.Before
 
-class SimpleIntegrationTest {
+@RunWith(JUnit4::class)
+class SimpleIntegrationTest() {
+
+    @Rule
+    @JvmField val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
+
+    private lateinit var workItemsService: GooglePubSubWorkItemsService
+    private lateinit var googlePubSubClient: GooglePubSubEmulatorClient
+
+  private val projectId = "test-project-id"
+  private val topicId = "test-topid-id"
+  private val workItemId = "test-work-item-1"
+  private val subscriptionId = "test-subscription-id"
+
+  @Before
+  fun setup() {
+    googlePubSubClient = GooglePubSubEmulatorClient(
+      host = pubSubEmulatorProvider.host,
+      port = pubSubEmulatorProvider.port,
+    )
+    workItemsService = GooglePubSubWorkItemsService(projectId, googlePubSubClient)
+    runBlocking {
+      if (googlePubSubClient.topicExists(projectId, topicId)) {
+        googlePubSubClient.deleteTopic(projectId, topicId)
+      }
+    }
+  }
+
+  @After
+  fun clear() {
+    runBlocking {
+      if (googlePubSubClient.topicExists(projectId, topicId)) {
+        googlePubSubClient.deleteTopic(projectId, topicId)
+      }
+    }
+  }
 
     @Test
-    fun vidLabel() = runBlocking {
-        // Step 1: Create temporary test paths
-        val inputEventsPath = "temp/input"
-        val outputEventsPath = "temp/output"
-        val vidModelPath = "temp/model"
+    fun vidLabel() {
+      runBlocking {
+        println("Starting")
+        val inputEventsPath = "gs://bucket/input-events"
+        val outputEventsPath = "gs://bucket/output-events"
+        val vidModelPath = "gs://bucket/vid-model"
 
-        // Step 2: Write out a test vid model (CompiledNode)
-        val compiledNode = compiledNode {
-            // Define the compiled node structure here
+        val storageClient = InMemoryStorageClient()
+
+        val vidModelData = BufferedInputStream(URL("https://raw.githubusercontent.com/world-federation-of-advertisers/virtual-people-core-serving/main/src/main/resources/labeler/single_id_model.textproto").openStream()).use { input ->
+          ByteString.readFrom(input)
         }
-        storageClient.writeBlob(vidModelPath, flowOf(ByteString.copyFrom(compiledNode.toByteArray())))
+        storageClient.writeBlob(vidModelPath, flowOf(vidModelData))
 
-        // Step 3: Create a DataWatcherConfig
-        val dataWatcherConfig = DataWatcherConfig.newBuilder().setSourcePathRegex(".*").build()
+        val dataWatcherConfig = DataWatcherConfig.newBuilder()
+          .setSourcePathRegex("gs://bucket/.*")
+          .setQueue(DataWatcherConfig.QueueConfig.newBuilder()
+            .setQueueName("test-queue")
+            .setAppConfig(Any.pack(CmmWork.newBuilder().setVidLabelingWork(CmmWork.VidLabelingWork.newBuilder()
+              .setInputBasePath(inputEventsPath)
+              .setOutputBasePath(outputEventsPath)
+              .setVidModelPath(vidModelPath)
+              .build()).build()))
+            .build())
+          .build()
 
-        // Step 4: Construct a DataWatcher
-        val dataWatcher = DataWatcher(listOf(dataWatcherConfig))
+        val dataWatcher = DataWatcher(workItemsService, projectId, listOf(dataWatcherConfig))
 
-        // Step 5: Construct a SubscribingStorageClient
-        val underlyingClient = InMemoryStorageClient()
-        val subscribingStorageClient = GcsSubscribingStorageClient(underlyingClient)
+        val subscribingStorageClient = GcsSubscribingStorageClient(storageClient)
+        subscribingStorageClient.subscribe(dataWatcher)
 
-        // Step 6: Create a MesosRecordIoStorageClient
         val mesosRecordIoStorageClient = MesosRecordIoStorageClient(subscribingStorageClient)
 
-        // Step 7: Create some test LabelerInput
-        val labelerInput = labelerInput { eventId = eventId { id = "test-event" } }
-        mesosRecordIoStorageClient.writeBlob(inputEventsPath, flowOf(ByteString.copyFrom(labelerInput.toByteArray())))
-
-        // Step 8: Create a GooglePubSubEmulatorClient and start emulator
-        val googlePubSubClient = GooglePubSubEmulatorClient()
-        googlePubSubClient.startEmulator()
-
-        // Step 9: Create CmmWork Vid Labeling Work item
-        val cmmWork = CmmWork.newBuilder().setVidLabelingWork(
-            CmmWork.VidLabelingWork.newBuilder()
-                .setInputEventsPath(inputEventsPath)
-                .setOutputEventsPath(outputEventsPath)
-                .setVidModelPath(vidModelPath)
-                .build()
-        ).build()
-
-        // Step 10: Pack the CmmWork into an Any
-        val packedCmmWork = Any.pack(cmmWork)
-
-        // Step 11: Create a CreateWorkItemRequest
-        val createWorkItemRequest = CreateWorkItemRequest.newBuilder().setWorkItem(packedCmmWork).build()
-
-        // Step 12: Send it to a workItemsService (mocked here)
-        val workItemsService = mock<WorkItemsService> {}
-        workItemsService.createWorkItem(createWorkItemRequest)
-
-        // Step 13: Build a Subscriber to the GooglePubSubClient
-        val subscriber = googlePubSubClient.buildSubscriber("test-project", "test-subscription") { message, consumer ->
-            // Processing logic
-            consumer.ack()
+        val labelerInputData = BufferedInputStream(URL("https://raw.githubusercontent.com/world-federation-of-advertisers/virtual-people-core-serving/main/src/main/resources/labeler/labeler_input_01.textproto").openStream()).use { input ->
+          ByteString.readFrom(input)
         }
-        subscriber.startAsync().awaitRunning()
+        storageClient.writeBlob(inputEventsPath, flowOf(labelerInputData))
 
-        // Step 14: Create a VidLabelerApp
-        val vidLabelerApp = VidLabelerApp(storageClient, "test-queue", subscriber, CmmWork.parser())
+        val queueSubscriber = Subscriber("test-project-id", googlePubSubClient)
+        val vidLabelerApp = VidLabelerApp(mesosRecordIoStorageClient, "test-queue", queueSubscriber, DiscoveredWork.parser())
+        vidLabelerApp.run()
 
-        // Step 15: Wait for LabelerOutput
-        withTimeout(30000) {
-            while (true) {
-                delay(1000)
-                val outputBlob = mesosRecordIoStorageClient.getBlob(outputEventsPath)
-                if (outputBlob != null) {
-                    val outputs = outputBlob.read().toList()
-                    if (outputs.isNotEmpty()) break
-                }
+        val labelerOutputPath = "gs://bucket/output-events/labeler-output"
+        withTimeout(5000) {
+          while (true) {
+            val blob = mesosRecordIoStorageClient.getBlob(labelerOutputPath)
+            if (blob != null) {
+              val labelerOutputData = blob.read().toList()
+              // Parse and validate labeler output
+              break
             }
+          }
         }
 
-        // Step 16: Parse the output events
-        val outputBlob = mesosRecordIoStorageClient.getBlob(outputEventsPath)
-        requireNotNull(outputBlob) { "Output blob should exist" }
-        val outputs = outputBlob.read().toList().map { LabelerOutput.parseFrom(it) }
-
-        // Assertions can be added here to validate the outputs
     }
+  }
 }

@@ -60,4 +60,3 @@ b. outputBlobKey is equal to CmmWork.outputBasePath + this value
 c. inputBlobKey is equal to DiscoveredWork.path
 5. Construct a MesosRecordIOStorageClient using storageClient from constructor - https://raw.githubusercontent.com/world-federation-of-advertisers/common-jvm/refs/heads/main/src/test/kotlin/org/wfanet/measurement/storage/MesosRecordIoStorageClientTest.kt
 6. Call labelPath(inputBlobKey: String, outputBlobKey: String, labeler: Labeler, storageClient: MesoRecordIOStorageClient)
-* Make sure to add imports for all the 

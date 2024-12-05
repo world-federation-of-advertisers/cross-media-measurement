@@ -20,11 +20,17 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub/testing:google_pub_sub_emulator_client",
         #"@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/queue:queue_subscriber",
         #"@wfa_common_jvm//src/main/proto/wfa/measurement/queue/testing:test_work_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/securecomputation:data_watcher_config_kt_jvm_proto",
         "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_kt_jvm_proto",
         "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_kt_jvm_proto",
         "@wfa_virtual_people_core_serving//src/main/kotlin/org/wfanet/virtualpeople/core/labeler",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
         ":testing",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:publisher",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:subscriber",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub/testing:google_pub_sub_emulator_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/queue:queue_subscriber",
     ],
 )
 
