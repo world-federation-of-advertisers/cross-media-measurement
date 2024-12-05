@@ -16,7 +16,9 @@
 
 package org.wfanet.measurement.common.grpc
 
+import com.google.protobuf.Any
 import com.google.rpc.ErrorInfo
+import com.google.rpc.status
 import io.grpc.Metadata
 import io.grpc.Status
 import io.grpc.StatusException
@@ -28,10 +30,41 @@ val StatusException.errorInfo: ErrorInfo?
   get() {
     return getErrorInfo(this.status, this.trailers)
   }
+
+/** [ErrorInfo] from status details. */
 val StatusRuntimeException.errorInfo: ErrorInfo?
   get() {
     return getErrorInfo(this.status, this.trailers)
   }
+
+object Errors {
+  /** Builds a [StatusRuntimeException] with the specified [errorInfo]. */
+  fun buildStatusRuntimeException(
+    code: Status.Code,
+    message: String,
+    errorInfo: ErrorInfo,
+    cause: Throwable? = null,
+  ): StatusRuntimeException {
+    val statusProto = status {
+      this.code = code.value()
+      this.message = message
+      details += Any.pack(errorInfo)
+    }
+
+    // Unpack exception to add cause.
+    // TODO(grpc/grpc-java#10230): Use new API when available.
+    val exception = StatusProto.toStatusRuntimeException(statusProto)
+    return exception.status
+      .run {
+        if (cause != null) {
+          withCause(cause)
+        } else {
+          this
+        }
+      }
+      .asRuntimeException(exception.trailers)
+  }
+}
 
 private fun getErrorInfo(status: Status, trailers: Metadata?): ErrorInfo? {
   val errorInfoFullName = ErrorInfo.getDescriptor().fullName
