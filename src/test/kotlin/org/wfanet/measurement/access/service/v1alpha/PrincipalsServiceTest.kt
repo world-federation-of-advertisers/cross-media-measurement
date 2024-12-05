@@ -245,6 +245,138 @@ class PrincipalsServiceTest {
   }
 
   @Test
+  fun `createPrincipal throws PRINCIPAL_TYPE_NOT_SUPPORTED when principle identity case is TLS_CLIENT`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createPrincipal(
+            createPrincipalRequest {
+              principal = principal {
+                name = "principals/user-1"
+                tlsClient =
+                  PrincipalKt.tlsClient { authorityKeyIdentifier = "akid".toByteStringUtf8() }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED.name
+          }
+        )
+    }
+
+  @Test
+  fun `createPrincipal throws INVALID_FIELD_VALUE when principle user is not set`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.createPrincipal(
+          createPrincipalRequest {
+            principal = principal { name = "principals/user-1" }
+            principalId = "user-1"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "principal.user"
+        }
+      )
+  }
+
+  @Test
+  fun `createPrincipal throws REQUIRED_FIELD_NOT_SET when principal user issuer is not set`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createPrincipal(
+            createPrincipalRequest {
+              principal = principal {
+                name = "principals/user-1"
+                user = PrincipalKt.oAuthUser { subject = "user1@example.com" }
+              }
+              principalId = "user-1"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "principal.user.issuer"
+          }
+        )
+    }
+
+  @Test
+  fun `createPrincipal throws REQUIRED_FIELD_NOT_SET when principal user subject is not set`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createPrincipal(
+            createPrincipalRequest {
+              principal = principal {
+                name = "principals/user-1"
+                user = PrincipalKt.oAuthUser { issuer = "example.com" }
+              }
+              principalId = "user-1"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "principal.user.subject"
+          }
+        )
+    }
+
+  @Test
+  fun `createPrincipal throws REQUIRED_FIELD_NOT_SET when principle id is not set`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.createPrincipal(
+          createPrincipalRequest {
+            principal = principal {
+              name = "principals/user-1"
+              user =
+                PrincipalKt.oAuthUser {
+                  issuer = "example.com"
+                  subject = "user1@example.com"
+                }
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "principal_id"
+        }
+      )
+  }
+
+  @Test
   fun `createPrincipal throws PRINCIPAL_ALREADY_EXISTS from backend`() = runBlocking {
     internalServiceMock.stub {
       onBlocking { createUserPrincipal(any()) } doThrow
@@ -273,57 +405,4 @@ class PrincipalsServiceTest {
         }
       )
   }
-
-  @Test
-  fun `createPrincipal throws REQUIRED_FIELD_NOT_SET when principle id is not set`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.createPrincipal(
-          createPrincipalRequest {
-            principal = principal {
-              name = "principals/user-1"
-              user =
-                PrincipalKt.oAuthUser {
-                  issuer = "example.com"
-                  subject = "user1@example.com"
-                }
-            }
-          }
-        )
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "principalId"
-        }
-      )
-  }
-
-  @Test
-  fun `createPrincipal throws REQUIRED_FIELD_NOT_SET when principal user is not set`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.createPrincipal(
-            createPrincipalRequest {
-              principal = principal { name = "principals/user-1" }
-              principalId = "user-1"
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "principal.user"
-          }
-        )
-    }
 }

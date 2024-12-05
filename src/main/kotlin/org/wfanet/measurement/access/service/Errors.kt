@@ -16,12 +16,12 @@
 
 package org.wfanet.measurement.access.service
 
+import org.wfanet.measurement.access.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
-import org.wfanet.measurement.access.service.internal.Errors as InternalErrors
-import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.errorInfo
 
 object Errors {
@@ -157,6 +157,14 @@ class PrincipalAlreadyExistsException(cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.PRINCIPAL_ALREADY_EXISTS,
     "Principal already exists",
+    emptyMap(),
+    cause,
+  )
+
+class PrincipalTypeNotSupportedException(cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED,
+    "Principal type not supported",
     emptyMap(),
     cause,
   )
