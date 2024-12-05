@@ -502,7 +502,7 @@ cue_library(
     name = "measurement_system_prober_cue",
     srcs = ["measurement_system_prober.cue"],
     deps = [
-        ":config_cue",
+        ":config",
         "//src/main/k8s:measurement_system_prober",
     ],
 )
