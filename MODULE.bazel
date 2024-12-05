@@ -342,3 +342,9 @@ single_version_override(
     module_name = "boringssl",
     version = BORINGSSL_VERSION,
 )
+
+archive_override(
+    module_name = "common-jvm",
+    strip_prefix = "common-jvm-5145e6b229e7b3702e9a14d65959dd04c24aa1e8",
+    urls = ["https://github.com/world-federation-of-advertisers/common-jvm/archive/5145e6b229e7b3702e9a14d65959dd04c24aa1e8.tar.gz"],
+)
