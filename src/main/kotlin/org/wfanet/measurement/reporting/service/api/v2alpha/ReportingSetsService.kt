@@ -22,6 +22,7 @@ import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -406,7 +407,7 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
   }
 
   companion object {
-    private val RESOURCE_ID_REGEX = Regex("^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$")
+    private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
   }
 }
 
