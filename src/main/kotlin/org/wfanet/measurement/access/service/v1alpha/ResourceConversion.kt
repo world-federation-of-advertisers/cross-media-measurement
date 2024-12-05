@@ -16,9 +16,6 @@
 
 package org.wfanet.measurement.access.service.v1alpha
 
-import org.wfanet.measurement.internal.access.Principal as InternalPrincipal
-import org.wfanet.measurement.internal.access.PrincipalKt.oAuthUser as InternalOAuthUser
-import org.wfanet.measurement.internal.access.Role as InternalRole
 import org.wfanet.measurement.access.service.PermissionKey
 import org.wfanet.measurement.access.service.PrincipalKey
 import org.wfanet.measurement.access.service.RoleKey
@@ -28,6 +25,9 @@ import org.wfanet.measurement.access.v1alpha.PrincipalKt.tlsClient
 import org.wfanet.measurement.access.v1alpha.Role
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.access.v1alpha.role
+import org.wfanet.measurement.internal.access.Principal as InternalPrincipal
+import org.wfanet.measurement.internal.access.PrincipalKt.oAuthUser as InternalOAuthUser
+import org.wfanet.measurement.internal.access.Role as InternalRole
 
 fun InternalPrincipal.toPrincipal(): Principal {
   val source = this
