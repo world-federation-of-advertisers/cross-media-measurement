@@ -54,9 +54,9 @@ bazel_dep(
 # DO_NOT_SUBMIT: Use version.
 archive_override(
     module_name = "cross-media-measurement-api",
-    strip_prefix = "cross-media-measurement-api-5ffb98f825d419efe0023d808447c34693e929b7",
+    strip_prefix = "cross-media-measurement-api-500062c3b17258e07a3c0315ee4a15795e2b8f5f",
     urls = [
-        "https://github.com/world-federation-of-advertisers/cross-media-measurement-api/archive/5ffb98f825d419efe0023d808447c34693e929b7.tar.gz",
+        "https://github.com/world-federation-of-advertisers/cross-media-measurement-api/archive/500062c3b17258e07a3c0315ee4a15795e2b8f5f.tar.gz",
     ],
 )
 

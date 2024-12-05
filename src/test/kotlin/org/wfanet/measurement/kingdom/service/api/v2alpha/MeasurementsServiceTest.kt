@@ -856,7 +856,6 @@ class MeasurementsServiceTest {
                   details.copy {
                     capabilities = internalDataProviderCapabilities {
                       honestMajorityShareShuffleSupported = true
-                      hmssVidSamplingIntervalWrappingSupported = true
                     }
                   }
               }
@@ -907,53 +906,6 @@ class MeasurementsServiceTest {
           requestId = request.requestId
         }
       )
-  }
-
-  @Test
-  fun `createMeasurement throws when wrapping vid interval flag not enabled`() {
-    internalDataProvidersMock.stub {
-      onBlocking { batchGetDataProviders(any()) }
-        .thenReturn(
-          internalBatchGetDataProvidersResponse {
-            for (externalDataProviderId in EXTERNAL_DATA_PROVIDER_IDS) {
-              dataProviders += internalDataProvider {
-                this.externalDataProviderId = externalDataProviderId.value
-                details =
-                  details.copy {
-                    capabilities = internalDataProviderCapabilities {
-                      honestMajorityShareShuffleSupported = true
-                      hmssVidSamplingIntervalWrappingSupported = false
-                    }
-                  }
-              }
-            }
-          }
-        )
-    }
-    val measurement =
-      MEASUREMENT.copy {
-        clearFailure()
-        results.clear()
-        clearProtocolConfig()
-        measurementSpec = signedMessage {
-          setMessage(WRAPPING_INTERVAL_MEASUREMENT_SPEC.pack())
-          signature = UPDATE_TIME.toByteString()
-          signatureAlgorithmOid = "2.9999"
-        }
-      }
-    val request = createMeasurementRequest {
-      parent = MEASUREMENT_CONSUMER_NAME
-      this.measurement = measurement
-      requestId = "foo"
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking { hmssEnabledService.createMeasurement(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test

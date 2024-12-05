@@ -633,7 +633,7 @@ class MeasurementsService(
 
     val internalProtocolConfig =
       buildInternalProtocolConfig(measurementSpec, dataProviderCapabilities, parentKey.toName())
-    validateSamplingInterval(measurementSpec, internalProtocolConfig, dataProviderCapabilities)
+    validateSamplingInterval(measurementSpec, internalProtocolConfig)
 
     val internalMeasurement =
       measurement.toInternal(
@@ -890,27 +890,11 @@ private fun getAuthenticatedMeasurementConsumerKey(): MeasurementConsumerKey {
 private fun validateSamplingInterval(
   measurementSpec: MeasurementSpec,
   internalProtocolConfig: InternalProtocolConfig,
-  dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
 ) {
   val interval = measurementSpec.vidSamplingInterval
   when (internalProtocolConfig.protocolCase) {
-    ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 -> {
-      if (dataProviderCapabilities.all { it.llv2VidSamplingIntervalWrappingSupported }) {
-        grpcRequire(interval.width <= 1.0) { "VidSamplingInterval width cannot be larger than 1.0" }
-      } else {
-        grpcRequire(interval.start + interval.width <= 1.0) {
-          "VidSamplingInterval end cannot be larger than 1.0"
-        }
-      }
-    }
     ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
-      if (dataProviderCapabilities.all { it.hmssVidSamplingIntervalWrappingSupported }) {
-        grpcRequire(interval.width <= 1.0) { "VidSamplingInterval width cannot be larger than 1.0" }
-      } else {
-        grpcRequire(interval.start + interval.width <= 1.0) {
-          "VidSamplingInterval end cannot be larger than 1.0"
-        }
-      }
+      grpcRequire(interval.width <= 1.0) { "VidSamplingInterval width cannot be larger than 1.0" }
     }
     else -> {
       grpcRequire(interval.start + interval.width <= 1.0) {
