@@ -12,7 +12,7 @@ _edp6:             string @tag("edp6_name")
 
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 
-objectSets: [for objectSet in measurementSystemProber {objectSet}]
+objectSets: [ for objectSet in measurementSystemProber {objectSet}]
 
 measurementSystemProber: #MeasurementSystemProber & {
 	_mcName:                   _mc_resource_name
