@@ -16,6 +16,7 @@
 * org.wfanet.measurement.queue.QueueSubscriber
 * org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
 * org.wfanet.virtualpeople.common.CompiledNode
+* com.google.protobuf.Any
 
 # CONSTRUCTORS
 ## VidLabelerApp `(storageClient: StorageClient, queueName: String, queueSubscriber: QueueSubscriber, parser: Parser<DiscoveredWork>)

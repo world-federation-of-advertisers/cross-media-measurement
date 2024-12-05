@@ -31,13 +31,16 @@ class DataWatcher(
         val bucket = data.getBucket()
         val blobKey = data.getName()
         val path = "gs://" + bucket + "/" + blobKey
+        println("*********************************")
+        println("Data Watcher: Found path $path")
+        println("*********************************")
         dataWatcherConfigs.forEach { config ->
             val regex = config.sourcePathRegex.toRegex()
             if (regex.matches(path)) {
                 val queueConfig = config.queue
                 val workItemId = UUID.randomUUID().toString()
                 val workItemParams = DataWatcherConfig.DiscoveredWork.newBuilder()
-                    .setType(queueConfig.appConfig.pack())
+                    .setType(queueConfig.appConfig)
                     .setPath(path)
                     .build()
                     .pack()
@@ -50,6 +53,9 @@ class DataWatcher(
                     .setWorkItemId(workItemId)
                     .setWorkItem(workItem)
                     .build()
+                println("*********************************")
+                println("Data Watcher: Calling Control Plane")
+                println("*********************************")
                 runBlocking {
                     workItemsService.createWorkItem(createWorkItemRequest)
                 }

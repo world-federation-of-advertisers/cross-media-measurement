@@ -66,6 +66,8 @@
 * org.junit.Rule
 * kotlinx.coroutines.launch
 * kotlinx.coroutines.cancelAndJoin
+* org.wfanet.measurement.common.flatten
+* org.wfanet.virtualpeople.common.LabelerOutput
 
 # CONSTRUCTORS
 
@@ -105,7 +107,7 @@ d. create a storageClient of type InMemoryStorageClient
    val subscribingStorageClient = GcsSubscribingStorageClient(underlyingClient)
    subscribingStorageClient.subscribe(dataWatcher)
 6. Create a MesosRecordIoStorageClient that wraps the SubscribingStorageClient - https://raw.githubusercontent.com/world-federation-of-advertisers/common-jvm/main/src/test/kotlin/org/wfanet/measurement/storage/MesosRecordIoStorageClientTest.kt
-7. Create some test LabelerInput and write those to the temporary test path - https://raw.githubusercontent.com/world-federation-of-advertisers/virtual-people-core-serving/refs/heads/main/src/test/kotlin/org/wfanet/virtualpeople/core/labeler/LabelerTest.kt
+7. Create some test LabelerInput and write those to the temporary test path using the mesosRecordIoStorageClient - https://raw.githubusercontent.com/world-federation-of-advertisers/virtual-people-core-serving/refs/heads/main/src/test/kotlin/org/wfanet/virtualpeople/core/labeler/LabelerTest.kt
 a. You can read in this text proto again using new BufferedInputStream(new URL(FILE_URL).openStream()) - https://raw.githubusercontent.com/world-federation-of-advertisers/virtual-people-core-serving/main/src/main/resources/labeler/labeler_input_01.textproto
 b. https://raw.githubusercontent.com/world-federation-of-advertisers/virtual-people-core-serving/main/src/test/kotlin/org/wfanet/virtualpeople/core/labeler/LabelerIntegrationTest.kt
 8. Create a GooglePubSubEmulatorClient - https://raw.githubusercontent.com/world-federation-of-advertisers/cross-media-measurement/marcopremier/controlplane-api/src/test/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha/GooglePubSubWorkItemsServiceTest.kt
@@ -113,7 +115,7 @@ b. https://raw.githubusercontent.com/world-federation-of-advertisers/virtual-peo
 10. Create a VidLabelerApp that uses that same pubSubClient - See VidLaberlApp.kt
     Example: https://raw.githubusercontent.com/world-federation-of-advertisers/cross-media-measurement/marcopremier/tee-sdk-base-class/src/test/kotlin/org/wfanet/measurement/securecomputation/teesdk/BaseTeeApplicationTest.kt
     val queueSubscriber = Subscriber(projectId = projectId, googlePubSubClient = emulatorClient)
-    val vidLabelerApp = VidLabelerApp(mesosStorageClient, subscriptionId, queueSubscriber, DiscoveredWork.parser())
+    val vidLabelerApp = VidLabelerApp(mesosStorageClient, subscriptionId, queueSubscriber, Any.parser())
     val job = launch { vidLabelerApp.run() }
 11. Create a loop to wait up to 30 seconds delaying 100ms each time you check for the LabelerOutput to be written to the output events folder
 12. Parse the output events of LabelerOutput
