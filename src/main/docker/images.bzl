@@ -67,6 +67,11 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/kingdom/pending-measurements-cancellation",
     ),
     struct(
+        name = "measurement_system_prober_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/job:measurement_system_prober_image",
+        repository = _PREFIX + "/prober/measurement-system-prober",
+    ),
+    struct(
         name = "kingdom_system_api_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:system_api_server_image",
         repository = _PREFIX + "/kingdom/system-api",
