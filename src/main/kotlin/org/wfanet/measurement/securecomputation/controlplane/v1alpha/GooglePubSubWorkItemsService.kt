@@ -29,7 +29,7 @@ class GooglePubSubWorkItemsService(
   googlePubSubClient: GooglePubSubClient
 ) : WorkItemsCoroutineImplBase(), WorkItemsService {
 
-  private val publisher: Publisher<Message> = Publisher(projectId, googlePubSubClient)
+  private val publisher: Publisher = Publisher(projectId, googlePubSubClient)
 
   override suspend fun createWorkItem(
     request: CreateWorkItemRequest
