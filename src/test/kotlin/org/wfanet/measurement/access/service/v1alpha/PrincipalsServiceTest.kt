@@ -16,11 +16,6 @@
 
 package org.wfanet.measurement.access.service.v1alpha
 
-import org.wfanet.measurement.internal.access.PrincipalKt as InternalPrincipalKt
-import org.wfanet.measurement.internal.access.PrincipalsGrpcKt as InternalPrincipalsGrpcKt
-import org.wfanet.measurement.internal.access.createUserPrincipalRequest as internalCreateUserPrincipalRequest
-import org.wfanet.measurement.internal.access.getPrincipalRequest as internalGetPrincipalRequest
-import org.wfanet.measurement.internal.access.principal as internalPrincipal
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.kotlin.toByteStringUtf8
@@ -50,6 +45,11 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.internal.access.PrincipalKt as InternalPrincipalKt
+import org.wfanet.measurement.internal.access.PrincipalsGrpcKt as InternalPrincipalsGrpcKt
+import org.wfanet.measurement.internal.access.createUserPrincipalRequest as internalCreateUserPrincipalRequest
+import org.wfanet.measurement.internal.access.getPrincipalRequest as internalGetPrincipalRequest
+import org.wfanet.measurement.internal.access.principal as internalPrincipal
 
 @RunWith(JUnit4::class)
 class PrincipalsServiceTest {
