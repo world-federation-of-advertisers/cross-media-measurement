@@ -42,7 +42,7 @@
         {
           "reach": 2000,
           "standard_deviation": 262192.75285658165,
-          "metric": "difference/unique_reach_edp2"
+          "metric": "difference/ami/unique_reach_edp2"
         }
       ]
     },
@@ -74,7 +74,7 @@
         {
           "reach": 300,
           "standard_deviation": 261177.24408350687,
-          "metric": "difference/unique_reach_edp1"
+          "metric": "difference/ami/unique_reach_edp1"
         }
       ]
     },
@@ -180,7 +180,7 @@
         {
           "reach": 100,
           "standard_deviation": 261663.2405567259,
-          "metric": "difference/unique_reach_edp3"
+          "metric": "difference/ami/unique_reach_edp3"
         }
       ]
     }

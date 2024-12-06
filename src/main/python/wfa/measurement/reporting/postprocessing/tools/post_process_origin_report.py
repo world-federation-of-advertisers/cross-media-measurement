@@ -30,10 +30,32 @@ from typing import FrozenSet
 ami = "ami"
 mrc = "mrc"
 
+
 # TODO(@ple13): Extend the class to support custom measurements and composite
 # set operations such as incremental.
 class ReportSummaryProcessor:
-  """Processes a ReportSummary and corrects the measurements."""
+  """
+  Processes a ReportSummary and corrects the measurements.
+
+  This class takes a ReportSummary as input and performs the following steps:
+  1. Extracts cumulative and whole campaign measurements from the ReportSummary.
+  2. Extracts unique reach measurements from the ReportSummary.
+  3. Processes the measurements in the ReportSummary so that they are
+     consistent.
+
+  Attributes:
+      _report_summary: The ReportSummary to process.
+      _cumulative_measurements: A dictionary mapping measurement policies
+                                to cumulative measurements.
+      _whole_campaign_measurements: A dictionary mapping measurement policies
+                                     to whole campaign measurements.
+      _set_difference_map: A dictionary mapping set different measurements to
+                           the corresponding primitive measurements. A different
+                           measurement, e.g. unique reach, can be computed from
+                           two union measurements, e.g. unique_reach(A) =
+                           reach(A U B U C) - reach(B U C).
+  """
+
   def __init__(self, report_summary: report_summary_pb2.ReportSummary()):
     """Initializes ReportSummaryProcessor with a ReportSummary.
 
@@ -41,9 +63,11 @@ class ReportSummaryProcessor:
       report_summary: The ReportSummary proto to process.
     """
     self._report_summary = report_summary
-    self._cumulative_measurements = {}
-    self._whole_campaign_measurements = {}
-    self._set_difference_map = {}
+    self._cumulative_measurements: dict[
+      str, dict[FrozenSet[str], list[Measurement]]] = {}
+    self._whole_campaign_measurements: dict[
+      str, dict[FrozenSet[str], Measurement]] = {}
+    self._set_difference_map: dict[str, tuple[str, str]] = {}
 
   def process(self) -> dict[str, int]:
     """
@@ -55,7 +79,10 @@ class ReportSummaryProcessor:
 
     :return: a mapping between measurement name and its adjusted value.
     """
-    # Processes primitive measurements (cumulative and union) first.
+    # Processes primitive measurements (cumulative and union). This step needs
+    # to be completed before processing different measurements (e.g. unique
+    # reach) as we need to map every different measurement to two primitive
+    # measurements.
     self._process_primitive_measurements()
 
     # Process unique reach measurements.
@@ -122,26 +149,58 @@ class ReportSummaryProcessor:
           frozenset(entry.data_providers)] = measurements[0]
 
   def _process_unique_reach_measurements(self):
-    """Extract unique reach measurements from the report summary."""
+    """Processes unique reach measurements in the report summary.
+
+    Let Z = EDP_1 U EDP_2 U ... U EDP_N be the union of all the EDPs. The unique
+    reach of an EDP X is computed as:
+       unique_reach(X) = reach(Z) - reach(Z \ {X}).
+
+    This method extracts unique reach measurements from the ReportSummary by
+    identifying entries with 'difference' set operations, then maps it to the
+    corresponding primitive measurements. For the measurement unique_reach(X),
+    the mapping (X -> (Z, Z \ {X})) will be stored.
+
+    In the report, the reach of the union of all EDPs, reach(Z), always exists,
+    however, the intermediate measurement reach(Z \ {X}) may not. In that case,
+    we need to derive the measurement reach(Z \ {X}) from reach(Z) and
+    unique_reach(X) and add that to the measurement set before adding the above
+    mapping.
+    """
     for entry in self._report_summary.measurement_details:
       if (entry.set_operation == "difference") and (
           entry.unique_reach_target != ""):
+        # subset = entry.data_providers \ {entry.unique_reach_target}.
+        # entry.data_providers is the union of all the EDPs.
+        # entry.unique_reach_target is a single EDP.
         subset = frozenset([edp for edp in entry.data_providers if
                             edp != entry.unique_reach_target])
+
+        # The unique reach measurements for subset. Note that there is exactly 1
+        # measurement in this list.
         measurements = [
             Measurement(result.reach, result.standard_deviation, result.metric)
             for result in entry.measurement_results
         ]
+        # Gets the reach of the union of all EDPs. This measurement always
+        # always exists in the report summary.
         superset_measurement = \
           self._whole_campaign_measurements[entry.measurement_policy][
             frozenset(entry.data_providers)]
 
+        # Now we need to get the measurement that corresponds to reach(subset)
+        # where subset = entry.data_providers \ {entry.unique_reach_target}.
+        # If reach(subset) measurement exists in the report summary, maps the
+        # unique reach measurement to the tuple (superset, subset). However, if
+        # reach(subset) measurement does not exist, it needs to be derived from
+        # the superset measurement and the unique reach measurements before the
+        # mapping.
         if subset in self._whole_campaign_measurements[
           entry.measurement_policy].keys():
-          self._set_difference_map[entry.metric] = [superset_measurement.name,
-                                                    self._whole_campaign_measurements[
-                                                      entry.measurement_policy][
-                                                      subset].name]
+          self._set_difference_map[entry.metric] = [
+              superset_measurement.name,
+              self._whole_campaign_measurements[entry.measurement_policy][
+                subset].name
+          ]
         else:
           # Add the measurement of the edp_comb that is derived from the
           # unique_reach(A) and reach(A U edp_comb). As std(unique(A) =
@@ -151,12 +210,15 @@ class ReportSummaryProcessor:
               superset_measurement.value - measurements[0].value,
               math.sqrt(
                   measurements[0].sigma ** 2 - superset_measurement.sigma ** 2),
-              "union/" + entry.measurement_policy + "/" + "_".join(sorted(subset)))
+              "union/" + entry.measurement_policy + "/" + "_".join(
+                sorted(subset)))
           self._whole_campaign_measurements[entry.measurement_policy][
             subset] = measurement
           self._set_difference_map[measurements[0].name] = [
               superset_measurement.name,
-              measurement.name]
+              measurement.name
+          ]
+
 
 def main():
   report_summary = report_summary_pb2.ReportSummary()

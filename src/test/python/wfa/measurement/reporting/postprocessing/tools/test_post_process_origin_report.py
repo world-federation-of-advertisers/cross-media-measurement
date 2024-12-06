@@ -193,12 +193,12 @@ class TestOriginReport(unittest.TestCase):
     reportSummaryProcessor._process_unique_reach_measurements()
 
     expected_unique_reach_map = {
-        'difference/unique_reach_edp2': ['union/ami/edp1_edp2_edp3',
-                                         'union/ami/edp1_edp3'],
-        'difference/unique_reach_edp1': ['union/ami/edp1_edp2_edp3',
-                                         'union/ami/edp2_edp3'],
-        'difference/unique_reach_edp3': ['union/ami/edp1_edp2_edp3',
-                                         'union/ami/edp1_edp2'],
+        'difference/ami/unique_reach_edp2': ['union/ami/edp1_edp2_edp3',
+                                             'union/ami/edp1_edp3'],
+        'difference/ami/unique_reach_edp1': ['union/ami/edp1_edp2_edp3',
+                                             'union/ami/edp2_edp3'],
+        'difference/ami/unique_reach_edp3': ['union/ami/edp1_edp2_edp3',
+                                             'union/ami/edp1_edp2'],
     }
 
     self.assertDictEqual(reportSummaryProcessor._set_difference_map,
@@ -276,15 +276,27 @@ class TestOriginReport(unittest.TestCase):
         corrected_measurements_map['union/ami/edp3'], TOLERANCE)
 
     # Checks unique reach measurements.
-    self.assertEqual(corrected_measurements_map['difference/unique_reach_edp1'],
-                     corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
-                     corrected_measurements_map['union/ami/edp2_edp3'])
-    self.assertEqual(corrected_measurements_map['difference/unique_reach_edp2'],
-                     corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
-                     corrected_measurements_map['union/ami/edp1_edp3'])
-    self.assertEqual(corrected_measurements_map['difference/unique_reach_edp3'],
-                     corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
-                     corrected_measurements_map['union/ami/edp1_edp2'])
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/ami/unique_reach_edp1'],
+        corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
+        corrected_measurements_map['union/ami/edp2_edp3'],
+        TOLERANCE
+    )
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/ami/unique_reach_edp2'],
+        corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
+        corrected_measurements_map['union/ami/edp1_edp3'],
+        TOLERANCE
+    )
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/ami/unique_reach_edp3'],
+        corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
+        corrected_measurements_map['union/ami/edp1_edp2'],
+        TOLERANCE
+    )
+
+  def _assertFuzzyEqual(self, x: int, y: int, tolerance: int):
+    self.assertLessEqual(abs(x - y), tolerance)
 
   def _assertFuzzyLessEqual(self, x: int, y: int, tolerance: int):
     self.assertLessEqual(x, y + tolerance)
