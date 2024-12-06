@@ -24,7 +24,7 @@ from itertools import combinations
 from functools import reduce
 
 MIN_STANDARD_VARIATION_RATIO = 0.001
-
+UNIT_SCALING_FACTOR = 1.0
 
 def get_subset_relationships(edp_combinations: list[FrozenSet[str]]) -> list[
   Tuple[FrozenSet[str], FrozenSet[str]]]:
@@ -280,16 +280,19 @@ class Report:
     self._num_periods = next(
         iter(metric_reports.values())).get_number_of_periods()
 
-    # Assign an index to each measurement.
+    # Assigns an index to each measurement.
     measurement_index = 0
     self._measurement_name_to_index = {}
-    self._max_standard_deviation = 1.0
+    self._max_standard_deviation = UNIT_SCALING_FACTOR
     for metric in metric_reports.keys():
       for edp_combination in metric_reports[
         metric].get_whole_campaign_edp_combinations():
         measurement = metric_reports[metric].get_whole_campaign_measurement(
             edp_combination)
         self._measurement_name_to_index[measurement.name] = measurement_index
+        # Updates the max standard deviation. This max standard deviation will
+        # be used to normalized the standard deviation of the measurements when
+        # the report is corrected.
         self._max_standard_deviation = max(self._max_standard_deviation,
                                            measurement.sigma)
         measurement_index += 1
@@ -299,6 +302,9 @@ class Report:
           measurement = metric_reports[metric].get_cumulative_measurement(
               edp_combination, period)
           self._measurement_name_to_index[measurement.name] = measurement_index
+          # Updates the max standard deviation. This max standard deviation will
+          # be used to normalized the standard deviation of the measurements when
+          # the report is corrected.
           self._max_standard_deviation = max(self._max_standard_deviation,
                                              measurement.sigma)
           measurement_index += 1

@@ -14,9 +14,10 @@
 
 import unittest
 
+from google.protobuf.json_format import Parse
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_summary_pb2
-from tools.post_process_origin_report import processReportSummary
+from tools.post_process_origin_report import ReportSummaryProcessor
 
 EDP_MAP = {
     "edp1": {"edp1"},
@@ -106,7 +107,8 @@ class TestOriginReport(unittest.TestCase):
       mrc_result.standard_deviation = SIGMAS[edp]
       mrc_result.metric = "total_metric_" + edp + "_mrc_"
 
-    corrected_measurements_map = processReportSummary(report_summary)
+    corrected_measurements_map = ReportSummaryProcessor(
+        report_summary).process()
 
     # Verifies that the updated reach values are consistent.
     for edp in EDP_MAP:
@@ -181,8 +183,104 @@ class TestOriginReport(unittest.TestCase):
         TOLERANCE
     )
 
+  def test_report_with_unique_reach_is_parsed_correctly(self):
+    report_summary = get_report_summary(
+        "src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_with_unique_reach.json")
+    reportSummaryProcessor = ReportSummaryProcessor(report_summary)
+
+    reportSummaryProcessor._process_primitive_measurements()
+    reportSummaryProcessor._process_unique_reach_measurements()
+
+    expected_unique_reach_map = {
+        'difference/unique_reach_edp2': ['union/ami/edp1_edp2_edp3',
+                                         'union/ami/edp1_edp3'],
+        'difference/unique_reach_edp1': ['union/ami/edp1_edp2_edp3',
+                                         'union/ami/edp2_edp3'],
+        'difference/unique_reach_edp3': ['union/ami/edp1_edp2_edp3',
+                                         'union/ami/edp1_edp2'],
+    }
+
+    self.assertDictEqual(reportSummaryProcessor._set_difference_map,
+                         expected_unique_reach_map)
+
+  def test_report_with_unique_reach_is_corrected_successfully(self):
+    report_summary = get_report_summary(
+        "src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_with_unique_reach.json")
+    corrected_measurements_map = ReportSummaryProcessor(
+        report_summary).process()
+
+    # Cumulative measurements are less than or equal to total measurements.
+    self.assertLessEqual(corrected_measurements_map['cumulative/ami/edp1'],
+                         corrected_measurements_map['union/ami/edp1'])
+    self.assertLessEqual(corrected_measurements_map['cumulative/ami/edp2'],
+                         corrected_measurements_map['union/ami/edp2'])
+    self.assertLessEqual(corrected_measurements_map['cumulative/ami/edp3'],
+                         corrected_measurements_map['union/ami/edp3'])
+
+    # Subset measurements are less than or equal to superset measurements.
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp1'],
+                         corrected_measurements_map['union/ami/edp1_edp2'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp1'],
+                         corrected_measurements_map['union/ami/edp1_edp2_edp3'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp2'],
+                         corrected_measurements_map['union/ami/edp1_edp2_edp3'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp3'],
+                         corrected_measurements_map['union/ami/edp1_edp2_edp3'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp1_edp2'],
+                         corrected_measurements_map['union/ami/edp1_edp2_edp3'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp1_edp3'],
+                         corrected_measurements_map['union/ami/edp1_edp2_edp3'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp2_edp3'],
+                         corrected_measurements_map['union/ami/edp1_edp2_edp3'])
+
+    # Checks cover relationships.
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/ami/edp1_edp2_edp3'],
+        corrected_measurements_map['union/ami/edp1'] +
+        corrected_measurements_map['union/ami/edp2'] +
+        corrected_measurements_map['union/ami/edp3'], TOLERANCE)
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/ami/edp1_edp2'],
+        corrected_measurements_map['union/ami/edp1'] +
+        corrected_measurements_map['union/ami/edp2'], TOLERANCE)
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/ami/edp1_edp3'],
+        corrected_measurements_map['union/ami/edp1'] +
+        corrected_measurements_map['union/ami/edp3'], TOLERANCE)
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/ami/edp2_edp3'],
+        corrected_measurements_map['union/ami/edp2'] +
+        corrected_measurements_map['union/ami/edp3'], TOLERANCE)
+
+    # Check unique reach measurements.
+    self.assertEqual(corrected_measurements_map['difference/unique_reach_edp1'],
+                     corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
+                     corrected_measurements_map['union/ami/edp2_edp3'])
+    self.assertEqual(corrected_measurements_map['difference/unique_reach_edp2'],
+                     corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
+                     corrected_measurements_map['union/ami/edp1_edp3'])
+    self.assertEqual(corrected_measurements_map['difference/unique_reach_edp3'],
+                     corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
+                     corrected_measurements_map['union/ami/edp1_edp2'])
+
   def _assertFuzzyLessEqual(self, x: int, y: int, tolerance: int):
     self.assertLessEqual(x, y + tolerance)
+
+
+def read_file_to_string(filename: str) -> str:
+  try:
+    with open(filename, 'r') as file:
+      return file.read()
+  except FileNotFoundError:
+    print(f"Error: File '{filename}' not found.")
+    return ""
+
+
+def get_report_summary(filename: str):
+  input = read_file_to_string(filename)
+  report_summary = report_summary_pb2.ReportSummary()
+  Parse(input, report_summary)
+  return report_summary
 
 
 if __name__ == "__main__":
