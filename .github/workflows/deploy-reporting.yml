@@ -29,6 +29,6 @@ jobs:
     uses: ./.github/workflows/configure-reporting-v2.yml
     secrets: inherit
     with:
-      image-tag: testing-20
+      image-tag: testing-18
       environment: dev
       apply: true
