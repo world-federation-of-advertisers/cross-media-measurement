@@ -66,6 +66,6 @@ class ReportingApiServerFlags {
       ],
     required = false,
   )
-  lateinit var measurementConsumerModelLines: Map<String, String>
+  var measurementConsumerModelLines: Map<String, String> = emptyMap()
     private set
 }
