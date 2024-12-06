@@ -221,9 +221,19 @@ class TestOriginReport(unittest.TestCase):
     self.assertLessEqual(corrected_measurements_map['union/ami/edp1'],
                          corrected_measurements_map['union/ami/edp1_edp2'])
     self.assertLessEqual(corrected_measurements_map['union/ami/edp1'],
+                         corrected_measurements_map['union/ami/edp1_edp3'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp1'],
                          corrected_measurements_map['union/ami/edp1_edp2_edp3'])
     self.assertLessEqual(corrected_measurements_map['union/ami/edp2'],
+                         corrected_measurements_map['union/ami/edp1_edp2'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp2'],
+                         corrected_measurements_map['union/ami/edp2_edp3'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp2'],
                          corrected_measurements_map['union/ami/edp1_edp2_edp3'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp3'],
+                         corrected_measurements_map['union/ami/edp1_edp3'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp3'],
+                         corrected_measurements_map['union/ami/edp2_edp3'])
     self.assertLessEqual(corrected_measurements_map['union/ami/edp3'],
                          corrected_measurements_map['union/ami/edp1_edp2_edp3'])
     self.assertLessEqual(corrected_measurements_map['union/ami/edp1_edp2'],
@@ -240,6 +250,18 @@ class TestOriginReport(unittest.TestCase):
         corrected_measurements_map['union/ami/edp2'] +
         corrected_measurements_map['union/ami/edp3'], TOLERANCE)
     self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/ami/edp1_edp2_edp3'],
+        corrected_measurements_map['union/ami/edp1'] +
+        corrected_measurements_map['union/ami/edp2_edp3'], TOLERANCE)
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/ami/edp1_edp2_edp3'],
+        corrected_measurements_map['union/ami/edp2'] +
+        corrected_measurements_map['union/ami/edp1_edp3'], TOLERANCE)
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/ami/edp1_edp2_edp3'],
+        corrected_measurements_map['union/ami/edp3'] +
+        corrected_measurements_map['union/ami/edp1_edp2'], TOLERANCE)
+    self._assertFuzzyLessEqual(
         corrected_measurements_map['union/ami/edp1_edp2'],
         corrected_measurements_map['union/ami/edp1'] +
         corrected_measurements_map['union/ami/edp2'], TOLERANCE)
@@ -252,7 +274,7 @@ class TestOriginReport(unittest.TestCase):
         corrected_measurements_map['union/ami/edp2'] +
         corrected_measurements_map['union/ami/edp3'], TOLERANCE)
 
-    # Check unique reach measurements.
+    # Checks unique reach measurements.
     self.assertEqual(corrected_measurements_map['difference/unique_reach_edp1'],
                      corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
                      corrected_measurements_map['union/ami/edp2_edp3'])
