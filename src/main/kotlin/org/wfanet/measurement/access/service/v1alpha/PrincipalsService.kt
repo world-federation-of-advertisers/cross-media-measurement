@@ -85,7 +85,7 @@ class PrincipalsService(private val internalPrincipalsStub: InternalPrincipalsCo
     when (request.principal.identityCase) {
       Principal.IdentityCase.USER -> {}
       Principal.IdentityCase.TLS_CLIENT ->
-        throw PrincipalTypeNotSupportedException(request.principal.identityCase.name)
+        throw PrincipalTypeNotSupportedException(request.principal.identityCase)
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       else ->
         throw RequiredFieldNotSetException("principal.identity")
