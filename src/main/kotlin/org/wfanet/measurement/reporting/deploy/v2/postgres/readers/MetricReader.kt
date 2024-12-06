@@ -71,6 +71,7 @@ class MetricReader(private val readContext: ReadContext) {
     val metricSpec: MetricSpec,
     val metricDetails: Metric.Details,
     val createTime: Instant,
+    val state: Metric.State,
   )
 
   private data class MetricInfo(
@@ -344,37 +345,34 @@ class MetricReader(private val readContext: ReadContext) {
       """
         .trimIndent()
 
-    val sqlJoins: String =
-      """
-      JOIN Metrics USING(MeasurementConsumerId)
-      JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, MetricId)
-      """
-        .trimIndent()
-
     val sql =
       StringBuilder(
         """
-          $sqlSelect
-          FROM
-            MeasurementConsumers
-            $sqlJoins
-          WHERE Metrics.MeasurementConsumerId = $1
+          WITH ReusableMetricIds AS (
+            SELECT MetricId
+            FROM
+              Metrics JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, MetricId)
+            WHERE Metrics.MeasurementConsumerId = $1
             AND (
               Metrics.ReportingSetId,
               Metrics.TimeIntervalStart,
               Metrics.TimeIntervalEndExclusive,
               MetricCalculationSpecReportingMetrics.MetricCalculationSpecId
             ) IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
-            AND (Metrics.State = $2 OR Metrics.State = $3)
+          )
+          $sqlSelect
+          FROM
+            MeasurementConsumers
+            JOIN Metrics USING(MeasurementConsumerId)
+            JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, MetricId)
+          WHERE Metrics.MetricId IN (SELECT MetricId FROM ReusableMetricIDs)
         """
           .trimIndent()
       )
 
     val statement =
-      valuesListBoundStatement(valuesStartIndex = 3, paramCount = 4, sql.toString()) {
+      valuesListBoundStatement(valuesStartIndex = 1, paramCount = 4, sql.toString()) {
         bind("$1", measurementConsumerId)
-        bind("$2", Metric.State.SUCCEEDED)
-        bind("$3", Metric.State.RUNNING)
         reportingMetricKeys.forEach {
           addValuesBinding {
             bindValuesParam(0, it.reportingSetId)
@@ -411,6 +409,7 @@ class MetricReader(private val readContext: ReadContext) {
       val metricCalculationSpecId: InternalId = row["MetricCalculationSpecId"]
       val metricId: InternalId = row["MetricId"]
       val externalMetricId: String = row["ExternalMetricId"]
+      val state: Metric.State = row.getProtoEnum("State", Metric.State::forNumber)
       val metricTimeIntervalStart: Instant = row["MetricsTimeIntervalStart"]
       val metricTimeIntervalEnd: Instant = row["MetricsTimeIntervalEndExclusive"]
       val metricType: MetricSpec.TypeCase = MetricSpec.TypeCase.forNumber(row["MetricType"])
@@ -481,6 +480,7 @@ class MetricReader(private val readContext: ReadContext) {
           metricSpec = metricSpec,
           metricDetails = metricDetails,
           createTime = createTime,
+          state = state,
         )
       }
     }
