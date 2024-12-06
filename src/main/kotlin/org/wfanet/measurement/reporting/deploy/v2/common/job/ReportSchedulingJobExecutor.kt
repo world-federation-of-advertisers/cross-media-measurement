@@ -123,10 +123,12 @@ private fun run(
       SecureRandom().asKotlinRandom(),
       v2AlphaFlags.signingPrivateKeyStoreDir,
       commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
-      Duration.ofMinutes(60),
-      Duration.ofMinutes(60),
-      Dispatchers.IO,
-      Dispatchers.Default,
+      defaultVidModelLine = "",
+      measurementConsumerModelLines = mapOf(),
+      certificateCacheExpirationDuration = Duration.ofMinutes(60),
+      dataProviderCacheExpirationDuration = Duration.ofMinutes(60),
+      keyReaderContext = Dispatchers.IO,
+      cacheLoaderContext = Dispatchers.Default,
     )
 
   val inProcessMetricsServerName = InProcessServerBuilder.generateName()

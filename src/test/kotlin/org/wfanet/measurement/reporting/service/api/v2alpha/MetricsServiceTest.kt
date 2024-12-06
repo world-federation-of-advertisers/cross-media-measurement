@@ -490,6 +490,10 @@ private val ENCRYPTION_KEY_PAIR_STORE =
     )
   )
 
+const private val DEFAULT_VID_MODEL_LINE = "the-model-line"
+private val MEASUREMENT_CONSUMER_MODEL_LINES: Map<String, String> =
+  mapOf(MEASUREMENT_CONSUMERS.values.first().name to "mc-model-line")
+
 private val DATA_PROVIDER_PUBLIC_KEY = encryptionPublicKey {
   format = EncryptionPublicKey.Format.TINK_KEYSET
   data = SECRETS_DIR.resolve("edp1_enc_public.tink").readByteString()
@@ -1000,6 +1004,7 @@ private val BASE_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
   // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this field.
   serializedMeasurementPublicKey = measurementPublicKey.value
+  modelLine = MEASUREMENT_CONSUMER_MODEL_LINES[MEASUREMENT_CONSUMERS.values.first().name]!!
 }
 
 // CMMS incremental reach measurements
@@ -2449,6 +2454,8 @@ class MetricsServiceTest {
         listOf(AGGREGATOR_ROOT_CERTIFICATE, DATA_PROVIDER_ROOT_CERTIFICATE).associateBy {
           it.subjectKeyIdentifier!!
         },
+        DEFAULT_VID_MODEL_LINE,
+        MEASUREMENT_CONSUMER_MODEL_LINES,
       )
   }
 
@@ -2570,6 +2577,29 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric creates measurements for single pub reach when single edp params set`() {
+    // Create a local service with an empty measurement consumer model line map so that the
+    // default model line behavior can be tested.
+    val localService =
+      MetricsService(
+        METRIC_SPEC_CONFIG,
+        InternalReportingSetsGrpcKt.ReportingSetsCoroutineStub(grpcTestServerRule.channel),
+        InternalMetricsGrpcKt.MetricsCoroutineStub(grpcTestServerRule.channel),
+        variancesMock,
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
+        DataProvidersGrpcKt.DataProvidersCoroutineStub(grpcTestServerRule.channel),
+        MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
+        CertificatesGrpcKt.CertificatesCoroutineStub(grpcTestServerRule.channel),
+        MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
+        ENCRYPTION_KEY_PAIR_STORE,
+        randomMock,
+        SECRETS_DIR,
+        listOf(AGGREGATOR_ROOT_CERTIFICATE, DATA_PROVIDER_ROOT_CERTIFICATE).associateBy {
+          it.subjectKeyIdentifier!!
+        },
+        DEFAULT_VID_MODEL_LINE,
+        measurementConsumerModelLines = mapOf(),
+      )
+
     val cmmsMeasurementSpec =
       BASE_MEASUREMENT_SPEC.copy {
         measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
@@ -2588,6 +2618,7 @@ class MetricsServiceTest {
             start = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_START
             width = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_WIDTH
           }
+        modelLine = DEFAULT_VID_MODEL_LINE
       }
 
     val internalMeasurement = internalMeasurement {
@@ -2723,7 +2754,7 @@ class MetricsServiceTest {
 
     val result =
       withMeasurementConsumerPrincipal(request.parent, CONFIG) {
-        runBlocking { service.createMetric(request) }
+        runBlocking { localService.createMetric(request) }
       }
 
     val pendingReachMetricWithSingleDataProviderParams =
