@@ -35,9 +35,9 @@ on:
         required: true
         type: choice
         options:
-        - dev
-        - qa
-        - head
+          - dev
+          - qa
+          - head
       run-tests:
         description: "Run tests"
         type: boolean
@@ -59,7 +59,7 @@ jobs:
 
   scan-images:
     uses: ./.github/workflows/scan-images.yml
-    needs: [publish-images]
+    needs: [ publish-images ]
     if: inputs.existing-image-tag == ''
     with:
       container-registry: ghcr.io
@@ -75,7 +75,7 @@ jobs:
 
   update-kingdom:
     uses: ./.github/workflows/configure-kingdom.yml
-    needs: [publish-images, terraform]
+    needs: [ publish-images, terraform ]
     secrets: inherit
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
@@ -84,7 +84,7 @@ jobs:
 
   update-aggregator-duchy:
     uses: ./.github/workflows/configure-duchy.yml
-    needs: [publish-images, terraform]
+    needs: [ publish-images, terraform ]
     secrets: inherit
     with:
       duchy-name: aggregator
@@ -94,7 +94,7 @@ jobs:
 
   update-worker1-duchy:
     uses: ./.github/workflows/configure-duchy.yml
-    needs: [publish-images, terraform]
+    needs: [ publish-images, terraform ]
     secrets: inherit
     with:
       duchy-name: worker1
@@ -104,7 +104,7 @@ jobs:
 
   update-worker2-duchy:
     uses: ./.github/workflows/configure-aws-duchy.yml
-    needs: [publish-images, terraform]
+    needs: [ publish-images, terraform ]
     secrets: inherit
     with:
       duchy-name: worker2
@@ -114,7 +114,7 @@ jobs:
 
   update-simulators:
     uses: ./.github/workflows/configure-simulators.yml
-    needs: [publish-images, terraform]
+    needs: [ publish-images, terraform ]
     secrets: inherit
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
@@ -126,6 +126,15 @@ jobs:
   # This isn't technically part of the CMMS, but we do it here for simplicity.
   update-reporting-v2:
     uses: ./.github/workflows/configure-reporting-v2.yml
+    secrets: inherit
+    needs: [ publish-images, terraform ]
+    with:
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      environment: ${{ inputs.environment }}
+      apply: ${{ inputs.apply }}
+
+  update-measurement-system-prober:
+    uses: ./.github/workflows/configure-measurement-system-prober.yml
     secrets: inherit
     needs: [ publish-images, terraform ]
     with:
