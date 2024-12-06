@@ -15,7 +15,7 @@
 name: Deploy Reporting
 
 on:
-  push:
+  workflow_dispatch:
 
 jobs:
   terraform:
@@ -29,6 +29,6 @@ jobs:
     uses: ./.github/workflows/configure-reporting-v2.yml
     secrets: inherit
     with:
-      image-tag: testing-19
+      image-tag: testing-20
       environment: dev
       apply: true
