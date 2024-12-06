@@ -51,28 +51,13 @@ class GooglePubSubWorkItemsServiceTest {
   private lateinit var googlePubSubClient: GooglePubSubEmulatorClient
 
   @Before
-  fun setup() {
+  fun createServices() {
     googlePubSubClient = GooglePubSubEmulatorClient(
       host = pubSubEmulatorProvider.host,
       port = pubSubEmulatorProvider.port,
     )
     workItemsService = GooglePubSubWorkItemsService(projectId, googlePubSubClient)
-    runBlocking {
-      if (googlePubSubClient.topicExists(projectId, topicId)) {
-        googlePubSubClient.deleteTopic(projectId, topicId)
-      }
-    }
   }
-
-  @After
-  fun clear() {
-    runBlocking {
-      if (googlePubSubClient.topicExists(projectId, topicId)) {
-        googlePubSubClient.deleteTopic(projectId, topicId)
-      }
-    }
-  }
-
 
   @Test
   fun `test successful work item creation`() = runBlocking {
@@ -110,6 +95,7 @@ class GooglePubSubWorkItemsServiceTest {
       subscriber.startAsync().awaitRunning()
       val result = deferred.await()
       assertThat(result).isEqualTo("test-user-name")
+      googlePubSubClient.deleteTopic(projectId, topicId)
     }
   }
 
@@ -121,8 +107,7 @@ class GooglePubSubWorkItemsServiceTest {
       assertThrows(StatusRuntimeException::class.java) {
         runBlocking { workItemsService.createWorkItem(request) }
       }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.message).contains("Topic test-topid-id does not exist")
 
   }
 
@@ -164,6 +149,82 @@ class GooglePubSubWorkItemsServiceTest {
       }
 
       subscriber.stopAsync().awaitTerminated()
+      assertThat(receivedMessages.size).isEqualTo(numMessages)
+      googlePubSubClient.deleteTopic(projectId, topicId)
+    }
+  }
+
+  @Test
+  fun `test sending messages to multiple subscribers`() {
+    runBlocking {
+      val firstTopic = "$topicId-1"
+      val secondTopic = "$topicId-2"
+      val firstSubscription = "$subscriptionId-1"
+      val secondSubscription = "$subscriptionId-2"
+      val topics = listOf(firstTopic, secondTopic)
+      val subscriptions = listOf(firstSubscription, secondSubscription)
+
+      topics.forEach { topic ->
+        googlePubSubClient.createTopic(projectId, topic)
+      }
+      topics.zip(subscriptions).forEach { (topic, sub) ->
+        googlePubSubClient.createSubscription(projectId, sub, topic)
+      }
+
+      val messagesPerTopic = 5
+      val receivedMessages = Collections.synchronizedMap(mutableMapOf<String, MutableList<String>>())
+      val allMessagesReceived = CompletableDeferred<Boolean>()
+
+      receivedMessages[firstSubscription] = Collections.synchronizedList(mutableListOf())
+      receivedMessages[secondSubscription] = Collections.synchronizedList(mutableListOf())
+
+      val subscribers = subscriptions.map { sub ->
+        googlePubSubClient.buildSubscriber(
+          projectId = projectId,
+          subscriptionId = sub,
+          ackExtensionPeriod = Duration.ofHours(6)
+        ) { message, consumer ->
+          try {
+            val anyMessage = Any.parseFrom(message.data.toByteArray())
+            val testWork = anyMessage.unpack(TestWork::class.java)
+
+            receivedMessages.get(sub)!!.add(testWork.userName)
+
+            val totalSize = receivedMessages.values.sumOf { it.size }
+            consumer.ack()
+            if (totalSize == messagesPerTopic * topics.size) {
+              allMessagesReceived.complete(true)
+            }
+          } catch (e: Exception) {
+            consumer.nack()
+          }
+        }
+      }
+
+      subscribers.forEach { it.startAsync().awaitRunning() }
+
+      listOf(firstTopic, secondTopic).forEach { topic ->
+        repeat(messagesPerTopic) { index ->
+          val request = createTestRequest("test-work-item-multiple-$index", createWorkItemParams(), topic)
+          val response = workItemsService.createWorkItem(request)
+          assertThat(response.name).isEqualTo("workItems/test-work-item-multiple-$index")
+        }
+      }
+
+      withTimeout(10_000) {
+        allMessagesReceived.await()
+      }
+
+      subscribers.forEach { it.stopAsync().awaitTerminated() }
+
+      receivedMessages.values.forEach { messages ->
+        assertThat(messages.size).isEqualTo(messagesPerTopic)
+      }
+
+      topics.forEach { topic ->
+        googlePubSubClient.deleteTopic(projectId, topic)
+      }
+
     }
   }
 
