@@ -50,28 +50,13 @@ class GooglePubSubWorkItemsServiceTest {
   private lateinit var googlePubSubClient: GooglePubSubEmulatorClient
 
   @Before
-  fun setup() {
+  fun createServices() {
     googlePubSubClient = GooglePubSubEmulatorClient(
       host = pubSubEmulatorProvider.host,
       port = pubSubEmulatorProvider.port,
     )
     workItemsService = GooglePubSubWorkItemsService(projectId, googlePubSubClient)
-    runBlocking {
-      if (googlePubSubClient.topicExists(projectId, topicId)) {
-        googlePubSubClient.deleteTopic(projectId, topicId)
-      }
-    }
   }
-
-  @After
-  fun clear() {
-    runBlocking {
-      if (googlePubSubClient.topicExists(projectId, topicId)) {
-        googlePubSubClient.deleteTopic(projectId, topicId)
-      }
-    }
-  }
-
 
   @Test
   fun `test successful work item creation`() = runBlocking {
@@ -109,6 +94,7 @@ class GooglePubSubWorkItemsServiceTest {
       subscriber.startAsync().awaitRunning()
       val result = deferred.await()
       assertThat(result).isEqualTo("test-user-name")
+      googlePubSubClient.deleteTopic(projectId, topicId)
     }
   }
 
@@ -120,8 +106,7 @@ class GooglePubSubWorkItemsServiceTest {
       assertThrows(StatusRuntimeException::class.java) {
         runBlocking { workItemsService.createWorkItem(request) }
       }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.message).contains("Topic test-topid-id does not exist")
 
   }
 
@@ -168,6 +153,7 @@ class GooglePubSubWorkItemsServiceTest {
 
       subscriber.stopAsync().awaitTerminated()
       assertThat(receivedMessages.size).isEqualTo(numMessages)
+      googlePubSubClient.deleteTopic(projectId, topicId)
     }
   }
 
@@ -237,6 +223,11 @@ class GooglePubSubWorkItemsServiceTest {
       receivedMessages.values.forEach { messages ->
         assertThat(messages.size).isEqualTo(messagesPerTopic)
       }
+
+      topics.forEach { topic ->
+        googlePubSubClient.deleteTopic(projectId, topic)
+      }
+
     }
   }
 
