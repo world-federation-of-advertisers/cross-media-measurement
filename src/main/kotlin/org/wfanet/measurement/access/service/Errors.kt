@@ -21,6 +21,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.access.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.access.v1alpha.Principal
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.errorInfo
 
@@ -161,11 +162,14 @@ class PrincipalAlreadyExistsException(cause: Throwable? = null) :
     cause,
   )
 
-class PrincipalTypeNotSupportedException(type: String, cause: Throwable? = null) :
+class PrincipalTypeNotSupportedException(
+  identityCase: Principal.IdentityCase,
+  cause: Throwable? = null,
+) :
   ServiceException(
     Errors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED,
-    "Principal type $type not supported",
-    mapOf(Errors.Metadata.PRINCIPAL_TYPE to type),
+    "Principal type ${identityCase.name} not supported",
+    mapOf(Errors.Metadata.PRINCIPAL_TYPE to identityCase.name),
     cause,
   )
 
