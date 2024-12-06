@@ -26,7 +26,7 @@ import org.wfanet.measurement.access.v1alpha.Role
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.access.v1alpha.role
 import org.wfanet.measurement.internal.access.Principal as InternalPrincipal
-import org.wfanet.measurement.internal.access.PrincipalKt.oAuthUser as InternalOAuthUser
+import org.wfanet.measurement.internal.access.PrincipalKt.oAuthUser as internalOAuthUser
 import org.wfanet.measurement.internal.access.Role as InternalRole
 
 fun InternalPrincipal.toPrincipal(): Principal {
@@ -67,7 +67,7 @@ fun InternalRole.toRole(): Role {
 
 fun Principal.OAuthUser.toInternal(): InternalPrincipal.OAuthUser {
   val source = this
-  return InternalOAuthUser {
+  return internalOAuthUser {
     issuer = source.issuer
     subject = source.subject
   }

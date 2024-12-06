@@ -20,9 +20,9 @@ import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.access.service.internal.Errors as InternalErrors
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
-import org.wfanet.measurement.common.grpc.errorInfo
 
 object Errors {
   const val DOMAIN = "access.halo-cmm.org"
@@ -161,11 +161,11 @@ class PrincipalAlreadyExistsException(cause: Throwable? = null) :
     cause,
   )
 
-class PrincipalTypeNotSupportedException(cause: Throwable? = null) :
+class PrincipalTypeNotSupportedException(type: String, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED,
-    "Principal type not supported",
-    emptyMap(),
+    "Principal type $type not supported",
+    mapOf(Errors.Metadata.PRINCIPAL_TYPE to type),
     cause,
   )
 

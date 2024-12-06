@@ -16,6 +16,11 @@
 
 package org.wfanet.measurement.access.service.v1alpha
 
+import org.wfanet.measurement.internal.access.PrincipalKt as InternalPrincipalKt
+import org.wfanet.measurement.internal.access.PrincipalsGrpcKt as InternalPrincipalsGrpcKt
+import org.wfanet.measurement.internal.access.createUserPrincipalRequest as internalCreateUserPrincipalRequest
+import org.wfanet.measurement.internal.access.getPrincipalRequest as internalGetPrincipalRequest
+import org.wfanet.measurement.internal.access.principal as internalPrincipal
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.kotlin.toByteStringUtf8
@@ -45,11 +50,6 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.internal.access.PrincipalKt as InternalPrincipalKt
-import org.wfanet.measurement.internal.access.PrincipalsGrpcKt as InternalPrincipalsGrpcKt
-import org.wfanet.measurement.internal.access.createUserPrincipalRequest as internalCreateUserPrincipalRequest
-import org.wfanet.measurement.internal.access.getPrincipalRequest as internalGetPrincipalRequest
-import org.wfanet.measurement.internal.access.principal as internalPrincipal
 
 @RunWith(JUnit4::class)
 class PrincipalsServiceTest {
@@ -266,6 +266,7 @@ class PrincipalsServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED.name
+            metadata[Errors.Metadata.PRINCIPAL_TYPE.key] = "TLS_CLIENT"
           }
         )
     }
@@ -287,8 +288,8 @@ class PrincipalsServiceTest {
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "principal.user"
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "principal.identity"
         }
       )
   }
@@ -375,6 +376,37 @@ class PrincipalsServiceTest {
         }
       )
   }
+
+  @Test
+  fun `createPrincipal throws INVALID_FIELD_VALUE when principle id does not match RFC_1034_REGEX`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createPrincipal(
+            createPrincipalRequest {
+              principal = principal {
+                name = "principals/user-1"
+                user =
+                  PrincipalKt.oAuthUser {
+                    issuer = "example.com"
+                    subject = "user1@example.com"
+                  }
+              }
+              principalId = "678"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "principal_id"
+          }
+        )
+    }
 
   @Test
   fun `createPrincipal throws PRINCIPAL_ALREADY_EXISTS from backend`() = runBlocking {

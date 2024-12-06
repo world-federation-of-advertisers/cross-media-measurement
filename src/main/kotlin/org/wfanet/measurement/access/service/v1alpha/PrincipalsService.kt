@@ -24,11 +24,12 @@ import org.wfanet.measurement.access.service.PrincipalKey
 import org.wfanet.measurement.access.service.PrincipalNotFoundException
 import org.wfanet.measurement.access.service.PrincipalTypeNotSupportedException
 import org.wfanet.measurement.access.service.RequiredFieldNotSetException
-import org.wfanet.measurement.access.service.internal.Errors as InternalErrors
 import org.wfanet.measurement.access.v1alpha.CreatePrincipalRequest
 import org.wfanet.measurement.access.v1alpha.GetPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.Principal
 import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
+import org.wfanet.measurement.common.api.ResourceIds
+import org.wfanet.measurement.access.service.internal.Errors as InternalErrors
 import org.wfanet.measurement.internal.access.Principal as InternalPrincipal
 import org.wfanet.measurement.internal.access.PrincipalsGrpcKt.PrincipalsCoroutineStub as InternalPrincipalsCoroutineStub
 import org.wfanet.measurement.internal.access.createUserPrincipalRequest as internalCreateUserPrincipalRequest
@@ -84,10 +85,10 @@ class PrincipalsService(private val internalPrincipalsStub: InternalPrincipalsCo
     when (request.principal.identityCase) {
       Principal.IdentityCase.USER -> {}
       Principal.IdentityCase.TLS_CLIENT ->
-        throw PrincipalTypeNotSupportedException()
+        throw PrincipalTypeNotSupportedException(request.principal.identityCase.name)
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       else ->
-        throw InvalidFieldValueException("principal.user")
+        throw RequiredFieldNotSetException("principal.identity")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
@@ -103,6 +104,11 @@ class PrincipalsService(private val internalPrincipalsStub: InternalPrincipalsCo
 
     if (request.principalId.isEmpty()) {
       throw RequiredFieldNotSetException("principal_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (!ResourceIds.RFC_1034_REGEX.matches(request.principalId)) {
+      throw InvalidFieldValueException("principal_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
