@@ -64,7 +64,6 @@ class ReportingApiServerFlags {
           "This can be specified multiple times. Entries in this map override the default VID " +
           "ModelLine."
       ],
-    defaultValue = "",
     required = false,
   )
   lateinit var measurementConsumerModelLines: Map<String, String>
