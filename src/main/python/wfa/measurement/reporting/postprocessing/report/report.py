@@ -23,6 +23,8 @@ from typing import Any, FrozenSet, Tuple
 from itertools import combinations
 from functools import reduce
 
+MIN_STANDARD_VARIATION_RATIO = 0.001
+UNIT_SCALING_FACTOR = 1.0
 
 def get_subset_relationships(edp_combinations: list[FrozenSet[str]]) -> list[
   Tuple[FrozenSet[str], FrozenSet[str]]]:
@@ -56,7 +58,7 @@ def is_cover(target_set: FrozenSet[str],
 
 
 def get_covers(target_set: FrozenSet[str], other_sets: list[FrozenSet[str]]) -> \
-list[Tuple[FrozenSet[str], list[FrozenSet[str]]]]:
+    list[Tuple[FrozenSet[str], list[FrozenSet[str]]]]:
   """Finds all combinations of sets from `other_sets` that cover `target_set`.
 
   This function identifies all possible combinations of sets within `other_sets`
@@ -173,8 +175,7 @@ class MetricReport:
 
   def get_cumulative_measurement(self, edp_combination: FrozenSet[str],
       period: int) -> Measurement:
-    return self._reach_time_series[edp_combination][
-      period]
+    return self._reach_time_series[edp_combination][period]
 
   def get_whole_campaign_measurement(self,
       edp_combination: FrozenSet[str]) -> Measurement:
@@ -276,25 +277,24 @@ class Report:
     for index, metric in enumerate(metric_reports.keys()):
       self._metric_index[metric] = index
 
-    self._edp_combination_index = {}
-    for index, edp_combination in enumerate(
-        next(iter(metric_reports.values())).get_cumulative_edp_combinations()
-    ):
-      self._edp_combination_index[edp_combination] = index
-
-    self._num_edp_combinations = len(self._edp_combination_index.keys())
     self._num_periods = next(
         iter(metric_reports.values())).get_number_of_periods()
 
-    # Assign an index to each measurement.
+    # Assigns an index to each measurement.
     measurement_index = 0
     self._measurement_name_to_index = {}
+    self._max_standard_deviation = UNIT_SCALING_FACTOR
     for metric in metric_reports.keys():
       for edp_combination in metric_reports[
         metric].get_whole_campaign_edp_combinations():
         measurement = metric_reports[metric].get_whole_campaign_measurement(
             edp_combination)
         self._measurement_name_to_index[measurement.name] = measurement_index
+        # Updates the max standard deviation. This max standard deviation will
+        # be used to normalized the standard deviation of the measurements when
+        # the report is corrected.
+        self._max_standard_deviation = max(self._max_standard_deviation,
+                                           measurement.sigma)
         measurement_index += 1
       for edp_combination in metric_reports[
         metric].get_cumulative_edp_combinations():
@@ -302,6 +302,11 @@ class Report:
           measurement = metric_reports[metric].get_cumulative_measurement(
               edp_combination, period)
           self._measurement_name_to_index[measurement.name] = measurement_index
+          # Updates the max standard deviation. This max standard deviation will
+          # be used to normalized the standard deviation of the measurements when
+          # the report is corrected.
+          self._max_standard_deviation = max(self._max_standard_deviation,
+                                             measurement.sigma)
           measurement_index += 1
 
     self._num_vars = measurement_index
@@ -318,10 +323,9 @@ class Report:
     """
     spec = self.to_set_measurement_spec()
     solution = Solver(spec).solve_and_translate()
-    return self.report_from_solution(solution, spec)
+    return self.report_from_solution(solution)
 
-  def report_from_solution(self, solution: Solution,
-      spec: SetMeasurementsSpec) -> "Report":
+  def report_from_solution(self, solution: Solution) -> "Report":
     return Report(
         metric_reports={
             metric: self._metric_report_from_solution(metric, solution)
@@ -549,12 +553,14 @@ class Report:
     for metric in self._metric_reports.keys():
       for edp_combination in self._metric_reports[
         metric].get_cumulative_edp_combinations():
-        for period in range(0, self._num_periods):
+        for period in range(self._num_periods):
           measurement = self._metric_reports[
             metric].get_cumulative_measurement(edp_combination, period)
           spec.add_measurement(
               self._get_measurement_index(measurement),
-              measurement,
+              Measurement(measurement.value,
+                          self._normalized_sigma(measurement.sigma),
+                          measurement.name),
           )
       for edp_combination in self._metric_reports[
         metric].get_whole_campaign_edp_combinations():
@@ -562,8 +568,30 @@ class Report:
           metric].get_whole_campaign_measurement(edp_combination)
         spec.add_measurement(
             self._get_measurement_index(measurement),
-            measurement,
+            Measurement(measurement.value,
+                        self._normalized_sigma(measurement.sigma),
+                        measurement.name),
         )
+
+  def _normalized_sigma(self, sigma: float) -> float:
+    """Normalizes the standard deviation.
+
+    Args:
+      sigma: The standard deviation to normalize.
+
+    Returns:
+      The normalized standard deviation, capped at
+      MIN_STANDARD_VARIATION_RATIO.
+    """
+
+    # Zero value for sigma means that this measurement will not be corrected,
+    # thus the normalized value of zero is not capped at
+    # MIN_STANDARD_VARIATION_RATIO.
+    if not sigma:
+      return 0.0
+
+    normalized_sigma = sigma / self._max_standard_deviation
+    return max(normalized_sigma, MIN_STANDARD_VARIATION_RATIO)
 
   def _get_measurement_index(self, measurement: Measurement) -> int:
     return self._measurement_name_to_index[measurement.name]

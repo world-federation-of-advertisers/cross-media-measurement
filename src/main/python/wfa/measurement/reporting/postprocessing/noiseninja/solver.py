@@ -79,8 +79,8 @@ class Solver:
               np.multiply(variables, 1 / measurement.sigma),
               -measurement.value / measurement.sigma)
 
-  @staticmethod
-  def _map_sets_to_variables(set_measurement_spec: SetMeasurementsSpec) -> dict[int, int]:
+  def _map_sets_to_variables(set_measurement_spec: SetMeasurementsSpec) -> dict[
+    int, int]:
     variable_index_by_set_id: dict[int, int] = {}
     num_variables = 0
     for measured_set in set_measurement_spec.all_sets():
