@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 import unittest
 
 from google.protobuf.json_format import Parse
@@ -294,8 +295,7 @@ def read_file_to_string(filename: str) -> str:
     with open(filename, 'r') as file:
       return file.read()
   except FileNotFoundError:
-    print(f"Error: File '{filename}' not found.")
-    return ""
+    sys.exit(1)
 
 
 def get_report_summary(filename: str):
