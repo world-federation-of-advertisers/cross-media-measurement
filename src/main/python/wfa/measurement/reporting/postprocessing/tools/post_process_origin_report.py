@@ -131,7 +131,20 @@ class ReportSummaryProcessor:
     return metric_name_to_value
 
   def _process_primitive_measurements(self):
-    """Extract the primitive measurements from the report summary."""
+    """Extract the primitive measurements from the report summary.
+
+    This method iterates through the measurement details in the report summary
+    and extracts the cumulative and whole campaign measurements.
+
+    For each measurement detail entry:
+
+    - If the set_operation is "cumulative", the measurement is added to the
+      `_cumulative_measurements` dictionary, keyed by the measurement policy
+      and the set of data providers.
+    - If the set_operation is "union" and is_cumulative is False, the
+      measurement is added to the `_whole_campaign_measurements` dictionary,
+      keyed by the measurement policy and the set of data providers.
+    """
     for entry in self._report_summary.measurement_details:
       measurements = [
           Measurement(result.reach, result.standard_deviation, result.metric)
