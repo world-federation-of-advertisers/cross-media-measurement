@@ -15,29 +15,25 @@
 variable "topic_name" {
   description = "Name of the Pub/Sub topic"
   type        = string
+  nullable = false
 }
 
 variable "subscription_name" {
   description = "Name of the Pub/Sub subscription"
   type        = string
-}
-
-variable "retain_acked_messages" {
-  description = "Whether to retain acknowledged messages for the message retention duration."
-  type        = bool
-  default     = false
+  nullable = false
 }
 
 variable "message_retention_duration" {
   description = "The duration (in seconds) for which Pub/Sub retains unacknowledged messages."
   type        = string
-  default     = "86400s"
+  default     = null
 }
 
 variable "ack_deadline_seconds" {
   description = "The time (in seconds) allowed for subscribers to acknowledge messages. If the acknowledgment period is not extended or the message is not acknowledged within this time, the message will be re-delivered."
   type        = number
-  default     = 60
+  default     = null
 }
 
 variable "undelivered_messages_threshold" {

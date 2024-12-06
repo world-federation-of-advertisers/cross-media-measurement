@@ -24,6 +24,5 @@ resource "google_pubsub_subscription" "subscription" {
   topic = google_pubsub_topic.topic.id
 
   ack_deadline_seconds       = var.ack_deadline_seconds
-  retain_acked_messages      = var.retain_acked_messages
   message_retention_duration = var.message_retention_duration
 }

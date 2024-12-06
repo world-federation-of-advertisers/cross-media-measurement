@@ -12,12 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-terraform {
-  backend "gcs" {
-    prefix = "terraform/state/halo-control-plane"
-  }
-}
-
-provider "google" {}
-
-# Topics here
+# Module `pubsub` here.
