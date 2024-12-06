@@ -24,12 +24,12 @@ import org.wfanet.measurement.access.service.PrincipalKey
 import org.wfanet.measurement.access.service.PrincipalNotFoundException
 import org.wfanet.measurement.access.service.PrincipalTypeNotSupportedException
 import org.wfanet.measurement.access.service.RequiredFieldNotSetException
+import org.wfanet.measurement.access.service.internal.Errors as InternalErrors
 import org.wfanet.measurement.access.v1alpha.CreatePrincipalRequest
 import org.wfanet.measurement.access.v1alpha.GetPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.Principal
 import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
 import org.wfanet.measurement.common.api.ResourceIds
-import org.wfanet.measurement.access.service.internal.Errors as InternalErrors
 import org.wfanet.measurement.internal.access.Principal as InternalPrincipal
 import org.wfanet.measurement.internal.access.PrincipalsGrpcKt.PrincipalsCoroutineStub as InternalPrincipalsCoroutineStub
 import org.wfanet.measurement.internal.access.createUserPrincipalRequest as internalCreateUserPrincipalRequest

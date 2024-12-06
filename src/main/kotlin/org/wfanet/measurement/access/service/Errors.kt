@@ -20,9 +20,9 @@ import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
-import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.access.service.internal.Errors as InternalErrors
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
+import org.wfanet.measurement.common.grpc.errorInfo
 
 object Errors {
   const val DOMAIN = "access.halo-cmm.org"
