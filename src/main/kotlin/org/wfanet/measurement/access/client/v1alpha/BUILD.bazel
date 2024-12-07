@@ -1,0 +1,15 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+kt_jvm_library(
+    name = "principal_auth_interceptor",
+    srcs = ["PrincipalAuthInterceptor.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/access/v1alpha:principals_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:context",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
