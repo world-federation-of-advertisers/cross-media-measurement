@@ -20,13 +20,7 @@ import ("strings")
 	_mcName:            string
 	_privateKeyDerFile: string
 	_apiKey:            string
-	_edp1Name:          string
-	_edp2Name:          string
-	_edp3Name:          string
-	_edp4Name:          string
-	_edp5Name:          string
-	_edp6Name:          string
-	_edpResourceNames: [_edp1Name, _edp2Name, _edp3Name, _edp4Name, _edp5Name, _edp6Name]
+	_edpResourceNames: [...string]
 	_verboseGrpcClientLogging: bool | *false
 	_kingdomPublicApiTarget:   string
 	_secretName:               string
