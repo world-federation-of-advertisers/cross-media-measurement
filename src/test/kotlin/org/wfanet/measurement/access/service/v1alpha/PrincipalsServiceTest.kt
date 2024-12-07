@@ -34,9 +34,11 @@ import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.stub
 import org.wfanet.measurement.access.service.Errors
+import org.wfanet.measurement.access.service.internal.PrincipalAlreadyExistsException
 import org.wfanet.measurement.access.service.internal.PrincipalNotFoundException
 import org.wfanet.measurement.access.v1alpha.GetPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.PrincipalKt
+import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.getPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.common.grpc.errorInfo
@@ -45,6 +47,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.access.PrincipalKt as InternalPrincipalKt
 import org.wfanet.measurement.internal.access.PrincipalsGrpcKt as InternalPrincipalsGrpcKt
+import org.wfanet.measurement.internal.access.createUserPrincipalRequest as internalCreateUserPrincipalRequest
 import org.wfanet.measurement.internal.access.getPrincipalRequest as internalGetPrincipalRequest
 import org.wfanet.measurement.internal.access.principal as internalPrincipal
 
@@ -186,6 +189,251 @@ class PrincipalsServiceTest {
           domain = Errors.DOMAIN
           reason = Errors.Reason.INVALID_FIELD_VALUE.name
           metadata[Errors.Metadata.FIELD_NAME.key] = "name"
+        }
+      )
+  }
+
+  @Test
+  fun `createPrincipal returns user Principal`() = runBlocking {
+    val internalPrincipal = internalPrincipal {
+      principalResourceId = "user-1"
+      user =
+        InternalPrincipalKt.oAuthUser {
+          issuer = "example.com"
+          subject = "user1@example.com"
+        }
+    }
+    internalServiceMock.stub {
+      onBlocking { createUserPrincipal(any()) } doReturn internalPrincipal
+    }
+
+    val request = createPrincipalRequest {
+      principal = principal {
+        name = "principals/${internalPrincipal.principalResourceId}"
+        user =
+          PrincipalKt.oAuthUser {
+            issuer = "example.com"
+            subject = "user1@example.com"
+          }
+      }
+      principalId = "user-1"
+    }
+    val response = service.createPrincipal(request)
+
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalPrincipalsGrpcKt.PrincipalsCoroutineImplBase::createUserPrincipal,
+      )
+      .isEqualTo(
+        internalCreateUserPrincipalRequest {
+          principalResourceId = internalPrincipal.principalResourceId
+          user = internalPrincipal.user
+        }
+      )
+
+    assertThat(response)
+      .isEqualTo(
+        principal {
+          name = request.principal.name
+          user =
+            PrincipalKt.oAuthUser {
+              issuer = internalPrincipal.user.issuer
+              subject = internalPrincipal.user.subject
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `createPrincipal throws PRINCIPAL_TYPE_NOT_SUPPORTED when principle identity case is TLS_CLIENT`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createPrincipal(
+            createPrincipalRequest {
+              principal = principal {
+                name = "principals/user-1"
+                tlsClient =
+                  PrincipalKt.tlsClient { authorityKeyIdentifier = "akid".toByteStringUtf8() }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED.name
+            metadata[Errors.Metadata.PRINCIPAL_TYPE.key] = "TLS_CLIENT"
+          }
+        )
+    }
+
+  @Test
+  fun `createPrincipal throws INVALID_FIELD_VALUE when principle user is not set`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.createPrincipal(
+          createPrincipalRequest {
+            principal = principal { name = "principals/user-1" }
+            principalId = "user-1"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "principal.identity"
+        }
+      )
+  }
+
+  @Test
+  fun `createPrincipal throws REQUIRED_FIELD_NOT_SET when principal user issuer is not set`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createPrincipal(
+            createPrincipalRequest {
+              principal = principal {
+                name = "principals/user-1"
+                user = PrincipalKt.oAuthUser { subject = "user1@example.com" }
+              }
+              principalId = "user-1"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "principal.user.issuer"
+          }
+        )
+    }
+
+  @Test
+  fun `createPrincipal throws REQUIRED_FIELD_NOT_SET when principal user subject is not set`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createPrincipal(
+            createPrincipalRequest {
+              principal = principal {
+                name = "principals/user-1"
+                user = PrincipalKt.oAuthUser { issuer = "example.com" }
+              }
+              principalId = "user-1"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "principal.user.subject"
+          }
+        )
+    }
+
+  @Test
+  fun `createPrincipal throws REQUIRED_FIELD_NOT_SET when principle id is not set`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.createPrincipal(
+          createPrincipalRequest {
+            principal = principal {
+              name = "principals/user-1"
+              user =
+                PrincipalKt.oAuthUser {
+                  issuer = "example.com"
+                  subject = "user1@example.com"
+                }
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "principal_id"
+        }
+      )
+  }
+
+  @Test
+  fun `createPrincipal throws INVALID_FIELD_VALUE when principle id does not match RFC_1034_REGEX`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createPrincipal(
+            createPrincipalRequest {
+              principal = principal {
+                name = "principals/user-1"
+                user =
+                  PrincipalKt.oAuthUser {
+                    issuer = "example.com"
+                    subject = "user1@example.com"
+                  }
+              }
+              principalId = "678"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "principal_id"
+          }
+        )
+    }
+
+  @Test
+  fun `createPrincipal throws PRINCIPAL_ALREADY_EXISTS from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { createUserPrincipal(any()) } doThrow
+        PrincipalAlreadyExistsException().asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+    }
+
+    val request = createPrincipalRequest {
+      principal = principal {
+        name = "principals/user-1"
+        user =
+          PrincipalKt.oAuthUser {
+            issuer = "example.com"
+            subject = "user1@example.com"
+          }
+      }
+      principalId = "user-1"
+    }
+    val exception = assertFailsWith<StatusRuntimeException> { service.createPrincipal(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.PRINCIPAL_ALREADY_EXISTS.name
         }
       )
   }
