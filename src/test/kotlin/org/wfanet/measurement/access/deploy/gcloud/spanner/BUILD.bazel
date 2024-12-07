@@ -1,0 +1,15 @@
+load(
+    "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl",
+    "spanner_emulator_test",
+)
+
+spanner_emulator_test(
+    name = "AccessSchemaTest",
+    srcs = ["AccessSchemaTest.kt"],
+    test_class = "org.wfanet.measurement.access.deploy.gcloud.spanner.AccessSchemaTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner/testing:schemata",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
