@@ -94,6 +94,7 @@ class GooglePubSubWorkItemsServiceTest {
       subscriber.startAsync().awaitRunning()
       val result = deferred.await()
       assertThat(result).isEqualTo("test-user-name")
+      googlePubSubClient.deleteSubscription(projectId, subscriptionId)
       googlePubSubClient.deleteTopic(projectId, topicId)
     }
   }
@@ -153,6 +154,7 @@ class GooglePubSubWorkItemsServiceTest {
 
       subscriber.stopAsync().awaitTerminated()
       assertThat(receivedMessages.size).isEqualTo(numMessages)
+      googlePubSubClient.deleteSubscription(projectId, subscriptionId)
       googlePubSubClient.deleteTopic(projectId, topicId)
     }
   }
@@ -224,8 +226,11 @@ class GooglePubSubWorkItemsServiceTest {
         assertThat(messages.size).isEqualTo(messagesPerTopic)
       }
 
-      topics.forEach { topic ->
-        googlePubSubClient.deleteTopic(projectId, topic)
+      subscriptions.forEach {subscriptionId ->
+        googlePubSubClient.deleteSubscription(projectId, subscriptionId)
+      }
+      topics.forEach { topicId ->
+        googlePubSubClient.deleteTopic(projectId, topicId)
       }
 
     }

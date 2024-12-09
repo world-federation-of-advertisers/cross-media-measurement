@@ -16,47 +16,17 @@
 
 package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
-import io.grpc.Status
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
 import com.google.protobuf.Message
 import kotlinx.coroutines.runBlocking
 
 class GooglePubSubWorkItemsService(
-  private val projectId: String,
+  projectId: String,
   googlePubSubClient: GooglePubSubClient
-) : WorkItemsCoroutineImplBase(), WorkItemsService {
+):  WorkItemsService() {
 
   private val publisher: Publisher<Message> = Publisher(projectId, googlePubSubClient)
-
-
-  override suspend fun createWorkItem(
-    request: CreateWorkItemRequest
-  ): WorkItem {
-
-    val workItem = request.workItem
-    val topicId = workItem.queue
-
-    try {
-      publishMessage(topicId, workItem.workItemParams)
-    } catch (e: Exception) {
-      throw when {
-        e.message?.contains("Topic id: $topicId does not exist") == true -> {
-          Status.NOT_FOUND
-            .withDescription("Google Pub/Sub topicId '$topicId' does not exist in project '$projectId'")
-            .asRuntimeException()
-        }
-
-        else -> {
-          Status.UNKNOWN
-            .withDescription("An unknown error occurred: ${e.message}")
-            .asRuntimeException()
-        }
-      }
-    }
-    return workItem
-  }
 
   override fun publishMessage(queueName: String, message: Message) {
     runBlocking {
