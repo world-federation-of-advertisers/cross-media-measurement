@@ -1,0 +1,17 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/access:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/access:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "tls_client_principal_mapping",
+    srcs = ["TlsClientPrincipalMapping.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_ids",
+        "//src/main/proto/wfa/measurement/config:authority_key_to_principal_map_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+    ],
+)

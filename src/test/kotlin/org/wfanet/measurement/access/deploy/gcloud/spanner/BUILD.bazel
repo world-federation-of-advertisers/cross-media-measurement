@@ -13,3 +13,56 @@ spanner_emulator_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )
+
+spanner_emulator_test(
+    name = "SpannerPrincipalsServiceTest",
+    srcs = ["SpannerPrincipalsServiceTest.kt"],
+    test_class = "org.wfanet.measurement.access.deploy.gcloud.spanner.SpannerPrincipalsServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner:spanner_principals_service",
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner/testing:schemata",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal/testing:principals_service_test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
+
+spanner_emulator_test(
+    name = "SpannerPermissionsServiceTest",
+    srcs = ["SpannerPermissionsServiceTest.kt"],
+    test_class = "org.wfanet.measurement.access.deploy.gcloud.spanner.SpannerPermissionsServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner:spanner_permissions_service",
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner:spanner_policies_service",
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner:spanner_principals_service",
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner:spanner_roles_service",
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner/testing:schemata",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal/testing:permissions_service_test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
+
+spanner_emulator_test(
+    name = "SpannerRolesServiceTest",
+    srcs = ["SpannerRolesServiceTest.kt"],
+    test_class = "org.wfanet.measurement.access.deploy.gcloud.spanner.SpannerRolesServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner:spanner_roles_service",
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner/testing:schemata",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal/testing:roles_service_test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
+
+spanner_emulator_test(
+    name = "SpannerPoliciesServiceTest",
+    srcs = ["SpannerPoliciesServiceTest.kt"],
+    test_class = "org.wfanet.measurement.access.deploy.gcloud.spanner.SpannerPoliciesServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner:spanner_policies_service",
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner:spanner_principals_service",
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner:spanner_roles_service",
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner/testing:schemata",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal/testing:policies_service_test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
