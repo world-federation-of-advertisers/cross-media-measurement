@@ -30,6 +30,8 @@ import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
+import java.io.File
+import java.nio.file.Paths
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -88,6 +90,15 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
     flags.duchyCsCertDerFiles.map {
       DuchyCert(duchyId = it.key, consentSignalCertificateDer = it.value.readByteString())
     }
+  val pdpKeyPath = Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+  val pdpCert = pdpKeyPath.resolve("pdp1_cs_cert.der").toFile()
+  val pdpKey = pdpKeyPath.resolve("pdp1_cs_private.der").toFile()
+  val pdpPublicKey = pdpKeyPath.resolve("pdp1_enc_public.tink").toFile()
+  val pdpContent = EntityContent(
+    displayName = "pdp1",
+    signingKey = loadSigningKey(pdpCert, pdpKey),
+    encryptionPublicKey = loadPublicKey(pdpPublicKey).toEncryptionPublicKey(),
+  )
 
   runBlocking {
     // Runs the resource setup job.
@@ -103,7 +114,7 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
         flags.bazelConfigName,
         flags.outputDir,
       )
-      .process(dataProviderContents, measurementConsumerContent, duchyCerts)
+      .process(dataProviderContents, measurementConsumerContent, duchyCerts, pdpContent)
   }
 }
 
