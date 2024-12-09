@@ -30,12 +30,12 @@ import org.wfanet.measurement.queue.QueueSubscriber
  * to a specified queue and processes messages as they arrive.
  *
  * @param T The type of message that this application will process.
- * @param queueName The name of the queue to which this application subscribes.
+ * @param subscriptionId The name of the subscription to which this application subscribes.
  * @param queueSubscriber A client that manages connections and interactions with the queue.
  * @param parser [Parser] used to parse serialized queue messages into [T] instances.
  */
 abstract class BaseTeeApplication<T : Message>(
-  private val queueName: String,
+  private val subscriptionId: String,
   private val queueSubscriber: QueueSubscriber,
   private val parser: Parser<T>,
 ) : AutoCloseable {
@@ -51,7 +51,7 @@ abstract class BaseTeeApplication<T : Message>(
    */
   private suspend fun receiveAndProcessMessages() {
     val messageChannel: ReceiveChannel<QueueSubscriber.QueueMessage<T>> =
-      queueSubscriber.subscribe(queueName, parser)
+      queueSubscriber.subscribe(subscriptionId, parser)
     for (message: QueueSubscriber.QueueMessage<T> in messageChannel) {
       processMessage(message)
     }
