@@ -83,17 +83,11 @@ jobs:
           MC_NAME: ${{ vars.MC_NAME }}
           MC_API_KEY: ${{ secrets.MC_API_KEY }}
           EDP1_NAME: ${{ vars.EDP1_NAME }}
-          EDP1_CERT_NAME: ${{ vars.EDP1_CERT_NAME }}
           EDP2_NAME: ${{ vars.EDP2_NAME }}
-          EDP2_CERT_NAME: ${{ vars.EDP2_CERT_NAME }}
           EDP3_NAME: ${{ vars.EDP3_NAME }}
-          EDP3_CERT_NAME: ${{ vars.EDP3_CERT_NAME }}
           EDP4_NAME: ${{ vars.EDP4_NAME }}
-          EDP4_CERT_NAME: ${{ vars.EDP4_CERT_NAME }}
           EDP5_NAME: ${{ vars.EDP5_NAME }}
-          EDP5_CERT_NAME: ${{ vars.EDP5_CERT_NAME }}
           EDP6_NAME: ${{ vars.EDP6_NAME }}
-          EDP6_CERT_NAME: ${{ vars.EDP6_CERT_NAME }}
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
