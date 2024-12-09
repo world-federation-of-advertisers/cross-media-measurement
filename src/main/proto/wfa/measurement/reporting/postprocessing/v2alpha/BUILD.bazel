@@ -21,3 +21,23 @@ py_proto_library(
     name = "report_summary_py_pb2",
     deps = [":report_summary_proto"],
 )
+
+proto_library(
+    name = "reporting_set_proto",
+    srcs = ["reporting_set.proto"],
+)
+
+kt_jvm_proto_library(
+    name = "reporting_set_kt_jvm_proto",
+    deps = [":reporting_set_proto"],
+)
+
+proto_library(
+    name = "metric_calculation_spec_proto",
+    srcs = ["metric_calculation_spec.proto"],
+)
+
+kt_jvm_proto_library(
+    name = "metric_calculation_spec_kt_jvm_proto",
+    deps = [":metric_calculation_spec_proto"],
+)

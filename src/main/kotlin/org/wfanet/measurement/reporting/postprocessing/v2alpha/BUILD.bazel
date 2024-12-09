@@ -14,7 +14,9 @@ kt_jvm_library(
     ],
     tags = ["maven_coordinates=" + MAVEN_COORDINATES],
     deps = [
+        "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:reporting_set_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_summary_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:metric_calculation_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/gson",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",

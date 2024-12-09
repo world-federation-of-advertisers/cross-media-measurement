@@ -43,6 +43,103 @@ object ReportConversion {
     return protoBuilder.build()
   }
 
+  fun convertTagToJsonFormat(tag: String): String {
+    // Remove the curly braces
+    val cleanedInput = tag.substring(1, tag.length - 1)
+
+    // Split the tag into key-value pairs
+    val pairs = cleanedInput.split(", ")
+
+    var output = "{"
+
+    for (pair in pairs) {
+      val parts = pair.split("=")
+      val key = parts[0].trim().lowercase()
+      val value = if (parts.size > 1) {
+        parts[1].trim()
+      } else {
+        ""
+      }
+
+      when(key) {
+        "target",
+        "measured_entity",
+        "measurement_entities",
+        "metrics",
+        "set_operation" -> {
+          if (value.isEmpty()) {
+            output += "\"$key\": [], "
+          } else {
+            // Split the value string into a list of strings separated by comma.
+            val valueList = value.split(",").map { it.trim() }
+
+            // Add the list to the output string.
+            output += ("\"$key\": [")
+            for (i in valueList.indices) {
+              output += ("\"${valueList[i]}\"")
+              if (i < valueList.size - 1) {
+                output += (", ")
+              }
+            }
+            output += ("], ")
+          }
+        }
+        "lhs_reporting_set_ids",
+        "rhs_reporting_set_ids" -> {
+          if (value.isEmpty()) {
+            output += "\"$key\": [], "
+          } else {
+            // Split the value string into a list of strings separated by space.
+            val valueList = value.split(" ").map { it.trim() }
+
+            // Add the list to the output string.
+            output += ("\"$key\": [")
+            for (i in valueList.indices) {
+              output += ("\"${valueList[i]}\"")
+              if (i < valueList.size - 1) {
+                output += (", ")
+              }
+            }
+            output += ("], ")
+          }
+        }
+        else -> {
+            // Add other key-value pairs.
+            output += ("\"$key\": \"$value\", ")
+          }
+      }
+    }
+
+    // Remove the trailing comma and space if there is any.
+    if (output.length > 1) {
+      output = output.take(output.length - 2)
+    }
+
+    output += ("}")
+
+    return output
+  }
+
+  fun getReportingSetFromTag(tag: String): ReportingSet {
+    val protoBuilder = ReportingSet.newBuilder()
+    try {
+      JsonFormat.parser().merge(convertTagToJsonFormat(tag), protoBuilder)
+    } catch (e: InvalidProtocolBufferException) {
+      throw IllegalArgumentException("Failed to parse ReportingSet from JSON string", e)
+    }
+    return protoBuilder.build()
+  }
+
+  fun getMetricCalculationSpecFromTag(tag: String): MetricCalculationSpec {
+    val protoBuilder = MetricCalculationSpec.newBuilder()
+    try {
+      JsonFormat.parser().merge(convertTagToJsonFormat(tag), protoBuilder)
+    } catch (e: InvalidProtocolBufferException) {
+      throw IllegalArgumentException("Failed to parse ReportingSet from JSON string", e)
+    }
+    return protoBuilder.build()
+  }
+
   fun convertJsontoReportSummaries(reportAsJsonString: String): List<ReportSummary> {
     return getReportFromJsonString(reportAsJsonString).toReportSummaries()
   }
@@ -82,27 +179,43 @@ object ReportConversion {
 fun Report.toReportSummaries(): List<ReportSummary> {
   require(state == Report.State.SUCCEEDED) { "Unsucceeded report is not supported." }
 
-  val measurementPoliciesByReportingSet =
+  val reportingSetById =
     reportingMetricEntriesList.associate { entry ->
-      val reportingSet = entry.key
-      val tag = tags.getValue(reportingSet)
-      reportingSet to
-        ReportingSetSummary(
-          ReportConversion.getMeasurementPolicy(tag),
-          ReportConversion.getTargets(tag),
-        )
+      val reportingSetId = entry.key
+      val tag = tags.getValue(reportingSetId)
+      reportingSetId to ReportConversion.getReportingSetFromTag(tag)
     }
 
   val metricCalculationSpecs =
     reportingMetricEntriesList.flatMapTo(mutableSetOf()) { it.value.metricCalculationSpecsList }
 
+  val metricCalculationSpecById =
+    metricCalculationSpecs.associate { specId ->
+      val tag = tags.getValue(specId)
+      specId to ReportConversion.getMetricCalculationSpecFromTag(tag)
+    }
+
+  val measurementPoliciesByReportingSet =
+    reportingMetricEntriesList.associate { entry ->
+      val reportingSetId = entry.key
+      val reportingSet = reportingSetById.getValue(reportingSetId)
+      reportingSetId to
+        ReportingSetSummary(
+          reportingSet.measurementPolicy.lowercase(),
+          reportingSet.targetList,
+        )
+    }
+
+  println(measurementPoliciesByReportingSet)
+
+
   val setOperationByMetricCalculationSpec =
-    metricCalculationSpecs.associate { spec ->
-      val tag = tags.getValue(spec)
-      spec to
+    metricCalculationSpecs.associate { specId ->
+      val metricCalculationSpec = metricCalculationSpecById.getValue(specId)
+      specId to
         SetOperationSummary(
-          ReportConversion.isCumulative(tag),
-          ReportConversion.getSetOperation(tag),
+          metricCalculationSpec.cumulative,
+          metricCalculationSpec.setOperation,
         )
     }
 
