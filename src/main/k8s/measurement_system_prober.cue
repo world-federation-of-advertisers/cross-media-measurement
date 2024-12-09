@@ -72,12 +72,9 @@ import ("strings")
 				_kingdomPublicApiCertHostFlag,
 				"--measurement-lookback-duration=1d",
 				"--duration-between-measurements=1d",
-				"--data-provider=\(_edp1Name)",
-				"--data-provider=\(_edp2Name)",
-				"--data-provider=\(_edp3Name)",
-				"--data-provider=\(_edp4Name)",
-				"--data-provider=\(_edp5Name)",
-				"--data-provider=\(_edp6Name)",
+				for edp in _edpResourceNames {
+					"--data-provider=\(edp)"
+				},
 			]
 			spec: schedule: "* * * * *"
 		}
