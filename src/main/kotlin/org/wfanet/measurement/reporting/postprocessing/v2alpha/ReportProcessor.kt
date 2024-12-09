@@ -114,7 +114,6 @@ interface ReportProcessor {
       GsonBuilder().create().fromJson(processOutput, Map::class.java).forEach { (key, value) ->
         correctedMeasurementsMap[key as String] = (value as Double).toLong()
       }
-
       return correctedMeasurementsMap
     }
 

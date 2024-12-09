@@ -1204,11 +1204,11 @@ class TestReport(unittest.TestCase):
             frozenset({EDP_ONE})),
     )
 
-    corrected = report.get_corrected_report()
-
     # The corrected report should be consistent: all the time series reaches are
     # monotonic increasing, e.g. reach[edp1][i] <= reach[edp1][i+1], except for
     # the one in the exception list, e.g. edp1.
+    corrected = report.get_corrected_report()
+
     expected = Report(
         metric_reports={
             ami: MetricReport(
