@@ -42,23 +42,18 @@ abstract class BaseTeeApplication<T : Message>(
 
   /** Starts the TEE application by listening for messages on the specified queue. */
   suspend fun run() {
-    startListening()
+    receiveAndProcessMessages()
   }
 
   /**
    * Begins listening for messages on the specified queue. Each message is processed as it arrives.
    * If an error occurs during the message flow, it is logged and handling continues.
    */
-  private suspend fun startListening() {
-    try {
-      val messageChannel: ReceiveChannel<QueueSubscriber.QueueMessage<T>> =
-        queueSubscriber.subscribe(queueName, parser)
-      messageChannel
-        .consumeAsFlow()
-        .catch { e -> logger.severe("Error in message flow: ${e.message}") }
-        .collect { queueMessage -> processMessage(queueMessage) }
-    } catch (e: Exception) {
-      logger.severe("Connection error in startListening: ${e.message}")
+  private suspend fun receiveAndProcessMessages() {
+    val messageChannel: ReceiveChannel<QueueSubscriber.QueueMessage<T>> =
+      queueSubscriber.subscribe(queueName, parser)
+    for (message: QueueSubscriber.QueueMessage<T> in messageChannel) {
+      processMessage(message)
     }
   }
 
@@ -85,11 +80,7 @@ abstract class BaseTeeApplication<T : Message>(
   abstract suspend fun runWork(message: T)
 
   override fun close() {
-    try {
-      queueSubscriber.close()
-    } catch (e: Exception) {
-      logger.severe("Error during close: ${e.message}")
-    }
+    queueSubscriber.close()
   }
 
   companion object {

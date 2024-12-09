@@ -20,7 +20,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import org.wfa.measurement.queue.TestWork
+import org.wfa.measurement.queue.testing.TestWork
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
@@ -84,7 +84,7 @@ class BaseTeeApplicationTest {
   @Test
   fun `test processing protobuf message`() = runBlocking {
     val pubSubClient = Subscriber(projectId = projectId, googlePubSubClient = emulatorClient)
-    val publisher = Publisher(projectId, emulatorClient)
+    val publisher = Publisher<TestWork>(projectId, emulatorClient)
     val app =
       BaseTeeApplicationImpl(
         queueName = subscriptionId,
