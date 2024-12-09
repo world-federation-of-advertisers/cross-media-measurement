@@ -3,7 +3,9 @@ package k8s
 _secret_name:      string @tag("secret_name")
 _mc_resource_name: string @tag("mc_name")
 _mc_api_key:       string @tag("mc_api_key")
-_edp_resource_names: [...string] @tag("edp_resource_names")
+_edp1:             string @tag("edp1_name")
+_edp2:             string @tag("edp2_name")
+_edp_resource_names: [_edp1, _edp2]
 
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 
