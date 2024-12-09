@@ -1,0 +1,58 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/access/deploy:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "spanner_principals_service",
+    srcs = ["SpannerPrincipalsService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/common:tls_client_principal_mapping",
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner/db",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:id_generator",
+        "//src/main/proto/wfa/measurement/internal/access:principals_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)
+
+kt_jvm_library(
+    name = "spanner_permissions_service",
+    srcs = ["SpannerPermissionsService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/common:tls_client_principal_mapping",
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner/db",
+        "//src/main/proto/wfa/measurement/internal/access:permissions_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)
+
+kt_jvm_library(
+    name = "spanner_roles_service",
+    srcs = ["SpannerRolesService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner/db",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:id_generator",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:permission_mapping",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:etags",
+        "//src/main/proto/wfa/measurement/internal/access:roles_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)
+
+kt_jvm_library(
+    name = "spanner_policies_service",
+    srcs = ["SpannerPoliciesService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/common:tls_client_principal_mapping",
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner/db",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:id_generator",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:etags",
+        "//src/main/proto/wfa/measurement/internal/access:policies_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)
