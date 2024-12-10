@@ -151,6 +151,11 @@ GKE_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/job:operational_metrics_export_job_image",
         repository = _PREFIX + "/kingdom/bigquery-operational-metrics",
     ),
+    struct(
+        name = "access_internal_api_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner:internal_api_server_image",
+        repository = _PREFIX + "/access/internal-api",
+    ),
 ]
 
 # List of specs for all Docker containers to push to a container registry.
