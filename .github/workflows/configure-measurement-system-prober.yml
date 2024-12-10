@@ -84,10 +84,6 @@ jobs:
           MC_API_KEY: ${{ secrets.MC_API_KEY }}
           EDP1_NAME: ${{ vars.EDP1_NAME }}
           EDP2_NAME: ${{ vars.EDP2_NAME }}
-          EDP3_NAME: ${{ vars.EDP3_NAME }}
-          EDP4_NAME: ${{ vars.EDP4_NAME }}
-          EDP5_NAME: ${{ vars.EDP5_NAME }}
-          EDP6_NAME: ${{ vars.EDP6_NAME }}
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
@@ -99,17 +95,7 @@ jobs:
           build --define "mc_name=$MC_NAME"
           build --define "mc_api_key=$MC_API_KEY"
           build --define "edp1_name=$EDP1_NAME"
-          build --define "edp1_cert_name=$EDP1_CERT_NAME"
           build --define "edp2_name=$EDP2_NAME"
-          build --define "edp2_cert_name=$EDP2_CERT_NAME"
-          build --define "edp3_name=$EDP3_NAME"
-          build --define "edp3_cert_name=$EDP3_CERT_NAME"
-          build --define "edp4_name=$EDP4_NAME"
-          build --define "edp4_cert_name=$EDP4_CERT_NAME"
-          build --define "edp5_name=$EDP5_NAME"
-          build --define "edp5_cert_name=$EDP5_CERT_NAME"
-          build --define "edp6_name=$EDP6_NAME"
-          build --define "edp6_cert_name=$EDP6_CERT_NAME"
           EOF
 
       - name: Export BAZEL_BIN
@@ -118,12 +104,8 @@ jobs:
       - name: Get GKE cluster credentials
         uses: google-github-actions/get-gke-credentials@v2
         with:
-          cluster_name: simulators
+          cluster_name: kingdom
           location: ${{ vars.GCLOUD_ZONE }}
-
-      - name: Configure metrics
-        uses: ./.github/actions/configure-metrics
-        if: ${{ inputs.apply }}
 
       - name: Generate archives
         run: >
