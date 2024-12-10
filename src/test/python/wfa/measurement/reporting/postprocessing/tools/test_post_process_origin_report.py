@@ -198,7 +198,7 @@ class TestOriginReport(unittest.TestCase):
         'difference/ami/unique_reach_edp1': ['union/ami/edp1_edp2_edp3',
                                              'union/ami/edp2_edp3'],
         'difference/ami/difference_reach_edp1': ['union/ami/edp1_edp2',
-                                             'union/ami/edp2'],
+                                                 'union/ami/edp2'],
         'difference/ami/unique_reach_edp3': ['union/ami/edp1_edp2_edp3',
                                              'union/ami/edp1_edp2'],
     }

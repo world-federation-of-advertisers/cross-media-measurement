@@ -43,19 +43,19 @@ object ReportConversion {
     for (pair in pairs) {
       val parts = pair.split("=")
       val key = parts[0].trim().lowercase()
-      val value = if (parts.size > 1) {
-        parts[1].trim()
-      } else {
-        ""
-      }
+      val value =
+        if (parts.size > 1) {
+          parts[1].trim()
+        } else {
+          ""
+        }
 
       when (key) {
         "target",
         "measured_entity",
         "measurement_entities",
         "metrics",
-        "set_operation",
-        -> {
+        "set_operation" -> {
           if (value.isEmpty()) {
             output += "\"$key\": [], "
           } else {
@@ -73,10 +73,8 @@ object ReportConversion {
             output += ("], ")
           }
         }
-
         "lhs_reporting_set_ids",
-        "rhs_reporting_set_ids",
-        -> {
+        "rhs_reporting_set_ids" -> {
           if (value.isEmpty()) {
             output += "\"$key\": [], "
           } else {
@@ -94,7 +92,6 @@ object ReportConversion {
             output += ("], ")
           }
         }
-
         else -> {
           // Add other key-value pairs.
           output += ("\"$key\": \"$value\", ")
@@ -161,9 +158,11 @@ fun Report.toReportSummaries(): List<ReportSummary> {
     }
 
   val targetByShortReportingSetId =
-    reportingSetById.map { (reportingSetId, reportingSet) ->
-      reportingSetId.substringAfterLast("/") to reportingSet.targetList
-    }.toMap()
+    reportingSetById
+      .map { (reportingSetId, reportingSet) ->
+        reportingSetId.substringAfterLast("/") to reportingSet.targetList
+      }
+      .toMap()
 
   val filterGroups = metricCalculationSpecById.values.map { it.commonFilter }.toSet()
 
@@ -184,12 +183,18 @@ fun Report.toReportSummaries(): List<ReportSummary> {
             isCumulative = metricCalculationSpec.cumulative
             setOperation = metricCalculationSpec.setOperation
             uniqueReachTarget = reportingSet.uniqueReachTarget
-            rightHandSideTargets += reportingSet.rhsReportingSetIdsList.flatMap { id ->
-              targetByShortReportingSetId.getValue(id)
-            }.toSet().toList().sorted()
-            leftHandSideTargets += reportingSet.lhsReportingSetIdsList.flatMap { id ->
-              targetByShortReportingSetId.getValue(id)
-            }.toSet().toList().sorted()
+            rightHandSideTargets +=
+              reportingSet.rhsReportingSetIdsList
+                .flatMap { id -> targetByShortReportingSetId.getValue(id) }
+                .toSet()
+                .toList()
+                .sorted()
+            leftHandSideTargets +=
+              reportingSet.lhsReportingSetIdsList
+                .flatMap { id -> targetByShortReportingSetId.getValue(id) }
+                .toSet()
+                .toList()
+                .sorted()
             var measurementList =
               value
                 .flatMap { it.resultAttributesList }
