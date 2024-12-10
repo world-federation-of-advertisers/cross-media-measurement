@@ -15,17 +15,16 @@
 package org.wfanet.panelmatch.client.deploy
 
 import java.time.Clock
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ApiClient
-import org.wfanet.panelmatch.client.launcher.ExchangeStepLauncher
+import org.wfanet.panelmatch.client.launcher.ExchangeStepExecutor
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidatorImpl
 import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
@@ -36,6 +35,7 @@ import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.Timeout
 import org.wfanet.panelmatch.common.certificates.CertificateManager
+import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.secrets.SecretMap
 import org.wfanet.panelmatch.common.storage.StorageFactory
 
@@ -99,7 +99,8 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   protected val sharedStorageSelector: SharedStorageSelector by lazy {
     SharedStorageSelector(certificateManager, sharedStorageFactories, sharedStorageInfo)
   }
-  protected open val stepExecutor by lazy {
+
+  protected open val stepExecutor: ExchangeStepExecutor by lazy {
     ExchangeTaskExecutor(
       apiClient = apiClient,
       timeout = taskTimeout,
@@ -112,35 +113,70 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   override fun run() = runBlocking { runSuspending() }
 
   suspend fun runSuspending() {
-    val exchangeStepLauncher =
-      ExchangeStepLauncher(apiClient = apiClient, taskLauncher = stepExecutor)
     when (runMode) {
-      RunMode.DAEMON -> runDaemon(exchangeStepLauncher)
-      RunMode.CRON_JOB -> runCronJob(exchangeStepLauncher)
-    }
-  }
-
-  /** Runs [exchangeStepLauncher] in an infinite loop. */
-  protected open suspend fun runDaemon(exchangeStepLauncher: ExchangeStepLauncher) {
-    throttler.loopOnReady {
-      // All errors thrown inside the loop should be suppressed such that the daemon doesn't crash.
-      logAndSuppressExceptionSuspend { exchangeStepLauncher.findAndRunExchangeStep() }
+      RunMode.DAEMON -> runDaemon()
+      RunMode.CRON_JOB -> runCronJob()
     }
   }
 
   /**
-   * Runs [exchangeStepLauncher] in a loop until there are no remaining tasks and all launched tasks
-   * have completed.
+   * Claims and executes exchange steps in an infinite loop. Claimed steps are launched as child
+   * coroutines to allow multiple steps to execute concurrently.
    */
-  protected open suspend fun runCronJob(exchangeStepLauncher: ExchangeStepLauncher) {
-    val activeJobs = mutableListOf<Job>()
-    do {
-      activeJobs.removeIf { !it.isActive }
-      val job = logAndSuppressExceptionSuspend { exchangeStepLauncher.findAndRunExchangeStep() }
-      if (job != null) {
-        activeJobs += job
+  protected open suspend fun runDaemon() = coroutineScope {
+    while (coroutineContext.isActive) {
+      val step =
+        throttler.onReady {
+          try {
+            apiClient.claimExchangeStep()
+          } catch (e: Exception) {
+            logger.severe("Failed to claim exchange step: $e")
+            null
+          }
+        }
+
+      if (step != null) {
+        launch {
+          try {
+            stepExecutor.execute(step)
+          } catch (e: Exception) {
+            logger.severe("Failed to execute exchange step: $e")
+          }
+        }
       }
-    } while (currentCoroutineContext().isActive && activeJobs.isNotEmpty())
+    }
+  }
+
+  /**
+   * Claims and executes exchange steps until all claimed steps have completed and no further steps
+   * are available. Claimed steps are launched as child coroutines to allow multiple steps to
+   * execute concurrently.
+   */
+  protected open suspend fun runCronJob() = coroutineScope {
+    while (coroutineContext.isActive) {
+      val step =
+        throttler.onReady {
+          try {
+            apiClient.claimExchangeStep()
+          } catch (e: Exception) {
+            logger.severe("Failed to claim exchange step: $e")
+            null
+          }
+        }
+
+      if (step != null) {
+        launch {
+          try {
+            stepExecutor.execute(step)
+          } catch (e: Exception) {
+            logger.severe("Failed to execute exchange step: $e")
+          }
+        }
+      } else if (coroutineContext.job.children.none { it.isActive }) {
+        logger.info("All available steps executed; shutting down.")
+        break
+      }
+    }
   }
 
   enum class RunMode {
@@ -152,5 +188,9 @@ abstract class ExchangeWorkflowDaemon : Runnable {
      * available, as well as no currently active tasks, and then shut down.
      */
     CRON_JOB,
+  }
+
+  companion object {
+    private val logger by loggerFor()
   }
 }
