@@ -30,6 +30,7 @@ object ReportConversion {
     return protoBuilder.build()
   }
 
+  // TODO(@ple13): Move this function to a separate Origin-specific package.
   fun convertTagToJsonFormat(tag: String): String {
     // Remove the curly braces
     val cleanedInput = tag.substring(1, tag.length - 1)
@@ -111,6 +112,7 @@ object ReportConversion {
     return output
   }
 
+  // TODO(@ple13): Move this function to a separate Origin-specific package.
   fun getReportingSetFromTag(tag: String): ReportingSet {
     val protoBuilder = ReportingSet.newBuilder()
     try {
@@ -121,6 +123,7 @@ object ReportConversion {
     return protoBuilder.build()
   }
 
+  // TODO(@ple13): Move this function to a separate Origin-specific package.
   fun getMetricCalculationSpecFromTag(tag: String): MetricCalculationSpec {
     val protoBuilder = MetricCalculationSpec.newBuilder()
     try {
@@ -131,6 +134,7 @@ object ReportConversion {
     return protoBuilder.build()
   }
 
+  // TODO(@ple13): Move this function to a separate Origin-specific package.
   fun convertJsontoReportSummaries(reportAsJsonString: String): List<ReportSummary> {
     return getReportFromJsonString(reportAsJsonString).toReportSummaries()
   }

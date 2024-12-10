@@ -223,11 +223,8 @@ class ReportSummaryProcessor:
                                      key=lambda sublist: len(sublist[0]),
                                      reverse=True)
 
-    for entry in difference_measurements:
-      superset = entry[0]
-      subset = entry[1]
-      measurement_policy = entry[2]
-      difference_measurement = entry[3]
+    for (superset, subset, measurement_policy,
+         difference_measurement) in difference_measurements:
       # Gets the reach of the union of all EDPs. This measurement either
       # exists in the report summary or has been inferred in prior steps.
       superset_measurement = \
@@ -263,7 +260,6 @@ class ReportSummaryProcessor:
             superset_measurement.name,
             subset_measurement.name
         ]
-
 
 def main():
   report_summary = report_summary_pb2.ReportSummary()
