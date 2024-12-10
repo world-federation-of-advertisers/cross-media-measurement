@@ -101,6 +101,11 @@ COMMON_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_edp_simulator_runner_image",
         repository = _PREFIX + "/simulator/synthetic-generator-edp",
     ),
+    struct(
+        name = "population_requisition_fulfiller_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:population_requisition_fulfiller_daemon_image",
+        repository = _PREFIX + "/measurement/population-requisition-fulfiller",
+    ),
 ]
 
 # List of specs for all Docker containers to push to a container registry.
