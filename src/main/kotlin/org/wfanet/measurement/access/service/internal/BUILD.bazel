@@ -33,3 +33,14 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/common:guava",
     ],
 )
+
+kt_jvm_library(
+    name = "services",
+    srcs = ["Services.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/access:permissions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/access:policies_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/access:principals_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/access:roles_service_kt_jvm_grpc_proto",
+    ],
+)
