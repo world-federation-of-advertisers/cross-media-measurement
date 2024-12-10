@@ -31,8 +31,10 @@ data class MetricReport(
 @RunWith(JUnit4::class)
 class ReportProcessorTest {
   @Test
-  fun `run correct report with unique reach successfully`() {
-    val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_unique_reach_small.json").toFile()
+  fun `run correct report with unique reach and incremental reach successfully`() {
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve("sample_report_unique_reach_incremental_reach_small.json")
+        .toFile()
     val reportAsJson = reportFile.readText()
 
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
@@ -145,7 +147,7 @@ class ReportProcessorTest {
         val metricReportByPolicy = it.toReportByPolicy()
         if (
           !metricReportByPolicy["ami"]!!.hasConsistentMeasurements() ||
-            !metricReportByPolicy["mrc"]!!.hasConsistentMeasurements()
+          !metricReportByPolicy["mrc"]!!.hasConsistentMeasurements()
         ) {
           return false
         }

@@ -15,11 +15,11 @@
 import json
 import math
 import sys
-
+from noiseninja.noised_measurements import Measurement
+from report.report import MetricReport
+from report.report import Report
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_summary_pb2
-from noiseninja.noised_measurements import Measurement
-from report.report import Report, MetricReport
 from typing import FrozenSet
 
 # This is a demo script that has the following assumptions :
@@ -86,7 +86,7 @@ class ReportSummaryProcessor:
     self._process_primitive_measurements()
 
     # Process unique reach measurements.
-    self._process_unique_reach_measurements()
+    self._process_difference_measurements()
 
     return self._get_corrected_measurements()
 
@@ -161,76 +161,108 @@ class ReportSummaryProcessor:
         self._whole_campaign_measurements[entry.measurement_policy][
           frozenset(entry.data_providers)] = measurements[0]
 
-  def _process_unique_reach_measurements(self):
-    """Processes unique reach measurements in the report summary.
+  def _process_difference_measurements(self):
+    """Processes difference measurements in the report summary.
 
-    Let Z = EDP_1 U EDP_2 U ... U EDP_N be the union of all the EDPs. The unique
-    reach of an EDP X is computed as:
-       unique_reach(X) = reach(Z) - reach(Z \ {X}).
+    Given two edp combinations X and Y, the set difference measurement between
+    X and Y is defined as: difference(X, Y) = reach(X U Y) - reach(Y).
 
-    This method extracts unique reach measurements from the ReportSummary by
-    identifying entries with 'difference' set operations, then maps it to the
-    corresponding primitive measurements. For the measurement unique_reach(X),
-    the mapping (X -> (Z, Z \ {X})) will be stored.
+    Let the set of EDPs be EDP_1, ..., EDP_N, the unique reach and incremental
+    reach measurements are two special case of set difference.
+
+    1. Incremental reach: Let Y be a subset of Z = EDP_1 U EDP_2 U ... U EDP_N
+    and EDP_i is not in Y then
+        incremental_reach(EDP_i, Y) = reach(Y U {EDP_i}) - reach(Y)
+
+    2. Unique reach measurement: When Y = Z \ {EDP_i}, then the incremental
+    reach is called unique reach.
+        unique_reach(EDP_i) = incremental_reach(EDP_i, Z \ {EDP_i})
+
+    This function extracts incremental reach (and unique reach) measurements
+    from the ReportSummary by identifying entries with 'difference' set
+    operations,and maps it to the corresponding primitive measurements.
+
+    For each measurement incremental_reach(EDP_i, Y) where EDP_i is not in Y,
+    the mapping ((EDP_i, Y) -> (EDP_i U Y, Y)) will be stored. For the
+    measurement unique_reach(EDP_i), ((EDP_i, Z \ {EDP_i}) -> (Z, Z \ {EDP_i}))
+    is stored.
 
     In the report, the reach of the union of all EDPs, reach(Z), always exists,
-    however, the intermediate measurement reach(Z \ {X}) may not. In that case,
-    we need to derive the measurement reach(Z \ {X}) from reach(Z) and
-    unique_reach(X) and add that to the measurement set before adding the above
-    mapping.
+    however, the intermediate measurements such as reach(Z \ {X}) may not. In
+    that case, we need to derive the measurement reach(Z \ {X}) from existing
+    measurements such as reach(Z) and unique_reach(X) and add that to the
+    measurement set before adding the above mapping.
     """
+    difference_measurements = []
     for entry in self._report_summary.measurement_details:
-      if (entry.set_operation == "difference") and (
-          entry.unique_reach_target != ""):
-        # subset = entry.data_providers \ {entry.unique_reach_target}.
-        # entry.data_providers is the union of all the EDPs.
-        # entry.unique_reach_target is a single EDP.
-        subset = frozenset([edp for edp in entry.data_providers if
-                            edp != entry.unique_reach_target])
-
-        # The unique reach measurements for subset. Note that there is exactly 1
-        # measurement in this list.
+      if entry.set_operation == "difference":
+        subset = frozenset([edp for edp in entry.right_hand_side_targets])
+        superset = subset.union(
+            frozenset([edp for edp in entry.left_hand_side_targets]))
         measurements = [
             Measurement(result.reach, result.standard_deviation, result.metric)
             for result in entry.measurement_results
         ]
-        # Gets the reach of the union of all EDPs. This measurement always
-        # always exists in the report summary.
-        superset_measurement = \
-          self._whole_campaign_measurements[entry.measurement_policy][
-            frozenset(entry.data_providers)]
+        # The incremental reach (and unique reach) is computed as:
+        # incremental_reach(superset \ subset, subset) = reach(superset) -
+        # reach(subset). The set (superset \ subset) consists of a single EDP,
+        # while the subset contains one or more EDPs.
+        difference_measurements.append(
+            [superset, subset, entry.measurement_policy, measurements[0]])
 
-        # Now we need to get the measurement that corresponds to reach(subset)
-        # where subset = entry.data_providers \ {entry.unique_reach_target}.
-        # If reach(subset) measurement exists in the report summary, maps the
-        # unique reach measurement to the tuple (superset, subset). However, if
-        # reach(subset) measurement does not exist, it needs to be derived from
-        # the superset measurement and the unique reach measurements before the
-        # mapping.
-        if subset in self._whole_campaign_measurements[
-          entry.measurement_policy].keys():
-          self._set_difference_map[entry.metric] = [
-              superset_measurement.name,
-              self._whole_campaign_measurements[entry.measurement_policy][
-                subset].name
-          ]
-        else:
-          # Add the measurement of the edp_comb that is derived from the
-          # unique_reach(A) and reach(A U edp_comb). As std(unique(A) =
-          # sqrt(std(rach(A U edp_comb))^2 + std(reach(edp_comb))^2), we have
-          # std(edp_comb) = sqrt(std(unique(A))^2 - std(reach(A U edp_comb))^2).
-          measurement = Measurement(
-              superset_measurement.value - measurements[0].value,
-              math.sqrt(
-                  measurements[0].sigma ** 2 - superset_measurement.sigma ** 2),
-              "union/" + entry.measurement_policy + "/" + "_".join(
-                sorted(subset)))
-          self._whole_campaign_measurements[entry.measurement_policy][
-            subset] = measurement
-          self._set_difference_map[measurements[0].name] = [
-              superset_measurement.name,
-              measurement.name
-          ]
+    # Sorts the difference measurements based of the length of the superset.
+    # In the report, the reach of union of all EDPs always exists, i.e.
+    # reach(EDP_1 U ... U EDP_N). However, intermediate reaches such as
+    # reach(EDP_1 U ... U EDP_{N-1}), reach(EDP_1 U ... U EDP_{N-2}) do not and
+    # needs to be inferred. Sorting the difference measurements based on the
+    # superset length allows us to infer all intermediate reaches in a single
+    # pass: reach(subset) where len(subset) = k - 1 will be inferred from
+    # reach(superset) and corresponding incremental reach, where reach(superset)
+    # either exists in the reported, or is inferred previously.
+    difference_measurements = sorted(difference_measurements,
+                                     key=lambda sublist: len(sublist[0]),
+                                     reverse=True)
+
+    for entry in difference_measurements:
+      superset = entry[0]
+      subset = entry[1]
+      measurement_policy = entry[2]
+      difference_measurement = entry[3]
+      # Gets the reach of the union of all EDPs. This measurement either
+      # exists in the report summary or has been inferred in prior steps.
+      superset_measurement = \
+        self._whole_campaign_measurements[measurement_policy][superset]
+
+      # Now we need to get the measurement that corresponds to reach(subset)
+      # where subset = entry.data_providers \ {entry.unique_reach_target}.
+      # If reach(subset) measurement exists in the report summary, maps the
+      # unique reach measurement to the tuple (superset, subset). However, if
+      # reach(subset) measurement does not exist, it needs to be derived from
+      # the superset measurement and the difference measurement before the
+      # mapping.
+      if subset in self._whole_campaign_measurements[measurement_policy].keys():
+        self._set_difference_map[difference_measurement.name] = [
+            superset_measurement.name,
+            self._whole_campaign_measurements[measurement_policy][subset].name
+        ]
+      else:
+        # Add the measurement of the edp_comb that is derived from the
+        # incremental_reach(A) and reach(A U subset). As
+        # std(incremental_reach(A) = sqrt(std(rach(A U subset))^2 +
+        # std(reach(subset))^2), we have: std(reach(subset)) =
+        # sqrt(std(incremental_reach(A))^2 - std(reach(A U subset))^2).
+        subset_measurement = Measurement(
+            superset_measurement.value - difference_measurement.value,
+            math.sqrt(
+                difference_measurement.sigma ** 2 - superset_measurement.sigma ** 2),
+            "union/" + measurement_policy + "/" + "_".join(sorted(subset))
+        )
+        self._whole_campaign_measurements[measurement_policy][
+          subset] = subset_measurement
+        self._set_difference_map[difference_measurement.name] = [
+            superset_measurement.name,
+            subset_measurement.name
+        ]
 
 
 def main():
