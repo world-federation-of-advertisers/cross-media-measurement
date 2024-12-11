@@ -54,7 +54,7 @@ env:
   KUSTOMIZATION_PATH: "k8s/cmms"
 
 jobs:
-  update-simulators:
+  update-measurement-system-prober:
     runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
     steps:
