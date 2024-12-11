@@ -1,0 +1,118 @@
+# proto-file: wfa/measurement/config/access/permissions_config.proto
+# proto-message: wfa.measurement.config.access.PermissionsConfig
+
+permissions {
+  key: "reports.get"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/Report"
+  }
+}
+permissions {
+  key: "reports.list"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "reports.create"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "eventGroups.get"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/EventGroup"
+  }
+}
+permissions {
+  key: "eventGroups.list"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "metricCalculationSpecs.get"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/MetricCalculationSpec"
+  }
+}
+permissions {
+  key: "metricCalculationSpecs.list"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "metricCalculationSpecs.create"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "metrics.get"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/Metric"
+  }
+}
+permissions {
+  key: "metrics.list"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "metrics.create"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "reportSchedules.get"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/ReportSchedule"
+  }
+}
+permissions {
+  key: "reportSchedules.list"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "reportSchedules.create"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "reportSchedules.stop"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/ReportSchedule"
+  }
+}
+permissions {
+  key: "reportingSets.get"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/ReportingSet"
+  }
+}
+permissions {
+  key: "reportingSets.list"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "reportingSets.create"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
