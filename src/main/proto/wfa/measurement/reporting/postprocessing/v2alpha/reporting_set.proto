@@ -18,25 +18,26 @@ package wfa.measurement.reporting.postprocessing.v2alpha;
 
 option java_package = "org.wfanet.measurement.reporting.postprocessing.v2alpha";
 option java_multiple_files = true;
-option java_outer_classname = "ReportSummaryProto";
+option java_outer_classname = "ReportSetProto";
 
-message MeasurementDetail {
-  string measurement_policy = 1;
-  string set_operation = 2;
-  bool is_cumulative = 3;
-  repeated string data_providers = 4;
-  string unique_reach_target = 5;
-  repeated string left_hand_side_targets = 6;
-  repeated string right_hand_side_targets = 7;
-
-  message MeasurementResult {
-    int64 reach = 1;
-    double standard_deviation = 2;
-    string metric = 3;
-  }
-  repeated MeasurementResult measurement_results = 8;
-}
-
-message ReportSummary {
-  repeated MeasurementDetail measurement_details = 1;
+message ReportingSet {
+  string anchor = 1;
+  string campaign_id = 2;
+  string channels = 3;
+  string incrementality_type = 4;
+  repeated string lhs_reporting_set_ids = 5;
+  repeated string measured_entity = 6;
+  repeated string measurement_entities = 7;
+  string measurement_policy = 8;
+  string measurement_policy_incrementality = 9;
+  string media_type = 10;
+  string position_in_incrementality = 11;
+  string primitive_egroup_id = 12;
+  repeated string rhs_reporting_set_ids = 13;
+  repeated string set_operation = 14;
+  repeated string target = 15;
+  string unique_reach_target = 16;
+  string version = 17;
+  string video_completion = 18;
+  string viewability = 19;
 }

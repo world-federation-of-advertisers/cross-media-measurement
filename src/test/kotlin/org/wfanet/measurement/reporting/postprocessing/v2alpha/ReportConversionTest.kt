@@ -72,7 +72,9 @@ class ReportConversionTest {
 
   @Test
   fun `report with unique reach is successfully converted to report summary proto`() {
-    val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_unique_reach_small.json").toFile()
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve("sample_report_unique_reach_incremental_reach_small.json")
+        .toFile()
     val reportAsJson = reportFile.readText()
     val reportSummary = ReportConversion.convertJsontoReportSummaries(reportAsJson)
 
@@ -105,6 +107,9 @@ class ReportConversionTest {
         dataProviders += "edp1"
         dataProviders += "edp3"
         uniqueReachTarget = "edp2"
+        leftHandSideTargets += "edp2"
+        rightHandSideTargets += "edp1"
+        rightHandSideTargets += "edp3"
         measurementResults += measurementResult {
           reach = 2000
           standardDeviation = 262192.75285658165
@@ -116,6 +121,8 @@ class ReportConversionTest {
         setOperation = "difference"
         dataProviders += "edp2"
         dataProviders += "edp1"
+        leftHandSideTargets += "edp1"
+        rightHandSideTargets += "edp2"
         measurementResults += measurementResult {
           reach = 400
           standardDeviation = 230564.3972774748
@@ -129,6 +136,9 @@ class ReportConversionTest {
         dataProviders += "edp1"
         dataProviders += "edp3"
         uniqueReachTarget = "edp1"
+        leftHandSideTargets += "edp1"
+        rightHandSideTargets += "edp2"
+        rightHandSideTargets += "edp3"
         measurementResults += measurementResult {
           reach = 300
           standardDeviation = 261177.24408350687
@@ -161,6 +171,9 @@ class ReportConversionTest {
         dataProviders += "edp2"
         dataProviders += "edp1"
         dataProviders += "edp3"
+        leftHandSideTargets += "edp1"
+        leftHandSideTargets += "edp2"
+        leftHandSideTargets += "edp3"
         measurementResults += measurementResult {
           reach = 91199
           standardDeviation = 137993.02905314422
@@ -174,6 +187,9 @@ class ReportConversionTest {
         dataProviders += "edp2"
         dataProviders += "edp1"
         dataProviders += "edp3"
+        leftHandSideTargets += "edp1"
+        leftHandSideTargets += "edp2"
+        leftHandSideTargets += "edp3"
         measurementResults += measurementResult {
           reach = 48300
           standardDeviation = 184559.25807765796
@@ -207,6 +223,9 @@ class ReportConversionTest {
         dataProviders += "edp1"
         dataProviders += "edp3"
         uniqueReachTarget = "edp3"
+        leftHandSideTargets += "edp3"
+        rightHandSideTargets += "edp1"
+        rightHandSideTargets += "edp2"
         measurementResults += measurementResult {
           reach = 100
           standardDeviation = 261663.2405567259

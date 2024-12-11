@@ -190,13 +190,15 @@ class TestOriginReport(unittest.TestCase):
     reportSummaryProcessor = ReportSummaryProcessor(report_summary)
 
     reportSummaryProcessor._process_primitive_measurements()
-    reportSummaryProcessor._process_unique_reach_measurements()
+    reportSummaryProcessor._process_difference_measurements()
 
     expected_unique_reach_map = {
         'difference/ami/unique_reach_edp2': ['union/ami/edp1_edp2_edp3',
                                              'union/ami/edp1_edp3'],
         'difference/ami/unique_reach_edp1': ['union/ami/edp1_edp2_edp3',
                                              'union/ami/edp2_edp3'],
+        'difference/ami/difference_reach_edp1': ['union/ami/edp1_edp2',
+                                                 'union/ami/edp2'],
         'difference/ami/unique_reach_edp3': ['union/ami/edp1_edp2_edp3',
                                              'union/ami/edp1_edp2'],
     }
@@ -292,6 +294,14 @@ class TestOriginReport(unittest.TestCase):
         corrected_measurements_map['difference/ami/unique_reach_edp3'],
         corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
         corrected_measurements_map['union/ami/edp1_edp2'],
+        TOLERANCE
+    )
+
+    # Checks incremental reach measurements.
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/ami/difference_reach_edp1'],
+        corrected_measurements_map['union/ami/edp1_edp2'] -
+        corrected_measurements_map['union/ami/edp2'],
         TOLERANCE
     )
 

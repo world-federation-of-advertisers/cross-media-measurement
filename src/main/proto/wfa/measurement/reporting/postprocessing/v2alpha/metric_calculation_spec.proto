@@ -18,25 +18,13 @@ package wfa.measurement.reporting.postprocessing.v2alpha;
 
 option java_package = "org.wfanet.measurement.reporting.postprocessing.v2alpha";
 option java_multiple_files = true;
-option java_outer_classname = "ReportSummaryProto";
+option java_outer_classname = "MetricCalculationSpecProto";
 
-message MeasurementDetail {
-  string measurement_policy = 1;
-  string set_operation = 2;
-  bool is_cumulative = 3;
-  repeated string data_providers = 4;
-  string unique_reach_target = 5;
-  repeated string left_hand_side_targets = 6;
-  repeated string right_hand_side_targets = 7;
-
-  message MeasurementResult {
-    int64 reach = 1;
-    double standard_deviation = 2;
-    string metric = 3;
-  }
-  repeated MeasurementResult measurement_results = 8;
-}
-
-message ReportSummary {
-  repeated MeasurementDetail measurement_details = 1;
+message MetricCalculationSpec {
+  string common_filter = 1;
+  bool cumulative = 2;
+  string grouping = 3;
+  string metric_frequency = 4;
+  repeated string metrics = 5;
+  string set_operation = 6;
 }
