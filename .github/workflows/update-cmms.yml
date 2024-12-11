@@ -103,7 +103,7 @@ jobs:
       apply: ${{ inputs.apply }}
 
   update-worker2-duchy:
-    uses: ./.github/workflows/configure-aws-duchy.yml
+    uses: ./.github/workflows/configure-duchy.yml
     needs: [publish-images, terraform]
     secrets: inherit
     with:
