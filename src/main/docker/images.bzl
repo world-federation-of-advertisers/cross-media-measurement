@@ -101,6 +101,11 @@ COMMON_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_edp_simulator_runner_image",
         repository = _PREFIX + "/simulator/synthetic-generator-edp",
     ),
+    struct(
+        name = "access_public_api_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/access/deploy/common/server:public_api_server_image",
+        repository = _PREFIX + "/access/public-api",
+    ),
 ]
 
 # List of specs for all Docker containers to push to a container registry.
@@ -150,6 +155,11 @@ GKE_IMAGES = [
         name = "kingdom_operational_metrics_export_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/job:operational_metrics_export_job_image",
         repository = _PREFIX + "/kingdom/bigquery-operational-metrics",
+    ),
+    struct(
+        name = "access_internal_api_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner:internal_api_server_image",
+        repository = _PREFIX + "/access/internal-api",
     ),
 ]
 

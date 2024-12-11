@@ -45,3 +45,20 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/access:role_kt_jvm_proto",
     ],
 )
+
+kt_jvm_library(
+    name = "services",
+    srcs = ["Services.kt"],
+    deps = [
+        ":principals_service",
+        ":roles_service",
+        "//src/main/proto/wfa/measurement/access/v1alpha:permissions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/access/v1alpha:policies_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/access/v1alpha:principals_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/access/v1alpha:roles_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/access:permissions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/access:policies_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/access:principals_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/access:roles_service_kt_jvm_grpc_proto",
+    ],
+)
