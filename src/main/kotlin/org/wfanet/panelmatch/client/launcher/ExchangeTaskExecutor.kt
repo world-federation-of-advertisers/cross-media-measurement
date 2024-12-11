@@ -17,14 +17,9 @@ package org.wfanet.panelmatch.client.launcher
 import com.google.protobuf.ByteString
 import java.util.logging.Level
 import java.util.logging.Logger
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.StorageClient.Blob
 import org.wfanet.panelmatch.client.common.ExchangeContext
@@ -54,12 +49,11 @@ class ExchangeTaskExecutor(
   private val privateStorageSelector: PrivateStorageSelector,
   private val exchangeTaskMapper: ExchangeTaskMapper,
   private val validator: ExchangeStepValidator,
-  private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ExchangeStepExecutor {
 
-  override suspend fun execute(exchangeStep: ApiClient.ClaimedExchangeStep): Job = coroutineScope {
+  override suspend fun execute(exchangeStep: ApiClient.ClaimedExchangeStep) {
     val attemptKey = exchangeStep.attemptKey
-    launch(dispatcher + CoroutineName(attemptKey.toString()) + TaskLog(attemptKey.toString())) {
+    withContext(CoroutineName(attemptKey.toString()) + TaskLog(attemptKey.toString())) {
       try {
         val validatedStep = validator.validate(exchangeStep)
         val context =
@@ -79,7 +73,6 @@ class ExchangeTaskExecutor(
             else -> ExchangeStepAttempt.State.FAILED
           }
         markAsFinished(attemptKey, attemptState)
-        cancel("Task failed and reported back to Kingdom. Cancelling task scope.", e)
       }
     }
   }
