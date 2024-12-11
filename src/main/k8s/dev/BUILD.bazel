@@ -527,3 +527,24 @@ cue_dump(
         "//src/main/k8s:measurement_system_prober",
     ],
 )
+
+kustomization_dir(
+    name = "measurement_system_prober_secret",
+    srcs = ["measurement_system_prober_secret_kustomization.yaml"],
+    renames = {"measurement_system_prober_secret_kustomization.yaml": "kustomization.yaml"},
+)
+
+kustomization_dir(
+    name = "measurement_system_prober",
+    testonly = True,
+    srcs = [
+        "resource_requirements.yaml",
+        ":measurement_system_prober",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        "config_files",
+        ":measurement_system_prober_secret",
+    ],
+)
