@@ -53,7 +53,7 @@ variable "spanner_instance_config" {
 variable "spanner_processing_units" {
   description = "Number of processing units allocated to the Spanner instance."
   type        = number
-  default     = 100
+  default     = 1000
   nullable    = false
 }
 
