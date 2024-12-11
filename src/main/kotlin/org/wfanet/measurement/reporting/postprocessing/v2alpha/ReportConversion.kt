@@ -75,11 +75,11 @@ object ReportConversion {
       target = data.getValue("target").split(","),
       uniqueReachTarget = data.getValue("unique_Reach_Target").takeUnless { it.isEmpty() } ?: "",
       lhsReportingSetIds =
-        data.getValue("lhs_reporting_set_ids").takeUnless { it.isEmpty() }
-          ?.split(" ") ?: emptyList(),
+        data.getValue("lhs_reporting_set_ids").takeUnless { it.isEmpty() }?.split(" ")
+          ?: emptyList(),
       rhsReportingSetIds =
-        data.getValue("rhs_reporting_set_ids").takeUnless { it.isEmpty() }
-          ?.split(" ") ?: emptyList(),
+        data.getValue("rhs_reporting_set_ids").takeUnless { it.isEmpty() }?.split(" ")
+          ?: emptyList(),
     )
   }
 
@@ -130,8 +130,7 @@ fun Report.toReportSummaries(): List<ReportSummary> {
     }
 
   val targetByShortReportingSetId =
-    ReportingSetSummaryById
-      .map { (reportingSetId, ReportingSetSummary) ->
+    ReportingSetSummaryById.map { (reportingSetId, ReportingSetSummary) ->
         reportingSetId.substringAfterLast("/") to ReportingSetSummary.target
       }
       .toMap()
