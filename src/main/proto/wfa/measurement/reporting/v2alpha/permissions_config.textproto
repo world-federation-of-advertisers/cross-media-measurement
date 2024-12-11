@@ -1,0 +1,151 @@
+# proto-file: wfa/measurement/config/access/permissions_config.proto
+# proto-message: wfa.measurement.config.access.PermissionsConfig
+
+# reports
+permissions {
+  key: "reports.get"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/Report"
+  }
+}
+permissions {
+  key: "reports.list"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "reports.create"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+
+# eventGroups
+permissions {
+  key: "eventGroups.get"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/EventGroup"
+  }
+}
+permissions {
+  key: "eventGroups.list"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+
+# metricCalculationSpecs
+permissions {
+  key: "metricCalculationSpecs.get"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/MetricCalculationSpec"
+  }
+}
+permissions {
+  key: "metricCalculationSpecs.list"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "metricCalculationSpecs.create"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+
+# metrics
+permissions {
+  key: "metrics.get"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/Metric"
+  }
+}
+permissions {
+  key: "metrics.list"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "metrics.create"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+
+# reportSchedules
+permissions {
+  key: "reportSchedules.get"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/ReportSchedule"
+  }
+}
+permissions {
+  key: "reportSchedules.list"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "reportSchedules.create"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "reportSchedules.stop"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/ReportSchedule"
+  }
+}
+
+# reportingSets
+permissions {
+  key: "reportingSets.get"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/ReportingSet"
+  }
+}
+permissions {
+  key: "reportingSets.list"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+permissions {
+  # Allow creation of primitive ReportingSets.
+  key: "reportingSets.createPrimitive"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+permissions {
+  # Allow creation of composite ReportingSets with UNION as the set operation.
+  key: "reportingSets.createUnion"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+permissions {
+  # Allow creation of composite ReportingSets with DIFFERENCE as the set operation.
+  key: "reportingSets.createDifference"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
+permissions {
+  # Allow creation of composite ReportingSets with INTERSECTION as the set operation.
+  key: "reportingSets.createIntersection"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/MeasurementConsumer"
+  }
+}
