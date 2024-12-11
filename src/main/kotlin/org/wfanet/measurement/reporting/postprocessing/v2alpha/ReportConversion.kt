@@ -19,6 +19,23 @@ import com.google.protobuf.util.JsonFormat
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.Report
 
+data class ReportingSet(
+  val measurementPolicy: String,
+  val target: List<String>,
+  val uniqueReachTarget: String,
+  val lhsReportingSetIds: List<String>,
+  val rhsReportingSetIds: List<String>,
+)
+
+data class MetricCalculationSpec(
+  val commonFilter: String,
+  val cumulative: Boolean,
+  val grouping: String,
+  val metricFrequency: String,
+  val metrics: List<String>,
+  val setOperation: String,
+)
+
 object ReportConversion {
   fun getReportFromJsonString(reportAsJsonString: String): Report {
     val protoBuilder = Report.newBuilder()
@@ -31,104 +48,44 @@ object ReportConversion {
   }
 
   // TODO(@ple13): Move this function to a separate Origin-specific package.
-  fun convertTagToJsonFormat(tag: String): String {
-    // Remove the curly braces
-    val cleanedInput = tag.substring(1, tag.length - 1)
-
-    // Split the tag into key-value pairs
-    val pairs = cleanedInput.split(", ")
-
-    var output = "{"
-
-    for (pair in pairs) {
-      val parts = pair.split("=")
-      val key = parts[0].trim().lowercase()
-      val value =
-        if (parts.size > 1) {
-          parts[1].trim()
-        } else {
-          ""
-        }
-
-      when (key) {
-        "target",
-        "measured_entity",
-        "measurement_entities",
-        "metrics",
-        "set_operation" -> {
-          if (value.isEmpty()) {
-            output += "\"$key\": [], "
-          } else {
-            // Split the value string into a list of strings separated by comma.
-            val valueList = value.split(",").map { it.trim() }
-
-            // Add the list to the output string.
-            output += ("\"$key\": [")
-            for (i in valueList.indices) {
-              output += ("\"${valueList[i]}\"")
-              if (i < valueList.size - 1) {
-                output += (", ")
-              }
-            }
-            output += ("], ")
-          }
-        }
-        "lhs_reporting_set_ids",
-        "rhs_reporting_set_ids" -> {
-          if (value.isEmpty()) {
-            output += "\"$key\": [], "
-          } else {
-            // Split the value string into a list of strings separated by space.
-            val valueList = value.split(" ").map { it.trim() }
-
-            // Add the list to the output string.
-            output += ("\"$key\": [")
-            for (i in valueList.indices) {
-              output += ("\"${valueList[i]}\"")
-              if (i < valueList.size - 1) {
-                output += (", ")
-              }
-            }
-            output += ("], ")
-          }
-        }
-        else -> {
-          // Add other key-value pairs.
-          output += ("\"$key\": \"$value\", ")
-        }
-      }
-    }
-
-    // Remove the trailing comma and space if there is any.
-    if (output.length > 1) {
-      output = output.take(output.length - 2)
-    }
-
-    output += ("}")
-
-    return output
-  }
-
-  // TODO(@ple13): Move this function to a separate Origin-specific package.
   fun getReportingSetFromTag(tag: String): ReportingSet {
-    val protoBuilder = ReportingSet.newBuilder()
-    try {
-      JsonFormat.parser().merge(convertTagToJsonFormat(tag), protoBuilder)
-    } catch (e: InvalidProtocolBufferException) {
-      throw IllegalArgumentException("Failed to parse ReportingSet from JSON string", e)
+    val keyValuePairs = tag.trim('{', '}').split(", ")
+    val data = mutableMapOf<String, String>()
+
+    for (pair in keyValuePairs) {
+      val (key, value) = pair.split("=")
+      data[key] = value
     }
-    return protoBuilder.build()
+
+    return ReportingSet(
+      measurementPolicy = data.getValue("measurement_policy"),
+      target = data.getValue("target").split(","),
+      uniqueReachTarget = data.getValue("unique_Reach_Target").takeUnless { it.isEmpty() }?: "",
+      lhsReportingSetIds = data.getValue("lhs_reporting_set_ids").takeUnless { it.isEmpty() }
+        ?.split(" ") ?: emptyList(),
+      rhsReportingSetIds = data.getValue("rhs_reporting_set_ids").takeUnless { it.isEmpty() }
+        ?.split(" ") ?: emptyList(),
+    )
   }
 
   // TODO(@ple13): Move this function to a separate Origin-specific package.
   fun getMetricCalculationSpecFromTag(tag: String): MetricCalculationSpec {
-    val protoBuilder = MetricCalculationSpec.newBuilder()
-    try {
-      JsonFormat.parser().merge(convertTagToJsonFormat(tag), protoBuilder)
-    } catch (e: InvalidProtocolBufferException) {
-      throw IllegalArgumentException("Failed to parse ReportingSet from JSON string", e)
+    val keyValuePairs = tag.trim('{', '}').split(", ")
+    val data = mutableMapOf<String, String>()
+
+    for (pair in keyValuePairs) {
+      val (key, value) = pair.split("=")
+      data[key] = value
     }
-    return protoBuilder.build()
+
+    return MetricCalculationSpec(
+      commonFilter = data.getValue("common_filter"),
+      cumulative = data.getValue("cumulative").toBoolean(),
+      grouping = data.getValue("grouping"),
+      metricFrequency = data.getValue("metric_frequency"),
+      metrics = data.getValue("metrics").split(","),
+      setOperation = data.getValue("set_operation"),
+    )
   }
 
   // TODO(@ple13): Move this function to a separate Origin-specific package.
@@ -160,7 +117,7 @@ fun Report.toReportSummaries(): List<ReportSummary> {
   val targetByShortReportingSetId =
     reportingSetById
       .map { (reportingSetId, reportingSet) ->
-        reportingSetId.substringAfterLast("/") to reportingSet.targetList
+        reportingSetId.substringAfterLast("/") to reportingSet.target
       }
       .toMap()
 
@@ -176,21 +133,22 @@ fun Report.toReportSummaries(): List<ReportSummary> {
       measurementSets.forEach { (key, value) ->
         val reportingSet = reportingSetById.getValue(key.first)
         val metricCalculationSpec = metricCalculationSpecById.getValue(key.second)
+
         if (metricCalculationSpec.commonFilter == filter) {
           measurementDetails += measurementDetail {
             measurementPolicy = reportingSet.measurementPolicy.lowercase()
-            dataProviders += reportingSet.targetList
+            dataProviders += reportingSet.target
             isCumulative = metricCalculationSpec.cumulative
             setOperation = metricCalculationSpec.setOperation
             uniqueReachTarget = reportingSet.uniqueReachTarget
             rightHandSideTargets +=
-              reportingSet.rhsReportingSetIdsList
+              reportingSet.rhsReportingSetIds
                 .flatMap { id -> targetByShortReportingSetId.getValue(id) }
                 .toSet()
                 .toList()
                 .sorted()
             leftHandSideTargets +=
-              reportingSet.lhsReportingSetIdsList
+              reportingSet.lhsReportingSetIds
                 .flatMap { id -> targetByShortReportingSetId.getValue(id) }
                 .toSet()
                 .toList()
