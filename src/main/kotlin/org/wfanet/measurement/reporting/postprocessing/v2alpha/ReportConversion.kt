@@ -19,20 +19,33 @@ import com.google.protobuf.util.JsonFormat
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.Report
 
-data class ReportingSet(
+/** Represents a summary of a reporting set. */
+data class ReportingSetSummary(
+  /** The measurement policy used for the reporting set. */
   val measurementPolicy: String,
+  /** The target for the reporting set. */
   val target: List<String>,
+  /** The unique reach target of the reporting set. */
   val uniqueReachTarget: String,
+  /** The IDs of the left-hand side reporting sets used in the set operation. */
   val lhsReportingSetIds: List<String>,
+  /** The IDs of the right-hand side reporting sets used in the set operation. */
   val rhsReportingSetIds: List<String>,
 )
 
+/** Represents a metric calculation specification. */
 data class MetricCalculationSpec(
+  /** The common filter used in the measurement. */
   val commonFilter: String,
+  /** Whether the measurement is cumulative. */
   val cumulative: Boolean,
+  /** The grouping used in the measurement. */
   val grouping: String,
+  /** The frequency of cumulative measurements. */
   val metricFrequency: String,
+  /** The list of metrics to measure (e.g. reach, impressions). */
   val metrics: List<String>,
+  /** The set operation used in the calculation (e.g. cumulative, union, difference). */
   val setOperation: String,
 )
 
@@ -48,7 +61,7 @@ object ReportConversion {
   }
 
   // TODO(@ple13): Move this function to a separate Origin-specific package.
-  fun getReportingSetFromTag(tag: String): ReportingSet {
+  fun getReportingSetSummaryFromTag(tag: String): ReportingSetSummary {
     val keyValuePairs = tag.trim('{', '}').split(", ")
     val data = mutableMapOf<String, String>()
 
@@ -57,14 +70,16 @@ object ReportConversion {
       data[key] = value
     }
 
-    return ReportingSet(
+    return ReportingSetSummary(
       measurementPolicy = data.getValue("measurement_policy"),
       target = data.getValue("target").split(","),
-      uniqueReachTarget = data.getValue("unique_Reach_Target").takeUnless { it.isEmpty() }?: "",
-      lhsReportingSetIds = data.getValue("lhs_reporting_set_ids").takeUnless { it.isEmpty() }
-        ?.split(" ") ?: emptyList(),
-      rhsReportingSetIds = data.getValue("rhs_reporting_set_ids").takeUnless { it.isEmpty() }
-        ?.split(" ") ?: emptyList(),
+      uniqueReachTarget = data.getValue("unique_Reach_Target").takeUnless { it.isEmpty() } ?: "",
+      lhsReportingSetIds =
+        data.getValue("lhs_reporting_set_ids").takeUnless { it.isEmpty() }
+          ?.split(" ") ?: emptyList(),
+      rhsReportingSetIds =
+        data.getValue("rhs_reporting_set_ids").takeUnless { it.isEmpty() }
+          ?.split(" ") ?: emptyList(),
     )
   }
 
@@ -98,11 +113,11 @@ object ReportConversion {
 fun Report.toReportSummaries(): List<ReportSummary> {
   require(state == Report.State.SUCCEEDED) { "Unsucceeded report is not supported." }
 
-  val reportingSetById =
+  val ReportingSetSummaryById =
     reportingMetricEntriesList.associate { entry ->
       val reportingSetId = entry.key
       val tag = tags.getValue(reportingSetId)
-      reportingSetId to ReportConversion.getReportingSetFromTag(tag)
+      reportingSetId to ReportConversion.getReportingSetSummaryFromTag(tag)
     }
 
   val metricCalculationSpecs =
@@ -115,9 +130,9 @@ fun Report.toReportSummaries(): List<ReportSummary> {
     }
 
   val targetByShortReportingSetId =
-    reportingSetById
-      .map { (reportingSetId, reportingSet) ->
-        reportingSetId.substringAfterLast("/") to reportingSet.target
+    ReportingSetSummaryById
+      .map { (reportingSetId, ReportingSetSummary) ->
+        reportingSetId.substringAfterLast("/") to ReportingSetSummary.target
       }
       .toMap()
 
@@ -131,24 +146,24 @@ fun Report.toReportSummaries(): List<ReportSummary> {
   for (filter in filterGroups) {
     val reportSummary = reportSummary {
       measurementSets.forEach { (key, value) ->
-        val reportingSet = reportingSetById.getValue(key.first)
+        val ReportingSetSummary = ReportingSetSummaryById.getValue(key.first)
         val metricCalculationSpec = metricCalculationSpecById.getValue(key.second)
 
         if (metricCalculationSpec.commonFilter == filter) {
           measurementDetails += measurementDetail {
-            measurementPolicy = reportingSet.measurementPolicy.lowercase()
-            dataProviders += reportingSet.target
+            measurementPolicy = ReportingSetSummary.measurementPolicy.lowercase()
+            dataProviders += ReportingSetSummary.target
             isCumulative = metricCalculationSpec.cumulative
             setOperation = metricCalculationSpec.setOperation
-            uniqueReachTarget = reportingSet.uniqueReachTarget
+            uniqueReachTarget = ReportingSetSummary.uniqueReachTarget
             rightHandSideTargets +=
-              reportingSet.rhsReportingSetIds
+              ReportingSetSummary.rhsReportingSetIds
                 .flatMap { id -> targetByShortReportingSetId.getValue(id) }
                 .toSet()
                 .toList()
                 .sorted()
             leftHandSideTargets +=
-              reportingSet.lhsReportingSetIds
+              ReportingSetSummary.lhsReportingSetIds
                 .flatMap { id -> targetByShortReportingSetId.getValue(id) }
                 .toSet()
                 .toList()
