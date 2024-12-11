@@ -501,7 +501,7 @@ cue_dump(
 
 cue_library(
     name = "measurement_system_prober_cue",
-    srcs = ["measurement_system_prober.cue"],
+    srcs = ["measurement_system_prober_gke.cue"],
     deps = [
         ":config",
         "//src/main/k8s:measurement_system_prober",
@@ -509,8 +509,8 @@ cue_library(
 )
 
 cue_dump(
-    name = "measurement_system_prober",
-    srcs = ["measurement_system_prober.cue"],
+    name = "measurement_system_prober_gke",
+    srcs = ["measurement_system_prober_gke.cue"],
     cue_tags = {
         "mc_name": SIMULATOR_K8S_SETTINGS.mc_name,
         "mc_api_key": SIMULATOR_K8S_SETTINGS.mc_api_key,
@@ -539,7 +539,7 @@ kustomization_dir(
     testonly = True,
     srcs = [
         "resource_requirements.yaml",
-        ":measurement_system_prober",
+        ":measurement_system_prober_gke",
     ],
     generate_kustomization = True,
     tags = ["manual"],
