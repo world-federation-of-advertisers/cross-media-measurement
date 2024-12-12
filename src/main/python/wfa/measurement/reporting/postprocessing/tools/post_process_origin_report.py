@@ -85,7 +85,7 @@ class ReportSummaryProcessor:
     # measurements.
     self._process_primitive_measurements()
 
-    # Process unique reach measurements.
+    # Process difference measurements (e.g. unique reach, incremental reach).
     self._process_difference_measurements()
 
     return self._get_corrected_measurements()
@@ -123,7 +123,7 @@ class ReportSummaryProcessor:
         entry = metric_report.get_whole_campaign_measurement(edp_combination)
         metric_name_to_value.update({entry.name: int(entry.value)})
 
-    # Updates unique reach measurements.
+    # Updates difference measurements.
     for key, value in self._set_difference_map.items():
       metric_name_to_value.update({key: (
           metric_name_to_value[value[0]] - metric_name_to_value[value[1]])})
@@ -230,10 +230,9 @@ class ReportSummaryProcessor:
       superset_measurement = \
         self._whole_campaign_measurements[measurement_policy][superset]
 
-      # Now we need to get the measurement that corresponds to reach(subset)
-      # where subset = entry.data_providers \ {entry.unique_reach_target}.
+      # Now we need to get the measurement that corresponds to reach(subset).
       # If reach(subset) measurement exists in the report summary, maps the
-      # unique reach measurement to the tuple (superset, subset). However, if
+      # difference measurement to the tuple (superset, subset). However, if
       # reach(subset) measurement does not exist, it needs to be derived from
       # the superset measurement and the difference measurement before the
       # mapping.
