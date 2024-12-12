@@ -24,6 +24,7 @@ import ("strings")
 	_verboseGrpcClientLogging: bool | *false
 	_kingdomPublicApiTarget:   string
 	_secretName:               string
+	let SecretName = _secretName
 
 	_privateKeyDerFileFlag:             "--private-key-der-file=/var/run/secrets/files/mc_cs_private.der"
 	_tlsCertFileFlag:                   "--tls-cert-file=/var/run/secrets/files/mc_tls.pem"
@@ -52,7 +53,7 @@ import ("strings")
 
 	cronJobs: [Name=_]: #CronJob & {
 		_name:       strings.TrimSuffix(Name, "-cronjob")
-		_secretName: _secretName
+		_secretName: SecretName
 		_system:     "kingdom"
 		_container: {
 			image: _images[_name]
