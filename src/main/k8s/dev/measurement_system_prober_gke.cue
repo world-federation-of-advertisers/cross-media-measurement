@@ -16,5 +16,5 @@ measurementSystemProber: #MeasurementSystemProber & {
 	_secretName:               _secret_name
 	_verboseGrpcClientLogging: true
 	_edpResourceNames: [_edp1, _edp2]
-	_kingdomPublicApiTarget:   #KingdomPublicApiTarget
+	_kingdomPublicApiTarget: #KingdomPublicApiTarget
 }
