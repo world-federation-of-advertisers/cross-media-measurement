@@ -80,4 +80,13 @@ import ("strings")
 			spec: schedule: "* * * * *"
 		}
 	}
+
+	networkPolicies: {
+		"measurement-system-prober": {
+			_app_label: "measurement-system-prober-app"
+			_destinationMatchLabels: [
+				"gcp-kingdom-data-server-app",
+			]
+		}
+	}
 }
