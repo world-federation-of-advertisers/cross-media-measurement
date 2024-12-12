@@ -19,6 +19,7 @@ package org.wfanet.measurement.securecomputation.teesdk
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Message
 import com.google.protobuf.Parser
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.catch
@@ -69,10 +70,10 @@ abstract class BaseTeeApplication<T : Message>(
       runWork(queueMessage.body)
       queueMessage.ack()
     } catch (e: InvalidProtocolBufferException) {
-      logger.severe("Failed to parse protobuf message: ${e.message}")
+      logger.log(Level.SEVERE, e) { "Failed to parse protobuf message" }
       queueMessage.nack()
     } catch (e: Exception) {
-      logger.severe("Error processing message: ${e.message}")
+      logger.log(Level.SEVERE, e) { "Error processing message" }
       queueMessage.nack()
     }
   }

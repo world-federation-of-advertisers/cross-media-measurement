@@ -29,40 +29,31 @@ import org.wfanet.measurement.queue.QueueSubscriber
 import org.junit.Test
 import org.junit.After
 import org.junit.Before
-import org.junit.Rule
+import org.junit.ClassRule
 
 class BaseTeeApplicationImpl(
-  queueName: String,
+  subscriptionId: String,
   queueSubscriber: QueueSubscriber,
   parser: Parser<TestWork>,
 ) :
   BaseTeeApplication<TestWork>(
-    queueName = queueName,
+    subscriptionId = subscriptionId,
     queueSubscriber = queueSubscriber,
     parser = parser,
   ) {
-  val processedMessages: MutableList<TestWork> = mutableListOf()
-  val messageProcessed = CompletableDeferred<Unit>()
+  val messageProcessed = CompletableDeferred<TestWork>()
 
   override suspend fun runWork(message: TestWork) {
-    processedMessages.add(message)
-    messageProcessed.complete(Unit)
+    messageProcessed.complete(message)
   }
 }
 
 class BaseTeeApplicationTest {
 
-  @Rule
-  @JvmField val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
-
-  private val projectId = "test-project"
-  private val subscriptionId = "test-subscription"
-  private val topicId = "test-topic"
-
   private lateinit var emulatorClient: GooglePubSubEmulatorClient
 
   @Before
-  fun setup() {
+  fun setupPubSubResources() {
     runBlocking {
       emulatorClient = GooglePubSubEmulatorClient(
         host = pubSubEmulatorProvider.host,
@@ -74,7 +65,7 @@ class BaseTeeApplicationTest {
   }
 
   @After
-  fun tearDown() {
+  fun cleanPubSubResources() {
     runBlocking {
       emulatorClient.deleteTopic(projectId, topicId)
       emulatorClient.deleteSubscription(projectId, subscriptionId)
@@ -87,7 +78,7 @@ class BaseTeeApplicationTest {
     val publisher = Publisher<TestWork>(projectId, emulatorClient)
     val app =
       BaseTeeApplicationImpl(
-        queueName = subscriptionId,
+        subscriptionId = subscriptionId,
         queueSubscriber = pubSubClient,
         parser = TestWork.parser(),
       )
@@ -98,8 +89,8 @@ class BaseTeeApplicationTest {
 
     publisher.publishMessage(topicId, testWork)
 
-    app.messageProcessed.await()
-    assertThat(app.processedMessages.contains(testWork)).isTrue()
+    val processedMessage = app.messageProcessed.await()
+    assertThat(processedMessage).isEqualTo(testWork)
 
     job.cancelAndJoin()
   }
@@ -107,4 +98,16 @@ class BaseTeeApplicationTest {
   private fun createTestWork(message: String): TestWork {
     return TestWork.newBuilder().setUserName(message).setUserAge("25").setUserCountry("US").build()
   }
+
+  companion object {
+
+    private const val projectId = "test-project"
+    private const val subscriptionId = "test-subscription"
+    private const val topicId = "test-topic"
+
+    @get:ClassRule
+    @JvmStatic
+    val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
+  }
+
 }
