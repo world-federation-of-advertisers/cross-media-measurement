@@ -126,7 +126,7 @@ jobs:
           -C "$KUSTOMIZATION_PATH"
 
       - name: Export KUSTOMIZE_PATH
-        run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/measurement_system_prober >> $GITHUB_ENV
+        run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/measurement_system_prober" >> $GITHUB_ENV
 
       # Run kubectl diff, treating the command as succeeded even if the exit
       # code is 1 as kubectl uses this code to indicate there's a diff.
