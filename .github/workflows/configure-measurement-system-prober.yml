@@ -111,7 +111,7 @@ jobs:
         run: >
           bazelisk build 
           //src/main/k8s/dev:measurement_system_prober.tar
-          //src/main/k8s/testing/secretfiles:archive
+          //src/main/k8s/testing/secretfiles:kustomization.tar
 
       - name: Make Kustomization dir
         run: mkdir -p "$KUSTOMIZATION_PATH"
@@ -122,8 +122,8 @@ jobs:
 
       - name: Extract secret files archive
         run: >
-          tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/archive.tar"
-          -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/measurement_system_prober_secret"
+          tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/kustomization.tar"
+          -C "$KUSTOMIZATION_PATH"
 
       - name: Export KUSTOMIZE_PATH
         run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/measurement_system_prober >> $GITHUB_ENV
