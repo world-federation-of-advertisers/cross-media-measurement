@@ -5,7 +5,6 @@ _mc_resource_name: string @tag("mc_name")
 _mc_api_key:       string @tag("mc_api_key")
 _edp1:             string @tag("edp1_name")
 _edp2:             string @tag("edp2_name")
-_edp_resource_names: [_edp1, _edp2]
 
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 
@@ -16,6 +15,6 @@ measurementSystemProber: #MeasurementSystemProber & {
 	_apiKey:                   _mc_api_key
 	_secretName:               _secret_name
 	_verboseGrpcClientLogging: true
-	_edpResourceNames:         _edp_resource_names
+	_edpResourceNames: [_edp1, _edp2]
 	_kingdomPublicApiTarget:   #KingdomPublicApiTarget
 }
