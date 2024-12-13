@@ -81,6 +81,10 @@ import ("strings")
 		}
 	}
 
+	networkPolicies: [Name=_]: #NetworkPolicy & {
+		_name: Name
+	}
+
 	networkPolicies: {
 		"measurement-system-prober": {
 			_app_label: "measurement-system-prober-app"
