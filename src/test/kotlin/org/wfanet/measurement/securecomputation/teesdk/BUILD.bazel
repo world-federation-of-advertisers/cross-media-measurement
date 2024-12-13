@@ -3,6 +3,9 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "BaseTeeApplicationTest",
     srcs = ["BaseTeeApplicationTest.kt"],
+    tags = [
+        "no-remote-exec",
+    ],
     test_class = "org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplicationTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/teesdk:base_tee_application",
