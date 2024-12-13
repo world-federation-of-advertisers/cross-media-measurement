@@ -133,6 +133,15 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
 
+  update-measurement-system-prober:
+    uses: ./.github/workflows/configure-measurement-system-prober.yml
+    secrets: inherit
+    needs: [ publish-images, terraform ]
+    with:
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      environment: ${{ inputs.environment }}
+      apply: ${{ inputs.apply }}
+
   run-tests:
     if: inputs.run-tests
     needs: [
