@@ -60,26 +60,26 @@ class BaseTeeApplicationTest {
           host = pubSubEmulatorProvider.host,
           port = pubSubEmulatorProvider.port,
         )
-      emulatorClient.createTopic(projectId, topicId)
-      emulatorClient.createSubscription(projectId, subscriptionId, topicId)
+      emulatorClient.createTopic(PROJECT_ID, TOPIC_ID)
+      emulatorClient.createSubscription(PROJECT_ID, SUBSCRIPTION_ID, TOPIC_ID)
     }
   }
 
   @After
   fun cleanPubSubResources() {
     runBlocking {
-      emulatorClient.deleteTopic(projectId, topicId)
-      emulatorClient.deleteSubscription(projectId, subscriptionId)
+      emulatorClient.deleteTopic(PROJECT_ID, TOPIC_ID)
+      emulatorClient.deleteSubscription(PROJECT_ID, SUBSCRIPTION_ID)
     }
   }
 
   @Test
   fun `test processing protobuf message`() = runBlocking {
-    val pubSubClient = Subscriber(projectId = projectId, googlePubSubClient = emulatorClient)
-    val publisher = Publisher<TestWork>(projectId, emulatorClient)
+    val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
+    val publisher = Publisher<TestWork>(PROJECT_ID, emulatorClient)
     val app =
       BaseTeeApplicationImpl(
-        subscriptionId = subscriptionId,
+        subscriptionId = SUBSCRIPTION_ID,
         queueSubscriber = pubSubClient,
         parser = TestWork.parser(),
       )
@@ -88,7 +88,7 @@ class BaseTeeApplicationTest {
     val message = "UserName1"
     val testWork = createTestWork(message)
 
-    publisher.publishMessage(topicId, testWork)
+    publisher.publishMessage(TOPIC_ID, testWork)
 
     val processedMessage = app.messageProcessed.await()
     assertThat(processedMessage).isEqualTo(testWork)
@@ -102,9 +102,9 @@ class BaseTeeApplicationTest {
 
   companion object {
 
-    private const val projectId = "test-project"
-    private const val subscriptionId = "test-subscription"
-    private const val topicId = "test-topic"
+    private const val PROJECT_ID = "test-project"
+    private const val SUBSCRIPTION_ID = "test-subscription"
+    private const val TOPIC_ID = "test-topic"
 
     @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
   }
