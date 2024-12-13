@@ -554,10 +554,15 @@ fun ModelSuite.toInternal(modelProviderKey: ModelProviderKey): InternalModelSuit
 
 /** Converts a public [ModelRelease] to an internal [InternalModelRelease] */
 @Suppress("UnusedReceiverParameter") //
-fun ModelRelease.toInternal(modelSuiteKey: ModelSuiteKey): InternalModelRelease {
+fun ModelRelease.toInternal(
+  modelSuiteKey: ModelSuiteKey,
+  populationKey: PopulationKey,
+): InternalModelRelease {
   return internalModelRelease {
     externalModelProviderId = apiIdToExternalId(modelSuiteKey.modelProviderId)
     externalModelSuiteId = apiIdToExternalId(modelSuiteKey.modelSuiteId)
+    externalDataProviderId = apiIdToExternalId(populationKey.dataProviderId)
+    externalPopulationId = apiIdToExternalId(populationKey.populationId)
   }
 }
 
@@ -574,6 +579,12 @@ fun InternalModelRelease.toModelRelease(): ModelRelease {
         )
         .toName()
     createTime = source.createTime
+    population =
+      PopulationKey(
+          externalIdToApiId(source.externalDataProviderId),
+          externalIdToApiId(source.externalPopulationId),
+        )
+        .toName()
   }
 }
 
@@ -725,9 +736,10 @@ fun InternalModelRollout.toModelRollout(): ModelRollout {
           source.rolloutPeriodEndTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
       }
     }
-
-    rolloutFreezeDate =
-      source.rolloutFreezeTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
+    if (source.hasRolloutFreezeTime()) {
+      rolloutFreezeDate =
+        source.rolloutFreezeTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate().toProtoDate()
+    }
     if (source.externalPreviousModelRolloutId != 0L) {
       previousModelRollout =
         ModelRolloutKey(
@@ -797,12 +809,15 @@ fun ModelRollout.toInternal(
       }
     }
 
-    rolloutFreezeTime =
-      publicModelRollout.rolloutFreezeDate
-        .toLocalDate()
-        .atStartOfDay()
-        .toInstant(ZoneOffset.UTC)
-        .toProtoTime()
+    if (publicModelRollout.hasRolloutFreezeDate()) {
+      rolloutFreezeTime =
+        publicModelRollout.rolloutFreezeDate
+          .toLocalDate()
+          .atStartOfDay()
+          .toInstant(ZoneOffset.UTC)
+          .toProtoTime()
+    }
+
     externalModelReleaseId = apiIdToExternalId(modelReleaseKey.modelReleaseId)
   }
 }

@@ -55,17 +55,29 @@ import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdTo
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
 import org.wfanet.measurement.config.authorityKeyToPrincipalMap
+import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt
+import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
+import org.wfanet.measurement.config.reporting.measurementConsumerConfig
+import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.Population as InternalPopulation
+import org.wfanet.measurement.internal.kingdom.PopulationKt
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt
 import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.dataProviderDetails
+import org.wfanet.measurement.internal.kingdom.eventTemplate
+import org.wfanet.measurement.internal.kingdom.modelProvider as internalModelProvider
+import org.wfanet.measurement.internal.kingdom.population as internalPopulation
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 import org.wfanet.measurement.loadtest.common.ConsoleOutput
@@ -97,6 +109,9 @@ class ResourceSetup(
   private val requiredDuchies: List<String>,
   private val bazelConfigName: String = DEFAULT_BAZEL_CONFIG_NAME,
   private val outputDir: File? = null,
+  private val internalModelProvidersClient: ModelProvidersGrpcKt.ModelProvidersCoroutineStub? =
+    null,
+  private val internalPopulationsClient: PopulationsGrpcKt.PopulationsCoroutineStub? = null,
 ) {
   data class MeasurementConsumerAndKey(
     val measurementConsumer: MeasurementConsumer,
@@ -213,6 +228,47 @@ class ResourceSetup(
       TextFormat.printer().print(akidMap, writer)
     }
 
+    val measurementConsumerConfig = measurementConsumerConfigs {
+      for (resource in resources) {
+        when (resource.resourceCase) {
+          Resources.Resource.ResourceCase.MEASUREMENT_CONSUMER ->
+            configs.put(
+              resource.name,
+              measurementConsumerConfig {
+                apiKey = resource.measurementConsumer.apiKey
+                signingCertificateName = resource.measurementConsumer.certificate
+                signingPrivateKeyPath = MEASUREMENT_CONSUMER_SIGNING_PRIVATE_KEY_PATH
+              },
+            )
+          else -> continue
+        }
+      }
+    }
+    output.resolve(MEASUREMENT_CONSUMER_CONFIG_FILE).writer().use { writer ->
+      TextFormat.printer().print(measurementConsumerConfig, writer)
+    }
+
+    val encryptionKeyPairConfig = encryptionKeyPairConfig {
+      for (resource in resources) {
+        when (resource.resourceCase) {
+          Resources.Resource.ResourceCase.MEASUREMENT_CONSUMER ->
+            principalKeyPairs +=
+              EncryptionKeyPairConfigKt.principalKeyPairs {
+                principal = resource.name
+                keyPairs +=
+                  EncryptionKeyPairConfigKt.keyPair {
+                    publicKeyFile = MEASUREMENT_CONSUMER_ENCRYPTION_PUBLIC_KEY_PATH
+                    privateKeyFile = MEASUREMENT_CONSUMER_ENCRYPTION_PRIVATE_KEY_PATH
+                  }
+              }
+          else -> continue
+        }
+      }
+    }
+    output.resolve(ENCRYPTION_KEY_PAIR_CONFIG_FILE).writer().use { writer ->
+      TextFormat.printer().print(encryptionKeyPairConfig, writer)
+    }
+
     val configName = bazelConfigName
     output.resolve(BAZEL_RC_FILE).writer().use { writer ->
       for (resource in resources) {
@@ -268,6 +324,28 @@ class ResourceSetup(
     } catch (e: StatusException) {
       throw Exception("Error creating DataProvider", e)
     }
+  }
+
+  /** Create an internal modelProvider. */
+  suspend fun createInternalModelProvider(): InternalModelProvider {
+    require(internalModelProvidersClient != null)
+    return try {
+      internalModelProvidersClient.createModelProvider(internalModelProvider {})
+    } catch (e: StatusException) {
+      throw Exception("Error creating ModelProvider", e)
+    }
+  }
+
+  suspend fun createInternalPopulation(dataProvider: InternalDataProvider): InternalPopulation {
+    require(internalPopulationsClient != null)
+    return internalPopulationsClient.createPopulation(
+      internalPopulation {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        description = "DESCRIPTION"
+        populationBlob = PopulationKt.populationBlob { modelBlobUri = "BLOB_URI" }
+        eventTemplate = eventTemplate { fullyQualifiedType = "TYPE" }
+      }
+    )
   }
 
   suspend fun createAccountWithRetries(): InternalAccount {
@@ -413,6 +491,11 @@ class ResourceSetup(
     const val RESOURCES_OUTPUT_FILE = "resources.textproto"
     const val AKID_PRINCIPAL_MAP_FILE = "authority_key_identifier_to_principal_map.textproto"
     const val BAZEL_RC_FILE = "resource-setup.bazelrc"
+    const val MEASUREMENT_CONSUMER_CONFIG_FILE = "measurement_consumer_config.textproto"
+    const val ENCRYPTION_KEY_PAIR_CONFIG_FILE = "encryption_key_pair_config.textproto"
+    const val MEASUREMENT_CONSUMER_SIGNING_PRIVATE_KEY_PATH = "mc_cs_private.der"
+    const val MEASUREMENT_CONSUMER_ENCRYPTION_PUBLIC_KEY_PATH = "mc_enc_public.tink"
+    const val MEASUREMENT_CONSUMER_ENCRYPTION_PRIVATE_KEY_PATH = "mc_enc_private.tink"
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }

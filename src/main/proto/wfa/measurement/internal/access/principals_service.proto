@@ -1,0 +1,77 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.access;
+
+import "google/protobuf/empty.proto";
+import "wfa/measurement/internal/access/principal.proto";
+
+option java_package = "org.wfanet.measurement.internal.access";
+option java_multiple_files = true;
+option java_outer_classname = "PrincipalsServiceProto";
+
+service Principals {
+  // Gets a Principal by its resource ID.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_NOT_FOUND`
+  rpc GetPrincipal(GetPrincipalRequest) returns (Principal);
+
+  // Creates a new user Principal.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_ALREADY_EXISTS`
+  rpc CreateUserPrincipal(CreateUserPrincipalRequest) returns (Principal);
+
+  // Deletes a `Principal`.
+  //
+  // TLS client principals may not be deleted by this method.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_NOT_FOUND`
+  // * `PRINCIPAL_TYPE_NOT_SUPPORTED`
+  rpc DeletePrincipal(DeletePrincipalRequest) returns (google.protobuf.Empty);
+
+  // Looks up a `Principal` by lookup key.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT`
+  // * `PRINCIPAL_NOT_FOUND_FOR_USER`
+  rpc LookupPrincipal(LookupPrincipalRequest) returns (Principal);
+}
+
+message GetPrincipalRequest {
+  string principal_resource_id = 1;
+}
+
+message CreateUserPrincipalRequest {
+  string principal_resource_id = 1;
+  Principal.OAuthUser user = 2;
+}
+
+message DeletePrincipalRequest {
+  string principal_resource_id = 1;
+}
+
+message LookupPrincipalRequest {
+  // Lookup key. Required.
+  oneof lookup_key {
+    // User identity.
+    Principal.OAuthUser user = 1;
+    // TLS client identity.
+    Principal.TlsClient tls_client = 2;
+  }
+}

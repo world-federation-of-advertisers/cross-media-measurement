@@ -44,4 +44,28 @@ class ReportingApiServerFlags {
   )
   lateinit var eventGroupMetadataDescriptorCacheDuration: Duration
     private set
+
+  // TODO(world-federation-of-advertisers/cross-media-measurement#1937): Remove these flags as
+  // part of determining a better way to set the model line when the VID Model Repo is adopted.
+  @CommandLine.Option(
+    names = ["--default-vid-model-line"],
+    description = ["The default VID model line to be used by EDPs when fulfilling requisitions."],
+    defaultValue = "",
+    required = false,
+  )
+  lateinit var defaultVidModelLine: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--measurement-consumer-model-line"],
+    description =
+      [
+        "Key-value pair of MeasurementConsumer resource name and VID ModelLine resource name. " +
+          "This can be specified multiple times. Entries in this map override the default VID " +
+          "ModelLine."
+      ],
+    required = false,
+  )
+  var measurementConsumerModelLines: Map<String, String> = emptyMap()
+    private set
 }

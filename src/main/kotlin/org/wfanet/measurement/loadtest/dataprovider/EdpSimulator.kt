@@ -36,9 +36,11 @@ import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -74,6 +76,7 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
@@ -108,6 +111,9 @@ import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.Health
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.SettableHealth
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.flattenConcat
+import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -143,7 +149,7 @@ import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults.computeIm
 /** A simulator handling EDP businesses. */
 class EdpSimulator(
   private val edpData: DataProviderData,
-  measurementConsumerName: String,
+  private val measurementConsumerName: String,
   private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
   certificatesStub: CertificatesCoroutineStub,
   private val dataProvidersStub: DataProvidersCoroutineStub,
@@ -176,24 +182,20 @@ class EdpSimulator(
   private val health: SettableHealth = SettableHealth(),
   private val blockingCoroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
 ) :
-  RequisitionFulfiller(
-    edpData,
-    certificatesStub,
-    requisitionsStub,
-    throttler,
-    trustedCertificates,
-    measurementConsumerName,
-  ),
+  RequisitionFulfiller(edpData, certificatesStub, requisitionsStub, throttler, trustedCertificates),
   Health by health {
-  val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
+  private val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
 
-  val supportedProtocols = buildSet {
+  private val supportedProtocols = buildSet {
     add(ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
     add(ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2)
     if (hmssVidIndexMap != null) {
       add(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
     }
   }
+
+  private val measurementConsumerKey =
+    checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
 
   /** A sequence of operations done in the simulator. */
   override suspend fun run() {
@@ -342,27 +344,29 @@ class EdpSimulator(
    * Returns the first [EventGroup] for this `DataProvider` and [MeasurementConsumer] with
    * [eventGroupReferenceId], or `null` if not found.
    */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun getEventGroupByReferenceId(eventGroupReferenceId: String): EventGroup? {
-    val response =
-      try {
-        eventGroupsStub.listEventGroups(
-          listEventGroupsRequest {
-            parent = edpData.name
-            filter =
-              ListEventGroupsRequestKt.filter { measurementConsumers += measurementConsumerName }
-            pageSize = Int.MAX_VALUE
+    return eventGroupsStub
+      .listResources { pageToken ->
+        val response =
+          try {
+            listEventGroups(
+              listEventGroupsRequest {
+                parent = edpData.name
+                filter =
+                  ListEventGroupsRequestKt.filter {
+                    measurementConsumers += measurementConsumerName
+                  }
+                this.pageToken = pageToken
+              }
+            )
+          } catch (e: StatusException) {
+            throw Exception("Error listing EventGroups", e)
           }
-        )
-      } catch (e: StatusException) {
-        throw Exception("Error listing EventGroups", e)
+        ResourceList(response.eventGroupsList, response.nextPageToken)
       }
-
-    // TODO(@SanjayVas): Support filtering by reference ID so we don't need to handle multiple pages
-    // of EventGroups.
-    check(response.nextPageToken.isEmpty()) {
-      "Too many EventGroups for ${edpData.name} and $measurementConsumerName"
-    }
-    return response.eventGroupsList.find { it.eventGroupReferenceId == eventGroupReferenceId }
+      .flattenConcat()
+      .firstOrNull { it.eventGroupReferenceId == eventGroupReferenceId }
   }
 
   private suspend fun ensureMetadataDescriptor(

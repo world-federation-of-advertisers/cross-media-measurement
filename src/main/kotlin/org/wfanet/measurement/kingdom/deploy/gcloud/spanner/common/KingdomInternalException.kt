@@ -14,13 +14,11 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common
 
-import com.google.protobuf.Any
 import com.google.rpc.errorInfo
-import com.google.rpc.status
 import com.google.type.Date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import io.grpc.protobuf.StatusProto
+import org.wfanet.measurement.common.grpc.Errors
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.toLocalDate
@@ -48,23 +46,12 @@ sealed class KingdomInternalException : Exception {
     statusCode: Status.Code,
     message: String = this.message!!,
   ): StatusRuntimeException {
-    val statusProto = status {
-      code = statusCode.value()
-      this.message = message
-      details +=
-        Any.pack(
-          errorInfo {
-            reason = this@KingdomInternalException.code.toString()
-            domain = ErrorCode.getDescriptor().fullName
-            metadata.putAll(context)
-          }
-        )
+    val errorInfo = errorInfo {
+      reason = this@KingdomInternalException.code.toString()
+      domain = ErrorCode.getDescriptor().fullName
+      metadata.putAll(context)
     }
-
-    // Unpack exception to add cause.
-    // TODO(grpc/grpc-java#10230): Use new API when available.
-    val exception = StatusProto.toStatusRuntimeException(statusProto)
-    return exception.status.withCause(this).asRuntimeException(exception.trailers)
+    return Errors.buildStatusRuntimeException(statusCode, message, errorInfo, this)
   }
 
   override fun toString(): String {
