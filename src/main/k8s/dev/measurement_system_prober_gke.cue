@@ -17,17 +17,4 @@ measurementSystemProber: #MeasurementSystemProber & {
 	_verboseGrpcClientLogging: true
 	_edpResourceNames: [_edp1, _edp2]
 	_kingdomPublicApiTarget: #KingdomPublicApiTarget
-
-	networkPolicies: [Name=_]: #NetworkPolicy & {
-		_name: Name
-	}
-
-	networkPolicies: {
-		"measurement-system-prober": {
-			_app_label: "measurement-system-prober-app"
-			_destinationMatchLabels: [
-				"gcp-kingdom-data-server-app",
-			]
-		}
-	}
 }
