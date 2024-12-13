@@ -20,16 +20,16 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import org.wfa.measurement.queue.testing.TestWork
-import org.wfanet.measurement.gcloud.pubsub.Subscriber
-import org.wfanet.measurement.gcloud.pubsub.Publisher
-import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
-import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
-import org.wfanet.measurement.queue.QueueSubscriber
-import org.junit.Test
 import org.junit.After
 import org.junit.Before
 import org.junit.ClassRule
+import org.junit.Test
+import org.wfa.measurement.queue.testing.TestWork
+import org.wfanet.measurement.gcloud.pubsub.Publisher
+import org.wfanet.measurement.gcloud.pubsub.Subscriber
+import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
+import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
+import org.wfanet.measurement.queue.QueueSubscriber
 
 class BaseTeeApplicationImpl(
   subscriptionId: String,
@@ -55,10 +55,11 @@ class BaseTeeApplicationTest {
   @Before
   fun setupPubSubResources() {
     runBlocking {
-      emulatorClient = GooglePubSubEmulatorClient(
-        host = pubSubEmulatorProvider.host,
-        port = pubSubEmulatorProvider.port
-      )
+      emulatorClient =
+        GooglePubSubEmulatorClient(
+          host = pubSubEmulatorProvider.host,
+          port = pubSubEmulatorProvider.port,
+        )
       emulatorClient.createTopic(projectId, topicId)
       emulatorClient.createSubscription(projectId, subscriptionId, topicId)
     }
@@ -105,9 +106,6 @@ class BaseTeeApplicationTest {
     private const val subscriptionId = "test-subscription"
     private const val topicId = "test-topic"
 
-    @get:ClassRule
-    @JvmStatic
-    val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
+    @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
   }
-
 }

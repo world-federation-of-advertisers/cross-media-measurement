@@ -22,8 +22,6 @@ import com.google.protobuf.Parser
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.channels.ReceiveChannel
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.consumeAsFlow
 import org.wfanet.measurement.queue.QueueSubscriber
 
 /**
