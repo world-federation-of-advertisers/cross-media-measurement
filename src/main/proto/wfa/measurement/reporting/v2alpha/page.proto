@@ -117,8 +117,9 @@ message CalculationSpec {
       // supported initially.
       // bool negate = 3;
     }
-    // To begin with this will be a single term, but may be extended
-    // to a disjunction of terms in the future.
+    // The term that defines the filter criteria.
+    //
+    // May be extended to a disjunction of terms in the future.
     Term term = 1 [
       (google.api.field_behavior) = REQUIRED,
       (google.api.field_behavior) = IMMUTABLE
