@@ -16,25 +16,27 @@ syntax = "proto3";
 
 package wfa.measurement.reporting.v2alpha;
 
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "wfa/measurement/reporting/v2alpha/reporting_common.proto";
+
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
-option java_outer_classname = "MediaTypeProto";
+option java_outer_classname = "BasicReportProto";
 
-// MediaType is a desgination that applies to Events, EventGroups, and
-// ReportingSets, henceforth called artifacts. The MediaType determines
-// what EventTempalte applies to an artifact and what MeasurementPolicy
-// to apply. An artifact has exactly one MediaType and the type
-// CROSS_MEDIA is used when the artifact encompases more that one
-// of the other types.
-enum MediaType {
-  // Default value. Unused.
-  MEDIA_TYPE_UNSPECIFIED = 0;
-  // The artifact is a mix of MediaTypes
-  CROSS_MEDIA = 1;
-  // The artifact is categorized as Video
-  VIDEO = 2;
-  // The artifact is categorized as Display
-  DISPLAY = 3;
-  // The artifact is categorized as Other
-  OTHER = 4;
+// Resource representing an Impression Qualification Filter
+message ImpressionQualificationFilter {
+  option (google.api.resource) = {
+    type: "reporting.halo-cmm.org/ImpressionQualificationFilter"
+    pattern: "impressionQualificationFilters/{impression_qualification_filter}"
+  };
+
+  // Resource name.
+  string name = 1;
+
+  // Specifies the filter criteria
+  ImpressionQualificationFilterSpec filter_spec = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 }
