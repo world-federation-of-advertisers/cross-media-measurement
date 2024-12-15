@@ -1,0 +1,150 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ReportingCommonProto";
+
+// ReportingMediaType is used to designate how reporting artifacts
+// should be interpreted for reporting. This designation could apply
+// to EventGroups ReportingSets, filters, and more. Henceforth these are
+// call artifacts.
+//
+// For example, the ReportingMediaType determines what MeasurementPolicy and
+// filters to apply to the arifacts within a particular Report.
+enum ReportingMediaType {
+  // Default value. Unused.
+  MEDIA_TYPE_UNSPECIFIED = 0;
+  // Interpret a set of arifacts as Cross Media
+  CROSS_MEDIA = 1;
+  // Interpret a set of arifacts as Video
+  VIDEO = 2;
+  // Interpret a set of arifacts as Display
+  DISPLAY = 3;
+  // Interpret as set of artifacts as Other
+  OTHER = 4;
+}
+
+// The type of the unit being reported on
+enum ReportingUnitType {
+  // Default value. Unused.
+  REPORTING_TYPE_UNSPECIFIED = 0;
+  // The artifact used by the reporting unit is a halo.wfanet.org/DataProvider
+  DATA_PROVIDER = 1;
+  // The artifact used by the reporting unit is a halo.wfanet.org/ReportingSet
+  // Phase III
+  // REPORTING_SET = 2;
+}
+
+// Specifies the units to report on.
+message ReportingUnit {
+  ReportingUnitType reporting_unit_type = 1;
+
+  // A list of resources to report on.
+  //
+  // These names must have the type specified by the reporting unit type.
+  repeated string components = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = { type: "*" }
+  ];
+
+  // Display names of the resource referendced by the Reporting Unit
+  repeated string display_name = 3 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // The Reporting Media Type to use when reporting on this Reporting Unit.
+  //
+  // Within a report this option determines which set of filters to apply.
+  // Impressions associated with the reporting units that do not correspond
+  // to the provided Reporting Media Type will be filtered out.
+  // If CROSS_MEDIA is specified all impressions are included.
+  ReportingMediaType reporting_media_type = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+}
+
+// Specifies the impression filter for a ReportingMediaType.
+//
+// If particular filter values are not applicable to the media they
+// are applied to it is an error (e.g. DISPLAY cannot be filtered by
+// percent completion)
+message ImpressionQualificationFilterSpec {
+  // The ReportingMediaType this filter applies to.
+  ReportingMediaType media_type = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // Specifies a quantile
+  enum Quantile {
+    QUANTILE_UNSPECIFIED = 0;
+    // 0th percentile
+    ZERO = 1;
+    // 25th percentile
+    TWENTY_FIVE = 2;
+    // 50th percentile
+    FIFTY = 3;
+    // 75th percentile
+    SEVENTY_FIVE = 4;
+    // 100th percentile
+    ONE_HUNDRED = 5;
+  }
+
+  // Specify a percent as a fraction or as a quantile
+  message Percent {
+    oneof value {
+      // The fraction
+      float fraction = 1 [(google.api.field_behavior) = IMMUTABLE];
+      // The quantile
+      Quantile quantile = 2 [(google.api.field_behavior) = IMMUTABLE];
+    }
+  }
+
+  // Specifies the viewpability filter
+  Percent viewability = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+  // Specifies the completion filter
+  Percent completion = 3 [(google.api.field_behavior) = IMMUTABLE];
+}
+
+// An impression qualification filter for reporting that allows either a named
+// filter or a custom filter.
+message ReportingImpressionQualificationFilter {
+  oneof filter {
+    // The resource name of an ImpressionQualificstionFilter.
+    // (e.g. "video/mrc")
+    string impression_qualification_filter = 1 [
+      (google.api.field_behavior) = IMMUTABLE,
+      (google.api.resource_reference) = {
+        type: "reporting.halo-cmm.org/ImpressionQualificationFilter"
+      }
+    ];
+    // A custom filter
+    ImpressionQualificationFilterSpec custom = 2
+        [(google.api.field_behavior) = IMMUTABLE];
+  }
+}
