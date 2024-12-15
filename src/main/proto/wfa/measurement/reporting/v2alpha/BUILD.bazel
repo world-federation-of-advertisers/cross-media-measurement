@@ -16,14 +16,13 @@ proto_library(
     srcs = ["basic_report.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":media_type_proto",
+        ":page_proto",
+        ":reporting_common_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_googleapis//google/type:date_proto",
         "@com_google_googleapis//google/type:datetime_proto",
         "@com_google_googleapis//google/type:dayofweek_proto",
-        "@com_google_googleapis//google/type:interval_proto",
-        "@com_google_protobuf//:timestamp_proto",
     ],
 )
 
@@ -49,16 +48,18 @@ kt_jvm_proto_library(
 )
 
 proto_library(
-    name = "media_type_proto",
-    srcs = ["media_type.proto"],
+    name = "impression_qualification_filter_proto",
+    srcs = ["impression_qualification_filter.proto"],
+    deps = [":reporting_common_proto",
+            "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+            ],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-    ],
 )
 
 kt_jvm_proto_library(
-    name = "media_type_kt_jvm_proto",
-    deps = [":media_type_proto"],
+    name = "impression_qualification_filter_kt_jvm_proto",
+    deps = [":impression_qualification_filter_proto"],
 )
 
 proto_library(
@@ -154,6 +155,21 @@ kt_jvm_proto_library(
 )
 
 proto_library(
+    name = "reporting_common_proto",
+    srcs = ["reporting_common.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "reporting_common_kt_jvm_proto",
+    deps = [":reporting_common_proto"],
+)
+
+proto_library(
     name = "reporting_set_proto",
     srcs = ["reporting_set.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -176,6 +192,25 @@ proto_library(
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/type:interval_proto",
     ],
+)
+
+proto_library(
+    name = "page_proto",
+    srcs = ["page.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+        ":reporting_common_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/type:dayofweek_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "page_kt_jvm_proto",
+    deps = [":page_proto"],
 )
 
 proto_library(
