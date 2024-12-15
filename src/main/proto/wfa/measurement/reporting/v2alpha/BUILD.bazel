@@ -113,6 +113,11 @@ proto_library(
     name = "media_type_proto",
     srcs = ["media_type.proto"],
     strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":reporting_common_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
 )
 
 kt_jvm_proto_library(
