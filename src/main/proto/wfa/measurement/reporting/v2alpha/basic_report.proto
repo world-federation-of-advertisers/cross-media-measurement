@@ -46,7 +46,6 @@ message BasicReport {
   //
   // Event Groups may span Data Providers and Media Types.
   // Subsets of these can be reported on and are determined by PageSpec.
-  // WORKING: drop Reporting Unit
   string campaign_group = 3 [(google.api.resource_reference) = {
     type: "reporting.halo-cmm.org/ReportingSet"
   }];
@@ -94,13 +93,13 @@ message BasicReport {
         (google.api.field_behavior) = IMMUTABLE
       ];
 
-  // The definitions set of pages to create.
+  // Specifies the Pages to create
   repeated PageSpec page_specs = 7 [
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.field_behavior) = REQUIRED
   ];
 
-  // The results for all Page Definitions.
+  // The results for all Page Definitions in the same order as the definitions.
   repeated Page pages = 8 [
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.field_behavior) = OUTPUT_ONLY
