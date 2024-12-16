@@ -16,6 +16,13 @@
 
 package org.wfanet.measurement.access.service.v1alpha
 
+import org.wfanet.measurement.internal.access.PrincipalKt as InternalPrincipalKt
+import org.wfanet.measurement.internal.access.PrincipalsGrpcKt as InternalPrincipalsGrpcKt
+import org.wfanet.measurement.internal.access.createUserPrincipalRequest as internalCreateUserPrincipalRequest
+import org.wfanet.measurement.internal.access.deletePrincipalRequest as internalDeletePrincipalRequest
+import org.wfanet.measurement.internal.access.getPrincipalRequest as internalGetPrincipalRequest
+import org.wfanet.measurement.internal.access.lookupPrincipalRequest as internalLookupPrincipalRequest
+import org.wfanet.measurement.internal.access.principal as internalPrincipal
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Empty
@@ -53,13 +60,6 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.access.Principal
-import org.wfanet.measurement.internal.access.PrincipalKt as InternalPrincipalKt
-import org.wfanet.measurement.internal.access.PrincipalsGrpcKt as InternalPrincipalsGrpcKt
-import org.wfanet.measurement.internal.access.createUserPrincipalRequest as internalCreateUserPrincipalRequest
-import org.wfanet.measurement.internal.access.deletePrincipalRequest as internalDeletePrincipalRequest
-import org.wfanet.measurement.internal.access.getPrincipalRequest as internalGetPrincipalRequest
-import org.wfanet.measurement.internal.access.lookupPrincipalRequest as internalLookupPrincipalRequest
-import org.wfanet.measurement.internal.access.principal as internalPrincipal
 
 @RunWith(JUnit4::class)
 class PrincipalsServiceTest {
@@ -449,208 +449,6 @@ class PrincipalsServiceTest {
   }
 
   @Test
-  fun `lookupPrincipal returns user Principal`() = runBlocking {
-    val internalPrincipal = internalPrincipal {
-      principalResourceId = "user-1"
-      user =
-        InternalPrincipalKt.oAuthUser {
-          issuer = "example.com"
-          subject = "user1@example.com"
-        }
-    }
-    internalServiceMock.stub { onBlocking { lookupPrincipal(any()) } doReturn internalPrincipal }
-
-    val request = lookupPrincipalRequest {
-      user =
-        PrincipalKt.oAuthUser {
-          issuer = "example.com"
-          subject = "user1@example.com"
-        }
-    }
-    val response = service.lookupPrincipal(request)
-
-    verifyProtoArgument(
-        internalServiceMock,
-        InternalPrincipalsGrpcKt.PrincipalsCoroutineImplBase::lookupPrincipal,
-      )
-      .isEqualTo(internalLookupPrincipalRequest { user = internalPrincipal.user })
-
-    assertThat(response)
-      .isEqualTo(
-        principal {
-          name = "principals/${internalPrincipal.principalResourceId}"
-          user =
-            PrincipalKt.oAuthUser {
-              issuer = internalPrincipal.user.issuer
-              subject = internalPrincipal.user.subject
-            }
-        }
-      )
-  }
-
-  @Test
-  fun `lookupPrincipal returns tlsclient Principal`() = runBlocking {
-    val internalPrincipal = internalPrincipal {
-      principalResourceId = "user-1"
-      tlsClient =
-        InternalPrincipalKt.tlsClient { authorityKeyIdentifier = "akid".toByteStringUtf8() }
-    }
-    internalServiceMock.stub { onBlocking { lookupPrincipal(any()) } doReturn internalPrincipal }
-
-    val request = lookupPrincipalRequest {
-      tlsClient = PrincipalKt.tlsClient { authorityKeyIdentifier = "akid".toByteStringUtf8() }
-    }
-    val response = service.lookupPrincipal(request)
-
-    verifyProtoArgument(
-        internalServiceMock,
-        InternalPrincipalsGrpcKt.PrincipalsCoroutineImplBase::lookupPrincipal,
-      )
-      .isEqualTo(internalLookupPrincipalRequest { tlsClient = internalPrincipal.tlsClient })
-
-    assertThat(response)
-      .isEqualTo(
-        principal {
-          name = "principals/${internalPrincipal.principalResourceId}"
-          tlsClient = PrincipalKt.tlsClient { authorityKeyIdentifier = "akid".toByteStringUtf8() }
-        }
-      )
-  }
-
-  @Test
-  fun `lookupPrincipal throws REQUIRED_FIELD_NOT_SET when principle user is not set`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.lookupPrincipal(lookupPrincipalRequest {})
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "lookupkey"
-          }
-        )
-    }
-
-  @Test
-  fun `lookupPrincipal throws REQUIRED_FIELD_NOT_SET when principal user issuer is not set`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.lookupPrincipal(
-            lookupPrincipalRequest {
-              user = PrincipalKt.oAuthUser { subject = "user1@example.com" }
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "user.issuer"
-          }
-        )
-    }
-
-  @Test
-  fun `lookupPrincipal throws REQUIRED_FIELD_NOT_SET when principal user subject is not set`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.lookupPrincipal(
-            lookupPrincipalRequest { user = PrincipalKt.oAuthUser { issuer = "example.com" } }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "user.subject"
-          }
-        )
-    }
-
-  @Test
-  fun `lookupPrincipal throws REQUIRED_FIELD_NOT_SET when principal tls client authority key identifier is not set`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.lookupPrincipal(lookupPrincipalRequest { tlsClient = PrincipalKt.tlsClient {} })
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "tlsclient.authoritykeyidentifier"
-          }
-        )
-    }
-
-  @Test
-  fun `lookupPrincipal throws PRINCIPAL_NOT_FOUND_FOR_USER from backend`() = runBlocking {
-    internalServiceMock.stub {
-      onBlocking { lookupPrincipal(any()) } doThrow
-        PrincipalNotFoundForUserException(subject = "user1@example.com", issuer = "exmaple.com")
-          .asStatusRuntimeException(Status.Code.NOT_FOUND)
-    }
-
-    val request = lookupPrincipalRequest {
-      user =
-        PrincipalKt.oAuthUser {
-          issuer = "example.com"
-          subject = "user1@example.com"
-        }
-    }
-    val exception = assertFailsWith<StatusRuntimeException> { service.lookupPrincipal(request) }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER.name
-        }
-      )
-  }
-
-  @Test
-  fun `lookupPrincipal throws PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT from backend`() = runBlocking {
-    internalServiceMock.stub {
-      onBlocking { lookupPrincipal(any()) } doThrow
-        PrincipalNotFoundForTlsClientException(authorityKeyIdentifier = "akid".toByteStringUtf8())
-          .asStatusRuntimeException(Status.Code.NOT_FOUND)
-    }
-
-    val request = lookupPrincipalRequest {
-      tlsClient = PrincipalKt.tlsClient { authorityKeyIdentifier = "akid".toByteStringUtf8() }
-    }
-
-    val exception = assertFailsWith<StatusRuntimeException> { service.lookupPrincipal(request) }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT.name
-        }
-      )
-  }
-
-  @Test
   fun `deletePrincipal returns empty`() = runBlocking {
     internalServiceMock.stub {
       onBlocking { deletePrincipal(any()) } doReturn Empty.getDefaultInstance()
@@ -743,6 +541,227 @@ class PrincipalsServiceTest {
           domain = Errors.DOMAIN
           reason = Errors.Reason.INVALID_FIELD_VALUE.name
           metadata[Errors.Metadata.FIELD_NAME.key] = "name"
+        }
+      )
+  }
+
+  @Test
+  fun `lookupPrincipal returns user Principal`() = runBlocking {
+    val internalPrincipal = internalPrincipal {
+      principalResourceId = "user-1"
+      user =
+        InternalPrincipalKt.oAuthUser {
+          issuer = "example.com"
+          subject = "user1@example.com"
+        }
+    }
+    internalServiceMock.stub { onBlocking { lookupPrincipal(any()) } doReturn internalPrincipal }
+
+    val request = lookupPrincipalRequest {
+      user =
+        PrincipalKt.oAuthUser {
+          issuer = "example.com"
+          subject = "user1@example.com"
+        }
+    }
+    val response = service.lookupPrincipal(request)
+
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalPrincipalsGrpcKt.PrincipalsCoroutineImplBase::lookupPrincipal,
+      )
+      .isEqualTo(internalLookupPrincipalRequest { user = internalPrincipal.user })
+
+    assertThat(response)
+      .isEqualTo(
+        principal {
+          name = "principals/${internalPrincipal.principalResourceId}"
+          user =
+            PrincipalKt.oAuthUser {
+              issuer = internalPrincipal.user.issuer
+              subject = internalPrincipal.user.subject
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `lookupPrincipal returns tls client Principal`() = runBlocking {
+    val internalPrincipal = internalPrincipal {
+      principalResourceId = "user-1"
+      tlsClient =
+        InternalPrincipalKt.tlsClient { authorityKeyIdentifier = "akid".toByteStringUtf8() }
+    }
+    internalServiceMock.stub { onBlocking { lookupPrincipal(any()) } doReturn internalPrincipal }
+
+    val request = lookupPrincipalRequest {
+      tlsClient = PrincipalKt.tlsClient { authorityKeyIdentifier = "akid".toByteStringUtf8() }
+    }
+    val response = service.lookupPrincipal(request)
+
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalPrincipalsGrpcKt.PrincipalsCoroutineImplBase::lookupPrincipal,
+      )
+      .isEqualTo(internalLookupPrincipalRequest { tlsClient = internalPrincipal.tlsClient })
+
+    assertThat(response)
+      .isEqualTo(
+        principal {
+          name = "principals/${internalPrincipal.principalResourceId}"
+          tlsClient = PrincipalKt.tlsClient { authorityKeyIdentifier = "akid".toByteStringUtf8() }
+        }
+      )
+  }
+
+  @Test
+  fun `lookupPrincipal throws REQUIRED_FIELD_NOT_SET when principle user is not set`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.lookupPrincipal(lookupPrincipalRequest {})
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "lookup_key"
+          }
+        )
+    }
+
+  @Test
+  fun `lookupPrincipal throws REQUIRED_FIELD_NOT_SET when principal user issuer is not set`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.lookupPrincipal(
+            lookupPrincipalRequest {
+              user = PrincipalKt.oAuthUser { subject = "user1@example.com" }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "user.issuer"
+          }
+        )
+    }
+
+  @Test
+  fun `lookupPrincipal throws REQUIRED_FIELD_NOT_SET when principal user subject is not set`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.lookupPrincipal(
+            lookupPrincipalRequest { user = PrincipalKt.oAuthUser { issuer = "example.com" } }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "user.subject"
+          }
+        )
+    }
+
+  @Test
+  fun `lookupPrincipal throws REQUIRED_FIELD_NOT_SET when principal tls client is not set`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.lookupPrincipal(lookupPrincipalRequest {})
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "lookup_key"
+          }
+        )
+    }
+
+  @Test
+  fun `lookupPrincipal throws REQUIRED_FIELD_NOT_SET when principal tls client authority key identifier is not set`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.lookupPrincipal(lookupPrincipalRequest { tlsClient = PrincipalKt.tlsClient {} })
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "tlsclient.authoritykeyidentifier"
+          }
+        )
+    }
+
+  @Test
+  fun `lookupPrincipal throws PRINCIPAL_NOT_FOUND_FOR_USER from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { lookupPrincipal(any()) } doThrow
+        PrincipalNotFoundForUserException(subject = "user1@example.com", issuer = "exmaple.com")
+          .asStatusRuntimeException(Status.Code.NOT_FOUND)
+    }
+
+    val request = lookupPrincipalRequest {
+      user =
+        PrincipalKt.oAuthUser {
+          issuer = "example.com"
+          subject = "user1@example.com"
+        }
+    }
+    val exception = assertFailsWith<StatusRuntimeException> { service.lookupPrincipal(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER.name
+        }
+      )
+  }
+
+  @Test
+  fun `lookupPrincipal throws PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { lookupPrincipal(any()) } doThrow
+        PrincipalNotFoundForTlsClientException(authorityKeyIdentifier = "akid".toByteStringUtf8())
+          .asStatusRuntimeException(Status.Code.NOT_FOUND)
+    }
+
+    val request = lookupPrincipalRequest {
+      tlsClient = PrincipalKt.tlsClient { authorityKeyIdentifier = "akid".toByteStringUtf8() }
+    }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.lookupPrincipal(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT.name
         }
       )
   }
