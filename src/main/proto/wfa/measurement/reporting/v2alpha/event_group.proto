@@ -30,10 +30,15 @@ message EventGroup {
   option (google.api.resource) = {
     type: "reporting.halo-cmm.org/EventGroup"
     pattern: "measurementConsumers/{measurement_consumer}/eventGroups/{event_group}"
+    singular: "eventGroup"
+    plural: "eventGroups"
   };
 
   // Resource name.
-  string name = 1;
+  string name = 1 [
+    (google.api.field_behavior) = IDENTIFIER,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 
   // Resource name of the corresponding `EventGroup` in the CMMS API.
   string cmms_event_group = 2 [
