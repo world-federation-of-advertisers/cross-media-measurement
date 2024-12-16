@@ -33,10 +33,14 @@ message BasicReport {
   option (google.api.resource) = {
     type: "reporting.halo-cmm.org/BasicReport"
     pattern: "measurementConsumers/{measurement_consumer}/basicReports/{basic_report}"
+    singular: "basicReport"
+    plural: "basicReports"
   };
 
   // Resource name.
-  string name = 1;
+  string name = 1 [
+      (google.api.field_behavior) = IMMUTABLE,
+      (google.api.field_behavior) = IDENTIFIER];
 
   // Human readable title of the report.
   string title = 2 [(google.api.field_behavior) = IMMUTABLE];
