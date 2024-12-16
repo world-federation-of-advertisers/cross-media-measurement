@@ -47,11 +47,19 @@ service Principals {
   // Deletes a `Principal`.
   //
   // This will also remove the `Principal` from all `Policy` bindings.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_NOT_FOUND`
+  // * `PRINCIPAL_TYPE_NOT_SUPPORTED`
   rpc DeletePrincipal(DeletePrincipalRequest) returns (google.protobuf.Empty) {
     option (google.api.method_signature) = "name";
   }
 
   // Looks up a `Principal` by lookup key.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_NOT_FOUND_FOR_USER`
+  // * `PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT`
   rpc LookupPrincipal(LookupPrincipalRequest) returns (Principal);
 }
 

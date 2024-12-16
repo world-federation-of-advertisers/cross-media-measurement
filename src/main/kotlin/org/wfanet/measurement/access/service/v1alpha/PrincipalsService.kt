@@ -155,85 +155,6 @@ class PrincipalsService(private val internalPrincipalsStub: InternalPrincipalsCo
     return internalResponse.toPrincipal()
   }
 
-  override suspend fun lookupPrincipal(request: LookupPrincipalRequest): Principal {
-    when (request.lookupKeyCase) {
-      LookupPrincipalRequest.LookupKeyCase.USER -> {}
-      LookupPrincipalRequest.LookupKeyCase.TLS_CLIENT -> {}
-      else ->
-        throw RequiredFieldNotSetException("lookupkey")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
-    if (request.lookupKeyCase == LookupPrincipalRequest.LookupKeyCase.USER) {
-      if (request.user.issuer.isEmpty()) {
-        throw RequiredFieldNotSetException("user.issuer")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-
-      if (request.user.subject.isEmpty()) {
-        throw RequiredFieldNotSetException("user.subject")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-
-      if (request.hasTlsClient()) {
-        throw InvalidFieldValueException("tlsclient")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-    }
-
-    if (request.lookupKeyCase == LookupPrincipalRequest.LookupKeyCase.TLS_CLIENT) {
-      if (request.tlsClient.authorityKeyIdentifier.isEmpty()) {
-        throw RequiredFieldNotSetException("tlsclient.authoritykeyidentifier")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-
-      if (request.hasUser()) {
-        throw InvalidFieldValueException("user")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-    }
-
-    val internalResponse: InternalPrincipal =
-      try {
-        internalPrincipalsStub.lookupPrincipal(
-          internalLookupPrincipalRequest {
-            if (request.lookupKeyCase == LookupPrincipalRequest.LookupKeyCase.USER) {
-              user = request.user.toInternal()
-            } else {
-              tlsClient = request.tlsClient.toInternal()
-            }
-          }
-        )
-      } catch (e: StatusException) {
-        throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER ->
-            PrincipalNotFoundForUserException(e).asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT ->
-            PrincipalNotFoundForTlsClientException(e)
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.PRINCIPAL_ALREADY_EXISTS,
-          InternalErrors.Reason.PRINCIPAL_NOT_FOUND,
-          InternalErrors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED,
-          InternalErrors.Reason.PERMISSION_NOT_FOUND,
-          InternalErrors.Reason.PERMISSION_NOT_FOUND_FOR_ROLE,
-          InternalErrors.Reason.ROLE_NOT_FOUND,
-          InternalErrors.Reason.ROLE_ALREADY_EXISTS,
-          InternalErrors.Reason.POLICY_NOT_FOUND,
-          InternalErrors.Reason.POLICY_NOT_FOUND_FOR_PROTECTED_RESOURCE,
-          InternalErrors.Reason.POLICY_ALREADY_EXISTS,
-          InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_ALREADY_EXISTS,
-          InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_NOT_FOUND,
-          InternalErrors.Reason.RESOURCE_TYPE_NOT_FOUND_IN_PERMISSION,
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE,
-          InternalErrors.Reason.ETAG_MISMATCH,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
-        }
-      }
-
-    return internalResponse.toPrincipal()
-  }
-
   override suspend fun deletePrincipal(request: DeletePrincipalRequest): Empty {
     if (request.name.isEmpty()) {
       throw RequiredFieldNotSetException("name")
@@ -277,5 +198,74 @@ class PrincipalsService(private val internalPrincipalsStub: InternalPrincipalsCo
     }
 
     return Empty.getDefaultInstance()
+  }
+
+  override suspend fun lookupPrincipal(request: LookupPrincipalRequest): Principal {
+    when (request.lookupKeyCase) {
+      LookupPrincipalRequest.LookupKeyCase.USER -> {}
+      LookupPrincipalRequest.LookupKeyCase.TLS_CLIENT -> {}
+      else ->
+        throw RequiredFieldNotSetException("lookup_key")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.lookupKeyCase == LookupPrincipalRequest.LookupKeyCase.USER) {
+      if (request.user.issuer.isEmpty()) {
+        throw RequiredFieldNotSetException("user.issuer")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      if (request.user.subject.isEmpty()) {
+        throw RequiredFieldNotSetException("user.subject")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+
+    if (request.lookupKeyCase == LookupPrincipalRequest.LookupKeyCase.TLS_CLIENT) {
+      if (request.tlsClient.authorityKeyIdentifier.isEmpty) {
+        throw RequiredFieldNotSetException("tlsclient.authoritykeyidentifier")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+
+    val internalResponse: InternalPrincipal =
+      try {
+        internalPrincipalsStub.lookupPrincipal(
+          internalLookupPrincipalRequest {
+            if (request.lookupKeyCase == LookupPrincipalRequest.LookupKeyCase.USER) {
+              user = request.user.toInternal()
+            } else {
+              tlsClient = request.tlsClient.toInternal()
+            }
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER ->
+            PrincipalNotFoundForUserException(e).asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT ->
+            PrincipalNotFoundForTlsClientException(e)
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.PRINCIPAL_ALREADY_EXISTS,
+          InternalErrors.Reason.PRINCIPAL_NOT_FOUND,
+          InternalErrors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED,
+          InternalErrors.Reason.PERMISSION_NOT_FOUND,
+          InternalErrors.Reason.PERMISSION_NOT_FOUND_FOR_ROLE,
+          InternalErrors.Reason.ROLE_NOT_FOUND,
+          InternalErrors.Reason.ROLE_ALREADY_EXISTS,
+          InternalErrors.Reason.POLICY_NOT_FOUND,
+          InternalErrors.Reason.POLICY_NOT_FOUND_FOR_PROTECTED_RESOURCE,
+          InternalErrors.Reason.POLICY_ALREADY_EXISTS,
+          InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_ALREADY_EXISTS,
+          InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_NOT_FOUND,
+          InternalErrors.Reason.RESOURCE_TYPE_NOT_FOUND_IN_PERMISSION,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.ETAG_MISMATCH,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return internalResponse.toPrincipal()
   }
 }
