@@ -173,6 +173,22 @@ class PrincipalTypeNotSupportedException(
     cause,
   )
 
+class PrincipalNotFoundForUserException(cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER,
+    "Principal not found for user",
+    emptyMap(),
+    cause,
+  )
+
+class PrincipalNotFoundForTlsClientException(cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT,
+    "Principal not found for user",
+    emptyMap(),
+    cause,
+  )
+
 class PermissionNotFoundException(name: String, cause: Throwable? = null) :
   ServiceException(
     reason,

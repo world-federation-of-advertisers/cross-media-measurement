@@ -27,6 +27,7 @@ import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.access.v1alpha.role
 import org.wfanet.measurement.internal.access.Principal as InternalPrincipal
 import org.wfanet.measurement.internal.access.PrincipalKt.oAuthUser as internalOAuthUser
+import org.wfanet.measurement.internal.access.PrincipalKt.tlsClient as internalTlsClient
 import org.wfanet.measurement.internal.access.Role as InternalRole
 
 fun InternalPrincipal.toPrincipal(): Principal {
@@ -71,4 +72,9 @@ fun Principal.OAuthUser.toInternal(): InternalPrincipal.OAuthUser {
     issuer = source.issuer
     subject = source.subject
   }
+}
+
+fun Principal.TlsClient.toInternal(): InternalPrincipal.TlsClient {
+  val source = this
+  return internalTlsClient { authorityKeyIdentifier = source.authorityKeyIdentifier }
 }
