@@ -156,7 +156,8 @@ message PageSpec {
     bool population_size = 1 [(google.api.field_behavior) = IMMUTABLE];
 
     // The set of basic metrics that can be computed for any aspect of the
-    // Reporting Unit (e.g. the whole thing, a single component, intersections, etc.)
+    // Reporting Unit (e.g. the whole thing, a single component, intersections,
+    // etc.)
     message BasicMetricSpec {
       // The reach
       bool reach = 1 [(google.api.field_behavior) = IMMUTABLE];
@@ -312,7 +313,7 @@ message Page {
       //
       // TODO(@kungfucraig): Include a copy of the EventGroup metadata
       // structure here once it's ready.
-       message EventGroupSummary {
+      message EventGroupSummary {
         // The resource name of the Event Group
         string event_group = 1 [
           (google.api.resource_reference) = {
@@ -320,7 +321,7 @@ message Page {
           },
           (google.api.field_behavior) = IMMUTABLE
         ];
-     }
+      }
       // A map of each resoucrce name in the reporting_unit to the
       // Event Groups Summary associated with it.
       // Phase II

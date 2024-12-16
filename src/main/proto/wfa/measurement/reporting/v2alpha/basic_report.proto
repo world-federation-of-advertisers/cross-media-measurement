@@ -39,8 +39,9 @@ message BasicReport {
 
   // Resource name.
   string name = 1 [
-      (google.api.field_behavior) = IMMUTABLE,
-      (google.api.field_behavior) = IDENTIFIER];
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.field_behavior) = IDENTIFIER
+  ];
 
   // Human readable title of the report.
   string title = 2 [(google.api.field_behavior) = IMMUTABLE];
