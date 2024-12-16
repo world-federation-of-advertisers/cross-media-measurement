@@ -28,13 +28,18 @@ message ReportingSet {
   option (google.api.resource) = {
     type: "reporting.halo-cmm.org/ReportingSet"
     pattern: "measurementConsumers/{measurement_consumer}/reportingSets/{reporting_set}"
+    singular: "reportingSet"
+    plural: "reportingSets"
   };
 
   // Resource name.
-  string name = 1;
+  string name = 1 [
+    (google.api.field_behavior) = IDENTIFIER,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 
   // Human-readable name for display purposes.
-  string display_name = 2;
+  string display_name = 2 [(google.api.field_behavior) = OPTIONAL];
 
   // A map of arbitrary key-value pairs to support tagging of ReportingSets
   // for upstream use by UIs and other rich clients.
@@ -88,7 +93,7 @@ message ReportingSet {
     Operand lhs = 3 [(google.api.field_behavior) = REQUIRED];
     // Right-hand side operand of the operation. If not specified, implies the
     // empty set.
-    Operand rhs = 4;
+    Operand rhs = 4 [(google.api.field_behavior) = OPTIONAL];
   }
 
   // Describes a set expression with a event filter. It's a

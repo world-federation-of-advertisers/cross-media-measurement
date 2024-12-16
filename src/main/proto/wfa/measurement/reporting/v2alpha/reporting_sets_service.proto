@@ -16,9 +16,9 @@ syntax = "proto3";
 
 package wfa.measurement.reporting.v2alpha;
 
+import "google/api/annotations.proto";
 import "google/api/client.proto";
 import "google/api/field_behavior.proto";
-import "google/api/annotations.proto";
 import "google/api/resource.proto";
 import "wfa/measurement/reporting/v2alpha/reporting_set.proto";
 
@@ -51,7 +51,8 @@ service ReportingSets {
       post: "/v2alpha/{parent=measurementConsumers/*}/reportingSets"
       body: "reporting_set"
     };
-    option (google.api.method_signature) = "parent,reporting_set";
+    option (google.api.method_signature) =
+        "parent,reporting_set,reporting_set_id";
   }
 }
 
@@ -69,14 +70,14 @@ message ListReportingSetsRequest {
   // than this value.
   // If unspecified, at most 50 reportingSets will be returned.
   // The maximum value is 1000; values above 1000 will be coerced to 1000.
-  int32 page_size = 2;
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
 
   // A page token, received from a previous `ListReportingSets` call.
   // Provide this to retrieve the subsequent page.
   //
   // When paginating, all other parameters provided to `ListReportingSets` must
   // match the call that provided the page token.
-  string page_token = 3;
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Response message for `ListReportingSet` method.
@@ -111,6 +112,7 @@ message CreateReportingSetRequest {
   ReportingSet reporting_set = 3 [(google.api.field_behavior) = REQUIRED];
 }
 
+// Request message for 'GetReportingSetRequeest' method.
 message GetReportingSetRequest {
   // The name of the `ReportingSet` to retrieve.
   // Format:
