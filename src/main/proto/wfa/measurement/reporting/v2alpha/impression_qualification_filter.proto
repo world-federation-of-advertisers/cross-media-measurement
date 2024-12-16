@@ -29,10 +29,14 @@ message ImpressionQualificationFilter {
   option (google.api.resource) = {
     type: "reporting.halo-cmm.org/ImpressionQualificationFilter"
     pattern: "impressionQualificationFilters/{impression_qualification_filter}"
+    singular: "impressionQualificationFilter"
+    plural: "impressionQualificationFilters"
   };
 
   // Resource name.
-  string name = 1;
+  string name = 1[
+      (google.api.field_behavior) = IMMUTABLE,
+      (google.api.field_behavior) = IDENTIFIER];
 
   // Specifies the filter criteria
   ImpressionQualificationFilterSpec filter_spec = 2 [

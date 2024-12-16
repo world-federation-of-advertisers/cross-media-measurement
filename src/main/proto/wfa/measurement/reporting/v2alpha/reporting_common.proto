@@ -23,39 +23,9 @@ option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ReportingCommonProto";
 
-// ReportingMediaType is used to designate how reporting artifacts
-// should be interpreted for reporting. This designation could apply
-// to EventGroups ReportingSets, filters, and more. Henceforth these are
-// call artifacts.
-//
-// For example, the ReportingMediaType determines what MeasurementPolicy and
-// filters to apply to the arifacts within a particular Report.
-enum ReportingMediaType {
-  // Default value. Unused.
-  MEDIA_TYPE_UNSPECIFIED = 0;
-  // Interpret a set of arifacts as Cross Media
-  CROSS_MEDIA = 1;
-  // Interpret a set of arifacts as Video
-  VIDEO = 2;
-  // Interpret a set of arifacts as Display
-  DISPLAY = 3;
-  // Interpret as set of artifacts as Other
-  OTHER = 4;
-}
-
-// The type of the unit being reported on
-enum ReportingUnitType {
-  // Default value. Unused.
-  REPORTING_TYPE_UNSPECIFIED = 0;
-  // The artifact used by the reporting unit is a halo.wfanet.org/DataProvider
-  DATA_PROVIDER = 1;
-  // The artifact used by the reporting unit is a halo.wfanet.org/ReportingSet
-  // Phase III
-  // REPORTING_SET = 2;
-}
-
 // Specifies the units to report on.
 message ReportingUnit {
+  // The type of the reporting unit
   ReportingUnitType reporting_unit_type = 1;
 
   // A list of resources to report on.
@@ -99,6 +69,7 @@ message ImpressionQualificationFilterSpec {
 
   // Specifies a quantile
   enum Quantile {
+    // Default value. Unused.
     QUANTILE_UNSPECIFIED = 0;
     // 0th percentile
     ZERO = 1;
@@ -147,4 +118,34 @@ message ReportingImpressionQualificationFilter {
     ImpressionQualificationFilterSpec custom = 2
         [(google.api.field_behavior) = IMMUTABLE];
   }
+}
+
+// ReportingMediaType is used to designate how reporting artifacts
+// should be interpreted for reporting. This designation could apply
+// to EventGroups ReportingSets, filters, and more. Henceforth these are
+// call artifacts.
+//
+// For example, the ReportingMediaType determines what MeasurementPolicy and
+// filters to apply to the arifacts within a particular Report.
+enum ReportingMediaType {
+  // Default value. Unused.
+  REPORTING_MEDIA_TYPE_UNSPECIFIED = 0;
+  // Interpret a set of arifacts as Cross Media
+  CROSS_MEDIA = 1;
+  // Interpret a set of arifacts as Video
+  VIDEO = 2;
+  // Interpret a set of arifacts as Display
+  DISPLAY = 3;
+  // Interpret as set of artifacts as Other
+  OTHER = 4;
+}
+
+// The type of the unit being reported on
+//
+// TODO(@kungfucraig) Introduce REPORTING_SET for Phase III
+enum ReportingUnitType {
+  // Default value. Unused.
+  REPORTING_UNIT_TYPE_UNSPECIFIED = 0;
+  // The artifact used by the reporting unit is a halo.wfanet.org/DataProvider
+  DATA_PROVIDER = 1;
 }

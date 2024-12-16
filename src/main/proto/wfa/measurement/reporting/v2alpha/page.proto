@@ -38,7 +38,8 @@ message CalculationSpec {
     // report partial weeks will reported for the first and/or last value
     // in the result set.
     message Weekly {
-      google.type.DayOfWeek day_of_week = 1 [
+      // The day of week to use as the starting day
+      google.type.DayOfWeek start_day = 1 [
         (google.api.field_behavior) = REQUIRED,
         (google.api.field_behavior) = IMMUTABLE
       ];
@@ -63,6 +64,7 @@ message CalculationSpec {
     // Compute non-cumulative metrics
     NON_CUMULATIVE = 2;
   }
+  // How to accumulate results.
   AccumulationOptions accumulation_options = 2 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
@@ -76,7 +78,6 @@ message CalculationSpec {
     // A field path with respect to the Event message that indicates the
     // dimension to group by.
     //
-
     // For example, if there is an event tempalte field in common
     // named "age_group" then this value should be common.age_group
     repeated string event_template_field = 1 [
@@ -92,6 +93,9 @@ message CalculationSpec {
   // Only those event templates that are specified in the "common" event
   // template may be provided as filters.
   message Filter {
+    // A term in the Filter expression
+    //
+    // Negation may be supported in the future.
     message Term {
       // A field path with respect to the Event message that indicates the
       // dimension to apply the filter to.
@@ -109,13 +113,11 @@ message CalculationSpec {
           string string_value = 1 [(google.api.field_behavior) = IMMUTABLE];
         }
       }
+      // The value of the event_template_field to filter on.
       FieldValue value = 2 [
         (google.api.field_behavior) = REQUIRED,
         (google.api.field_behavior) = IMMUTABLE
       ];
-      // Whether the filter should be negated. This will not be
-      // supported initially.
-      // bool negate = 3;
     }
     // The term that defines the filter criteria.
     //
@@ -153,6 +155,8 @@ message PageSpec {
     // filters that are associated with calculation spec is reported.
     bool population_size = 1 [(google.api.field_behavior) = IMMUTABLE];
 
+    // The set of basic metrics that can be computed for any aspect of the
+    // Reporting Unit (e.g. the whole thing, a single component, intersections, etc.)
     message BasicMetricSpec {
       // The reach
       bool reach = 1 [(google.api.field_behavior) = IMMUTABLE];
@@ -212,6 +216,7 @@ message PageSpec {
       //    (i.e. the unique contribution of rs3 with respect to rs1 and rs2.
       bool stacked_incremental_reach = 2;
     }
+    // The set of metrics to compute for the entire Reporting Unit
     ReportingUnitMetricSpec reporting_unit = 2;
 
     // Compute metrics that apply to each unit of the reporting_unit_spec
@@ -304,18 +309,18 @@ message Page {
       ReportingUnit reporting_unit = 1
           [(google.api.field_behavior) = IMMUTABLE];
       // Summaries a Event Group
-      message EventGroupSummary {
+      //
+      // TODO(@kungfucraig): Include a copy of the EventGroup metadata
+      // structure here once it's ready.
+       message EventGroupSummary {
         // The resource name of the Event Group
         string event_group = 1 [
           (google.api.resource_reference) = {
             type: "reporting.halo-cmm.org/EventGroup"
           },
-
           (google.api.field_behavior) = IMMUTABLE
         ];
-        // TODO(@kungfucraig): Include a copy of the EventGroup metadata
-        // structure here once it's ready.
-      }
+     }
       // A map of each resoucrce name in the reporting_unit to the
       // Event Groups Summary associated with it.
       // Phase II
@@ -347,6 +352,8 @@ message Page {
 
     // The result when the page selector is metric_type
     message MetricResult {
+      // Captures results that are applicable to any subunit of the
+      // Reporting Unit.
       message BasicMetricResult {
         // The reach
         int32 reach = 1 [(google.api.field_behavior) = IMMUTABLE];
@@ -373,6 +380,7 @@ message Page {
         int32 new_reach_impressions = 10
             [(google.api.field_behavior) = IMMUTABLE];
       }
+      // Stores the results for the entire Teporting Unit.
       message ReportingUnitResult {
         // The metrics for the union of the units
         BasicMetricResult union = 1 [(google.api.field_behavior) = IMMUTABLE];
@@ -389,6 +397,7 @@ message Page {
       // The results for the whole Reporting Unit
       ReportingUnitResult reporting_unit = 1;
 
+      // Stores the results for a single component of the Reporting Unit.
       message ComponentMetricResult {
         // The basic metrics for this component, which would be either for a
         // single component if the reporting_unit_spec has one item or for the
@@ -415,6 +424,8 @@ message Page {
       map<string, ComponentMetricResult> components = 2
           [(google.api.field_behavior) = IMMUTABLE];
 
+      // Stores results for the intersection of the components of the
+      // Reporting Unit
       message IntersectionResult {
         // The reporting unit components that this overlap corresponds to.
         repeated string components = 1
@@ -431,7 +442,9 @@ message Page {
 
   // A single result and its metadata.
   message Result {
+    // The result metadata
     ResultMetadata metadata = 1 [(google.api.field_behavior) = IMMUTABLE];
+    // The result value
     ResultValue value = 2 [(google.api.field_behavior) = IMMUTABLE];
   }
   // The result for the page. There is one result per applicable qualification
