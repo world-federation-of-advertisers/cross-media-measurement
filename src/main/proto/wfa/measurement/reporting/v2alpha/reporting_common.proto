@@ -47,9 +47,15 @@ message ReportingUnit {
   //
   // Within a report this option determines which set of filters to apply.
   // Impressions associated with the reporting units that do not correspond
-  // to the provided Reporting Media Type will be filtered out.
+  // to the provided Reporting Media Types will be filtered out.
   // If CROSS_MEDIA is specified all impressions are included.
-  ReportingMediaType reporting_media_type = 4 [
+  //
+  // If multiple values are specified then the set of filters that are
+  // applicable to all of them are used. For example if VIDEO
+  // and DISPLAY are specified and an MRC filter is available for both
+  // then the MRC filter, as it applies to the specific media type,
+  // is applied.
+  repeated ReportingMediaType reporting_media_types = 4 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
@@ -107,7 +113,7 @@ message ImpressionQualificationFilterSpec {
 message ReportingImpressionQualificationFilter {
   oneof filter {
     // The resource name of an ImpressionQualificstionFilter.
-    // (e.g. "video/mrc")
+    // (e.g. "mrc")
     string impression_qualification_filter = 1 [
       (google.api.field_behavior) = IMMUTABLE,
       (google.api.resource_reference) = {
