@@ -156,6 +156,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
   }
 
   override fun run() {
+    println("joji daemon created...")
     val certificate: X509Certificate =
       pdpCsCertificateDerFile.inputStream().use { input -> readCertificate(input) }
     val signingKeyHandle =
