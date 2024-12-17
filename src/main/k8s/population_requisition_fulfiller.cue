@@ -41,14 +41,6 @@ import "list"
 
     let displayName = _config.dataProviderDisplayName
 
-    _populationFlags: {
-    	let flagLists = [ for config in _config {[
-    		"--population-resource-name=\(config.populationResourceName)",
-            "--population-spec=\(config.populationSpecFile)",
-            "--event-message-type-url=\(config.eventMessageTypeUrl)",
-   		]}]
-   		list.FlattenN(flagLists, 2)
-    }
 
     deployments: [Name=string]: #Deployment & {
         _name: Name,
@@ -73,7 +65,7 @@ import "list"
                     "--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(displayName)_cs_cert.der",
                     "--throttler-minimum-interval=\(_config.throttlerMinimumInterval)",
                     "--event-message-descriptor-set=\(_config.eventMessageDescriptorSet)",
-                ] + _populationFlags
+                ]
             },
           spec: template: spec: {
              _mounts: "config-files": #ConfigMapMount,
