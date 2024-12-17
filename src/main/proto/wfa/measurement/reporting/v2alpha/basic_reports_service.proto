@@ -55,6 +55,10 @@ message GetBasicReportRequest {
 
 // Request mesage for 'GetListBasicReport' method
 message ListBasicReportsRequest {
+  string parent = 1 [(google.api.resource_reference) = {
+    type: "reporting.halo-cmm.org/MeasurementConsumer"
+  }];
+
   // Message for specifying filters for listing BasicReports.
   message Filter {
     // Return BasicReports that were created after this time.
@@ -62,20 +66,20 @@ message ListBasicReportsRequest {
         [(google.api.field_behavior) = REQUIRED];
   }
   // Filter for the list of BasicReports
-  Filter filter = 1 [(google.api.field_behavior) = OPTIONAL];
+  Filter filter = 2 [(google.api.field_behavior) = OPTIONAL];
 
   // The maximum number of basic reports to return. The service may return fewer
   // than this value.
   // If unspecified, at most 10 basic reports will be returned.
   // The maximum value is 25; values above 25 will be coerced to 25.
-  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+  int32 page_size = 3 [(google.api.field_behavior) = OPTIONAL];
 
   // A page token, received from a previous `ListBasicReports` call.
   // Provide this to retrieve the subsequent page.
   //
   // When paginating, all other parameters provided to `ListBasicReports` must
   // match the call that provided the page token.
-  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+  string page_token = 4 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Response message for 'ListBasicReports' method.
