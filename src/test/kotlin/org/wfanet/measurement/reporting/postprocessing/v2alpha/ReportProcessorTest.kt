@@ -32,9 +32,7 @@ data class MetricReport(
 class ReportProcessorTest {
   @Test
   fun `run correct report with custom policy successfully`() {
-    val reportFile =
-      TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_custom_policy.json")
-        .toFile()
+    val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_custom_policy.json").toFile()
     val reportAsJson = reportFile.readText()
 
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
