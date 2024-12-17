@@ -36,31 +36,63 @@ package k8s
     _imageConfig: #ImageConfig
     _populationRequisitionFulfillerSecretName:  string
 
-    let DisplayName = _config.dataProviderDisplayName
+    _name = _config.dataProviderDisplayName
 
-    deployment: #Deployment & {
-        _name: DisplayName + "-simulator"
-        _secretName: _populationRequisitionFulfillerSecretName
-     	_system:     "population"
-        _container: {
-        	image: _imageConfig.image
-            args: [
-                "--kingdom-system-api-target=\(#KingdomSystemApiTarget)",
-                "--kingdom-system-api-cert-host=localhost",
-                "--data-provider-resource-name=\(_config.dataProviderResourceName)",
-                "--data-provider-display-name=\(DisplayName)",
-                "--data-provider-certificate-resource-name=\(_config.dataProviderCertResourceName)",
-                "--data-provider-encryption-private-keyset=/var/run/secrets/files/\(DisplayName)_enc_private.tink",
-                "--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(DisplayName)_cs_private.der",
-               	"--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(DisplayName)_cs_cert.der",
-                "--throttler-minimum-interval=\(_config.throttlerMinimumInterval)",
-            ] + [ for set in _config.eventMessageDescriptorSets {
-                "--event-message-descriptor-set=\(set)"
-            }] + [ for config in _config.populationKeyAndInfoList {
-                "--population-resource-name=\(config.populationResourceName)",
-                "--population-spec=\(config.populationSpecFile)",
-                "--event-message-type-url=\(config.eventMessageTypeUrl)",
-            }]
-        }
+	deployments: [Name=string]: #Deployment & {
+        _name:       _name
+		_secretName: _populationRequisitionFulfillerSecretName
+		_system:     "population"
+		_container: {
+			image: _imageConfig.image
+		}
+	}
+
+    deployments: {
+		"population-requisition-fulfillment-server-deployment": #ServerDeployment & {
+			_container: {
+                args: [
+                    "--kingdom-system-api-target=\(#KingdomSystemApiTarget)",
+                    "--kingdom-system-api-cert-host=localhost",
+                    "--data-provider-resource-name=\(_config.dataProviderResourceName)",
+                    "--data-provider-display-name=\(_name)",
+                    "--data-provider-certificate-resource-name=\(_config.dataProviderCertResourceName)",
+                    "--data-provider-encryption-private-keyset=/var/run/secrets/files/\(_name)_enc_private.tink",
+                    "--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(_name)_cs_private.der",
+                    "--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(_name)_cs_cert.der",
+                    "--throttler-minimum-interval=\(_config.throttlerMinimumInterval)",
+                ] + [ for set in _config.eventMessageDescriptorSets {
+                    "--event-message-descriptor-set=\(set)"
+                }] + [ for config in _config.populationKeyAndInfoList {
+                    "--population-resource-name=\(config.populationResourceName)",
+                    "--population-spec=\(config.populationSpecFile)",
+                    "--event-message-type-url=\(config.eventMessageTypeUrl)",
+                }]
+            }
+			spec: template: spec: {
+				_mounts: "config-files": #ConfigMapMount
+				_dependencies: ["\(_name)-internal-api-server"]
+			}
+		}
     }
+
+    networkPolicies: [Name=_]: #NetworkPolicy & {
+		_name: Name
+	}
+	networkPolicies: {
+        "requisition-fulfillment-server": {
+			_app_label: "population-requisition-fulfillment-server-app"
+			_ingresses: {
+				// External API server; allow ingress from anywhere to service port.
+				gRpc: {
+					ports: [{
+						port: #GrpcPort
+					}]
+				}
+			}
+			_egresses: {
+				// Need to send external traffic.
+				any: {}
+			}
+		}
+	}
 }

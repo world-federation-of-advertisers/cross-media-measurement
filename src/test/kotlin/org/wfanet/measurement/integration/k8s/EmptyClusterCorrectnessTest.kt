@@ -416,6 +416,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       _modelLineName = resourceInfo.modelLine
       _populationDataProviderName = resourceInfo.populationDataProvider
 
+      println("Joji applidedObjects")
+
       waitUntilDeploymentsComplete(appliedObjects)
     }
 
