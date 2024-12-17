@@ -94,6 +94,12 @@ class ReportSummaryProcessor:
     """
     Correct the report and returns the adjusted value for each measurement.
     """
+    children_metric = []
+    if "mrc" in self._cumulative_measurements:
+      children_metric.append("mrc")
+    if "custom" in self._cumulative_measurements:
+      children_metric.append("custom")
+
     # Builds the report based on the extracted primitive measurements.
     report = Report(
         {
@@ -102,7 +108,7 @@ class ReportSummaryProcessor:
             for policy in self._cumulative_measurements
         },
         metric_subsets_by_parent={
-            ami: [mrc]} if "mrc" in self._cumulative_measurements else {},
+            ami: children_metric} if children_metric else {},
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 

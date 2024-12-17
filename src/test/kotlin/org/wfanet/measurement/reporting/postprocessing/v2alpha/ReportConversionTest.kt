@@ -28,6 +28,94 @@ import org.wfanet.measurement.reporting.postprocessing.v2alpha.MeasurementDetail
 @RunWith(JUnit4::class)
 class ReportConversionTest {
   @Test
+  fun `report without custom measurement policy is successfully converted to report summary proto`() {
+    val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_custom_policy.json").toFile()
+    val reportAsJson = reportFile.readText()
+    val reportSummary = ReportConversion.convertJsontoReportSummaries(reportAsJson)
+
+    val unionCustomEdp1Edp2MeasurementDetail = measurementDetail {
+      measurementPolicy = "custom"
+      setOperation = "union"
+      dataProviders += "edp1"
+      dataProviders += "edp2"
+      leftHandSideTargets += "edp1"
+      leftHandSideTargets += "edp2"
+      measurementResults += measurementResult {
+        reach = 92459
+        standardDeviation = 145777.467021918
+        metric = "measurementConsumers/fLhOpt2Z4x8/metrics/adacfb57a-fe7b-44b5-9c29-022be610a407"
+      }
+    }
+
+    val cummulativeCustomEdp1Edp2MeasurementDetail = measurementDetail {
+      measurementPolicy = "custom"
+      setOperation = "cumulative"
+      isCumulative = true
+      dataProviders += "edp1"
+      dataProviders += "edp2"
+      leftHandSideTargets += "edp1"
+      leftHandSideTargets += "edp2"
+      measurementResults += measurementResult {
+        reach = 18000
+        standardDeviation = 185589.5021572231
+        metric = "measurementConsumers/fLhOpt2Z4x8/metrics/a400e54b3-95d1-4056-b92f-f978615a05c3"
+      }
+      measurementResults += measurementResult {
+        reach = 92700
+        standardDeviation = 191025.0129033726
+        metric = "measurementConsumers/fLhOpt2Z4x8/metrics/aebc1632a-3676-4fea-b22f-78486f0c48d7"
+      }
+      measurementResults += measurementResult {
+        reach = 163700
+        standardDeviation = 196286.4317309566
+        metric = "measurementConsumers/fLhOpt2Z4x8/metrics/a61e13352-b0ff-41eb-879b-dfa7a458d232"
+      }
+      measurementResults += measurementResult {
+        reach = 19100
+        standardDeviation = 185668.79847492787
+        metric = "measurementConsumers/fLhOpt2Z4x8/metrics/aa0605786-63a4-4fe1-bbc1-42717bf17ff6"
+      }
+      measurementResults += measurementResult {
+        reach = 127200
+        standardDeviation = 193570.0395894004
+        metric = "measurementConsumers/fLhOpt2Z4x8/metrics/accc56b11-d361-4291-a00b-cef502b50d74"
+      }
+      measurementResults += measurementResult {
+        reach = 224400
+        standardDeviation = 200858.04694133752
+        metric = "measurementConsumers/fLhOpt2Z4x8/metrics/affcf4c2b-d2ec-4083-9db8-8659c6bd5c67"
+      }
+      measurementResults += measurementResult {
+        reach = 100
+        standardDeviation = 184302.26284602462
+        metric = "measurementConsumers/fLhOpt2Z4x8/metrics/a6932cc4a-d367-43b8-be1c-9b8d7f9e4c93"
+      }
+      measurementResults += measurementResult {
+        reach = 100
+        standardDeviation = 184302.26284602462
+        metric = "measurementConsumers/fLhOpt2Z4x8/metrics/ae345574e-76ab-4da6-8b86-8e232453f413"
+      }
+      measurementResults += measurementResult {
+        reach = 100
+        standardDeviation = 184302.26284602462
+        metric = "measurementConsumers/fLhOpt2Z4x8/metrics/a1cfe162d-cfac-443e-b71f-c75cf569200c"
+      }
+      measurementResults += measurementResult {
+        reach = 100
+        standardDeviation = 184302.26284602462
+        metric = "measurementConsumers/fLhOpt2Z4x8/metrics/a7645a53f-960f-44d7-a13e-8e388ed53f6b"
+      }
+    }
+
+    // Verifies that reportSummary contains the above two protos for custom measurements.
+    assertThat(reportSummary[0].measurementDetailsList)
+      .containsAtLeast(
+        unionCustomEdp1Edp2MeasurementDetail,
+        cummulativeCustomEdp1Edp2MeasurementDetail,
+      )
+  }
+
+  @Test
   fun `report without unique reach is successfully converted to report summary proto`() {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_small.json").toFile()
     val reportAsJson = reportFile.readText()
