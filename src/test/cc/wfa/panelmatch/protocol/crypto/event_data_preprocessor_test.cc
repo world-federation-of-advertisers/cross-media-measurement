@@ -14,6 +14,7 @@
 
 #include "wfa/panelmatch/protocol/crypto/event_data_preprocessor.h"
 
+#include "absl/strings/str_cat.h"
 #include "common_cpp/fingerprinters/fingerprinters.h"
 #include "common_cpp/testing/status_macros.h"
 #include "common_cpp/testing/status_matchers.h"

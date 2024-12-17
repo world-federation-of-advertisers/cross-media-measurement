@@ -64,6 +64,7 @@ cc_library(
         "//src/main/cc/wfa/measurement/common:string_block_sorter",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings",
         "@com_google_private_join_and_compute//private_join_and_compute/crypto:commutative_elgamal",
         "@com_google_private_join_and_compute//private_join_and_compute/crypto:ec_commutative_cipher",
     ],
