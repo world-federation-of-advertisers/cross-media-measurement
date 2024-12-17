@@ -50,6 +50,13 @@ import "list"
    		list.FlattenN(flagLists, 2)
     }
 
+    _eventDescriptorFlags: {
+        let flagLists = [ for file in _config.eventMessageDescriptorSet {[
+            "--event-message-descriptor-set=\(file)"
+        ]}]
+        list.FlattenN(flagLists, 2)
+    }
+
     deployments: [Name=string]: #Deployment & {
         _name: Name,
         _secretName: _populationRequisitionFulfillerSecretName,
@@ -72,8 +79,7 @@ import "list"
                     "--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(displayName)_cs_private.der",
                     "--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(displayName)_cs_cert.der",
                     "--throttler-minimum-interval=\(_config.throttlerMinimumInterval)",
-                    "--event-message-descriptor-set=\(_config.eventMessageDescriptorSet)",
-                ] + _populationFlags
+                ] + _populationFlags + _eventDescriptorFlags
             },
           spec: template: spec: {
              _mounts: "config-files": #ConfigMapMount,
