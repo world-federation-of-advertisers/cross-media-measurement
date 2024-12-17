@@ -738,6 +738,8 @@ class PrincipalsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER.name
+          metadata[Errors.Metadata.ISSUER.key] = request.user.issuer
+          metadata[Errors.Metadata.SUBJECT.key] = request.user.subject
         }
       )
   }
@@ -762,6 +764,8 @@ class PrincipalsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT.name
+          metadata[Errors.Metadata.AUTHORITY_KEY_IDENTIFIER.key] =
+            request.tlsClient.authorityKeyIdentifier.toString()
         }
       )
   }
