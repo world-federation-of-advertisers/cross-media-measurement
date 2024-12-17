@@ -37,7 +37,6 @@ package k8s
     _populationRequisitionFulfillerSecretName:  string
 
     let displayName = _config.dataProviderDisplayName
-    _object_prefix: "\(_name)-"
 
 	deployments: [Name=string]: #Deployment & {
         _name:       Name
@@ -55,7 +54,7 @@ package k8s
                     "--kingdom-system-api-target=\(#KingdomSystemApiTarget)",
                     "--kingdom-system-api-cert-host=localhost",
                     "--data-provider-resource-name=\(_config.dataProviderResourceName)",
-                    "--data-provider-display-name=\(_name)",
+                    "--data-provider-display-name=\(displayName)",
                     "--data-provider-certificate-resource-name=\(_config.dataProviderCertResourceName)",
                     "--data-provider-encryption-private-keyset=/var/run/secrets/files/\(displayName)_enc_private.tink",
                     "--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(displayName)_cs_private.der",
@@ -71,7 +70,7 @@ package k8s
             }
 			spec: template: spec: {
 				_mounts: "config-files": #ConfigMapMount
-				_dependencies: ["\(_name)-internal-api-server"]
+				_dependencies: ["\(displayName)-internal-api-server"]
 			}
 		}
     }

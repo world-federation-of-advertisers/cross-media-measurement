@@ -29,8 +29,8 @@ _populationRequisitionFulfillerConfigs: [...#PopulationRequisitionFulfillerConfi
 _populationRequisitionFulfillerConfigs: [
     {
         dataProviderDisplayName: "pdp1"
-        dataProviderResourceName: _pdp_name
-        dataProviderCertResourceName: _pdp_cert_name
+        dataProviderResourceName: _pdp1_name
+        dataProviderCertResourceName: _pdp1_cert_name
         populationKeyAndInfoList: [
             {
                 populationResourceName: _population_resource_name
