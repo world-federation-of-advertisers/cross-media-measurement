@@ -396,7 +396,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
               .replace("{mc_name}", resourceInfo.measurementConsumer)
               .replace("{mc_api_key}", resourceInfo.apiKey)
               .replace("{mc_cert_name}", resourceInfo.measurementConsumerCert)
-              .replace("{population_key}", resourceInfo.population)
+              .replace("{population_resource_name}", resourceInfo.population)
               .replace("{pdp1_name}", resourceInfo.populationDataProvider)
               .replace("{pdp1_cert_name}", resourceInfo.populationDataProviderCert)
               .let {
