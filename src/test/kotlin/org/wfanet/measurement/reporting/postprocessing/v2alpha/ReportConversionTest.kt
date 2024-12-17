@@ -28,7 +28,7 @@ import org.wfanet.measurement.reporting.postprocessing.v2alpha.MeasurementDetail
 @RunWith(JUnit4::class)
 class ReportConversionTest {
   @Test
-  fun `report as json string is successfully converted to report summary proto`() {
+  fun `report without unique reach is successfully converted to report summary proto`() {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_small.json").toFile()
     val reportAsJson = reportFile.readText()
     val reportSummary = ReportConversion.convertJsontoReportSummaries(reportAsJson)
@@ -37,7 +37,7 @@ class ReportConversionTest {
         measurementPolicy = "ami"
         setOperation = "cumulative"
         isCumulative = true
-        dataProviders += "dataProviders/LkJlb3UZkY8"
+        dataProviders += "edp2"
         measurementResults += measurementResult {
           reach = 24129432
           standardDeviation = 1.0
@@ -58,11 +58,178 @@ class ReportConversionTest {
         measurementPolicy = "ami"
         setOperation = "union"
         isCumulative = false
-        dataProviders += "dataProviders/LkJlb3UZkY8"
+        dataProviders += "edp2"
         measurementResults += measurementResult {
           reach = 1000
           standardDeviation = 102011.27564649425
           metric = "measurementConsumers/TjyUnormbAg/metrics/ami/union/00"
+        }
+      }
+    }
+    assertThat(reportSummary).hasSize(1)
+    assertThat(reportSummary[0]).isEqualTo(expectedReportSummary)
+  }
+
+  @Test
+  fun `report with unique reach is successfully converted to report summary proto`() {
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve("sample_report_unique_reach_incremental_reach_small.json")
+        .toFile()
+    val reportAsJson = reportFile.readText()
+    val reportSummary = ReportConversion.convertJsontoReportSummaries(reportAsJson)
+
+    val expectedReportSummary = reportSummary {
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "union"
+        dataProviders += "edp2"
+        measurementResults += measurementResult {
+          reach = 74640
+          standardDeviation = 102032.8580350049
+          metric = "measurementConsumers/TjyUnormbAg/metrics/union/single_edp_edp2"
+        }
+      }
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "cumulative"
+        isCumulative = true
+        dataProviders += "edp2"
+        measurementResults += measurementResult {
+          reach = 30000
+          standardDeviation = 137708.79990420336
+          metric = "measurementConsumers/TjyUnormbAg/metrics/cumulative/single_edp_edp2"
+        }
+      }
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "difference"
+        dataProviders += "edp2"
+        dataProviders += "edp1"
+        dataProviders += "edp3"
+        uniqueReachTarget = "edp2"
+        leftHandSideTargets += "edp2"
+        rightHandSideTargets += "edp1"
+        rightHandSideTargets += "edp3"
+        measurementResults += measurementResult {
+          reach = 2000
+          standardDeviation = 262192.75285658165
+          metric = "measurementConsumers/TjyUnormbAg/metrics/difference/unique_reach_edp2"
+        }
+      }
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "difference"
+        dataProviders += "edp2"
+        dataProviders += "edp1"
+        leftHandSideTargets += "edp1"
+        rightHandSideTargets += "edp2"
+        measurementResults += measurementResult {
+          reach = 400
+          standardDeviation = 230564.3972774748
+          metric = "measurementConsumers/TjyUnormbAg/metrics/a3c0f4fda-c0c9-41f0-bb8e-a88f1354181f"
+        }
+      }
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "difference"
+        dataProviders += "edp2"
+        dataProviders += "edp1"
+        dataProviders += "edp3"
+        uniqueReachTarget = "edp1"
+        leftHandSideTargets += "edp1"
+        rightHandSideTargets += "edp2"
+        rightHandSideTargets += "edp3"
+        measurementResults += measurementResult {
+          reach = 300
+          standardDeviation = 261177.24408350687
+          metric = "measurementConsumers/TjyUnormbAg/metrics/difference/unique_reach_edp1"
+        }
+      }
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "union"
+        dataProviders += "edp3"
+        measurementResults += measurementResult {
+          reach = 187439
+          standardDeviation = 102065.46555734947
+          metric = "measurementConsumers/TjyUnormbAg/metrics/union/single_edp_edp3"
+        }
+      }
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "cumulative"
+        isCumulative = true
+        dataProviders += "edp3"
+        measurementResults += measurementResult {
+          standardDeviation = 137708.79990420336
+          metric = "measurementConsumers/TjyUnormbAg/metrics/cumulative/single_edp_edp3"
+        }
+      }
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "union"
+        dataProviders += "edp2"
+        dataProviders += "edp1"
+        dataProviders += "edp3"
+        leftHandSideTargets += "edp1"
+        leftHandSideTargets += "edp2"
+        leftHandSideTargets += "edp3"
+        measurementResults += measurementResult {
+          reach = 91199
+          standardDeviation = 137993.02905314422
+          metric = "measurementConsumers/TjyUnormbAg/metrics/union/all_edps"
+        }
+      }
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "cumulative"
+        isCumulative = true
+        dataProviders += "edp2"
+        dataProviders += "edp1"
+        dataProviders += "edp3"
+        leftHandSideTargets += "edp1"
+        leftHandSideTargets += "edp2"
+        leftHandSideTargets += "edp3"
+        measurementResults += measurementResult {
+          reach = 48300
+          standardDeviation = 184559.25807765796
+          metric = "measurementConsumers/TjyUnormbAg/metrics/cumulative/all_edps"
+        }
+      }
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "union"
+        dataProviders += "edp1"
+        measurementResults += measurementResult {
+          standardDeviation = 102011.27564649425
+          metric = "measurementConsumers/TjyUnormbAg/metrics/union/single_edp_edp1"
+        }
+      }
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "cumulative"
+        isCumulative = true
+        dataProviders += "edp1"
+        measurementResults += measurementResult {
+          reach = 189700
+          standardDeviation = 137776.9714846423
+          metric = "measurementConsumers/TjyUnormbAg/metrics/cumulative/single_edp_edp1"
+        }
+      }
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "difference"
+        dataProviders += "edp2"
+        dataProviders += "edp1"
+        dataProviders += "edp3"
+        uniqueReachTarget = "edp3"
+        leftHandSideTargets += "edp3"
+        rightHandSideTargets += "edp1"
+        rightHandSideTargets += "edp2"
+        measurementResults += measurementResult {
+          reach = 100
+          standardDeviation = 261663.2405567259
+          metric = "measurementConsumers/TjyUnormbAg/metrics/difference/unique_reach_edp3"
         }
       }
     }

@@ -41,7 +41,7 @@ class ReportingApiServerFlags {
   @set:CommandLine.Option(
     names = ["--debug-verbose-grpc-client-logging"],
     description = ["Enables full gRPC request and response logging for outgoing gRPCs"],
-    defaultValue = "false"
+    defaultValue = "false",
   )
   var debugVerboseGrpcClientLogging by Delegates.notNull<Boolean>()
     private set

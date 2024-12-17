@@ -1,0 +1,225 @@
+{
+  "measurement_details": [
+    {
+      "measurement_policy": "ami",
+      "set_operation": "union",
+      "data_providers": [
+        "edp2"
+      ],
+      "measurement_results": [
+        {
+          "reach": 74640,
+          "standard_deviation": 102032.8580350049,
+          "metric": "union/ami/edp2"
+        }
+      ]
+    },
+    {
+      "measurement_policy": "ami",
+      "set_operation": "cumulative",
+      "is_cumulative": true,
+      "data_providers": [
+        "edp2"
+      ],
+      "measurement_results": [
+        {
+          "reach": 30000,
+          "standard_deviation": 137708.79990420336,
+          "metric": "cumulative/ami/edp2"
+        }
+      ]
+    },
+    {
+      "measurement_policy": "ami",
+      "set_operation": "difference",
+      "data_providers": [
+        "edp2",
+        "edp1",
+        "edp3"
+      ],
+      "unique_reach_target": "edp2",
+      "left_hand_side_targets": [
+        "edp2"
+      ],
+      "right_hand_side_targets": [
+        "edp1",
+        "edp3"
+      ],
+      "measurement_results": [
+        {
+          "reach": 2000,
+          "standard_deviation": 262192.75285658165,
+          "metric": "difference/ami/unique_reach_edp2"
+        }
+      ]
+    },
+    {
+      "measurement_policy": "ami",
+      "set_operation": "difference",
+      "data_providers": [
+        "edp2",
+        "edp1"
+      ],
+      "left_hand_side_targets": [
+        "edp1"
+      ],
+      "right_hand_side_targets": [
+        "edp2"
+      ],
+      "measurement_results": [
+        {
+          "reach": 400,
+          "standard_deviation": 230564.3972774748,
+          "metric": "difference/ami/difference_reach_edp1"
+        }
+      ]
+    },
+    {
+      "measurement_policy": "ami",
+      "set_operation": "difference",
+      "data_providers": [
+        "edp2",
+        "edp1",
+        "edp3"
+      ],
+      "unique_reach_target": "edp1",
+      "left_hand_side_targets": [
+        "edp1"
+      ],
+      "right_hand_side_targets": [
+        "edp2",
+        "edp3"
+      ],
+      "measurement_results": [
+        {
+          "reach": 300,
+          "standard_deviation": 261177.24408350687,
+          "metric": "difference/ami/unique_reach_edp1"
+        }
+      ]
+    },
+    {
+      "measurement_policy": "ami",
+      "set_operation": "union",
+      "data_providers": [
+        "edp3"
+      ],
+      "measurement_results": [
+        {
+          "reach": 187439,
+          "standard_deviation": 102065.46555734947,
+          "metric": "union/ami/edp3"
+        }
+      ]
+    },
+    {
+      "measurement_policy": "ami",
+      "set_operation": "cumulative",
+      "is_cumulative": true,
+      "data_providers": [
+        "edp3"
+      ],
+      "measurement_results": [
+        {
+          "standard_deviation": 137708.79990420336,
+          "metric": "cumulative/ami/edp3"
+        }
+      ]
+    },
+    {
+      "measurement_policy": "ami",
+      "set_operation": "union",
+      "data_providers": [
+        "edp2",
+        "edp1",
+        "edp3"
+      ],
+      "left_hand_side_targets": [
+        "edp1",
+        "edp2",
+        "edp3"
+      ],
+      "measurement_results": [
+        {
+          "reach": 91199,
+          "standard_deviation": 137993.02905314422,
+          "metric": "union/ami/edp1_edp2_edp3"
+        }
+      ]
+    },
+    {
+      "measurement_policy": "ami",
+      "set_operation": "cumulative",
+      "is_cumulative": true,
+      "data_providers": [
+        "edp2",
+        "edp1",
+        "edp3"
+      ],
+      "left_hand_side_targets": [
+        "edp1",
+        "edp2",
+        "edp3"
+      ],
+      "measurement_results": [
+        {
+          "reach": 48300,
+          "standard_deviation": 184559.25807765796,
+          "metric": "cumulative/ami/edp1_edp2_edp3"
+        }
+      ]
+    },
+    {
+      "measurement_policy": "ami",
+      "set_operation": "union",
+      "data_providers": [
+        "edp1"
+      ],
+      "measurement_results": [
+        {
+          "standard_deviation": 102011.27564649425,
+          "metric": "union/ami/edp1"
+        }
+      ]
+    },
+    {
+      "measurement_policy": "ami",
+      "set_operation": "cumulative",
+      "is_cumulative": true,
+      "data_providers": [
+        "edp1"
+      ],
+      "measurement_results": [
+        {
+          "reach": 189700,
+          "standard_deviation": 137776.9714846423,
+          "metric": "cumulative/ami/edp1"
+        }
+      ]
+    },
+    {
+      "measurement_policy": "ami",
+      "set_operation": "difference",
+      "data_providers": [
+        "edp2",
+        "edp1",
+        "edp3"
+      ],
+      "unique_reach_target": "edp3",
+      "left_hand_side_targets": [
+        "edp3"
+      ],
+      "right_hand_side_targets": [
+        "edp1",
+        "edp2"
+      ],
+      "measurement_results": [
+        {
+          "reach": 100,
+          "standard_deviation": 261663.2405567259,
+          "metric": "difference/ami/unique_reach_edp3"
+        }
+      ]
+    }
+  ]
+}

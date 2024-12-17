@@ -45,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -465,7 +466,7 @@ class ReportSchedulesService(
 
   companion object {
     private val ENV: Env = buildCelEnvironment(ReportSchedule.getDefaultInstance())
-    private val RESOURCE_ID_REGEX = Regex("^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$")
+    private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
     private val REQUEST_ID_REGEX = Regex("^[a-zA-Z0-9]{1,36}$")
 
     private const val MIN_PAGE_SIZE = 1

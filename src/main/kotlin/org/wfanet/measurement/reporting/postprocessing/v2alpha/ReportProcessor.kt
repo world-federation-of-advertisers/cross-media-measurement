@@ -41,7 +41,7 @@ interface ReportProcessor {
   /** The default implementation of [ReportProcessor]. */
   companion object Default : ReportProcessor {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    const private val PYTHON_LIBRARY_RESOURCE_NAME =
+    private const val PYTHON_LIBRARY_RESOURCE_NAME =
       "src/main/python/wfa/measurement/reporting/postprocessing/tools/post_process_origin_report.zip"
     private val resourcePath: Path =
       this::class.java.classLoader.getJarResourcePath(PYTHON_LIBRARY_RESOURCE_NAME)
@@ -114,7 +114,6 @@ interface ReportProcessor {
       GsonBuilder().create().fromJson(processOutput, Map::class.java).forEach { (key, value) ->
         correctedMeasurementsMap[key as String] = (value as Double).toLong()
       }
-
       return correctedMeasurementsMap
     }
 
