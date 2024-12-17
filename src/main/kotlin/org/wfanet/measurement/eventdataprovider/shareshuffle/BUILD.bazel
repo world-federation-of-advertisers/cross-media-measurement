@@ -11,7 +11,7 @@ MAVEN_COORDINATES = "org.wfanet.measurement.eventdataprovider:shareshuffle-nativ
 
 java_native_libraries(
     name = "native_deps",
-    java_target = "@any_sketch_java//src/main/java/org/wfanet/frequencycount:secret_share_generator_adapter",
+    java_target = "@any_sketch_java//src/main/java/org/wfanet/frequencycount",
 )
 
 kt_jvm_library(
