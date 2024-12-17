@@ -426,6 +426,42 @@ class TestOriginReport(unittest.TestCase):
         TOLERANCE
     )
 
+    # Verifies that mrc/custom measurements are less than or equal to ami ones.
+    primitive_edp_combinations = ["edp1", "edp2", "edp1_edp2"]
+    composite_edp_combinations = ["edp1_minus_edp2", "edp2_minus_edp1"]
+    for i in range(9):
+      for edp_combination in primitive_edp_combinations:
+        self.assertLessEqual(
+            corrected_measurements_map[
+              'cumulative/mrc/' + edp_combination + '_' + str(i).zfill(2)],
+            corrected_measurements_map[
+              'cumulative/ami/' + edp_combination + '_' + str(i).zfill(2)]
+        )
+        self.assertLessEqual(
+            corrected_measurements_map[
+              'cumulative/custom/' + edp_combination + '_' + str(i).zfill(2)],
+            corrected_measurements_map[
+              'cumulative/ami/' + edp_combination + '_' + str(i).zfill(2)]
+        )
+    for edp_combination in primitive_edp_combinations:
+      self.assertLessEqual(
+          corrected_measurements_map['union/mrc/' + edp_combination],
+          corrected_measurements_map['union/ami/' + edp_combination]
+      )
+      self.assertLessEqual(
+          corrected_measurements_map['union/custom/' + edp_combination],
+          corrected_measurements_map['union/ami/' + edp_combination]
+      )
+    for edp_combination in composite_edp_combinations:
+      self.assertLessEqual(
+          corrected_measurements_map['difference/mrc/' + edp_combination],
+          corrected_measurements_map['difference/ami/' + edp_combination]
+      )
+      self.assertLessEqual(
+          corrected_measurements_map['difference/custom/' + edp_combination],
+          corrected_measurements_map['difference/ami/' + edp_combination]
+      )
+
   def test_report_with_unique_reach_is_corrected_successfully(self):
     report_summary = get_report_summary(
         "src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_with_unique_reach.json")
