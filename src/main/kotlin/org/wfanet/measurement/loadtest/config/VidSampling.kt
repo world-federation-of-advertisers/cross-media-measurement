@@ -16,7 +16,7 @@ package org.wfanet.measurement.loadtest.config
 
 import com.google.common.hash.HashFunction
 import com.google.common.hash.Hashing
-import org.wfanet.estimation.VidSampler
+import org.wfanet.sampling.VidSampler
 
 object VidSampling {
   private val VID_SAMPLER_HASH_FUNCTION: HashFunction = Hashing.farmHashFingerprint64()
