@@ -31,7 +31,7 @@ message ImpressionQualificationFilterSpec {
   // Defines how filters related to Reporting Media Types.
   //
   // Generally, a Filter with a given Filter Type is applied to a Reporting Unit
-  // when the type matches that of the Reporting Media Type. However, a filer
+  // when the type matches that of the Reporting Media Type. However, a filter
   // with type CROSS_MEDIA is applied when multiple Reporting Media Types are
   // specified.
   enum FilterType {
@@ -70,6 +70,7 @@ message ImpressionQualificationFilterSpec {
 
   // Specify a percent as a fraction or as a quantile
   message Percent {
+    // Required
     oneof value {
       // The fraction
       float fraction = 1 [(google.api.field_behavior) = IMMUTABLE];
