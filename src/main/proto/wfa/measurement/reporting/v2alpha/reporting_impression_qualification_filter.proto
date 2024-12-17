@@ -22,26 +22,22 @@ import "wfa/measurement/reporting/v2alpha/impression_qualification_filter_spec.p
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
-option java_outer_classname = "ImpressionQualificationFilterProto";
+option java_outer_classname = "ReportingImpressionQualificationFilterProto";
 
-// Resource representing an Impression Qualification Filter
-message ImpressionQualificationFilter {
-  option (google.api.resource) = {
-    type: "reporting.halo-cmm.org/ImpressionQualificationFilter"
-    pattern: "impressionQualificationFilters/{impression_qualification_filter}"
-    singular: "impressionQualificationFilter"
-    plural: "impressionQualificationFilters"
-  };
-
-  // Resource name.
-  string name = 1 [
-    (google.api.field_behavior) = IMMUTABLE,
-    (google.api.field_behavior) = IDENTIFIER
-  ];
-
-  // Specifies the filter criteria
-  ImpressionQualificationFilterSpec filter_spec = 2 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE
-  ];
+// An impression qualification filter for reporting that allows either a named
+// filter or a custom filter.
+message ReportingImpressionQualificationFilter {
+  oneof filter {
+    // The resource name of an ImpressionQualificstionFilter.
+    // (e.g. "mrc")
+    string impression_qualification_filter = 1 [
+      (google.api.field_behavior) = IMMUTABLE,
+      (google.api.resource_reference) = {
+        type: "reporting.halo-cmm.org/ImpressionQualificationFilter"
+      }
+    ];
+    // A custom filter
+    ImpressionQualificationFilterSpec custom = 2
+        [(google.api.field_behavior) = IMMUTABLE];
+  }
 }

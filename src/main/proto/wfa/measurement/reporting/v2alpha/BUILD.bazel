@@ -17,7 +17,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":page_proto",
-        ":reporting_common_proto",
+        ":reporting_impression_qualification_filter_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_googleapis//google/type:date_proto",
@@ -52,7 +52,7 @@ proto_library(
     srcs = ["impression_qualification_filter.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":reporting_common_proto",
+        ":impression_qualification_filter_spec_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
@@ -61,6 +61,20 @@ proto_library(
 kt_jvm_proto_library(
     name = "impression_qualification_filter_kt_jvm_proto",
     deps = [":impression_qualification_filter_proto"],
+)
+
+proto_library(
+    name = "impression_qualification_filter_spec_proto",
+    srcs = ["impression_qualification_filter_spec.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "impression_qualification_filter_spec_kt_jvm_proto",
+    deps = [":impression_qualification_filter_spec_proto"],
 )
 
 proto_library(
@@ -156,8 +170,24 @@ kt_jvm_proto_library(
 )
 
 proto_library(
-    name = "reporting_common_proto",
-    srcs = ["reporting_common.proto"],
+    name = "reporting_impression_qualification_filter_proto",
+    srcs = ["reporting_impression_qualification_filter.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":impression_qualification_filter_spec_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "reporting_impression_qualification_filter_kt_jvm_proto",
+    deps = [":reporting_impression_qualification_filter_proto"],
+)
+
+proto_library(
+    name = "reporting_unit_proto",
+    srcs = ["reporting_unit.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         "@com_google_googleapis//google/api:field_behavior_proto",
@@ -166,8 +196,8 @@ proto_library(
 )
 
 kt_jvm_proto_library(
-    name = "reporting_common_kt_jvm_proto",
-    deps = [":reporting_common_proto"],
+    name = "reporting_unit_kt_jvm_proto",
+    deps = [":reporting_unit_proto"],
 )
 
 proto_library(
@@ -200,7 +230,8 @@ proto_library(
     srcs = ["page.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":reporting_common_proto",
+        ":reporting_impression_qualification_filter_proto",
+        ":reporting_unit_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_googleapis//google/type:dayofweek_proto",
@@ -244,7 +275,7 @@ proto_library(
 
 kt_jvm_grpc_proto_library(
     name = "basic_reports_service_kt_jvm_grpc_proto",
-    deps = [":basci_reports_service_proto"],
+    deps = [":basic_reports_service_proto"],
 )
 
 proto_library(
