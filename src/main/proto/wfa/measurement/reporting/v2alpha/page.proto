@@ -110,8 +110,10 @@ message CalculationSpec {
       // The value of the event template to filter
       message FieldValue {
         oneof value {
-          // Used when the event template field is a string or enum
+          // Used when the event template field is a string
           string string_value = 1 [(google.api.field_behavior) = IMMUTABLE];
+          // Used when the event template field is an enum
+          string enum_value = 2 [(google.api.field_behavior) = IMMUTABLE];
         }
       }
       // The value of the event_template_field to filter on.
