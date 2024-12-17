@@ -34,22 +34,22 @@ package k8s
 #PopulationRequisitionFulfiller: {
     _config: #PopulationRequisitionFulfillerConfig
     _imageConfig: #ImageConfig
-    _populationRequisitionFulfillerSecretName:  string
+    _populationRequisitionFulfillerSecretName: string
 
     let displayName = _config.dataProviderDisplayName
 
-	deployments: [Name=string]: #Deployment & {
-        _name:       Name
-		_secretName: _populationRequisitionFulfillerSecretName
-		_system:     "population"
-		_container: {
-			image: _imageConfig.image
-		}
-	}
+    deployments: [Name=string]: #Deployment & {
+        _name: Name
+        _secretName: _populationRequisitionFulfillerSecretName
+        _system: "population"
+        _container: {
+            image: _imageConfig.image
+        }
+    }
 
     deployments: {
-		"population-requisition-fulfillment-server-deployment": #ServerDeployment & {
-			_container: {
+       "population-requisition-fulfillment-server-deployment": #ServerDeployment & {
+          _container: {
                 args: [
                     "--kingdom-system-api-target=\(#KingdomSystemApiTarget)",
                     "--kingdom-system-api-cert-host=localhost",
@@ -60,19 +60,25 @@ package k8s
                     "--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(displayName)_cs_private.der",
                     "--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(displayName)_cs_cert.der",
                     "--throttler-minimum-interval=\(_config.throttlerMinimumInterval)",
-                ] + [ for set in _config.eventMessageDescriptorSets {
+                ]
+                // Only add descriptor set arguments if they exist
+                + ([ for set in _config.eventMessageDescriptorSets {
                     "--event-message-descriptor-set=\(set)"
-                }] + [ for config in _config.populationKeyAndInfoList {
-                    "--population-resource-name=\(config.populationResourceName)",
-                    "--population-spec=\(config.populationSpecFile)",
-                    "--event-message-type-url=\(config.eventMessageTypeUrl)",
-                }]
+                }] if len(_config.eventMessageDescriptorSets) > 0 else [])
+
+                // Directly use the first population key and info if it exists
+                + (let firstPopulationConfig = _config.populationKeyAndInfoList[0]
+                   if len(_config.populationKeyAndInfoList) > 0 then [
+                    "--population-resource-name=\(firstPopulationConfig.populationResourceName)",
+                    "--population-spec=\(firstPopulationConfig.populationSpecFile)",
+                    "--event-message-type-url=\(firstPopulationConfig.eventMessageTypeUrl)"
+                ] else [])
             }
-			spec: template: spec: {
-				_mounts: "config-files": #ConfigMapMount
-				_dependencies: ["\(displayName)-internal-api-server"]
-			}
-		}
+          spec: template: spec: {
+             _mounts: "config-files": #ConfigMapMount
+             _dependencies: ["\(displayName)-internal-api-server"]
+          }
+       }
     }
 
     networkPolicies: [Name=_]: #NetworkPolicy & {

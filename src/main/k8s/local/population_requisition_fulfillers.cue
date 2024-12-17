@@ -15,15 +15,11 @@
 package k8s
 
 _mc_name:                  string @tag("mc_name")
-_pdp1_name:                 string @tag("pdp1_name")
-_pdp1_cert_name:            string @tag("pdp1_cert_name")
+_pdp1_name:                string @tag("pdp1_name")
+_pdp1_cert_name:           string @tag("pdp1_cert_name")
 _population_resource_name: string @tag("population_resource_name")
 _secret_name:              string @tag("secret_name")
-_populationSpec:           "/etc/\(#AppName)/config-files/synthetic_population_spec_large.textproto"
-
-_pdpResourceNames: [_pdp1_name]
-_pdpCertResourceNames: [_pdp1_cert_name]
-_populationResourceNames: [_population_resource_name]
+_populationSpec:           string @tag("population_spec") | *"/etc/\(#AppName)/config-files/synthetic_population_spec_large.textproto"
 
 _populationRequisitionFulfillerConfigs: [...#PopulationRequisitionFulfillerConfig]
 _populationRequisitionFulfillerConfigs: [
