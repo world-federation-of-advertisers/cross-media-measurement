@@ -124,6 +124,7 @@ kustomization_dir(
     srcs = [
         ":duchies",
         ":edp_simulators",
+        ":population_requisition_fulfillers",
         "//src/main/k8s/local:emulators",
         "//src/main/k8s/local:kingdom",
         "//src/main/k8s/local:postgres_database",
@@ -153,5 +154,3 @@ kustomization_dir(
         "//src/main/k8s/testing/secretfiles:kustomization",
     ],
 )
-
-
