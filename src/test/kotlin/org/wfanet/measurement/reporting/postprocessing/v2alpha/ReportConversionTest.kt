@@ -33,7 +33,6 @@ class ReportConversionTest {
     val reportAsJson = reportFile.readText()
     val reportSummary = ReportConversion.convertJsontoReportSummaries(reportAsJson)
 
-
     val unionCustomEdp1Edp2MeasurementDetail = measurementDetail {
       measurementPolicy = "custom"
       setOperation = "union"
@@ -110,13 +109,13 @@ class ReportConversionTest {
 
     // Verifies that reportSummary contains the above two protos for custom measurements.
     assertThat(
-      reportSummary[0].measurementDetailsList.containsAll(
-        listOf(
-          unionCustomEdp1Edp2MeasurementDetail,
-          cummulativeCustomEdp1Edp2MeasurementDetail
-        )
+        reportSummary[0]
+          .measurementDetailsList
+          .containsAll(
+            listOf(unionCustomEdp1Edp2MeasurementDetail, cummulativeCustomEdp1Edp2MeasurementDetail)
+          )
       )
-    ).isEqualTo(true)
+      .isEqualTo(true)
   }
 
   @Test
