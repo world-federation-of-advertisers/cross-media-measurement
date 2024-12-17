@@ -36,12 +36,11 @@ package k8s
     _imageConfig: #ImageConfig
     _populationRequisitionFulfillerSecretName:  string
 
-    _name = _config.dataProviderDisplayName
+    let displayName = _config.dataProviderDisplayName
     _object_prefix: "\(_name)-"
 
 	deployments: [Name=string]: #Deployment & {
-        _unprefixed_name: strings.TrimSuffix(Name, "-deployment")
-        _name:            _object_prefix + _unprefixed_name
+        _name:       Name
 		_secretName: _populationRequisitionFulfillerSecretName
 		_system:     "population"
 		_container: {
@@ -58,9 +57,9 @@ package k8s
                     "--data-provider-resource-name=\(_config.dataProviderResourceName)",
                     "--data-provider-display-name=\(_name)",
                     "--data-provider-certificate-resource-name=\(_config.dataProviderCertResourceName)",
-                    "--data-provider-encryption-private-keyset=/var/run/secrets/files/\(_name)_enc_private.tink",
-                    "--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(_name)_cs_private.der",
-                    "--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(_name)_cs_cert.der",
+                    "--data-provider-encryption-private-keyset=/var/run/secrets/files/\(displayName)_enc_private.tink",
+                    "--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(displayName)_cs_private.der",
+                    "--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(displayName)_cs_cert.der",
                     "--throttler-minimum-interval=\(_config.throttlerMinimumInterval)",
                 ] + [ for set in _config.eventMessageDescriptorSets {
                     "--event-message-descriptor-set=\(set)"
@@ -78,7 +77,7 @@ package k8s
     }
 
     networkPolicies: [Name=_]: #NetworkPolicy & {
-		_name: _object_prefix + Name
+		_name: Name
 	}
 	networkPolicies: {
         "requisition-fulfillment-server": {
