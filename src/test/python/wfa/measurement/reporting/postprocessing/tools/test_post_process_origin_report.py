@@ -206,6 +206,226 @@ class TestOriginReport(unittest.TestCase):
     self.assertDictEqual(reportSummaryProcessor._set_difference_map,
                          expected_unique_reach_map)
 
+  def test_report_with_custom_policy_is_corrected_successfully(self):
+    report_summary = get_report_summary(
+        "src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_with_custom_policy.json")
+    corrected_measurements_map = ReportSummaryProcessor(
+        report_summary).process()
+
+    # Verifies that cumulative measurements are non-decreasing.
+    for i in range(9):
+      self.assertLessEqual(
+          corrected_measurements_map['cumulative/ami/edp1_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/ami/edp1_' + str(i + 1).zfill(2)]
+      )
+      self.assertLessEqual(
+          corrected_measurements_map['cumulative/ami/edp2_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/ami/edp2_' + str(i + 1).zfill(2)]
+      )
+      self.assertLessEqual(
+          corrected_measurements_map[
+            'cumulative/ami/edp1_edp2_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/ami/edp1_edp2_' + str(i + 1).zfill(2)]
+      )
+      self.assertLessEqual(
+          corrected_measurements_map['cumulative/mrc/edp1_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/mrc/edp1_' + str(i + 1).zfill(2)]
+      )
+      self.assertLessEqual(
+          corrected_measurements_map['cumulative/mrc/edp2_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/mrc/edp2_' + str(i + 1).zfill(2)]
+      )
+      self.assertLessEqual(
+          corrected_measurements_map[
+            'cumulative/mrc/edp1_edp2_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/mrc/edp1_edp2_' + str(i + 1).zfill(2)]
+      )
+      self.assertLessEqual(
+          corrected_measurements_map[
+            'cumulative/custom/edp1_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/custom/edp1_' + str(i + 1).zfill(2)]
+      )
+      self.assertLessEqual(
+          corrected_measurements_map[
+            'cumulative/custom/edp2_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/custom/edp2_' + str(i + 1).zfill(2)]
+      )
+      self.assertLessEqual(
+          corrected_measurements_map[
+            'cumulative/custom/edp1_edp2_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/custom/edp1_edp2_' + str(i + 1).zfill(2)]
+      )
+
+    # Verifies that cumulative measurements are less than or equal to total
+    # measurements.
+    self.assertLessEqual(
+        corrected_measurements_map['cumulative/ami/edp1_' + str(9).zfill(2)],
+        corrected_measurements_map['union/ami/edp1']
+    )
+    self.assertLessEqual(
+        corrected_measurements_map['cumulative/ami/edp2_' + str(9).zfill(2)],
+        corrected_measurements_map['union/ami/edp2']
+    )
+    self.assertLessEqual(
+        corrected_measurements_map[
+          'cumulative/ami/edp1_edp2_' + str(9).zfill(2)],
+        corrected_measurements_map['union/ami/edp1_edp2']
+    )
+    self.assertLessEqual(
+        corrected_measurements_map['cumulative/mrc/edp1_' + str(9).zfill(2)],
+        corrected_measurements_map['union/mrc/edp1']
+    )
+    self.assertLessEqual(
+        corrected_measurements_map['cumulative/mrc/edp2_' + str(9).zfill(2)],
+        corrected_measurements_map['union/mrc/edp2']
+    )
+    self.assertLessEqual(
+        corrected_measurements_map[
+          'cumulative/mrc/edp1_edp2_' + str(9).zfill(2)],
+        corrected_measurements_map['union/mrc/edp1_edp2']
+    )
+    self.assertLessEqual(
+        corrected_measurements_map['cumulative/custom/edp1_' + str(9).zfill(2)],
+        corrected_measurements_map['union/custom/edp1']
+    )
+    self.assertLessEqual(
+        corrected_measurements_map['cumulative/custom/edp2_' + str(9).zfill(2)],
+        corrected_measurements_map['union/custom/edp2']
+    )
+    self.assertLessEqual(
+        corrected_measurements_map[
+          'cumulative/custom/edp1_edp2_' + str(9).zfill(2)],
+        corrected_measurements_map['union/custom/edp1_edp2']
+    )
+
+    # Verifies that subset measurements are less than superset measurements
+    for i in range(9):
+      self.assertLessEqual(
+          corrected_measurements_map['cumulative/ami/edp1_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/ami/edp1_edp2_' + str(i).zfill(2)],
+      )
+      self.assertLessEqual(
+          corrected_measurements_map['cumulative/ami/edp2_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/ami/edp1_edp2_' + str(i).zfill(2)],
+      )
+      self.assertLessEqual(
+          corrected_measurements_map['cumulative/mrc/edp1_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/mrc/edp1_edp2_' + str(i).zfill(2)],
+      )
+      self.assertLessEqual(
+          corrected_measurements_map['cumulative/mrc/edp2_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/mrc/edp1_edp2_' + str(i).zfill(2)],
+      )
+      self.assertLessEqual(
+          corrected_measurements_map[
+            'cumulative/custom/edp1_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/custom/edp1_edp2_' + str(i).zfill(2)],
+      )
+      self.assertLessEqual(
+          corrected_measurements_map[
+            'cumulative/custom/edp2_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/custom/edp1_edp2_' + str(i).zfill(2)],
+      )
+    self.assertLessEqual(
+        corrected_measurements_map['union/ami/edp1'],
+        corrected_measurements_map['union/ami/edp1_edp2'],
+    )
+    self.assertLessEqual(
+        corrected_measurements_map['union/ami/edp2'],
+        corrected_measurements_map['union/ami/edp1_edp2'],
+    )
+    self.assertLessEqual(
+        corrected_measurements_map['union/mrc/edp1'],
+        corrected_measurements_map['union/mrc/edp1_edp2'],
+    )
+    self.assertLessEqual(
+        corrected_measurements_map['union/mrc/edp2'],
+        corrected_measurements_map['union/mrc/edp1_edp2'],
+    )
+    self.assertLessEqual(
+        corrected_measurements_map['union/custom/edp1'],
+        corrected_measurements_map['union/custom/edp1_edp2'],
+    )
+    self.assertLessEqual(
+        corrected_measurements_map['union/custom/edp2'],
+        corrected_measurements_map['union/custom/edp1_edp2'],
+    )
+
+    # Verifies that cover set measurements are less than the sum of child set
+    # measurements.
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/ami/edp1_edp2'],
+        corrected_measurements_map['union/ami/edp1'] +
+        corrected_measurements_map['union/ami/edp2'],
+        TOLERANCE
+    )
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/mrc/edp1_edp2'],
+        corrected_measurements_map['union/mrc/edp1'] +
+        corrected_measurements_map['union/mrc/edp2'],
+        TOLERANCE
+    )
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/custom/edp1_edp2'],
+        corrected_measurements_map['union/custom/edp1'] +
+        corrected_measurements_map['union/custom/edp2'],
+        TOLERANCE
+    )
+
+    # Verifies that difference measurements are mapped correctly to primitive
+    # measurements.
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/ami/edp2_minus_edp1'],
+        corrected_measurements_map['union/ami/edp1_edp2'] -
+        corrected_measurements_map['union/ami/edp1'],
+        TOLERANCE
+    )
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/ami/edp1_minus_edp2'],
+        corrected_measurements_map['union/ami/edp1_edp2'] -
+        corrected_measurements_map['union/ami/edp2'],
+        TOLERANCE
+    )
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/mrc/edp2_minus_edp1'],
+        corrected_measurements_map['union/mrc/edp1_edp2'] -
+        corrected_measurements_map['union/mrc/edp1'],
+        TOLERANCE
+    )
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/mrc/edp1_minus_edp2'],
+        corrected_measurements_map['union/mrc/edp1_edp2'] -
+        corrected_measurements_map['union/mrc/edp2'],
+        TOLERANCE
+    )
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/custom/edp2_minus_edp1'],
+        corrected_measurements_map['union/custom/edp1_edp2'] -
+        corrected_measurements_map['union/custom/edp1'],
+        TOLERANCE
+    )
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/custom/edp1_minus_edp2'],
+        corrected_measurements_map['union/custom/edp1_edp2'] -
+        corrected_measurements_map['union/custom/edp2'],
+        TOLERANCE
+    )
+
   def test_report_with_unique_reach_is_corrected_successfully(self):
     report_summary = get_report_summary(
         "src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_with_unique_reach.json")

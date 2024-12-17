@@ -31,6 +31,21 @@ data class MetricReport(
 @RunWith(JUnit4::class)
 class ReportProcessorTest {
   @Test
+  fun `run correct report with custom policy successfully`() {
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_custom_policy.json")
+        .toFile()
+    val reportAsJson = reportFile.readText()
+
+    val report = ReportConversion.getReportFromJsonString(reportAsJson)
+    assertThat(report.hasConsistentCumulativeMeasurements()).isEqualTo(false)
+
+    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
+    val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+    assertThat(updatedReport.hasConsistentCumulativeMeasurements()).isEqualTo(true)
+  }
+
+  @Test
   fun `run correct report with unique reach and incremental reach successfully`() {
     val reportFile =
       TEST_DATA_RUNTIME_DIR.resolve("sample_report_unique_reach_incremental_reach_small.json")
@@ -38,11 +53,11 @@ class ReportProcessorTest {
     val reportAsJson = reportFile.readText()
 
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
-    assertThat(report.hasConsistentMeasurements()).isEqualTo(false)
+    assertThat(report.hasConsistentCumulativeMeasurements()).isEqualTo(false)
 
     val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
-    assertThat(updatedReport.hasConsistentMeasurements()).isEqualTo(true)
+    assertThat(updatedReport.hasConsistentCumulativeMeasurements()).isEqualTo(true)
   }
 
   @Test
@@ -51,11 +66,11 @@ class ReportProcessorTest {
     val reportAsJson = reportFile.readText()
 
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
-    assertThat(report.hasConsistentMeasurements()).isEqualTo(false)
+    assertThat(report.hasConsistentCumulativeMeasurements()).isEqualTo(false)
 
     val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
-    assertThat(updatedReport.hasConsistentMeasurements()).isEqualTo(true)
+    assertThat(updatedReport.hasConsistentCumulativeMeasurements()).isEqualTo(true)
   }
 
   companion object {
@@ -100,32 +115,18 @@ class ReportProcessorTest {
         }
       }
 
-      for (entry in measurementDetailsList) {
-        if (entry.setOperation == "difference" && entry.uniqueReachTarget != "") {
-          val subset =
-            entry.dataProvidersList.filter { it != entry.uniqueReachTarget }.toSortedSet()
-          val measurements = entry.measurementResultsList.map { result -> result.reach }
-
-          if (entry.measurementPolicy == measurementPolicy) {
-            val supersetMeasurement = totalMeasurements[entry.dataProvidersList.toSortedSet()]!!
-            if (subset !in totalMeasurements) {
-              totalMeasurements[subset] = supersetMeasurement - measurements[0]
-            }
-          }
-        }
-      }
-
       return MetricReport(cumulativeMeasurements, totalMeasurements)
     }
 
     private fun ReportSummary.toReportByPolicy(): Map<String, MetricReport> {
       val metricReportByPolicy: MutableMap<String, MetricReport> = mutableMapOf()
-      metricReportByPolicy["ami"] = this.toMetricReport("ami")
-      metricReportByPolicy["mrc"] = this.toMetricReport("mrc")
+      for (policy in listOf("ami", "mrc", "custom")) {
+        metricReportByPolicy[policy] = this.toMetricReport(policy)
+      }
       return metricReportByPolicy
     }
 
-    private fun MetricReport.hasConsistentMeasurements(): Boolean {
+    private fun MetricReport.hasConsistentCumulativeMeasurements(): Boolean {
       if (cumulativeMeasurements.isEmpty()) {
         return true
       }
@@ -142,14 +143,13 @@ class ReportProcessorTest {
       return true
     }
 
-    private fun Report.hasConsistentMeasurements(): Boolean {
+    private fun Report.hasConsistentCumulativeMeasurements(): Boolean {
       this.toReportSummaries().forEach {
         val metricReportByPolicy = it.toReportByPolicy()
-        if (
-          !metricReportByPolicy["ami"]!!.hasConsistentMeasurements() ||
-            !metricReportByPolicy["mrc"]!!.hasConsistentMeasurements()
-        ) {
-          return false
+        for (metricReport in metricReportByPolicy.values) {
+          if (!metricReport.hasConsistentCumulativeMeasurements()) {
+            return false
+          }
         }
       }
       return true
