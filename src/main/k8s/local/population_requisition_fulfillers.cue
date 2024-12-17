@@ -41,7 +41,9 @@ _populationRequisitionFulfillerConfigs: [
     }
 ]
 
-objectSets: [ for fulfiller in populationRequisitionFulfillers {[fulfiller.deployment]}]
+objectSets: [ for fulfiller in populationRequisitionFulfillers {
+    [fulfiller.deployments["population-requisition-fulfillment-server-deployment"]]
+}]
 
 populationRequisitionFulfillers: {
     for config in _populationRequisitionFulfillerConfigs {
@@ -49,12 +51,6 @@ populationRequisitionFulfillers: {
             _imageConfig: repoSuffix: "measurement/population-requisition-fulfiller"
             _populationRequisitionFulfillerSecretName: _secret_name
             _config: config
-            deployment: spec: template: spec: {
-                _mounts: "config-files": #ConfigMapMount
-                _dependencies: [
-                    "kingdom-system-api-server",
-                ]
-            }
         }
     }
 }
