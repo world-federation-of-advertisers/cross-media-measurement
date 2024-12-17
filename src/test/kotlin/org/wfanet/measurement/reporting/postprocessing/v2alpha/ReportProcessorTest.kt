@@ -36,11 +36,11 @@ class ReportProcessorTest {
     val reportAsJson = reportFile.readText()
 
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
-    assertThat(report.hasConsistentCumulativeMeasurements()).isEqualTo(false)
+    assertThat(report.hasConsistentCumulativeMeasurements()).isFalse()
 
     val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
-    assertThat(updatedReport.hasConsistentCumulativeMeasurements()).isEqualTo(true)
+    assertThat(updatedReport.hasConsistentCumulativeMeasurements()).isTrue()
   }
 
   @Test
@@ -51,11 +51,11 @@ class ReportProcessorTest {
     val reportAsJson = reportFile.readText()
 
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
-    assertThat(report.hasConsistentCumulativeMeasurements()).isEqualTo(false)
+    assertThat(report.hasConsistentCumulativeMeasurements()).isFalse()
 
     val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
-    assertThat(updatedReport.hasConsistentCumulativeMeasurements()).isEqualTo(true)
+    assertThat(updatedReport.hasConsistentCumulativeMeasurements()).isTrue()
   }
 
   @Test
@@ -64,14 +64,15 @@ class ReportProcessorTest {
     val reportAsJson = reportFile.readText()
 
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
-    assertThat(report.hasConsistentCumulativeMeasurements()).isEqualTo(false)
+    assertThat(report.hasConsistentCumulativeMeasurements()).isFalse()
 
     val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
-    assertThat(updatedReport.hasConsistentCumulativeMeasurements()).isEqualTo(true)
+    assertThat(updatedReport.hasConsistentCumulativeMeasurements()).isTrue()
   }
 
   companion object {
+    private val POLICIES = listOf("ami", "mrc", "custom")
     private val TEST_DATA_RUNTIME_DIR: Path =
       getRuntimePath(
         Paths.get(
@@ -117,11 +118,7 @@ class ReportProcessorTest {
     }
 
     private fun ReportSummary.toReportByPolicy(): Map<String, MetricReport> {
-      val metricReportByPolicy: MutableMap<String, MetricReport> = mutableMapOf()
-      for (policy in listOf("ami", "mrc", "custom")) {
-        metricReportByPolicy[policy] = this.toMetricReport(policy)
-      }
-      return metricReportByPolicy
+      return POLICIES.associateWith { policy -> this.toMetricReport(policy) }
     }
 
     private fun MetricReport.hasConsistentCumulativeMeasurements(): Boolean {
@@ -142,15 +139,11 @@ class ReportProcessorTest {
     }
 
     private fun Report.hasConsistentCumulativeMeasurements(): Boolean {
-      this.toReportSummaries().forEach {
-        val metricReportByPolicy = it.toReportByPolicy()
-        for (metricReport in metricReportByPolicy.values) {
-          if (!metricReport.hasConsistentCumulativeMeasurements()) {
-            return false
-          }
+      return this.toReportSummaries().all {
+        it.toReportByPolicy().values.all { metricReport ->
+          metricReport.hasConsistentCumulativeMeasurements()
         }
       }
-      return true
     }
   }
 }
