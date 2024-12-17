@@ -21,7 +21,7 @@ import "google/api/resource.proto";
 import "google/type/date.proto";
 import "google/type/datetime.proto";
 import "wfa/measurement/reporting/v2alpha/page.proto";
-import "wfa/measurement/reporting/v2alpha/reporting_common.proto";
+import "wfa/measurement/reporting/v2alpha/reporting_impression_qualification_filter.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
