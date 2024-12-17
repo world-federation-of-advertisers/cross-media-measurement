@@ -21,7 +21,7 @@ package k8s
     dataProviderResourceName:    string
     dataProviderCertResourceName: string
     throttlerMinimumInterval:     string | *"2s"
-    eventMessageDescriptorSets:   [...string]
+    eventMessageDescriptorSet:   [...string]
     populationKeyAndInfoList: [...#PopulationKeyAndInfo]
 }
 
@@ -38,10 +38,19 @@ package k8s
 
     let displayName = _config.dataProviderDisplayName
 
+    _populationFlags: {
+    	let flagLists = [ for config in _config {[
+    		"--population-resource-name=\(config.populationResourceName)",
+            "--population-spec=\(config.populationSpecFile)",
+            "--event-message-type-url=\(config.eventMessageTypeUrl)",
+   		]}]
+   		list.FlattenN(flagLists, 2)
+    }
+
     deployments: [Name=string]: #Deployment & {
-        _name: Name
-        _secretName: _populationRequisitionFulfillerSecretName
-        _system: "population"
+        _name: Name,
+        _secretName: _populationRequisitionFulfillerSecretName,
+        _system: "population",
         _container: {
             image: _imageConfig.image
         }
@@ -60,45 +69,34 @@ package k8s
                     "--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(displayName)_cs_private.der",
                     "--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(displayName)_cs_cert.der",
                     "--throttler-minimum-interval=\(_config.throttlerMinimumInterval)",
-                ]
-                // Only add descriptor set arguments if they exist
-                + ([ for set in _config.eventMessageDescriptorSets {
-                    "--event-message-descriptor-set=\(set)"
-                }] if len(_config.eventMessageDescriptorSets) > 0 else [])
-
-                // Directly use the first population key and info if it exists
-                + (let firstPopulationConfig = _config.populationKeyAndInfoList[0]
-                   if len(_config.populationKeyAndInfoList) > 0 then [
-                    "--population-resource-name=\(firstPopulationConfig.populationResourceName)",
-                    "--population-spec=\(firstPopulationConfig.populationSpecFile)",
-                    "--event-message-type-url=\(firstPopulationConfig.eventMessageTypeUrl)"
-                ] else [])
-            }
+                    "--event-message-descriptor-set=\(_config.eventMessageDescriptorSet)",
+                ] + _populationFlags
+            },
           spec: template: spec: {
-             _mounts: "config-files": #ConfigMapMount
+             _mounts: "config-files": #ConfigMapMount,
              _dependencies: ["\(displayName)-internal-api-server"]
           }
        }
-    }
+    },
 
     networkPolicies: [Name=_]: #NetworkPolicy & {
-		_name: Name
-	}
-	networkPolicies: {
+        _name: Name
+    },
+    networkPolicies: {
         "requisition-fulfillment-server": {
-			_app_label: "population-requisition-fulfillment-server-app"
-			_ingresses: {
-				// External API server; allow ingress from anywhere to service port.
-				gRpc: {
-					ports: [{
-						port: #GrpcPort
-					}]
-				}
-			}
-			_egresses: {
-				// Need to send external traffic.
-				any: {}
-			}
-		}
-	}
+            _app_label: "population-requisition-fulfillment-server-app",
+            _ingresses: {
+                // External API server; allow ingress from anywhere to service port.
+                gRpc: {
+                    ports: [{
+                        port: #GrpcPort
+                    }]
+                }
+            },
+            _egresses: {
+                // Need to send external traffic.
+                any: {}
+            }
+        }
+    }
 }
