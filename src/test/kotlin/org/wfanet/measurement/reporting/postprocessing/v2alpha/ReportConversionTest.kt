@@ -109,9 +109,10 @@ class ReportConversionTest {
 
     // Verifies that reportSummary contains the above two protos for custom measurements.
     assertThat(reportSummary[0].measurementDetailsList)
-      .contains(unionCustomEdp1Edp2MeasurementDetail)
-    assertThat(reportSummary[0].measurementDetailsList)
-      .contains(cummulativeCustomEdp1Edp2MeasurementDetail)
+      .containsAtLeast(
+        unionCustomEdp1Edp2MeasurementDetail,
+        cummulativeCustomEdp1Edp2MeasurementDetail,
+      )
   }
 
   @Test
