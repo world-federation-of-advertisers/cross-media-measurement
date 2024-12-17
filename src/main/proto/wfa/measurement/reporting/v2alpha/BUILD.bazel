@@ -230,6 +230,24 @@ kt_jvm_proto_library(
 )
 
 # Services.
+proto_library(
+    name = "basic_reports_service_proto",
+    srcs = ["basic_reports_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":basic_report_proto",
+        "@com_google_googleapis//google/api:annotations_proto",
+        "@com_google_googleapis//google/api:client_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "basic_reports_service_kt_jvm_grpc_proto",
+    deps = [":basci_reports_service_proto"],
+)
 
 proto_library(
     name = "event_groups_service_proto",
