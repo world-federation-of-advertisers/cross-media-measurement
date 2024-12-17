@@ -115,6 +115,20 @@ proto_library(
 )
 
 proto_library(
+    name = "impression_qualification_filter_spec_proto",
+    srcs = ["impression_qualification_filter_spec.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "impression_qualification_filter_spec_kt_jvm_proto",
+    deps = [":impression_qualification_filter_spec_proto"],
+)
+
+proto_library(
     name = "metric_proto",
     srcs = ["metric.proto"],
     strip_import_prefix = IMPORT_PREFIX,
