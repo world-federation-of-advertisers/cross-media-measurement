@@ -34,10 +34,7 @@ message ImpressionQualificationFilter {
   };
 
   // Resource name.
-  string name = 1 [
-    (google.api.field_behavior) = IMMUTABLE,
-    (google.api.field_behavior) = IDENTIFIER
-  ];
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 
   // Specifies the filter criteria
   ImpressionQualificationFilterSpec filter_spec = 2 [

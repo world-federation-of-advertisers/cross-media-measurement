@@ -29,14 +29,14 @@ message ReportingUnit {
   //
   // For use with BasicReport these must be Data Provider resource names
   // For use with AdvancedReport these must be Reporting Set resource names
-  repeated string components = 2 [
+  repeated string components = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.resource_reference) = { type: "*" }
   ];
 
   // Display names of the resource referenced by the Reporting Unit
-  repeated string display_name = 3 [
+  repeated string display_name = 2 [
     (google.api.field_behavior) = OUTPUT_ONLY,
     (google.api.field_behavior) = IMMUTABLE
   ];
@@ -49,15 +49,15 @@ message ReportingUnit {
   // policy. For exmaple if VIDEO and DISPLAY are specified and an
   // MRC filter is available for both then the MRC filter, as it applies to
   // the specific media type, could be applied.
-  repeated ReportingMediaType reporting_media_types = 4 [
+  repeated MediaType reporting_media_types = 3 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
 }
 
-// ReportingMediaType is used to designate how reporting artifacts
+// MediaType is used to designate how reporting artifacts
 // should be interpreted for reporting.
-enum ReportingMediaType {
+enum MediaType {
   // Default value. Unused.
   REPORTING_MEDIA_TYPE_UNSPECIFIED = 0;
   // Interpret a set of arifacts as Video
