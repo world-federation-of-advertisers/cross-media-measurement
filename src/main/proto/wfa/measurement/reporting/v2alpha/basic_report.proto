@@ -90,7 +90,7 @@ message BasicReport {
 
   // The set of filters for this report.
   //
-  // An entry in this map must exist for every ReportingMediaType used in
+  // An entry in this set must exist for every ReportingMediaType used in
   // any PageSpec.
   repeated ReportingImpressionQualificationFilter
       impression_qualification_filters = 5 [
