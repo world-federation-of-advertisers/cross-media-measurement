@@ -212,103 +212,53 @@ class TestOriginReport(unittest.TestCase):
     corrected_measurements_map = ReportSummaryProcessor(
         report_summary).process()
 
+    primitive_edp_combinations = ["edp1", "edp2", "edp1_edp2"]
+    composite_edp_combinations = ["edp1_minus_edp2", "edp2_minus_edp1"]
+
     # Verifies that cumulative measurements are non-decreasing.
     for i in range(9):
-      self.assertLessEqual(
-          corrected_measurements_map['cumulative/ami/edp1_' + str(i).zfill(2)],
-          corrected_measurements_map[
-            'cumulative/ami/edp1_' + str(i + 1).zfill(2)]
-      )
-      self.assertLessEqual(
-          corrected_measurements_map['cumulative/ami/edp2_' + str(i).zfill(2)],
-          corrected_measurements_map[
-            'cumulative/ami/edp2_' + str(i + 1).zfill(2)]
-      )
-      self.assertLessEqual(
-          corrected_measurements_map[
-            'cumulative/ami/edp1_edp2_' + str(i).zfill(2)],
-          corrected_measurements_map[
-            'cumulative/ami/edp1_edp2_' + str(i + 1).zfill(2)]
-      )
-      self.assertLessEqual(
-          corrected_measurements_map['cumulative/mrc/edp1_' + str(i).zfill(2)],
-          corrected_measurements_map[
-            'cumulative/mrc/edp1_' + str(i + 1).zfill(2)]
-      )
-      self.assertLessEqual(
-          corrected_measurements_map['cumulative/mrc/edp2_' + str(i).zfill(2)],
-          corrected_measurements_map[
-            'cumulative/mrc/edp2_' + str(i + 1).zfill(2)]
-      )
-      self.assertLessEqual(
-          corrected_measurements_map[
-            'cumulative/mrc/edp1_edp2_' + str(i).zfill(2)],
-          corrected_measurements_map[
-            'cumulative/mrc/edp1_edp2_' + str(i + 1).zfill(2)]
-      )
-      self.assertLessEqual(
-          corrected_measurements_map[
-            'cumulative/custom/edp1_' + str(i).zfill(2)],
-          corrected_measurements_map[
-            'cumulative/custom/edp1_' + str(i + 1).zfill(2)]
-      )
-      self.assertLessEqual(
-          corrected_measurements_map[
-            'cumulative/custom/edp2_' + str(i).zfill(2)],
-          corrected_measurements_map[
-            'cumulative/custom/edp2_' + str(i + 1).zfill(2)]
-      )
-      self.assertLessEqual(
-          corrected_measurements_map[
-            'cumulative/custom/edp1_edp2_' + str(i).zfill(2)],
-          corrected_measurements_map[
-            'cumulative/custom/edp1_edp2_' + str(i + 1).zfill(2)]
-      )
+      for edp_combination in primitive_edp_combinations:
+        self.assertLessEqual(
+            corrected_measurements_map[
+              'cumulative/ami/' + edp_combination + '_' + str(i).zfill(2)],
+            corrected_measurements_map[
+              'cumulative/ami/' + edp_combination + '_' + str(i + 1).zfill(2)],
+        )
+        self.assertLessEqual(
+            corrected_measurements_map[
+              'cumulative/mrc/' + edp_combination + '_' + str(i).zfill(2)],
+            corrected_measurements_map[
+              'cumulative/mrc/' + edp_combination + '_' + str(i + 1).zfill(2)],
+        )
+        self.assertLessEqual(
+            corrected_measurements_map[
+              'cumulative/custom/' + edp_combination + '_' + str(i).zfill(2)],
+            corrected_measurements_map[
+              'cumulative/custom/' + edp_combination + '_' + str(i + 1).zfill(
+                2)],
+        )
 
     # Verifies that cumulative measurements are less than or equal to total
     # measurements.
-    self.assertLessEqual(
-        corrected_measurements_map['cumulative/ami/edp1_' + str(9).zfill(2)],
-        corrected_measurements_map['union/ami/edp1']
-    )
-    self.assertLessEqual(
-        corrected_measurements_map['cumulative/ami/edp2_' + str(9).zfill(2)],
-        corrected_measurements_map['union/ami/edp2']
-    )
-    self.assertLessEqual(
-        corrected_measurements_map[
-          'cumulative/ami/edp1_edp2_' + str(9).zfill(2)],
-        corrected_measurements_map['union/ami/edp1_edp2']
-    )
-    self.assertLessEqual(
-        corrected_measurements_map['cumulative/mrc/edp1_' + str(9).zfill(2)],
-        corrected_measurements_map['union/mrc/edp1']
-    )
-    self.assertLessEqual(
-        corrected_measurements_map['cumulative/mrc/edp2_' + str(9).zfill(2)],
-        corrected_measurements_map['union/mrc/edp2']
-    )
-    self.assertLessEqual(
-        corrected_measurements_map[
-          'cumulative/mrc/edp1_edp2_' + str(9).zfill(2)],
-        corrected_measurements_map['union/mrc/edp1_edp2']
-    )
-    self.assertLessEqual(
-        corrected_measurements_map['cumulative/custom/edp1_' + str(9).zfill(2)],
-        corrected_measurements_map['union/custom/edp1']
-    )
-    self.assertLessEqual(
-        corrected_measurements_map['cumulative/custom/edp2_' + str(9).zfill(2)],
-        corrected_measurements_map['union/custom/edp2']
-    )
-    self.assertLessEqual(
-        corrected_measurements_map[
-          'cumulative/custom/edp1_edp2_' + str(9).zfill(2)],
-        corrected_measurements_map['union/custom/edp1_edp2']
-    )
+    for edp_combination in primitive_edp_combinations:
+      self.assertLessEqual(
+          corrected_measurements_map[
+            'cumulative/ami/' + edp_combination + '_' + str(9).zfill(2)],
+          corrected_measurements_map['union/ami/' + edp_combination]
+      )
+      self.assertLessEqual(
+          corrected_measurements_map[
+            'cumulative/mrc/' + edp_combination + '_' + str(9).zfill(2)],
+          corrected_measurements_map['union/mrc/' + edp_combination]
+      )
+      self.assertLessEqual(
+          corrected_measurements_map[
+            'cumulative/custom/' + edp_combination + '_' + str(9).zfill(2)],
+          corrected_measurements_map['union/custom/' + edp_combination]
+      )
 
     # Verifies that subset measurements are less than superset measurements
-    for i in range(9):
+    for i in range(10):
       self.assertLessEqual(
           corrected_measurements_map['cumulative/ami/edp1_' + str(i).zfill(2)],
           corrected_measurements_map[
@@ -427,9 +377,7 @@ class TestOriginReport(unittest.TestCase):
     )
 
     # Verifies that mrc/custom measurements are less than or equal to ami ones.
-    primitive_edp_combinations = ["edp1", "edp2", "edp1_edp2"]
-    composite_edp_combinations = ["edp1_minus_edp2", "edp2_minus_edp1"]
-    for i in range(9):
+    for i in range(10):
       for edp_combination in primitive_edp_combinations:
         self.assertLessEqual(
             corrected_measurements_map[
