@@ -202,30 +202,26 @@ class PrincipalsService(private val internalPrincipalsStub: InternalPrincipalsCo
 
   override suspend fun lookupPrincipal(request: LookupPrincipalRequest): Principal {
     when (request.lookupKeyCase) {
-      LookupPrincipalRequest.LookupKeyCase.USER -> {}
-      LookupPrincipalRequest.LookupKeyCase.TLS_CLIENT -> {}
+      LookupPrincipalRequest.LookupKeyCase.USER -> {
+        if (request.user.issuer.isEmpty()) {
+          throw RequiredFieldNotSetException("user.issuer")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
+        if (request.user.subject.isEmpty()) {
+          throw RequiredFieldNotSetException("user.subject")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+      }
+      LookupPrincipalRequest.LookupKeyCase.TLS_CLIENT -> {
+        if (request.tlsClient.authorityKeyIdentifier.isEmpty) {
+          throw RequiredFieldNotSetException("tlsclient.authoritykeyidentifier")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+      }
       else ->
         throw RequiredFieldNotSetException("lookup_key")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
-    if (request.lookupKeyCase == LookupPrincipalRequest.LookupKeyCase.USER) {
-      if (request.user.issuer.isEmpty()) {
-        throw RequiredFieldNotSetException("user.issuer")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-
-      if (request.user.subject.isEmpty()) {
-        throw RequiredFieldNotSetException("user.subject")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-    }
-
-    if (request.lookupKeyCase == LookupPrincipalRequest.LookupKeyCase.TLS_CLIENT) {
-      if (request.tlsClient.authorityKeyIdentifier.isEmpty) {
-        throw RequiredFieldNotSetException("tlsclient.authoritykeyidentifier")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
     }
 
     val internalResponse: InternalPrincipal =
@@ -242,9 +238,13 @@ class PrincipalsService(private val internalPrincipalsStub: InternalPrincipalsCo
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
           InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER ->
-            PrincipalNotFoundForUserException(e).asStatusRuntimeException(Status.Code.NOT_FOUND)
+            PrincipalNotFoundForUserException(request.user.issuer, request.user.subject, e)
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
           InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT ->
-            PrincipalNotFoundForTlsClientException(e)
+            PrincipalNotFoundForTlsClientException(
+                request.tlsClient.authorityKeyIdentifier.toString(),
+                e,
+              )
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           InternalErrors.Reason.PRINCIPAL_ALREADY_EXISTS,
           InternalErrors.Reason.PRINCIPAL_NOT_FOUND,
