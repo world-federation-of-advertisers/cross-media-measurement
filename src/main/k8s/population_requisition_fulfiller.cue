@@ -37,9 +37,11 @@ package k8s
     _populationRequisitionFulfillerSecretName:  string
 
     _name = _config.dataProviderDisplayName
+    _object_prefix: "\(_name)-"
 
 	deployments: [Name=string]: #Deployment & {
-        _name:       _name
+        _unprefixed_name: strings.TrimSuffix(Name, "-deployment")
+        _name:            _object_prefix + _unprefixed_name
 		_secretName: _populationRequisitionFulfillerSecretName
 		_system:     "population"
 		_container: {
@@ -76,7 +78,7 @@ package k8s
     }
 
     networkPolicies: [Name=_]: #NetworkPolicy & {
-		_name: Name
+		_name: _object_prefix + Name
 	}
 	networkPolicies: {
         "requisition-fulfillment-server": {
