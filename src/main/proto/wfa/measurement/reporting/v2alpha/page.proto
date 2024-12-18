@@ -219,6 +219,8 @@ message PageSpec {
       //    (i.e. the unique contribution of rs2 with respect to rs2)
       // 3. The incremental reach of (rs1+rs2+rs3) over (rs1+rs2)
       //    (i.e. the unique contribution of rs3 with respect to rs1 and rs2.
+      // TODO(@kungfucraig): Figure out how to do a stacked report by
+      // channel.
       bool stacked_incremental_reach = 2;
     }
     // The set of metrics to compute for the entire Reporting Unit
