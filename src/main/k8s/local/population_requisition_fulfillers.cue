@@ -39,9 +39,8 @@ _populationRequisitionFulfillerConfigs: [
     }
 ]
 
-objectSets: [ for fulfiller in populationRequisitionFulfillers {fulfiller.deployment}] +
-    [ for fulfiller in populationRequisitionFulfillers {fulfiller.networkPolicies}]
-
+objectSets: [ for fulfiller in populationRequisitionFulfillers {[fulfiller.deployment]}] +
+	[ for fulfiller in populationRequisitionFulfillers {fulfiller.networkPolicies}]
 
 populationRequisitionFulfillers: {
     for config in _populationRequisitionFulfillerConfigs {
