@@ -81,10 +81,9 @@ import "list"
                     "--throttler-minimum-interval=\(_config.throttlerMinimumInterval)",
                 ] + _populationFlags + _eventDescriptorFlags
             },
-          spec: template: spec: {
-             _mounts: "config-files": #ConfigMapMount,
-             _dependencies: ["\(displayName)-internal-api-server"]
-          }
+            spec: template: spec: {
+                _mounts: "config-files": #ConfigMapMount
+            }
        }
     },
 
