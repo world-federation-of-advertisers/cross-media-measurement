@@ -241,11 +241,8 @@ class PrincipalsService(private val internalPrincipalsStub: InternalPrincipalsCo
             PrincipalNotFoundForUserException(request.user.issuer, request.user.subject, e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT ->
-            PrincipalNotFoundForTlsClientException(
-                request.tlsClient.authorityKeyIdentifier.toString(),
-                e,
-              )
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+            PrincipalNotFoundForTlsClientException.fromInternal(e)
+              .asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.PRINCIPAL_ALREADY_EXISTS,
           InternalErrors.Reason.PRINCIPAL_NOT_FOUND,
           InternalErrors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED,
