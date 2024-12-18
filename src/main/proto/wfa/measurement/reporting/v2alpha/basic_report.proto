@@ -18,6 +18,7 @@ package wfa.measurement.reporting.v2alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
 import "google/type/date.proto";
 import "google/type/datetime.proto";
 import "wfa/measurement/reporting/v2alpha/page.proto";
@@ -28,7 +29,6 @@ option java_multiple_files = true;
 option java_outer_classname = "BasicReportProto";
 
 // Resource representing a Basic Report.
-// TODO(@kungfucraig): Remove fields not required for Phase I.
 message BasicReport {
   option (google.api.resource) = {
     type: "reporting.halo-cmm.org/BasicReport"
@@ -103,6 +103,12 @@ message BasicReport {
 
   // The results for all Page Definitions in the same order as the definitions.
   repeated Page pages = 8 [
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.field_behavior) = OUTPUT_ONLY
+  ];
+
+  // The time when the resource was created.
+  google.protobuf.Timestamp create_time = 9 [
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.field_behavior) = OUTPUT_ONLY
   ];
