@@ -1,0 +1,46 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/access/service:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/access/service:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "errors",
+    srcs = ["Errors.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
+        "//src/main/proto/google/rpc:error_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/access:principal_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+    ],
+)
+
+kt_jvm_library(
+    name = "id_generator",
+    srcs = ["IdGenerator.kt"],
+)
+
+kt_jvm_library(
+    name = "permission_mapping",
+    srcs = ["PermissionMapping.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/config/access:permissions_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/access:permission_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common:guava",
+    ],
+)
+
+kt_jvm_library(
+    name = "services",
+    srcs = ["Services.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/access:permissions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/access:policies_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/access:principals_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/access:roles_service_kt_jvm_grpc_proto",
+    ],
+)

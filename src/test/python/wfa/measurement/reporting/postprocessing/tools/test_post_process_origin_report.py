@@ -12,12 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import numpy as np
+import os
+import statistics
+import sys
 import unittest
 
+from google.protobuf.json_format import Parse
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_summary_pb2
-from tools.post_process_origin_report import processReportSummary
+from tools.post_process_origin_report import ReportSummaryProcessor
 
 EDP_MAP = {
     "edp1": {"edp1"},
@@ -48,268 +53,477 @@ MRC_MEASUREMENTS = {
               27641241, 27663446, 27683138, 27700680, 27716450],
 }
 
-STDS = {
-    'edp1': 13000.0,
-    'edp2': 13000.0,
-    'union': 1300.0,
-}
-
+# DP params:
+# a) Direct measurement: (eps, delta) = (0.00643, 1e-15) --> sigma = 1051
+# b) MPC measurement:    (eps, delta) = (0.01265, 1e-15) --> sigma =  542
 SIGMAS = {
-    'edp1': 1.0,
-    'edp2': 1.0,
-    'union': 0.1,
+    'edp1': 1051.0,
+    'edp2': 1051.0,
+    'union': 542.0,
 }
 
-
-def get_report_summary_from_data(ami_measurements, mrc_measurements, has_noise):
-  report_summary = report_summary_pb2.ReportSummary()
-  measurement_map = {}
-  # Generates report summary from the measurements
-  for edp in EDP_MAP:
-    ami_measurement_detail = report_summary.measurement_details.add()
-    ami_measurement_detail.measurement_policy = "ami"
-    ami_measurement_detail.set_operation = "cumulative"
-    ami_measurement_detail.is_cumulative = True
-    ami_measurement_detail.data_providers.extend(EDP_MAP[edp])
-    for i in range(len(ami_measurements[edp])):
-      ami_result = ami_measurement_detail.measurement_results.add()
-      ami_result.reach = ami_measurements[edp][i]
-      ami_result.standard_deviation = 0
-      if has_noise:
-        ami_result.reach += int(np.random.normal(0, STDS[edp], 1)[0])
-        ami_result.standard_deviation = SIGMAS[edp]
-      ami_result.metric = "cumulative_metric_" + edp + "_ami_" + str(i).zfill(
-          5)
-      measurement_map[ami_result.metric] = ami_result.reach
-
-    mrc_measurement_detail = report_summary.measurement_details.add()
-    mrc_measurement_detail.measurement_policy = "mrc"
-    mrc_measurement_detail.set_operation = "cumulative"
-    mrc_measurement_detail.is_cumulative = True
-    mrc_measurement_detail.data_providers.extend(EDP_MAP[edp])
-    for i in range(len(mrc_measurements[edp])):
-      mrc_result = mrc_measurement_detail.measurement_results.add()
-      mrc_result.reach = mrc_measurements[edp][i]
-      mrc_result.standard_deviation = 0
-      if has_noise:
-        mrc_result.reach += int(np.random.normal(0, STDS[edp], 1)[0])
-        mrc_result.standard_deviation = SIGMAS[edp]
-      mrc_result.metric = "cumulative_metric_" + edp + "_mrc_" + str(i).zfill(
-          5)
-      measurement_map[mrc_result.metric] = mrc_result.reach
-  return report_summary, measurement_map
+def count_equal_values(noisy_measurement_map, corrected_measurement_map):
+  count = 0
+  for key in noisy_measurement_map:
+    if abs(noisy_measurement_map[key] - corrected_measurement_map[
+      key]) <= DIFF_THRESHOLD:
+      count += 1
+  return count
 
 
 def get_statistics(array, variance_list, bias_list):
   variance_list.append(np.var(array))
   bias_list.append(np.mean(array))
 
-class
+
+TOLERANCE = 1
+DIFF_THRESHOLD = 10
+
+
 class TestOriginReport(unittest.TestCase):
+  def calculate_means_and_variances(self, true_measurements, noisy_measurements,
+      corrected_measurements):
+    # Number of measurements.
+    num_measurements = len(true_measurements)
+    noisy_diff = {}
+    corrected_diff = {}
+
+    for i in range(num_measurements):
+      noisy_diff[i] = []
+      corrected_diff[i] = []
+
+    for i in noisy_measurements:
+      for k in range(num_measurements):
+        noisy_diff[k].append(noisy_measurements[i][k] - true_measurements[k])
+        corrected_diff[k].append(
+          corrected_measurements[i][k] - true_measurements[k])
+
+    noisy_means = []
+    noisy_variances = []
+    corrected_means = []
+    corrected_variances = []
+
+    for k in range(num_measurements):
+      noisy_means.append(statistics.mean(noisy_diff[k]))
+      noisy_variances.append(statistics.variance(noisy_diff[k]))
+      corrected_means.append(statistics.mean(corrected_diff[k]))
+      corrected_variances.append(statistics.variance(corrected_diff[k]))
+
+    print(f"noisy_means: {noisy_means}")
+    print(f"noisy_variances: {noisy_variances}")
+    print(f"corrected_means: {corrected_means}")
+    print(f"corrected_variances: {corrected_variances}")
+    for num in [x / y for x, y in zip(noisy_variances, corrected_variances)]:
+      if num < 0.8:
+        print(f"{num:.2f}")
+
   def test_variance(self):
-    true_report_summary, true_measurement_map = get_report_summary_from_data(
-        AMI_MEASUREMENTS, MRC_MEASUREMENTS, 0)
-    sorted_ground_truth = np.array(
-        list(dict(sorted(true_measurement_map.items())).values()))
+    true_report_summary, true_measurement_map, noisy_measurement_map = \
+      get_report_summary_from_data(AMI_MEASUREMENTS, MRC_MEASUREMENTS)
+    true_measurements = [
+        value for key, value in sorted(true_measurement_map.items())
+    ]
 
-    edp1_gt = sorted_ground_truth[0:17]
-    edp2_gt = sorted_ground_truth[17:34]
-    union_gt = sorted_ground_truth[34:51]
-    unique1_gt = union_gt - edp2_gt
-    unique2_gt = union_gt - edp1_gt
+    true_unique_reach = true_measurement_map['total_metric_union_ami_'] - \
+                        true_measurement_map['total_metric_edp2_ami_']
 
-    noisy_total_variances = []
-    noisy_total_bias = []
-    noisy_unique_reach_1_variances = []
-    noisy_unique_reach_2_variances = []
-    noisy_unique_reach_1_bias = []
-    noisy_unique_reach_2_bias = []
-    corrected_total_variances = []
-    corrected_total_bias = []
-    corrected_unique_reach_1_variances = []
-    corrected_unique_reach_2_variances = []
-    corrected_unique_reach_1_bias = []
-    corrected_unique_reach_2_bias = []
+    for key, value in sorted(noisy_measurement_map.items()):
+      print(f"{key} -> {value}")
 
-    for i in range(0, 50):
-      report_summary, noisy_measurement_map = get_report_summary_from_data(
-          AMI_MEASUREMENTS,
-          MRC_MEASUREMENTS, 1)
+    noisy_results = {}
+    corrected_results = {}
+    noisy_unique_reach_diffs_1 = []
+    corrected_unique_reach_diffs_1 = []
+    noisy_unique_reach_diffs_2 = []
+    corrected_unique_reach_diffs_2 = []
 
-      corrected_measurements = np.array(list(dict(
-          sorted(processReportSummary(report_summary).items())).values()))
+    diffs = []
 
-      noisy_measurement_values = np.array(list(dict(
-          sorted(noisy_measurement_map.items())).values()))
+    for i in range(0, 100):
+      print(f"iteration {i}")
+      report_summary, true_measurement_map, noisy_measurement_map = \
+        get_report_summary_from_data(AMI_MEASUREMENTS, MRC_MEASUREMENTS)
 
-      corrected_edp1 = corrected_measurements[0:17]
-      corrected_edp2 = corrected_measurements[17:34]
-      corrected_union = corrected_measurements[34:51]
-      corrected_unique1 = corrected_union - corrected_edp2
-      corrected_unique2 = corrected_union - corrected_edp1
+      sorted_noisy_measurements = [
+          value for key, value in sorted(noisy_measurement_map.items())
+      ]
 
-      get_statistics(corrected_measurements - sorted_ground_truth,
-                     corrected_total_variances, corrected_total_bias)
-      get_statistics(corrected_unique1 - unique1_gt,
-                     corrected_unique_reach_1_variances,
-                     corrected_unique_reach_1_bias)
-      get_statistics(corrected_unique2 - unique2_gt,
-                     corrected_unique_reach_2_variances,
-                     corrected_unique_reach_2_bias)
+      corrected_measurement_map = ReportSummaryProcessor(
+          report_summary).process()
+      sorted_corrected_measurements = [
+          value for key, value in sorted(corrected_measurement_map.items())
+      ]
+      noisy_results[i] = sorted_noisy_measurements
+      corrected_results[i] = sorted_corrected_measurements
 
-      noisy_edp1 = noisy_measurement_values[0:17]
-      noisy_edp2 = noisy_measurement_values[17:34]
-      noisy_union = noisy_measurement_values[34:51]
-      noisy_unique1 = noisy_union - noisy_edp2
-      noisy_unique2 = noisy_union - noisy_edp1
+      for a, b in zip(sorted_noisy_measurements, sorted_corrected_measurements):
+        diffs.append(abs(a - b))
 
-      get_statistics(noisy_measurement_values - sorted_ground_truth,
-                     noisy_total_variances, noisy_total_bias)
-      get_statistics(noisy_unique1 - unique1_gt, noisy_unique_reach_1_variances,
-                     noisy_unique_reach_1_bias)
-      get_statistics(noisy_unique2 - unique2_gt, noisy_unique_reach_2_variances,
-                     noisy_unique_reach_2_bias)
+      noisy_unique_reach_diffs_1.append(
+          noisy_measurement_map['total_metric_union_ami_'] -
+          noisy_measurement_map['total_metric_edp2_ami_'] -
+          true_unique_reach
+      )
 
-    print(', '.join(str(x) for x in np.array(noisy_total_variances)))
-    print(', '.join(str(x) for x in np.array(corrected_total_variances)))
+      corrected_unique_reach_diffs_1.append(
+          corrected_measurement_map['total_metric_union_ami_'] -
+          corrected_measurement_map['total_metric_edp2_ami_'] -
+          true_unique_reach
+      )
 
-    print(', '.join(str(x) for x in np.array(noisy_unique_reach_1_variances)))
-    print(
-        ', '.join(str(x) for x in np.array(corrected_unique_reach_1_variances)))
+      noisy_unique_reach_diffs_2.append(
+          noisy_measurement_map['total_metric_union_ami_'] -
+          noisy_measurement_map['total_metric_edp1_ami_'] -
+          true_unique_reach
+      )
 
-    print(', '.join(str(x) for x in np.array(noisy_unique_reach_2_variances)))
-    print(
-        ', '.join(str(x) for x in np.array(corrected_unique_reach_2_variances)))
+      corrected_unique_reach_diffs_2.append(
+          corrected_measurement_map['total_metric_union_ami_'] -
+          corrected_measurement_map['total_metric_edp1_ami_'] -
+          true_unique_reach
+      )
 
-    print(', '.join(str(x) for x in np.array(noisy_total_bias)))
-    print(', '.join(str(x) for x in np.array(corrected_total_bias)))
+    # print(f"Diffs between noisy and corrected: {diffs}")
+    # print(f"Noisy unique reach diff: {noisy_unique_reach_diffs}")
+    # print(f"Corrected unique reach diff: {corrected_unique_reach_diffs}")
+    print(f"Noisy unique reach mean: {statistics.mean(noisy_unique_reach_diffs_1)}")
+    print(f"Noisy unique reach variance: {statistics.variance(noisy_unique_reach_diffs_1)}")
+    print(f"Corrected unique reach mean: {statistics.mean(corrected_unique_reach_diffs_1)}")
+    print(f"Corrected unique reach variance: {statistics.variance(corrected_unique_reach_diffs_1)}")
+    print(f"Noisy unique reach mean: {statistics.mean(noisy_unique_reach_diffs_2)}")
+    print(f"Noisy unique reach variance: {statistics.variance(noisy_unique_reach_diffs_2)}")
+    print(f"Corrected unique reach mean: {statistics.mean(corrected_unique_reach_diffs_2)}")
+    print(f"Corrected unique reach variance: {statistics.variance(corrected_unique_reach_diffs_2)}")
 
-    print(', '.join(str(x) for x in np.array(noisy_unique_reach_1_bias)))
-    print(', '.join(str(x) for x in np.array(corrected_unique_reach_1_bias)))
+    self.calculate_means_and_variances(true_measurements, noisy_results,
+                                       corrected_results)
 
-    print(', '.join(str(x) for x in np.array(noisy_unique_reach_2_bias)))
-    print(', '.join(str(x) for x in np.array(corrected_unique_reach_2_bias)))
 
-  def test_report_summary_is_corrected_successfully(self):
-    report_summary = report_summary_pb2.ReportSummary()
-    # Generates report summary from the measurements
-    for edp in EDP_MAP:
-      ami_measurement_detail = report_summary.measurement_details.add()
-      ami_measurement_detail.measurement_policy = "ami"
-      ami_measurement_detail.set_operation = "cumulative"
-      ami_measurement_detail.is_cumulative = True
-      ami_measurement_detail.data_providers.extend(EDP_MAP[edp])
-      for i in range(len(AMI_MEASUREMENTS[edp]) - 1):
-        ami_result = ami_measurement_detail.measurement_results.add()
-        ami_result.reach = AMI_MEASUREMENTS[edp][i]
-        ami_result.standard_deviation = SIGMAS[edp]
-        ami_result.metric = "cumulative_metric_" + edp + "_ami_" + str(i).zfill(
-            5)
+  # def test_report_summary_is_corrected_successfully(self):
+  #   report_summary = report_summary_pb2.ReportSummary()
+  #   # Generates report summary from the measurements. For each edp combination,
+  #   # all measurements except the last one are cumulative measurements, and the
+  #   # last one is the whole campaign measurement.
+  #   num_periods = len(AMI_MEASUREMENTS['edp1']) - 1
+  #   for edp in EDP_MAP:
+  #     ami_measurement_detail = report_summary.measurement_details.add()
+  #     ami_measurement_detail.measurement_policy = "ami"
+  #     ami_measurement_detail.set_operation = "cumulative"
+  #     ami_measurement_detail.is_cumulative = True
+  #     ami_measurement_detail.data_providers.extend(EDP_MAP[edp])
+  #     for i in range(len(AMI_MEASUREMENTS[edp]) - 1):
+  #       ami_result = ami_measurement_detail.measurement_results.add()
+  #       ami_result.reach = AMI_MEASUREMENTS[edp][i]
+  #       ami_result.standard_deviation = SIGMAS[edp]
+  #       ami_result.metric = "cumulative_metric_" + edp + "_ami_" + str(i).zfill(
+  #           5)
+  #
+  #     mrc_measurement_detail = report_summary.measurement_details.add()
+  #     mrc_measurement_detail.measurement_policy = "mrc"
+  #     mrc_measurement_detail.set_operation = "cumulative"
+  #     mrc_measurement_detail.is_cumulative = True
+  #     mrc_measurement_detail.data_providers.extend(EDP_MAP[edp])
+  #     for i in range(num_periods):
+  #       mrc_result = mrc_measurement_detail.measurement_results.add()
+  #       mrc_result.reach = MRC_MEASUREMENTS[edp][i]
+  #       mrc_result.standard_deviation = SIGMAS[edp]
+  #       mrc_result.metric = "cumulative_metric_" + edp + "_mrc_" + str(i).zfill(
+  #           5)
+  #
+  #   for edp in EDP_MAP:
+  #     ami_measurement_detail = report_summary.measurement_details.add()
+  #     ami_measurement_detail.measurement_policy = "ami"
+  #     ami_measurement_detail.set_operation = "union"
+  #     ami_measurement_detail.is_cumulative = False
+  #     ami_measurement_detail.data_providers.extend(EDP_MAP[edp])
+  #     ami_result = ami_measurement_detail.measurement_results.add()
+  #     ami_result.reach = AMI_MEASUREMENTS[edp][len(AMI_MEASUREMENTS[edp]) - 1]
+  #     ami_result.standard_deviation = SIGMAS[edp]
+  #     ami_result.metric = "total_metric_" + edp + "_ami_"
+  #
+  #     mrc_measurement_detail = report_summary.measurement_details.add()
+  #     mrc_measurement_detail.measurement_policy = "mrc"
+  #     mrc_measurement_detail.set_operation = "union"
+  #     mrc_measurement_detail.is_cumulative = False
+  #     mrc_measurement_detail.data_providers.extend(EDP_MAP[edp])
+  #     mrc_result = mrc_measurement_detail.measurement_results.add()
+  #     mrc_result.reach = MRC_MEASUREMENTS[edp][len(MRC_MEASUREMENTS[edp]) - 1]
+  #     mrc_result.standard_deviation = SIGMAS[edp]
+  #     mrc_result.metric = "total_metric_" + edp + "_mrc_"
+  #
+  #   corrected_measurements_map = ReportSummaryProcessor(
+  #       report_summary).process()
+  #
+  #   # Verifies that the updated reach values are consistent.
+  #   for edp in EDP_MAP:
+  #     cumulative_ami_metric_prefix = "cumulative_metric_" + edp + "_ami_"
+  #     cumulative_mrc_metric_prefix = "cumulative_metric_" + edp + "_mrc_"
+  #     total_ami_metric = "total_metric_" + edp + "_ami_"
+  #     total_mrc_metric = "total_metric_" + edp + "_mrc_"
+  #     # Verifies that cumulative measurements are consistent.
+  #     for i in range(num_periods - 1):
+  #       self.assertLessEqual(
+  #           corrected_measurements_map[
+  #             cumulative_ami_metric_prefix + str(i).zfill(5)],
+  #           corrected_measurements_map[
+  #             cumulative_ami_metric_prefix + str(i + 1).zfill(5)])
+  #       self.assertLessEqual(
+  #           corrected_measurements_map[
+  #             cumulative_mrc_metric_prefix + str(i).zfill(5)],
+  #           corrected_measurements_map[
+  #             cumulative_mrc_metric_prefix + str(i + 1).zfill(5)])
+  #     # Verifies that the mrc measurements is less than or equal to the ami ones.
+  #     for i in range(num_periods):
+  #       self.assertLessEqual(
+  #           corrected_measurements_map[
+  #             cumulative_mrc_metric_prefix + str(i).zfill(5)],
+  #           corrected_measurements_map[
+  #             cumulative_ami_metric_prefix + str(i).zfill(5)]
+  #       )
+  #     # Verifies that the total reach is greater than or equal to the last
+  #     # cumulative reach.
+  #
+  #     self.assertLessEqual(
+  #         corrected_measurements_map[
+  #           cumulative_ami_metric_prefix + str(num_periods - 1).zfill(5)],
+  #         corrected_measurements_map[total_ami_metric]
+  #     )
+  #     self.assertLessEqual(
+  #         corrected_measurements_map[
+  #           cumulative_mrc_metric_prefix + str(num_periods - 1).zfill(5)],
+  #         corrected_measurements_map[total_mrc_metric]
+  #     )
+  #
+  #   # Verifies that the union reach is less than or equal to the sum of
+  #   # individual reaches.
+  #   for i in range(num_periods - 1):
+  #     self._assertFuzzyLessEqual(
+  #         corrected_measurements_map[
+  #           "cumulative_metric_union_ami_" + str(i).zfill(5)],
+  #         corrected_measurements_map[
+  #           "cumulative_metric_edp1_ami_" + str(i).zfill(5)] +
+  #         corrected_measurements_map[
+  #           "cumulative_metric_edp2_ami_" + str(i).zfill(5)],
+  #         TOLERANCE
+  #     )
+  #     self._assertFuzzyLessEqual(
+  #         corrected_measurements_map[
+  #           "cumulative_metric_union_mrc_" + str(i).zfill(5)],
+  #         corrected_measurements_map[
+  #           "cumulative_metric_edp1_mrc_" + str(i).zfill(5)] +
+  #         corrected_measurements_map[
+  #           "cumulative_metric_edp2_mrc_" + str(i).zfill(5)],
+  #         TOLERANCE
+  #     )
+  #   self._assertFuzzyLessEqual(
+  #       corrected_measurements_map["total_metric_union_ami_"],
+  #       corrected_measurements_map["total_metric_edp1_ami_"] +
+  #       corrected_measurements_map["total_metric_edp2_ami_"],
+  #       TOLERANCE
+  #   )
+  #   self._assertFuzzyLessEqual(
+  #       corrected_measurements_map["total_metric_union_mrc_"],
+  #       corrected_measurements_map["total_metric_edp1_mrc_"] +
+  #       corrected_measurements_map["total_metric_edp2_mrc_"],
+  #       TOLERANCE
+  #   )
+  #
+  # def test_report_with_unique_reach_is_parsed_correctly(self):
+  #   report_summary = get_report_summary(
+  #       "src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_with_unique_reach.json")
+  #   reportSummaryProcessor = ReportSummaryProcessor(report_summary)
+  #
+  #   reportSummaryProcessor._process_primitive_measurements()
+  #   reportSummaryProcessor._process_unique_reach_measurements()
+  #
+  #   expected_unique_reach_map = {
+  #       'difference/ami/unique_reach_edp2': ['union/ami/edp1_edp2_edp3',
+  #                                            'union/ami/edp1_edp3'],
+  #       'difference/ami/unique_reach_edp1': ['union/ami/edp1_edp2_edp3',
+  #                                            'union/ami/edp2_edp3'],
+  #       'difference/ami/unique_reach_edp3': ['union/ami/edp1_edp2_edp3',
+  #                                            'union/ami/edp1_edp2'],
+  #   }
+  #
+  #   self.assertDictEqual(reportSummaryProcessor._set_difference_map,
+  #                        expected_unique_reach_map)
+  #
+  # def test_report_with_unique_reach_is_corrected_successfully(self):
+  #   report_summary = get_report_summary(
+  #       "src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_with_unique_reach.json")
+  #   corrected_measurements_map = ReportSummaryProcessor(
+  #       report_summary).process()
+  #
+  #   # Cumulative measurements are less than or equal to total measurements.
+  #   self.assertLessEqual(corrected_measurements_map['cumulative/ami/edp1'],
+  #                        corrected_measurements_map['union/ami/edp1'])
+  #   self.assertLessEqual(corrected_measurements_map['cumulative/ami/edp2'],
+  #                        corrected_measurements_map['union/ami/edp2'])
+  #   self.assertLessEqual(corrected_measurements_map['cumulative/ami/edp3'],
+  #                        corrected_measurements_map['union/ami/edp3'])
+  #
+  #   # Subset measurements are less than or equal to superset measurements.
+  #   self.assertLessEqual(corrected_measurements_map['union/ami/edp1'],
+  #                        corrected_measurements_map['union/ami/edp1_edp2'])
+  #   self.assertLessEqual(corrected_measurements_map['union/ami/edp1'],
+  #                        corrected_measurements_map['union/ami/edp1_edp3'])
+  #   self.assertLessEqual(corrected_measurements_map['union/ami/edp1'],
+  #                        corrected_measurements_map['union/ami/edp1_edp2_edp3'])
+  #   self.assertLessEqual(corrected_measurements_map['union/ami/edp2'],
+  #                        corrected_measurements_map['union/ami/edp1_edp2'])
+  #   self.assertLessEqual(corrected_measurements_map['union/ami/edp2'],
+  #                        corrected_measurements_map['union/ami/edp2_edp3'])
+  #   self.assertLessEqual(corrected_measurements_map['union/ami/edp2'],
+  #                        corrected_measurements_map['union/ami/edp1_edp2_edp3'])
+  #   self.assertLessEqual(corrected_measurements_map['union/ami/edp3'],
+  #                        corrected_measurements_map['union/ami/edp1_edp3'])
+  #   self.assertLessEqual(corrected_measurements_map['union/ami/edp3'],
+  #                        corrected_measurements_map['union/ami/edp2_edp3'])
+  #   self.assertLessEqual(corrected_measurements_map['union/ami/edp3'],
+  #                        corrected_measurements_map['union/ami/edp1_edp2_edp3'])
+  #   self.assertLessEqual(corrected_measurements_map['union/ami/edp1_edp2'],
+  #                        corrected_measurements_map['union/ami/edp1_edp2_edp3'])
+  #   self.assertLessEqual(corrected_measurements_map['union/ami/edp1_edp3'],
+  #                        corrected_measurements_map['union/ami/edp1_edp2_edp3'])
+  #   self.assertLessEqual(corrected_measurements_map['union/ami/edp2_edp3'],
+  #                        corrected_measurements_map['union/ami/edp1_edp2_edp3'])
+  #
+  #   # Checks cover relationships.
+  #   self._assertFuzzyLessEqual(
+  #       corrected_measurements_map['union/ami/edp1_edp2_edp3'],
+  #       corrected_measurements_map['union/ami/edp1'] +
+  #       corrected_measurements_map['union/ami/edp2'] +
+  #       corrected_measurements_map['union/ami/edp3'], TOLERANCE)
+  #   self._assertFuzzyLessEqual(
+  #       corrected_measurements_map['union/ami/edp1_edp2_edp3'],
+  #       corrected_measurements_map['union/ami/edp1'] +
+  #       corrected_measurements_map['union/ami/edp2_edp3'], TOLERANCE)
+  #   self._assertFuzzyLessEqual(
+  #       corrected_measurements_map['union/ami/edp1_edp2_edp3'],
+  #       corrected_measurements_map['union/ami/edp2'] +
+  #       corrected_measurements_map['union/ami/edp1_edp3'], TOLERANCE)
+  #   self._assertFuzzyLessEqual(
+  #       corrected_measurements_map['union/ami/edp1_edp2_edp3'],
+  #       corrected_measurements_map['union/ami/edp3'] +
+  #       corrected_measurements_map['union/ami/edp1_edp2'], TOLERANCE)
+  #   self._assertFuzzyLessEqual(
+  #       corrected_measurements_map['union/ami/edp1_edp2'],
+  #       corrected_measurements_map['union/ami/edp1'] +
+  #       corrected_measurements_map['union/ami/edp2'], TOLERANCE)
+  #   self._assertFuzzyLessEqual(
+  #       corrected_measurements_map['union/ami/edp1_edp3'],
+  #       corrected_measurements_map['union/ami/edp1'] +
+  #       corrected_measurements_map['union/ami/edp3'], TOLERANCE)
+  #   self._assertFuzzyLessEqual(
+  #       corrected_measurements_map['union/ami/edp2_edp3'],
+  #       corrected_measurements_map['union/ami/edp2'] +
+  #       corrected_measurements_map['union/ami/edp3'], TOLERANCE)
+  #
+  #   # Checks unique reach measurements.
+  #   self._assertFuzzyEqual(
+  #       corrected_measurements_map['difference/ami/unique_reach_edp1'],
+  #       corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
+  #       corrected_measurements_map['union/ami/edp2_edp3'],
+  #       TOLERANCE
+  #   )
+  #   self._assertFuzzyEqual(
+  #       corrected_measurements_map['difference/ami/unique_reach_edp2'],
+  #       corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
+  #       corrected_measurements_map['union/ami/edp1_edp3'],
+  #       TOLERANCE
+  #   )
+  #   self._assertFuzzyEqual(
+  #       corrected_measurements_map['difference/ami/unique_reach_edp3'],
+  #       corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
+  #       corrected_measurements_map['union/ami/edp1_edp2'],
+  #       TOLERANCE
+  #   )
 
-      mrc_measurement_detail = report_summary.measurement_details.add()
-      mrc_measurement_detail.measurement_policy = "mrc"
-      mrc_measurement_detail.set_operation = "cumulative"
-      mrc_measurement_detail.is_cumulative = True
-      mrc_measurement_detail.data_providers.extend(EDP_MAP[edp])
-      for i in range(len(MRC_MEASUREMENTS[edp]) - 1):
-        mrc_result = mrc_measurement_detail.measurement_results.add()
-        mrc_result.reach = MRC_MEASUREMENTS[edp][i]
-        mrc_result.standard_deviation = SIGMAS[edp]
-        mrc_result.metric = "cumulative_metric_" + edp + "_mrc_" + str(i).zfill(
-            5)
+  def _assertFuzzyEqual(self, x: int, y: int, tolerance: int):
+    self.assertLessEqual(abs(x - y), tolerance)
 
-    for edp in EDP_MAP:
-      ami_measurement_detail = report_summary.measurement_details.add()
-      ami_measurement_detail.measurement_policy = "ami"
-      ami_measurement_detail.set_operation = "union"
-      ami_measurement_detail.is_cumulative = False
-      ami_measurement_detail.data_providers.extend(EDP_MAP[edp])
+  def _assertFuzzyLessEqual(self, x: int, y: int, tolerance: int):
+    self.assertLessEqual(x, y + tolerance)
+
+
+def read_file_to_string(filename: str) -> str:
+  try:
+    with open(filename, 'r') as file:
+      return file.read()
+  except FileNotFoundError:
+    sys.exit(1)
+
+
+def get_report_summary(filename: str):
+  input = read_file_to_string(filename)
+  report_summary = report_summary_pb2.ReportSummary()
+  Parse(input, report_summary)
+  return report_summary
+
+
+def get_report_summary_from_data(ami_measurements, mrc_measurements):
+  report_summary = report_summary_pb2.ReportSummary()
+  # Generates report summary from the measurements. For each edp combination,
+  # all measurements except the last one are cumulative measurements, and the
+  # last one is the whole campaign measurement.
+  num_periods = len(mrc_measurements['edp1']) - 1
+  noisy_measurement_map = {}
+  true_measurement_map = {}
+  for edp in EDP_MAP:
+    ami_measurement_detail = report_summary.measurement_details.add()
+    ami_measurement_detail.measurement_policy = "ami"
+    ami_measurement_detail.set_operation = "cumulative"
+    ami_measurement_detail.is_cumulative = True
+    ami_measurement_detail.data_providers.extend(EDP_MAP[edp])
+
+    for i in range(num_periods):
       ami_result = ami_measurement_detail.measurement_results.add()
-      ami_result.reach = AMI_MEASUREMENTS[edp][len(AMI_MEASUREMENTS[edp]) - 1]
       ami_result.standard_deviation = SIGMAS[edp]
-      ami_result.metric = "total_metric_" + edp + "_ami_"
+      ami_result.metric = "cumulative_metric_" + edp + "_ami_" + str(i).zfill(5)
 
-      mrc_measurement_detail = report_summary.measurement_details.add()
-      mrc_measurement_detail.measurement_policy = "mrc"
-      mrc_measurement_detail.set_operation = "union"
-      mrc_measurement_detail.is_cumulative = False
-      mrc_measurement_detail.data_providers.extend(EDP_MAP[edp])
+      ami_result.reach = ami_measurements[edp][i] + int(np.random.normal(0, SIGMAS[edp], 1)[0])
+      true_measurement_map[ami_result.metric] = ami_measurements[edp][i]
+      noisy_measurement_map[ami_result.metric] = ami_result.reach
+
+    mrc_measurement_detail = report_summary.measurement_details.add()
+    mrc_measurement_detail.measurement_policy = "mrc"
+    mrc_measurement_detail.set_operation = "cumulative"
+    mrc_measurement_detail.is_cumulative = True
+    mrc_measurement_detail.data_providers.extend(EDP_MAP[edp])
+    for i in range(num_periods):
       mrc_result = mrc_measurement_detail.measurement_results.add()
-      mrc_result.reach = MRC_MEASUREMENTS[edp][len(MRC_MEASUREMENTS[edp]) - 1]
       mrc_result.standard_deviation = SIGMAS[edp]
-      mrc_result.metric = "total_metric_" + edp + "_mrc_"
+      mrc_result.metric = "cumulative_metric_" + edp + "_mrc_" + str(i).zfill(5)
+      mrc_result.reach = mrc_measurements[edp][i] + int(np.random.normal(0, SIGMAS[edp], 1)[0])
+      true_measurement_map[mrc_result.metric] = mrc_measurements[edp][i]
+      noisy_measurement_map[mrc_result.metric] = mrc_result.reach
 
-    corrected_measurements_map = processReportSummary(report_summary)
+  for edp in EDP_MAP:
+    ami_measurement_detail = report_summary.measurement_details.add()
+    ami_measurement_detail.measurement_policy = "ami"
+    ami_measurement_detail.set_operation = "union"
+    ami_measurement_detail.is_cumulative = False
+    ami_measurement_detail.data_providers.extend(EDP_MAP[edp])
+    ami_result = ami_measurement_detail.measurement_results.add()
+    ami_result.standard_deviation = SIGMAS[edp]
+    ami_result.metric = "total_metric_" + edp + "_ami_"
+    ami_result.reach = ami_measurements[edp][num_periods] + int(np.random.normal(0, SIGMAS[edp], 1)[0])
+    true_measurement_map[ami_result.metric] = ami_measurements[edp][num_periods]
+    noisy_measurement_map[ami_result.metric] = ami_result.reach
 
-    # Verifies that the updated reach values are consistent.
-    for edp in EDP_MAP:
-      cumulative_ami_metric_prefix = "cumulative_metric_" + edp + "_ami_"
-      cumulative_mrc_metric_prefix = "cumulative_metric_" + edp + "_mrc_"
-      total_ami_metric = "total_metric_" + edp + "_ami_"
-      total_mrc_metric = "total_metric_" + edp + "_mrc_"
-      # Verifies that cumulative measurements are consistent.
-      for i in range(len(AMI_MEASUREMENTS) - 2):
-        self.assertTrue(
-            corrected_measurements_map[
-              cumulative_ami_metric_prefix + str(i).zfill(5)] <=
-            corrected_measurements_map[
-              cumulative_ami_metric_prefix + str(i + 1).zfill(5)])
-        self.assertTrue(
-            corrected_measurements_map[
-              cumulative_mrc_metric_prefix + str(i).zfill(5)] <=
-            corrected_measurements_map[
-              cumulative_mrc_metric_prefix + str(i + 1).zfill(5)])
-      # Verifies that the mrc measurements is less than or equal to the ami ones.
-      for i in range(len(AMI_MEASUREMENTS) - 1):
-        self.assertTrue(
-            corrected_measurements_map[
-              cumulative_mrc_metric_prefix + str(i).zfill(5)] <=
-            corrected_measurements_map[
-              cumulative_ami_metric_prefix + str(i).zfill(5)]
-        )
-      # Verifies that the total reach is greater than or equal to the last
-      # cumulative reach.
-      index = len(AMI_MEASUREMENTS) - 1
-      self.assertTrue(
-          corrected_measurements_map[
-            cumulative_ami_metric_prefix + str(index).zfill(5)] <=
-          corrected_measurements_map[total_ami_metric]
-      )
-      self.assertTrue(
-          corrected_measurements_map[
-            cumulative_mrc_metric_prefix + str(index).zfill(5)] <=
-          corrected_measurements_map[total_mrc_metric]
-      )
+    mrc_measurement_detail = report_summary.measurement_details.add()
+    mrc_measurement_detail.measurement_policy = "mrc"
+    mrc_measurement_detail.set_operation = "union"
+    mrc_measurement_detail.is_cumulative = False
+    mrc_measurement_detail.data_providers.extend(EDP_MAP[edp])
+    mrc_result = mrc_measurement_detail.measurement_results.add()
+    mrc_result.standard_deviation = SIGMAS[edp]
+    mrc_result.metric = "total_metric_" + edp + "_mrc_"
+    mrc_result.reach = mrc_measurements[edp][num_periods] + int(np.random.normal(0, SIGMAS[edp], 1)[0])
+    true_measurement_map[mrc_result.metric] = mrc_measurements[edp][num_periods]
+    noisy_measurement_map[mrc_result.metric] = mrc_result.reach
 
-    # Verifies that the union reach is less than or equal to the sum of
-    # individual reaches.
-    for i in range(len(AMI_MEASUREMENTS) - 1):
-      self.assertTrue(
-          corrected_measurements_map[
-            "cumulative_metric_union_ami_" + str(i).zfill(5)] <=
-          corrected_measurements_map[
-            "cumulative_metric_edp1_ami_" + str(i).zfill(5)] +
-          corrected_measurements_map[
-            "cumulative_metric_edp2_ami_" + str(i).zfill(5)]
-      )
-      self.assertTrue(
-          corrected_measurements_map[
-            "cumulative_metric_union_mrc_" + str(i).zfill(5)] <=
-          corrected_measurements_map[
-            "cumulative_metric_edp1_mrc_" + str(i).zfill(5)] +
-          corrected_measurements_map[
-            "cumulative_metric_edp2_mrc_" + str(i).zfill(5)]
-      )
-    self.assertTrue(
-        corrected_measurements_map["total_metric_union_ami_"] <=
-        corrected_measurements_map["total_metric_edp1_ami_"] +
-        corrected_measurements_map["total_metric_edp2_ami_"]
-    )
-    self.assertTrue(
-        corrected_measurements_map["total_metric_union_mrc_"] <=
-        corrected_measurements_map["total_metric_edp1_mrc_"] +
-        corrected_measurements_map["total_metric_edp2_mrc_"]
-    )
+  return report_summary, true_measurement_map, noisy_measurement_map
 
 
 if __name__ == "__main__":

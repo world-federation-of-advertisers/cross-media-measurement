@@ -67,6 +67,8 @@ jobs:
           build --define worker2_id=worker2
           build --define worker2_public_api_target=worker2.example.com:8443
           build --define mc_name=measurementConsumers/foo
+          build --define mc_api_key=foo
+          build --define mc_cert_name=measurementConsumers/foo/certificates/bar
           build --define edp1_name=dataProviders/foo1
           build --define edp1_cert_name=dataProviders/foo1/certificates/bar1
           build --define edp2_name=dataProviders/foo2
@@ -81,6 +83,10 @@ jobs:
           build --define edp6_cert_name=dataProviders/foo6/certificates/bar6
           build --define google_cloud_project=example-project
           EOF
+
+      # Reduce chance of disconnection from the Build Event Service.
+      - name: Set TCP keepalive
+        run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
 
       - name: Check lockfile
         run: bazel mod deps

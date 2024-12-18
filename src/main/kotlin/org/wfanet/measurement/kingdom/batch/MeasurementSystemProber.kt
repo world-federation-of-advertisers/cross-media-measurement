@@ -27,8 +27,12 @@ import java.security.SecureRandom
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.single
+import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
-import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
@@ -60,6 +64,9 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.flattenConcat
+import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -121,8 +128,7 @@ class MeasurementSystemProber(
   }
 
   private suspend fun createMeasurement() {
-    val dataProviderNameToEventGroup: Map<String, EventGroup> =
-      buildDataProviderNameToEventGroup(dataProviderNames, dataProvidersStub, apiAuthenticationKey)
+    val dataProviderNameToEventGroup: Map<String, EventGroup> = buildDataProviderNameToEventGroup()
 
     val measurementConsumer: MeasurementConsumer =
       try {
@@ -170,7 +176,7 @@ class MeasurementSystemProber(
               epsilon = 0.005
               delta = 1e-15
             }
-            maximumFrequency = 1
+            maximumFrequency = 10
           }
       }
 
@@ -196,54 +202,34 @@ class MeasurementSystemProber(
     )
   }
 
-  private suspend fun buildDataProviderNameToEventGroup(
-    dataProviderNames: List<String>,
-    dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
-    apiAuthenticationKey: String,
-  ): MutableMap<String, EventGroup> {
+  private suspend fun buildDataProviderNameToEventGroup(): Map<String, EventGroup> {
     val dataProviderNameToEventGroup = mutableMapOf<String, EventGroup>()
     for (dataProviderName in dataProviderNames) {
-      val getDataProviderRequest = getDataProviderRequest { name = dataProviderName }
-      val dataProvider: DataProvider =
-        try {
-          dataProvidersStub
-            .withAuthenticationKey(apiAuthenticationKey)
-            .getDataProvider(getDataProviderRequest)
-        } catch (e: StatusException) {
-          throw Exception("Unable to get DataProvider with name $dataProviderName", e)
-        }
-
-      // TODO(@roaminggypsy): Implement QA event group logic using simulatorEventGroupName
-      val listEventGroupsRequest = listEventGroupsRequest {
-        parent = dataProviderName
-        filter =
-          ListEventGroupsRequestKt.filter {
-            measurementConsumers += measurementConsumerName
-            dataProviders += dataProviderName
+      val eventGroup: EventGroup =
+        eventGroupsStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .listResources(1) { pageToken, remaining ->
+            val request = listEventGroupsRequest {
+              parent = measurementConsumerName
+              filter = ListEventGroupsRequestKt.filter { dataProviders += dataProviderName }
+              this.pageToken = pageToken
+              pageSize = remaining
+            }
+            val response =
+              try {
+                listEventGroups(request)
+              } catch (e: StatusException) {
+                throw Exception(
+                  "Unable to get event groups associated with measurement consumer $measurementConsumerName and data provider $dataProviderName",
+                  e,
+                )
+              }
+            ResourceList(response.eventGroupsList, response.nextPageToken)
           }
-      }
+          .map { it.single() }
+          .single()
 
-      val eventGroups: List<EventGroup> =
-        try {
-          eventGroupsStub
-            .withAuthenticationKey(apiAuthenticationKey)
-            .listEventGroups(listEventGroupsRequest)
-            .eventGroupsList
-            .toList()
-        } catch (e: StatusException) {
-          throw Exception(
-            "Unable to get event groups associated with measurement consumer $measurementConsumerName and data provider $dataProviderName",
-            e,
-          )
-        }
-
-      if (eventGroups.size != 1) {
-        throw IllegalStateException(
-          "here should be exactly 1:1 mapping between a data provider and an event group, but data provider $dataProvider is related to ${eventGroups.size} event groups"
-        )
-      }
-
-      dataProviderNameToEventGroup[dataProviderName] = eventGroups[0]
+      dataProviderNameToEventGroup[dataProviderName] = eventGroup
     }
     return dataProviderNameToEventGroup
   }
@@ -262,51 +248,47 @@ class MeasurementSystemProber(
     return clock.instant() >= nextMeasurementEarliestInstant
   }
 
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun getLastUpdatedMeasurement(): Measurement? {
-    var nextPageToken = ""
-    do {
-      val response: ListMeasurementsResponse =
-        try {
-          measurementsStub.listMeasurements(
-            listMeasurementsRequest {
-              parent = measurementConsumerName
-              this.pageSize = 1
-              pageToken = nextPageToken
-            }
-          )
-        } catch (e: StatusException) {
-          throw Exception(
-            "Unable to list measurements for measurement consumer $measurementConsumerName",
-            e,
-          )
-        }
-      if (response.measurementsList.isNotEmpty()) {
-        return response.measurementsList.single()
+    val measurements: Flow<ResourceList<Measurement>> =
+      measurementsStub.withAuthenticationKey(apiAuthenticationKey).listResources(1) {
+        pageToken,
+        remaining ->
+        val response: ListMeasurementsResponse =
+          try {
+            listMeasurements(
+              listMeasurementsRequest {
+                parent = measurementConsumerName
+                this.pageToken = pageToken
+                this.pageSize = remaining
+              }
+            )
+          } catch (e: StatusException) {
+            throw Exception(
+              "Unable to list measurements for measurement consumer $measurementConsumerName",
+              e,
+            )
+          }
+        ResourceList(response.measurementsList, response.nextPageToken)
       }
-      nextPageToken = response.nextPageToken
-    } while (nextPageToken.isNotEmpty())
-    return null
+
+    return measurements.flattenConcat().singleOrNull()
   }
 
-  private suspend fun getRequisitionsForMeasurement(measurementName: String): List<Requisition> {
-    var nextPageToken = ""
-    val requisitions = mutableListOf<Requisition>()
-    do {
-      val response: ListRequisitionsResponse =
-        try {
-          requisitionsStub.listRequisitions(
-            listRequisitionsRequest {
-              parent = measurementName
-              pageToken = nextPageToken
-            }
-          )
-        } catch (e: StatusException) {
-          throw Exception("Unable to list requisitions for measurement $measurementName", e)
-        }
-      requisitions.addAll(response.requisitionsList)
-      nextPageToken = response.nextPageToken
-    } while (nextPageToken.isNotEmpty())
-    return requisitions
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  private fun getRequisitionsForMeasurement(measurementName: String): Flow<Requisition> {
+    return requisitionsStub
+      .withAuthenticationKey(apiAuthenticationKey)
+      .listResources { pageToken ->
+        val response: ListRequisitionsResponse =
+          try {
+            listRequisitions(listRequisitionsRequest { this.pageToken = pageToken })
+          } catch (e: StatusException) {
+            throw Exception("Unable to list requisitions for measurement $measurementName", e)
+          }
+        ResourceList(response.requisitionsList, response.nextPageToken)
+      }
+      .flattenConcat()
   }
 
   private suspend fun getDataProviderEntry(
@@ -365,10 +347,12 @@ class MeasurementSystemProber(
 
   private suspend fun updateLastTerminalRequisitionGauge(lastUpdatedMeasurement: Measurement) {
     val requisitions = getRequisitionsForMeasurement(lastUpdatedMeasurement.name)
-    for (requisition in requisitions) {
+    requisitions.collect { requisition ->
       if (requisition.state == Requisition.State.FULFILLED) {
-        val requisitionKey = CanonicalRequisitionKey.fromName(requisition.name)
-        require(requisitionKey != null) { "CanonicalRequisitionKey cannot be null" }
+        val requisitionKey =
+          requireNotNull(CanonicalRequisitionKey.fromName(requisition.name)) {
+            "Requisition name ${requisition.name} is invalid"
+          }
         val dataProviderName: String = requisitionKey.dataProviderId
         val attributes = Attributes.of(DATA_PROVIDER_ATTRIBUTE_KEY, dataProviderName)
         lastTerminalRequisitionTimeGauge.set(

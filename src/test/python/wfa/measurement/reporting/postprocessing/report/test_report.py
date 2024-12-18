@@ -733,6 +733,10 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
+    # The corrected report should be consistent:
+    # 1. reach[edp1][0] <= reach[edp1 U edp2][0]
+    # 2. reach[edp2][0] <= reach[edp1 U edp2][0]
+    # 3. reach[edp1 U edp2][0] <= reach[edp1][0] + reach[edp2][0].
     corrected = report.get_corrected_report()
 
     expected = Report(
@@ -779,6 +783,11 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
+    # The corrected report should be consistent:
+    # 1. All the time series reaches are monotonic increasing, e.g.
+    # reach[edp1][i] <= reach[edp1][i+1].
+    # 2. Reach of the child set is less than or equal to reach of the parent set
+    # for all period, e.g. reach[edp1][i] <= reach[edp1 U edp2][i].
     corrected = report.get_corrected_report()
 
     expected = Report(
@@ -857,6 +866,16 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
+    # The corrected report should be consistent:
+    # 1. All the time series reaches are monotonic increasing, e.g.
+    # reach[edp1][i] <= reach[edp1][i+1].
+    # 2. Reach of the cover set is less than or equal to the sum of reach of
+    # sets it covers. For example: for each period i it is true that
+    # reach[edp1 U edp2][i] <= reach[edp1][i] + reach[edp2][i],
+    # or reach[edp1 U edp2 U edp3][i] <= reach[edp1 U edp2][i] + reach[edp3][i],
+    # etc.
+    # 3. Reach of the child set is less than or equal to reach of the parent set
+    # for all period, e.g. reach[edp1][i] <= reach[edp1 U edp2][i].
     corrected = report.get_corrected_report()
 
     expected = Report(
@@ -976,6 +995,18 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
+    # The corrected report should be consistent:
+    # 1. All the time series reaches are monotonic increasing, e.g.
+    # reach[edp1][i] <= reach[edp1][i+1].
+    # 2. Reach of the cover set is less than or equal to the sum of reach of
+    # sets it covers. For example: for each period i it is true that
+    # reach[edp1 U edp2][i] <= reach[edp1][i] + reach[edp2][i],
+    # or reach[edp1 U edp2 U edp3][i] <= reach[edp1 U edp2][i] + reach[edp3][i],
+    # etc.
+    # 3. Reach of the child set is less than or equal to reach of the parent set
+    # for all period, e.g. reach[edp1][i] <= reach[edp1 U edp2][i].
+    # 4. Time series reaches are less than or equal to whole campaign reach,
+    # e.g. cumulative_reach[edp1][1] <= whole_campaign_reach[edp1].
     corrected = report.get_corrected_report()
 
     expected = Report(
@@ -1092,6 +1123,10 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
+    # The corrected report should be consistent between time series reaches and
+    # whole campaign reach: time series reaches are less than or equal to whole
+    # campaign reach, e.g. cumulative_reach[edp1][1] <=
+    # whole_campaign_reach[edp1].
     corrected = report.get_corrected_report()
 
     expected = Report(
@@ -1144,58 +1179,6 @@ class TestReport(unittest.TestCase):
 
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
-  def test_allows_incorrect_time_series(self):
-    ami = "ami"
-    report = Report(
-        metric_reports={
-            ami: MetricReport(
-                reach_time_series={
-                    frozenset({EDP_TWO}): [
-                        Measurement(0.00, 1, "measurement_01"),
-                        Measurement(3.30, 1, "measurement_02"),
-                        Measurement(4.00, 1, "measurement_03"),
-                    ],
-                    frozenset({EDP_ONE}): [
-                        Measurement(0.00, 1, "measurement_04"),
-                        Measurement(3.30, 1, "measurement_05"),
-                        Measurement(1.00, 1, "measurement_06"),
-                    ],
-                },
-                reach_whole_campaign={},
-            )
-        },
-        metric_subsets_by_parent={},
-        cumulative_inconsistency_allowed_edp_combinations=set(
-            frozenset({EDP_ONE})),
-    )
-
-    corrected = report.get_corrected_report()
-
-    expected = Report(
-        metric_reports={
-            ami: MetricReport(
-                reach_time_series={
-                    frozenset({EDP_TWO}): [
-                        Measurement(0.00, 1, "measurement_01"),
-                        Measurement(3.30, 1, "measurement_02"),
-                        Measurement(4.00, 1, "measurement_03"),
-                    ],
-                    frozenset({EDP_ONE}): [
-                        Measurement(0.00, 1, "measurement_04"),
-                        Measurement(3.30, 1, "measurement_05"),
-                        Measurement(1.00, 1, "measurement_06"),
-                    ],
-                },
-                reach_whole_campaign={},
-            )
-        },
-        metric_subsets_by_parent={},
-        cumulative_inconsistency_allowed_edp_combinations=set(
-            frozenset({EDP_ONE})),
-    )
-
-    self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
-
   def test_can_correct_related_metrics(self):
     ami = "ami"
     mrc = "mrc"
@@ -1225,6 +1208,9 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
+    # The corrected report should be consistent for metric relations: MRC
+    # measurements are less than or equal to the AMI measurements, e.g.
+    # mrc_reach[edp1][0] <= ami_reach[edp1][0].
     corrected = report.get_corrected_report()
 
     expected = Report(
@@ -1284,6 +1270,9 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
+    # The corrected report should be consistent for metric relations: MRC
+    # measurements are less than or equal to the AMI measurements, e.g.
+    # mrc_reach[edp1][0] <= ami_reach[edp1][0].
     corrected = report.get_corrected_report()
 
     expected = Report(

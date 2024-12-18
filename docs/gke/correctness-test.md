@@ -80,7 +80,8 @@ bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGen
 --test_output=streamed \
 --define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
 --define=mc_name=measurementConsumers/Rcn7fKd25C8 \
---define=mc_api_key=W9q4zad246g
+--define=mc_api_key=W9q4zad246g \
+--define=reporting_public_api_target=v2alpha.reporting.dev.halo-cmm.org:8443
 ```
 
 The time the test takes depends on the size of the data set. With the default

@@ -249,8 +249,8 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.22.0/MODULE.bazel": "6437a69ac68ec8e3589d595a5ed79d3f6404510124e455838ce9cf51b8b27d52",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.22.0/source.json": "844344f41ae9b780cfb0452438388465d3cf7c7b5accedb1fcc4900ace5111ca",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.62.0/MODULE.bazel": "ff213234cf605ff0cf7dc5d55b0e1d0aab7df065f32759e6e64d2d1315110b18",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.69.0/MODULE.bazel": "ae7f68d929c14fad94f43111ce371fdcfb9de048844c567842aca660c6a8d185",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.69.0/source.json": "557faab8b5fcd913edaa13dd0baf4217ef63bc7cda4f164f4bbcc86d208fe6a5",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.70.0/MODULE.bazel": "c385f4377bf437402565d489cd672e2a451ebdea848f64cbf552676d37090d8c",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.70.0/source.json": "a9a63f06cee8f0352c8dca8f3f06a6c503c4a60e4cdcd1eb737e1ba4a35b737b",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gazelle/0.27.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gazelle/0.30.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gazelle/0.32.0/MODULE.bazel": "not found",
@@ -1019,7 +1019,7 @@
     "@@cross-media-measurement-api~//build:non_module_deps.bzl%non_module_deps": {
       "general": {
         "bzlTransitiveDigest": "wE20E2IDEGa/zb/kn5OSg6oUkQSc6bq0ibYHGkBdb/M=",
-        "usagesDigest": "OlamidBvVjnoe9Vgfo/gxFUh8clOfwOzhlzhFt7W5SQ=",
+        "usagesDigest": "7c9PhKJlRxJffHRDNkIWgO1gCPViTV0dSjsobQOtTKY=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -3450,11 +3450,59 @@
         "bzlTransitiveDigest": "MTb5v4rETjE0t0kEfRAxlFmWV6omfPv2i/i887n5Qx4=",
         "usagesDigest": "WPiBQi4Zs7aerqHVmgM76TWokNwERkQOVCmgNkFbPX0=",
         "recordedFileInputs": {
-          "@@//requirements.txt": "7614a8cf868bde39c08809eefe8c9a944ed537850cc7538087e6cf051d05cd24"
+          "@@//requirements.txt": "4822b35968beee15a5afbb3abcd9720c21cb86022daaa92967b35f6d3f98a625"
         },
         "recordedDirentsInputs": {},
         "envVariables": {},
         "generatedRepoSpecs": {
+          "pip_311_qdldl": {
+            "bzlFile": "@@rules_python~//python/pip_install:pip_repository.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "requirement": "qdldl~=0.1.7",
+              "repo": "pip_311",
+              "repo_prefix": "pip_311_",
+              "whl_patches": {},
+              "experimental_target_platforms": [],
+              "python_interpreter": "",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "quiet": true,
+              "timeout": 600,
+              "isolated": true,
+              "extra_pip_args": [],
+              "download_only": false,
+              "pip_data_exclude": [],
+              "enable_implicit_namespace_pkgs": false,
+              "environment": {},
+              "envsubst": [],
+              "group_name": "",
+              "group_deps": []
+            }
+          },
+          "pip_311_cvxopt": {
+            "bzlFile": "@@rules_python~//python/pip_install:pip_repository.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "requirement": "cvxopt~=1.3.2",
+              "repo": "pip_311",
+              "repo_prefix": "pip_311_",
+              "whl_patches": {},
+              "experimental_target_platforms": [],
+              "python_interpreter": "",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "quiet": true,
+              "timeout": 600,
+              "isolated": true,
+              "extra_pip_args": [],
+              "download_only": false,
+              "pip_data_exclude": [],
+              "enable_implicit_namespace_pkgs": false,
+              "environment": {},
+              "envsubst": [],
+              "group_name": "",
+              "group_deps": []
+            }
+          },
           "pip_311_pytz": {
             "bzlFile": "@@rules_python~//python/pip_install:pip_repository.bzl",
             "ruleClassName": "whl_library",
@@ -3671,6 +3719,30 @@
               "group_deps": []
             }
           },
+          "pip_311_osqp": {
+            "bzlFile": "@@rules_python~//python/pip_install:pip_repository.bzl",
+            "ruleClassName": "whl_library",
+            "attributes": {
+              "requirement": "osqp~=0.6.3",
+              "repo": "pip_311",
+              "repo_prefix": "pip_311_",
+              "whl_patches": {},
+              "experimental_target_platforms": [],
+              "python_interpreter": "",
+              "python_interpreter_target": "@@rules_python~~python~python_3_11_host//:python",
+              "quiet": true,
+              "timeout": 600,
+              "isolated": true,
+              "extra_pip_args": [],
+              "download_only": false,
+              "pip_data_exclude": [],
+              "enable_implicit_namespace_pkgs": false,
+              "environment": {},
+              "envsubst": [],
+              "group_name": "",
+              "group_deps": []
+            }
+          },
           "pip_311_python_dateutil": {
             "bzlFile": "@@rules_python~//python/pip_install:pip_repository.bzl",
             "ruleClassName": "whl_library",
@@ -3808,6 +3880,9 @@
                 "black": [
                   "3.11"
                 ],
+                "cvxopt": [
+                  "3.11"
+                ],
                 "dateutil": [
                   "3.11"
                 ],
@@ -3832,6 +3907,9 @@
                 "openpyxl": [
                   "3.11"
                 ],
+                "osqp": [
+                  "3.11"
+                ],
                 "pandas": [
                   "3.11"
                 ],
@@ -3842,6 +3920,9 @@
                   "3.11"
                 ],
                 "pytz": [
+                  "3.11"
+                ],
+                "qdldl": [
                   "3.11"
                 ],
                 "qpsolvers": [

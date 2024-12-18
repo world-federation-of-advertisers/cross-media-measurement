@@ -7,8 +7,10 @@ py_library(
     imports = ["../"],
     visibility = ["//visibility:public"],
     deps = [
+        requirement("cvxopt"),
         requirement("highspy"),
         requirement("numpy"),
+        requirement("osqp"),
         requirement("qpsolvers"),
     ],
 )

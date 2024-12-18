@@ -559,7 +559,7 @@
               "reach": {
                 "value": "31569000",
                 "univariateStatistics": {
-                  "standardDeviation": 102011.27564649425
+                  "standardDeviation": 1.0
                 }
               },
               "frequencyHistogram": {
@@ -682,7 +682,7 @@
               "reach": {
                 "value": "31569000",
                 "univariateStatistics": {
-                  "standardDeviation": 102011.27564649425
+                  "standardDeviation": 1.0
                 }
               },
               "frequencyHistogram": {
@@ -2352,7 +2352,7 @@
     }
   ],
   "tags": {
-    "brands": "\u0027DOVE SELF ESTEEM PROJECT\u0027 \u0027Juci\u0027 \u0027Juci\u0027 \u0027LYNX EPIC FRESH\u0027 \u0027POT NOODLE\u0027",
+    "brands": "'DOVE SELF ESTEEM PROJECT' 'Juci' 'Juci' 'LYNX EPIC FRESH' 'POT NOODLE'",
     "campaign_name": "DC-3edp-cross-3m",
     "end_date": "2024-06-30T00:00:00Z",
     "filter_display_viewability_mrc": "display.viewable_50_percent_plus",
@@ -2360,15 +2360,15 @@
     "media_types": "DISPLAY OTHER VIDEO",
     "report_name": "DC-3edp-cross-3media",
     "start_date": "2024-03-11T00:00:00Z",
-    "target": "\u0027edp1\u0027 \u0027edp2\u0027",
-    "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1": "{measured_entity\u003dedp1, viewability\u003d, set_operation\u003dunion,cumulative, position_in_incrementality\u003d, version\u003d1.0, lhs_reporting_set_ids\u003d, rhs_reporting_set_ids\u003d, target\u003dedp1, incrementality_type\u003dENTITY, video_completion\u003d, channels\u003d, unique_Reach_Target\u003d, media_type\u003dVIDEO, anchor\u003d, primitive_egroup_id\u003dHnCIGKw-5bQ, measurement_entities\u003d, measurement_policy_incrementality\u003d, campaign_id\u003d0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy\u003dAMI}",
-    "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2": "{measured_entity\u003dedp2, viewability\u003d, set_operation\u003dunion,cumulative, position_in_incrementality\u003d, version\u003d1.0, lhs_reporting_set_ids\u003d, rhs_reporting_set_ids\u003d, target\u003dedp2, incrementality_type\u003dENTITY, video_completion\u003d, channels\u003d, unique_Reach_Target\u003d, media_type\u003dVIDEO, anchor\u003d, primitive_egroup_id\u003dHnCIGKw-5bQ, measurement_entities\u003d, measurement_policy_incrementality\u003d, campaign_id\u003d0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy\u003dAMI}",
-    "measurementConsumers/TjyUnormbAg/reportingSets/ami/union": "{measured_entity\u003dedp1,edp2, viewability\u003d, set_operation\u003dunion,cumulative, position_in_incrementality\u003d, version\u003d1.0, lhs_reporting_set_ids\u003d, rhs_reporting_set_ids\u003d, target\u003dedp1,edp2, incrementality_type\u003dENTITY, video_completion\u003d, channels\u003d, unique_Reach_Target\u003d, media_type\u003dVIDEO, anchor\u003d, primitive_egroup_id\u003dHnCIGKw-5bQ, measurement_entities\u003d, measurement_policy_incrementality\u003d, campaign_id\u003d0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy\u003dAMI}",
-    "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1": "{measured_entity\u003dedp1, viewability\u003d, set_operation\u003dunion,cumulative, position_in_incrementality\u003d, version\u003d1.0, lhs_reporting_set_ids\u003d, rhs_reporting_set_ids\u003d, target\u003dedp1, incrementality_type\u003dENTITY, video_completion\u003d, channels\u003d, unique_Reach_Target\u003d, media_type\u003dVIDEO, anchor\u003d, primitive_egroup_id\u003dHnCIGKw-5bQ, measurement_entities\u003d, measurement_policy_incrementality\u003d, campaign_id\u003d0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy\u003dMRC}",
-    "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2": "{measured_entity\u003dedp2, viewability\u003d, set_operation\u003dunion,cumulative, position_in_incrementality\u003d, version\u003d1.0, lhs_reporting_set_ids\u003d, rhs_reporting_set_ids\u003d, target\u003dedp2, incrementality_type\u003dENTITY, video_completion\u003d, channels\u003d, unique_Reach_Target\u003d, media_type\u003dVIDEO, anchor\u003d, primitive_egroup_id\u003dHnCIGKw-5bQ, measurement_entities\u003d, measurement_policy_incrementality\u003d, campaign_id\u003d0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy\u003dMRC}",
-    "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union": "{measured_entity\u003dedp1,edp2, viewability\u003d, set_operation\u003dunion,cumulative, position_in_incrementality\u003d, version\u003d1.0, lhs_reporting_set_ids\u003d, rhs_reporting_set_ids\u003d, target\u003dedp1,edp2, incrementality_type\u003dENTITY, video_completion\u003d, channels\u003d, unique_Reach_Target\u003d, media_type\u003dVIDEO, anchor\u003d, primitive_egroup_id\u003dHnCIGKw-5bQ, measurement_entities\u003d, measurement_policy_incrementality\u003d, campaign_id\u003d0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy\u003dMRC}",
-    "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative": "{metrics\u003dreach, grouping\u003d-, cumulative\u003dtrue, common_filter\u003d-, set_operation\u003dcumulative, metric_frequency\u003dweekly1}",
-    "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union": "{metrics\u003dfrequency, grouping\u003d-, cumulative\u003dfalse, common_filter\u003d-, set_operation\u003dunion, metric_frequency\u003d-}"
+    "target": "'edp1' 'edp2'",
+    "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp1": "{measured_entity=edp1, viewability=, set_operation=union,cumulative, position_in_incrementality=, version=1.0, lhs_reporting_set_ids=, rhs_reporting_set_ids=, target=edp1, incrementality_type=ENTITY, video_completion=, channels=, unique_Reach_Target=, media_type=VIDEO, anchor=, primitive_egroup_id=HnCIGKw-5bQ, measurement_entities=, measurement_policy_incrementality=, campaign_id=0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy=AMI}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/ami/edp2": "{measured_entity=edp2, viewability=, set_operation=union,cumulative, position_in_incrementality=, version=1.0, lhs_reporting_set_ids=, rhs_reporting_set_ids=, target=edp2, incrementality_type=ENTITY, video_completion=, channels=, unique_Reach_Target=, media_type=VIDEO, anchor=, primitive_egroup_id=HnCIGKw-5bQ, measurement_entities=, measurement_policy_incrementality=, campaign_id=0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy=AMI}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/ami/union": "{measured_entity=edp1,edp2, viewability=, set_operation=union,cumulative, position_in_incrementality=, version=1.0, lhs_reporting_set_ids=, rhs_reporting_set_ids=, target=edp1,edp2, incrementality_type=ENTITY, video_completion=, channels=, unique_Reach_Target=, media_type=VIDEO, anchor=, primitive_egroup_id=HnCIGKw-5bQ, measurement_entities=, measurement_policy_incrementality=, campaign_id=0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy=AMI}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp1": "{measured_entity=edp1, viewability=, set_operation=union,cumulative, position_in_incrementality=, version=1.0, lhs_reporting_set_ids=, rhs_reporting_set_ids=, target=edp1, incrementality_type=ENTITY, video_completion=, channels=, unique_Reach_Target=, media_type=VIDEO, anchor=, primitive_egroup_id=HnCIGKw-5bQ, measurement_entities=, measurement_policy_incrementality=, campaign_id=0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy=MRC}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/mrc/edp2": "{measured_entity=edp2, viewability=, set_operation=union,cumulative, position_in_incrementality=, version=1.0, lhs_reporting_set_ids=, rhs_reporting_set_ids=, target=edp2, incrementality_type=ENTITY, video_completion=, channels=, unique_Reach_Target=, media_type=VIDEO, anchor=, primitive_egroup_id=HnCIGKw-5bQ, measurement_entities=, measurement_policy_incrementality=, campaign_id=0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy=MRC}",
+    "measurementConsumers/TjyUnormbAg/reportingSets/mrc/union": "{measured_entity=edp1,edp2, viewability=, set_operation=union,cumulative, position_in_incrementality=, version=1.0, lhs_reporting_set_ids=, rhs_reporting_set_ids=, target=edp1,edp2, incrementality_type=ENTITY, video_completion=, channels=, unique_Reach_Target=, media_type=VIDEO, anchor=, primitive_egroup_id=HnCIGKw-5bQ, measurement_entities=, measurement_policy_incrementality=, campaign_id=0568606a-910b-4a36-a439-b38fc66fc4ae, measurement_policy=MRC}",
+    "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/cumulative": "{metrics=reach, grouping=-, cumulative=true, common_filter=-, set_operation=cumulative, metric_frequency=weekly1}",
+    "measurementConsumers/TjyUnormbAg/metricCalculationSpecs/union": "{metrics=frequency, grouping=-, cumulative=false, common_filter=-, set_operation=union, metric_frequency=-}"
   },
   "reportingInterval": {
     "reportStart": {

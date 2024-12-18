@@ -18,9 +18,104 @@ import numpy as np
 
 from noiseninja.noised_measurements import SetMeasurementsSpec, Measurement
 from noiseninja.solver import Solver
-from typing import FrozenSet
+from qpsolvers import Solution
+from typing import Any, FrozenSet, Tuple
 from itertools import combinations
 from functools import reduce
+
+MIN_STANDARD_VARIATION_RATIO = 0.001
+UNIT_SCALING_FACTOR = 1.0
+
+def get_subset_relationships(edp_combinations: list[FrozenSet[str]]) -> list[
+  Tuple[FrozenSet[str], FrozenSet[str]]]:
+  """Returns a list of tuples where first element in the tuple is the parent
+  and second element is the subset."""
+  subset_relationships = []
+  for comb1, comb2 in combinations(edp_combinations, 2):
+    if comb1.issubset(comb2):
+      subset_relationships.append((comb2, comb1))
+    elif comb2.issubset(comb1):
+      subset_relationships.append((comb1, comb2))
+  return subset_relationships
+
+
+def is_cover(target_set: FrozenSet[str],
+    possible_cover: list[FrozenSet[str]]) -> bool:
+  """Checks if a collection of sets covers a target set.
+
+  Args:
+    target_set: The set that should be covered.
+    possible_cover: A collection of sets that may cover the target set.
+
+  Returns:
+    True if the union of the sets in `possible_cover` equals `target_set`,
+    False otherwise.
+  """
+  union_of_possible_cover = reduce(
+      lambda x, y: x.union(y), possible_cover
+  )
+  return union_of_possible_cover == target_set
+
+
+def get_covers(target_set: FrozenSet[str], other_sets: list[FrozenSet[str]]) -> \
+    list[Tuple[FrozenSet[str], list[FrozenSet[str]]]]:
+  """Finds all combinations of sets from `other_sets` that cover `target_set`.
+
+  This function identifies all possible combinations of sets within `other_sets`
+  whose union equals the `target_set`. It only considers sets that are subsets of
+  the `target_set`.
+
+  Args:
+    target_set: The set that needs to be covered.
+    other_sets: A collection of sets that may be used to cover the `target_set`.
+
+  Returns:
+    A list of tuples, where each tuple represents a covering relationship.
+    The first element of the tuple is the `target_set`, and the second element
+    is a tuple containing the sets from `other_sets` that cover it.
+  """
+
+  def generate_all_length_combinations(data: list[Any]) -> list[
+    tuple[Any, ...]]:
+    """Generates all possible combinations of elements from a list.
+
+    Args:
+      data: A list of elements.
+
+    Returns:
+      A list of tuples, where each tuple represents a combination of elements.
+    """
+    return [
+        comb for r in range(1, len(data) + 1) for comb in
+        combinations(data, r)
+    ]
+
+  cover_relationship = []
+  all_subsets_of_possible_covered = [other_set for other_set in other_sets
+                                     if
+                                     other_set.issubset(target_set)]
+  possible_covers = generate_all_length_combinations(
+      all_subsets_of_possible_covered)
+  for possible_cover in possible_covers:
+    if is_cover(target_set, possible_cover):
+      cover_relationship.append((target_set, possible_cover))
+  return cover_relationship
+
+
+def get_cover_relationships(edp_combinations: list[FrozenSet[str]]) -> list[
+  Tuple[FrozenSet[str], list[FrozenSet[str]]]]:
+  """Returns covers as defined here: # https://en.wikipedia.org/wiki/Cover_(topology).
+  For each set (s_i) in the list, enumerate combinations of all sets excluding this one.
+  For each of these considered combinations, take their union and check if it is equal to
+  s_i. If so, this combination is a cover of s_i.
+  """
+  cover_relationships = []
+  for i in range(len(edp_combinations)):
+    possible_covered = edp_combinations[i]
+    other_sets = edp_combinations[:i] + edp_combinations[i + 1:]
+    cover_relationship = get_covers(possible_covered, other_sets)
+    cover_relationships.extend(cover_relationship)
+  return cover_relationships
 
 
 def get_subset_relationships(edp_combinations: list[FrozenSet[str]]):
@@ -168,42 +263,47 @@ class MetricReport:
         }
     )
 
-  def get_cumulative_measurement(self, edp_combination: str, period: int):
-    return self._reach_time_series[edp_combination][
-      period]
+  def get_cumulative_measurement(self, edp_combination: FrozenSet[str],
+      period: int) -> Measurement:
+    return self._reach_time_series[edp_combination][period]
 
-  def get_whole_campaign_measurement(self, edp_combination: str):
+  def get_whole_campaign_measurement(self,
+      edp_combination: FrozenSet[str]) -> Measurement:
     return self._reach_whole_campaign[edp_combination]
 
-  def get_cumulative_edp_combinations(self):
+  def get_cumulative_edp_combinations(self) -> set[FrozenSet[str]]:
     return set(self._reach_time_series.keys())
 
-  def get_whole_campaign_edp_combinations(self):
+  def get_whole_campaign_edp_combinations(self) -> set[FrozenSet[str]]:
     return set(self._reach_whole_campaign.keys())
 
-  def get_cumulative_edp_combinations_count(self):
+  def get_cumulative_edp_combinations_count(self) -> int:
     return len(self._reach_time_series.keys())
 
-  def get_whole_campaign_edp_combinations_count(self):
+  def get_whole_campaign_edp_combinations_count(self) -> int:
     return len(self._reach_whole_campaign.keys())
 
-  def get_number_of_periods(self):
+  def get_number_of_periods(self) -> int:
     return len(next(iter(self._reach_time_series.values())))
 
-  def get_cumulative_subset_relationships(self):
+  def get_cumulative_subset_relationships(self) -> list[
+    Tuple[FrozenSet[str], FrozenSet[str]]]:
     return get_subset_relationships(list(self._reach_time_series))
 
-  def get_whole_campaign_subset_relationships(self):
+  def get_whole_campaign_subset_relationships(self) -> list[
+    Tuple[FrozenSet[str], FrozenSet[str]]]:
     return get_subset_relationships(list(self._reach_whole_campaign))
 
-  def get_cumulative_cover_relationships(self):
+  def get_cumulative_cover_relationships(self) -> list[
+    Tuple[FrozenSet[str], list[FrozenSet[str]]]]:
     return get_cover_relationships(list(self._reach_time_series))
 
-  def get_whole_campaign_cover_relationships(self):
+  def get_whole_campaign_cover_relationships(self) -> list[
+    Tuple[FrozenSet[str], list[FrozenSet[str]]]]:
     return get_cover_relationships(list(self._reach_whole_campaign))
 
   @staticmethod
-  def _sample_with_noise(measurement: Measurement):
+  def _sample_with_noise(measurement: Measurement) -> Measurement:
     return Measurement(
         measurement.value + random.gauss(0, measurement.sigma),
         measurement.sigma
@@ -227,7 +327,8 @@ class Report:
                                                             which inconsistencies
                                                             in cumulative
                                                             measurements are
-                                                            allowed.
+                                                            allowed. This is for
+                                                            TV measurements.
     """
 
   def __init__(
@@ -266,25 +367,24 @@ class Report:
     for index, metric in enumerate(metric_reports.keys()):
       self._metric_index[metric] = index
 
-    self._edp_combination_index = {}
-    for index, edp_combination in enumerate(
-        next(iter(metric_reports.values())).get_cumulative_edp_combinations()
-    ):
-      self._edp_combination_index[edp_combination] = index
-
-    self._num_edp_combinations = len(self._edp_combination_index.keys())
     self._num_periods = next(
         iter(metric_reports.values())).get_number_of_periods()
 
-    # Assign an index to each measurement.
+    # Assigns an index to each measurement.
     measurement_index = 0
     self._measurement_name_to_index = {}
+    self._max_standard_deviation = UNIT_SCALING_FACTOR
     for metric in metric_reports.keys():
       for edp_combination in metric_reports[
         metric].get_whole_campaign_edp_combinations():
         measurement = metric_reports[metric].get_whole_campaign_measurement(
             edp_combination)
         self._measurement_name_to_index[measurement.name] = measurement_index
+        # Updates the max standard deviation. This max standard deviation will
+        # be used to normalized the standard deviation of the measurements when
+        # the report is corrected.
+        self._max_standard_deviation = max(self._max_standard_deviation,
+                                           measurement.sigma)
         measurement_index += 1
       for edp_combination in metric_reports[
         metric].get_cumulative_edp_combinations():
@@ -292,11 +392,15 @@ class Report:
           measurement = metric_reports[metric].get_cumulative_measurement(
               edp_combination, period)
           self._measurement_name_to_index[measurement.name] = measurement_index
+          # Updates the max standard deviation. This max standard deviation will
+          # be used to normalized the standard deviation of the measurements when
+          # the report is corrected.
+          self._max_standard_deviation = max(self._max_standard_deviation,
+                                             measurement.sigma)
           measurement_index += 1
 
     self._num_vars = measurement_index
-
-  def get_metric_report(self, metric: str) -> MetricReport:
+  def get_metric_report(self, metric: str) -> "MetricReport":
     return self._metric_reports[metric]
 
   def get_metrics(self) -> set[str]:
@@ -308,9 +412,9 @@ class Report:
     """
     spec = self.to_set_measurement_spec()
     solution = Solver(spec).solve_and_translate()
-    return self.report_from_solution(solution, spec)
+    return self.report_from_solution(solution)
 
-  def report_from_solution(self, solution, spec):
+  def report_from_solution(self, solution: Solution) -> "Report":
     return Report(
         metric_reports={
             metric: self._metric_report_from_solution(metric, solution)
@@ -364,13 +468,13 @@ class Report:
         )
     return array
 
-  def to_set_measurement_spec(self):
+  def to_set_measurement_spec(self) -> SetMeasurementsSpec:
     spec = SetMeasurementsSpec()
     self._add_measurements_to_spec(spec)
     self._add_set_relations_to_spec(spec)
     return spec
 
-  def _add_cover_relations_to_spec(self, spec):
+  def _add_cover_relations_to_spec(self, spec: SetMeasurementsSpec):
     # sum of subsets >= union for each period
     for metric in self._metric_reports:
       for cover_relationship in self._metric_reports[
@@ -397,7 +501,7 @@ class Report:
                 metric, covered_parent),
         )
 
-  def _add_subset_relations_to_spec(self, spec):
+  def _add_subset_relations_to_spec(self, spec: SetMeasurementsSpec):
     # Adds relations for cumulative measurements.
     for metric in self._metric_reports:
       for subset_relationship in self._metric_reports[
@@ -437,7 +541,8 @@ class Report:
   # TODO(@ple13):Use timestamp to check if the last cumulative measurement covers
   # the whole campaign. If yes, make sure that the two measurements are equal
   # instead of less than or equal.
-  def _add_cumulative_whole_campaign_relations_to_spec(self, spec):
+  def _add_cumulative_whole_campaign_relations_to_spec(self,
+      spec: SetMeasurementsSpec):
     # Adds relations between cumulative and whole campaign measurements.
     # For an edp combination, the last cumulative measurement is less than or
     # equal to the whole campaign measurement.
@@ -457,7 +562,7 @@ class Report:
                     edp_combination)),
         )
 
-  def _add_metric_relations_to_spec(self, spec):
+  def _add_metric_relations_to_spec(self, spec: SetMeasurementsSpec):
     # metric1>=metric#2
     for parent_metric in self._metric_subsets_by_parent:
       for child_metric in self._metric_subsets_by_parent[parent_metric]:
@@ -493,7 +598,7 @@ class Report:
                       edp_combination)),
           )
 
-  def _add_cumulative_relations_to_spec(self, spec):
+  def _add_cumulative_relations_to_spec(self, spec: SetMeasurementsSpec):
     for metric in self._metric_reports.keys():
       for edp_combination in self._metric_reports[
         metric].get_cumulative_edp_combinations():
@@ -517,7 +622,7 @@ class Report:
                       edp_combination, period + 1)),
           )
 
-  def _add_set_relations_to_spec(self, spec):
+  def _add_set_relations_to_spec(self, spec: SetMeasurementsSpec):
     # sum of subsets >= union for each period.
     self._add_cover_relations_to_spec(spec)
 
@@ -533,16 +638,18 @@ class Report:
     # Last cumulative measurement <= whole campaign measurement.
     self._add_cumulative_whole_campaign_relations_to_spec(spec)
 
-  def _add_measurements_to_spec(self, spec):
+  def _add_measurements_to_spec(self, spec: SetMeasurementsSpec):
     for metric in self._metric_reports.keys():
       for edp_combination in self._metric_reports[
         metric].get_cumulative_edp_combinations():
-        for period in range(0, self._num_periods):
+        for period in range(self._num_periods):
           measurement = self._metric_reports[
             metric].get_cumulative_measurement(edp_combination, period)
           spec.add_measurement(
               self._get_measurement_index(measurement),
-              measurement,
+              Measurement(measurement.value,
+                          self._normalized_sigma(measurement.sigma),
+                          measurement.name),
           )
       for edp_combination in self._metric_reports[
         metric].get_whole_campaign_edp_combinations():
@@ -550,27 +657,50 @@ class Report:
           metric].get_whole_campaign_measurement(edp_combination)
         spec.add_measurement(
             self._get_measurement_index(measurement),
-            measurement,
+            Measurement(measurement.value,
+                        self._normalized_sigma(measurement.sigma),
+                        measurement.name),
         )
 
-  def _get_measurement_index(self, measurement: Measurement):
+  def _normalized_sigma(self, sigma: float) -> float:
+    """Normalizes the standard deviation.
+
+    Args:
+      sigma: The standard deviation to normalize.
+
+    Returns:
+      The normalized standard deviation, capped at
+      MIN_STANDARD_VARIATION_RATIO.
+    """
+
+    # Zero value for sigma means that this measurement will not be corrected,
+    # thus the normalized value of zero is not capped at
+    # MIN_STANDARD_VARIATION_RATIO.
+    if not sigma:
+      return 0.0
+
+    normalized_sigma = sigma / self._max_standard_deviation
+    return max(normalized_sigma, MIN_STANDARD_VARIATION_RATIO)
+
+  def _get_measurement_index(self, measurement: Measurement) -> int:
     return self._measurement_name_to_index[measurement.name]
 
   def _get_cumulative_measurement_index(self, metric: str,
-      edp_combination: str, period: int):
+      edp_combination: FrozenSet[str], period: int) -> int:
     return self._get_measurement_index(
         self._metric_reports[metric].get_cumulative_measurement(
             edp_combination, period)
     )
 
   def _get_whole_campaign_measurement_index(self, metric: str,
-      edp_combination: str):
+      edp_combination: FrozenSet[str]) -> int:
     return self._get_measurement_index(
         self._metric_reports[metric].get_whole_campaign_measurement(
             edp_combination)
     )
 
-  def _metric_report_from_solution(self, metric, solution):
+  def _metric_report_from_solution(self, metric: str,
+      solution: Solution) -> "MetricReport":
     solution_time_series = {}
     solution_whole_campaign = {}
     for edp_combination in self._metric_reports[

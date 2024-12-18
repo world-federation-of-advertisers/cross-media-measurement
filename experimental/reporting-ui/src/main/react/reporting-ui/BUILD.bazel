@@ -70,6 +70,9 @@ webpack_bundle(
     ],
     node_modules = "//:node_modules",
     output_dir = True,
+    tags = [
+        "no-remote-exec",
+    ],
     webpack_config = ":webpack_config",
     deps = [
         ":node_deps",

@@ -52,6 +52,7 @@ jobs:
         MC_NAME: ${{ vars.MC_NAME }}
         MC_API_KEY: ${{ secrets.MC_API_KEY }}
         GCLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
+        REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -59,9 +60,14 @@ jobs:
         build --define mc_name=$MC_NAME
         build --define mc_api_key=$MC_API_KEY
         build --define google_cloud_project=$GCLOUD_PROJECT
+        build --define reporting_public_api_target=$REPORTING_PUBLIC_API_TARGET
         test --test_output=streamed
         test --test_timeout=3600
         EOF
+
+    # Reduce chance of disconnection from the Build Event Service.
+    - name: Set TCP keepalive
+      run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
 
     - name: Run tests
       id: run-tests
