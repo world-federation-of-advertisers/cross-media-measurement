@@ -19,7 +19,8 @@ from qpsolvers import solve_problem, Problem, Solution
 from threading import Semaphore
 from typing import Any
 
-SOLVER = "highs"
+HIGHS_SOLVER = "highs"
+OSQP_SOLVER = "osqp"
 MAX_ATTEMPTS = 10
 SEMAPHORE = Semaphore()
 
@@ -153,9 +154,9 @@ class Solver:
     x0 = np.random.randn(self.num_variables)
     return self._solve_with_initial_value(x0)
 
-  def _solve_with_initial_value(self, x0) -> Solution:
+  def _solve_with_initial_value(self, solver_name, x0) -> Solution:
     problem = self._problem()
-    solution = solve_problem(problem, solver=SOLVER, verbose=False)
+    solution = solve_problem(problem, solver=solver_name, initvals=x0, verbose=False)
     return solution
 
   def _problem(self):
@@ -181,7 +182,7 @@ class Solver:
         # TODO: check if qpsolvers is thread safe,
         #  and remove this semaphore.
         SEMAPHORE.acquire()
-        solution = self._solve()
+        solution = self._solve_with_initial_value(HIGHS_SOLVER, self.base_value)
         SEMAPHORE.release()
 
         if solution.found:
@@ -189,6 +190,14 @@ class Solver:
         else:
           attempt_count += 1
 
+      # If the highs solver does not converge, switch to the osqp solver which
+      # is more robust.
+      if not solution.found:
+        SEMAPHORE.acquire()
+        solution = self._solve_with_initial_value(OSQP_SOLVER, self.base_value)
+        SEMAPHORE.release()
+
+    # Raise the exception when both solvers do not converge.
     if not solution.found:
       raise SolutionNotFoundError(solution)
 
