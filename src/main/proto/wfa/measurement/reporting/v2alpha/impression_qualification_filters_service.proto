@@ -64,7 +64,7 @@ message GetImpressionQualificationFilterRequest {
 // Request message for `ListImpressionQualificationFilter` method
 message ListImpressionQualificationFiltersRequest {
   // Filter criteria. Repeated fields are treated as logical ORs, and multiple
-  // fields specified as logical ANDs.
+  // fields are treated as logical ANDs.
   //
   // At least one of the following criteria must be specified.
   message Filter {
