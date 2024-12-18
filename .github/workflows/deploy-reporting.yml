@@ -15,7 +15,7 @@
 name: Deploy Reporting
 
 on:
-  push:
+  workflow_dispatch:
 
 jobs:
   terraform:

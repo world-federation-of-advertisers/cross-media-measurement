@@ -124,6 +124,8 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         bind("$7", request.reportingSet.details.toJson())
       }
 
+    println("pre create")
+
     try {
       transactionContext.executeStatement(statement)
     } catch (e: R2dbcDataIntegrityViolationException) {
@@ -133,6 +135,8 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         throw e
       }
     }
+
+    println("post create")
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (request.reportingSet.valueCase) {
@@ -224,6 +228,8 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         throw IllegalArgumentException()
       }
     }
+
+    println("additional statements")
 
     return request.reportingSet.copy {
       this.externalReportingSetId = externalReportingSetId
