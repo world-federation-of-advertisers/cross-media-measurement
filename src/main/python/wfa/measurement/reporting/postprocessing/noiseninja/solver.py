@@ -150,10 +150,6 @@ class Solver:
     self.G.append(variables)
     self.h.append([0])
 
-  def _solve(self):
-    x0 = np.random.randn(self.num_variables)
-    return self._solve_with_initial_value(x0)
-
   def _solve_with_initial_value(self, solver_name, x0) -> Solution:
     problem = self._problem()
     solution = solve_problem(problem, solver=solver_name, initvals=x0, verbose=False)
