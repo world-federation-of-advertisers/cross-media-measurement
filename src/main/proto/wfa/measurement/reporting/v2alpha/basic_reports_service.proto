@@ -69,7 +69,7 @@ message ListBasicReportsRequest {
   ];
 
   // Filter criteria. Repeated fields are treated as logical ORs, and multiple
-  // fields specified as logical ANDs.
+  // fields are treated as logical ANDs.
   message Filter {
     // Return BasicReports that were created after this time.
     // (-- api-linter: core::0140::prepositions=disabled
