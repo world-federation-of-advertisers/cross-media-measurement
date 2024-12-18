@@ -56,4 +56,12 @@ message ImpressionQualificationFilter {
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
+
+  // The filter category (e.g. MRC)
+  //
+  // This allows filters to be grouped by category across Filter Types
+  string category = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 }
