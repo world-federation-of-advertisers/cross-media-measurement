@@ -28,7 +28,7 @@ module "clusters" {
   subnet_ids               = module.vpc.private_subnets
   vpc_id                   = module.vpc.vpc_id
   default_instance_types   = ["m5.large"]
-  default_max_node_count   = 2
+  default_max_node_count   = 10
   high_perf_instance_types = ["c5.xlarge"]
   high_perf_max_node_count = 20
 }
