@@ -27,9 +27,9 @@ option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "BasicReportsServiceProto";
 
-// Service for managing 'BasicReport' resources.
+// Service for managing `BasicReport` resources.
 service BasicReports {
-  // Returns the 'BasicReport' with the given resource key.
+  // Returns the `BasicReport` with the given resource key.
   rpc GetBasicReport(GetBasicReportRequest) returns (BasicReport) {
     option (google.api.http) = {
       get: "/v2alpha/{name=measurementConsumers/*/basicReports/*}"
@@ -47,7 +47,7 @@ service BasicReports {
   }
 }
 
-// Request mesage for 'GetBasicReport' method
+// Request message for `GetBasicReport` method
 message GetBasicReportRequest {
   // The name of the basic report to retrieve.
   string name = 1 [
@@ -58,30 +58,32 @@ message GetBasicReportRequest {
   ];
 }
 
-// Request mesage for 'ListBasicReport' method
+// Request message for `ListBasicReport` method
 message ListBasicReportsRequest {
-  // List the Basic Reports of the given parent.
+  // The parent Measurement Consumer
   string parent = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
-      type: "reporting.halo-cmm.org/MeasurementConsumer"
+      child_type: "reporting.halo-cmm.org/BasicReport"
     }
   ];
 
-  // Message for specifying filters for listing BasicReports.
+  // Filter criteria. Repeated fields are treated as logical ORs, and multiple
+  // fields specified as logical ANDs.
   message Filter {
     // Return BasicReports that were created after this time.
     // (-- api-linter: core::0140::prepositions=disabled
     //  -- api-linter: core::0142::time-field-names=disabled
-    //     aip.dev/not-precedent: Using a preposition and not ending with "time"
-    //  is natural here. --)
+    //     aip.dev/not-precedent: Structured filters are used instead of the
+    //     AIP-160 filtering language --)
     google.protobuf.Timestamp create_time_after = 1
         [(google.api.field_behavior) = REQUIRED];
   }
 
   // Filter for the list of BasicReports
   // (-- api-linter: core::0132::request-field-types=disabled
-  //     aip.dev/not-precedent: Use an explicit filter not a string. --)
+  //     aip.dev/not-precedent: Structured filters are used instead of the
+  //     AIP-160 filtering language --)
   Filter filter = 2 [(google.api.field_behavior) = OPTIONAL];
 
   // The maximum number of basic reports to return. The service may return fewer
@@ -98,7 +100,7 @@ message ListBasicReportsRequest {
   string page_token = 4 [(google.api.field_behavior) = OPTIONAL];
 }
 
-// Response message for 'ListBasicReports' method.
+// Response message for `ListBasicReports` method.
 message ListBasicReportsResponse {
   // The Basic Reports that met the filter criteria
   repeated BasicReport basic_reports = 1
