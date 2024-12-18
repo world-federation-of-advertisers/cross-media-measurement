@@ -212,6 +212,7 @@ message PageSpec {
       BasicMetricSpec union = 1 [(google.api.field_behavior) = IMMUTABLE];
 
       // Compute a stacked incremental reach result for the ReportingUnit
+      //
       // For example if the order of the items in the ReportingUnit.units
       // field is "rs1, rs2, rs3" then the following are reported:
       // 1. The reach of rs1
@@ -219,8 +220,21 @@ message PageSpec {
       //    (i.e. the unique contribution of rs2 with respect to rs2)
       // 3. The incremental reach of (rs1+rs2+rs3) over (rs1+rs2)
       //    (i.e. the unique contribution of rs3 with respect to rs1 and rs2.
-      // TODO(@kungfucraig): Figure out how to do a stacked report by
-      // channel.
+      //
+      // In the case a output for a category of components is desired, this
+      // can be achieved by first grouping the components by category. Then
+      // once the output is provided the reach values for the components in the
+      // category can be summed.
+      //
+      // For example, assume we have components EDP1, EDP2, EDP3 and EDP1
+      // is linear TV and EDP2 and EDP3 are digital, and suppose we want an
+      // incremental reach report of linear TV over digital. Then we can specify
+      // the reporting_unit components as [EDP2, EDP3, EDP1] and when the
+      // output is recieved sum the values for EDP2 and EDP3. This results
+      // in a vector where the first element is the combined reach of EDP2
+      // and EDP3 and the second element is the incremental reach of EDP1
+      // with respect to them. Note that it would also be okay to specify
+      // the components as [EDP3, EDP2, EDP1].
       bool stacked_incremental_reach = 2;
     }
     // The set of metrics to compute for the entire Reporting Unit
