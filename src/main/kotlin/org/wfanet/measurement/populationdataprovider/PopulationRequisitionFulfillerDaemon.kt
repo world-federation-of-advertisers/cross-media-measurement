@@ -62,10 +62,10 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
   @Option(
     names = ["--kingdom-system-api-cert-host"],
     description =
-      [
-        "Expected hostname (DNS-ID) in the Kingdom system API server's TLS certificate.",
-        "This overrides derivation of the TLS DNS-ID from --kingdom-system-api-target.",
-      ],
+    [
+      "Expected hostname (DNS-ID) in the Kingdom system API server's TLS certificate.",
+      "This overrides derivation of the TLS DNS-ID from --kingdom-system-api-target.",
+    ],
     required = false,
   )
   private var certHost: String? = null
@@ -125,9 +125,9 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
   @Option(
     names = ["--event-message-descriptor-set"],
     description =
-      [
-        "Serialized FileDescriptorSet for the event message and its dependencies. This can be specified multiple times"
-      ],
+    [
+      "Serialized FileDescriptorSet for the event message and its dependencies. This can be specified multiple times"
+    ],
     required = false,
   )
   private lateinit var eventMessageDescriptorSetFiles: List<File>
@@ -156,6 +156,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
   }
 
   override fun run() {
+    println("joji daemon created...")
     val certificate: X509Certificate =
       pdpCsCertificateDerFile.inputStream().use { input -> readCertificate(input) }
     val signingKeyHandle =

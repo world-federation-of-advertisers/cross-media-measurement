@@ -57,6 +57,24 @@ cue_dump(
     ],
 )
 
+cue_dump(
+    name = "population_requisition_fulfillers",
+    cue_tags = {
+        "secret_name": SECRET_NAME,
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+        "mc_name": "{mc_name}",
+        "pdp1_name": "{pdp1_name}",
+        "pdp1_cert_name": "{pdp1_cert_name}",
+        "population_resource_name": "{population_resource_name}",
+    },
+    tags = ["manual"],
+    deps = [
+        "//src/main/k8s/local:population_requisition_fulfillers_cue",
+    ],
+)
+
 kustomization_dir(
     name = "config_files",
     srcs = [
@@ -106,6 +124,7 @@ kustomization_dir(
     srcs = [
         ":duchies",
         ":edp_simulators",
+        ":population_requisition_fulfillers",
         "//src/main/k8s/local:emulators",
         "//src/main/k8s/local:kingdom",
         "//src/main/k8s/local:postgres_database",
