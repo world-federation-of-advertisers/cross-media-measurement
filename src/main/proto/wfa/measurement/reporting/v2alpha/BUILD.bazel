@@ -23,6 +23,7 @@ proto_library(
         "@com_google_googleapis//google/type:date_proto",
         "@com_google_googleapis//google/type:datetime_proto",
         "@com_google_googleapis//google/type:dayofweek_proto",
+        "@com_google_protobuf//:timestamp_proto",
     ],
 )
 
@@ -69,6 +70,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_protobuf//:duration_proto",
     ],
 )
 
@@ -294,6 +296,26 @@ proto_library(
 kt_jvm_grpc_proto_library(
     name = "event_groups_service_kt_jvm_grpc_proto",
     deps = [":event_groups_service_proto"],
+)
+
+proto_library(
+    name = "impression_qualification_filters_service_proto",
+    srcs = ["impression_qualification_filters_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":impression_qualification_filter_proto",
+        ":impression_qualification_filter_spec_proto",
+        "@com_google_googleapis//google/api:annotations_proto",
+        "@com_google_googleapis//google/api:client_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "impression_qualification_filters_service_kt_jvm_grpc_proto",
+    deps = [":impression_qualification_filters_service_proto"],
 )
 
 proto_library(

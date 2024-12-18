@@ -17,10 +17,11 @@ syntax = "proto3";
 package wfa.measurement.reporting.v2alpha;
 
 import "google/api/field_behavior.proto";
+import "google/protobuf/duration.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
-option java_outer_classname = "ImpressionQualificationFilterProto";
+option java_outer_classname = "ImpressionQualificationFilterSpecProto";
 
 // Specifies the impression filter for a ReportingMediaType.
 //
@@ -36,7 +37,7 @@ message ImpressionQualificationFilterSpec {
   // specified.
   enum FilterType {
     // Default value. Unused.
-    REPORTING_MEDIA_TYPE_UNSPECIFIED = 0;
+    FILTER_TYPE_UNSPECIFIED = 0;
     // Filter is for Cross Media
     CROSS_MEDIA = 1;
     // Filter is for Video
@@ -84,6 +85,13 @@ message ImpressionQualificationFilterSpec {
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
+
   // Specifies the completion filter
-  Percent completion = 3 [(google.api.field_behavior) = IMMUTABLE];
+  oneof completion {
+    // Speifies a completion percent
+    Percent percent = 3 [(google.api.field_behavior) = IMMUTABLE];
+    // Specifies the absolute completion duration
+    google.protobuf.Duration duration = 4
+        [(google.api.field_behavior) = IMMUTABLE];
+  }
 }
