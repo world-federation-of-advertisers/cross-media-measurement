@@ -27,9 +27,9 @@ option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ImpressionQualificationFiltersServiceProto";
 
-// Service for managing 'ImpressionQualificationFilter' resources.
+// Service for managing `ImpressionQualificationFilter` resources.
 service ImpressionQualificationFilters {
-  // Returns the 'ImpressionQualificationFilter' with the given resource key.
+  // Returns the `ImpressionQualificationFilter` with the given resource key.
   rpc GetImpressionQualificationFilter(GetImpressionQualificationFilterRequest)
       returns (ImpressionQualificationFilter) {
     option (google.api.http) = {
@@ -38,7 +38,8 @@ service ImpressionQualificationFilters {
     option (google.api.method_signature) = "name";
   }
 
-  // Ordered by filter type and name in ascending order.
+  // Lists Impression Qualification Filters ordered by filter type and name in
+  // ascending order.
   rpc ListImpressionQualificationFilters(
       ListImpressionQualificationFiltersRequest)
       returns (ListImpressionQualificationFiltersResponse) {
@@ -49,7 +50,7 @@ service ImpressionQualificationFilters {
   }
 }
 
-// Request mesage for 'GetImpressionQualificationFilter' method
+// Request message for `GetImpressionQualificationFilter` method
 message GetImpressionQualificationFilterRequest {
   // The name of the impression qualification filter to retrieve.
   string name = 1 [
@@ -60,22 +61,24 @@ message GetImpressionQualificationFilterRequest {
   ];
 }
 
-// Request mesage for 'ListImpressionQualificationFilter' method
+// Request message for `ListImpressionQualificationFilter` method
 message ListImpressionQualificationFiltersRequest {
-  // Message for specifying filters for listing ImpressionQualificationFilters.
+  // Filter criteria. Repeated fields are treated as logical ORs, and multiple
+  // fields specified as logical ANDs.
   //
   // At least one of the following criteria must be specified.
   message Filter {
-    // Returns impression qualification filters with the given filter type.
+    // Matches `ImpressionQualificationFilter.spec.category`
     ImpressionQualificationFilterSpec.FilterType filter_type = 1
         [(google.api.field_behavior) = OPTIONAL];
 
-    // Returns impression qualification filters with the given category
+    // Matches `ImpressionQualificationFilter.category`
     string category = 2 [(google.api.field_behavior) = OPTIONAL];
   }
   // Filter for the list of ImpressionQualificationFilters
   // (-- api-linter: core::0132::request-field-types=disabled
-  //     aip.dev/not-precedent: Use an explicit filter not a string. --)
+  //     aip.dev/not-precedent: Structured filters are used instead of the
+  //     AIP-160 filtering language --)
   Filter filter = 1 [(google.api.field_behavior) = OPTIONAL];
 
   // The maximum number of filters to return. The service may return fewer
@@ -93,7 +96,7 @@ message ListImpressionQualificationFiltersRequest {
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 }
 
-// Response message for 'ListImpressionQualificationFilters' method.
+// Response message for `ListImpressionQualificationFilters` method.
 message ListImpressionQualificationFiltersResponse {
   // The set of ImpressionQualificationFilters that met the filter criteria
   repeated ImpressionQualificationFilter impression_qualification_filters = 1
