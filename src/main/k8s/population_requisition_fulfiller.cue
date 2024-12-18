@@ -41,51 +41,56 @@ import "list"
 
     let displayName = _config.dataProviderDisplayName
 
-    deployments: [Name=string]: #Deployment & {
-        _name: Name,
-        _secretName: _populationRequisitionFulfillerSecretName,
-        _system: "population",
-        _container: {
-            image: _imageConfig.image
+    _populationFlags: {
+    	let flagLists = [ for config in _config.populationKeyAndInfoList {[
+    		"--population-resource-name=\(config.populationResourceName)",
+            "--population-spec=\(config.populationSpecFile)",
+            "--event-message-type-url=\(config.eventMessageTypeUrl)",
+   		]}]
+   		list.FlattenN(flagLists, 2)
+    }
+
+    _eventDescriptorFlags: {
+        let flagLists = [ for file in _config.eventMessageDescriptorSet {[
+            "--event-message-descriptor-set=\(file)"
+        ]}]
+        list.FlattenN(flagLists, 2)
+    }
+
+    deployment: #Deployment & {
+    	_name:       displayName + "-simulator"
+    	_secretName: _populationRequisitionFulfillerSecretName
+    	_system:     "population"
+    	_container: {
+   			image: _imageConfig.image
+            args: [
+                "--kingdom-system-api-target=\(#KingdomSystemApiTarget)",
+                "--kingdom-system-api-cert-host=localhost",
+                "--data-provider-resource-name=\(_config.dataProviderResourceName)",
+                "--data-provider-display-name=\(displayName)",
+                "--data-provider-certificate-resource-name=\(_config.dataProviderCertResourceName)",
+                "--data-provider-encryption-private-keyset=/var/run/secrets/files/\(displayName)_enc_private.tink",
+                "--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(displayName)_cs_private.der",
+                "--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(displayName)_cs_cert.der",
+                "--throttler-minimum-interval=\(_config.throttlerMinimumInterval)",
+            ] + _populationFlags + _eventDescriptorFlags
+    	}
+    	spec: template: spec: {
+            _mounts: "config-files": #ConfigMapMount
         }
     }
 
-    deployments: {
-       "population-requisition-fulfillment-server": #ServerDeployment & {
-          _container: {
-                args: [
-                    "--kingdom-system-api-target=\(#KingdomSystemApiTarget)",
-                    "--kingdom-system-api-cert-host=localhost",
-                    "--data-provider-resource-name=\(_config.dataProviderResourceName)",
-                    "--data-provider-display-name=\(displayName)",
-                    "--data-provider-certificate-resource-name=\(_config.dataProviderCertResourceName)",
-                    "--data-provider-encryption-private-keyset=/var/run/secrets/files/\(displayName)_enc_private.tink",
-                    "--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(displayName)_cs_private.der",
-                    "--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(displayName)_cs_cert.der",
-                    "--throttler-minimum-interval=\(_config.throttlerMinimumInterval)",
-                ]
-            },
-       }
-    },
-
     networkPolicies: [Name=_]: #NetworkPolicy & {
         _name: Name
-    },
+    }
+
     networkPolicies: {
-        "population-requisition-fulfillment-server": {
-            _app_label: "population-requisition-fulfillment-server-app",
-            _ingresses: {
-                // External API server; allow ingress from anywhere to service port.
-                gRpc: {
-                    ports: [{
-                        port: #GrpcPort
-                    }]
-                }
-            },
-            _egresses: {
-                // Need to send external traffic.
-                any: {}
-            }
+        "\(deployment._name)": {
+            _app_label: deployment.spec.template.metadata.labels.app
+       		_egresses: {
+        	// Need to be able to access Kingdom.
+       			any: {}
+    		}
         }
     }
 }
