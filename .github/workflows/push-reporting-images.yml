@@ -15,7 +15,7 @@
 name: Build and push reporting container images
 
 on:
-  push:
+  workflow_dispatch:
 
 jobs:
   push-images:
