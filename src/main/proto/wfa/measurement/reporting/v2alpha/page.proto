@@ -76,11 +76,13 @@ message CalculationSpec {
   // Only those event template fields that are tagged as groupable
   // and in the common template are supported.
   message Grouping {
-    // A field path with respect to the Event message that indicates the
-    // dimension to group by.
+    // A set field paths that indicate the dimensions to group by.
     //
-    // For example, if there is an event tempalte field in common
-    // named "age_group" then this value should be common.age_group
+    // Each field path is with respect to the Event message with `.` as the
+    // traversal operator.
+    //
+    // For example, if the Event message had an Event Template `common` with
+    // a field `age_group` then the field path would be `common.age_group`.
     repeated string event_template_field = 1 [
       (google.api.field_behavior) = REQUIRED,
       (google.api.field_behavior) = IMMUTABLE
@@ -98,11 +100,10 @@ message CalculationSpec {
     //
     // Negation may be supported in the future.
     message Term {
-      // A field path with respect to the Event message that indicates the
-      // dimension to apply the filter to.
+      // A field path indicating a dimension to filter on.
       //
-      // For example, if there is an event tempalte field in common
-      // named "age_group" then this value should be common.age_group
+      // See Grouping.event_template_field for a complete description of
+      // what is meant by "field path."
       string event_template_field = 1 [
         (google.api.field_behavior) = REQUIRED,
         (google.api.field_behavior) = IMMUTABLE
