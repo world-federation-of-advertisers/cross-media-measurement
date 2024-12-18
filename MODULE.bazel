@@ -340,6 +340,6 @@ single_version_override(
 
 archive_override(
     module_name = "common-jvm",
-    strip_prefix = "common-jvm-5e552c1016dccc5f62101c84b13b801816735d1a",
-    urls = ["https://github.com/world-federation-of-advertisers/common-jvm/archive/5e552c1016dccc5f62101c84b13b801816735d1a.tar.gz"],
+    strip_prefix = "common-jvm-4722635ee6233c82e0c71c691b186070acfb458c",
+    urls = ["https://github.com/world-federation-of-advertisers/common-jvm/archive/4722635ee6233c82e0c71c691b186070acfb458c.tar.gz"],
 )
