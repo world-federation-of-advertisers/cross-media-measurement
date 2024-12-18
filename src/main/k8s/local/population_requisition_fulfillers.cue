@@ -40,7 +40,7 @@ _populationRequisitionFulfillerConfigs: [
 ]
 
 objectSets: [ for fulfiller in populationRequisitionFulfillers {
-    [fulfiller.deployments["population-requisition-fulfillment-server-deployment"]]
+    [fulfiller.deployments["population-requisition-fulfillment-server"]]
 }]
 
 populationRequisitionFulfillers: {

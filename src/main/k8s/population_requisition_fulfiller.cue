@@ -67,7 +67,7 @@ import "list"
     }
 
     deployments: {
-       "population-requisition-fulfillment-server-deployment": #ServerDeployment & {
+       "population-requisition-fulfillment-server": #ServerDeployment & {
           _container: {
                 args: [
                     "--kingdom-system-api-target=\(#KingdomSystemApiTarget)",
@@ -92,7 +92,7 @@ import "list"
         _name: Name
     },
     networkPolicies: {
-        "requisition-fulfillment-server": {
+        "population-requisition-fulfillment-server": {
             _app_label: "population-requisition-fulfillment-server-app",
             _ingresses: {
                 // External API server; allow ingress from anywhere to service port.
