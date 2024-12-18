@@ -66,7 +66,9 @@ class PostgresReportingSetsService(
       }
     }
     return try {
-      CreateReportingSet(request).execute(client, idGenerator)
+      val reportingSet = CreateReportingSet(request).execute(client, idGenerator)
+      println("reporting set creation done")
+      reportingSet
     } catch (e: ReportingSetNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Reporting Set not found")
     } catch (e: ReportingSetAlreadyExistsException) {
