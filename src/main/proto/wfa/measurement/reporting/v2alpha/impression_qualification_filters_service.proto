@@ -68,11 +68,11 @@ message ListImpressionQualificationFiltersRequest {
   //
   // At least one of the following criteria must be specified.
   message Filter {
-    // Matches `ImpressionQualificationFilter.spec.category`
+    // Matches the `filter_spec.filter_type` field
     ImpressionQualificationFilterSpec.FilterType filter_type = 1
         [(google.api.field_behavior) = OPTIONAL];
 
-    // Matches `ImpressionQualificationFilter.category`
+    // Matches the `category` field
     string category = 2 [(google.api.field_behavior) = OPTIONAL];
   }
   // Filter for the list of ImpressionQualificationFilters
