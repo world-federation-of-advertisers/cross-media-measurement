@@ -33,10 +33,7 @@ message ReportingSet {
   };
 
   // Resource name.
-  string name = 1 [
-    (google.api.field_behavior) = IDENTIFIER,
-    (google.api.field_behavior) = IMMUTABLE
-  ];
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 
   // Human-readable name for display purposes.
   string display_name = 2 [(google.api.field_behavior) = OPTIONAL];

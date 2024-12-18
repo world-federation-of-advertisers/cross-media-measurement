@@ -35,10 +35,7 @@ message EventGroup {
   };
 
   // Resource name.
-  string name = 1 [
-    (google.api.field_behavior) = IDENTIFIER,
-    (google.api.field_behavior) = IMMUTABLE
-  ];
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 
   // Resource name of the corresponding `EventGroup` in the CMMS API.
   string cmms_event_group = 2 [

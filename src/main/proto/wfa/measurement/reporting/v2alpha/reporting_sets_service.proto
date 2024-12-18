@@ -112,7 +112,7 @@ message CreateReportingSetRequest {
   ReportingSet reporting_set = 3 [(google.api.field_behavior) = REQUIRED];
 }
 
-// Request message for 'GetReportingSetRequeest' method.
+// Request message for 'GetReportingSetRequest' method.
 message GetReportingSetRequest {
   // The name of the `ReportingSet` to retrieve.
   // Format:
