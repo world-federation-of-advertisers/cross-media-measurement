@@ -764,8 +764,7 @@ class PrincipalsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT.name
-          metadata[Errors.Metadata.AUTHORITY_KEY_IDENTIFIER.key] =
-            request.tlsClient.authorityKeyIdentifier.toString()
+          metadata[Errors.Metadata.AUTHORITY_KEY_IDENTIFIER.key] = "61:6B:69:64"
         }
       )
   }
