@@ -104,7 +104,14 @@ interface ReportProcessor {
       val processOutput =
         BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }
 
+      val processError =
+        BufferedReader(InputStreamReader(process.errorStream)).use { it.readText() }
+
       val exitCode = process.waitFor()
+
+      // Write the logs from python binary execution.
+      logger.info { processError }
+
       require(exitCode == 0) { "Failed to process the report with exitCode $exitCode." }
 
       logger.info { "Finished processing report.." }

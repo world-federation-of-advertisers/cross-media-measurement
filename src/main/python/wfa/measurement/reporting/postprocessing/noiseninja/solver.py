@@ -12,12 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import numpy as np
+import sys
 
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from qpsolvers import solve_problem, Problem, Solution
 from threading import Semaphore
 from typing import Any
+
+logging.basicConfig(
+    stream=sys.stderr,
+    level=logging.INFO,
+    format='%(levelname)s: %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 SOLVER = "highs"
 MAX_ATTEMPTS = 10
@@ -38,6 +47,10 @@ class SolutionNotFoundError(ValueError):
 class Solver:
 
   def __init__(self, set_measurement_spec: SetMeasurementsSpec):
+    logger.info(
+        "Initialize the solver with constraints obtained from the set "
+        "measurement spec."
+    )
     variable_index_by_set_id = Solver._map_sets_to_variables(
         set_measurement_spec)
     self.num_variables = len(variable_index_by_set_id)
@@ -53,6 +66,9 @@ class Solver:
 
   def _init_base_value(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
+    logger.info(
+        "Uses the measurements' value as the initial values for the solver."
+    )
     mean_measurement_by_variable: dict[int, float] = {}
     for measured_set in set_measurement_spec.all_sets():
       mean_measurement_by_variable[
@@ -67,6 +83,10 @@ class Solver:
 
   def _add_measurement_targets(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
+    logger.info(
+        "Calculate the loss and equality terms from each measurement's value "
+        "and variance."
+    )
     for (measured_set, variable) in variable_index_by_set_id.items():
       variables = np.zeros(self.num_variables)
       variables[variable] = 1
@@ -81,6 +101,7 @@ class Solver:
 
   def _map_sets_to_variables(set_measurement_spec: SetMeasurementsSpec) -> dict[
     int, int]:
+    logger.info("Assigns an ID for each measurement set.")
     variable_index_by_set_id: dict[int, int] = {}
     num_variables = 0
     for measured_set in set_measurement_spec.all_sets():
@@ -102,6 +123,7 @@ class Solver:
 
   def _add_subsets(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
+    logger.info("Adding subset constraints.")
     for measured_set in set_measurement_spec.all_sets():
       for subset in set(set_measurement_spec.get_subsets(measured_set)):
         self._add_parent_gt_child_term(
@@ -110,6 +132,7 @@ class Solver:
 
   def _add_covers(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
+    logger.info("Adding cover set constraints.")
     for measured_set in set_measurement_spec.all_sets():
       for cover in set_measurement_spec.get_covers_of_set(measured_set):
         self._add_cover_set_constraint(
@@ -170,8 +193,14 @@ class Solver:
     return problem
 
   def solve(self) -> Solution:
+    logger.info(
+        "Sovles the QP with the constraints extracted from set measurement spec."
+    )
     attempt_count = 0
     if self._is_feasible(self.base_value):
+      logger.info(
+          "The set measurement spec meets all the constraints, no action needed."
+      )
       solution = Solution(x=self.base_value,
                           found=True,
                           extras={'status': 'trivial'},
