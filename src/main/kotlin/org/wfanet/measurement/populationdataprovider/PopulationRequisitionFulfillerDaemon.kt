@@ -15,6 +15,7 @@
 package org.wfanet.measurement.populationdataprovider
 
 import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.TypeRegistry
 import java.io.File
 import java.security.cert.X509Certificate
@@ -23,11 +24,13 @@ import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -156,7 +159,11 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
   }
 
   override fun run() {
-    println("joji daemon created...")
+    println("joji daemon created 2...")
+    println("joji tls flags = ${tlsFlags.certFile.toPath()}")
+    println("joji tls flags = ${tlsFlags.privateKeyFile.toPath()}")
+    println("joji tls flags = ${tlsFlags.certCollectionFile?.toPath()}")
+
     val certificate: X509Certificate =
       pdpCsCertificateDerFile.inputStream().use { input -> readCertificate(input) }
     val signingKeyHandle =
@@ -181,6 +188,8 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
         trustedCertCollectionFile = tlsFlags.certCollectionFile,
       )
 
+    println("joji made it here YAYA")
+
     val channelTarget: String = target
     val channelCertHost: String? = certHost
 
@@ -192,10 +201,14 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
     val modelReleasesStub = ModelReleasesCoroutineStub(publicApiChannel)
 
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
-
+    println("joji made it past the throttler")
     val typeRegistry = buildTypeRegistry()
+    println("joji created type registry ${typeRegistry.getDescriptorForTypeUrl("type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent").name}")
+    println("joji created type registry ${typeRegistry.getDescriptorForTypeUrl("type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent").options}")
+    println("joji created type registry ${typeRegistry.getDescriptorForTypeUrl("type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent").fields}")
 
     val populationInfoMap = buildPopulationInfoMap(typeRegistry)
+    println("joji created type populationInfoMap")
 
     val populationRequisitionFulfiller =
       PopulationRequisitionFulfiller(
@@ -209,21 +222,46 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
         populationInfoMap,
         typeRegistry,
       )
+    println("joji created populationRequisitionFulfiller")
 
     runBlocking { populationRequisitionFulfiller.run() }
   }
 
   private fun buildTypeRegistry(): TypeRegistry {
-    val builder = TypeRegistry.newBuilder()
-    if (::eventMessageDescriptorSetFiles.isInitialized) {
-      val fileDescriptorSets: List<DescriptorProtos.FileDescriptorSet> =
-        eventMessageDescriptorSetFiles.map {
-          parseTextProto(it, DescriptorProtos.FileDescriptorSet.getDefaultInstance())
+    return TypeRegistry.newBuilder()
+      .apply {
+        if (::eventMessageDescriptorSetFiles.isInitialized) {
+          add(
+            ProtoReflection.buildDescriptors(
+              loadFileDescriptorSets(eventMessageDescriptorSetFiles),
+            )
+          )
         }
-      val descriptors = fileDescriptorSets.map { it.descriptorForType }
-      builder.add(descriptors)
+      }
+      .build()
+  }
+
+//  private fun buildTypeRegistry(): TypeRegistry {
+//    val builder = TypeRegistry.newBuilder()
+//    if (::eventMessageDescriptorSetFiles.isInitialized) {
+//      val fileDescriptorSets: List<DescriptorProtos.FileDescriptorSet> =
+//        eventMessageDescriptorSetFiles.map {
+//          parseTextProto(it, DescriptorProtos.FileDescriptorSet.getDefaultInstance())
+//        }
+//      val descriptors = fileDescriptorSets.map { it.descriptorForType }
+//      builder.add(descriptors)
+//    }
+//    return builder.build()
+//  }
+
+  private fun loadFileDescriptorSets(
+    files: Iterable<File>
+  ): List<DescriptorProtos.FileDescriptorSet> {
+    return files.map { file ->
+      file.inputStream().use { input ->
+        DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
+      }
     }
-    return builder.build()
   }
 
   private fun buildPopulationInfoMap(
@@ -236,6 +274,13 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
           typeRegistry.getDescriptorForTypeUrl(it.populationInfo.eventMessageTypeUrl),
         )
     }
+  }
+
+  companion object {
+    private val EXTENSION_REGISTRY =
+      ExtensionRegistry.newInstance()
+        .also { EventAnnotationsProto.registerAllExtensions(it) }
+        .unmodifiable
   }
 }
 

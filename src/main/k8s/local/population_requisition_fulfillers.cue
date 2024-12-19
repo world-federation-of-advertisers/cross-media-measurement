@@ -32,10 +32,10 @@ _populationRequisitionFulfillerConfigs: [
             {
                 populationResourceName: _population_resource_name
                 populationSpecFile: _populationSpec
-                eventMessageTypeUrl: "type.googleapis.com/example.EventMessage"
+                eventMessageTypeUrl: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
             }
         ]
-        eventMessageDescriptorSet: ["type.googleapis.com/example.EventMessage"]
+        eventMessageDescriptorSet: ["/etc/\(#AppName)/config-files/person_type_set.pb", "/etc/\(#AppName)/config-files/test_event_type_set.pb"]
     }
 ]
 

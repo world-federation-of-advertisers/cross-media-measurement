@@ -133,6 +133,20 @@ proto_descriptor_set(
     ],
 )
 
+proto_descriptor_set(
+    name = "person_type_set",
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:person_proto",
+    ],
+)
+
+proto_descriptor_set(
+    name = "test_event_type_set",
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_proto",
+    ],
+)
+
 SECRET_FILES = [
     "all_root_certs.pem",
     "edp_trusted_certs.pem",
