@@ -150,9 +150,10 @@ class Solver:
     self.G.append(variables)
     self.h.append([0])
 
-  def _solve_with_initial_value(self, solver_name, x0) -> Solution:
+  def _solve_with_initial_value(self, solver_name, initial_values) -> Solution:
     problem = self._problem()
-    solution = solve_problem(problem, solver=solver_name, initvals=x0, verbose=False)
+    solution = solve_problem(problem, solver=solver_name,
+                             initvals=initial_values, verbose=False)
     return solution
 
   def _problem(self):
@@ -189,9 +190,17 @@ class Solver:
       # If the highs solver does not converge, switch to the osqp solver which
       # is more robust.
       if not solution.found:
-        SEMAPHORE.acquire()
-        solution = self._solve_with_initial_value(OSQP_SOLVER, self.base_value)
-        SEMAPHORE.release()
+        attempt_count = 0
+        while attempt_count < MAX_ATTEMPTS:
+          SEMAPHORE.acquire()
+          solution = self._solve_with_initial_value(OSQP_SOLVER,
+                                                    self.base_value)
+          SEMAPHORE.release()
+
+          if solution.found:
+            break
+          else:
+            attempt_count += 1
 
     # Raise the exception when both solvers do not converge.
     if not solution.found:
