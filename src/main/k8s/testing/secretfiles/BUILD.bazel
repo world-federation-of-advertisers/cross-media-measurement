@@ -220,6 +220,8 @@ SECRET_FILES = [
     "pdp1_cs_private.der",
     "pdp1_enc_private.tink",
     "pdp1_enc_public.tink",
+    "pdp1_root.pem",
+    "pdp1_root.key",
 ]
 
 filegroup(

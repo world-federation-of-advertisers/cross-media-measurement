@@ -73,6 +73,9 @@ import "list"
                 "--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(displayName)_cs_private.der",
                 "--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(displayName)_cs_cert.der",
                 "--throttler-minimum-interval=\(_config.throttlerMinimumInterval)",
+                "--tls-cert-file=/var/run/secrets/files/\(displayName)_root.pem",
+                "--tls-key-file=/var/run/secrets/files/\(displayName)_root.key",
+   				"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
             ] + _populationFlags + _eventDescriptorFlags
     	}
     	spec: template: spec: {
