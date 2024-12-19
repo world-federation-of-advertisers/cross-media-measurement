@@ -205,9 +205,10 @@ class Solver:
                           problem=self._problem())
     else:
       logger.info(
-          "Attemps to solve the quadratic program with the HIGHS solver."
+          "Attempts to solve the quadratic program with the HIGHS solver."
       )
       while attempt_count < MAX_ATTEMPTS:
+        logger.info(f"HIGHS attempt {attempt_count}.")
         # TODO: check if qpsolvers is thread safe,
         #  and remove this semaphore.
         SEMAPHORE.acquire()
@@ -223,9 +224,15 @@ class Solver:
       # is more robust.
       if not solution.found:
         logger.info("HIGHS solver does not converge, retry with OSQP solver.")
-        SEMAPHORE.acquire()
-        solution = self._solve_with_initial_value(OSQP_SOLVER, self.base_value)
-        SEMAPHORE.release()
+        logger.info(
+            f"The initial values used in OSQP solver are {self.base_value}."
+        )
+        attempt_count = 0
+        while attempt_count < MAX_ATTEMPTS:
+          logger.info(f"OSQP attempt {attempt_count}.")
+          SEMAPHORE.acquire()
+          solution = self._solve_with_initial_value(OSQP_SOLVER, self.base_value)
+          SEMAPHORE.release()
 
     # Raise the exception when both solvers do not converge.
     if not solution.found:
