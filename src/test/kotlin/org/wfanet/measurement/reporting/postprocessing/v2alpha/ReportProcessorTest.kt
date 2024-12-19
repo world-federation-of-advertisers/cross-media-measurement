@@ -17,6 +17,7 @@ package org.wfanet.measurement.reporting.postprocessing.v2alpha
 import com.google.common.truth.Truth.assertThat
 import java.nio.file.Path
 import java.nio.file.Paths
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -69,6 +70,34 @@ class ReportProcessorTest {
     val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
     assertThat(updatedReport.hasConsistentCumulativeMeasurements()).isTrue()
+  }
+
+  @Test
+  fun `run correct report throws RuntimeException when cumulative measurements have different length`() {
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_invalid_cumulative_measurements.json")
+        .toFile()
+    val reportAsJson = reportFile.readText()
+
+    val exception =
+      assertFailsWith<RuntimeException> { ReportProcessor.processReportJson(reportAsJson) }
+
+    assertThat(exception).hasMessageThat().contains("must have the same length")
+  }
+
+  @Test
+  fun `run correct report throws RuntimeException when difference measurements have invalid variance`() {
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve(
+          "sample_report_with_invalid_difference_measurement_variance.json"
+        )
+        .toFile()
+    val reportAsJson = reportFile.readText()
+
+    val exception =
+      assertFailsWith<RuntimeException> { ReportProcessor.processReportJson(reportAsJson) }
+
+    assertThat(exception).hasMessageThat().contains("The variance of the difference measurement")
   }
 
   companion object {

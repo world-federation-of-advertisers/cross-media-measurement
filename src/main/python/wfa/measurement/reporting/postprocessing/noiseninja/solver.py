@@ -19,7 +19,6 @@ import sys
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from qpsolvers import solve_problem, Problem, Solution
 from threading import Semaphore
-from typing import Any
 
 logging.basicConfig(
     stream=sys.stderr,
@@ -28,7 +27,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-SOLVER = "highs"
+HIGHS_SOLVER = "highs"
+OSQP_SOLVER = "osqp"
 MAX_ATTEMPTS = 10
 SEMAPHORE = Semaphore()
 
@@ -172,13 +172,10 @@ class Solver:
     self.G.append(variables)
     self.h.append([0])
 
-  def _solve(self):
-    x0 = np.random.randn(self.num_variables)
-    return self._solve_with_initial_value(x0)
-
-  def _solve_with_initial_value(self, x0) -> Solution:
+  def _solve_with_initial_value(self, solver_name, x0) -> Solution:
     problem = self._problem()
-    solution = solve_problem(problem, solver=SOLVER, verbose=False)
+    solution = solve_problem(problem, solver=solver_name, initvals=x0,
+                             verbose=False)
     return solution
 
   def _problem(self):
@@ -194,7 +191,8 @@ class Solver:
 
   def solve(self) -> Solution:
     logger.info(
-        "Sovles the QP with the constraints extracted from set measurement spec."
+        "Solves the quadratic program with the constraints extracted from set "
+        "measurement spec."
     )
     attempt_count = 0
     if self._is_feasible(self.base_value):
@@ -206,11 +204,14 @@ class Solver:
                           extras={'status': 'trivial'},
                           problem=self._problem())
     else:
+      logger.info(
+          "Attemps to solve the quadratic program with the HIGHS solver."
+      )
       while attempt_count < MAX_ATTEMPTS:
         # TODO: check if qpsolvers is thread safe,
         #  and remove this semaphore.
         SEMAPHORE.acquire()
-        solution = self._solve()
+        solution = self._solve_with_initial_value(HIGHS_SOLVER, self.base_value)
         SEMAPHORE.release()
 
         if solution.found:
@@ -218,7 +219,17 @@ class Solver:
         else:
           attempt_count += 1
 
+      # If the highs solver does not converge, switch to the osqp solver which
+      # is more robust.
+      if not solution.found:
+        logger.info("HIGHS solver does not converge, retry with OSQP solver.")
+        SEMAPHORE.acquire()
+        solution = self._solve_with_initial_value(OSQP_SOLVER, self.base_value)
+        SEMAPHORE.release()
+
+    # Raise the exception when both solvers do not converge.
     if not solution.found:
+      logger.critical("No solution found for the quadratic program.")
       raise SolutionNotFoundError(solution)
 
     return solution

@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 ami = "ami"
 mrc = "mrc"
 
+
 class ReportSummaryProcessor:
   """
   Processes a ReportSummary and corrects the measurements.
@@ -205,10 +206,10 @@ class ReportSummaryProcessor:
           f"{next(iter(cumulative_measurements_length_by_edp_combination.values()))}"
       )
     else:
-      message =\
-        "The input report summary is not valid. All cumulative measurements "\
-        "must have the same length. But the length of the cumulative "\
-        "measurements by EDP combination are:"\
+      message = \
+        "The input report summary is not valid. All cumulative measurements " \
+        "must have the same length. But the length of the cumulative " \
+        "measurements by EDP combination are:" \
         f"{cumulative_measurements_length_by_edp_combination}"
       logger.critical(message)
       raise ValueError(message)
@@ -317,9 +318,9 @@ class ReportSummaryProcessor:
         if difference_measurement.sigma ** 2 - superset_measurement.sigma ** 2 < 0:
           message = \
             "The variance of the difference measurement, which is "\
-            f"{difference_measurement.sigma}, must be greater than the "\
-            "variance of the left hand side measurement "\
-            f"{superset_measurement.name}, which is {superset_measurement.sigma}"
+            f"{difference_measurement.sigma}, must be greater than the variance"\
+            f" of the left hand side measurement {superset_measurement.name}, "\
+            f"which is {superset_measurement.sigma}"
           logger.critical(message)
           raise ValueError(message)
         subset_measurement = Measurement(
@@ -338,6 +339,7 @@ class ReportSummaryProcessor:
         "Finished processing difference measurements (unique reach, incremental"
         " reach)"
     )
+
 
 def main():
   report_summary = report_summary_pb2.ReportSummary()
