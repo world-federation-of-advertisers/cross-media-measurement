@@ -19,6 +19,9 @@ configMapGenerator:
   - encryption_key_pair_config.textproto
   - metric_spec_config.textproto
   - synthetic_population_spec_small.textproto
+  - synthetic_population_spec_large.textproto
   - synthetic_event_group_spec_small_1.textproto
   - synthetic_event_group_spec_small_2.textproto
   - known_event_group_metadata_type_set.pb
+  - person_type_set.pb
+  - test_event_type_set.pb
