@@ -44,9 +44,8 @@ service ImpressionQualificationFilters {
       ListImpressionQualificationFiltersRequest)
       returns (ListImpressionQualificationFiltersResponse) {
     option (google.api.http) = {
-      get: "/v2alpha/{parent=measurementConsumers/*}/impressionQualificationFilters"
+      get: "/v2alpha/impressionQualificationFilters"
     };
-    option (google.api.method_signature) = "parent";
   }
 }
 
