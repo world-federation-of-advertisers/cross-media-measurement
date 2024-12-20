@@ -1539,10 +1539,11 @@ private val INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC = internalMetric {
         clearState()
       }
   }
-  details = InternalMetricKt.details {
-    filters += listOf(METRIC_FILTER)
-    containingReport = CONTAINING_REPORT
-  }
+  details =
+    InternalMetricKt.details {
+      filters += listOf(METRIC_FILTER)
+      containingReport = CONTAINING_REPORT
+    }
 }
 
 private val INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC =
@@ -1636,10 +1637,11 @@ private val INTERNAL_REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC = intern
         clearState()
       }
   }
-  details = InternalMetricKt.details {
-    filters += listOf(METRIC_FILTER)
-    containingReport = CONTAINING_REPORT
-  }
+  details =
+    InternalMetricKt.details {
+      filters += listOf(METRIC_FILTER)
+      containingReport = CONTAINING_REPORT
+    }
 }
 
 private val INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC =
@@ -1713,10 +1715,11 @@ private val INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC = internalMet
         clearState()
       }
   }
-  details = InternalMetricKt.details {
-    filters += listOf(METRIC_FILTER)
-    containingReport = CONTAINING_REPORT
-  }
+  details =
+    InternalMetricKt.details {
+      filters += listOf(METRIC_FILTER)
+      containingReport = CONTAINING_REPORT
+    }
 }
 
 private val INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC =
@@ -1806,10 +1809,11 @@ private val INTERNAL_REQUESTING_CROSS_PUBLISHER_WATCH_DURATION_METRIC = internal
     binaryRepresentation = 1
     measurement = INTERNAL_REQUESTING_UNION_ALL_WATCH_DURATION_MEASUREMENT
   }
-  details = InternalMetricKt.details {
-    filters += listOf(METRIC_FILTER)
-    containingReport = CONTAINING_REPORT
-  }
+  details =
+    InternalMetricKt.details {
+      filters += listOf(METRIC_FILTER)
+      containingReport = CONTAINING_REPORT
+    }
 }
 
 private val INTERNAL_PENDING_INITIAL_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
@@ -1865,10 +1869,11 @@ val INTERNAL_REQUESTING_POPULATION_METRIC = internalMetric {
         clearState()
       }
   }
-  details = InternalMetricKt.details {
-    filters += listOf(INCREMENTAL_REPORTING_SET_FILTER)
-    containingReport = CONTAINING_REPORT
-  }
+  details =
+    InternalMetricKt.details {
+      filters += listOf(INCREMENTAL_REPORTING_SET_FILTER)
+      containingReport = CONTAINING_REPORT
+    }
 }
 
 private val INTERNAL_PENDING_INITIAL_POPULATION_METRIC =
@@ -2717,10 +2722,11 @@ class MetricsServiceTest {
         binaryRepresentation = 1
         measurement = internalMeasurement.copy { clearCmmsMeasurementId() }
       }
-      details = InternalMetricKt.details {
-        filters += METRIC_FILTER
-        containingReport = CONTAINING_REPORT
-      }
+      details =
+        InternalMetricKt.details {
+          filters += METRIC_FILTER
+          containingReport = CONTAINING_REPORT
+        }
       createTime = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.createTime
       state = InternalMetric.State.RUNNING
     }
@@ -2977,10 +2983,11 @@ class MetricsServiceTest {
         binaryRepresentation = 1
         measurement = internalMeasurement.copy { clearCmmsMeasurementId() }
       }
-      details = InternalMetricKt.details {
-        filters += METRIC_FILTER
-        containingReport = CONTAINING_REPORT
-      }
+      details =
+        InternalMetricKt.details {
+          filters += METRIC_FILTER
+          containingReport = CONTAINING_REPORT
+        }
       createTime = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.createTime
       state = InternalMetric.State.RUNNING
     }
@@ -3247,10 +3254,11 @@ class MetricsServiceTest {
         binaryRepresentation = 1
         measurement = internalMeasurement.copy { clearCmmsMeasurementId() }
       }
-      details = InternalMetricKt.details {
-        filters += METRIC_FILTER
-        containingReport = CONTAINING_REPORT
-      }
+      details =
+        InternalMetricKt.details {
+          filters += METRIC_FILTER
+          containingReport = CONTAINING_REPORT
+        }
       createTime = INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.createTime
       state = InternalMetric.State.RUNNING
     }
@@ -6466,10 +6474,11 @@ class MetricsServiceTest {
           binaryRepresentation = 1
           measurement = internalMeasurement
         }
-        details = InternalMetricKt.details {
-          filters += METRIC_FILTER
-          containingReport = CONTAINING_REPORT
-        }
+        details =
+          InternalMetricKt.details {
+            filters += METRIC_FILTER
+            containingReport = CONTAINING_REPORT
+          }
         createTime = INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.createTime
         state = InternalMetric.State.SUCCEEDED
       }
@@ -6643,10 +6652,11 @@ class MetricsServiceTest {
           binaryRepresentation = 1
           measurement = internalMeasurement
         }
-        details = InternalMetricKt.details {
-          filters += METRIC_FILTER
-          containingReport = CONTAINING_REPORT
-        }
+        details =
+          InternalMetricKt.details {
+            filters += METRIC_FILTER
+            containingReport = CONTAINING_REPORT
+          }
         createTime = INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.createTime
         state = InternalMetric.State.SUCCEEDED
       }
@@ -7756,10 +7766,11 @@ class MetricsServiceTest {
           binaryRepresentation = 1
           measurement = INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT
         }
-        details = InternalMetricKt.details {
-          filters += METRIC_FILTER
-          containingReport = CONTAINING_REPORT
-        }
+        details =
+          InternalMetricKt.details {
+            filters += METRIC_FILTER
+            containingReport = CONTAINING_REPORT
+          }
         createTime = INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.createTime
         state = InternalMetric.State.SUCCEEDED
       }
