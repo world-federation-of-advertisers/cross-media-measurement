@@ -65,9 +65,6 @@ class Solver:
 
   def _init_base_value(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
-    logger.info(
-        "Uses the measurements' value as the initial values for the solver."
-    )
     mean_measurement_by_variable: dict[int, float] = {}
     for measured_set in set_measurement_spec.all_sets():
       mean_measurement_by_variable[
@@ -79,6 +76,7 @@ class Solver:
     self.base_value = np.array(list(
         (mean_measurement_by_variable[i]
          for i in range(0, self.num_variables))))
+    logger.info(f"The base values are {self.base_value}.")
 
   def _add_measurement_targets(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
@@ -222,8 +220,8 @@ class Solver:
         else:
           attempt_count += 1
 
-      if not solution.found:
-        raise SolutionNotFoundError(solution)
+    if not solution.found:
+      raise SolutionNotFoundError(solution)
 
     return solution
 

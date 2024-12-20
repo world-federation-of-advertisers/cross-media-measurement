@@ -175,11 +175,11 @@ class MetricReport:
     num_periods = len(next(iter(reach_time_series.values())))
     for series in reach_time_series.values():
       if len(series) != num_periods:
-        raise ValueError(
-            "All time series must have the same length {1: d} vs {2: d}".format(
-                len(series), len(num_periods)
-            )
-        )
+        message =\
+          f"All time series must have the same length {len(series)} vs "\
+          f"{len(num_periods)}."
+        logger.critical(message)
+        raise ValueError(message)
 
     self._reach_time_series = reach_time_series
     self._reach_whole_campaign = reach_whole_campaign

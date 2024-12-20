@@ -351,7 +351,8 @@ def main():
 
   logger.info(
       "Sends the JSON representation of corrected_measurements_dict to the "
-      "parent program.")
+      "parent program."
+  )
   print(json.dumps(corrected_measurements_dict))
 
 
