@@ -214,8 +214,7 @@ message MetricSpec {
 
 // Statistics of a scalar value
 // (-- api-linter: core::0140::abbreviations=disabled
-//     aip.dev/not-precedent: Statistics not stats is an established convention
-//     in this file. --)
+//     aip.dev/not-precedent: Established convention for this file. --)
 message UnivariateStatistics {
   // The standard deviation of the associated scalar variable value.
   //
@@ -234,8 +233,7 @@ message MetricResult {
     // Only set when all source Measurements contain sufficient information to
     // calculate univariate statistics.
     // (-- api-linter: core::0140::abbreviations=disabled
-    //     aip.dev/not-precedent: Statistics not stats is an established
-    //     convention in this file. --)
+    //     aip.dev/not-precedent: Established convention for this file. --)
     UnivariateStatistics univariate_statistics = 2
         [(google.api.field_behavior) = REQUIRED];
   }
@@ -258,8 +256,7 @@ message MetricResult {
       // Only set when all source Measurements contain sufficient information to
       // calculate univariate statistics.
       // (-- api-linter: core::0140::abbreviations=disabled
-      //     aip.dev/not-precedent: Statistics not stats is an established
-      //     convention in this file. --)
+      //     aip.dev/not-precedent: Established convention for this file. --)
       UnivariateStatistics result_univariate_statistics = 3
           [(google.api.field_behavior) = REQUIRED];
       // Univariate statistics of the relative result at this bin.
@@ -268,8 +265,7 @@ message MetricResult {
       // calculate univariate statistics. Relative result = (bin value) / (sum
       // of all bin values)
       // (-- api-linter: core::0140::abbreviations=disabled
-      //     aip.dev/not-precedent: Statistics not stats is an established
-      //     convention in this file. --)
+      //     aip.dev/not-precedent: Established convention for this file. --)
       UnivariateStatistics relative_univariate_statistics = 4
           [(google.api.field_behavior) = REQUIRED];
       // Univariate statistics of the k+ count from the current bin (i.e. k-th
@@ -279,8 +275,7 @@ message MetricResult {
       // calculate univariate statistics. A K+ count is the sum of the values
       // from the k-th bin to the last bin.
       // (-- api-linter: core::0140::abbreviations=disabled
-      //     aip.dev/not-precedent: Statistics not stats is an established
-      //     convention in this file. --)
+      //     aip.dev/not-precedent: Established convention for this file. --)
       UnivariateStatistics k_plus_univariate_statistics = 5
           [(google.api.field_behavior) = REQUIRED];
       // Univariate statistics of the relative k+ count from the current bin
@@ -290,8 +285,7 @@ message MetricResult {
       // calculate univariate statistics. A relative K+ count = (K+ count) /
       // (sum of all bin values)
       // (-- api-linter: core::0140::abbreviations=disabled
-      //     aip.dev/not-precedent: Statistics not stats is an established
-      //     convention in this file. --)
+      //     aip.dev/not-precedent: Established convention for this file. --)
       UnivariateStatistics relative_k_plus_univariate_statistics = 6
           [(google.api.field_behavior) = REQUIRED];
     }
@@ -318,8 +312,7 @@ message MetricResult {
     // source Measurements contain sufficient information to calculate
     // univariate statistics.
     // (-- api-linter: core::0140::abbreviations=disabled
-    //     aip.dev/not-precedent: Statistics not stats is an established
-    //     convention in this file. --)
+    //     aip.dev/not-precedent: Established convention for this file. --)
     UnivariateStatistics univariate_statistics = 2
         [(google.api.field_behavior) = REQUIRED];
   }
@@ -333,8 +326,7 @@ message MetricResult {
     // source Measurements contain sufficient information to calculate
     // univariate statistics.
     // (-- api-linter: core::0140::abbreviations=disabled
-    //     aip.dev/not-precedent: Statistics not stats is an established
-    //     convention in this file. --)
+    //     aip.dev/not-precedent: Established convention for this file. --)
     UnivariateStatistics univariate_statistics = 2
         [(google.api.field_behavior) = REQUIRED];
   }
@@ -345,7 +337,7 @@ message MetricResult {
     int64 value = 1 [(google.api.field_behavior) = REQUIRED];
   }
 
-  // Required. The metric result.
+  // The metric result. At least one value is required.
   oneof result {
     // Reach result.
     ReachResult reach = 3 [(google.api.field_behavior) = OPTIONAL];
