@@ -53,12 +53,12 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.internal.access.ListRolesPageTokenKt.after
+import org.wfanet.measurement.internal.access.ListRolesPageTokenKt.after as internalListRolesPageTokenAfter
 import org.wfanet.measurement.internal.access.RolesGrpcKt as InternalRolesGrpcKt
 import org.wfanet.measurement.internal.access.copy
 import org.wfanet.measurement.internal.access.deleteRoleRequest as internalDeleteRoleRequest
 import org.wfanet.measurement.internal.access.getRoleRequest as internalGetRoleRequest
-import org.wfanet.measurement.internal.access.listRolesPageToken
+import org.wfanet.measurement.internal.access.listRolesPageToken as internalListRolesPageToken
 import org.wfanet.measurement.internal.access.listRolesRequest as internalListRolesRequest
 import org.wfanet.measurement.internal.access.listRolesResponse as internalListRolesResponse
 import org.wfanet.measurement.internal.access.role as internalRole
@@ -177,7 +177,9 @@ class RolesServiceTest {
     }
     val internalListRolesResponse = internalListRolesResponse {
       roles += internalBookReaderRole
-      nextPageToken = listRolesPageToken { after = after { roleResourceId = "bookWriter" } }
+      nextPageToken = internalListRolesPageToken {
+        after = internalListRolesPageTokenAfter { roleResourceId = "bookWriter" }
+      }
     }
     internalServiceMock.stub { onBlocking { listRoles(any()) } doReturn internalListRolesResponse }
 
