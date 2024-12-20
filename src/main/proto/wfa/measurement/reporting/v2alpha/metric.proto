@@ -345,7 +345,7 @@ message MetricResult {
     int64 value = 1 [(google.api.field_behavior) = REQUIRED];
   }
 
-  // The metric result. At least one value is required.
+  // Required. The metric result.
   oneof result {
     // Reach result.
     ReachResult reach = 3 [(google.api.field_behavior) = OPTIONAL];
