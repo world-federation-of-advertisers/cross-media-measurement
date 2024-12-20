@@ -37,7 +37,7 @@ interface ReportProcessor {
    *
    * @param report The serialized [Report] in JSON format.
    * @param verbose If true, enables verbose logging from the underlying report processor library.
-   *                Default value is false.
+   *   Default value is false.
    * @return The corrected serialized [Report] in JSON format.
    */
   fun processReportJson(report: String, verbose: Boolean = false): String
@@ -164,7 +164,6 @@ interface ReportProcessor {
                       metricResult =
                         metricResult.copy { reach = reach.copy { value = correctedReach } }
                     }
-
                     entry.metricResult.hasReachAndFrequency() -> {
                       val scale: Double =
                         correctedReach / entry.metricResult.reachAndFrequency.reach.value.toDouble()
@@ -188,7 +187,6 @@ interface ReportProcessor {
                             }
                         }
                     }
-
                     else -> {}
                   }
                 }

@@ -89,8 +89,8 @@ class ReportProcessorTest {
   fun `run correct report throws RuntimeException when difference measurements have invalid variance`() {
     val reportFile =
       TEST_DATA_RUNTIME_DIR.resolve(
-        "sample_report_with_invalid_difference_measurement_variance.json"
-      )
+          "sample_report_with_invalid_difference_measurement_variance.json"
+        )
         .toFile()
     val reportAsJson = reportFile.readText()
 
