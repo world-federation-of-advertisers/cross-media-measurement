@@ -1521,9 +1521,11 @@ class MetricsService(
             internalReportingSet,
             internalPrimitiveReportingSetMap,
           )
-        details = InternalMetricKt.details {
-          containingReport = request.metric.containingReport
-          filters += request.metric.filtersList }
+        details =
+          InternalMetricKt.details {
+            containingReport = request.metric.containingReport
+            filters += request.metric.filtersList
+          }
       }
     }
   }
