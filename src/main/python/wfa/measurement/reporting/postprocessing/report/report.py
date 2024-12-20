@@ -167,7 +167,6 @@ class MetricReport:
           f"All time series must have the same length {len(series)} vs "\
           f"{len(num_periods)}."
         logging.fatal(message)
-        raise ValueError(message)
 
     self._reach_time_series = reach_time_series
     self._reach_whole_campaign = reach_whole_campaign

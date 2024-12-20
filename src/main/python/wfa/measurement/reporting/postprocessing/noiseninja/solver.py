@@ -69,7 +69,7 @@ class Solver:
 
   def _add_measurement_targets(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
-    logging.info("Calculate the loss and equality terms.")
+    logging.info("Calculating the loss and equality terms.")
     for (measured_set, variable) in variable_index_by_set_id.items():
       variables = np.zeros(self.num_variables)
       variables[variable] = 1

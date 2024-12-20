@@ -80,7 +80,7 @@ class ReportSummaryProcessor:
 
     :return: a mapping between measurement name and its adjusted value.
     """
-    logging.info("Starts processing the report summary.")
+    logging.info("Processing the report summary.")
 
     # Processes primitive measurements (cumulative and union). This step needs
     # to be completed before processing different measurements (e.g. unique
@@ -97,7 +97,7 @@ class ReportSummaryProcessor:
     """
     Correct the report and returns the adjusted value for each measurement.
     """
-    logging.info("Build a report from the report summary.")
+    logging.info("Building a report from the report summary.")
     children_metric = []
     if "mrc" in self._cumulative_measurements:
       children_metric.append("mrc")
@@ -116,12 +116,11 @@ class ReportSummaryProcessor:
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    logging.info("Starts processing the report.")
     corrected_report = report.get_corrected_report()
     logging.info("Finished correcting the report.")
 
     logging.info(
-        "Generates the mapping between between measurement name and its "
+        "Generating the mapping between between measurement name and its "
         "adjusted value."
     )
     metric_name_to_value: dict[str, int] = {}
@@ -159,7 +158,7 @@ class ReportSummaryProcessor:
       keyed by the measurement policy and the set of data providers.
     """
     logging.info(
-        "Starts processing primitive measurements (cumulative and union)."
+        "Processing primitive measurements (cumulative and union)."
     )
     for entry in self._report_summary.measurement_details:
       measurements = [
@@ -167,7 +166,7 @@ class ReportSummaryProcessor:
           for result in entry.measurement_results
       ]
       if entry.set_operation == "cumulative":
-        logging.info(
+        logging.debug(
             f"Processing {entry.measurement_policy} cumulative measurements "
             f"for the EDP combination {entry.data_providers}."
         )
@@ -176,7 +175,7 @@ class ReportSummaryProcessor:
         self._cumulative_measurements[entry.measurement_policy][
           frozenset(entry.data_providers)] = measurements
       elif (entry.set_operation == "union") and (entry.is_cumulative == False):
-        logging.info(
+        logging.debug(
             f"Processing {entry.measurement_policy} total campaign measurements"
             f" for the EDP combination {entry.data_providers}."
         )
@@ -197,7 +196,7 @@ class ReportSummaryProcessor:
     # length. Otherwise, raise the ValueError exception.
     if len(
         set(cumulative_measurements_length_by_edp_combination.values())) <= 1:
-      logging.info(
+      logging.debug(
           "Number of cumulative measurements per EDP combination is: "
           f"{next(iter(cumulative_measurements_length_by_edp_combination.values()))}"
       )
@@ -208,7 +207,6 @@ class ReportSummaryProcessor:
         "measurements by EDP combination are:" \
         f"{cumulative_measurements_length_by_edp_combination}"
       logging.fatal(message)
-      raise ValueError(message)
 
     logging.info("Finished processing primitive measurements.")
 
@@ -245,8 +243,7 @@ class ReportSummaryProcessor:
     measurement set before adding the above mapping.
     """
     logging.info(
-        "Starts processing difference measurements (unique reach, incremental "
-        "reach)"
+        "Processing difference measurements (unique reach, incremental reach)"
     )
     difference_measurements = []
     for entry in self._report_summary.measurement_details:
@@ -255,12 +252,11 @@ class ReportSummaryProcessor:
             Measurement(result.reach, result.standard_deviation, result.metric)
             for result in entry.measurement_results
         ]
-        logging.info(f"Processing the measurement {measurements[0]}")
+        logging.debug(f"Processing the measurement {measurements[0]}")
         subset = frozenset([edp for edp in entry.right_hand_side_targets])
         if len(subset) == 0:
           message = "The right hand side EDP combination must not be empty."
           logging.fatal(message)
-          raise ValueError(message)
         superset = subset.union(
             frozenset([edp for edp in entry.left_hand_side_targets]))
         # The incremental reach (and unique reach) is computed as:
@@ -269,7 +265,7 @@ class ReportSummaryProcessor:
         # while the subset contains one or more EDPs.
         difference_measurements.append(
             [superset, subset, entry.measurement_policy, measurements[0]])
-        logging.info(
+        logging.debug(
             "The left hand side and right hand side EDP combinations are "
             f"{superset} and {subset} respectively."
         )
@@ -318,7 +314,6 @@ class ReportSummaryProcessor:
             f" of the left hand side measurement {superset_measurement.name}, "\
             f"which is {superset_measurement.sigma}"
           logging.fatal(message)
-          raise ValueError(message)
         subset_measurement = Measurement(
             superset_measurement.value - difference_measurement.value,
             math.sqrt(
@@ -347,14 +342,13 @@ def main():
     logging.set_verbosity(logging.INFO)
 
   report_summary = report_summary_pb2.ReportSummary()
-  logging.info("Reads the report summary from stdin.")
+  logging.info("Reading the report summary from stdin.")
   report_summary.ParseFromString(sys.stdin.buffer.read())
 
-  logging.info("Starts processing report summary.")
   corrected_measurements_dict = ReportSummaryProcessor(report_summary).process()
 
   logging.info(
-      "Sends the JSON representation of corrected_measurements_dict to the "
+      "Sending the JSON representation of corrected_measurements_dict to the "
       "parent program."
   )
   print(json.dumps(corrected_measurements_dict))
