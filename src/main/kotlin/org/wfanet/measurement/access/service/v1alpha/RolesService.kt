@@ -43,9 +43,9 @@ import org.wfanet.measurement.access.v1alpha.getRoleRequest
 import org.wfanet.measurement.access.v1alpha.listRolesResponse
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.internal.access.RolesGrpcKt.RolesCoroutineStub as InternalRolesCoroutineStub
-import org.wfanet.measurement.internal.access.deleteRoleRequest
+import org.wfanet.measurement.internal.access.deleteRoleRequest as internalDeleteRoleRequest
 import org.wfanet.measurement.internal.access.getRoleRequest as internalGetRoleRequest
-import org.wfanet.measurement.internal.access.listRolesPageToken
+import org.wfanet.measurement.internal.access.listRolesPageToken as internalListRolesPageToken
 import org.wfanet.measurement.internal.access.listRolesRequest as internalListRolesRequest
 import org.wfanet.measurement.internal.access.role as internalRole
 
@@ -113,7 +113,7 @@ class RolesService(private val internalRolesStub: InternalRolesCoroutineStub) :
         internalListRolesRequest {
           pageSize = request.pageSize
           if (request.pageToken.isNotEmpty()) {
-            pageToken = listRolesPageToken { request.pageToken }
+            pageToken = internalListRolesPageToken { request.pageToken }
           }
         }
       )
@@ -267,7 +267,7 @@ class RolesService(private val internalRolesStub: InternalRolesCoroutineStub) :
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     try {
-      internalRolesStub.deleteRole(deleteRoleRequest { roleResourceId = key.roleId })
+      internalRolesStub.deleteRole(internalDeleteRoleRequest { roleResourceId = key.roleId })
     } catch (e: StatusException) {
       val exception: StatusRuntimeException =
         when (InternalErrors.getReason(e)) {
