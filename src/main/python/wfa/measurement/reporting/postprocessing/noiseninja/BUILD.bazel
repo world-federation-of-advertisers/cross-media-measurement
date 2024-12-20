@@ -9,7 +9,6 @@ py_library(
     deps = [
         requirement("highspy"),
         requirement("numpy"),
-        requirement("osqp"),
         requirement("qpsolvers"),
     ],
 )
