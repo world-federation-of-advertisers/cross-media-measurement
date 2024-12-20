@@ -17,7 +17,6 @@ import numpy as np
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from qpsolvers import solve_problem, Problem, Solution
 from threading import Semaphore
-from typing import Any
 
 HIGHS_SOLVER = "highs"
 OSQP_SOLVER = "osqp"
@@ -167,40 +166,34 @@ class Solver:
           self.P, self.q, np.array(self.G), np.array(self.h))
     return problem
 
-  def solve(self) -> Solution:
+  def _solve(self, solver_name: str) -> Solution:
     attempt_count = 0
+    while attempt_count < MAX_ATTEMPTS:
+      # TODO: check if qpsolvers is thread safe,
+      #  and remove this semaphore.
+      SEMAPHORE.acquire()
+      solution = self._solve_with_initial_value(solver_name, self.base_value)
+      SEMAPHORE.release()
+
+      if solution.found:
+        break
+      else:
+        attempt_count += 1
+    return solution
+
+  def solve(self) -> Solution:
     if self._is_feasible(self.base_value):
       solution = Solution(x=self.base_value,
                           found=True,
                           extras={'status': 'trivial'},
                           problem=self._problem())
     else:
-      while attempt_count < MAX_ATTEMPTS:
-        # TODO: check if qpsolvers is thread safe,
-        #  and remove this semaphore.
-        SEMAPHORE.acquire()
-        solution = self._solve_with_initial_value(HIGHS_SOLVER, self.base_value)
-        SEMAPHORE.release()
-
-        if solution.found:
-          break
-        else:
-          attempt_count += 1
+      solution = self._solve(HIGHS_SOLVER)
 
       # If the highs solver does not converge, switch to the osqp solver which
       # is more robust.
       if not solution.found:
-        attempt_count = 0
-        while attempt_count < MAX_ATTEMPTS:
-          SEMAPHORE.acquire()
-          solution = self._solve_with_initial_value(OSQP_SOLVER,
-                                                    self.base_value)
-          SEMAPHORE.release()
-
-          if solution.found:
-            break
-          else:
-            attempt_count += 1
+        solution = self._solve(OSQP_SOLVER)
 
     # Raise the exception when both solvers do not converge.
     if not solution.found:
