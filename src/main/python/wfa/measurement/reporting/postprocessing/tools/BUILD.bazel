@@ -17,6 +17,7 @@ py_binary(
     deps = [
         "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_summary_py_pb2",
         "//src/main/python/wfa/measurement/reporting/postprocessing/report",
+        requirement("absl-py"),
         requirement("openpyxl"),
         requirement("pandas"),
     ],
