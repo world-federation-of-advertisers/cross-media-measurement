@@ -13,10 +13,11 @@
 # limitations under the License.
 
 import json
-import logging
 import math
 import sys
 
+from absl import flags
+from absl import logging
 from noiseninja.noised_measurements import Measurement
 from report.report import MetricReport
 from report.report import Report
@@ -27,12 +28,7 @@ from typing import FrozenSet
 # This is a demo script that has the following assumptions :
 # 1. Impression results are not corrected.
 
-logging.basicConfig(
-    stream=sys.stderr,
-    level=logging.INFO,
-    format='%(levelname)s: %(message)s'
-)
-logger = logging.getLogger(__name__)
+FLAGS = flags.FLAGS
 
 ami = "ami"
 mrc = "mrc"
@@ -84,7 +80,7 @@ class ReportSummaryProcessor:
 
     :return: a mapping between measurement name and its adjusted value.
     """
-    logger.info("Starts processing the report summary.")
+    logging.info("Starts processing the report summary.")
 
     # Processes primitive measurements (cumulative and union). This step needs
     # to be completed before processing different measurements (e.g. unique
@@ -101,7 +97,7 @@ class ReportSummaryProcessor:
     """
     Correct the report and returns the adjusted value for each measurement.
     """
-    logger.info("Build a report from the report summary.")
+    logging.info("Build a report from the report summary.")
     children_metric = []
     if "mrc" in self._cumulative_measurements:
       children_metric.append("mrc")
@@ -120,11 +116,11 @@ class ReportSummaryProcessor:
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    logger.info("Starts processing the report.")
+    logging.info("Starts processing the report.")
     corrected_report = report.get_corrected_report()
-    logger.info("Finished correcting the report.")
+    logging.info("Finished correcting the report.")
 
-    logger.info(
+    logging.info(
         "Generates the mapping between between measurement name and its "
         "adjusted value."
     )
@@ -162,7 +158,7 @@ class ReportSummaryProcessor:
       measurement is added to the `_whole_campaign_measurements` dictionary,
       keyed by the measurement policy and the set of data providers.
     """
-    logger.info(
+    logging.info(
         "Starts processing primitive measurements (cumulative and union)."
     )
     for entry in self._report_summary.measurement_details:
@@ -171,7 +167,7 @@ class ReportSummaryProcessor:
           for result in entry.measurement_results
       ]
       if entry.set_operation == "cumulative":
-        logger.info(
+        logging.info(
             f"Processing {entry.measurement_policy} cumulative measurements "
             f"for the EDP combination {entry.data_providers}."
         )
@@ -180,7 +176,7 @@ class ReportSummaryProcessor:
         self._cumulative_measurements[entry.measurement_policy][
           frozenset(entry.data_providers)] = measurements
       elif (entry.set_operation == "union") and (entry.is_cumulative == False):
-        logger.info(
+        logging.info(
             f"Processing {entry.measurement_policy} total campaign measurements"
             f" for the EDP combination {entry.data_providers}."
         )
@@ -201,7 +197,7 @@ class ReportSummaryProcessor:
     # length. Otherwise, raise the ValueError exception.
     if len(
         set(cumulative_measurements_length_by_edp_combination.values())) <= 1:
-      logger.info(
+      logging.info(
           "Number of cumulative measurements per EDP combination is: "
           f"{next(iter(cumulative_measurements_length_by_edp_combination.values()))}"
       )
@@ -211,10 +207,10 @@ class ReportSummaryProcessor:
         "must have the same length. But the length of the cumulative " \
         "measurements by EDP combination are:" \
         f"{cumulative_measurements_length_by_edp_combination}"
-      logger.critical(message)
+      logging.fatal(message)
       raise ValueError(message)
 
-    logger.info("Finished processing primitive measurements.")
+    logging.info("Finished processing primitive measurements.")
 
   def _process_difference_measurements(self):
     """Processes difference measurements in the report summary.
@@ -248,7 +244,7 @@ class ReportSummaryProcessor:
     measurements such as reach(Z) and unique_reach(X) and add that to the
     measurement set before adding the above mapping.
     """
-    logger.info(
+    logging.info(
         "Starts processing difference measurements (unique reach, incremental "
         "reach)"
     )
@@ -259,11 +255,11 @@ class ReportSummaryProcessor:
             Measurement(result.reach, result.standard_deviation, result.metric)
             for result in entry.measurement_results
         ]
-        logger.info(f"Processing the measurement {measurements[0]}")
+        logging.info(f"Processing the measurement {measurements[0]}")
         subset = frozenset([edp for edp in entry.right_hand_side_targets])
         if len(subset) == 0:
           message = "The right hand side EDP combination must not be empty."
-          logger.critical(message)
+          logging.fatal(message)
           raise ValueError(message)
         superset = subset.union(
             frozenset([edp for edp in entry.left_hand_side_targets]))
@@ -273,7 +269,7 @@ class ReportSummaryProcessor:
         # while the subset contains one or more EDPs.
         difference_measurements.append(
             [superset, subset, entry.measurement_policy, measurements[0]])
-        logger.info(
+        logging.info(
             "The left hand side and right hand side EDP combinations are "
             f"{superset} and {subset} respectively."
         )
@@ -321,7 +317,7 @@ class ReportSummaryProcessor:
             f"{difference_measurement.sigma}, must be greater than the variance"\
             f" of the left hand side measurement {superset_measurement.name}, "\
             f"which is {superset_measurement.sigma}"
-          logger.critical(message)
+          logging.fatal(message)
           raise ValueError(message)
         subset_measurement = Measurement(
             superset_measurement.value - difference_measurement.value,
@@ -335,21 +331,29 @@ class ReportSummaryProcessor:
             superset_measurement.name,
             subset_measurement.name
         ]
-    logger.info(
+    logging.info(
         "Finished processing difference measurements (unique reach, incremental"
         " reach)"
     )
 
 
 def main():
+  # Sets the log level.
+  if '-v' in sys.argv:
+    FLAGS.stderrthreshold = 'debug'
+    logging.set_verbosity(logging.DEBUG)
+  else:
+    FLAGS.stderrthreshold = 'info'
+    logging.set_verbosity(logging.INFO)
+
   report_summary = report_summary_pb2.ReportSummary()
-  logger.info("Reads the report summary from stdin.")
+  logging.info("Reads the report summary from stdin.")
   report_summary.ParseFromString(sys.stdin.buffer.read())
 
-  logger.info("Starts processing report summary.")
+  logging.info("Starts processing report summary.")
   corrected_measurements_dict = ReportSummaryProcessor(report_summary).process()
 
-  logger.info(
+  logging.info(
       "Sends the JSON representation of corrected_measurements_dict to the "
       "parent program."
   )

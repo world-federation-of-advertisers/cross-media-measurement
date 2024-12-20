@@ -1,5 +1,3 @@
-import random
-
 # Copyright 2024 The Cross-Media Measurement Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,23 +12,16 @@ import random
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 import numpy as np
-import sys
+import random
 
+from absl import logging
 from noiseninja.noised_measurements import SetMeasurementsSpec, Measurement
 from noiseninja.solver import Solver
 from qpsolvers import Solution
 from typing import Any, FrozenSet, Tuple
 from itertools import combinations
 from functools import reduce
-
-logging.basicConfig(
-    stream=sys.stderr,
-    level=logging.INFO,
-    format='%(levelname)s: %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 MIN_STANDARD_VARIATION_RATIO = 0.001
 UNIT_SCALING_FACTOR = 1.0
@@ -40,8 +31,8 @@ def get_subset_relationships(edp_combinations: list[FrozenSet[str]]) -> list[
   Tuple[FrozenSet[str], FrozenSet[str]]]:
   """Returns a list of tuples where first element in the tuple is the parent
   and second element is the subset."""
-  logger.info(
-      "Gets subset relations for the list of EDP combinations "
+  logging.debug(
+      "Getting subset relations for the list of EDP combinations "
       f"{edp_combinations}."
   )
   subset_relationships = []
@@ -50,8 +41,8 @@ def get_subset_relationships(edp_combinations: list[FrozenSet[str]]) -> list[
       subset_relationships.append((comb2, comb1))
     elif comb2.issubset(comb1):
       subset_relationships.append((comb1, comb2))
-  logger.info(
-      "The subset relationships for this list of EDP combinations are "
+  logging.debug(
+      f"The subset relationships for {edp_combinations} are "
       f"{subset_relationships}."
   )
   return subset_relationships
@@ -92,10 +83,7 @@ def get_covers(target_set: FrozenSet[str], other_sets: list[FrozenSet[str]]) -> 
     The first element of the tuple is the `target_set`, and the second element
     is a tuple containing the sets from `other_sets` that cover it.
   """
-  logger.info(
-      f"Gets cover relations for the target EDP combination {target_set} from "
-      f"a list of EDP combinations {other_sets}."
-  )
+  logging.debug(f"Getting cover relations for {target_set} from {other_sets}.")
 
   def generate_all_length_combinations(data: list[Any]) -> list[
     tuple[Any, ...]]:
@@ -121,7 +109,7 @@ def get_covers(target_set: FrozenSet[str], other_sets: list[FrozenSet[str]]) -> 
   for possible_cover in possible_covers:
     if is_cover(target_set, possible_cover):
       cover_relationship.append((target_set, possible_cover))
-  logger.info(
+  logging.debug(
       f"The cover relationship is {cover_relationship}."
   )
   return cover_relationship
@@ -134,8 +122,8 @@ def get_cover_relationships(edp_combinations: list[FrozenSet[str]]) -> list[
   For each of these considered combinations, take their union and check if it is equal to
   s_i. If so, this combination is a cover of s_i.
   """
-  logger.info(
-      "Get all cover relationships from a list of EDP combinations "
+  logging.debug(
+      "Getting all cover relationships from a list of EDP combinations "
       f"{edp_combinations}"
   )
   cover_relationships = []
@@ -178,7 +166,7 @@ class MetricReport:
         message =\
           f"All time series must have the same length {len(series)} vs "\
           f"{len(num_periods)}."
-        logger.critical(message)
+        logging.fatal(message)
         raise ValueError(message)
 
     self._reach_time_series = reach_time_series
@@ -355,7 +343,7 @@ class Report:
     return self.report_from_solution(solution)
 
   def report_from_solution(self, solution: Solution) -> "Report":
-    logger.info("Generating the adjusted report from the solution.")
+    logging.info("Generating the adjusted report from the solution.")
     return Report(
         metric_reports={
             metric: self._metric_report_from_solution(metric, solution)
@@ -410,19 +398,19 @@ class Report:
     return array
 
   def to_set_measurement_spec(self) -> SetMeasurementsSpec:
-    logger.info("Creates the set measurement spec from the measurements.")
     spec = SetMeasurementsSpec()
     self._add_measurements_to_spec(spec)
     self._add_set_relations_to_spec(spec)
     return spec
 
   def _add_cover_relations_to_spec(self, spec: SetMeasurementsSpec):
-    logger.info("Adds cover relations to spec.")
     # sum of subsets >= union for each period
     for metric in self._metric_reports:
       for cover_relationship in self._metric_reports[
         metric].get_cumulative_cover_relationships():
-        logger.info(f"{metric} cover relations for cumulative measurements.")
+        logging.debug(
+            f"Adding {metric} cover relations for cumulative measurements."
+        )
         covered_parent = cover_relationship[0]
         covering_children = cover_relationship[1]
         for period in range(0, self._num_periods):
@@ -435,8 +423,9 @@ class Report:
           )
       for cover_relationship in self._metric_reports[
         metric].get_whole_campaign_cover_relationships():
-        logger.info(
-          f"{metric} cover relations for total campaign measurements.")
+        logging.debug(
+          f"Adding {metric} cover relations for total campaign measurements."
+        )
         covered_parent = cover_relationship[0]
         covering_children = cover_relationship[1]
         spec.add_cover(
@@ -446,10 +435,9 @@ class Report:
             parent=self._get_whole_campaign_measurement_index(
                 metric, covered_parent),
         )
-    logger.info("Finished adding cover relations to spec.")
+    logging.info("Finished adding cover relations to spec.")
 
   def _add_subset_relations_to_spec(self, spec: SetMeasurementsSpec):
-    logger.info("Adding subset relations to spec.")
     # Adds relations for cumulative measurements.
     for metric in self._metric_reports:
       for subset_relationship in self._metric_reports[
@@ -485,17 +473,13 @@ class Report:
                   metric].get_whole_campaign_measurement(
                     parent_edp_combination)),
         )
-    logger.info("Finished adding subset relations to spec.")
+    logging.info("Finished adding subset relations to spec.")
 
   # TODO(@ple13):Use timestamp to check if the last cumulative measurement covers
   # the whole campaign. If yes, make sure that the two measurements are equal
   # instead of less than or equal.
   def _add_cumulative_whole_campaign_relations_to_spec(self,
       spec: SetMeasurementsSpec):
-    logger.info(
-        "Adding the relationship between cumulative and total campaign "
-        "measurements to spec."
-    )
     # Adds relations between cumulative and whole campaign measurements.
     # For an edp combination, the last cumulative measurement is less than or
     # equal to the whole campaign measurement.
@@ -514,20 +498,18 @@ class Report:
                   metric].get_whole_campaign_measurement(
                     edp_combination)),
         )
-    logger.info(
+    logging.info(
         "Finished adding the relationship between cumulative and total "
         "campaign measurements to spec."
     )
 
   def _add_metric_relations_to_spec(self, spec: SetMeasurementsSpec):
-    logger.info(
-        "Adding the relationship for measurements from different metrics."
-    )
     # metric1>=metric#2
     for parent_metric in self._metric_subsets_by_parent:
       for child_metric in self._metric_subsets_by_parent[parent_metric]:
-        logger.info(
-            f"Adds metric relationship for {child_metric} and {parent_metric}."
+        logging.debug(
+            f"Adding metric relationship for {child_metric} and "
+            f"{parent_metric}."
         )
         # Handles cumulative measurements of common edp combinations.
         for edp_combination in self._metric_reports[
@@ -560,13 +542,12 @@ class Report:
                     parent_metric].get_whole_campaign_measurement(
                       edp_combination)),
           )
-    logger.info(
+    logging.info(
         "Finished adding the relationship for measurements from different "
         "metrics."
     )
 
   def _add_cumulative_relations_to_spec(self, spec: SetMeasurementsSpec):
-    logger.info("Adding cumulative relations to spec.")
     for metric in self._metric_reports.keys():
       for edp_combination in self._metric_reports[
         metric].get_cumulative_edp_combinations():
@@ -589,10 +570,9 @@ class Report:
                     metric].get_cumulative_measurement(
                       edp_combination, period + 1)),
           )
-    logger.info("Finished adding cumulative relations to spec.")
+    logging.info("Finished adding cumulative relations to spec.")
 
   def _add_set_relations_to_spec(self, spec: SetMeasurementsSpec):
-    logger.info("Adding set relations to spec.")
     # sum of subsets >= union for each period.
     self._add_cover_relations_to_spec(spec)
 
@@ -607,10 +587,9 @@ class Report:
 
     # Last cumulative measurement <= whole campaign measurement.
     self._add_cumulative_whole_campaign_relations_to_spec(spec)
-    logger.info("Finished adding set relations to spec.")
+    logging.info("Finished adding set relations to spec.")
 
   def _add_measurements_to_spec(self, spec: SetMeasurementsSpec):
-    logger.info("Adding all the measurements to the set measurement spec.")
     for metric in self._metric_reports.keys():
       for edp_combination in self._metric_reports[
         metric].get_cumulative_edp_combinations():
@@ -633,7 +612,7 @@ class Report:
                         self._normalized_sigma(measurement.sigma),
                         measurement.name),
         )
-    logger.info("Finished adding the measurements to the set measurement spec.")
+    logging.info("Finished adding the measurements to the set measurement spec.")
 
   def _normalized_sigma(self, sigma: float) -> float:
     """Normalizes the standard deviation.
@@ -674,7 +653,7 @@ class Report:
 
   def _metric_report_from_solution(self, metric: str,
       solution: Solution) -> "MetricReport":
-    logger.info(f"Generating the metric report for {metric} from the solution.")
+    logging.debug(f"Generating the metric report for {metric}.")
     solution_time_series = {}
     solution_whole_campaign = {}
     for edp_combination in self._metric_reports[
