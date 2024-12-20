@@ -1700,6 +1700,7 @@ class MetricsService(
       state = source.state.toPublic()
       createTime = source.createTime
       // The calculations can throw an error, but we still want to return the metric.
+      containingReport = source.details.containingReport
       if (state == Metric.State.SUCCEEDED) {
         try {
           result = buildMetricResult(source, variances)
