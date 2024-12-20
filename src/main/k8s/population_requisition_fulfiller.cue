@@ -17,7 +17,7 @@ package k8s
 import "list"
 
 
-#KingdomSystemApiTarget: (#Target & {name: "system-api-server"}).target
+#KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 
 #PopulationRequisitionFulfillerConfig: {
     dataProviderDisplayName:     string
@@ -64,8 +64,8 @@ import "list"
     	_container: {
    			image: _imageConfig.image
             args: [
-                "--kingdom-system-api-target=\(#KingdomSystemApiTarget)",
-                "--kingdom-system-api-cert-host=localhost",
+                "--kingdom-public-api-target=\(#KingdomPublicApiTarget)",
+                "--kingdom-public-api-cert-host=localhost",
                 "--data-provider-resource-name=\(_config.dataProviderResourceName)",
                 "--data-provider-display-name=\(displayName)",
                 "--data-provider-certificate-resource-name=\(_config.dataProviderCertResourceName)",
@@ -82,7 +82,7 @@ import "list"
             _dependencies: [
 				"v2alpha-public-api-server",
 				"worker1-requisition-fulfillment-server",
-				"worker2-requisition-fulfillment-server",
+                "worker2-requisition-fulfillment-server",
 			]
             _mounts: "config-files": #ConfigMapMount
         }

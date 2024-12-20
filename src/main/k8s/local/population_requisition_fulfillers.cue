@@ -21,7 +21,7 @@ _population_resource_name: string @tag("population_resource_name")
 _secret_name:              string @tag("secret_name")
 
 
-_populationSpec:           "/etc/\(#AppName)/config-files/population_spec_large.textproto"
+_populationSpec:           "/etc/\(#AppName)/config-files/synthetic_population_spec_large.textproto"
 _populationRequisitionFulfillerConfigs: [...#PopulationRequisitionFulfillerConfig]
 _populationRequisitionFulfillerConfigs: [
     {

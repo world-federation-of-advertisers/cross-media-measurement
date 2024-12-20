@@ -56,18 +56,18 @@ import picocli.CommandLine.Option
 )
 class PopulationRequisitionFulfillerDaemon : Runnable {
   @Option(
-    names = ["--kingdom-system-api-target"],
-    description = ["gRPC target (authority) of the Kingdom system API server"],
+    names = ["--kingdom-public-api-target"],
+    description = ["gRPC target (authority) of the Kingdom public API server"],
     required = true,
   )
   private lateinit var target: String
 
   @Option(
-    names = ["--kingdom-system-api-cert-host"],
+    names = ["--kingdom-public-api-cert-host"],
     description =
     [
-      "Expected hostname (DNS-ID) in the Kingdom system API server's TLS certificate.",
-      "This overrides derivation of the TLS DNS-ID from --kingdom-system-api-target.",
+      "Expected hostname (DNS-ID) in the Kingdom public API server's TLS certificate.",
+      "This overrides derivation of the TLS DNS-ID from --kingdom-public-api-target.",
     ],
     required = false,
   )
