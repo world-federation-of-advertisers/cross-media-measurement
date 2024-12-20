@@ -654,7 +654,7 @@ class MeasurementConsumerSimulator(
         typeRegistry,
         ::newPopulationMeasurementSpec,
       )
-
+    println("joji pop measurmeent created: $populationMeasurementInfo")
     val measurementName = populationMeasurementInfo.measurementInfo.measurement.name
     logger.info { "Created population Measurement $measurementName" }
 
@@ -665,7 +665,7 @@ class MeasurementConsumerSimulator(
     val expectedResult = getExpectedPopulationResult(populationMeasurementInfo)
     logger.info("Expected result: $expectedResult")
 
-    assertThat(populationResult.population.value).isEqualTo(expectedResult.population.value)
+    assertThat(populationResult.population.value).isEqualTo(-1)
 
     logger.info("Population result is equal to the expected result")
   }
@@ -881,6 +881,8 @@ class MeasurementConsumerSimulator(
           nonce,
         )
       )
+
+    println("joji requisitions: ${requisitions}")
     val measurementSpec = newMeasurementSpec(measurementConsumer.publicKey.message, nonceHashes)
 
     val measurementInfo =
