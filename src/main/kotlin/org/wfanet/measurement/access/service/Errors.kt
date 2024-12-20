@@ -214,6 +214,14 @@ class RoleNotFoundException(name: String, cause: Throwable? = null) :
     cause,
   )
 
+class RoleAlreadyExistsException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.ROLE_ALREADY_EXISTS,
+    "Role $name already exists",
+    mapOf(Errors.Metadata.ROLE to name),
+    cause,
+  )
+
 class ResourceTypeNotFoundInPermissionException(
   resourceType: String,
   permission: String,
