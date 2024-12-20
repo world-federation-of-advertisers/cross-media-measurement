@@ -18,7 +18,7 @@ import unittest
 from noiseninja.noised_measurements import SetMeasurementsSpec, Measurement
 from noiseninja.solver import Solver
 from qpsolvers import Solution, Problem
-from unittest.mock import patch, Mock, MagicMock
+from unittest.mock import MagicMock
 
 HIGHS_SOLVER = "highs"
 
