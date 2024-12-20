@@ -354,7 +354,7 @@ class ReportsServiceTest {
           parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
           requests += createMetricRequest {
             parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
-            metric = REQUESTING_REACH_METRIC
+            metric = REQUESTING_REACH_METRIC.copy { containingReport = PENDING_REACH_REPORT.name }
             requestId = ExternalId(REACH_METRIC_ID_BASE_LONG).apiId.value
             metricId = "$METRIC_ID_PREFIX$requestId"
           }
@@ -473,6 +473,7 @@ class ReportsServiceTest {
             reportingSet = targetReportingSet.name
             this.timeInterval = timeInterval
             metricSpec = REACH_METRIC_SPEC
+            containingReport = internalPendingReport.resourceName
           }
         }
 
@@ -1311,6 +1312,7 @@ class ReportsServiceTest {
           metricSpec = REACH_METRIC_SPEC
           this.filters += groupingPredicates
           this.filters += filter
+          containingReport = internalPendingReport.resourceName
         }
       }
 
@@ -1894,6 +1896,7 @@ class ReportsServiceTest {
             this.reportingSet = reportingSet.name
             this.timeInterval = timeInterval
             metricSpec = REACH_METRIC_SPEC
+            containingReport = internalRequestingReport.resourceName
           }
         }
 
@@ -2118,6 +2121,7 @@ class ReportsServiceTest {
             reportingSet = targetReportingSet.name
             this.timeInterval = timeInterval
             metricSpec = REACH_METRIC_SPEC
+            containingReport = internalRequestingReport.resourceName
           }
         }
 
