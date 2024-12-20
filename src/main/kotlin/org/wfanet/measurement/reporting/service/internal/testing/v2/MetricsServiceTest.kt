@@ -546,10 +546,11 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
               }
           }
         }
-      details = MetricKt.details {
-        filters += "filter1"
-        containingReport = "reportX"
-      }
+      details =
+        MetricKt.details {
+          filters += "filter1"
+          containingReport = "reportX"
+        }
     }
 
     val createdMetric =
@@ -2562,10 +2563,11 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 }
             }
           }
-        details = MetricKt.details {
-          filters += "filter1"
-          containingReport = "reportX"
-        }
+        details =
+          MetricKt.details {
+            filters += "filter1"
+            containingReport = "reportX"
+          }
       }
     }
     val createdMetric = service.createMetric(createMetricRequest)
