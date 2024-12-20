@@ -191,7 +191,8 @@ class Solver:
       solution = self._solve(HIGHS_SOLVER)
 
       # If the highs solver does not converge, switch to the osqp solver which
-      # is more robust.
+      # is more robust. However, OSQP in general is less accurate than HIGHS
+      # (See https://web.stanford.edu/~boyd/papers/pdf/osqp.pdf).
       if not solution.found:
         solution = self._solve(OSQP_SOLVER)
 
