@@ -19,28 +19,6 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "ExchangeStepLauncherTest",
-    timeout = "short",
-    srcs = ["ExchangeStepLauncherTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.launcher.ExchangeStepLauncherTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/panelmatch/client/common",
-        "//src/main/kotlin/org/wfanet/panelmatch/client/launcher",
-        "//src/main/kotlin/org/wfanet/panelmatch/common",
-        "//src/main/kotlin/org/wfanet/panelmatch/common/testing",
-        "//src/main/proto/wfa/panelmatch/client/internal:exchange_workflow_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/java/org/mockito",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
-    ],
-)
-
-kt_jvm_test(
     name = "ExchangeStepValidatorImplTest",
     timeout = "short",
     srcs = ["ExchangeStepValidatorImplTest.kt"],

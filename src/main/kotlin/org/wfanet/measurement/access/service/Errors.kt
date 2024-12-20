@@ -173,6 +173,40 @@ class PrincipalTypeNotSupportedException(
     cause,
   )
 
+class PrincipalNotFoundForUserException(issuer: String, subject: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER,
+    "Principal not found for user with issuer $issuer and subject $subject",
+    mapOf(Errors.Metadata.ISSUER to issuer, Errors.Metadata.SUBJECT to subject),
+    cause,
+  )
+
+class PrincipalNotFoundForTlsClientException(
+  authorityKeyIdentifier: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    reason,
+    "Principal not found for tls client with authority key identifier $authorityKeyIdentifier",
+    mapOf(Errors.Metadata.AUTHORITY_KEY_IDENTIFIER to authorityKeyIdentifier),
+    cause,
+  ) {
+  companion object : Factory<PrincipalNotFoundForTlsClientException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): PrincipalNotFoundForTlsClientException {
+      return PrincipalNotFoundForTlsClientException(
+        internalMetadata.getValue(InternalErrors.Metadata.AUTHORITY_KEY_IDENTIFIER),
+        cause,
+      )
+    }
+  }
+}
+
 class PermissionNotFoundException(name: String, cause: Throwable? = null) :
   ServiceException(
     reason,

@@ -38,6 +38,13 @@
         "edp3"
       ],
       "unique_reach_target": "edp2",
+      "left_hand_side_targets": [
+        "edp2"
+      ],
+      "right_hand_side_targets": [
+        "edp1",
+        "edp3"
+      ],
       "measurement_results": [
         {
           "reach": 2000,
@@ -53,11 +60,17 @@
         "edp2",
         "edp1"
       ],
+      "left_hand_side_targets": [
+        "edp1"
+      ],
+      "right_hand_side_targets": [
+        "edp2"
+      ],
       "measurement_results": [
         {
           "reach": 400,
           "standard_deviation": 230564.3972774748,
-          "metric": "a3c0f4fda-c0c9-41f0-bb8e-a88f1354181f"
+          "metric": "difference/ami/difference_reach_edp1"
         }
       ]
     },
@@ -70,6 +83,13 @@
         "edp3"
       ],
       "unique_reach_target": "edp1",
+      "left_hand_side_targets": [
+        "edp1"
+      ],
+      "right_hand_side_targets": [
+        "edp2",
+        "edp3"
+      ],
       "measurement_results": [
         {
           "reach": 300,
@@ -114,6 +134,11 @@
         "edp1",
         "edp3"
       ],
+      "left_hand_side_targets": [
+        "edp1",
+        "edp2",
+        "edp3"
+      ],
       "measurement_results": [
         {
           "reach": 91199,
@@ -129,6 +154,11 @@
       "data_providers": [
         "edp2",
         "edp1",
+        "edp3"
+      ],
+      "left_hand_side_targets": [
+        "edp1",
+        "edp2",
         "edp3"
       ],
       "measurement_results": [
@@ -176,6 +206,13 @@
         "edp3"
       ],
       "unique_reach_target": "edp3",
+      "left_hand_side_targets": [
+        "edp3"
+      ],
+      "right_hand_side_targets": [
+        "edp1",
+        "edp2"
+      ],
       "measurement_results": [
         {
           "reach": 100,

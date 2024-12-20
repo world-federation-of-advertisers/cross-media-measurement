@@ -3,7 +3,7 @@ module(
     repo_name = "wfa_measurement_system",
 )
 
-BORINGSSL_VERSION = "0.0.0-20230215-5c22014"
+BORINGSSL_VERSION = "0.20241209.0"
 
 # Version of Apache Beam.
 #
@@ -22,7 +22,7 @@ K8S_CLIENT_VERSION = "21.0.1"
 # See https://github.com/bazelbuild/bazel/discussions/23075.
 bazel_dep(
     name = "rules_kotlin_jvm",
-    version = "0.4.0",
+    version = "0.5.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
 bazel_dep(
@@ -37,7 +37,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.96.0",
+    version = "0.98.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -57,12 +57,12 @@ bazel_dep(
 )
 bazel_dep(
     name = "any-sketch",
-    version = "0.9.1",
+    version = "0.10.0",
     repo_name = "any_sketch",
 )
 bazel_dep(
     name = "any-sketch-java",
-    version = "0.7.0",
+    version = "0.8.0",
     repo_name = "any_sketch_java",
 )
 bazel_dep(
@@ -77,7 +77,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "virtual-people-common",
-    version = "0.4.0",
+    version = "0.5.0",
     repo_name = "wfa_virtual_people_common",
 )
 bazel_dep(
@@ -89,6 +89,11 @@ bazel_dep(
     name = "cloud-spanner-emulator-bin",
     version = "1.5.23",
     repo_name = "cloud_spanner_emulator",
+)
+bazel_dep(
+    name = "shell-encryption",
+    version = "0.0.0-20241214-b381c4e",
+    repo_name = "com_github_google_shell",
 )
 
 # --- Bazel Central Registry modules. ---
@@ -103,11 +108,11 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_proto",
-    version = "6.0.2",
+    version = "7.0.2",
 )
 bazel_dep(
     name = "rules_cc",
-    version = "0.0.9",
+    version = "0.1.0",
 )
 bazel_dep(
     name = "rules_pkg",
@@ -125,15 +130,15 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_java",
-    version = "7.11.1",
+    version = "8.6.2",
 )
 bazel_dep(
     name = "rules_jvm_external",
-    version = "6.4",
+    version = "6.6",
 )
 bazel_dep(
     name = "rules_python",
-    version = "0.31.0",
+    version = "0.33.2",
 )
 bazel_dep(
     name = "protobuf",
@@ -162,21 +167,21 @@ bazel_dep(
 )
 bazel_dep(
     name = "abseil-cpp",
-    version = "20230802.1",
+    version = "20240722.0.bcr.2",
     repo_name = "com_google_absl",
 )
 bazel_dep(
     name = "googletest",
-    version = "1.14.0.bcr.1",
+    version = "1.15.2",
     repo_name = "com_google_googletest",
 )
 bazel_dep(
-    name = "glog",  # For shell-encryption.
-    version = "0.6.0",
+    name = "glog",
+    version = "0.7.1",
     repo_name = "com_github_google_glog",
 )
 bazel_dep(
-    name = "boringssl",  # For shell-encryption.
+    name = "boringssl",
     version = BORINGSSL_VERSION,
 )
 bazel_dep(
@@ -187,6 +192,10 @@ bazel_dep(
     name = "riegeli",
     version = "0.0.0-20240606-973b6f0",
     repo_name = "com_google_riegeli",
+)
+bazel_dep(
+    name = "tink_cc",
+    version = "2.1.3",
 )
 
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
@@ -314,20 +323,6 @@ http_archive(
     sha256 = "b1e0e7f74f4da09a6011c6fa91d7b968cdff6bb571712490dae427704b2af14c",
     strip_prefix = "private-membership-84e45669f7357bffcdafbc1b0cc26e72512808ce",
     url = "https://github.com/google/private-membership/archive/84e45669f7357bffcdafbc1b0cc26e72512808ce.zip",
-)
-
-http_archive(
-    name = "com_github_google_shell",
-    sha256 = "807d42caed3056cea63b9048a2fd69122c071740d43c9de546cc0fabded87a5c",
-    strip_prefix = "shell-encryption-507781e129a03f8178c9716d79163fae23d34b6a",
-    url = "https://github.com/google/shell-encryption/archive/507781e129a03f8178c9716d79163fae23d34b6a.tar.gz",
-)
-
-http_archive(
-    name = "tink_cc",
-    sha256 = "c2c252b09969576965fd4610d933682a71890d90f01a96c418fcbcf808edf513",
-    strip_prefix = "tink-1.7.0/cc",
-    url = "https://github.com/google/tink/archive/refs/tags/v1.7.0.tar.gz",
 )
 
 http_archive(
