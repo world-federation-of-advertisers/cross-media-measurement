@@ -201,14 +201,14 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
     val modelReleasesStub = ModelReleasesCoroutineStub(publicApiChannel)
 
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
-    println("joji made it past the throttler")
+    println("joji requisitionStub: ${requisitionsStub.callOptions}")
     val typeRegistry = buildTypeRegistry()
     println("joji created type registry ${typeRegistry.getDescriptorForTypeUrl("type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent").name}")
     println("joji created type registry ${typeRegistry.getDescriptorForTypeUrl("type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent").options}")
     println("joji created type registry ${typeRegistry.getDescriptorForTypeUrl("type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent").fields}")
 
     val populationInfoMap = buildPopulationInfoMap(typeRegistry)
-    println("joji created type populationInfoMap")
+    println("joji created type populationInfoMap: ${populationInfoMap.entries}")
 
     val populationRequisitionFulfiller =
       PopulationRequisitionFulfiller(

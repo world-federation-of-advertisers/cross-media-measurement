@@ -79,6 +79,11 @@ import "list"
             ] + _populationFlags + _eventDescriptorFlags
     	}
     	spec: template: spec: {
+            _dependencies: [
+				"v2alpha-public-api-server",
+				"worker1-requisition-fulfillment-server",
+				"worker2-requisition-fulfillment-server",
+			]
             _mounts: "config-files": #ConfigMapMount
         }
     }
