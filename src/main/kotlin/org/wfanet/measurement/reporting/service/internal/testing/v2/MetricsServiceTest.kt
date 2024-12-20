@@ -180,6 +180,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         MetricKt.details {
           filters += "filter1"
           filters += "filter2"
+          containingReport = "reportX"
         }
     }
 
@@ -287,6 +288,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         MetricKt.details {
           filters += "filter1"
           filters += "filter2"
+          containingReport = "reportX"
         }
     }
 
@@ -389,6 +391,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         MetricKt.details {
           filters += "filter1"
           filters += "filter2"
+          containingReport = "reportX"
         }
     }
 
@@ -491,6 +494,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         MetricKt.details {
           filters += "filter1"
           filters += "filter2"
+          containingReport = "reportX"
         }
     }
 
@@ -542,7 +546,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
               }
           }
         }
-      details = MetricKt.details { filters += "filter1" }
+      details = MetricKt.details {
+        filters += "filter1"
+        containingReport = "reportX"
+      }
     }
 
     val createdMetric =
@@ -613,6 +620,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         MetricKt.details {
           filters += "filter1"
           filters += "filter2"
+          containingReport = "reportX"
         }
     }
 
@@ -720,6 +728,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         MetricKt.details {
           filters += "filter1"
           filters += "filter2"
+          containingReport = "reportX"
         }
     }
 
@@ -837,6 +846,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           MetricKt.details {
             filters += "filter1"
             filters += "filter2"
+            containingReport = "reportX"
           }
       }
 
@@ -922,6 +932,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         MetricKt.details {
           filters += "filter1"
           filters += "filter2"
+          containingReport = "reportX"
         }
     }
 
@@ -997,6 +1008,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         MetricKt.details {
           filters += "filter1"
           filters += "filter2"
+          containingReport = "reportX"
         }
     }
 
@@ -1075,6 +1087,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         MetricKt.details {
           filters += "filter1"
           filters += "filter2"
+          containingReport = "reportX"
         }
     }
 
@@ -1127,6 +1140,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         MetricKt.details {
           filters += "filter1"
           filters += "filter2"
+          containingReport = "reportX"
         }
     }
 
@@ -1180,6 +1194,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           MetricKt.details {
             filters += "filter1"
             filters += "filter2"
+            containingReport = "reportX"
           }
       }
 
@@ -1255,6 +1270,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         MetricKt.details {
           filters += "filter1"
           filters += "filter2"
+          containingReport = "reportX"
         }
     }
 
@@ -1330,6 +1346,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         MetricKt.details {
           filters += "filter1"
           filters += "filter2"
+          containingReport = "reportX"
         }
     }
 
@@ -1412,6 +1429,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         MetricKt.details {
           filters += "filter1"
           filters += "filter2"
+          containingReport = "reportX"
         }
     }
 
@@ -1506,6 +1524,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           MetricKt.details {
             filters += "filter1"
             filters += "filter2"
+            containingReport = "reportX"
           }
       }
 
@@ -1608,6 +1627,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           MetricKt.details {
             filters += "filter1"
             filters += "filter2"
+            containingReport = "reportX"
           }
       }
 
@@ -1702,6 +1722,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           MetricKt.details {
             filters += "filter1"
             filters += "filter2"
+            containingReport = "reportX"
           }
       }
 
@@ -1785,6 +1806,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           MetricKt.details {
             filters += "filter1"
             filters += "filter2"
+            containingReport = "reportX"
           }
       }
 
@@ -1867,6 +1889,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         MetricKt.details {
           filters += "filter1"
           filters += "filter2"
+          containingReport = "reportX"
         }
     }
 
@@ -1951,6 +1974,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           MetricKt.details {
             filters += "filter1"
             filters += "filter2"
+            containingReport = "reportX"
           }
       }
 
@@ -2035,6 +2059,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           MetricKt.details {
             filters += "filter1"
             filters += "filter2"
+            containingReport = "reportX"
           }
       }
 
@@ -2118,6 +2143,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         MetricKt.details {
           filters += "filter1"
           filters += "filter2"
+          containingReport = "reportX"
         }
     }
 
@@ -2536,7 +2562,10 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
                 }
             }
           }
-        details = MetricKt.details { filters += "filter1" }
+        details = MetricKt.details {
+          filters += "filter1"
+          containingReport = "reportX"
+        }
       }
     }
     val createdMetric = service.createMetric(createMetricRequest)
@@ -3329,6 +3358,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           MetricKt.details {
             filters += "filter1"
             filters += "filter2"
+            containingReport = "reportX"
           }
       }
 
