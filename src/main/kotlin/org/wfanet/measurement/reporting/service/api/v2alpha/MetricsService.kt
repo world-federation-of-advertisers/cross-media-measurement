@@ -160,6 +160,7 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -333,7 +334,7 @@ class MetricsService(
               emit(
                 buildCreateMeasurementRequest(
                   weightedMeasurement.measurement,
-                  internalMetric.metricSpec,
+                  internalMetric,
                   internalPrimitiveReportingSetMap,
                   measurementConsumer,
                   principal,
@@ -438,7 +439,7 @@ class MetricsService(
     /** Builds a CMMS [CreateMeasurementRequest]. */
     private fun buildCreateMeasurementRequest(
       internalMeasurement: InternalMeasurement,
-      metricSpec: InternalMetricSpec,
+      metric: InternalMetric,
       internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
       measurementConsumer: MeasurementConsumer,
       principal: MeasurementConsumerPrincipal,
@@ -467,7 +468,7 @@ class MetricsService(
               measurementConsumer.name,
               packedMeasurementEncryptionPublicKey,
               dataProviders.map { it.value.nonceHash },
-              metricSpec,
+              metric
             )
 
           measurementSpec =
@@ -501,9 +502,10 @@ class MetricsService(
       measurementConsumerName: String,
       packedMeasurementEncryptionPublicKey: ProtoAny,
       nonceHashes: List<ByteString>,
-      metricSpec: InternalMetricSpec,
+      metric: InternalMetric,
     ): MeasurementSpec {
       val isSingleDataProvider: Boolean = nonceHashes.size == 1
+      val metricSpec = metric.metricSpec
 
       return measurementSpec {
         measurementPublicKey = packedMeasurementEncryptionPublicKey
@@ -546,6 +548,12 @@ class MetricsService(
         // TODO(@jojijac0b): Complete support for VID Model Line
         modelLine =
           measurementConsumerModelLines.getOrDefault(measurementConsumerName, defaultModelLine)
+
+        // Add reporting metadata
+        reportingMetadata = reportingMetadata {
+          report = metric.details.containingReport
+          this.metric = MetricKey(metric.cmmsMeasurementConsumerId, metric.externalMetricId).toName()
+        }
       }
     }
 
