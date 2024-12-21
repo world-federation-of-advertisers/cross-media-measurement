@@ -37,9 +37,6 @@ reporting: #Reporting & {
 		serviceName:     "v2alpha-public-api-server"
 		certificateHost: "localhost"
 	}
-	_internalApiTarget: {
-		certificateHost: "localhost"
-	}
 	_verboseGrpcServerLogging: true
 	_verboseGrpcClientLogging: true
 
@@ -69,6 +66,7 @@ reporting: #Reporting & {
 			spec: template: spec: {
 				_dependencies: [
 					"postgres-internal-reporting-server",
+					"access-public-api-server",
 					"v2alpha-public-api-server", // Kingdom public API server.
 				]
 			}

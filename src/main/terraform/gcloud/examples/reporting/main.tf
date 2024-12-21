@@ -1,4 +1,4 @@
-# Copyright 2023 The Cross-Media Measurement Authors
+# Copyright 2024 The Cross-Media Measurement Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,6 +28,41 @@ module "common" {
   key_ring_location = local.key_ring_location
 }
 
+resource "google_sql_database_instance" "postgres" {
+  name             = var.postgres_instance_name
+  database_version = "POSTGRES_14"
+  settings {
+    tier = "db-f1-micro"
+
+    insights_config {
+      query_insights_enabled  = true
+      record_application_tags = true
+    }
+
+    database_flags {
+      name  = "cloudsql.iam_authentication"
+      value = "on"
+    }
+    database_flags {
+      name  = "max_pred_locks_per_page"
+      value = "64"
+    }
+  }
+}
+
+resource "google_sql_user" "postgres" {
+  name     = "postgres"
+  instance = google_sql_database_instance.postgres.name
+  password = var.postgres_password
+}
+
+provider "postgresql" {
+  scheme   = "gcppostgres"
+  host     = google_sql_database_instance.postgres.connection_name
+  username = google_sql_user.postgres.name
+  password = google_sql_user.postgres.password
+}
+
 resource "google_spanner_instance" "spanner_instance" {
   name             = var.spanner_instance_name
   config           = var.spanner_instance_config
@@ -35,7 +70,7 @@ resource "google_spanner_instance" "spanner_instance" {
   processing_units = 1000
 }
 
-module "kingdom_cluster" {
+module "cluster" {
   source = "../../modules/cluster"
 
   name            = var.cluster_name
@@ -44,18 +79,19 @@ module "kingdom_cluster" {
   secret_key      = module.common.cluster_secret_key
 }
 
-module "kingdom_default_node_pool" {
+module "default_node_pool" {
   source = "../../modules/node-pool"
 
   name            = "default"
-  cluster         = module.kingdom_cluster.cluster
+  cluster         = module.cluster.cluster
   service_account = module.common.cluster_service_account
-  machine_type    = "e2-custom-2-4096"
-  max_node_count  = 2
+  machine_type    = "e2-small"
+  max_node_count  = 8
 }
 
-module "kingdom" {
-  source = "../../modules/kingdom"
+module "reporting" {
+  source = "../../modules/reporting"
 
-  spanner_instance = google_spanner_instance.spanner_instance
+  postgres_instance = google_sql_database_instance.postgres
+  spanner_instance  = google_spanner_instance.spanner_instance
 }
