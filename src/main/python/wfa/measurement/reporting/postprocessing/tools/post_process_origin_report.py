@@ -31,7 +31,7 @@ from typing import FrozenSet
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_boolean('debug', False, 'Enable debug mode.')
+flags.DEFINE_boolean("debug", False, "Enable debug mode.")
 
 ami = "ami"
 mrc = "mrc"
