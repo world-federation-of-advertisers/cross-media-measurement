@@ -32,7 +32,7 @@ private const val SERVER_NAME = "AccessApiServer"
 
 @CommandLine.Command(name = SERVER_NAME)
 class PublicApiServer : Runnable {
-  private lateinit var serverFlags: CommonServer.Flags
+  @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
 
   @CommandLine.Option(
     names = ["--access-internal-api-target"],

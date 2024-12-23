@@ -21,42 +21,48 @@ free to use whichever you prefer.
     -   2 Kubernetes services
         -   `postgres-internal-reporting-server` (Cluster IP)
         -   `reporting-v2alpha-public-api-server` (External load balancer)
-    -   2 Kubernetes deployments
+        -   `access-internal-api-server` (Cluster IP)
+        -   `access-public-api-server` (External load balancer)
+    -   4 Kubernetes deployments
         -   `postgres-internal-reporting-server-deployment`
         -   `reporting-v2alpha-public-api-server-deployment`
+        -   `access-internal-api-server`
+        -   `access-public-api-server`
     -   1 Kubernetes cron job
         -   `report-scheduling`
-    -   4 Kubernetes network policies
+    -   6 Kubernetes network policies
         -   `postgres-internal-reporting-server-network-policy`
         -   `reporting-v2alpha-public-api-server-network-policy`
         -   `report-scheduling-network-policy`
+        -   `access-internal-api-server-network-policy`
+        -   `access-public-api-server-network-policy`
         -   `default-deny-ingress-and-egress`
 
 ## Before you start
 
 See [Machine Setup](machine-setup.md).
 
-### Managed PostgreSQL Quick Start
+## Provision Google Cloud Project infrastructure
 
-If you don't have a managed PostgreSQL instance in your project, you can create
-one in the
-[Cloud Console](https://console.cloud.google.com/sql/instances/create;engine=PostgreSQL).
-For the purposes of this guide, we assume the instance ID is `dev-postgres`.
+This can be done using Terraform. See [the guide](terraform.md) to use the
+example configuration for Reporting.
 
-Make sure that the instance has the `cloudsql.iam_authentication` flag set to
-`On`. Set the machine type and storage based on your expected usage.
-
-## Create the database
-
-The Reporting server expects its own database within your PostgreSQL instance.
-You can create one with the `gcloud` CLI. For example, a database named
-`reporting-v2` in the `dev-postgres` instance.
+Applying the Terraform configuration will create a new cluster. You can use the
+`gcloud` CLI to obtain credentials so that you can access the cluster via
+`kubectl`. For example:
 
 ```shell
-gcloud sql databases create reporting-v2 --instance=dev-postgres
+gcloud container clusters get-credentials reporting
 ```
 
-## Build and push the container images
+Applying the Terraform configuration will also create external IP resources and
+output the resource names. These will be needed in later steps.
+
+## Add metrics to the cluster (optional)
+
+See [Metrics Deployment](metrics-deployment.md).
+
+## Build and push the container images (not recommended)
 
 If you aren't using pre-built release images, you can build the images yourself
 from source and push them to a container registry. For example, if you're using
@@ -76,103 +82,6 @@ bazel run -c opt //src/main/docker:push_all_reporting_gke_images \
 Tip: If you're using [Hybrid Development](../building.md#hybrid-development) for
 containerized builds, replace `bazel build` with `tools/bazel-container build`
 and `bazel run` with `tools/bazel-container-run`.
-
-## Create resources for the cluster
-
-See [GKE Cluster Configuration](cluster-config.md) for background.
-
-### IAM Service Accounts
-
-We'll want to
-[create a least privilege service account](https://cloud.google.com/kubernetes-engine/docs/how-to/hardening-your-cluster#use_least_privilege_sa)
-that our cluster will run under. Follow the steps in the linked guide to do
-this.
-
-We'll additionally want to create a service account that we'll use to allow the
-internal API server to access the database. See
-[Granting Cloud SQL database access](cluster-config.md#granting-cloud-sql-instance-access)
-for how to make sure this service account has the appropriate role.
-
-### KMS key for secret encryption
-
-Follow the steps in
-[Create a Cloud KMS key](https://cloud.google.com/kubernetes-engine/docs/how-to/encrypting-secrets#creating-key)
-to create a KMS key and grant permission to the GKE service agent to use it.
-
-Let's assume we've created a key named `k8s-secret` in a key ring named
-`test-key-ring` in the `us-central1` region under the `halo-cmm-dev` project.
-The resource name would be the following:
-`projects/halo-cmm-dev/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret`.
-We'll use this when creating the cluster.
-
-Tip: For convenience, there is a "Copy resource name" action on the key in the
-Cloud console.
-
-## Create the cluster
-
-See [GKE Cluster Configuration](cluster-config.md) for tips on cluster creation
-parameters, or follow the quick start instructions below.
-
-After creating the cluster, we can configure `kubectl` to be able to access it
-
-```shell
-gcloud container clusters get-credentials reporting
-```
-
-### Add Metrics to the cluster
-
-See [Metrics Deployment](metrics-deployment.md).
-
-### Quick start
-
-Supposing you want to create a cluster named `reporting` for the Reporting
-server, running under the `gke-cluster` service account in the `halo-cmm-dev`
-project, the command would be
-
-```shell
-gcloud container clusters create reporting \
-  --enable-network-policy --workload-pool=halo-cmm-dev.svc.id.goog \
-  --service-account="gke-cluster@halo-cmm-dev.iam.gserviceaccount.com" \
-  --database-encryption-key=projects/halo-cmm-dev/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
-  --num-nodes=3 --enable-autoscaling --min-nodes=2 --max-nodes=4 \
-  --machine-type=e2-small
-```
-
-Adjust the number of nodes and machine type according to your expected usage.
-The cluster version should be no older than `1.24.0` in order to support
-built-in gRPC health probe.
-
-## Create the K8s ServiceAccount
-
-In order to use the IAM service account that we created earlier from our
-cluster, we need to create a K8s ServiceAccount and give it access to that IAM
-service account.
-
-For example, to create a K8s ServiceAccount named
-`internal-reporting-v2-server`, run
-
-```shell
-kubectl create serviceaccount internal-reporting-v2-server
-```
-
-Supposing the IAM service account you created in a previous step is named
-`reporting-v2-internal` within the `halo-cmm-dev` project. You'll need to allow
-the K8s service account to impersonate it
-
-```shell
-gcloud iam service-accounts add-iam-policy-binding \
-  reporting-v2-internal@halo-cmm-dev.iam.gserviceaccount.com \
-  --role roles/iam.workloadIdentityUser \
-  --member "serviceAccount:halo-cmm-dev.svc.id.goog[default/internal-reporting-v2-server]"
-```
-
-Finally, add an annotation to link the K8s service account to the IAM service
-account:
-
-```shell
-kubectl annotate serviceaccount internal-reporting-v2-server \
-    iam.gke.io/gcp-service-account=reporting-v2-internal@halo-cmm-dev.iam.gserviceaccount.com
-```
 
 ## Generate the K8s Kustomization
 
@@ -230,6 +139,10 @@ First, prepare all the files we want to include in the Kubernetes secret. The
 
     Note: This assumes that all your root certificate PEM files end in newline.
 
+1.  `reporting_root.pem`
+
+    The Reporting server's root CA certificate.
+
 1.  `reporting_tls.pem`
 
     The Reporting server's TLS certificate.
@@ -280,6 +193,7 @@ secretGenerator:
 - name: signing
   files:
   - all_root_certs.pem
+  - reporting_root.pem
   - reporting_tls.key
   - reporting_tls.pem
   - mc_enc_public.tink
@@ -341,6 +255,7 @@ You should see something like the following:
 NAME                                             READY   UP-TO-DATE   AVAILABLE   AGE
 postgres-internal-reporting-server-deployment    1/1     1            1           254d
 reporting-v2alpha-public-api-server-deployment   1/1     1            1           9m2s
+
 ```
 
 ```

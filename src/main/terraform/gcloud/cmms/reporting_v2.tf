@@ -37,6 +37,7 @@ module "reporting_v2" {
   iam_service_account_name = "reporting-v2-internal"
   postgres_instance        = google_sql_database_instance.postgres
   postgres_database_name   = "reporting-v2"
+  spanner_instance         = google_spanner_instance.spanner_instance
 }
 
 resource "google_compute_address" "reporting_v2alpha" {
