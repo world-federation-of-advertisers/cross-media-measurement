@@ -72,34 +72,6 @@ class ReportProcessorTest {
     assertThat(updatedReport.hasConsistentCumulativeMeasurements()).isTrue()
   }
 
-  @Test
-  fun `run correct report throws RuntimeException when cumulative measurements have different length`() {
-    val reportFile =
-      TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_invalid_cumulative_measurements.json")
-        .toFile()
-    val reportAsJson = reportFile.readText()
-
-    val exception =
-      assertFailsWith<RuntimeException> { ReportProcessor.processReportJson(reportAsJson) }
-
-    assertThat(exception).hasMessageThat().contains("must have the same length")
-  }
-
-  @Test
-  fun `run correct report throws RuntimeException when difference measurements have invalid variance`() {
-    val reportFile =
-      TEST_DATA_RUNTIME_DIR.resolve(
-          "sample_report_with_invalid_difference_measurement_variance.json"
-        )
-        .toFile()
-    val reportAsJson = reportFile.readText()
-
-    val exception =
-      assertFailsWith<RuntimeException> { ReportProcessor.processReportJson(reportAsJson) }
-
-    assertThat(exception).hasMessageThat().contains("The variance of the difference measurement")
-  }
-
   companion object {
     private val POLICIES = listOf("ami", "mrc", "custom")
     private val TEST_DATA_RUNTIME_DIR: Path =

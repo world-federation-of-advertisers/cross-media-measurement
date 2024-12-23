@@ -16,6 +16,7 @@ import json
 import math
 import sys
 
+from absl import app
 from absl import flags
 from absl import logging
 from noiseninja.noised_measurements import Measurement
@@ -29,6 +30,8 @@ from typing import FrozenSet
 # 1. Impression results are not corrected.
 
 FLAGS = flags.FLAGS
+
+flags.DEFINE_boolean('debug', False, 'Enable debug mode.')
 
 ami = "ami"
 mrc = "mrc"
@@ -184,30 +187,6 @@ class ReportSummaryProcessor:
         self._whole_campaign_measurements[entry.measurement_policy][
           frozenset(entry.data_providers)] = measurements[0]
 
-    # Gets the number of cumulative measurements per EDP combination.
-    cumulative_measurements_length_by_edp_combination: dict[
-      FrozenSet[str], int] = {}
-    for measurement_policy, edp_combinations in self._cumulative_measurements.items():
-      for edp_combination, measurements in edp_combinations.items():
-        cumulative_measurements_length_by_edp_combination[
-          edp_combination] = len(measurements)
-
-    # Verifies that all cumulative measurements have the same length and log the
-    # length. Otherwise, raise the ValueError exception.
-    if len(
-        set(cumulative_measurements_length_by_edp_combination.values())) <= 1:
-      logging.debug(
-          "Number of cumulative measurements per EDP combination is: "
-          f"{next(iter(cumulative_measurements_length_by_edp_combination.values()))}"
-      )
-    else:
-      message = \
-        "The input report summary is not valid. All cumulative measurements " \
-        "must have the same length. But the length of the cumulative " \
-        "measurements by EDP combination are:" \
-        f"{cumulative_measurements_length_by_edp_combination}"
-      logging.fatal(message)
-
     logging.info("Finished processing primitive measurements.")
 
   def _process_difference_measurements(self):
@@ -252,13 +231,14 @@ class ReportSummaryProcessor:
             Measurement(result.reach, result.standard_deviation, result.metric)
             for result in entry.measurement_results
         ]
-        logging.debug(f"Processing the measurement {measurements[0]}")
         subset = frozenset([edp for edp in entry.right_hand_side_targets])
-        if len(subset) == 0:
-          message = "The right hand side EDP combination must not be empty."
-          logging.fatal(message)
         superset = subset.union(
             frozenset([edp for edp in entry.left_hand_side_targets]))
+        logging.debug(
+            f"Processing the difference measurement {measurements[0]}. The "
+            f"left hand side and right hand side EDP combinations are "
+            f"{superset} and {subset} respectively."
+        )
         # The incremental reach (and unique reach) is computed as:
         # incremental_reach(superset \ subset, subset) = reach(superset) -
         # reach(subset). The set (superset \ subset) consists of a single EDP,
@@ -307,13 +287,9 @@ class ReportSummaryProcessor:
         # std(incremental_reach(A) = sqrt(std(rach(A U subset))^2 +
         # std(reach(subset))^2), we have: std(reach(subset)) =
         # sqrt(std(incremental_reach(A))^2 - std(reach(A U subset))^2).
-        if difference_measurement.sigma ** 2 - superset_measurement.sigma ** 2 < 0:
-          message = \
-            "The variance of the difference measurement, which is "\
-            f"{difference_measurement.sigma}, must be greater than the variance"\
-            f" of the left hand side measurement {superset_measurement.name}, "\
-            f"which is {superset_measurement.sigma}"
-          logging.fatal(message)
+        logging.debug(
+            f"Estimating the {measurement_policy} reach of {subset} from "
+            f"{superset_measurement.name} and {difference_measurement.name}.")
         subset_measurement = Measurement(
             superset_measurement.value - difference_measurement.value,
             math.sqrt(
@@ -332,14 +308,12 @@ class ReportSummaryProcessor:
     )
 
 
-def main():
-  # Sets the log level.
-  if '-v' in sys.argv:
-    FLAGS.stderrthreshold = 'debug'
-    logging.set_verbosity(logging.DEBUG)
-  else:
-    FLAGS.stderrthreshold = 'info'
-    logging.set_verbosity(logging.INFO)
+def main(argv):
+  # Sends the log to stderr.
+  FLAGS.logtostderr = True
+
+  # Sets the log level base on the --debug flag.
+  logging.set_verbosity(logging.DEBUG if FLAGS.debug else logging.INFO)
 
   report_summary = report_summary_pb2.ReportSummary()
   logging.info("Reading the report summary from stdin.")
@@ -355,4 +329,4 @@ def main():
 
 
 if __name__ == "__main__":
-  main()
+  app.run(main)

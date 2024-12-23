@@ -21,6 +21,7 @@ import java.io.InputStreamReader
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.io.path.name
 import org.wfanet.measurement.common.getJarResourcePath
@@ -101,7 +102,7 @@ interface ReportProcessor {
 
       // Sets verbosity for python program.
       if (verbose) {
-        processBuilder.command().add("-v")
+        processBuilder.command().add("--debug")
       }
       val process = processBuilder.start()
 
@@ -125,7 +126,6 @@ interface ReportProcessor {
       if (exitCode == 0) {
         logger.info(processError)
       } else {
-        logger.info("Failed to process the report with exitCode $exitCode.")
         throw ReportProcessorFailureException(processError)
       }
 
