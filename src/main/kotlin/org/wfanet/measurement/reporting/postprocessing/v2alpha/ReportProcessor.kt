@@ -21,7 +21,6 @@ import java.io.InputStreamReader
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
-import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.io.path.name
 import org.wfanet.measurement.common.getJarResourcePath
@@ -124,7 +123,7 @@ interface ReportProcessor {
       val exitCode = process.waitFor()
 
       if (exitCode == 0) {
-        logger.info(processError)
+        logger.fine(processError)
       } else {
         throw ReportProcessorFailureException(processError)
       }
