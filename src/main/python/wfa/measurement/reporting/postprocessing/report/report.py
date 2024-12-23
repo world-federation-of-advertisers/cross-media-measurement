@@ -14,14 +14,16 @@
 
 import numpy as np
 import random
-
 from absl import logging
-from noiseninja.noised_measurements import SetMeasurementsSpec, Measurement
+from functools import reduce
+from itertools import combinations
+from noiseninja.noised_measurements import Measurement
+from noiseninja.noised_measurements import SetMeasurementsSpec
 from noiseninja.solver import Solver
 from qpsolvers import Solution
-from typing import Any, FrozenSet, Tuple
-from itertools import combinations
-from functools import reduce
+from typing import Any
+from typing import FrozenSet
+from typing import Tuple
 
 MIN_STANDARD_VARIATION_RATIO = 0.001
 UNIT_SCALING_FACTOR = 1.0
@@ -163,10 +165,11 @@ class MetricReport:
     num_periods = len(next(iter(reach_time_series.values())))
     for series in reach_time_series.values():
       if len(series) != num_periods:
-        message =\
-          f"All time series must have the same length {len(series)} vs "\
-          f"{len(num_periods)}."
-        logging.fatal(message)
+        raise ValueError(
+            "All time series must have the same length {1: d} vs {2: d}".format(
+                len(series), len(num_periods)
+            )
+        )
 
     self._reach_time_series = reach_time_series
     self._reach_whole_campaign = reach_whole_campaign
@@ -423,7 +426,7 @@ class Report:
       for cover_relationship in self._metric_reports[
         metric].get_whole_campaign_cover_relationships():
         logging.debug(
-          f"Adding {metric} cover relations for total campaign measurements."
+            f"Adding {metric} cover relations for total campaign measurements."
         )
         covered_parent = cover_relationship[0]
         covering_children = cover_relationship[1]
@@ -611,7 +614,8 @@ class Report:
                         self._normalized_sigma(measurement.sigma),
                         measurement.name),
         )
-    logging.info("Finished adding the measurements to the set measurement spec.")
+    logging.info(
+      "Finished adding the measurements to the set measurement spec.")
 
   def _normalized_sigma(self, sigma: float) -> float:
     """Normalizes the standard deviation.
