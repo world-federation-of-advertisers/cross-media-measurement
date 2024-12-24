@@ -29,6 +29,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/access/service:errors",
         "//src/main/kotlin/org/wfanet/measurement/access/service:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/access/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_ids",
         "//src/main/proto/wfa/measurement/access/v1alpha:roles_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/access:roles_service_kt_jvm_grpc_proto",
     ],

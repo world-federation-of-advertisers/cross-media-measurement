@@ -33,6 +33,8 @@ service Roles {
   // Lists Roles ordered by `role_resource_id`.
   rpc ListRoles(ListRolesRequest) returns (ListRolesResponse);
 
+  // Creates a `Role`.
+  //
   // Error reasons:
   // * `PERMISSION_NOT_FOUND`
   // * `RESOURCE_TYPE_NOT_FOUND_IN_PERMISSION`
