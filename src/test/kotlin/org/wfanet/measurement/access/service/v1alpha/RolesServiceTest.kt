@@ -53,7 +53,7 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.internal.access.ListRolesPageTokenKt.after as internalListRolesPageTokenAfter
+import org.wfanet.measurement.internal.access.ListRolesPageTokenKt as InternalListRolesPageTokenKt
 import org.wfanet.measurement.internal.access.RolesGrpcKt as InternalRolesGrpcKt
 import org.wfanet.measurement.internal.access.copy
 import org.wfanet.measurement.internal.access.deleteRoleRequest as internalDeleteRoleRequest
@@ -178,7 +178,7 @@ class RolesServiceTest {
     val internalListRolesResponse = internalListRolesResponse {
       roles += internalBookReaderRole
       nextPageToken = internalListRolesPageToken {
-        after = internalListRolesPageTokenAfter { roleResourceId = "bookWriter" }
+        after = InternalListRolesPageTokenKt.after { roleResourceId = "bookWriter" }
       }
     }
     internalServiceMock.stub { onBlocking { listRoles(any()) } doReturn internalListRolesResponse }
