@@ -19,7 +19,6 @@ package org.wfanet.measurement.access.service.v1alpha
 import com.google.protobuf.Empty
 import io.grpc.Status
 import io.grpc.StatusException
-import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.access.service.EtagMismatchException
 import org.wfanet.measurement.access.service.InvalidFieldValueException
 import org.wfanet.measurement.access.service.PermissionKey
@@ -39,9 +38,10 @@ import org.wfanet.measurement.access.v1alpha.ListRolesResponse
 import org.wfanet.measurement.access.v1alpha.Role
 import org.wfanet.measurement.access.v1alpha.RolesGrpcKt
 import org.wfanet.measurement.access.v1alpha.UpdateRoleRequest
-import org.wfanet.measurement.access.v1alpha.getRoleRequest
 import org.wfanet.measurement.access.v1alpha.listRolesResponse
 import org.wfanet.measurement.common.api.ResourceIds
+import org.wfanet.measurement.internal.access.ListRolesResponse as InternalListRolesResponse
+import org.wfanet.measurement.internal.access.Role as InternalRole
 import org.wfanet.measurement.internal.access.RolesGrpcKt.RolesCoroutineStub as InternalRolesCoroutineStub
 import org.wfanet.measurement.internal.access.deleteRoleRequest as internalDeleteRoleRequest
 import org.wfanet.measurement.internal.access.getRoleRequest as internalGetRoleRequest
@@ -61,34 +61,32 @@ class RolesService(private val internalRolesStub: InternalRolesCoroutineStub) :
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    val internalResponse =
+    val internalResponse: InternalRole =
       try {
         internalRolesStub.getRole(internalGetRoleRequest { roleResourceId = key.roleId })
       } catch (e: StatusException) {
-        val exception: StatusRuntimeException =
-          when (InternalErrors.getReason(e)) {
-            InternalErrors.Reason.ROLE_NOT_FOUND ->
-              RoleNotFoundException(request.name, e).asStatusRuntimeException(e.status.code)
-            InternalErrors.Reason.PERMISSION_NOT_FOUND_FOR_ROLE,
-            InternalErrors.Reason.ETAG_MISMATCH,
-            InternalErrors.Reason.PERMISSION_NOT_FOUND,
-            InternalErrors.Reason.RESOURCE_TYPE_NOT_FOUND_IN_PERMISSION,
-            InternalErrors.Reason.PRINCIPAL_NOT_FOUND,
-            InternalErrors.Reason.PRINCIPAL_ALREADY_EXISTS,
-            InternalErrors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED,
-            InternalErrors.Reason.ROLE_ALREADY_EXISTS,
-            InternalErrors.Reason.POLICY_NOT_FOUND,
-            InternalErrors.Reason.POLICY_ALREADY_EXISTS,
-            InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_ALREADY_EXISTS,
-            InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_NOT_FOUND,
-            InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-            InternalErrors.Reason.INVALID_FIELD_VALUE,
-            InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER,
-            InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT,
-            InternalErrors.Reason.POLICY_NOT_FOUND_FOR_PROTECTED_RESOURCE,
-            null -> Status.INTERNAL.withCause(e).asRuntimeException()
-          }
-        throw exception
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.ROLE_NOT_FOUND ->
+            RoleNotFoundException(request.name, e).asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.PERMISSION_NOT_FOUND_FOR_ROLE,
+          InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.PERMISSION_NOT_FOUND,
+          InternalErrors.Reason.RESOURCE_TYPE_NOT_FOUND_IN_PERMISSION,
+          InternalErrors.Reason.PRINCIPAL_NOT_FOUND,
+          InternalErrors.Reason.PRINCIPAL_ALREADY_EXISTS,
+          InternalErrors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED,
+          InternalErrors.Reason.ROLE_ALREADY_EXISTS,
+          InternalErrors.Reason.POLICY_NOT_FOUND,
+          InternalErrors.Reason.POLICY_ALREADY_EXISTS,
+          InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_ALREADY_EXISTS,
+          InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_NOT_FOUND,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER,
+          InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT,
+          InternalErrors.Reason.POLICY_NOT_FOUND_FOR_PROTECTED_RESOURCE,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
       }
 
     return internalResponse.toRole()
@@ -96,19 +94,11 @@ class RolesService(private val internalRolesStub: InternalRolesCoroutineStub) :
 
   override suspend fun listRoles(request: ListRolesRequest): ListRolesResponse {
     if (request.pageSize < 0) {
-      throw InvalidFieldValueException("page_size")
+      throw InvalidFieldValueException("page_size") { fieldName -> "$fieldName cannot be negative" }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (request.pageToken.isNotEmpty()) {
-      if (!ResourceIds.RFC_1034_REGEX.matches(request.pageToken)) {
-        throw InvalidFieldValueException("page_token")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-      getRole(getRoleRequest { name = "roles/${request.pageToken}" })
-    }
-
-    val internalResponse =
+    val internalResponse: InternalListRolesResponse =
       internalRolesStub.listRoles(
         internalListRolesRequest {
           pageSize = request.pageSize
@@ -150,7 +140,7 @@ class RolesService(private val internalRolesStub: InternalRolesCoroutineStub) :
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
-    val internalResponse =
+    val internalResponse: InternalRole =
       try {
         internalRolesStub.createRole(
           internalRole {
@@ -161,34 +151,31 @@ class RolesService(private val internalRolesStub: InternalRolesCoroutineStub) :
           }
         )
       } catch (e: StatusException) {
-        val exception: StatusRuntimeException =
-          when (InternalErrors.getReason(e)) {
-            InternalErrors.Reason.PERMISSION_NOT_FOUND ->
-              PermissionNotFoundException.fromInternal(e).asStatusRuntimeException(e.status.code)
-            InternalErrors.Reason.RESOURCE_TYPE_NOT_FOUND_IN_PERMISSION ->
-              ResourceTypeNotFoundInPermissionException.fromInternal(e)
-                .asStatusRuntimeException(e.status.code)
-            InternalErrors.Reason.ROLE_ALREADY_EXISTS ->
-              RoleAlreadyExistsException(request.role.name, e)
-                .asStatusRuntimeException(e.status.code)
-            InternalErrors.Reason.ROLE_NOT_FOUND,
-            InternalErrors.Reason.PERMISSION_NOT_FOUND_FOR_ROLE,
-            InternalErrors.Reason.ETAG_MISMATCH,
-            InternalErrors.Reason.PRINCIPAL_NOT_FOUND,
-            InternalErrors.Reason.PRINCIPAL_ALREADY_EXISTS,
-            InternalErrors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED,
-            InternalErrors.Reason.POLICY_NOT_FOUND,
-            InternalErrors.Reason.POLICY_ALREADY_EXISTS,
-            InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_ALREADY_EXISTS,
-            InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_NOT_FOUND,
-            InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-            InternalErrors.Reason.INVALID_FIELD_VALUE,
-            InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER,
-            InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT,
-            InternalErrors.Reason.POLICY_NOT_FOUND_FOR_PROTECTED_RESOURCE,
-            null -> Status.INTERNAL.withCause(e).asRuntimeException()
-          }
-        throw exception
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.PERMISSION_NOT_FOUND ->
+            PermissionNotFoundException.fromInternal(e).asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.RESOURCE_TYPE_NOT_FOUND_IN_PERMISSION ->
+            ResourceTypeNotFoundInPermissionException.fromInternal(e)
+              .asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.ROLE_ALREADY_EXISTS ->
+            RoleAlreadyExistsException(request.role.name, e).asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.ROLE_NOT_FOUND,
+          InternalErrors.Reason.PERMISSION_NOT_FOUND_FOR_ROLE,
+          InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.PRINCIPAL_NOT_FOUND,
+          InternalErrors.Reason.PRINCIPAL_ALREADY_EXISTS,
+          InternalErrors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED,
+          InternalErrors.Reason.POLICY_NOT_FOUND,
+          InternalErrors.Reason.POLICY_ALREADY_EXISTS,
+          InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_ALREADY_EXISTS,
+          InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_NOT_FOUND,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER,
+          InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT,
+          InternalErrors.Reason.POLICY_NOT_FOUND_FOR_PROTECTED_RESOURCE,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
       }
 
     return internalResponse.toRole()
@@ -210,7 +197,7 @@ class RolesService(private val internalRolesStub: InternalRolesCoroutineStub) :
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
-    val internalResponse =
+    val internalResponse: InternalRole =
       try {
         internalRolesStub.updateRole(
           internalRole {
@@ -221,36 +208,34 @@ class RolesService(private val internalRolesStub: InternalRolesCoroutineStub) :
           }
         )
       } catch (e: StatusException) {
-        val exception: StatusRuntimeException =
-          when (InternalErrors.getReason(e)) {
-            InternalErrors.Reason.ROLE_NOT_FOUND ->
-              RoleNotFoundException(request.role.name, e).asStatusRuntimeException(e.status.code)
-            InternalErrors.Reason.PERMISSION_NOT_FOUND_FOR_ROLE ->
-              PermissionNotFoundForRoleException(request.role.name, e)
-                .asStatusRuntimeException(e.status.code)
-            InternalErrors.Reason.ETAG_MISMATCH ->
-              EtagMismatchException.fromInternal(e).asStatusRuntimeException(e.status.code)
-            InternalErrors.Reason.PERMISSION_NOT_FOUND ->
-              PermissionNotFoundException.fromInternal(e).asStatusRuntimeException(e.status.code)
-            InternalErrors.Reason.RESOURCE_TYPE_NOT_FOUND_IN_PERMISSION ->
-              ResourceTypeNotFoundInPermissionException.fromInternal(e)
-                .asStatusRuntimeException(e.status.code)
-            InternalErrors.Reason.PRINCIPAL_NOT_FOUND,
-            InternalErrors.Reason.PRINCIPAL_ALREADY_EXISTS,
-            InternalErrors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED,
-            InternalErrors.Reason.ROLE_ALREADY_EXISTS,
-            InternalErrors.Reason.POLICY_NOT_FOUND,
-            InternalErrors.Reason.POLICY_ALREADY_EXISTS,
-            InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_ALREADY_EXISTS,
-            InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_NOT_FOUND,
-            InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-            InternalErrors.Reason.INVALID_FIELD_VALUE,
-            InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER,
-            InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT,
-            InternalErrors.Reason.POLICY_NOT_FOUND_FOR_PROTECTED_RESOURCE,
-            null -> Status.INTERNAL.withCause(e).asRuntimeException()
-          }
-        throw exception
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.ROLE_NOT_FOUND ->
+            RoleNotFoundException(request.role.name, e).asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.PERMISSION_NOT_FOUND_FOR_ROLE ->
+            PermissionNotFoundForRoleException(request.role.name, e)
+              .asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.ETAG_MISMATCH ->
+            EtagMismatchException.fromInternal(e).asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.PERMISSION_NOT_FOUND ->
+            PermissionNotFoundException.fromInternal(e).asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.RESOURCE_TYPE_NOT_FOUND_IN_PERMISSION ->
+            ResourceTypeNotFoundInPermissionException.fromInternal(e)
+              .asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.PRINCIPAL_NOT_FOUND,
+          InternalErrors.Reason.PRINCIPAL_ALREADY_EXISTS,
+          InternalErrors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED,
+          InternalErrors.Reason.ROLE_ALREADY_EXISTS,
+          InternalErrors.Reason.POLICY_NOT_FOUND,
+          InternalErrors.Reason.POLICY_ALREADY_EXISTS,
+          InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_ALREADY_EXISTS,
+          InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_NOT_FOUND,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER,
+          InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT,
+          InternalErrors.Reason.POLICY_NOT_FOUND_FOR_PROTECTED_RESOURCE,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
       }
 
     return internalResponse.toRole()
@@ -269,30 +254,28 @@ class RolesService(private val internalRolesStub: InternalRolesCoroutineStub) :
     try {
       internalRolesStub.deleteRole(internalDeleteRoleRequest { roleResourceId = key.roleId })
     } catch (e: StatusException) {
-      val exception: StatusRuntimeException =
-        when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.ROLE_NOT_FOUND ->
-            RoleNotFoundException(request.name, e).asStatusRuntimeException(e.status.code)
-          InternalErrors.Reason.PERMISSION_NOT_FOUND_FOR_ROLE,
-          InternalErrors.Reason.ETAG_MISMATCH,
-          InternalErrors.Reason.PERMISSION_NOT_FOUND,
-          InternalErrors.Reason.RESOURCE_TYPE_NOT_FOUND_IN_PERMISSION,
-          InternalErrors.Reason.PRINCIPAL_NOT_FOUND,
-          InternalErrors.Reason.PRINCIPAL_ALREADY_EXISTS,
-          InternalErrors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED,
-          InternalErrors.Reason.ROLE_ALREADY_EXISTS,
-          InternalErrors.Reason.POLICY_NOT_FOUND,
-          InternalErrors.Reason.POLICY_ALREADY_EXISTS,
-          InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_ALREADY_EXISTS,
-          InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_NOT_FOUND,
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE,
-          InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER,
-          InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT,
-          InternalErrors.Reason.POLICY_NOT_FOUND_FOR_PROTECTED_RESOURCE,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
-        }
-      throw exception
+      throw when (InternalErrors.getReason(e)) {
+        InternalErrors.Reason.ROLE_NOT_FOUND ->
+          RoleNotFoundException(request.name, e).asStatusRuntimeException(e.status.code)
+        InternalErrors.Reason.PERMISSION_NOT_FOUND_FOR_ROLE,
+        InternalErrors.Reason.ETAG_MISMATCH,
+        InternalErrors.Reason.PERMISSION_NOT_FOUND,
+        InternalErrors.Reason.RESOURCE_TYPE_NOT_FOUND_IN_PERMISSION,
+        InternalErrors.Reason.PRINCIPAL_NOT_FOUND,
+        InternalErrors.Reason.PRINCIPAL_ALREADY_EXISTS,
+        InternalErrors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED,
+        InternalErrors.Reason.ROLE_ALREADY_EXISTS,
+        InternalErrors.Reason.POLICY_NOT_FOUND,
+        InternalErrors.Reason.POLICY_ALREADY_EXISTS,
+        InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_ALREADY_EXISTS,
+        InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_NOT_FOUND,
+        InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+        InternalErrors.Reason.INVALID_FIELD_VALUE,
+        InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER,
+        InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT,
+        InternalErrors.Reason.POLICY_NOT_FOUND_FOR_PROTECTED_RESOURCE,
+        null -> Status.INTERNAL.withCause(e).asRuntimeException()
+      }
     }
 
     return Empty.getDefaultInstance()

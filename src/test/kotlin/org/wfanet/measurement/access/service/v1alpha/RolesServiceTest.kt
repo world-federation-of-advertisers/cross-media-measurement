@@ -160,7 +160,7 @@ class RolesServiceTest {
   }
 
   @Test
-  fun `listRoles returns Roles when page token is set`() = runBlocking {
+  fun `listRoles returns Roles`() = runBlocking {
     val internalBookReaderRole = internalRole {
       roleResourceId = "bookReader"
       resourceTypes += "library.googleapis.com/Shelf"
@@ -210,47 +210,6 @@ class RolesServiceTest {
           domain = Errors.DOMAIN
           reason = Errors.Reason.INVALID_FIELD_VALUE.name
           metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
-        }
-      )
-  }
-
-  @Test
-  fun `listRoles throws INVALID_FIELD_VALUE when page token is malformed`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.listRoles(listRolesRequest { pageToken = "123" })
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "page_token"
-        }
-      )
-  }
-
-  @Test
-  fun `listRoles throws INVALID_FIELD_VALUE when page token is invalid`() = runBlocking {
-    internalServiceMock.stub {
-      onBlocking { getRole(any()) } doThrow
-        RoleNotFoundException("bookReader").asStatusRuntimeException(Status.Code.NOT_FOUND)
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.listRoles(listRolesRequest { pageToken = "bookReader" })
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.ROLE_NOT_FOUND.name
-          metadata[Errors.Metadata.ROLE.key] = "roles/bookReader"
         }
       )
   }
