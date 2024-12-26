@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import java.util.logging.Level
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
@@ -57,7 +59,9 @@ private object Params {
 class FulfillRequisition(private val request: FulfillRequisitionRequest) :
   SpannerWriter<Requisition, Requisition>() {
   override suspend fun TransactionScope.runTransaction(): Requisition {
+    logger.log(Level.INFO, "Reading requisition...")
     val readResult: RequisitionReader.Result = readRequisition()
+    logger.log(Level.INFO, "Read requisition")
     val (measurementConsumerId, measurementId, requisitionId, requisition) = readResult
 
     val state = requisition.state
@@ -103,6 +107,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
           logMessage = "All requisitions fulfilled"
         }
         // All other Requisitions are already FULFILLED, so update Measurement state.
+        logger.log(Level.INFO, "Updating Measurement State...")
         nextState.also {
           updateMeasurementState(
             measurementConsumerId = measurementConsumerId,
@@ -115,9 +120,12 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
       } else {
         null
       }
+    logger.log(Level.INFO, "Skipped or updated Measurement State")
 
     val fulfillDuchyId = if (request.hasComputedParams()) getFulfillDuchyId() else null
+    logger.log(Level.INFO, "Updating requisition...")
     updateRequisition(readResult, Requisition.State.FULFILLED, updatedDetails, fulfillDuchyId)
+    logger.log(Level.INFO, "Updated requisition...")
 
     return requisition.copy {
       if (request.hasComputedParams()) {
@@ -179,6 +187,8 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
   }
 
   companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+
     private fun TransactionScope.readRequisitionsNotInState(
       measurementConsumerId: InternalId,
       measurementId: InternalId,
