@@ -25,9 +25,29 @@ import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.SingleRequisitionReader
 
 internal fun SpannerWriter.TransactionScope.updateRequisition(
   readResult: RequisitionReader.Result,
+  state: Requisition.State,
+  details: RequisitionDetails,
+  fulfillingDuchyId: InternalId? = null,
+) {
+  transactionContext.bufferUpdateMutation("Requisitions") {
+    set("MeasurementId" to readResult.measurementId.value)
+    set("MeasurementConsumerId" to readResult.measurementConsumerId.value)
+    set("RequisitionId" to readResult.requisitionId.value)
+    set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+    set("State").toInt64(state)
+    set("RequisitionDetails").to(details)
+    if (fulfillingDuchyId != null) {
+      set("FulfillingDuchyId" to fulfillingDuchyId)
+    }
+  }
+}
+
+internal fun SpannerWriter.TransactionScope.updateRequisition(
+  readResult: SingleRequisitionReader.Result,
   state: Requisition.State,
   details: RequisitionDetails,
   fulfillingDuchyId: InternalId? = null,

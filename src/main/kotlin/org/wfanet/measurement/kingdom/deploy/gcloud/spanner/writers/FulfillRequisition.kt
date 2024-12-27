@@ -36,7 +36,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementSt
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundByComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundByDataProviderException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionStateIllegalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.SingleRequisitionReader
 
 private object Params {
   const val MEASUREMENT_CONSUMER_ID = "measurementConsumerId"
@@ -60,7 +60,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
   SpannerWriter<Requisition, Requisition>() {
   override suspend fun TransactionScope.runTransaction(): Requisition {
     logger.log(Level.INFO, "Reading requisition...")
-    val readResult: RequisitionReader.Result = readRequisition()
+    val readResult: SingleRequisitionReader.Result = readRequisition()
     logger.log(Level.INFO, "Read requisition")
     val (measurementConsumerId, measurementId, requisitionId, requisition) = readResult
 
@@ -143,11 +143,11 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
     return checkNotNull(transactionResult).copy { updateTime = commitTimestamp.toProto() }
   }
 
-  private suspend fun TransactionScope.readRequisition(): RequisitionReader.Result {
+  private suspend fun TransactionScope.readRequisition(): SingleRequisitionReader.Result {
     val externalRequisitionId = request.externalRequisitionId
     if (request.hasComputedParams()) {
       val externalComputationId = request.computedParams.externalComputationId
-      return RequisitionReader()
+      return SingleRequisitionReader()
         .readByExternalComputationId(
           transactionContext,
           externalComputationId = externalComputationId,
@@ -162,7 +162,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
         }
     } else {
       val externalDataProviderId = request.directParams.externalDataProviderId
-      return RequisitionReader()
+      return SingleRequisitionReader()
         .readByExternalDataProviderId(
           transactionContext,
           externalDataProviderId = externalDataProviderId,
