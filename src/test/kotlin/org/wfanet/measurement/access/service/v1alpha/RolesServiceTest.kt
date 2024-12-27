@@ -49,6 +49,7 @@ import org.wfanet.measurement.access.v1alpha.listRolesRequest
 import org.wfanet.measurement.access.v1alpha.listRolesResponse
 import org.wfanet.measurement.access.v1alpha.role
 import org.wfanet.measurement.access.v1alpha.updateRoleRequest
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -191,7 +192,8 @@ class RolesServiceTest {
       .isEqualTo(
         listRolesResponse {
           roles += internalBookReaderRole.toRole()
-          nextPageToken = internalBookWriterRole.roleResourceId
+          nextPageToken =
+            internalListRolesResponse.nextPageToken.after.toByteString().base64UrlEncode()
         }
       )
   }
@@ -210,6 +212,24 @@ class RolesServiceTest {
           domain = Errors.DOMAIN
           reason = Errors.Reason.INVALID_FIELD_VALUE.name
           metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
+        }
+      )
+  }
+
+  @Test
+  fun `listRoles throws INVALID_FIELD_VALUE when page token is invalid`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listRoles(listRolesRequest { pageToken = "1" })
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "page_token"
         }
       )
   }
