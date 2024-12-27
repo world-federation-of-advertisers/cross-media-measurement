@@ -17,8 +17,10 @@
 package org.wfanet.measurement.access.service.v1alpha
 
 import com.google.protobuf.Empty
+import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import io.grpc.StatusException
+import java.io.IOException
 import org.wfanet.measurement.access.service.EtagMismatchException
 import org.wfanet.measurement.access.service.InvalidFieldValueException
 import org.wfanet.measurement.access.service.PermissionKey
@@ -40,12 +42,14 @@ import org.wfanet.measurement.access.v1alpha.RolesGrpcKt
 import org.wfanet.measurement.access.v1alpha.UpdateRoleRequest
 import org.wfanet.measurement.access.v1alpha.listRolesResponse
 import org.wfanet.measurement.common.api.ResourceIds
+import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.internal.access.ListRolesPageToken as InternalListRolesPageToken
 import org.wfanet.measurement.internal.access.ListRolesResponse as InternalListRolesResponse
 import org.wfanet.measurement.internal.access.Role as InternalRole
 import org.wfanet.measurement.internal.access.RolesGrpcKt.RolesCoroutineStub as InternalRolesCoroutineStub
 import org.wfanet.measurement.internal.access.deleteRoleRequest as internalDeleteRoleRequest
 import org.wfanet.measurement.internal.access.getRoleRequest as internalGetRoleRequest
-import org.wfanet.measurement.internal.access.listRolesPageToken as internalListRolesPageToken
 import org.wfanet.measurement.internal.access.listRolesRequest as internalListRolesRequest
 import org.wfanet.measurement.internal.access.role as internalRole
 
@@ -98,12 +102,25 @@ class RolesService(private val internalRolesStub: InternalRolesCoroutineStub) :
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    val internalPageToken: InternalListRolesPageToken? =
+      if (request.pageToken.isEmpty()) null
+      else
+        try {
+          InternalListRolesPageToken.parseFrom(request.pageToken.base64UrlDecode())
+        } catch (e: IOException) {
+          throw InvalidFieldValueException("page_token")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        } catch (e: InvalidProtocolBufferException) {
+          throw InvalidFieldValueException("page_token")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
     val internalResponse: InternalListRolesResponse =
       internalRolesStub.listRoles(
         internalListRolesRequest {
           pageSize = request.pageSize
-          if (request.pageToken.isNotEmpty()) {
-            pageToken = internalListRolesPageToken { request.pageToken }
+          if (internalPageToken != null) {
+            pageToken = internalPageToken
           }
         }
       )
@@ -111,7 +128,7 @@ class RolesService(private val internalRolesStub: InternalRolesCoroutineStub) :
     return listRolesResponse {
       roles += internalResponse.rolesList.map { it.toRole() }
       if (internalResponse.hasNextPageToken()) {
-        nextPageToken = internalResponse.nextPageToken.after.roleResourceId
+        nextPageToken = internalResponse.nextPageToken.after.toByteString().base64UrlEncode()
       }
     }
   }
