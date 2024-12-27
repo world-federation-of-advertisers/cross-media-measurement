@@ -189,9 +189,16 @@ class Solver:
       # If the highs solver does not converge, switch to the osqp solver which
       # is more robust.
       if not solution.found:
-        SEMAPHORE.acquire()
-        solution = self._solve_with_initial_value(OSQP_SOLVER, self.base_value)
-        SEMAPHORE.release()
+        attempt_count = 0
+        while attempt_count < MAX_ATTEMPTS:
+          SEMAPHORE.acquire()
+          solution = self._solve_with_initial_value(OSQP_SOLVER, self.base_value)
+          SEMAPHORE.release()
+
+          if solution.found:
+            break
+          else:
+            attempt_count += 1
 
     # Raise the exception when both solvers do not converge.
     if not solution.found:
