@@ -42,7 +42,7 @@ message ReportingUnit {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // TODO: Update comment to document the "reported types"
+  // The MediaType filters that were applied to the components.
   repeated MediaType reported_media_types = 3 [
     (google.api.field_behavior) = OUTPUT_ONLY,
     (google.api.field_behavior) = IMMUTABLE
