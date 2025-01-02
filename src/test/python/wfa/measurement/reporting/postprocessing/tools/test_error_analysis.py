@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import numpy as np
+import random
 import openpyxl
 import statistics
 import sys
@@ -69,7 +70,7 @@ mrc_to_ami_rate = 0.9
 
 MEASUREMENT_POLICIES = ["ami", "mrc"]
 POPULATION_SIZE = 55000000
-CUMULATIVE_LENGTH = 16
+CUMULATIVE_LENGTH = 18
 ITERATIONS = 50
 
 # DP params:
@@ -234,13 +235,18 @@ def generate_test_report(probabilities: dict[str, float]):
     scale = scales[key]
     current_sum = 0
     for i in range(CUMULATIVE_LENGTH):
-      reach_time_series[EDP_MAP[key]].append(
-          int(probability * (POPULATION_SIZE - current_sum)))
-      probability = scale * probability
-      if i > 0:
-        reach_time_series[EDP_MAP[key]][i] += reach_time_series[EDP_MAP[key]][
-          i - 1]
-      current_sum = reach_time_series[EDP_MAP[key]][i]
+      if i == 0:
+        reach_time_series[EDP_MAP[key]].append(1)
+      elif i == 1:
+        reach_time_series[EDP_MAP[key]].append(random.randint(1, 500))
+      else:
+        reach_time_series[EDP_MAP[key]].append(
+            int(probability * (POPULATION_SIZE - current_sum)))
+        probability = scale * probability
+        if i > 0:
+          reach_time_series[EDP_MAP[key]][i] += reach_time_series[EDP_MAP[key]][
+            i - 1]
+        current_sum = reach_time_series[EDP_MAP[key]][i]
     reach_whole_campaign[EDP_MAP[key]] = \
       int(probability * (POPULATION_SIZE - current_sum)) + \
       reach_time_series[EDP_MAP[key]][CUMULATIVE_LENGTH - 1]
@@ -251,12 +257,6 @@ def generate_test_report(probabilities: dict[str, float]):
   generate_union_measurements(reach_time_series, reach_whole_campaign)
   metric_reports["ami"] = MetricReport(reach_time_series, reach_whole_campaign)
 
-  # for key, value in metric_reports["ami"].reach_time_series.items():
-  #   print(f"{key}: {value}")
-  #
-  # for key, value in metric_reports["ami"].reach_whole_campaign.items():
-  #   print(f"{key}: {value}")
-
   # Generate MRC report
   reach_time_series = {}
   reach_whole_campaign = {}
@@ -265,8 +265,8 @@ def generate_test_report(probabilities: dict[str, float]):
     reach_whole_campaign[EDP_MAP[key]] = 0
     for i in range(CUMULATIVE_LENGTH):
       reach_time_series[EDP_MAP[key]].append(
-          int((0.9 + 0.09 * i / CUMULATIVE_LENGTH) *
-              metric_reports["ami"].reach_time_series[EDP_MAP[key]][i]))
+          max(int((0.9 + 0.09 * i / CUMULATIVE_LENGTH) *
+              metric_reports["ami"].reach_time_series[EDP_MAP[key]][i]), 1))
     reach_whole_campaign[EDP_MAP[key]] = int(0.999 *
                                              metric_reports[
                                                "ami"].reach_whole_campaign[
@@ -307,8 +307,9 @@ def get_report_summary_from_data(metric_reports):
         result.standard_deviation = SIGMAS[edp]
         result.metric = policy + "_cumulative_" + edp + "_" + str(i).zfill(2)
 
-        result.reach = metric_reports[policy].reach_time_series[EDP_MAP[edp]][i] \
-                       + int(np.random.normal(0, SIGMAS[edp], 1)[0])
+        result.reach = max(
+          metric_reports[policy].reach_time_series[EDP_MAP[edp]][i] + int(
+              np.random.normal(0, SIGMAS[edp], 1)[0]), 0)
         true_measurement_map[result.metric] = \
           metric_reports[policy].reach_time_series[EDP_MAP[edp]][i]
         noisy_measurement_map[result.metric] = result.reach
@@ -324,8 +325,9 @@ def get_report_summary_from_data(metric_reports):
       result = measurement_detail.measurement_results.add()
       result.standard_deviation = SIGMAS["union"]
       result.metric = "total_" + policy + "_" + edp
-      result.reach = metric_reports[policy].reach_whole_campaign[EDP_MAP[edp]] \
-                     + int(np.random.normal(0, SIGMAS["union"], 1)[0])
+      result.reach = max(
+        metric_reports[policy].reach_whole_campaign[EDP_MAP[edp]] + int(
+            np.random.normal(0, SIGMAS["union"], 1)[0]), 0)
       true_measurement_map[result.metric] = \
         metric_reports[policy].reach_whole_campaign[EDP_MAP[edp]]
       noisy_measurement_map[result.metric] = result.reach
@@ -427,14 +429,15 @@ def compute_statistic(true_values, measurements):
 
   # Calculate the relative variance for each true value
   relative_variances = np.var(measurements_array, axis=0) / np.array(
-    true_values)
+      true_values)
 
   # Calculate relative error for each measurement
   relative_errors = np.abs(
-    measurements_array - np.array(true_values)) / np.array(true_values)
+      measurements_array - np.array(true_values)) / np.array(true_values)
 
   # Calculate the % of measurements with relative error > 2% for each measurement.
-  percent_high_rel_error = (np.sum(relative_errors > 0.02, axis=0) / float(len(measurements))) * 100
+  percent_high_rel_error = (np.sum(relative_errors > 0.02, axis=0) / float(
+    len(measurements))) * 100
 
   avg_rel_error = np.mean(relative_errors)
   median_rel_error = np.median(relative_errors)
@@ -445,7 +448,6 @@ def compute_statistic(true_values, measurements):
   median_rel_var = np.median(relative_variances)
   worst_rel_var = np.max(relative_variances)
   quantile_75_rel_var = np.percentile(relative_variances, 75)
-
 
   print("Relative bias:")
   print_array(relative_bias)
@@ -468,28 +470,32 @@ def compute_statistic(true_values, measurements):
 
   return relative_bias, relative_variances, percent_high_rel_error
 
+
 def get_measurement_name_to_index(measurement_names):
   measurement_name_to_index = {}
   for i, string in enumerate(measurement_names):
     measurement_name_to_index[string] = i
   return measurement_name_to_index
 
-def compute_unique_reach_statistic(true_values, measurements, parent_index, child_index):
+
+def compute_unique_reach_statistic(true_values, measurements, parent_index,
+    child_index):
   measurements_array = np.array(list(measurements.values()))
   # Calculate the true difference between measurements at indices parent_index and child_index
   true_diff = true_values[parent_index] - true_values[child_index]
 
   # Calculate the difference between measurements at indices i and j
-  estimated_diff = measurements_array[:, parent_index] - measurements_array[:, child_index]
+  estimated_diff = measurements_array[:, parent_index] - measurements_array[:,
+                                                         child_index]
 
   # Calculate the mean of the measurements.
-  mean_measurements = np.mean(estimated_diff,axis=0)
+  mean_measurements = np.mean(estimated_diff, axis=0)
 
   # Calculate the relative bias.
   relative_bias = (mean_measurements - true_diff) / true_diff
 
   # Calculate the relative variance for each true value
-  relative_variances = np.var(estimated_diff,axis=0) / true_diff
+  relative_variances = np.var(estimated_diff, axis=0) / true_diff
 
   # Calculate relative error for each measurement
   relative_errors = np.abs(estimated_diff - true_diff) / true_diff
@@ -509,6 +515,7 @@ def compute_unique_reach_statistic(true_values, measurements, parent_index, chil
 
   return relative_bias, relative_variances, percent_high_rel_error
 
+
 def print_array(arr):
   for val in arr:
     print(val)
@@ -526,7 +533,8 @@ class TestOriginReport(unittest.TestCase):
     print("Corrected measurement statistics:")
     compute_statistic(sorted_true_measurements, corrected_measurements)
 
-    measurement_name_to_index = get_measurement_name_to_index(sorted_measurement_names)
+    measurement_name_to_index = get_measurement_name_to_index(
+      sorted_measurement_names)
 
     print("unique reach edp2 \ edp1 statistics:")
     union_edp1_edp2_index = measurement_name_to_index["total_ami_edp12"]
