@@ -16,6 +16,7 @@ package org.wfanet.measurement.integration.common
 
 import com.google.type.date
 import java.time.Instant
+import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -48,6 +49,7 @@ import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -322,17 +324,10 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
     private const val DEFAULT_POPULATION_FILTER_EXPRESSION =
       "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
 
-    private val ROLLOUT_PERIOD_START_DATE = date {
-      year = 2025
-      month = 1
-      day = 2
-    }
 
-    private val ROLLOUT_PERIOD_END_DATE = date {
-      year = 2025
-      month = 1
-      day = 3
-    }
+    private val ROLLOUT_PERIOD_START_DATE = LocalDate.now().plusDays(10).toProtoDate()
+
+    private val ROLLOUT_PERIOD_END_DATE = LocalDate.now().plusDays(20).toProtoDate()
 
     @BeforeClass
     @JvmStatic
