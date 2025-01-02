@@ -57,11 +57,11 @@ message ImpressionQualificationFilter {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // The filter category (e.g. MRC)
+  // Specifies the filter criteria for each MediaType.
   //
-  // This allows filters to be grouped by category across Filter Types
-  string category = 3 [
-    (google.api.field_behavior) = OPTIONAL,
+  // They may be at most one spec per MediaType.
+  repeated ImpressionQualificationFilterSpec filter_specs = 4 [
+    (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
 }
