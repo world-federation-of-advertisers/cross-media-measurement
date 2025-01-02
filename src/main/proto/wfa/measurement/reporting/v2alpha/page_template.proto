@@ -58,7 +58,7 @@ message PageTemplate {
   ];
 
   // Specifies the Metrics to compute.
-  MetricSpec metric_spec = 5 [
+  PageMetricSpec metric_spec = 5 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
