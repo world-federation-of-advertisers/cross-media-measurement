@@ -70,8 +70,8 @@ message BasicReport {
 
   // The set of filters for this report.
   //
-  // There must be at most one entry per category, where
-  // the use of "custom" is considered one such category.
+  // There must be at most one entry per ImpressionQualificationFilter, and
+  // custom may be used no more than once.
   repeated ReportingImpressionQualificationFilter
       impression_qualification_filters = 6 [
         (google.api.field_behavior) = REQUIRED,
