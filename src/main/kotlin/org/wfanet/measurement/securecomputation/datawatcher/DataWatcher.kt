@@ -16,89 +16,65 @@
 
 package org.wfanet.measurement.securecomputation.datawatcher
 
-import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse.BodyHandlers
-import java.util.UUID
-import java.util.logging.Logger
-import kotlin.text.matches
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsService
+import com.google.events.cloud.storage.v1.StorageObjectData
+import org.wfanet.measurement.securecomputation.DataWatcherConfig.DiscoveredWork
+import org.wfanet.measurement.securecomputation.DataWatcherConfig
+import com.google.cloud.functions.CloudEventsFunction
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GooglePubSubWorkItemsService
+import java.nio.charset.StandardCharsets
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.common.toJson
-import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import com.google.protobuf.Any
+import io.cloudevents.CloudEvent
+import com.google.protobuf.InvalidProtocolBufferException
+import com.google.protobuf.util.JsonFormat
+import java.util.UUID
+import kotlinx.coroutines.runBlocking
 
-/*
- * Watcher to observe blob creation events and take the appropriate action for each.
- * @param workItemsStub - the Google Pub Sub Sink to call
- * @param dataWatcherConfigs - a list of [DataWatcherConfig]
- */
 class DataWatcher(
-  private val workItemsStub: WorkItemsCoroutineStub,
-  private val dataWatcherConfigs: List<DataWatcherConfig>,
-) {
-  suspend fun receivePath(path: String) {
-    for (config in dataWatcherConfigs) {
-      try {
-        val regex = config.sourcePathRegex.toRegex()
-        if (regex.matches(path)) {
-          logger.info("${config.name}: Matched path: $path")
-          when (config.sinkConfigCase) {
-            DataWatcherConfig.SinkConfigCase.CONTROL_PLANE_QUEUE_SINK -> {
-              send_to_control_plane(config, path)
-            }
-            DataWatcherConfig.SinkConfigCase.HTTP_ENDPOINTS_SINK -> {
-              send_to_http_endpoint(config)
-            }
-            DataWatcherConfig.SinkConfigCase.SINKCONFIG_NOT_SET ->
-              error("${config.name}: Invalid sink config: ${config.sinkConfigCase}")
-          }
+  private val workItemsService: GooglePubSubWorkItemsService,
+  private val dataWatcherConfigs: List<DataWatcherConfig>
+) : CloudEventsFunction {
+
+  override fun accept(event: CloudEvent) {
+    val cloudEventData = String(event.getData().toBytes(), StandardCharsets.UTF_8)
+    val builder = StorageObjectData.newBuilder()
+    JsonFormat.parser().merge(cloudEventData, builder)
+    val data = builder.build()
+    val bucket = data.getBucket()
+    val blobKey = data.getName()
+    val path = "gs://" + bucket + "/" + blobKey
+    println("*********************************")
+    println("Data Watcher: Found path $path")
+    println("*********************************")
+    dataWatcherConfigs.forEach { config ->
+      val regex = config.sourcePathRegex.toRegex()
+      if (regex.matches(path)) {
+        val queueConfig = config.queue
+        val workItemId = UUID.randomUUID().toString()
+        val workItemParams = DataWatcherConfig.DiscoveredWork.newBuilder()
+          .setType(queueConfig.appConfig)
+          .setPath(path)
+          .build()
+          .pack()
+        val workItem = WorkItem.newBuilder()
+          .setName("workItems/" + workItemId)
+          .setQueue(queueConfig.queueName)
+          .setWorkItemParams(workItemParams)
+          .build()
+        val createWorkItemRequest = CreateWorkItemRequest.newBuilder()
+          .setWorkItemId(workItemId)
+          .setWorkItem(workItem)
+          .build()
+        println("*********************************")
+        println("Data Watcher: Calling Control Plane")
+        println("*********************************")
+        runBlocking {
+          workItemsService.createWorkItem(createWorkItemRequest)
         }
-      } catch (e: Exception) {
-        logger.severe("${config.name}: Unable to process $path for $config: ${e.message}")
       }
     }
-  }
-
-  private suspend fun send_to_control_plane(config: DataWatcherConfig, path: String) {
-
-    val queueConfig = config.controlPlaneQueueSink
-    val workItemId = UUID.randomUUID().toString()
-    val workItemParams =
-      workItemParams {
-        appParams = queueConfig.appParams
-        this.dataPathParams = dataPathParams { this.dataPath = path }
-      }
-        .pack()
-    val request = createWorkItemRequest {
-      this.workItemId = workItemId
-      this.workItem = workItem {
-        queue = queueConfig.queue
-        this.workItemParams = workItemParams
-      }
-    }
-    workItemsStub.createWorkItem(request)
-  }
-
-  private suspend fun send_to_http_endpoint(config: DataWatcherConfig) {
-    val httpEndpointConfig = config.httpEndpointsSink
-    val client = HttpClient.newHttpClient()
-    val request =
-      HttpRequest.newBuilder()
-        .uri(URI.create(httpEndpointConfig.endpointUri))
-        .POST(HttpRequest.BodyPublishers.ofString(httpEndpointConfig.appParams.toJson()))
-        .build()
-    val response = client.send(request, BodyHandlers.ofString())
-    logger.info("${config.name}: Response status: ${response.statusCode()}")
-    logger.info("${config.name}: Response body: ${response.body()}")
-    check(response.statusCode() == 200)
-  }
-
-  companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
