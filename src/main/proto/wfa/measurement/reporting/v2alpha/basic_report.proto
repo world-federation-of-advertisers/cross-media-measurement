@@ -19,10 +19,10 @@ package wfa.measurement.reporting.v2alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
-import "google/type/date.proto";
-import "google/type/datetime.proto";
+import "wfa/measurement/reporting/v2alpha/media_type.proto";
 import "wfa/measurement/reporting/v2alpha/page.proto";
 import "wfa/measurement/reporting/v2alpha/reporting_impression_qualification_filter.proto";
+import "wfa/measurement/reporting/v2alpha/reporting_interval.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
@@ -52,45 +52,28 @@ message BasicReport {
     type: "reporting.halo-cmm.org/ReportingSet"
   }];
 
-  // The time interval over which Metrics are generated. This interval is
-  // closed on both sides.
-  message ReportingInterval {
-    // The date and time of the start of the report. The year,
-    // month, day, and time_offset are all required.
-    //
-    // If `utc_offset` is set, daylight savings is ignored and days will
-    // be 24 hours based on the time of day specified here. If `time_zone` is
-    // set, days will be based on the calendar and daylight savings will be
-    // considered; if 5 AM is chosen, the day will start with 5 AM year-round.
-    // This side of the interval is closed.
-    google.type.DateTime report_start = 1 [
-      (google.api.field_behavior) = REQUIRED,
-      (google.api.field_behavior) = IMMUTABLE
-    ];
-
-    // The end date of the report.
-    //
-    // The time is considered to be the same as
-    // that specified in the report start. This side of the interval is closed
-    // with respect to the date, but open with respect to the time specified by
-    // report_start.
-    google.type.Date report_end = 2 [
-      (google.api.field_behavior) = REQUIRED,
-      (google.api.field_behavior) = IMMUTABLE
-    ];
-  }
   // The interval that the Report spans
+  //
+  // Both the start and the end of the interval are immutable.
   ReportingInterval reporting_interval = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // The set of Media Types to filter include in the precomputation.
+  //
+  // These are applied as filters to the campaign group disjunctively.
+  repeated MediaType media_types = 5 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
 
   // The set of filters for this report.
   //
-  // An entry in this set must exist for every ReportingMediaType used in
-  // any PageSpec.
+  // There must be at most one entry per category, where
+  // the use of "custom" is considered one such category.
   repeated ReportingImpressionQualificationFilter
-      impression_qualification_filters = 5 [
+      impression_qualification_filters = 6 [
         (google.api.field_behavior) = REQUIRED,
         (google.api.field_behavior) = IMMUTABLE
       ];
@@ -101,8 +84,9 @@ message BasicReport {
     (google.api.field_behavior) = REQUIRED
   ];
 
-  // The results for all Page Definitions in the same order as the definitions.
-  repeated Page pages = 8 [
+  // The results for each Page Definitions in the same order as the definitions.
+  //
+  repeated PageResult page_results = 8 [
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.field_behavior) = OUTPUT_ONLY
   ];
