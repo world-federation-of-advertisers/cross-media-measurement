@@ -16,23 +16,19 @@ syntax = "proto3";
 
 package wfa.measurement.reporting.v2alpha;
 
-import "google/api/field_behavior.proto";
-import "google/api/resource.proto";
-import "wfa/measurement/reporting/v2alpha/media_type.proto";
-
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
-option java_outer_classname = "ReportingUnitProto";
+option java_outer_classname = "MediaTypeProto";
 
-// Specifies the units to report on.
-message ReportingUnit {
-  // A list of resources to report on.
-  //
-  // For use with BasicReport these must be DataProvider resource names
-  // For use with AdvancedReport these must be ReportingSet resource names
-  repeated string components = 1 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE,
-    (google.api.resource_reference) = { type: "*" }
-  ];
+// MediaType is used to designate how reporting artifacts
+// should be interpreted for reporting.
+enum MediaType {
+  // Default value. Unused.
+  MEDIA_TYPE_UNSPECIFIED = 0;
+  // Interpret a set of arifacts as Video
+  VIDEO = 1;
+  // Interpret a set of arifacts as Display
+  DISPLAY = 2;
+  // Interpret as set of artifacts as Other
+  OTHER = 3;
 }
