@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.integration.common
 
-import com.google.type.date
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
@@ -323,7 +322,6 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
 
     private const val DEFAULT_POPULATION_FILTER_EXPRESSION =
       "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
-
 
     private val ROLLOUT_PERIOD_START_DATE = LocalDate.now().plusDays(10).toProtoDate()
 
