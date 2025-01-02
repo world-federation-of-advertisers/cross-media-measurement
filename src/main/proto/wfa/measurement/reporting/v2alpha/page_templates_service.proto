@@ -114,7 +114,7 @@ message ListPageTemplatesRequest {
 
   // Filter criteria. Repeated fields are treated as logical ORs, and multiple
   // fields are treated as logical ANDs.
-  // TODO(@kungfucraig): Do we need filters for this? Search by name or
+  // TODO(@kungfucraig): Discuss - Do we need filters for this? Search by name or
   // display name could be useful, but should postpone that until it is clear
   // how these will be used via an UI.
   message Filter {}
