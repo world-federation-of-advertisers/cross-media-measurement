@@ -117,7 +117,7 @@ message DimensionSpec {
 }
 
 // Defines a set of Metrics to be computed
-message MetricSpec {
+message PageMetricSpec {
   // If specified the total population for the specified groupings and
   // filters that are associated with calculation spec is reported.
   bool population_size = 1 [(google.api.field_behavior) = IMMUTABLE];
@@ -295,7 +295,7 @@ message PageSpec {
   ];
 
   // Specifies the Metrics to compute.
-  MetricSpec metric_spec = 5 [
+  PageMetricSpec metric_spec = 5 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
