@@ -9,6 +9,19 @@ package(
 )
 
 kt_jvm_library(
+    name = "permissions_service",
+    srcs = ["PermissionsService.kt"],
+    deps = [
+        ":resource_conversion",
+        "//src/main/kotlin/org/wfanet/measurement/access/service:errors",
+        "//src/main/kotlin/org/wfanet/measurement/access/service:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:errors",
+        "//src/main/proto/wfa/measurement/access/v1alpha:permissions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/access:permissions_service_kt_jvm_grpc_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "principals_service",
     srcs = ["PrincipalsService.kt"],
     deps = [
@@ -39,8 +52,10 @@ kt_jvm_library(
     srcs = ["ResourceConversion.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/access/service:resource_key",
+        "//src/main/proto/wfa/measurement/access/v1alpha:permission_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/access/v1alpha:principal_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/access/v1alpha:role_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/access:permission_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/access:principal_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/access:role_kt_jvm_proto",
     ],
