@@ -39,8 +39,7 @@ service ImpressionQualificationFilters {
     option (google.api.method_signature) = "name";
   }
 
-  // Lists Impression Qualification Filters ordered by filter type and name in
-  // ascending order.
+  // Lists Impression Qualification Filters ordered by name.
   rpc ListImpressionQualificationFilters(
       ListImpressionQualificationFiltersRequest)
       returns (ListImpressionQualificationFiltersResponse) {
@@ -63,23 +62,6 @@ message GetImpressionQualificationFilterRequest {
 
 // Request message for `ListImpressionQualificationFilter` method
 message ListImpressionQualificationFiltersRequest {
-  // Filter criteria. Repeated fields are treated as logical ORs, and multiple
-  // fields are treated as logical ANDs.
-  //
-  // At least one of the following criteria must be specified.
-  message Filter {
-    // Matches the `filter_spec.media_type` field
-    MediaType media_type = 1 [(google.api.field_behavior) = OPTIONAL];
-
-    // Matches the `category` field
-    string category = 2 [(google.api.field_behavior) = OPTIONAL];
-  }
-  // Filter for the list of ImpressionQualificationFilters
-  // (-- api-linter: core::0132::request-field-types=disabled
-  //     aip.dev/not-precedent: Structured filters are used instead of the
-  //     AIP-160 filtering language --)
-  Filter filter = 1 [(google.api.field_behavior) = OPTIONAL];
-
   // The maximum number of filters to return. The service may return fewer
   // than this value.
   // If unspecified, at most 50 filters will be returned.
