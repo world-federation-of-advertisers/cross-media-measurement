@@ -18,6 +18,7 @@ package wfa.measurement.reporting.v2alpha;
 
 import "google/api/field_behavior.proto";
 import "google/protobuf/duration.proto";
+import "wfa/measurement/reporting/v2alpha/media_type.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
@@ -29,26 +30,8 @@ option java_outer_classname = "ImpressionQualificationFilterSpecProto";
 // are applied to it is an error (e.g. DISPLAY cannot be filtered by
 // percent completion)
 message ImpressionQualificationFilterSpec {
-  // Defines how filters related to Reporting Media Types.
-  //
-  // Generally, a Filter with a given Filter Type is applied to a Reporting Unit
-  // when the type matches that of the Reporting Media Type. However, a filter
-  // with type CROSS_MEDIA is applied when multiple Reporting Media Types are
-  // specified.
-  enum FilterType {
-    // Default value. Unused.
-    FILTER_TYPE_UNSPECIFIED = 0;
-    // Filter is for Cross Media
-    CROSS_MEDIA = 1;
-    // Filter is for Video
-    VIDEO = 2;
-    // Filter is for Display
-    DISPLAY = 3;
-    // Filter is for Other
-    OTHER = 4;
-  }
-  // The type of filter.
-  FilterType filter_type = 1 [
+  // The Media Type the filter is applicable to.
+  MediaType media_type = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
