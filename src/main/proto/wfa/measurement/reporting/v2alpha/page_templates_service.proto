@@ -1,0 +1,167 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/reporting/v2alpha/page.proto";
+import "wfa/measurement/reporting/v2alpha/page_template.proto";
+import "wfa/measurement/reporting/v2alpha/reporting_unit.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "PageTemplatesServiceProto";
+
+service PageTemplates {
+  rpc CreatePageTemplate(CreatePageTemplateRequest) returns (PageTemplate) {
+    option (google.api.http) = {
+      post: "/v2alpha/{parent=measurementConsumers/*}/pageTemplates"
+      body: "pageTemplate"
+    };
+    option (google.api.method_signature) = "parent,pageTemplate";
+  }
+
+  // Returns the `PageTemplate` with the given resource key.
+  rpc GetPageTemplate(GetPageTemplateRequest) returns (PageTemplate) {
+    option (google.api.http) = {
+      get: "/v2alpha/{name=measurementConsumers/*/pageTemplates/*}"
+    };
+    option (google.api.method_signature) = "name";
+  }
+
+  // Ordered by `name` ascending.
+  rpc ListPageTemplates(ListPageTemplatesRequest)
+      returns (ListPageTemplatesResponse) {
+    option (google.api.http) = {
+      get: "/v2alpha/{parent=measurementConsumers/*}/pageTemplates"
+    };
+    option (google.api.method_signature) = "parent";
+  }
+
+  // Creates a PageSpec from the PageTemplate.
+  // TODO(@kungfucraig): Discuss choice of verb.
+  rpc InstantiatePageSpec(InstantiatePageSpecRequest) returns (PageSpec) {
+    option (google.api.http) = {
+      get: "/v2alpha/{name=measurementConsumers/*/pageTemplates/*}"
+    };
+    option (google.api.method_signature) = "name";
+  }
+}
+
+// Request message for `CreatePageTemplate` method
+message CreatePageTemplateRequest {
+  // The parent Measurement Consumer
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "reporting.halo-cmm.org/PageTemplate"
+    }
+  ];
+
+  // The ID to use for the page template, which will become the final component
+  // of the page template's resource name.
+  //
+  // This must conform to RFC 1034, with the additional restriction that all
+  // letters must be lower-case.
+  string page_template_id = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // The PageTemplate to create.
+  PageTemplate page_template = 3;
+
+  // A unique identifier for this request. Restricted to 36 ASCII characters.
+  // A random UUID is recommended.
+  // This request is only idempotent if a `request_id` is provided.
+  string request_id = 4;
+}
+
+// Request message for `GetPageTemplate` method
+message GetPageTemplateRequest {
+  // The name of the Page Template to retrieve.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/PageTemplate"
+    }
+  ];
+}
+
+// Request message for `ListPageTemplate` method
+message ListPageTemplatesRequest {
+  // The parent Measurement Consumer
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "reporting.halo-cmm.org/PageTemplate"
+    }
+  ];
+
+  // Filter criteria. Repeated fields are treated as logical ORs, and multiple
+  // fields are treated as logical ANDs.
+  // TODO(@kungfucraig): Do we need filters for this? Search by name or
+  // display name could be useful, but should postpone that until it is clear
+  // how these will be used via an UI.
+  message Filter {}
+
+  // Filter for the list of PageTemplates
+  // (-- api-linter: core::0132::request-field-types=disabled
+  //     aip.dev/not-precedent: Structured filters are used instead of the
+  //     AIP-160 filtering language --)
+  Filter filter = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // The maximum number of page templates to return. The service may return
+  // fewer than this value. If unspecified, at most 10 page templates reports
+  // will be returned. The maximum value is 25; values above 25 will be coerced
+  // to 25.
+  int32 page_size = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // A page token, received from a previous `ListPageTemplates` call.
+  // Provide this to retrieve the subsequent page.
+  //
+  // When paginating, all other parameters provided to `ListPageTemplates` must
+  // match the call that provided the page token.
+  string page_token = 4 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Response message for `ListPageTemplates` method.
+message ListPageTemplatesResponse {
+  // The Page Templates that met the filter criteria
+  repeated PageTemplate page_templates = 1
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // A token, which can be sent as `page_token` to retrieve the next page.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Request message for `InstantiatePageSpec`
+message InstantiatePageSpecRequest {
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/PageTemplate"
+    }
+  ];
+
+  // The reporting unit to include in the returned PageSpec.
+  ReportingUnit reporting_unit = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+}
