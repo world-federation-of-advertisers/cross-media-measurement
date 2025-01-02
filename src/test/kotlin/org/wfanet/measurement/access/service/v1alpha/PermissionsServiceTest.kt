@@ -15,10 +15,10 @@
 package org.wfanet.measurement.access.service.v1alpha
 
 import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -48,8 +48,6 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.internal.access.PermissionsGrpcKt
-import kotlin.test.assertFailsWith
 import org.wfanet.measurement.internal.access.ListPermissionsPageTokenKt as InternalListPermissionsPageTokenKt
 import org.wfanet.measurement.internal.access.PermissionsGrpcKt as InternalPermissionsGrpcKt
 import org.wfanet.measurement.internal.access.checkPermissionsRequest as internalCheckPermissionsRequest
@@ -90,7 +88,7 @@ class PermissionsServiceTest {
 
     verifyProtoArgument(
         internalServiceMock,
-        PermissionsGrpcKt.PermissionsCoroutineImplBase::getPermission,
+        InternalPermissionsGrpcKt.PermissionsCoroutineImplBase::getPermission,
       )
       .isEqualTo(
         internalGetPermissionRequest {
