@@ -221,3 +221,17 @@ message Page {
   // that was applicable to the page.
   repeated Result results = 2;
 }
+
+// The result for a single PageSpec
+//
+// There will be one Page per active ImpresionQualificationFilter.
+// See the definition of `ReportingImpressionQualificationFilter` for details
+// on what it means for a filter to be active.
+message PageResult {
+  // A map of the name of the impression qualification filter used to compute a
+  // Page of results to that Page.
+  //
+  // This is either the resource name of an ImpressionQualificationResource or
+  // the string "custom" indicating that custom filters were applied.
+  map<string, Page> page = 1 [(google.api.field_behavior) = IMMUTABLE];
+}
