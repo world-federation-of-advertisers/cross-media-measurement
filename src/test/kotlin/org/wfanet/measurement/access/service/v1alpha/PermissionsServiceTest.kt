@@ -202,6 +202,24 @@ class PermissionsServiceTest {
   }
 
   @Test
+  fun `listPermissions throws INVALID_FIELD_VALUE when page token is invalid`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listPermissions(listPermissionsRequest { pageToken = "1" })
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "page_token"
+        }
+      )
+  }
+
+  @Test
   fun `checkPermissions returns Permissions`() = runBlocking {
     val internalCheckPermissionsResponse = internalCheckPermissionsResponse {
       permissionResourceIds += "books.get"
