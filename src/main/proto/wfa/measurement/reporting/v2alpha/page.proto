@@ -295,7 +295,7 @@ message PageSpec {
   ];
 
   // Specifies the Metrics to compute.
-  PageMetricSpec metric_spec = 5 [
+  PageMetricSpec page_metric_spec = 5 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
@@ -359,7 +359,7 @@ message Page {
     int32 population_size = 9 [(google.api.field_behavior) = IMMUTABLE];
 
     // The result when the page selector is metric_type
-    message MetricResult {
+    message PageMetricResult {
       // Captures results that are applicable to any subunit of the
       // Reporting Unit.
       message BasicMetricResult {
@@ -446,6 +446,8 @@ message Page {
       repeated IntersectionResult intersection = 3
           [(google.api.field_behavior) = IMMUTABLE];
     }
+    // The result for the reporting unit.
+    PageMetricResult page_metric_result = 2;
   }
 
   // A single result and its metadata.
