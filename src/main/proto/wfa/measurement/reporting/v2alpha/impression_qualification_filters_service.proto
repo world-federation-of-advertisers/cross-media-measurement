@@ -22,6 +22,7 @@ import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "wfa/measurement/reporting/v2alpha/impression_qualification_filter.proto";
 import "wfa/measurement/reporting/v2alpha/impression_qualification_filter_spec.proto";
+import "wfa/measurement/reporting/v2alpha/media_type.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
@@ -67,9 +68,8 @@ message ListImpressionQualificationFiltersRequest {
   //
   // At least one of the following criteria must be specified.
   message Filter {
-    // Matches the `filter_spec.filter_type` field
-    ImpressionQualificationFilterSpec.FilterType filter_type = 1
-        [(google.api.field_behavior) = OPTIONAL];
+    // Matches the `filter_spec.media_type` field
+    MediaType media_type = 1 [(google.api.field_behavior) = OPTIONAL];
 
     // Matches the `category` field
     string category = 2 [(google.api.field_behavior) = OPTIONAL];
