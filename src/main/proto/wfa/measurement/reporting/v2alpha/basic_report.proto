@@ -22,10 +22,7 @@ import "google/protobuf/timestamp.proto";
 import "wfa/measurement/reporting/v2alpha/media_type.proto";
 import "wfa/measurement/reporting/v2alpha/page.proto";
 import "wfa/measurement/reporting/v2alpha/reporting_impression_qualification_filter.proto";
-<<<<<<< HEAD
 import "wfa/measurement/reporting/v2alpha/reporting_interval.proto";
-=======
->>>>>>> 30c4f0785 (updated from review)
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
