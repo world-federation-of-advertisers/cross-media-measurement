@@ -60,9 +60,9 @@ message BasicReport {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // The set of Media Types to filter include in the precomputation.
+  // The set of Media Types to filter the campaign_group on.
   //
-  // These are applied as filters to the campaign group disjunctively.
+  // These are applied as to the campaign group disjunctively.
   repeated MediaType media_types = 5 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
