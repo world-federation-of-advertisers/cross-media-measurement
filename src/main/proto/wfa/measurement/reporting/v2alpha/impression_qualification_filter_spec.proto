@@ -17,12 +17,19 @@ syntax = "proto3";
 package wfa.measurement.reporting.v2alpha;
 
 import "google/api/field_behavior.proto";
+<<<<<<< HEAD
 import "google/protobuf/duration.proto";
 import "wfa/measurement/reporting/v2alpha/media_type.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ImpressionQualificationFilterSpecProto";
+=======
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ImpressionQualificationFilterProto";
+>>>>>>> 30c4f0785 (updated from review)
 
 // Specifies the impression filter for a ReportingMediaType.
 //
@@ -30,8 +37,31 @@ option java_outer_classname = "ImpressionQualificationFilterSpecProto";
 // are applied to it is an error (e.g. DISPLAY cannot be filtered by
 // percent completion)
 message ImpressionQualificationFilterSpec {
+<<<<<<< HEAD
   // The Media Type the filter is applicable to.
   MediaType media_type = 1 [
+=======
+  // Defines how filters related to Reporting Media Types.
+  //
+  // Generally, a Filter with a given Filter Type is applied to a Reporting Unit
+  // when the type matches that of the Reporting Media Type. However, a filer
+  // with type CROSS_MEDIA is applied when multiple Reporting Media Types are
+  // specified.
+  enum FilterType {
+    // Default value. Unused.
+    REPORTING_MEDIA_TYPE_UNSPECIFIED = 0;
+    // Filter is for Cross Media
+    CROSS_MEDIA = 1;
+    // Filter is for Video
+    VIDEO = 2;
+    // Filter is for Display
+    DISPLAY = 3;
+    // Filter is for Other
+    OTHER = 4;
+  }
+  // The type of filter.
+  FilterType filter_type = 1 [
+>>>>>>> 30c4f0785 (updated from review)
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
@@ -54,7 +84,10 @@ message ImpressionQualificationFilterSpec {
 
   // Specify a percent as a fraction or as a quantile
   message Percent {
+<<<<<<< HEAD
     // Required
+=======
+>>>>>>> 30c4f0785 (updated from review)
     oneof value {
       // The fraction
       float fraction = 1 [(google.api.field_behavior) = IMMUTABLE];
@@ -68,6 +101,7 @@ message ImpressionQualificationFilterSpec {
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
+<<<<<<< HEAD
 
   // Specifies the completion filter
   oneof completion {
@@ -77,4 +111,8 @@ message ImpressionQualificationFilterSpec {
     google.protobuf.Duration duration = 4
         [(google.api.field_behavior) = IMMUTABLE];
   }
+=======
+  // Specifies the completion filter
+  Percent completion = 3 [(google.api.field_behavior) = IMMUTABLE];
+>>>>>>> 30c4f0785 (updated from review)
 }
