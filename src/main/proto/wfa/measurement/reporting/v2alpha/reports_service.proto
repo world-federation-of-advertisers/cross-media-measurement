@@ -16,9 +16,9 @@ syntax = "proto3";
 
 package wfa.measurement.reporting.v2alpha;
 
+import "google/api/annotations.proto";
 import "google/api/client.proto";
 import "google/api/field_behavior.proto";
-import "google/api/annotations.proto";
 import "google/api/resource.proto";
 import "wfa/measurement/reporting/v2alpha/report.proto";
 
