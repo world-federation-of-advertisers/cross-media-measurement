@@ -17,7 +17,6 @@
 package org.wfanet.measurement.access.service.v1alpha
 
 import com.google.protobuf.Empty
-import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.IOException
@@ -103,17 +102,16 @@ class RolesService(private val internalRolesStub: InternalRolesCoroutineStub) :
     }
 
     val internalPageToken: InternalListRolesPageToken? =
-      if (request.pageToken.isEmpty()) null
-      else
+      if (request.pageToken.isEmpty()) {
+        null
+      } else {
         try {
           InternalListRolesPageToken.parseFrom(request.pageToken.base64UrlDecode())
         } catch (e: IOException) {
-          throw InvalidFieldValueException("page_token")
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        } catch (e: InvalidProtocolBufferException) {
-          throw InvalidFieldValueException("page_token")
+          throw InvalidFieldValueException("page_token", e)
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
+      }
 
     val internalResponse: InternalListRolesResponse =
       internalRolesStub.listRoles(
