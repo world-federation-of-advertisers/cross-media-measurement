@@ -61,6 +61,8 @@ service AdvancedReports {
   // Updates the `AdvancedReport` with the given resource key.
   //
   // Only one in-progress update Operation is allow to exist at a time.
+  // TODO(@kungfucraig): Discuss - should we add a custom method for extending
+  // report end time and leave this for simpler updates (e.g. the title)?
   rpc UpdateAdvancedReport(UpdateAdvancedReportRequest) returns (Operation) {
     option (google.api.http) = {
       get: "/v2alpha/{advancedReport.name=measurementConsumers/*/advancedReports/*}"
@@ -89,7 +91,7 @@ service AdvancedReports {
 
 // Specifies an AdvancedReport query using a PageTemplate and a ReportingUnit.
 message PageTemplateSpec {
-  // The PageTemplate to use.
+  // The PageTemplate to instantiate.
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {

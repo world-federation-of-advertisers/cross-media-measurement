@@ -107,14 +107,17 @@ message AdvancedReport {
   // Specifies how to precompute report metrics.
   CalculationSpec calculation_spec = 5;
 
-  // Specifies how the system track live campaigns.
+  // Specifies whether and how the system tracks live campaigns.
+  //
+  // When live campaign tracking is enabled the system monitors the report's
+  // underlying Event Groups and appends new data as it becomes available.
   message LiveCampaignTrackingSpec {
     // Specifies whether and how to export data when new data arrives.
     message ExportSpec {
       // The PageTemplate to use for exporting results
       //
-      // The ReportingUnit is taken to be the ReportingUnit associated
-      // with the entire AdvancedReport.
+      // When instantiating the template, The ReportingUnit is taken to be
+      // the reporting_sets of the AdvancedReport.
       string page_template = 1 [
         (google.api.resource_reference) = {
           type: "reporting.halo-cmm.org/PageTemplate"
@@ -125,8 +128,8 @@ message AdvancedReport {
 
       // If true, the exported data set will include data from the
       // report's reporting_interval.start_time to the present. If
-      // false only new data is included.
-      bool include_historical_metrics = 2 [
+      // false only new data is exported.
+      bool include_history = 2 [
         (google.api.field_behavior) = IMMUTABLE,
         (google.api.field_behavior) = OPTIONAL
       ];
@@ -137,10 +140,10 @@ message AdvancedReport {
       (google.api.field_behavior) = OPTIONAL
     ];
   }
-  // Specifies that live campaign tracking is enabled, and options for
+  // Specifies that live campaign tracking is enabled and options for
   // how to handle newly arriving data.
   //
-  // When enab led, metrics are appended as they become available,
+  // When enabled, metrics are appended as they become available,
   // and if an export spec is present they are automatically exported as well.
   LiveCampaignTrackingSpec live_campaign_tracking_spec = 6 [
     (google.api.field_behavior) = IMMUTABLE,
