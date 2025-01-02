@@ -359,7 +359,7 @@ message Page {
     int32 population_size = 9 [(google.api.field_behavior) = IMMUTABLE];
 
     // The result when the page selector is metric_type
-    message MetricResult {
+    message PageMetricResult {
       // Captures results that are applicable to any subunit of the
       // Reporting Unit.
       message BasicMetricResult {
