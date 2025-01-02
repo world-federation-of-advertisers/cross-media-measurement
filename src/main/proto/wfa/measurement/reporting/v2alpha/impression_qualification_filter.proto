@@ -25,6 +25,13 @@ option java_multiple_files = true;
 option java_outer_classname = "ImpressionQualificationFilterProto";
 
 // Resource representing an Impression Qualification Filter
+//
+// An ImpressionQualificationFilter (IRF) is a named collection of
+// ImpressionQualificationFilterSpecs where there is at most
+// one spec per MediaType. For example, an IQF to filter all measurable
+// impressions for VIDEO and DISPLAY would provide one spec for
+// video with viewability and compleition percent set to zero and a
+// another spec for DISPLAY with the viewability set to zero.
 message ImpressionQualificationFilter {
   option (google.api.resource) = {
     type: "reporting.halo-cmm.org/ImpressionQualificationFilter"
@@ -33,20 +40,20 @@ message ImpressionQualificationFilter {
     plural: "impressionQualificationFilters"
   };
 
-  // Resource name.
+  // Resource name
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 
-  // Specifies the filter criteria
-  ImpressionQualificationFilterSpec filter_spec = 2 [
+  // User friendly display name.
+  string display_name = 2 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // The filter category (e.g. MRC)
+  // Specifies the filter criteria for each MediaType.
   //
-  // This allows filters to be grouped by category across Filter Types
-  string category = 3 [
-    (google.api.field_behavior) = OPTIONAL,
+  // They may be at most one spec per MediaType.
+  repeated ImpressionQualificationFilterSpec filter_specs = 4 [
+    (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
 }

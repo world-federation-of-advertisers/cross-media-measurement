@@ -18,6 +18,7 @@ package wfa.measurement.reporting.v2alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "wfa/measurement/reporting/v2alpha/media_type.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
@@ -41,29 +42,9 @@ message ReportingUnit {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // Filters the impressions associated with the components by their media type,
-  // and determines which impression qualification filters to apply.
-  //
-  // If multiple values are specified then Cross Media filters are used.
-  // Other filters may be used in accordance with the measurment
-  // policy. For exmaple if VIDEO and DISPLAY are specified and an
-  // MRC filter is available for both then the MRC filter, as it applies to
-  // the specific media type, could be applied.
-  repeated MediaType reporting_media_types = 3 [
-    (google.api.field_behavior) = REQUIRED,
+  // TODO: Update comment to document the "reported types"
+  repeated MediaType reported_media_types = 3 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
     (google.api.field_behavior) = IMMUTABLE
   ];
-}
-
-// MediaType is used to designate how reporting artifacts
-// should be interpreted for reporting.
-enum MediaType {
-  // Default value. Unused.
-  REPORTING_MEDIA_TYPE_UNSPECIFIED = 0;
-  // Interpret a set of arifacts as Video
-  VIDEO = 1;
-  // Interpret a set of arifacts as Display
-  DISPLAY = 2;
-  // Interpret as set of artifacts as Other
-  OTHER = 3;
 }
