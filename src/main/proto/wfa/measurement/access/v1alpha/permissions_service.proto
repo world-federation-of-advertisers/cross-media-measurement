@@ -95,7 +95,7 @@ message CheckPermissionsRequest {
   // Name of the resource on which to check permissions. If not specified, this
   // means the root of the protected API.
   string protected_resource = 1 [
-    (google.api.resource_reference) = {type: "*"},
+    (google.api.resource_reference) = { type: "*" },
     (google.api.field_behavior) = OPTIONAL
   ];
 
@@ -116,5 +116,5 @@ message CheckPermissionsRequest {
 message CheckPermissionsResponse {
   // Subset of request `permissions` that `principal` has on `resource`.
   repeated string permissions = 1
-  [(google.api.field_behavior) = UNORDERED_LIST];
+      [(google.api.field_behavior) = UNORDERED_LIST];
 }
