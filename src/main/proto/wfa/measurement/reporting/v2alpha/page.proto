@@ -19,7 +19,10 @@ package wfa.measurement.reporting.v2alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/type/interval.proto";
+<<<<<<< HEAD
 import "wfa/measurement/reporting/v2alpha/metric_frequency_spec.proto";
+=======
+>>>>>>> 30c4f0785 (updated from review)
 import "wfa/measurement/reporting/v2alpha/reporting_impression_qualification_filter.proto";
 import "wfa/measurement/reporting/v2alpha/reporting_unit.proto";
 

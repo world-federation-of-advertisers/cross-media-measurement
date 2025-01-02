@@ -21,7 +21,10 @@ proto_library(
         ":media_type_proto",
         ":page_proto",
         ":reporting_impression_qualification_filter_proto",
+<<<<<<< HEAD
         ":reporting_interval_proto",
+=======
+>>>>>>> 30c4f0785 (updated from review)
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:timestamp_proto",
@@ -70,9 +73,13 @@ proto_library(
     srcs = ["impression_qualification_filter_spec.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+<<<<<<< HEAD
         ":media_type_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_protobuf//:duration_proto",
+=======
+        "@com_google_googleapis//google/api:field_behavior_proto",
+>>>>>>> 30c4f0785 (updated from review)
     ],
 )
 
@@ -82,6 +89,7 @@ kt_jvm_proto_library(
 )
 
 proto_library(
+<<<<<<< HEAD
     name = "media_type_proto",
     srcs = ["media_type.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -95,6 +103,8 @@ kt_jvm_proto_library(
 )
 
 proto_library(
+=======
+>>>>>>> 30c4f0785 (updated from review)
     name = "metric_proto",
     srcs = ["metric.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -204,6 +214,8 @@ kt_jvm_proto_library(
 proto_library(
     name = "reporting_impression_qualification_filter_proto",
     srcs = ["reporting_impression_qualification_filter.proto"],
+<<<<<<< HEAD
+=======
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":impression_qualification_filter_spec_proto",
@@ -213,6 +225,24 @@ proto_library(
 )
 
 kt_jvm_proto_library(
+    name = "reporting_impression_qualification_filter_kt_jvm_proto",
+    deps = [":reporting_impression_qualification_filter_proto"],
+)
+
+proto_library(
+    name = "reporting_unit_proto",
+    srcs = ["reporting_unit.proto"],
+>>>>>>> 30c4f0785 (updated from review)
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":impression_qualification_filter_spec_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+<<<<<<< HEAD
     name = "reporting_impression_qualification_filter_kt_jvm_proto",
     deps = [":reporting_impression_qualification_filter_proto"],
 )
@@ -245,6 +275,8 @@ proto_library(
 )
 
 kt_jvm_proto_library(
+=======
+>>>>>>> 30c4f0785 (updated from review)
     name = "reporting_unit_kt_jvm_proto",
     deps = [":reporting_unit_proto"],
 )
@@ -279,7 +311,10 @@ proto_library(
     srcs = ["page.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+<<<<<<< HEAD
         ":metric_frequency_spec_proto",
+=======
+>>>>>>> 30c4f0785 (updated from review)
         ":reporting_impression_qualification_filter_proto",
         ":reporting_unit_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
