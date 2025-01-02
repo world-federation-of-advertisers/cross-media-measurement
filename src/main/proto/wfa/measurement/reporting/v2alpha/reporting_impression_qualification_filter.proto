@@ -57,7 +57,7 @@ message ReportingImpressionQualificationFilter {
     //   3. If the scoped Media Type of a Reporting Unit does not intersect with
     //      the filter's MediaTypes then the metrics computed using that filter
     //      do not include that Reporting Set.
-    string impression_qualification_filter_category = 1
+    string impression_qualification_filter = 1
         [(google.api.field_behavior) = IMMUTABLE];
     // Specifies any custom filter criteria per MediaType.
     CustomImpressionQualificationFilterSpec custom = 2
