@@ -22,10 +22,7 @@ import "google/protobuf/timestamp.proto";
 import "wfa/measurement/reporting/v2alpha/media_type.proto";
 import "wfa/measurement/reporting/v2alpha/page.proto";
 import "wfa/measurement/reporting/v2alpha/reporting_impression_qualification_filter.proto";
-<<<<<<< HEAD
 import "wfa/measurement/reporting/v2alpha/reporting_interval.proto";
-=======
->>>>>>> 30c4f0785 (updated from review)
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
@@ -67,9 +64,9 @@ message BasicReport {
   //
   // These are applied as to the campaign group disjunctively.
   repeated MediaType media_types = 5 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE
-  ];
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE];
+
 
   // The set of filters for this report.
   //
@@ -89,7 +86,7 @@ message BasicReport {
 
   // The results for each Page Definitions in the same order as the definitions.
   //
-  repeated PageResult page_results = 8 [
+ repeated PageResult page_results = 8 [
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.field_behavior) = OUTPUT_ONLY
   ];
