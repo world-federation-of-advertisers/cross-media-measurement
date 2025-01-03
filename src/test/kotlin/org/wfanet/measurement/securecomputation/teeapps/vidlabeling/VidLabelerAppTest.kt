@@ -12,18 +12,22 @@
  * the License.
  */
 
-package org.wfanet.measurement.securecomputation
+package org.wfanet.measurement.securecomputation.teeapps.vidlabeling
 
-import com.google.protobuf.ByteString
-import java.io.BufferedInputStream
-import java.net.URL
+import com.google.common.truth.extensions.proto.ProtoTruth
+import com.google.protobuf.Any
+import com.google.protobuf.Parser
+import com.google.protobuf.TextFormat
+import com.google.protobuf.kotlin.toByteStringUtf8
+import java.nio.file.Paths
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
@@ -31,17 +35,25 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GooglePubSubWorkItemsService
+import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfig.TriggeredApp
+import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfigKt.triggeredApp
+import org.wfanet.measurement.securecomputation.teeapps.v1alpha.TeeAppConfigKt.vidLabelingConfig
+import org.wfanet.measurement.securecomputation.teeapps.v1alpha.teeAppConfig
 import org.wfanet.measurement.securecomputation.vidlabeling.VidLabelerApp
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.virtualpeople.common.LabelerOutput
-import com.google.protobuf.TextFormat
-import java.io.File
-import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.virtualpeople.common.compiledNode
+import org.wfanet.virtualpeople.common.copy
+import org.wfanet.virtualpeople.common.labelerInput
+import org.wfanet.virtualpeople.common.labelerOutput
 
 @RunWith(JUnit4::class)
 class VidLabelerAppTest() {
@@ -64,66 +76,101 @@ class VidLabelerAppTest() {
       )
     workItemsService = GooglePubSubWorkItemsService(projectId, googlePubSubClient)
     runBlocking {
-      if (googlePubSubClient.topicExists(projectId, topicId)) {
-        googlePubSubClient.deleteTopic(projectId, topicId)
-      }
+      googlePubSubClient.createTopic(projectId, topicId)
+      googlePubSubClient.createSubscription(projectId, subscriptionId, topicId)
     }
   }
 
   @After
-  fun clear() {
+  fun cleanPubSubResources() {
     runBlocking {
-      if (googlePubSubClient.topicExists(projectId, topicId)) {
-        googlePubSubClient.deleteTopic(projectId, topicId)
-      }
+      googlePubSubClient.deleteTopic(projectId, topicId)
+      googlePubSubClient.deleteSubscription(projectId, subscriptionId)
     }
   }
 
   @Test
-  fun vidLabel() {
+  fun vidLabelWithTextProtoModel() {
     runBlocking {
-      googlePubSubClient.createTopic(projectId, topicId)
-      googlePubSubClient.createSubscription(projectId, subscriptionId, topicId)
       val queueSubscriber = Subscriber(projectId, googlePubSubClient)
+      val publisher = Publisher<TriggeredApp>(projectId, googlePubSubClient)
       val inMemoryStorageClient = InMemoryStorageClient()
       val vidLabelerApp =
-        VidLabelerApp(inMemoryStorageClient, subscriptionId, queueSubscriber, Any.parser())
+        VidLabelerApp(inMemoryStorageClient, subscriptionId, queueSubscriber, TriggeredApp.parser())
       val job = launch { vidLabelerApp.run() }
       val inputEventsPath = "input-events"
       val outputEventsPath = "output-events"
       val vidModelPath = "vid-model"
-
       val modelFileName = "single_id_model.textproto"
       val vidModelData =
-        parseTextProto(File("$TEXTPROTO_PATH/$modelFileName").bufferedReader(), compiledNode {})
+        parseTextProto(
+          Paths.get("$TEXTPROTO_PATH/$modelFileName").toFile().bufferedReader(),
+          compiledNode {}
+        )
       inMemoryStorageClient.writeBlob(
-        flowOf(vidModelData)
+        vidModelPath,
+        flowOf(vidModelData.toString().toByteStringUtf8())
       )
 
-      val mesosRecordIoStorageClient = MesosRecordIoStorageClient(subscribingStorageClient)
-      val rawEvents = (1 until 19).map { index ->
-        val indexString = "%02d".format(index)
-        val inputFileName = "labeler_input_$indexString.textproto"
-        parseTextProto(File("$TEXTPROTO_PATH/$inputFileName").bufferedReader(), compiledNode {})
+      val mesosRecordIoStorageClient = MesosRecordIoStorageClient(inMemoryStorageClient)
+      val inputEvents =
+        (1 until 19).map { index ->
+          val indexString = "%02d".format(index)
+          val inputFileName = "labeler_input_$indexString.textproto"
+          parseTextProto(
+            Paths.get("$TEXTPROTO_PATH/$inputFileName").toFile().bufferedReader(),
+            labelerInput {}
+          )
+        }
+      mesosRecordIoStorageClient.writeBlob(
+        inputEventsPath,
+        inputEvents.map { it.toString().toByteStringUtf8() }.asFlow()
+      )
+
+      val work = triggeredApp {
+        path = inputEventsPath
+        config =
+          Any.pack(
+            teeAppConfig {
+              this.vidLabelingConfig = vidLabelingConfig {
+                this.inputBasePath = inputEventsPath
+                this.outputBasePath = outputEventsPath
+                this.vidModelPath = vidModelPath
+              }
+            }
+          )
       }
-      mesosRecordIoStorageClient.writeBlob(inputEventsPath, rawEvents)
+
+      publisher.publishMessage(topicId, work)
 
       withTimeout(10000) {
         while (true) {
           val blob = mesosRecordIoStorageClient.getBlob(outputEventsPath)
           if (blob != null) {
-            val labelerOutputData = blob.read().map { byteString ->
-              LabelerOutput.getDefaultInstance()
-                .newBuilderForType()
-                .apply {
-                  TextFormat.Parser.newBuilder().build().merge(byteString.toStringUtf8(), this)
+            val labelerOutputData =
+              blob
+                .read()
+                .map { byteString ->
+                  val labelerOutput =
+                    LabelerOutput.getDefaultInstance()
+                      .newBuilderForType()
+                      .apply {
+                        TextFormat.Parser.newBuilder()
+                          .build()
+                          .merge(byteString.toStringUtf8(), this)
+                      }
+                      .build() as LabelerOutput
+                  labelerOutput.copy { clearSerializedDebugTrace() }
                 }
-                .build() as LabelerOutput
-            }.toList()
+                .toList()
             // Parse and validate labeler output
             for (output in labelerOutputData) {
               val outputFileName = "single_id_labeler_output.textproto"
-              val expectedOutput = parseTextProto(File("$TEXTPROTO_PATH/$outputFileName").bufferedReader(), labelerOutput {})
+              val expectedOutput =
+                parseTextProto(
+                  Paths.get("$TEXTPROTO_PATH/$outputFileName").toFile().bufferedReader(),
+                  labelerOutput {}
+                )
               ProtoTruth.assertThat(output).isEqualTo(expectedOutput)
             }
             break
@@ -136,6 +183,7 @@ class VidLabelerAppTest() {
   }
 
   companion object {
-    private const val TEXTPROTO_PATH = "src/main/resources/labeler"
+    private val TEXTPROTO_PATH =
+      getRuntimePath(Paths.get("virtual-people-core-serving~/src/main/resources/labeler"))
   }
 }

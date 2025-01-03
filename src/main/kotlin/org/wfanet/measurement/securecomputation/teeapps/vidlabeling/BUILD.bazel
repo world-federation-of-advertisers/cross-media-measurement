@@ -10,6 +10,7 @@ kt_jvm_library(
     srcs = ["VidLabelerApp.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/teesdk:base_tee_application",
+        "//src/main/proto/wfa/measurement/securecomputation/datawatcher/v1alpha:data_watcher_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/teeapps/v1alpha:tee_app_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",

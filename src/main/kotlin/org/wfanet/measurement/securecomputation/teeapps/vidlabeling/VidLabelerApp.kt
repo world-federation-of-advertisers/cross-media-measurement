@@ -14,19 +14,14 @@
 
 package org.wfanet.measurement.securecomputation.vidlabeling
 
-import com.google.protobuf.Any
 import com.google.protobuf.Parser
 import com.google.protobuf.TextFormat
-import com.google.protobuf.kotlin.toByteString
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.flatMapMerge
+import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.reduce
-import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.queue.QueueSubscriber
+import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfig.TriggeredApp
 import org.wfanet.measurement.securecomputation.teeapps.v1alpha.TeeAppConfig
-import org.wfanet.measurement.securecomputation.DataWatcherConfig.DiscoveredWork
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.StorageClient
@@ -34,16 +29,15 @@ import org.wfanet.virtualpeople.common.CompiledNode
 import org.wfanet.virtualpeople.common.LabelerInput
 import org.wfanet.virtualpeople.common.LabelerOutput
 import org.wfanet.virtualpeople.core.labeler.Labeler
-import com.google.protobuf.kotlin.toByteStringUtf8
 
 class VidLabelerApp(
   private val storageClient: StorageClient,
-  private val queueName: String,
-  private val queueSubscriber: QueueSubscriber,
-  private val parser: Parser<Any>
+  queueName: String,
+  queueSubscriber: QueueSubscriber,
+  parser: Parser<TriggeredApp>
 ) :
-  BaseTeeApplication<Any>(
-    queueName = queueName,
+  BaseTeeApplication<TriggeredApp>(
+    subscriptionId = queueName,
     queueSubscriber = queueSubscriber,
     parser = parser
   ) {
@@ -54,36 +48,30 @@ class VidLabelerApp(
     labeler: Labeler,
     storageClient: MesosRecordIoStorageClient
   ) {
-    val CHUNK = 1000 // Define appropriate chunk size
-    val CONCURRENCY = 4 // Define appropriate concurrency level
-
     val inputBlob =
       storageClient.getBlob(inputBlobKey)
         ?: throw IllegalArgumentException("Input blob does not exist")
     val inputRecords = inputBlob.read()
 
     val outputFlow =
-      inputRecords
-        .map { byteString ->
-          val labelerInput =
-            LabelerInput.getDefaultInstance()
-              .newBuilderForType()
-              .apply {
-                TextFormat.Parser.newBuilder().build().merge(byteString.toStringUtf8(), this)
-              }
-              .build() as LabelerInput
-          val labelerOutput: LabelerOutput = labeler.label(input = labelerInput)
-          labelerOutput.toString().toByteStringUtf8()
-        }
+      inputRecords.map { byteString ->
+        val labelerInput =
+          LabelerInput.getDefaultInstance()
+            .newBuilderForType()
+            .apply { TextFormat.Parser.newBuilder().build().merge(byteString.toStringUtf8(), this) }
+            .build() as LabelerInput
+        val labelerOutput: LabelerOutput = labeler.label(input = labelerInput)
+        labelerOutput.toString().toByteStringUtf8()
+      }
 
     storageClient.writeBlob(outputBlobKey, outputFlow)
   }
 
-  override suspend fun runWork(message: Any) {
-    val discoveredWork = message.unpack(DiscoveredWork::class.java)
-    val cmmWork = discoveredWork.type.unpack(CmmWork::class.java)
-    val vidLabelingWork = cmmWork.vidLabelingWork
-    val vidModelBlob = storageClient.getBlob(vidLabelingWork.vidModelPath)!!
+  override suspend fun runWork(message: TriggeredApp) {
+    val teeAppConfig = message.config.unpack(TeeAppConfig::class.java)
+    assert(teeAppConfig.workTypeCase == TeeAppConfig.WorkTypeCase.VID_LABELING_CONFIG)
+    val vidLabelingConfig = teeAppConfig.vidLabelingConfig
+    val vidModelBlob = storageClient.getBlob(vidLabelingConfig.vidModelPath)!!
     val modelData =
       vidModelBlob.read().reduce { acc, byteString -> acc.concat(byteString) }.toStringUtf8()
     val compiledNode: CompiledNode =
@@ -94,9 +82,9 @@ class VidLabelerApp(
 
     val labeler = Labeler.build(compiledNode)
 
-    val inputBlobKey = discoveredWork.path
+    val inputBlobKey = message.path
     val outputBlobKey =
-      vidLabelingWork.outputBasePath + inputBlobKey.removePrefix(vidLabelingWork.inputBasePath)
+      vidLabelingConfig.outputBasePath + inputBlobKey.removePrefix(vidLabelingConfig.inputBasePath)
 
     val mesosRecordIoStorageClient = MesosRecordIoStorageClient(storageClient)
     labelPath(inputBlobKey, outputBlobKey, labeler, mesosRecordIoStorageClient)
