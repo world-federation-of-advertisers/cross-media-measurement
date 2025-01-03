@@ -42,7 +42,7 @@ message ReportingInterval {
   // The end date of the report.
   //
   // The time is considered to be the same as that specified in the report start.
-  // This side of the interval is closed with respect to the date, but open with
-  // respect to the time specified by report_start.
+  // This side of the interval is open with respect to the date specified here
+  // when taken together with the time specified by report_start.
   google.type.Date report_end = 2 [(google.api.field_behavior) = REQUIRED];
 }
