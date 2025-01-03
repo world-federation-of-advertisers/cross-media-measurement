@@ -24,8 +24,7 @@ option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ReportingIntervalProto";
 
-// The time interval over which Metrics are generated. This interval is
-// closed on both sides.
+// The time interval over which Metrics are generated.
 message ReportingInterval {
   // The date and time of the start of the report. The year,
   // month, day, and time_offset are all required.
@@ -42,9 +41,8 @@ message ReportingInterval {
 
   // The end date of the report.
   //
-  // The time is considered to be the same as
-  // that specified in the report start. This side of the interval is closed
-  // with respect to the date, but open with respect to the time specified by
-  // report_start.
+  // The time is considered to be the same as that specified in the report start.
+  // This side of the interval is closed with respect to the date, but open with
+  // respect to the time specified by report_start.
   google.type.Date report_end = 2 [(google.api.field_behavior) = REQUIRED];
 }
