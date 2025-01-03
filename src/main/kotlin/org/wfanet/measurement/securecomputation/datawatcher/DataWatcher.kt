@@ -45,34 +45,33 @@ class DataWatcher(
     val data = builder.build()
     val bucket = data.getBucket()
     val blobKey = data.getName()
-    val path = "gs://" + bucket + "/" + blobKey
-    println("*********************************")
-    println("Data Watcher: Found path $path")
-    println("*********************************")
     dataWatcherConfigs.forEach { config ->
       val regex = config.sourcePathRegex.toRegex()
-      if (regex.matches(path)) {
-        val queueConfig = config.queue
-        val workItemId = UUID.randomUUID().toString()
-        val workItemParams = DataWatcherConfig.DiscoveredWork.newBuilder()
-          .setType(queueConfig.appConfig)
-          .setPath(path)
-          .build()
-          .pack()
-        val workItem = WorkItem.newBuilder()
-          .setName("workItems/" + workItemId)
-          .setQueue(queueConfig.queueName)
-          .setWorkItemParams(workItemParams)
-          .build()
-        val createWorkItemRequest = CreateWorkItemRequest.newBuilder()
-          .setWorkItemId(workItemId)
-          .setWorkItem(workItem)
-          .build()
-        println("*********************************")
-        println("Data Watcher: Calling Control Plane")
-        println("*********************************")
-        runBlocking {
-          workItemsService.createWorkItem(createWorkItemRequest)
+      if (regex.containsMatchIn(blobKey)) {
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+        when (config.sinkConfigCase) {
+          DataWatcherConfig.SinkConfigCase.CONTROL_PLANE_CONFIG -> {
+            val queueConfig = config.controlPlaneConfig
+            val workItemId = UUID.randomUUID().toString()
+            val workItemParams =
+              triggeredApp {
+                  this.config = queueConfig.appConfig
+                  this.path = path
+                }
+                .pack()
+            val request = createWorkItemRequest {
+              this.workItemId = workItemId
+              this.workItem = workItem {
+                queue = queueConfig.queueName
+                this.workItemParams = workItemParams
+              }
+            }
+            runBlocking { workItemsService.createWorkItem(request) }
+          }
+          DataWatcherConfig.SinkConfigCase.CLOUD_FUNCTION_CONFIG ->
+            TODO("Cloud Function Sink not currently supported")
+          DataWatcherConfig.SinkConfigCase.SINKCONFIG_NOT_SET ->
+            error("Invalid sink config: ${config.sinkConfigCase}")
         }
       }
     }

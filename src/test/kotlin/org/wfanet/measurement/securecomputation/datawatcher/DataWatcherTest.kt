@@ -64,16 +64,19 @@ class DataWatcherTest() {
       val appParams = Int32Value.newBuilder().setValue(5).build()
 
       val dataWatcherConfig = dataWatcherConfig {
-        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
-        this.controlPlaneQueueSink = controlPlaneQueueSink {
-          queue = topicId
-          this.appParams = Any.pack(appParams)
+        sourcePathRegex = "^path-to-watch"
+        this.controlPlaneConfig = controlPlaneConfig {
+          queueName = topicId
+          appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
         }
       }
 
       val dataWatcher = DataWatcher(workItemsStub, listOf(dataWatcherConfig))
 
-      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data")
+      subscribingStorageClient.writeBlob(
+        "path-to-watch/some-data",
+        flowOf("some-data".toByteStringUtf8())
+      )
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
       verifyBlocking(workItemsServiceMock, times(1)) {
         createWorkItem(createWorkItemRequestCaptor.capture())
@@ -130,16 +133,20 @@ class DataWatcherTest() {
       val topicId = "test-topic-id"
 
       val dataWatcherConfig = dataWatcherConfig {
-        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
-        this.controlPlaneQueueSink = controlPlaneQueueSink {
-          queue = topicId
-          appParams = Any.pack(Int32Value.newBuilder().setValue(5).build())
+        sourcePathRegex = "^path-to-watch"
+        this.controlPlaneConfig = controlPlaneConfig {
+          queueName = topicId
+          appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
         }
       }
 
       val dataWatcher = DataWatcher(workItemsStub, listOf(dataWatcherConfig))
       dataWatcher.receivePath("test-schema://test-bucket/some-other-path/some-data")
 
+      subscribingStorageClient.writeBlob(
+        "some-other-path/some-data",
+        flowOf("some-data".toByteStringUtf8())
+      )
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
       verifyBlocking(workItemsServiceMock, times(0)) {
         createWorkItem(createWorkItemRequestCaptor.capture())
