@@ -60,9 +60,8 @@ message BasicReport {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // The set of Media Types to filter the campaign_group on.
-  //
-  // These are applied as to the campaign group disjunctively.
+  // The set of Media Types to report on. If empty report on all
+  // MediaTypes.
   repeated MediaType media_types = 5 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
@@ -84,8 +83,7 @@ message BasicReport {
     (google.api.field_behavior) = REQUIRED
   ];
 
-  // The results for each Page Definitions in the same order as the definitions.
-  //
+  // The result for each item in `page_specs` in the same order.
   repeated PageResult page_results = 8 [
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.field_behavior) = OUTPUT_ONLY

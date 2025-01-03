@@ -26,7 +26,7 @@ option java_outer_classname = "ImpressionQualificationFilterProto";
 
 // Resource representing an Impression Qualification Filter
 //
-// An ImpressionQualificationFilter (IRF) is a named collection of
+// An ImpressionQualificationFilter (IQF) is a named collection of
 // ImpressionQualificationFilterSpecs where there is at most
 // one spec per MediaType. For example, an IQF to filter all measurable
 // impressions for VIDEO and DISPLAY would provide one spec for

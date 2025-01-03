@@ -270,7 +270,7 @@ message PageMetricSpec {
       [(google.api.field_behavior) = IMMUTABLE];
 }
 
-// Defines a Page of results
+// Specification for a Page of results.
 message PageSpec {
   // The title of the page
   string title = 1 [(google.api.field_behavior) = IMMUTABLE];
@@ -370,7 +370,7 @@ message Page {
         // The k+ reach where the index is frequency - 1.
         repeated int32 k_plus_reach = 3
             [(google.api.field_behavior) = IMMUTABLE];
-        // The perecent k+ reach
+        // The percent k+ reach
         repeated float percent_k_plus_reach = 4
             [(google.api.field_behavior) = IMMUTABLE];
         // The frequency historam where the index is frequency-1
@@ -414,7 +414,7 @@ message Page {
             [(google.api.field_behavior) = IMMUTABLE];
 
         // The unique reach
-        int32 unique_rech = 2 [(google.api.field_behavior) = IMMUTABLE];
+        int32 unique_reach = 2 [(google.api.field_behavior) = IMMUTABLE];
 
         // The count of impressions associated with the unique reach
         // Phase III
@@ -468,10 +468,24 @@ message Page {
 // See the definition of `ReportingImpressionQualificationFilter` for details
 // on what it means for a filter to be active.
 message PageResult {
-  // A map of the name of the impression qualification filter used to compute a
-  // Page of results to that Page.
-  //
-  // This is either the resource name of an ImpressionQualificationResource or
-  // the string "custom" indicating that custom filters were applied.
-  map<string, Page> page = 1 [(google.api.field_behavior) = IMMUTABLE];
+  // Stores a Page of results along with the impression qualification filter
+  // that was applied while computing it.
+  message PageAndFilter {
+    oneof filter {
+      // The ImpressionQualificationFilter used to filter the impressions
+      string impression_qualification_filter = 1 [
+        (google.api.resource_reference) = {
+          type: "reporting.halo-cmm.org/ImpressionQualificationFilter"
+        },
+        (google.api.field_behavior) = IMMUTABLE
+      ];
+      // Specifies that a custom filter was used to filter the impressions
+      bool custom = 2 [(google.api.field_behavior) = IMMUTABLE];
+    }
+    // The Page of results
+    Page page = 3 [(google.api.field_behavior) = IMMUTABLE];
+  }
+  // Stores each Page of results along with the impression qualification filter
+  // used to compute it.
+  repeated PageAndFilter pages = 1 [(google.api.field_behavior) = IMMUTABLE];
 }

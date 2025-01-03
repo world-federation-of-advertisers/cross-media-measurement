@@ -38,8 +38,8 @@ message MetricFrequencySpec {
       (google.api.field_behavior) = IMMUTABLE
     ];
   }
-  // Report metrics weekly
+  // Whether to report metrics weekly
   Weekly weekly = 1 [(google.api.field_behavior) = IMMUTABLE];
-  // Report metrics across the entire reporting_interval
+  // Whether to report metrics across the entire `reporting_interval`
   bool total = 2 [(google.api.field_behavior) = IMMUTABLE];
 }
