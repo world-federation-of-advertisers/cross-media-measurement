@@ -425,7 +425,7 @@ message Page {
         float grps = 7 [(google.api.field_behavior) = IMMUTABLE];
       }
 
-      // Stores metrics associated with the new reach of a reporting unit
+      // Results associated with the new reach of a reporting unit
       // or component thereof.
       message NewReachMetricResult {
         // The new reach
@@ -434,21 +434,21 @@ message Page {
         int32 impressions = 2 [(google.api.field_behavior) = IMMUTABLE];
       }
 
-      // Stores the results for the entire Teporting Unit.
+      // Results for the union of all components in the reporting unit
       message ReportingUnitResult {
-        // The metrics for the union of the units
+        // The results for the union of the units
         BasicMetricResult union = 1
             [deprecated = true, (google.api.field_behavior) = IMMUTABLE];
 
-        // Stores non-cumulative metrics
+        // Non-cumulative results
         BasicMetricResult non_cumulative = 3
             [(google.api.field_behavior) = IMMUTABLE];
 
-        // Stores cumualtive metrics.
+        // Cumualtive results.
         BasicMetricResult cumulative = 4
             [(google.api.field_behavior) = IMMUTABLE];
 
-        // Stores metrics associated with the new reach.
+        // Results associated with the new reach.
         NewReachMetricResult new = 5 [(google.api.field_behavior) = IMMUTABLE];
 
         // The stacked incremental reach of the Reporting Unit.
@@ -460,10 +460,10 @@ message Page {
         //  3. reach(rs1+rs2+rs3) - reach(rs1+rs2)
         repeated int32 stacked_incremental_reach = 2;
       }
-      // The results for the whole Reporting Unit
+      // The results for the union of the components in the reporting_unit
       ReportingUnitResult reporting_unit = 1;
 
-      // Stores the results for a single component of the Reporting Unit.
+      // Results for a single component of the Reporting Unit.
       message ComponentMetricResult {
         // The basic metrics for this component, which would be either for a
         // single component if the reporting_unit_spec has one item or for the
@@ -471,11 +471,11 @@ message Page {
         BasicMetricResult component = 1
             [deprecated = true, (google.api.field_behavior) = IMMUTABLE];
 
-        // Stores non-cumulative metrics
+        // Non-cumulative results
         BasicMetricResult non_cumulative = 3
             [(google.api.field_behavior) = IMMUTABLE];
 
-        // Stores cumualtive metrics.
+        // Cumualtive results.
         BasicMetricResult cumulative = 4
             [(google.api.field_behavior) = IMMUTABLE];
 
@@ -486,21 +486,20 @@ message Page {
         int32 unique_reach_impressions = 5
             [(google.api.field_behavior) = IMMUTABLE];
 
-        // Stores metrics associated with the new reach.
+        // Results associated with the new reach.
         NewReachMetricResult new = 6 [(google.api.field_behavior) = IMMUTABLE];
 
-        // Stores metrics associated with the new unique reach.
+        // Results associated with the new unique reach.
         NewReachMetricResult new_unique = 7
             [(google.api.field_behavior) = IMMUTABLE];
       }
-      // The results for each unit in the reporting_unit
+      // The results for each component of the reporting_unit
       map<string, ComponentMetricResult> components = 2
           [(google.api.field_behavior) = IMMUTABLE];
 
-      // Stores results for the intersection of the components of the
-      // Reporting Unit
+      // Results for the intersection of the components of the reporting_unit
       message IntersectionResult {
-        // The reporting unit components that this overlap corresponds to.
+        // The reporting_unit components that this overlap corresponds to.
         repeated string components = 1
             [(google.api.field_behavior) = IMMUTABLE];
 
@@ -508,11 +507,11 @@ message Page {
         BasicMetricResult metrics = 2
             [deprecated = true, (google.api.field_behavior) = IMMUTABLE];
 
-        // Stores non-cumulative metrics
+        // Non-cumulative results
         BasicMetricResult non_cumulative = 3
             [(google.api.field_behavior) = IMMUTABLE];
 
-        // Stores cumualtive metrics.
+        // Cumualtive results.
         BasicMetricResult cumulative = 4
             [(google.api.field_behavior) = IMMUTABLE];
       }
