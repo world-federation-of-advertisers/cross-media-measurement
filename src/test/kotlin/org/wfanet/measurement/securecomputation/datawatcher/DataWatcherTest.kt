@@ -48,7 +48,7 @@ class DataWatcherTest() {
       val subscribingStorageClient = GcsSubscribingStorageClient(inMemoryStorageClient)
 
       val dataWatcherConfig = dataWatcherConfig {
-        sourcePathRegex = "^gs://fake-bucket/path-to-watch"
+        sourcePathRegex = "^path-to-watch"
         this.controlPlaneConfig = controlPlaneConfig {
           queueName = topicId
           appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
@@ -59,7 +59,7 @@ class DataWatcherTest() {
       subscribingStorageClient.subscribe(dataWatcher)
 
       subscribingStorageClient.writeBlob(
-        "gs://fake-bucket/path-to-watch/some-data",
+        "path-to-watch/some-data",
         flowOf("some-data".toByteStringUtf8())
       )
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
@@ -77,7 +77,7 @@ class DataWatcherTest() {
       val subscribingStorageClient = GcsSubscribingStorageClient(inMemoryStorageClient)
 
       val dataWatcherConfig = dataWatcherConfig {
-        sourcePathRegex = "^gs://fake-bucket/path-to-watch"
+        sourcePathRegex = "^path-to-watch"
         this.controlPlaneConfig = controlPlaneConfig {
           queueName = topicId
           appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
@@ -88,7 +88,7 @@ class DataWatcherTest() {
       subscribingStorageClient.subscribe(dataWatcher)
 
       subscribingStorageClient.writeBlob(
-        "gs://fake-bucket/some-other-path/some-data",
+        "some-other-path/some-data",
         flowOf("some-data".toByteStringUtf8())
       )
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()

@@ -42,10 +42,9 @@ class DataWatcher(
     val data = builder.build()
     val bucket = data.getBucket()
     val blobKey = data.getName()
-    val path = "gs://" + bucket + "/" + blobKey
     dataWatcherConfigs.forEach { config ->
       val regex = config.sourcePathRegex.toRegex()
-      if (regex.containsMatchIn(path)) {
+      if (regex.containsMatchIn(blobKey)) {
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
         when (config.sinkConfigCase) {
           DataWatcherConfig.SinkConfigCase.CONTROL_PLANE_CONFIG -> {
