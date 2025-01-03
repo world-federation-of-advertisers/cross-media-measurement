@@ -225,6 +225,9 @@ message PageMetricSpec {
   // with respect to all others.
   message ComponentMetricSpec {
     // The basic metrics for each ReportingUnit.unit
+    //
+    // If this is specified the `accumulation_options` must also be
+    // specified.
     BasicMetricSpec component = 1
         [deprecated = true, (google.api.field_behavior) = IMMUTABLE];
 
@@ -284,7 +287,8 @@ message PageMetricSpec {
 
     // The set of metrics to be computed for each intersection
     //
-    // If omitted all metrics are requested.
+    // If this is specified the `accumulation_options` must also be
+    // specified.
     BasicMetricSpec basic = 2 [
       deprecated = true,
       (google.api.field_behavior) = IMMUTABLE,
