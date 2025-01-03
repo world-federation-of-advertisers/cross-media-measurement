@@ -56,7 +56,7 @@ class DataWatcher(
             val workItemParams =
               triggeredApp {
                   this.config = queueConfig.appConfig
-                  this.path = path
+                  this.path = blobKey
                 }
                 .pack()
             val request = createWorkItemRequest {
