@@ -71,14 +71,24 @@ class VidLabelerApp(
     val teeAppConfig = message.config.unpack(TeeAppConfig::class.java)
     assert(teeAppConfig.workTypeCase == TeeAppConfig.WorkTypeCase.VID_LABELING_CONFIG)
     val vidLabelingConfig = teeAppConfig.vidLabelingConfig
-    val vidModelBlob = storageClient.getBlob(vidLabelingConfig.vidModelPath)!!
-    val modelData =
-      vidModelBlob.read().reduce { acc, byteString -> acc.concat(byteString) }.toStringUtf8()
     val compiledNode: CompiledNode =
-      CompiledNode.getDefaultInstance()
-        .newBuilderForType()
-        .apply { TextFormat.Parser.newBuilder().build().merge(modelData, this) }
-        .build() as CompiledNode
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+      when (vidLabelingConfig.modelFormatCase) {
+        TeeAppConfig.VidLabelingConfig.ModelFormatCase.MODEL_BLOB_TEXT_PROTO_PATH -> {
+          val vidModelBlob = storageClient.getBlob(vidLabelingConfig.modelBlobTextProtoPath)!!
+          val modelData =
+            vidModelBlob.read().reduce { acc, byteString -> acc.concat(byteString) }.toStringUtf8()
+          CompiledNode.getDefaultInstance()
+            .newBuilderForType()
+            .apply { TextFormat.Parser.newBuilder().build().merge(modelData, this) }
+            .build() as CompiledNode
+        }
+        TeeAppConfig.VidLabelingConfig.ModelFormatCase.MODEL_BLOB_RIEGELI_PATH ->
+          TODO("Currently Unsupported")
+        TeeAppConfig.VidLabelingConfig.ModelFormatCase.MODEL_LINE -> TODO("Currently Unsupported")
+        TeeAppConfig.VidLabelingConfig.ModelFormatCase.MODELFORMAT_NOT_SET ->
+          throw Exception("Invalid model format: ${vidLabelingConfig.modelFormatCase}")
+      }
 
     val labeler = Labeler.build(compiledNode)
 

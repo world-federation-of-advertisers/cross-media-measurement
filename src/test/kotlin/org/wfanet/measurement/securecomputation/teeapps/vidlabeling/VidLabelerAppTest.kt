@@ -135,7 +135,7 @@ class VidLabelerAppTest() {
               this.vidLabelingConfig = vidLabelingConfig {
                 this.inputBasePath = inputEventsPath
                 this.outputBasePath = outputEventsPath
-                this.vidModelPath = vidModelPath
+                this.modelBlobTextProtoPath = vidModelPath
               }
             }
           )

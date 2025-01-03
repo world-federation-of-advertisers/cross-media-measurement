@@ -27,7 +27,15 @@ message TeeAppConfig {
   message VidLabelingConfig {
     string input_base_path = 1;
     string output_base_path = 2;
-    string vid_model_path = 3;
+    oneof ModelFormat {
+      string model_blob_text_proto_path = 3;
+      string model_blob_riegeli_path = 4;
+      string model_line = 5 [
+        (google.api.resource_reference).type = "halo.wfanet.org/ModelLine",
+        (google.api.field_behavior) = REQUIRED,
+        (google.api.field_behavior) = IMMUTABLE
+      ];
+    }
   }
   message ReachAndFrequencyConfig {
     // TODO
