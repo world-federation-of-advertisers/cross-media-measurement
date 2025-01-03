@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.securecomputation.vidlabeling
 
+import com.google.protobuf.Any
+import com.google.protobuf.Message
 import com.google.protobuf.Parser
 import com.google.protobuf.TextFormat
 import com.google.protobuf.kotlin.toByteStringUtf8
@@ -30,13 +32,13 @@ import org.wfanet.virtualpeople.common.LabelerInput
 import org.wfanet.virtualpeople.common.LabelerOutput
 import org.wfanet.virtualpeople.core.labeler.Labeler
 
-class VidLabelerApp(
+class VidLabelerApp<T : Message>(
   private val storageClient: StorageClient,
   queueName: String,
   queueSubscriber: QueueSubscriber,
-  parser: Parser<TriggeredApp>
+  parser: Parser<T>
 ) :
-  BaseTeeApplication<TriggeredApp>(
+  BaseTeeApplication<T>(
     subscriptionId = queueName,
     queueSubscriber = queueSubscriber,
     parser = parser
@@ -50,7 +52,7 @@ class VidLabelerApp(
   ) {
     val inputBlob =
       storageClient.getBlob(inputBlobKey)
-        ?: throw IllegalArgumentException("Input blob does not exist")
+        ?: throw IllegalArgumentException("Input blob $inputBlobKey does not exist")
     val inputRecords = inputBlob.read()
 
     val outputFlow =
@@ -63,12 +65,16 @@ class VidLabelerApp(
         val labelerOutput: LabelerOutput = labeler.label(input = labelerInput)
         labelerOutput.toString().toByteStringUtf8()
       }
-
     storageClient.writeBlob(outputBlobKey, outputFlow)
   }
 
-  override suspend fun runWork(message: TriggeredApp) {
-    val teeAppConfig = message.config.unpack(TeeAppConfig::class.java)
+  override suspend fun runWork(message: T) {
+    // Currently, the Control Plane API only supports Any messages but BaseTeeApplication supports
+    // TriggeredApp also
+    val discoveredWork: TriggeredApp =
+      if (message is Any) message.unpack(TriggeredApp::class.java)
+      else if (message is TriggeredApp) message else throw Exception("Unsupported message type")
+    val teeAppConfig = discoveredWork.config.unpack(TeeAppConfig::class.java)
     assert(teeAppConfig.workTypeCase == TeeAppConfig.WorkTypeCase.VID_LABELING_CONFIG)
     val vidLabelingConfig = teeAppConfig.vidLabelingConfig
     val compiledNode: CompiledNode =
@@ -92,10 +98,9 @@ class VidLabelerApp(
 
     val labeler = Labeler.build(compiledNode)
 
-    val inputBlobKey = message.path
+    val inputBlobKey = discoveredWork.path
     val outputBlobKey =
       vidLabelingConfig.outputBasePath + inputBlobKey.removePrefix(vidLabelingConfig.inputBasePath)
-
     val mesosRecordIoStorageClient = MesosRecordIoStorageClient(storageClient)
     labelPath(inputBlobKey, outputBlobKey, labeler, mesosRecordIoStorageClient)
   }
