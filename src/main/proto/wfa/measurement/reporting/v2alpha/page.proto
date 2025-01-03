@@ -125,8 +125,7 @@ message PageMetricSpec {
 
   // The set of basic metrics that can be computed for any aspect of the
   // Reporting Unit (e.g. the whole thing, a single component, intersections,
-  // etc.) These metrics are available when the accumulatio options are
-  // cumualtive or non-cumulative.
+  // etc.), whether the metric is cumualtive or non-cumulative.
   message BasicMetricSpec {
     // The reach
     bool reach = 1 [(google.api.field_behavior) = IMMUTABLE];
@@ -146,11 +145,10 @@ message PageMetricSpec {
     // The average frequency
     bool average_frequency = 5 [(google.api.field_behavior) = IMMUTABLE];
 
-    // Compute a frequency histogram with the given max frequency
+    // The maximum frequency for which to compute a frequency histogram.
     //
     // The last bin in the historgram will contain values for
     // all requencies >= the value provided here.
-    // Phase III
     int32 frequency_histogram = 8 [(google.api.field_behavior) = IMMUTABLE];
 
     // The impression count
@@ -160,20 +158,19 @@ message PageMetricSpec {
     bool grps = 7 [(google.api.field_behavior) = IMMUTABLE];
   }
 
-  // Defines a structure for specifying that new reach and new impressions be
+  // A structure for specifying that new reach and new impressions be
   // computed.
   message NewReachMetricSpec {
     // The new reach of all the unit(s) for the time period compared to
     // all previous time encompassed by the reporting_interval
-    //
-    // For cumualtive metrics this is the same as reach
     bool reach = 1 [(google.api.field_behavior) = IMMUTABLE];
 
     // The impressions associated with the new reach
     bool impressions = 2 [(google.api.field_behavior) = IMMUTABLE];
   }
 
-  // Metrics to be computed over the entire ReportingUnit
+  // Metrics to be computed over the union of the components of the
+  // reporting_unit
   message ReportingUnitMetricSpec {
     // Metrics for the union of the items in the ReportingUnit
     //
@@ -182,15 +179,15 @@ message PageMetricSpec {
     BasicMetricSpec union = 1
         [deprecated = true, (google.api.field_behavior) = IMMUTABLE];
 
-    // Specifies that various non-cumulative metrics be computed.
+    // Non-cumulative metrics for the union of the reporting_unit components
     BasicMetricSpec non_cumulative = 3
         [(google.api.field_behavior) = IMMUTABLE];
 
-    // Specifies that various cumulative metrics be computed.
+    // Cumulative metrics for the union of the reporting_unit components
     BasicMetricSpec cumulative = 4 [(google.api.field_behavior) = IMMUTABLE];
 
-    // Specifies that the reach that is new to the time period for
-    // the entire Reporting Unit be computed.
+    // Reach and associated impressions that are new to the time period for all
+    // components of the reporing_unit
     NewReachMetricSpec new = 5 [(google.api.field_behavior) = IMMUTABLE];
 
     // Compute a stacked incremental reach result for the ReportingUnit
@@ -231,40 +228,39 @@ message PageMetricSpec {
     BasicMetricSpec component = 1
         [deprecated = true, (google.api.field_behavior) = IMMUTABLE];
 
-    // Specifies that various non-cumulative metrics be computed.
+    // Non-cumulative metrics for each component of the reporting_unit
     BasicMetricSpec non_cumulative = 3
         [(google.api.field_behavior) = IMMUTABLE];
 
-    // Specifies that various cumulative metrics be computed.
+    // Cumulative metrics for each component of the reporting_unit
     BasicMetricSpec cumulative = 4 [(google.api.field_behavior) = IMMUTABLE];
 
-    // Compute the unique reach of each reporting unit in the
-    // reporting_unit_spec with respect to all other reporting units.
+    // The unique reach of each reporting unit in the
+    // reporting_unit with respect to all other reporting units.
     //
     // For example if reporting_sets=[RS1, RS2, RS3] the unique reach of
     // RS1, RS2, and RS3 are computed.
-    //
-    // It is an error to specify this if only a single reporting unit is
-    // specified since it is the same thing as requesting union.reach.
     bool unique_reach = 2 [(google.api.field_behavior) = IMMUTABLE];
 
     // The impressions associated with the unique reach.
     bool unique_reach_impressions = 5 [(google.api.field_behavior) = IMMUTABLE];
 
-    // Specifies that the reach that is new to the time period for
-    // each unit in the reporting_unit_spec be computed.
+    // Reach and associated impressions that are new to the time period for each
+    // component of the reporting_unit
     NewReachMetricSpec new = 6 [(google.api.field_behavior) = IMMUTABLE];
 
-    // Specifies that the reach that is new to the time period and unique to
-    // each unit in the reporting_unit_spec be computed.
+    // Reach and associated impressions that are new to the time period and
+    // uniquefor each component of the reporting_unit
     NewReachMetricSpec new_unique = 7 [(google.api.field_behavior) = IMMUTABLE];
   }
-  // If ReportingUnit.unit is of size 1 the metrics computed for the component
-  // are identical to those computed for the union. Specifying this value is
-  // not recommended in this case.
+  // Metrics for each component of the reporting_unit.
   //
-  // If omitted the default is that all metrics are requested, unless the
-  // ReportingUnit is of size 1.
+  // If the number of components is 1 the metrics computed for the component
+  // are identical to those computed for the entire reporting unit. Specifying
+  // this value is not recommended in that case.
+  //
+  // If omitted and the number of components in the reporting_unit is greater
+  // than one, then the default is that all metrics are requested.
   ComponentMetricSpec component = 3 [(google.api.field_behavior) = IMMUTABLE];
 
   // Request overlaps (i.e. intersections) of the various combinations
@@ -295,11 +291,11 @@ message PageMetricSpec {
       (google.api.field_behavior) = REQUIRED
     ];
 
-    // Specifies that various non-cumulative metrics be computed.
+    // Non-cumulative metrics for the various intersections
     BasicMetricSpec non_cumulative = 3
         [(google.api.field_behavior) = IMMUTABLE];
 
-    // Specifies that various cumulative metrics be computed.
+    // cumulative metrics for the various intersections
     BasicMetricSpec cumulative = 4 [(google.api.field_behavior) = IMMUTABLE];
   }
   // Compute n-way intersections
