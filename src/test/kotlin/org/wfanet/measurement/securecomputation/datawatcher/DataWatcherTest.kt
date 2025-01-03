@@ -60,7 +60,7 @@ class DataWatcherTest() {
 
       subscribingStorageClient.writeBlob(
         "path-to-watch/some-data",
-        flowOf("some-data".toByteStringUtf8())
+        flowOf("some-data".toByteStringUtf8()),
       )
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
       verify(mockWorkItemsService, times(1)).createWorkItem(createWorkItemRequestCaptor.capture())
@@ -89,7 +89,7 @@ class DataWatcherTest() {
 
       subscribingStorageClient.writeBlob(
         "some-other-path/some-data",
-        flowOf("some-data".toByteStringUtf8())
+        flowOf("some-data".toByteStringUtf8()),
       )
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
       verify(mockWorkItemsService, times(0)).createWorkItem(createWorkItemRequestCaptor.capture())
