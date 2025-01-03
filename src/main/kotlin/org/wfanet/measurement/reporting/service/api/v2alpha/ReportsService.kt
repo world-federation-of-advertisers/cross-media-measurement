@@ -432,6 +432,8 @@ class ReportsService(
                 .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
                 .details
                 .filter,
+              ReportKey(internalReport.cmmsMeasurementConsumerId, internalReport.externalReportId)
+                .toName(),
             )
           }
         }

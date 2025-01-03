@@ -105,6 +105,7 @@ message Metric {
 
   message Details {
     repeated string filters = 1;
+    string containing_report = 2;
   }
   Details details = 8;
 
