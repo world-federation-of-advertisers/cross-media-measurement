@@ -43,8 +43,7 @@ message WindowingSpec {
     // Compute non-cumulative metrics
     NON_CUMULATIVE = 2;
   }
-  // How to accumulate results.
-  // Not available for AdvancedReport.
+  // How to accumulate results. Not available for AdvancedReport.
   AccumulationOptions accumulation_options = 2 [
     deprecated = true,
     (google.api.field_behavior) = REQUIRED,
