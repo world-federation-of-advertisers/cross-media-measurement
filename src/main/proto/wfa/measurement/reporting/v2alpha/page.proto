@@ -124,8 +124,7 @@ message PageMetricSpec {
 
   // The set of basic metrics that can be computed for any aspect of the
   // Reporting Unit (e.g. the whole thing, a single component, intersections,
-  // etc.) These metrics are available when the accumulatio options are
-  // cumualtive or non-cumulative.
+  // etc.)
   message BasicMetricSpec {
     // The reach
     bool reach = 1 [(google.api.field_behavior) = IMMUTABLE];
