@@ -109,14 +109,38 @@ class PermissionsService(private val internalPermissionStub: InternalPermissions
       }
 
     val internalResponse: InternalListPermissionsResponse =
-      internalPermissionStub.listPermissions(
-        internalListPermissionsRequest {
-          pageSize = request.pageSize
-          if (internalPageToken != null) {
-            pageToken = internalPageToken
+      try {
+        internalPermissionStub.listPermissions(
+          internalListPermissionsRequest {
+            pageSize = request.pageSize
+            if (internalPageToken != null) {
+              pageToken = internalPageToken
+            }
           }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.PRINCIPAL_NOT_FOUND,
+          InternalErrors.Reason.PERMISSION_NOT_FOUND,
+          InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER,
+          InternalErrors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT,
+          InternalErrors.Reason.PRINCIPAL_ALREADY_EXISTS,
+          InternalErrors.Reason.PRINCIPAL_TYPE_NOT_SUPPORTED,
+          InternalErrors.Reason.PERMISSION_NOT_FOUND_FOR_ROLE,
+          InternalErrors.Reason.ROLE_NOT_FOUND,
+          InternalErrors.Reason.ROLE_ALREADY_EXISTS,
+          InternalErrors.Reason.POLICY_NOT_FOUND,
+          InternalErrors.Reason.POLICY_NOT_FOUND_FOR_PROTECTED_RESOURCE,
+          InternalErrors.Reason.POLICY_ALREADY_EXISTS,
+          InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_ALREADY_EXISTS,
+          InternalErrors.Reason.POLICY_BINDING_MEMBERSHIP_NOT_FOUND,
+          InternalErrors.Reason.RESOURCE_TYPE_NOT_FOUND_IN_PERMISSION,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.ETAG_MISMATCH,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
-      )
+      }
 
     return listPermissionsResponse {
       permissions += internalResponse.permissionsList.map { it.toPermission() }
@@ -155,9 +179,7 @@ class PermissionsService(private val internalPermissionStub: InternalPermissions
       try {
         internalPermissionStub.checkPermissions(
           internalCheckPermissionsRequest {
-            if (request.protectedResource.isNotEmpty()) {
-              protectedResourceName = request.protectedResource
-            }
+            protectedResourceName = request.protectedResource
             principalResourceId = principalKey.principalId
             this.permissionResourceIds += permissionResourceIds
           }
