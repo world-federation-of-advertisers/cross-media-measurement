@@ -141,20 +141,14 @@ message PageMetricSpec {
     // reach values are also computed.
     bool percent_k_plus_reach = 4 [(google.api.field_behavior) = IMMUTABLE];
 
-    // Compute a frequency histogram with the given max frequency
-    //
-    // The last bin in the historgram will contain values for
-    // all requencies >= the value provided here.
-    // int32 frequency_histogram = 5 [(google.api.field_behavior) = IMMUTABLE];
-
     // The average frequency
-    bool average_frequency = 6 [(google.api.field_behavior) = IMMUTABLE];
+    bool average_frequency = 5 [(google.api.field_behavior) = IMMUTABLE];
 
     // The impression count
-    bool impressions = 7 [(google.api.field_behavior) = IMMUTABLE];
+    bool impressions = 6 [(google.api.field_behavior) = IMMUTABLE];
 
     // Gross ratings points
-    bool grps = 8 [(google.api.field_behavior) = IMMUTABLE];
+    bool grps = 7 [(google.api.field_behavior) = IMMUTABLE];
   }
 
   // Metrics to be computed over the entire ReportingUnit
@@ -345,15 +339,12 @@ message Page {
         // The percent k+ reach
         repeated float percent_k_plus_reach = 4
             [(google.api.field_behavior) = IMMUTABLE];
-        // The frequency historam where the index is frequency-1
-        repeated float frequency_histogram = 5
-            [(google.api.field_behavior) = IMMUTABLE];
         // The average frequency
-        float average_frequency = 6 [(google.api.field_behavior) = IMMUTABLE];
+        float average_frequency = 5 [(google.api.field_behavior) = IMMUTABLE];
         // The impression count
-        int32 impressions = 7 [(google.api.field_behavior) = IMMUTABLE];
+        int32 impressions = 6 [(google.api.field_behavior) = IMMUTABLE];
         // The gross ratings points
-        float grps = 8 [(google.api.field_behavior) = IMMUTABLE];
+        float grps = 7 [(google.api.field_behavior) = IMMUTABLE];
       }
       // Stores the results for the entire Teporting Unit.
       message ReportingUnitResult {
