@@ -45,6 +45,7 @@ message WindowingSpec {
   }
   // How to accumulate results.
   AccumulationOptions accumulation_options = 2 [
+    deprecated = true,
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
