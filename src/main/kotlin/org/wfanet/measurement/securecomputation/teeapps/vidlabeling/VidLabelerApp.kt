@@ -30,6 +30,9 @@ import org.wfanet.virtualpeople.common.LabelerInput
 import org.wfanet.virtualpeople.common.LabelerOutput
 import org.wfanet.virtualpeople.core.labeler.Labeler
 
+/*
+ * TEE VID Labeling App.
+ */
 class VidLabelerApp(
   private val storageClient: StorageClient,
   queueName: String,
@@ -42,6 +45,10 @@ class VidLabelerApp(
     parser = parser
   ) {
 
+  /*
+   * Currently, labels events using a single thread. Consider using a different approach for faster labeling.
+   * TODO: Read and write using serialized ByteString rather than TextProto once the MesosStorageClient bug is fixed.
+   */
   private suspend fun labelPath(
     inputBlobKey: String,
     outputBlobKey: String,
