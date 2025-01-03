@@ -228,24 +228,25 @@ message Page {
 // See the definition of `ReportingImpressionQualificationFilter` for details
 // on what it means for a filter to be active.
 message PageResult {
-  // Stores a Page of results along with the impression qualification filter
-  // that was applied while computing it.
+  // Contains a Page of results along with the impression qualification filter
+  // that was applied when computing it.
   message PageAndFilter {
+    // The filter. Required.
     oneof filter {
-      // The ImpressionQualificationFilter used to filter the impressions
+      // The ImpressionQualificationFilter used to filter the impressions.
       string impression_qualification_filter = 1 [
         (google.api.resource_reference) = {
           type: "reporting.halo-cmm.org/ImpressionQualificationFilter"
         },
         (google.api.field_behavior) = IMMUTABLE
       ];
-      // Specifies that a custom filter was used to filter the impressions
+      // Specifies that a custom filter was used to filter the impressions.
       bool custom = 2 [(google.api.field_behavior) = IMMUTABLE];
     }
-    // The Page of results
+    // The Page of results.
     Page page = 3 [(google.api.field_behavior) = IMMUTABLE];
   }
-  // Stores each Page of results along with the impression qualification filter
+  // Contains each Page of results along with the impression qualification filter
   // used to compute it.
   repeated PageAndFilter pages = 1 [(google.api.field_behavior) = IMMUTABLE];
 }
