@@ -40,6 +40,12 @@ bazel_dep(
     version = "0.99.1",
     repo_name = "wfa_common_jvm",
 )
+# DO_NOT_SUBMIT (world-federation-of-advertisers/common-jvm#295)
+archive_override(
+    module_name = "common-jvm",
+    strip_prefix = "common-jvm-d23dbac4990e80a80260910e13692054c22b8669",
+    urls = "https://github.com/world-federation-of-advertisers/common-jvm/archive/d23dbac4990e80a80260910e13692054c22b8669.tar.gz",
+)
 bazel_dep(
     name = "common-cpp",
     version = "0.13.0",
@@ -79,6 +85,17 @@ bazel_dep(
     name = "virtual-people-common",
     version = "0.5.0",
     repo_name = "wfa_virtual_people_common",
+)
+bazel_dep(
+    name = "virtual-people-core-serving",
+    version = "0.2.1",
+    repo_name = "wfa_virtual_people_core_serving",
+)
+# DO_NOT_SUBMIT (world-federation-of-advertisers/virtual-people-core-serving#79)
+archive_override(
+    module_name = "virtual-people-core-serving",
+    strip_prefix = "virtual-people-core-serving-3fd624714c92c505a36840fdecf05233eb747e5f",
+    urls = "https://github.com/world-federation-of-advertisers/virtual-people-core-serving/archive/3fd624714c92c505a36840fdecf05233eb747e5f.tar.gz",
 )
 bazel_dep(
     name = "grpc-gateway",
