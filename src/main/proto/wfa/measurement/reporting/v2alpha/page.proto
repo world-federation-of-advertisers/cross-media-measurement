@@ -175,19 +175,22 @@ message PageMetricSpec {
     // Metrics for the union of the items in the ReportingUnit
     //
     // If this is specified the `accumulation_options` must also be
-    // specified.
+    // specified. Not available for AdvancedReport.
     BasicMetricSpec union = 1
         [deprecated = true, (google.api.field_behavior) = IMMUTABLE];
 
     // Non-cumulative metrics for the union of the reporting_unit components
+    // Cannot be use in conjunction with union.
     BasicMetricSpec non_cumulative = 3
         [(google.api.field_behavior) = IMMUTABLE];
 
     // Cumulative metrics for the union of the reporting_unit components
+    // Cannot be use in conjunction with union.
     BasicMetricSpec cumulative = 4 [(google.api.field_behavior) = IMMUTABLE];
 
     // Reach and associated impressions that are new to the time period for all
     // components of the reporing_unit
+    // Cannot be use in conjunction with union.
     NewReachMetricSpec new = 5 [(google.api.field_behavior) = IMMUTABLE];
 
     // Compute a stacked incremental reach result for the ReportingUnit
@@ -227,15 +230,17 @@ message PageMetricSpec {
     // The basic metrics for each ReportingUnit.unit
     //
     // If this is specified the `accumulation_options` must also be
-    // specified.
+    // specified. Not available for AdvancedReport.
     BasicMetricSpec component = 1
         [deprecated = true, (google.api.field_behavior) = IMMUTABLE];
 
     // Non-cumulative metrics for each component of the reporting_unit
+    // Cannot be use in conjunction with component.
     BasicMetricSpec non_cumulative = 3
         [(google.api.field_behavior) = IMMUTABLE];
 
     // Cumulative metrics for each component of the reporting_unit
+    // Cannot be use in conjunction with component.
     BasicMetricSpec cumulative = 4 [(google.api.field_behavior) = IMMUTABLE];
 
     // The unique reach of each reporting unit in the
@@ -246,14 +251,17 @@ message PageMetricSpec {
     bool unique_reach = 2 [(google.api.field_behavior) = IMMUTABLE];
 
     // The impressions associated with the unique reach.
+    // Cannot be use in conjunction with component.
     bool unique_reach_impressions = 5 [(google.api.field_behavior) = IMMUTABLE];
 
     // Reach and associated impressions that are new to the time period for each
     // component of the reporting_unit
+    // Cannot be use in conjunction with component.
     NewReachMetricSpec new = 6 [(google.api.field_behavior) = IMMUTABLE];
 
     // Reach and associated impressions that are new to the time period and
     // unique for each component of the reporting_unit
+    // Cannot be use in conjunction with component.
     NewReachMetricSpec new_unique = 7 [(google.api.field_behavior) = IMMUTABLE];
   }
   // Metrics for each component of the reporting_unit.
@@ -288,7 +296,7 @@ message PageMetricSpec {
     // The set of metrics to be computed for each intersection
     //
     // If this is specified the `accumulation_options` must also be
-    // specified.
+    // specified. Not available for AdvancedReport.
     BasicMetricSpec basic = 2 [
       deprecated = true,
       (google.api.field_behavior) = IMMUTABLE,
@@ -298,12 +306,14 @@ message PageMetricSpec {
     // Non-cumulative metrics for the various intersections
     //
     // If unspecified the default is to request all metrics.
+    // Cannot be use in conjunction with basic.
     BasicMetricSpec non_cumulative = 3
         [(google.api.field_behavior) = IMMUTABLE];
 
     // Cumulative metrics for the various intersections
     //
     // If unspecified the default is to request all metrics.
+    // Cannot be use in conjunction with basic.
     BasicMetricSpec cumulative = 4 [(google.api.field_behavior) = IMMUTABLE];
   }
   // Compute n-way intersections
@@ -349,7 +359,17 @@ message Page {
         [(google.api.field_behavior) = IMMUTABLE];
 
     // The time interval over which the result is computed.
+    //
+    // Only set if accumulation_options are used.
     google.type.Interval time_interval = 2
+        [deprecated = true, (google.api.field_behavior) = IMMUTABLE];
+
+    // The time interval over which non-cumulative results are computed.
+    google.type.Interval non_cumulative_time_interval = 6
+        [(google.api.field_behavior) = IMMUTABLE];
+
+    // The time interval over which cumulative results are computed.
+    google.type.Interval cumulative_time_interval = 7
         [(google.api.field_behavior) = IMMUTABLE];
 
     // The windowing spec used for these results.
