@@ -101,9 +101,9 @@ class ControlPlaneIntegrationTest() {
       val vidLabelerApp =
         VidLabelerApp(subscribingStorageClient, subscriptionId, queueSubscriber, Any.parser())
       val job = launch { vidLabelerApp.run() }
-      val inputEventsPath = "gs://fake-bucket/input-events"
-      val outputEventsPath = "gs://fake-bucket/output-events"
-      val vidModelPath = "gs://fake-bucket/vid-model"
+      val inputEventsPath = "input-events"
+      val outputEventsPath = "output-events"
+      val vidModelPath = "vid-model"
       val modelFileName = "single_id_model.textproto"
       val vidModelData =
         parseTextProto(
@@ -116,7 +116,7 @@ class ControlPlaneIntegrationTest() {
       )
 
       val dataWatcherConfig1 = dataWatcherConfig {
-        sourcePathRegex = "^gs://fake-bucket/input-events"
+        sourcePathRegex = "^input-events"
         this.controlPlaneConfig = controlPlaneConfig {
           queueName = topicId
           appConfig = Any.pack(
