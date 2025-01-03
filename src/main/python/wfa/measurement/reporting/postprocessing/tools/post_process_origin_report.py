@@ -30,7 +30,6 @@ from typing import FrozenSet
 ami = "ami"
 mrc = "mrc"
 
-
 # TODO(@ple13): Extend the class to support custom measurements and composite
 # set operations such as incremental.
 class ReportSummaryProcessor:

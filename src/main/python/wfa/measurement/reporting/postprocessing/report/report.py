@@ -118,6 +118,96 @@ def get_cover_relationships(edp_combinations: list[FrozenSet[str]]) -> list[
   return cover_relationships
 
 
+def get_subset_relationships(edp_combinations: list[FrozenSet[str]]):
+  """Returns a list of tuples where first element in the tuple is the parent
+  and second element is the subset."""
+  subset_relationships = []
+
+  for comb1, comb2 in combinations(edp_combinations, 2):
+    if comb1.issubset(comb2):
+      subset_relationships.append((comb2, comb1))
+    elif comb2.issubset(comb1):
+      subset_relationships.append((comb1, comb2))
+  return subset_relationships
+
+
+def is_cover(target_set, possible_cover):
+  """Checks if a collection of sets covers a target set.
+
+  Args:
+    target_set: The set that should be covered.
+    possible_cover: A collection of sets that may cover the target set.
+
+  Returns:
+    True if the union of the sets in `possible_cover` equals `target_set`,
+    False otherwise.
+  """
+  union_of_possible_cover = reduce(
+      lambda x, y: x.union(y), possible_cover
+  )
+  if union_of_possible_cover == target_set:
+    return True
+  else:
+    return False
+
+
+def get_covers(target_set, other_sets):
+  """Finds all combinations of sets from `other_sets` that cover `target_set`.
+
+  This function identifies all possible combinations of sets within `other_sets`
+  whose union equals the `target_set`. It only considers sets that are subsets of
+  the `target_set`.
+
+  Args:
+    target_set: The set that needs to be covered.
+    other_sets: A collection of sets that may be used to cover the `target_set`.
+
+  Returns:
+    A list of tuples, where each tuple represents a covering relationship.
+    The first element of the tuple is the `target_set`, and the second element
+    is a tuple containing the sets from `other_sets` that cover it.
+  """
+  def generate_all_length_combinations(data):
+    """Generates all possible combinations of elements from a list.
+
+    Args:
+      data: The list of elements.
+
+    Returns:
+      A list of tuples, where each tuple represents a combination of elements.
+    """
+    return [
+        comb for r in range(1, len(data) + 1) for comb in
+        combinations(data, r)
+    ]
+
+  cover_relationship = []
+  all_subsets_of_possible_covered = [other_set for other_set in other_sets
+                                     if
+                                     other_set.issubset(target_set)]
+  possible_covers = generate_all_length_combinations(
+      all_subsets_of_possible_covered)
+  for possible_cover in possible_covers:
+    if is_cover(target_set, possible_cover):
+      cover_relationship.append((target_set, possible_cover))
+  return cover_relationship
+
+
+def get_cover_relationships(edp_combinations: list[FrozenSet[str]]):
+  """Returns covers as defined here: # https://en.wikipedia.org/wiki/Cover_(topology).
+  For each set (s_i) in the list, enumerate combinations of all sets excluding this one.
+  For each of these considered combinations, take their union and check if it is equal to
+  s_i. If so, this combination is a cover of s_i.
+  """
+  cover_relationships = []
+  for i in range(len(edp_combinations)):
+    possible_covered = edp_combinations[i]
+    other_sets = edp_combinations[:i] + edp_combinations[i + 1:]
+    cover_relationship = get_covers(possible_covered, other_sets)
+    cover_relationships.extend(cover_relationship)
+  return cover_relationships
+
+
 class MetricReport:
   """Represents a metric sub-report view (e.g., MRC, AMI) within a report.
 
@@ -310,7 +400,6 @@ class Report:
           measurement_index += 1
 
     self._num_vars = measurement_index
-
   def get_metric_report(self, metric: str) -> "MetricReport":
     return self._metric_reports[metric]
 

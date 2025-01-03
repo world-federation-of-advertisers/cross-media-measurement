@@ -30,7 +30,7 @@ message MeasurementDetail {
   repeated string right_hand_side_targets = 7;
 
   message MeasurementResult {
-    int64 reach = 1;
+    double reach = 1;
     double standard_deviation = 2;
     string metric = 3;
   }

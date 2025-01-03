@@ -235,7 +235,7 @@ class TestOriginReport(unittest.TestCase):
               'cumulative/custom/' + edp_combination + '_' + str(i).zfill(2)],
             corrected_measurements_map[
               'cumulative/custom/' + edp_combination + '_' + str(i + 1).zfill(
-                2)],
+                  2)],
         )
 
     # Verifies that cumulative measurements are less than or equal to total

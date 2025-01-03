@@ -1179,61 +1179,6 @@ class TestReport(unittest.TestCase):
 
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
-  def test_allows_incorrect_time_series(self):
-    ami = "ami"
-    report = Report(
-        metric_reports={
-            ami: MetricReport(
-                reach_time_series={
-                    frozenset({EDP_TWO}): [
-                        Measurement(0.00, 1, "measurement_01"),
-                        Measurement(3.30, 1, "measurement_02"),
-                        Measurement(4.00, 1, "measurement_03"),
-                    ],
-                    frozenset({EDP_ONE}): [
-                        Measurement(0.00, 1, "measurement_04"),
-                        Measurement(3.30, 1, "measurement_05"),
-                        Measurement(1.00, 1, "measurement_06"),
-                    ],
-                },
-                reach_whole_campaign={},
-            )
-        },
-        metric_subsets_by_parent={},
-        cumulative_inconsistency_allowed_edp_combinations=set(
-            frozenset({EDP_ONE})),
-    )
-
-    # The corrected report should be consistent: all the time series reaches are
-    # monotonic increasing, e.g. reach[edp1][i] <= reach[edp1][i+1], except for
-    # the one in the exception list, e.g. edp1.
-    corrected = report.get_corrected_report()
-
-    expected = Report(
-        metric_reports={
-            ami: MetricReport(
-                reach_time_series={
-                    frozenset({EDP_TWO}): [
-                        Measurement(0.00, 1, "measurement_01"),
-                        Measurement(3.30, 1, "measurement_02"),
-                        Measurement(4.00, 1, "measurement_03"),
-                    ],
-                    frozenset({EDP_ONE}): [
-                        Measurement(0.00, 1, "measurement_04"),
-                        Measurement(3.30, 1, "measurement_05"),
-                        Measurement(1.00, 1, "measurement_06"),
-                    ],
-                },
-                reach_whole_campaign={},
-            )
-        },
-        metric_subsets_by_parent={},
-        cumulative_inconsistency_allowed_edp_combinations=set(
-            frozenset({EDP_ONE})),
-    )
-
-    self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
-
   def test_can_correct_related_metrics(self):
     ami = "ami"
     mrc = "mrc"
