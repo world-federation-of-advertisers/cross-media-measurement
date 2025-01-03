@@ -32,8 +32,8 @@ option java_outer_classname = "ImpressionQualificationFilterSpecProto";
 message ImpressionQualificationFilterSpec {
   // The Media Type the filter is applicable to.
   MediaType media_type = 1 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
   ];
 
   // Specifies a quantile
@@ -54,7 +54,7 @@ message ImpressionQualificationFilterSpec {
 
   // Specify a percent as a fraction or as a quantile
   message Percent {
-    // Required
+   // Required
     oneof value {
       // The fraction
       float fraction = 1 [(google.api.field_behavior) = IMMUTABLE];
