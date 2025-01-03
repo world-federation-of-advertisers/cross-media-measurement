@@ -64,7 +64,8 @@ message BasicReport {
   // MediaTypes.
   repeated MediaType media_types = 5 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.field_behavior) = UNORDERED_LIST
   ];
 
   // The set of filters for this report.
