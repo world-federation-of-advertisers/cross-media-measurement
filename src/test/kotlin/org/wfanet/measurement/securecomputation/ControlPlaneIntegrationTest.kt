@@ -108,11 +108,11 @@ class ControlPlaneIntegrationTest() {
       val vidModelData =
         parseTextProto(
           Paths.get("$TEXTPROTO_PATH/$modelFileName").toFile().bufferedReader(),
-          compiledNode {}
+          compiledNode {},
         )
       subscribingStorageClient.writeBlob(
         vidModelPath,
-        flowOf(vidModelData.toString().toByteStringUtf8())
+        flowOf(vidModelData.toString().toByteStringUtf8()),
       )
 
       val dataWatcherConfig1 = dataWatcherConfig {
@@ -141,12 +141,12 @@ class ControlPlaneIntegrationTest() {
           val inputFileName = "labeler_input_$indexString.textproto"
           parseTextProto(
             Paths.get("$TEXTPROTO_PATH/$inputFileName").toFile().bufferedReader(),
-            labelerInput {}
+            labelerInput {},
           )
         }
       mesosRecordIoStorageClient.writeBlob(
         inputEventsPath,
-        inputEvents.map { it.toString().toByteStringUtf8() }.asFlow()
+        inputEvents.map { it.toString().toByteStringUtf8() }.asFlow(),
       )
 
       withTimeout(1000) {
@@ -175,7 +175,7 @@ class ControlPlaneIntegrationTest() {
               val expectedOutput =
                 parseTextProto(
                   Paths.get("$TEXTPROTO_PATH/$outputFileName").toFile().bufferedReader(),
-                  labelerOutput {}
+                  labelerOutput {},
                 )
               ProtoTruth.assertThat(output).isEqualTo(expectedOutput)
             }
