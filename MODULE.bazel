@@ -81,6 +81,17 @@ bazel_dep(
     repo_name = "wfa_virtual_people_common",
 )
 bazel_dep(
+    name = "virtual-people-core-serving",
+    version = "0.2.1",
+    repo_name = "wfa_virtual_people_core_serving",
+)
+# DO_NOT_SUBMIT (world-federation-of-advertisers/virtual-people-core-serving#79)
+archive_override(
+    module_name = "virtual-people-core-serving",
+    strip_prefix = "virtual-people-core-serving-3fd624714c92c505a36840fdecf05233eb747e5f",
+    urls = "https://github.com/world-federation-of-advertisers/virtual-people-core-serving/archive/3fd624714c92c505a36840fdecf05233eb747e5f.tar.gz",
+)
+bazel_dep(
     name = "grpc-gateway",
     version = "2.18.1",
     repo_name = "grpc_ecosystem_grpc_gateway",

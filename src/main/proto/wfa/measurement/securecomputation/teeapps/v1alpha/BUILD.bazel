@@ -1,0 +1,28 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load(
+    "@wfa_rules_kotlin_jvm//kotlin:defs.bzl",
+    "kt_jvm_grpc_proto_library",
+    "kt_jvm_proto_library",
+)
+
+package(default_visibility = ["//visibility:public"])
+
+IMPORT_PREFIX = "/src/main/proto"
+
+#Resources and shared message types.
+
+proto_library(
+    name = "tee_app_config_proto",
+    srcs = ["tee_app_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:any_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "tee_app_config_kt_jvm_proto",
+    deps = [":tee_app_config_proto"],
+)
