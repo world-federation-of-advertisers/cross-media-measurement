@@ -47,19 +47,17 @@ option java_outer_classname = "ReportingImpressionQualificationFilterProto";
 //      the filter's MediaTypes then the metrics computed using that filter
 //      do not include that Reporting Set.
 message ReportingImpressionQualificationFilter {
-  // Specifies custom filter criteria for one or more MediaTypes
+  // The custom filter criteria for one or more MediaTypes
   message CustomImpressionQualificationFilterSpec {
-    // Specifies the filter criteria.
-    //
-    // There may be at most one entry per MediaType
+    // The impression filter criteria, no more than on per MediaType
     repeated ImpressionQualificationFilterSpec filter_spec = 2 [
       (google.api.field_behavior) = IMMUTABLE,
       (google.api.field_behavior) = REQUIRED
     ];
   }
-  // Specifies which filter to use. Required.
+  // The filter to use. Required.
   oneof filter {
-    // Specifies an ImpressionQualificationFilter.
+    // The resource name of an ImpressionQualificationFilter.
     string impression_qualification_filter = 1 [
       (google.api.field_behavior) = IMMUTABLE,
       (google.api.resource_reference) = {
@@ -67,7 +65,7 @@ message ReportingImpressionQualificationFilter {
       }
     ];
 
-    // Specifies a custom filter.
+    // Custom filter criteria.
     CustomImpressionQualificationFilterSpec custom = 2
         [(google.api.field_behavior) = IMMUTABLE];
   }
