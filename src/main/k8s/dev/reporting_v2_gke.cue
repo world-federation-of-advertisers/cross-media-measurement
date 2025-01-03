@@ -17,6 +17,7 @@ package k8s
 _reportingSecretName:         string @tag("secret_name")
 _reportingMcConfigSecretName: string @tag("mc_config_secret_name")
 _publicApiAddressName:        string @tag("public_api_address_name")
+_accessPublicApiAddressName:  "access-public"
 
 #KingdomApiTarget: #GrpcTarget & {
 	target: string @tag("kingdom_public_api_target")
@@ -24,6 +25,9 @@ _publicApiAddressName:        string @tag("public_api_address_name")
 
 // Name of K8s service account for the internal API server.
 #InternalServerServiceAccount: "internal-reporting-server"
+
+// Name of K8s service account for the Access internal API server.
+#InternalAccessServerServiceAccount: "internal-access-server"
 
 #InternalServerResourceRequirements: #ResourceRequirements & {
 	requests: {
@@ -54,7 +58,6 @@ reporting: #Reporting & {
 	_secretName:         _reportingSecretName
 	_mcConfigSecretName: _reportingMcConfigSecretName
 	_kingdomApiTarget:   #KingdomApiTarget
-	_internalApiTarget: certificateHost: "localhost"
 
 	_postgresConfig: {
 		iamUserLocal: "reporting-v2-internal"
@@ -66,6 +69,9 @@ reporting: #Reporting & {
 	serviceAccounts: {
 		"\(#InternalServerServiceAccount)": #WorkloadIdentityServiceAccount & {
 			_iamServiceAccountName: "reporting-v2-internal"
+		}
+		"\(#InternalAccessServerServiceAccount)": #WorkloadIdentityServiceAccount & {
+			_iamServiceAccountName: "access-internal"
 		}
 	}
 
@@ -85,5 +91,6 @@ reporting: #Reporting & {
 
 	services: {
 		"reporting-v2alpha-public-api-server": _ipAddressName: _publicApiAddressName
+		"access-internal-api-server": _ipAddressName:          _accessPublicApiAddressName
 	}
 }

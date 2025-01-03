@@ -23,12 +23,28 @@ package k8s
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
 
-	_postgresConfig: #PostgresConfig
+	_postgresConfig:      #PostgresConfig
+	_accessSpannerConfig: #SpannerConfig & {
+		database: "access"
+	}
 
 	_internalApiTarget: #GrpcTarget & {
 		serviceName:           "postgres-internal-reporting-server"
+		certificateHost:       "localhost"
 		targetOption:          "--internal-api-target"
 		certificateHostOption: "--internal-api-cert-host"
+	}
+	_accessInternalApiTarget: #GrpcTarget & {
+		serviceName:           "access-internal-api-server"
+		certificateHost:       "localhost"
+		targetOption:          "--access-internal-api-target"
+		certificateHostOption: "--access-internal-api-cert-host"
+	}
+	_accessApiTarget: #GrpcTarget & {
+		serviceName:           "access-public-api-server"
+		certificateHost:       "localhost"
+		targetOption:          "--access-api-target"
+		certificateHostOption: "--access-api-cert-host"
 	}
 	_kingdomApiTarget: #GrpcTarget & {
 		targetOption:          "--kingdom-api-target"
@@ -41,6 +57,9 @@ package k8s
 		"postgres-internal-reporting-server":  string | *"reporting/v2/postgres-internal-server"
 		"reporting-v2alpha-public-api-server": string | *"reporting/v2/v2alpha-public-api"
 		"report-scheduling":                   string | *"reporting/v2/report-scheduling"
+		"update-access-schema":                string | *"access/update-schema"
+		"access-internal-api-server":          string | *"access/internal-api"
+		"access-public-api-server":            string | *"access/public-api"
 	}
 	_imageConfigs: [_=string]: #ImageConfig
 	_imageConfigs: {
@@ -80,6 +99,8 @@ package k8s
 	services: {
 		"postgres-internal-reporting-server": {}
 		"reporting-v2alpha-public-api-server": #ExternalService
+		"access-internal-api-server": {}
+		"access-public-api-server": #ExternalService
 	}
 
 	deployments: [Name=_]: #ServerDeployment & {
@@ -127,7 +148,7 @@ package k8s
 						"--event-group-metadata-descriptor-cache-duration=1h",
 						"--certificate-cache-expiration-duration=\(_certificateCacheExpirationDuration)",
 						"--data-provider-cache-expiration-duration=\(_dataProviderCacheExpirationDuration)",
-			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args
+			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
 
 			spec: template: spec: {
 				_mounts: {
@@ -137,7 +158,43 @@ package k8s
 					}
 					"config-files": #ConfigMapMount
 				}
-				_dependencies: _ | *["postgres-internal-reporting-server"]
+				_dependencies: _ | *["postgres-internal-reporting-server", "access-public-api-server"]
+			}
+		}
+
+		"access-internal-api-server": {
+			_container: args: [
+						_debugVerboseGrpcServerLoggingFlag,
+						_akidToPrincipalMapFileFlag,
+						"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
+						"--permissions-config=/etc/\(#AppName)/access-config/permissions_config.textproto",
+			] + _tlsArgs + _accessSpannerConfig.flags
+
+			_updateSchemaContainer: Container=#Container & {
+				image:            _images[Container.name]
+				args:             _accessSpannerConfig.flags
+				imagePullPolicy?: _container.imagePullPolicy
+			}
+
+			spec: template: spec: {
+				_mounts: {
+					"config-files":  #ConfigMapMount
+					"access-config": #ConfigMapMount
+				}
+				_initContainers: {
+					"update-access-schema": _updateSchemaContainer
+				}
+			}
+		}
+
+		"access-public-api-server": {
+			_container: args: [
+						_debugVerboseGrpcClientLoggingFlag,
+						_debugVerboseGrpcServerLoggingFlag,
+						"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
+			] + _tlsArgs + _accessInternalApiTarget.args
+			spec: template: spec: {
+				_dependencies: ["access-internal-api-server"]
 			}
 		}
 	}
@@ -178,12 +235,12 @@ package k8s
 	}
 
 	networkPolicies: [Name=_]: #NetworkPolicy & {
-		_name: Name
+		_name:      Name
+		_app_label: _ | *"\(_name)-app"
 	}
 
 	networkPolicies: {
 		"postgres-internal-reporting-server": {
-			_app_label: "postgres-internal-reporting-server-app"
 			_sourceMatchLabels: [
 				"reporting-v2alpha-public-api-server-app",
 				"report-scheduling-app",
@@ -194,7 +251,6 @@ package k8s
 			}
 		}
 		"reporting-v2alpha-public-api-server": {
-			_app_label: "reporting-v2alpha-public-api-server-app"
 			_destinationMatchLabels: ["postgres-internal-reporting-server-app"]
 			_ingresses: {
 				gRpc: {
@@ -209,17 +265,39 @@ package k8s
 			}
 		}
 		"report-scheduling": {
-			_app_label: "report-scheduling-app"
 			_destinationMatchLabels: ["postgres-internal-reporting-server-app"]
 			_egresses: {
 				// Needs to call out to Kingdom.
 				any: {}
 			}
 		}
+		"access-internal-api-server": {
+			_sourceMatchLabels: ["access-public-api-server-app"]
+			_egresses: {
+				// Needs to call out to Spanner.
+				any: {}
+			}
+		}
+		"access-public-api-server": {
+			_sourceMatchLabels: ["reporting-v2alpha-public-api-server-app"]
+			_destinationMatchLabels: ["access-internal-api-server-app"]
+			_ingresses: {
+				gRpc: {
+					ports: [{
+						port: #GrpcPort
+					}]
+				}
+			}
+		}
 	}
 
 	configMaps: [Name=string]: #ConfigMap & {
 		metadata: name: Name
+	}
+	configMaps: "access-config": {
+		data: {
+			"permissions_config.textproto": #PermissionsConfig
+		}
 	}
 
 	serviceAccounts: [Name=string]: #ServiceAccount & {
