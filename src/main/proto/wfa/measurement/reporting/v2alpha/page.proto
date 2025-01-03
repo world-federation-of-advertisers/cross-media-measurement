@@ -254,6 +254,4 @@ message PageResult {
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.field_behavior) = OPTIONAL
   ];
-  // Contains a Page of results along with the impression qualification filter
-  // that was applied when computing it.
 }
