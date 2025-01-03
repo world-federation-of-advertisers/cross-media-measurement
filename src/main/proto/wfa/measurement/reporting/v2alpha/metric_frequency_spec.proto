@@ -23,23 +23,17 @@ option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "MetricFrequencySpecProto";
 
-// The frequency at which metrics are reported.
+// Specifies the frequency at which metrics are reported.
 message MetricFrequencySpec {
-  // Specifies that metrics should be calculated on a weekly basis with
-  // respect to the given day of the week.
-  //
-  // If the day of the week is not the same as the start or end day of the
-  // report partial weeks will reported for the first and/or last value
-  // in the result set.
-  message Weekly {
-    // The day of week to use as the starting day
-    google.type.DayOfWeek start_day = 1 [
-      (google.api.field_behavior) = REQUIRED,
-      (google.api.field_behavior) = IMMUTABLE
-    ];
+  // Specifies a single reporting frequency. Required.
+  oneof metric_frequency {
+    // Specifies that metrics be reported weekly.
+    //
+    // If the day of the week is not the same as the start or end day of the
+    // report itself then partial weeks will reported for the first and/or
+    // last values in the result set.
+    google.type.DayOfWeek weekly = 1 [(google.api.field_behavior) = IMMUTABLE];
+    // Specifies that metrics be reported across the entire `reporting_interval`
+    bool total = 2 [(google.api.field_behavior) = IMMUTABLE];
   }
-  // Whether to report metrics weekly
-  Weekly weekly = 1 [(google.api.field_behavior) = IMMUTABLE];
-  // Whether to report metrics across the entire `reporting_interval`
-  bool total = 2 [(google.api.field_behavior) = IMMUTABLE];
 }
