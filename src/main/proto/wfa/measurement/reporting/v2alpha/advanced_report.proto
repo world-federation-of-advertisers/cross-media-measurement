@@ -80,12 +80,12 @@ message AdvancedReport {
   // includes `total` then no metrics are computed for any subinterval of
   // the report.
   message CalculationSpec {
-    // The set of Media Types to include in the report
-    //
-    // These are applied disjuctively to each ReportingSet
+    // The set of Media Types to report on. If empty report on all
+    // MediaTypes.
     repeated MediaType media_types = 1 [
       (google.api.field_behavior) = REQUIRED,
-      (google.api.field_behavior) = IMMUTABLE
+      (google.api.field_behavior) = IMMUTABLE,
+      (google.api.field_behavior) = UNORDERED_LIST
     ];
 
     // The set of impression qualification filters to be applied.
