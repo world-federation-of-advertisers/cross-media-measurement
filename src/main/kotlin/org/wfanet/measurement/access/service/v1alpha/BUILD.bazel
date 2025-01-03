@@ -82,6 +82,7 @@ kt_jvm_library(
     name = "services",
     srcs = ["Services.kt"],
     deps = [
+        ":permissions_service",
         ":policies_service",
         ":principals_service",
         ":roles_service",
