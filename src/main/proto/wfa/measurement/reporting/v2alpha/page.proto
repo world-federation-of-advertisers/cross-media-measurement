@@ -250,7 +250,7 @@ message PageMetricSpec {
     NewReachMetricSpec new = 6 [(google.api.field_behavior) = IMMUTABLE];
 
     // Reach and associated impressions that are new to the time period and
-    // uniquefor each component of the reporting_unit
+    // unique for each component of the reporting_unit
     NewReachMetricSpec new_unique = 7 [(google.api.field_behavior) = IMMUTABLE];
   }
   // Metrics for each component of the reporting_unit.
@@ -292,10 +292,14 @@ message PageMetricSpec {
     ];
 
     // Non-cumulative metrics for the various intersections
+    //
+    // If unspecified the default is to request all metrics.
     BasicMetricSpec non_cumulative = 3
         [(google.api.field_behavior) = IMMUTABLE];
 
-    // cumulative metrics for the various intersections
+    // Cumulative metrics for the various intersections
+    //
+    // If unspecified the default is to request all metrics.
     BasicMetricSpec cumulative = 4 [(google.api.field_behavior) = IMMUTABLE];
   }
   // Compute n-way intersections
