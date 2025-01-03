@@ -146,7 +146,7 @@ message PageMetricSpec {
     // The average frequency
     bool average_frequency = 5 [(google.api.field_behavior) = IMMUTABLE];
 
-     // Compute a frequency histogram with the given max frequency
+    // Compute a frequency histogram with the given max frequency
     //
     // The last bin in the historgram will contain values for
     // all requencies >= the value provided here.
@@ -382,7 +382,7 @@ message Page {
         // The average frequency
         float average_frequency = 5 [(google.api.field_behavior) = IMMUTABLE];
         // The frequency histogram where the index of the array is frequency-1
-        repeated float frequency_histogram = 5
+        repeated float frequency_histogram = 8
             [(google.api.field_behavior) = IMMUTABLE];
         // The impression count
         int32 impressions = 6 [(google.api.field_behavior) = IMMUTABLE];
