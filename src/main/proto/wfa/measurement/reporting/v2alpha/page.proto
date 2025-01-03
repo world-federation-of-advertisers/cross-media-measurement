@@ -124,7 +124,8 @@ message PageMetricSpec {
 
   // The set of basic metrics that can be computed for any aspect of the
   // Reporting Unit (e.g. the whole thing, a single component, intersections,
-  // etc.)
+  // etc.) These metrics are available when the accumulatio options are
+  // cumualtive or non-cumulative.
   message BasicMetricSpec {
     // The reach
     bool reach = 1 [(google.api.field_behavior) = IMMUTABLE];
@@ -145,8 +146,7 @@ message PageMetricSpec {
     //
     // The last bin in the historgram will contain values for
     // all requencies >= the value provided here.
-    // Phase III
-    int32 frequency_histogram = 5 [(google.api.field_behavior) = IMMUTABLE];
+    // int32 frequency_histogram = 5 [(google.api.field_behavior) = IMMUTABLE];
 
     // The average frequency
     bool average_frequency = 6 [(google.api.field_behavior) = IMMUTABLE];
@@ -156,17 +156,6 @@ message PageMetricSpec {
 
     // Gross ratings points
     bool grps = 8 [(google.api.field_behavior) = IMMUTABLE];
-
-    // The new reach of all the unit(s) for the time period compared to
-    // all previous time encompassed by the reporting_interval
-    //
-    // For cumualtive metrics this is the same as reach
-    // Phase III
-    bool new_reach = 9 [(google.api.field_behavior) = IMMUTABLE];
-
-    // The impressions associated with the new reach
-    // Phase III
-    bool new_reach_impressions = 10 [(google.api.field_behavior) = IMMUTABLE];
   }
 
   // Metrics to be computed over the entire ReportingUnit
@@ -218,22 +207,6 @@ message PageMetricSpec {
     // It is an error to specify this if only a single reporting unit is
     // specified since it is the same thing as requesting union.reach.
     bool unique_reach = 2 [(google.api.field_behavior) = IMMUTABLE];
-
-    // The impressions associated with the unique reach.
-    // Phase III
-    bool unique_reach_impressions = 3 [(google.api.field_behavior) = IMMUTABLE];
-
-    // The reach that is new to the time period and unique to each
-    // unit in the reporting_unit_spec
-    //
-    // For cumulative metrics this is the same as unique_reach.
-    // Phase III
-    bool new_unique_reach = 4 [(google.api.field_behavior) = IMMUTABLE];
-
-    // The impressions associated with the new_unique_reach
-    // Phase III
-    bool new_unique_reach_impressions = 5
-        [(google.api.field_behavior) = IMMUTABLE];
   }
   // If ReportingUnit.unit is of size 1 the metrics computed for the component
   // are identical to those computed for the union. Specifying this value is
@@ -382,11 +355,6 @@ message Page {
         int32 impressions = 7 [(google.api.field_behavior) = IMMUTABLE];
         // The gross ratings points
         float grps = 8 [(google.api.field_behavior) = IMMUTABLE];
-        // The new reach
-        int32 new_reach = 9 [(google.api.field_behavior) = IMMUTABLE];
-        // The impressions associated with the new reach
-        int32 new_reach_impressions = 10
-            [(google.api.field_behavior) = IMMUTABLE];
       }
       // Stores the results for the entire Teporting Unit.
       message ReportingUnitResult {
@@ -415,18 +383,6 @@ message Page {
 
         // The unique reach
         int32 unique_reach = 2 [(google.api.field_behavior) = IMMUTABLE];
-
-        // The count of impressions associated with the unique reach
-        // Phase III
-        int32 unique_reach_impressions = 3
-            [(google.api.field_behavior) = IMMUTABLE];
-
-        // The new unique reach
-        int32 new_unique_reach = 4 [(google.api.field_behavior) = IMMUTABLE];
-
-        // The count of impressions associated with the new unique reach
-        int32 new_unique_reach_impressions = 5
-            [(google.api.field_behavior) = IMMUTABLE];
       }
       // The results for each unit in the reporting_unit
       map<string, ComponentMetricResult> components = 2
@@ -442,7 +398,6 @@ message Page {
         BasicMetricResult metrics = 2 [(google.api.field_behavior) = IMMUTABLE];
       }
       // The results for the requested intersections
-      // Phase III
       repeated IntersectionResult intersection = 3
           [(google.api.field_behavior) = IMMUTABLE];
     }
