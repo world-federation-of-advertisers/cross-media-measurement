@@ -38,7 +38,8 @@ class TlsClientPrincipalMapping(config: AuthorityKeyToPrincipalMap) {
     val clients =
       config.entriesList.map {
         val protectedResourceName = it.principalResourceName
-        val principalResourceId = protectedResourceName.replace("/", "-").takeLast(63)
+        val principalResourceId =
+          protectedResourceName.replace("/", "-").replace("_", "-").takeLast(63)
         check(ResourceIds.RFC_1034_REGEX.matches(principalResourceId)) {
           "Invalid character in protected resource name $protectedResourceName"
         }

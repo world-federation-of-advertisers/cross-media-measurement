@@ -62,3 +62,10 @@ resource "postgresql_grant" "db" {
     replace_triggered_by = [google_sql_database.db.id]
   }
 }
+
+module "access" {
+  source = "../access"
+
+  spanner_instance      = var.spanner_instance
+  spanner_database_name = var.access_spanner_database_name
+}

@@ -20,7 +20,7 @@ package org.wfanet.measurement.reporting.postprocessing.v2alpha
  */
 class NoOpReportProcessor : ReportProcessor {
   /** Returns the input [report] without any modifications. */
-  override fun processReportJson(report: String): String {
+  override fun processReportJson(report: String, verbose: Boolean): String {
     return report
   }
 }
