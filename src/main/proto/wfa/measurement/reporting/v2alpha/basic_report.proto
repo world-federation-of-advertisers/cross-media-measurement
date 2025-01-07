@@ -60,14 +60,6 @@ message BasicReport {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // The set of Media Types to report on. If empty report on all
-  // MediaTypes.
-  repeated MediaType media_types = 5 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE,
-    (google.api.field_behavior) = UNORDERED_LIST
-  ];
-
   // The set of filters for this report.
   //
   // There must be at most one entry per ImpressionQualificationFilter, and
@@ -78,20 +70,8 @@ message BasicReport {
         (google.api.field_behavior) = IMMUTABLE
       ];
 
-  // Specifies the Pages to create
-  repeated PageSpec page_specs = 7 [
-    (google.api.field_behavior) = IMMUTABLE,
-    (google.api.field_behavior) = REQUIRED
-  ];
-
   // The result for each item in `page_specs` in the same order.
   repeated PageResult page_results = 8 [
-    (google.api.field_behavior) = IMMUTABLE,
-    (google.api.field_behavior) = OUTPUT_ONLY
-  ];
-
-  // The time when the resource was created.
-  google.protobuf.Timestamp create_time = 9 [
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.field_behavior) = OUTPUT_ONLY
   ];
