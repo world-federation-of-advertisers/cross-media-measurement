@@ -1,0 +1,62 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/field_behavior.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ReportingFilterProto";
+
+// Event filter criteria
+message EventFilter {
+  // A term in the Filter expression
+  message Term {
+    // A field path indicating a dimension to filter on.
+    //
+    // See Grouping.event_template_field for a complete description of
+    // what is meant by "field path."
+    string event_template_field = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
+    // The value of the event template to filter
+    message FieldValue {
+      oneof value {
+        // Used when the event template field is a string
+        string string_value = 1 [(google.api.field_behavior) = IMMUTABLE];
+        // Used when the event template field is an enum
+        string enum_value = 2 [(google.api.field_behavior) = IMMUTABLE];
+        // Used when the event template field is a Boolean
+        string bool_value = 3 [(google.api.field_behavior) = IMMUTABLE];
+      }
+    }
+    // The value of the event_template_field to filter on.
+    FieldValue value = 2 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
+  }
+  // The terms that define the filter criteria.
+  //
+  // The a current limintation is that the number of terms must be
+  // exactly one.
+  repeated Term terms = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+}

@@ -1,4 +1,4 @@
-// Copyright 2024 The Cross-Media Measurement Authors
+// Copyright 2025 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package wfa.measurement.reporting.v2alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/type/interval.proto";
+import "wfa/measurement/reporting/v2alpha/event_filter.proto";
 import "wfa/measurement/reporting/v2alpha/metric_frequency_spec.proto";
 import "wfa/measurement/reporting/v2alpha/reporting_impression_qualification_filter.proto";
 import "wfa/measurement/reporting/v2alpha/reporting_unit.proto";
@@ -72,48 +73,11 @@ message DimensionSpec {
   // Metric grouping
   Grouping grouping = 3 [(google.api.field_behavior) = IMMUTABLE];
 
-  // The set of filters to be applied to a page of results.
+  // A conjunction of Event Filters
   //
-  // Only those event templates that are specified in the "common" event
-  // template may be provided as filters.
-  message Filter {
-    // A term in the Filter expression
-    //
-    // Negation may be supported in the future.
-    message Term {
-      // A field path indicating a dimension to filter on.
-      //
-      // See Grouping.event_template_field for a complete description of
-      // what is meant by "field path."
-      string event_template_field = 1 [
-        (google.api.field_behavior) = REQUIRED,
-        (google.api.field_behavior) = IMMUTABLE
-      ];
-      // The value of the event template to filter
-      message FieldValue {
-        oneof value {
-          // Used when the event template field is a string
-          string string_value = 1 [(google.api.field_behavior) = IMMUTABLE];
-          // Used when the event template field is an enum
-          string enum_value = 2 [(google.api.field_behavior) = IMMUTABLE];
-        }
-      }
-      // The value of the event_template_field to filter on.
-      FieldValue value = 2 [
-        (google.api.field_behavior) = REQUIRED,
-        (google.api.field_behavior) = IMMUTABLE
-      ];
-    }
-    // The term that defines the filter criteria.
-    //
-    // May be extended to a disjunction of terms in the future.
-    Term term = 1 [
-      (google.api.field_behavior) = REQUIRED,
-      (google.api.field_behavior) = IMMUTABLE
-    ];
-  }
-  // A conjunction of filters
-  repeated Filter filters = 4 [(google.api.field_behavior) = IMMUTABLE];
+  // Event Tempalte fields that are used by any filter Terms must be
+  // tagged as filterable
+  repeated EventFilter filters = 4 [(google.api.field_behavior) = IMMUTABLE];
 }
 
 // Defines a set of Metrics to be computed
