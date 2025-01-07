@@ -65,13 +65,13 @@ message BasicReport {
   // There must be at most one entry per ImpressionQualificationFilter, and
   // custom may be used no more than once.
   repeated ReportingImpressionQualificationFilter
-      impression_qualification_filters = 6 [
+      impression_qualification_filters = 5 [
         (google.api.field_behavior) = REQUIRED,
         (google.api.field_behavior) = IMMUTABLE
       ];
 
   // The result for each item in `page_specs` in the same order.
-  repeated PageResult page_results = 8 [
+  repeated PageResult page_results = 6 [
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.field_behavior) = OUTPUT_ONLY
   ];
