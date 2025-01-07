@@ -29,6 +29,9 @@ option java_outer_classname = "RolesServiceProto";
 // Service for interacting with `Role` resources.
 service Roles {
   // Retrieves a `Role` by resource name.
+  //
+  // Error reasons:
+  // * `ROLE_NOT_FOUND`
   rpc GetRole(GetRoleRequest) returns (Role) {
     option (google.api.method_signature) = "name";
   }
@@ -39,6 +42,11 @@ service Roles {
   }
 
   // Creates a `Role`.
+  //
+  // Error reasons:
+  // * `PERMISSION_NOT_FOUND`
+  // * `RESOURCE_TYPE_NOT_FOUND_IN_PERMISSION`
+  // * `ROLE_ALREADY_EXISTS`
   rpc CreateRole(CreateRoleRequest) returns (Role) {
     option (google.api.method_signature) = "role,role_id";
   }
@@ -61,6 +69,9 @@ service Roles {
   // Deletes a `Role`.
   //
   // This will also remove all `Policy` bindings which reference the `Role`.
+  //
+  // Error reasons:
+  // * `ROLE_NOT_FOUND`
   rpc DeleteRole(DeleteRoleRequest) returns (google.protobuf.Empty) {
     option (google.api.method_signature) = "name";
   }
