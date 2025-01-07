@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <memory>
+#include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -37,7 +39,7 @@ using ::wfa::IsOk;
 using ::wfa::ReadRiegeliFile;
 using ::wfa::ReadTextProtoFile;
 
-const char kTestDataDir[] = "src/main/resources/labeler/";
+const char kTestDataDir[] = "src/main/resources/testing/labeler/";
 
 void ApplyAndValidate(absl::string_view model_path,
                       absl::string_view input_path,
@@ -81,7 +83,7 @@ TEST(LabelerIntegrationTest, TestBuildFromRoot) {
         absl::StrFormat("labeler_output_%02d.textproto", i);
   }
 
-  for (auto& [input_path, output_path] : input_output_paths) {
+  for (auto &[input_path, output_path] : input_output_paths) {
     ApplyAndValidate(single_node_model_path, input_path, output_path,
                      /* is_single_node_file = */ true);
     ApplyAndValidate(node_list_model_path, input_path, output_path,
@@ -98,7 +100,7 @@ TEST(LabelerIntegrationTest, TestSingleIdModel) {
         "single_id_labeler_output.textproto";
   }
 
-  for (auto& [input_path, output_path] : input_output_paths) {
+  for (auto &[input_path, output_path] : input_output_paths) {
     ApplyAndValidate(single_node_model_path, input_path, output_path,
                      /* is_single_node_file = */ true);
     ApplyAndValidate(node_list_model_path, input_path, output_path,

@@ -6,7 +6,7 @@ cc_test(
     name = "vid_model_selector_test",
     srcs = ["vid_model_selector_test.cc"],
     data = [
-        "//src/main/resources/selector:selector_test_data",
+        "//src/main/resources/testing/selector:selector_test_data",
     ],
     deps = [
         "//src/main/cc/wfa/virtual_people/core/selector:vid_model_selector",

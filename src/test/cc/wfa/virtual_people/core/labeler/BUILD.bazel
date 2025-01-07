@@ -21,7 +21,7 @@ cc_test(
     name = "labeler_integration_test",
     srcs = ["labeler_integration_test.cc"],
     data = [
-        "//src/main/resources/labeler:labeler_integration_test_data",
+        "//src/main/resources/testing/labeler:labeler_integration_test_data",
     ],
     deps = [
         "//src/main/cc/wfa/virtual_people/core/labeler",

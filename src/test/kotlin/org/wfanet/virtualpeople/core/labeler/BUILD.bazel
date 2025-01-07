@@ -15,7 +15,7 @@ kt_jvm_test(
     name = "LabelerIntegrationTest",
     srcs = ["LabelerIntegrationTest.kt"],
     data = [
-        "//src/main/resources/labeler:labeler_integration_test_data",
+        "//src/main/resources/testing/labeler:labeler_integration_test_data",
     ],
     test_class = "org.wfanet.virtualpeople.core.labeler.LabelerIntegrationTest",
     deps = [

@@ -4,7 +4,7 @@ kt_jvm_test(
     name = "VidModelSelectorTest",
     srcs = ["VidModelSelectorTest.kt"],
     data = [
-        "//src/main/resources/selector:selector_test_data",
+        "//src/main/resources/testing/selector:selector_test_data",
     ],
     test_class = "org.wfanet.virtualpeople.core.selector.VidModelSelectorTest",
     deps = [

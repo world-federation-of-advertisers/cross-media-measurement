@@ -14,6 +14,9 @@
 
 #include "wfa/virtual_people/core/selector/vid_model_selector.h"
 
+#include <string>
+#include <vector>
+
 #include "common_cpp/protobuf_util/textproto_io.h"
 #include "common_cpp/testing/status_macros.h"
 #include "common_cpp/testing/status_matchers.h"
@@ -26,7 +29,7 @@ using ::wfa::IsOk;
 using ::wfa::ReadTextProtoFile;
 using ::wfa::StatusIs;
 
-const char kTestDataDir[] = "src/main/resources/selector/";
+const char kTestDataDir[] = "src/main/resources/testing/selector/";
 
 TEST(VidModelSelectorTest,
      TestBuildVidSelectorObjectWithoutParamsThrowsException) {
