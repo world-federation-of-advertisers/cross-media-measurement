@@ -70,7 +70,7 @@ message BasicReport {
   // The custom criteria and any specific impression_qualification_filter may
   // each be used at most once.
   repeated ReportingImpressionQualificationFilter
-      impression_qualification_filters = 6 [
+      impression_qualification_filters = 5 [
         (google.api.field_behavior) = REQUIRED,
         (google.api.field_behavior) = IMMUTABLE
       ];
