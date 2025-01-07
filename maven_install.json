@@ -1215,20 +1215,6 @@
       },
       "version": "4.0.1"
     },
-    "io.cloudevents:cloudevents-api": {
-      "shasums": {
-        "jar": "1eb08784349017f4d9bf7e31cd9107c7e1dd15138f60507168a3a68b0206cf5b",
-        "sources": "5a7aa69e3075a40249e3f8a3887c4c54d1c1471d0c0293e3718ff9ae42ac0d98"
-      },
-      "version": "4.0.1"
-    },
-    "io.cloudevents:cloudevents-core": {
-      "shasums": {
-        "jar": "f6226bac64b9fd84b15ec2111eb50b512febec55bbf40495cce841946b8dc120",
-        "sources": "6d05d3cb64fdf4fa482e8cacfe817c0b9de466cd40102f9add4b0b725b2278b4"
-      },
-      "version": "4.0.1"
-    },
     "io.dropwizard.metrics:metrics-core": {
       "shasums": {
         "jar": "79d903d4ae850c9dee8d3939e5bd8d4172a91fda40b31b7e40a5d8c3e1fe4534",
