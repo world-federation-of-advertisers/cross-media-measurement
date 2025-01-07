@@ -141,7 +141,7 @@ class ResourceSetup(
     edpContents: List<EntityContent>,
     measurementConsumerContent: EntityContent,
     duchyCerts: List<DuchyCert>,
-    pdp: EntityContent,
+    pdpContent: EntityContent,
   ): List<Resources.Resource> {
     logger.info("Starting with RunID: $runId ...")
     val resources = mutableListOf<Resources.Resource>()
@@ -213,7 +213,7 @@ class ResourceSetup(
     }
 
     // Step 4: Create the resources related to Population.
-    val internalPopulationDataProvider = createInternalDataProvider(pdp)
+    val internalPopulationDataProvider = createInternalDataProvider(pdpContent)
     val dataProviderId: String = externalIdToApiId(internalPopulationDataProvider.externalDataProviderId)
     val dataProviderResourceName: String = DataProviderKey(dataProviderId).toName()
     val certificateId: String =
@@ -226,11 +226,11 @@ class ResourceSetup(
         name = dataProviderResourceName
         populationDataProvider =
           ResourcesKt.ResourceKt.populationDataProvider {
-            displayName = pdp.displayName
+            displayName = pdpContent.displayName
             certificate = dataProviderCertificateKeyName
             // Assume signing cert uses same issuer as TLS client cert.
             authorityKeyIdentifier =
-              checkNotNull(pdp.signingKey.certificate.authorityKeyIdentifier)
+              checkNotNull(pdpContent.signingKey.certificate.authorityKeyIdentifier)
           }
       }
     )
@@ -284,6 +284,8 @@ class ResourceSetup(
               resource.dataProvider.authorityKeyIdentifier
             Resources.Resource.ResourceCase.MEASUREMENT_CONSUMER ->
               resource.measurementConsumer.authorityKeyIdentifier
+            Resources.Resource.ResourceCase.POPULATION_DATA_PROVIDER ->
+              resource.populationDataProvider.authorityKeyIdentifier
             else -> continue
           }
         entries +=
@@ -371,7 +373,10 @@ class ResourceSetup(
           }
           Resources.Resource.ResourceCase.POPULATION_DATA_PROVIDER -> {
             val displayName = resource.populationDataProvider.displayName
-            writer.appendLine("build:$configName --define=${displayName}_cert_name=${resource.name}")
+            writer.appendLine("build:$configName --define=${displayName}_name=${resource.name}")
+            writer.appendLine(
+              "build:$configName --define=${displayName}_cert_name=${resource.dataProvider.certificate}"
+            )
           }
           Resources.Resource.ResourceCase.MODEL_LINE -> {
             val modelLineId = resource.modelLine.modelLineId

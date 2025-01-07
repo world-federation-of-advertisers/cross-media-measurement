@@ -17,6 +17,8 @@ package org.wfanet.measurement.populationdataprovider
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.TypeRegistry
+import io.grpc.Channel
+import io.grpc.Context
 import java.io.File
 import java.security.cert.X509Certificate
 import java.time.Clock
@@ -158,11 +160,23 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
       private set
   }
 
+  private val clientCerts: SigningCerts by lazy {
+    SigningCerts.fromPemFiles(
+      certificateFile = tlsFlags.certFile,
+      privateKeyFile = tlsFlags.privateKeyFile,
+      trustedCertCollectionFile = tlsFlags.certCollectionFile,
+    )
+  }
+
+  private val publicApiChannel: Channel by lazy {
+    buildMutualTlsChannel(target, clientCerts, certHost)
+  }
   override fun run() {
     println("joji daemon created 2...")
     println("joji tls flags = ${tlsFlags.certFile.toPath()}")
     println("joji tls flags = ${tlsFlags.privateKeyFile.toPath()}")
     println("joji tls flags = ${tlsFlags.certCollectionFile?.toPath()}")
+    var context = Context.current()
 
     val certificate: X509Certificate =
       pdpCsCertificateDerFile.inputStream().use { input -> readCertificate(input) }
@@ -181,50 +195,30 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
         certificateKey,
       )
 
-    val clientCerts =
-      SigningCerts.fromPemFiles(
-        certificateFile = tlsFlags.certFile,
-        privateKeyFile = tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = tlsFlags.certCollectionFile,
-      )
+      val certificatesStub = CertificatesCoroutineStub(publicApiChannel)
+      val requisitionsStub = RequisitionsCoroutineStub(publicApiChannel)
+      val modelRolloutsStub = ModelRolloutsCoroutineStub(publicApiChannel)
+      val modelReleasesStub = ModelReleasesCoroutineStub(publicApiChannel)
 
-    println("joji made it here YAYA")
+      val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
+      val typeRegistry = buildTypeRegistry()
+      requisitionsStub.channel.authority()
+      val populationInfoMap = buildPopulationInfoMap(typeRegistry)
 
-    val channelTarget: String = target
-    val channelCertHost: String? = certHost
+      val populationRequisitionFulfiller =
+        PopulationRequisitionFulfiller(
+          pdpData,
+          certificatesStub,
+          requisitionsStub,
+          throttler,
+          clientCerts.trustedCertificates,
+          modelRolloutsStub,
+          modelReleasesStub,
+          populationInfoMap,
+          typeRegistry,
+        )
 
-    val publicApiChannel = buildMutualTlsChannel(channelTarget, clientCerts, channelCertHost)
-
-    val certificatesStub = CertificatesCoroutineStub(publicApiChannel)
-    val requisitionsStub = RequisitionsCoroutineStub(publicApiChannel)
-    val modelRolloutsStub = ModelRolloutsCoroutineStub(publicApiChannel)
-    val modelReleasesStub = ModelReleasesCoroutineStub(publicApiChannel)
-
-    val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
-    println("joji requisitionStub: ${requisitionsStub.callOptions}")
-    val typeRegistry = buildTypeRegistry()
-    println("joji created type registry ${typeRegistry.getDescriptorForTypeUrl("type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent").name}")
-    println("joji created type registry ${typeRegistry.getDescriptorForTypeUrl("type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent").options}")
-    println("joji created type registry ${typeRegistry.getDescriptorForTypeUrl("type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent").fields}")
-
-    val populationInfoMap = buildPopulationInfoMap(typeRegistry)
-    println("joji created type populationInfoMap: ${populationInfoMap.entries}")
-
-    val populationRequisitionFulfiller =
-      PopulationRequisitionFulfiller(
-        pdpData,
-        certificatesStub,
-        requisitionsStub,
-        throttler,
-        clientCerts.trustedCertificates,
-        modelRolloutsStub,
-        modelReleasesStub,
-        populationInfoMap,
-        typeRegistry,
-      )
-    println("joji created populationRequisitionFulfiller")
-
-    runBlocking { populationRequisitionFulfiller.run() }
+      runBlocking { populationRequisitionFulfiller.run() }
   }
 
   private fun buildTypeRegistry(): TypeRegistry {
@@ -240,19 +234,6 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
       }
       .build()
   }
-
-//  private fun buildTypeRegistry(): TypeRegistry {
-//    val builder = TypeRegistry.newBuilder()
-//    if (::eventMessageDescriptorSetFiles.isInitialized) {
-//      val fileDescriptorSets: List<DescriptorProtos.FileDescriptorSet> =
-//        eventMessageDescriptorSetFiles.map {
-//          parseTextProto(it, DescriptorProtos.FileDescriptorSet.getDefaultInstance())
-//        }
-//      val descriptors = fileDescriptorSets.map { it.descriptorForType }
-//      builder.add(descriptors)
-//    }
-//    return builder.build()
-//  }
 
   private fun loadFileDescriptorSets(
     files: Iterable<File>
