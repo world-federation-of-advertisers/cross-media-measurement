@@ -654,7 +654,7 @@ class MeasurementConsumerSimulator(
         typeRegistry,
         ::newPopulationMeasurementSpec,
       )
-    println("joji pop measurmeent created: $populationMeasurementInfo")
+
     val measurementName = populationMeasurementInfo.measurementInfo.measurement.name
     logger.info { "Created population Measurement $measurementName" }
 
@@ -881,8 +881,6 @@ class MeasurementConsumerSimulator(
           nonce,
         )
       )
-
-    println("joji requisitions: ${requisitions}")
     val measurementSpec = newMeasurementSpec(measurementConsumer.publicKey.message, nonceHashes)
 
     val measurementInfo =

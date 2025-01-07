@@ -30,7 +30,6 @@ import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
-import java.io.File
 import java.nio.file.Paths
 import picocli.CommandLine
 
@@ -71,7 +70,7 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
     flags.edpCsCertDerFiles.keys == flags.edpCsKeyDerFiles.keys &&
       flags.edpCsCertDerFiles.keys == flags.edpEncryptionPublicKeysets.keys
   )
-  val dataProviderContents =
+  val edpContents =
     flags.edpCsCertDerFiles.map {
       EntityContent(
         displayName = it.key,
@@ -114,7 +113,7 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
         flags.bazelConfigName,
         flags.outputDir,
       )
-      .process(dataProviderContents, measurementConsumerContent, duchyCerts, pdpContent)
+      .process(edpContents, measurementConsumerContent, duchyCerts, pdpContent)
   }
 }
 

@@ -129,8 +129,7 @@ class ResourceSetup(
   private val internalModelSuitesClient: ModelSuitesGrpcKt.ModelSuitesCoroutineStub? = null,
   private val internalModelLinesClient: ModelLinesGrpcKt.ModelLinesCoroutineStub? = null,
   private val internalModelReleasesClient: ModelReleasesGrpcKt.ModelReleasesCoroutineStub? = null,
-  private val internalModelRolloutsClient: ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub? = null
-
+  private val internalModelRolloutsClient: ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub? = null,
 ) {
   data class MeasurementConsumerAndKey(
     val measurementConsumer: MeasurementConsumer,
@@ -257,6 +256,7 @@ class ResourceSetup(
 
     val internalModelRelease = createInternalModelRelease(internalModelSuite, internalPopulation)
     createInternalModelRollout(internalModelLine, internalModelRelease)
+    logger.info("Successfully created internal model line: $dataProviderResourceName")
 
     resources.add(
       resource {

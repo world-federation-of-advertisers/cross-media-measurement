@@ -160,24 +160,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
       private set
   }
 
-  private val clientCerts: SigningCerts by lazy {
-    SigningCerts.fromPemFiles(
-      certificateFile = tlsFlags.certFile,
-      privateKeyFile = tlsFlags.privateKeyFile,
-      trustedCertCollectionFile = tlsFlags.certCollectionFile,
-    )
-  }
-
-  private val publicApiChannel: Channel by lazy {
-    buildMutualTlsChannel(target, clientCerts, certHost)
-  }
   override fun run() {
-    println("joji daemon created 2...")
-    println("joji tls flags = ${tlsFlags.certFile.toPath()}")
-    println("joji tls flags = ${tlsFlags.privateKeyFile.toPath()}")
-    println("joji tls flags = ${tlsFlags.certCollectionFile?.toPath()}")
-    var context = Context.current()
-
     val certificate: X509Certificate =
       pdpCsCertificateDerFile.inputStream().use { input -> readCertificate(input) }
     val signingKeyHandle =
@@ -195,18 +178,29 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
         certificateKey,
       )
 
-      val certificatesStub = CertificatesCoroutineStub(publicApiChannel)
-      val requisitionsStub = RequisitionsCoroutineStub(publicApiChannel)
-      val modelRolloutsStub = ModelRolloutsCoroutineStub(publicApiChannel)
-      val modelReleasesStub = ModelReleasesCoroutineStub(publicApiChannel)
+    val clientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = tlsFlags.certFile,
+        privateKeyFile = tlsFlags.privateKeyFile,
+        trustedCertCollectionFile = tlsFlags.certCollectionFile,
+      )
 
-      val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
-      val typeRegistry = buildTypeRegistry()
-      requisitionsStub.channel.authority()
-      val populationInfoMap = buildPopulationInfoMap(typeRegistry)
+    val channelTarget: String = target
+    val channelCertHost: String? = certHost
 
-      val populationRequisitionFulfiller =
-        PopulationRequisitionFulfiller(
+    val publicApiChannel = buildMutualTlsChannel(channelTarget, clientCerts, channelCertHost)
+
+    val certificatesStub = CertificatesCoroutineStub(publicApiChannel)
+    val requisitionsStub = RequisitionsCoroutineStub(publicApiChannel)
+    val modelRolloutsStub = ModelRolloutsCoroutineStub(publicApiChannel)
+    val modelReleasesStub = ModelReleasesCoroutineStub(publicApiChannel)
+
+    val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
+    val typeRegistry = buildTypeRegistry()
+    val populationInfoMap = buildPopulationInfoMap(typeRegistry)
+
+    val populationRequisitionFulfiller =
+      PopulationRequisitionFulfiller(
           pdpData,
           certificatesStub,
           requisitionsStub,
@@ -218,7 +212,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
           typeRegistry,
         )
 
-      runBlocking { populationRequisitionFulfiller.run() }
+    runBlocking { populationRequisitionFulfiller.run() }
   }
 
   private fun buildTypeRegistry(): TypeRegistry {
