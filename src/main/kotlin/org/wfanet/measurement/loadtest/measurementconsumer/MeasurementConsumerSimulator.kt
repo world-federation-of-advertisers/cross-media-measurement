@@ -665,7 +665,7 @@ class MeasurementConsumerSimulator(
     val expectedResult = getExpectedPopulationResult(populationMeasurementInfo)
     logger.info("Expected result: $expectedResult")
 
-    assertThat(populationResult.population.value).isEqualTo(expectedResult)
+    assertThat(populationResult.population.value).isEqualTo(expectedResult.population.value)
 
     logger.info("Population result is equal to the expected result")
   }
