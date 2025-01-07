@@ -90,6 +90,7 @@ import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRele
 import org.wfanet.measurement.internal.kingdom.modelRollout as internalModelRollout
 import org.wfanet.measurement.internal.kingdom.modelProvider as internalModelProvider
 import org.wfanet.measurement.internal.kingdom.population as internalPopulation
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
@@ -249,8 +250,10 @@ class ResourceSetup(
     val internalModelProvider = createInternalModelProvider()
     val internalModelSuite = createInternalModelSuite(internalModelProvider)
     val internalModelLine = createInternalModelLine(internalModelSuite)
+    val modelProvider = externalIdToApiId(internalModelProvider.externalModelProviderId)
+    val modelSuite = externalIdToApiId(internalModelSuite.externalModelSuiteId)
     val modelLineId = externalIdToApiId(internalModelLine.externalModelLineId)
-    val modelLineResourceName = PopulationKey(modelLineId, populationId).toName()
+    val modelLineResourceName = ModelLineKey(modelProvider, modelSuite, modelLineId).toName()
 
     val internalModelRelease = createInternalModelRelease(internalModelSuite, internalPopulation)
     createInternalModelRollout(internalModelLine, internalModelRelease)
