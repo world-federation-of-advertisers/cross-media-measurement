@@ -236,37 +236,6 @@ message PageMetricSpec {
       [(google.api.field_behavior) = IMMUTABLE];
 }
 
-// Specification for a Page of results.
-message PageSpec {
-  // The title of the page
-  string title = 1 [(google.api.field_behavior) = IMMUTABLE];
-
-  // The unit to compute metrics for
-  ReportingUnit reporting_unit = 2 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE
-  ];
-
-  // Specifies the window over which metrics are computed
-  // and whether they are cumulative or not.
-  WindowingSpec windowing_spec = 3 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE
-  ];
-
-  // Specfies the dimensions over which the report is filtered and grouped.
-  DimensionSpec dimension_spec = 4 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE
-  ];
-
-  // Specifies the Metrics to compute.
-  PageMetricSpec page_metric_spec = 5 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE
-  ];
-}
-
 // A page of results. This should be interpretable without any knowledge of
 // the page definitions
 message Page {
