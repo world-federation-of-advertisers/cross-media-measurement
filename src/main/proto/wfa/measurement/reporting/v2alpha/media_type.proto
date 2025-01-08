@@ -1,4 +1,4 @@
-// Copyright 2024 The Cross-Media Measurement Authors
+// Copyright 2025 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "MediaTypeProto";
 
-// MediaType is used to designate how reporting artifacts
+// MediaType is used to designate how various artifacts
 // should be interpreted for reporting.
 enum MediaType {
   // Default value. Unused.

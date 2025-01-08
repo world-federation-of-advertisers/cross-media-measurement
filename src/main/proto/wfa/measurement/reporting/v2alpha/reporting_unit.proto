@@ -36,14 +36,9 @@ message ReportingUnit {
     (google.api.resource_reference) = { type: "*" }
   ];
 
-  // Display names of the resource referenced by the Reporting Unit
-  repeated string display_name = 2 [
-    (google.api.field_behavior) = OUTPUT_ONLY,
-    (google.api.field_behavior) = IMMUTABLE
-  ];
-
-  // The MediaType filters that were applied to the components.
-  repeated MediaType reported_media_types = 3 [
+  // Display names of the resource referenced by the Reporting Unit in the same
+  // as the components.
+  repeated string display_names = 2 [
     (google.api.field_behavior) = OUTPUT_ONLY,
     (google.api.field_behavior) = IMMUTABLE
   ];

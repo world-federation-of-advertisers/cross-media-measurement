@@ -28,20 +28,24 @@ message EventFilter {
   message Term {
     // A field path indicating a dimension to filter on.
     //
-    // See Grouping.event_template_field for a complete description of
-    // what is meant by "field path."
+    // Each field path is with respect to the Event message with `.` as the
+    // traversal operator.
+    //
+    // For example, if the Event message had an Event Template `common` with
+    // a field `age_group` then the field path would be `common.age_group`.
     string event_template_field = 1 [
       (google.api.field_behavior) = REQUIRED,
       (google.api.field_behavior) = IMMUTABLE
     ];
     // The value of the event template to filter
     message FieldValue {
-      oneof value {
-        // Used when the event template field is a string
+      // Value type selector. Required.
+      oneof selector {
+        // The field value as a string
         string string_value = 1 [(google.api.field_behavior) = IMMUTABLE];
-        // Used when the event template field is an enum
+        // The field value as a stringified enum value
         string enum_value = 2 [(google.api.field_behavior) = IMMUTABLE];
-        // Used when the event template field is a Boolean
+        // The field value as a Boolean
         string bool_value = 3 [(google.api.field_behavior) = IMMUTABLE];
       }
     }
@@ -51,10 +55,9 @@ message EventFilter {
       (google.api.field_behavior) = IMMUTABLE
     ];
   }
-  // The terms that define the filter criteria.
+  // A disjunction of terms that define the filter criteria.
   //
-  // The a current limintation is that the number of terms must be
-  // exactly one.
+  // A current limintation is that the number of terms must be exactly one.
   repeated Term terms = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE

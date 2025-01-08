@@ -25,7 +25,7 @@ option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ImpressionQualificationFilterSpecProto";
 
-// Specifies the impression filter for a ReportingMediaType.
+// Specifies impression qualification filter criteria for a MediaType
 //
 // If particular filter values are not applicable to the media they
 // are applied to it is an error (e.g. DISPLAY cannot be filtered by
