@@ -20,8 +20,7 @@ import "google/api/annotations.proto";
 import "google/api/client.proto";
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
-
-// import "google/longrunning/operations.proto";
+import "google/longrunning/operations.proto";
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/reporting/v2alpha/basic_report.proto";
 
@@ -32,13 +31,14 @@ option java_outer_classname = "BasicReportsServiceProto";
 // Service for managing `BasicReport` resources.
 service BasicReports {
   // Creates a `BasicReport`
-  // rpc CreateBasicReport(CreateBasicReportRequest) returns (Operation) {
-  //   option (google.api.http) = {
-  //     post: "/v2alpha/{parent=measurementConsumers/*}/basicReports"
-  //     body: "basicReport"
-  //   };
-  //   option (google.api.method_signature) = "parent,basicReport";
-  // }
+  rpc CreateBasicReport(CreateBasicReportRequest)
+      returns (google.longrunning.Operation) {
+    option (google.api.http) = {
+      post: "/v2alpha/{parent=measurementConsumers/*}/basicReports"
+      body: "basicReport"
+    };
+    option (google.api.method_signature) = "parent,basicReport";
+  }
 
   // Returns the `BasicReport` with the given resource key.
   rpc GetBasicReport(GetBasicReportRequest) returns (BasicReport) {
