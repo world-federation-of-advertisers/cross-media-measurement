@@ -37,7 +37,9 @@ service BasicReports {
     option (google.api.method_signature) = "name";
   }
 
-  // Ordered by `create_time` ascending, `name` ascending.
+  // Lists `BasicReport` resources that match the filter criteria.
+  //
+  // Ordered by (`create_time` ascending, `name` ascending).
   rpc ListBasicReports(ListBasicReportsRequest)
       returns (ListBasicReportsResponse) {
     option (google.api.http) = {

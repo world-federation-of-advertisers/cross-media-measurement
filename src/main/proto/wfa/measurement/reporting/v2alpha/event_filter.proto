@@ -46,7 +46,7 @@ message EventFilter {
         // The field value as a stringified enum value
         string enum_value = 2 [(google.api.field_behavior) = IMMUTABLE];
         // The field value as a Boolean
-        string bool_value = 3 [(google.api.field_behavior) = IMMUTABLE];
+        bool bool_value = 3 [(google.api.field_behavior) = IMMUTABLE];
       }
     }
     // The value of the event_template_field to filter on.
@@ -57,7 +57,7 @@ message EventFilter {
   }
   // A disjunction of terms that define the filter criteria.
   //
-  // A current limintation is that the number of terms must be exactly one.
+  // A current limitation is that the number of terms must be exactly one.
   repeated Term terms = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
