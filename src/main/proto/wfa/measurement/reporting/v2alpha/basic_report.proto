@@ -47,10 +47,12 @@ message BasicReport {
   // the EventGroups that may be reported on.
   //
   // EventGroups may span DataProviders and MediaTypes.
-  string campaign_group = 3 [(google.api.resource_reference) = {
-    type: "reporting.halo-cmm.org/ReportingSet"
+  string campaign_group = 3 [
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/ReportingSet"
     },
-  (google.api.field_behavior) = IMMUTABLE];
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 
   // The interval that the Report spans
   //
@@ -69,6 +71,12 @@ message BasicReport {
         (google.api.field_behavior) = REQUIRED,
         (google.api.field_behavior) = IMMUTABLE
       ];
+
+  // Specifies the Pages to create
+  repeated PageSpec page_specs = 8 [
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.field_behavior) = REQUIRED
+  ];
 
   // The report results
   repeated Page pages = 6 [
