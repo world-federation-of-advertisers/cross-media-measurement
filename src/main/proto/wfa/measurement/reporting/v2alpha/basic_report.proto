@@ -1,4 +1,4 @@
-// Copyright 2025 The Cross-Media Measurement Authors
+// Copyright 2024 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,16 +43,14 @@ message BasicReport {
   // Human readable title of the report.
   string title = 2 [(google.api.field_behavior) = IMMUTABLE];
 
-  // This is the resource name of a primitive ReportingSet that includes all of
-  // the EventGroups that may be reported on.
+  // This is the resource name of a primitive Reporting Set that includes all of
+  // the Event Groups that may be reported on.
   //
-  // EventGroups may span DataProviders and MediaTypes.
-  string campaign_group = 3 [
-    (google.api.resource_reference) = {
-      type: "reporting.halo-cmm.org/ReportingSet"
-    },
-    (google.api.field_behavior) = IMMUTABLE
-  ];
+  // Event Groups may span Data Providers and Media Types.
+  // Subsets of these can be reported on and are determined by PageSpec.
+  string campaign_group = 3 [(google.api.resource_reference) = {
+    type: "reporting.halo-cmm.org/ReportingSet"
+  }];
 
   // The interval that the Report spans
   //
@@ -62,29 +60,19 @@ message BasicReport {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // The Impression Qualification Filters for this report.
+  // The set of filters for this report.
   //
-  // The custom criteria and any specific impression_qualification_filter may
-  // each be used at most once.
+  // There must be at most one entry per ImpressionQualificationFilter, and
+  // custom may be used no more than once.
   repeated ReportingImpressionQualificationFilter
-      impression_qualification_filters = 5 [
+      impression_qualification_filters = 6 [
         (google.api.field_behavior) = REQUIRED,
         (google.api.field_behavior) = IMMUTABLE
       ];
 
-  // Specifies the Pages to create
-  repeated PageSpec page_specs = 8 [
-    (google.api.field_behavior) = IMMUTABLE,
-    (google.api.field_behavior) = REQUIRED
-  ];
-
-  // The report results
-  repeated Page pages = 6 [
+  // The result for each item in `page_specs` in the same order.
+  repeated PageResult page_results = 8 [
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.field_behavior) = OUTPUT_ONLY
   ];
-
-  // The time when the BasicReport was created.
-  google.protobuf.Timestamp create_time = 7
-      [(google.api.field_behavior) = OUTPUT_ONLY];
 }

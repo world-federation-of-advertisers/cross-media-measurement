@@ -1,4 +1,4 @@
-// Copyright 2025 The Cross-Media Measurement Authors
+// Copyright 2024 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,14 +18,13 @@ package wfa.measurement.reporting.v2alpha;
 
 import "google/api/field_behavior.proto";
 import "google/protobuf/duration.proto";
-import "wfa/measurement/reporting/v2alpha/event_filter.proto";
 import "wfa/measurement/reporting/v2alpha/media_type.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ImpressionQualificationFilterSpecProto";
 
-// Specifies impression qualification filter criteria for a MediaType
+// Specifies the impression filter for a ReportingMediaType.
 //
 // If particular filter values are not applicable to the media they
 // are applied to it is an error (e.g. DISPLAY cannot be filtered by
@@ -33,17 +32,49 @@ option java_outer_classname = "ImpressionQualificationFilterSpecProto";
 message ImpressionQualificationFilterSpec {
   // The Media Type the filter is applicable to.
   MediaType media_type = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // Specifies a quantile
+  enum Quantile {
+    // Default value. Unused.
+    QUANTILE_UNSPECIFIED = 0;
+    // 0th percentile
+    ZERO = 1;
+    // 25th percentile
+    TWENTY_FIVE = 2;
+    // 50th percentile
+    FIFTY = 3;
+    // 75th percentile
+    SEVENTY_FIVE = 4;
+    // 100th percentile
+    ONE_HUNDRED = 5;
+  }
+
+  // Specify a percent as a fraction or as a quantile
+  message Percent {
+   // Required
+    oneof value {
+      // The fraction
+      float fraction = 1 [(google.api.field_behavior) = IMMUTABLE];
+      // The quantile
+      Quantile quantile = 2 [(google.api.field_behavior) = IMMUTABLE];
+    }
+  }
+
+  // Specifies the viewpability filter
+  Percent viewability = 2 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // The filter criteria.
-  //
-  // Event Tempalte fields that are used by any filter Terms must be
-  // tagged as an impression qualifier and applicable to the provided
-  // media_type.
-  repeated EventFilter filters = 2 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE
-  ];
+  // Specifies the completion filter
+  oneof completion {
+    // Speifies a completion percent
+    Percent percent = 3 [(google.api.field_behavior) = IMMUTABLE];
+    // Specifies the absolute completion duration
+    google.protobuf.Duration duration = 4
+        [(google.api.field_behavior) = IMMUTABLE];
+  }
 }

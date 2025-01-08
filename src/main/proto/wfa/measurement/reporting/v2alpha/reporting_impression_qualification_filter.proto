@@ -26,17 +26,37 @@ option java_outer_classname = "ReportingImpressionQualificationFilterProto";
 
 // An impression qualification filter for reporting that allows either a named
 // filter or a custom filter.
+//
+// A filter can apply to one or more Media Types, and it is applied
+// to each reporting unit (i.e. the containeres of EventGroups -
+// ReportingSet or CampaignGroup) under the following conditions:
+//   1. Within the scope of a Report, the Media Type(s) of a reporting unit
+//      are defined as the intersection of the reporting unit's actual Media
+//      Types and the report's Media Type filters. This is called the scoped
+//      Media Type. For exmaple, if the Event Gruops of the reporting
+//      unit have MediaType=[VIDEO, DISPLAY] and the report has a
+//      MediaType filter = [VIDEO], then the scoped Media Type of the
+//      reporting unit is VIDEO.
+//   2. If the scoped Media Type of a reporting unit intersects the Media
+//      Types of a filter catetory then the scoped Media Types of the
+//      reporting unit must be equal to or a proper subset of this filter's
+//      MediaTypes. Otherwise, if there is an intersection it is an error.
+//      This is to avoid omitting impressions that might otherwise be
+//      expected to be counted.
+//   3. If the scoped Media Type of a reporting unit does not intersect with
+//      the filter's MediaTypes then the metrics computed using that filter
+//      do not include that Reporting Set.
 message ReportingImpressionQualificationFilter {
   // The custom filter criteria for one or more MediaTypes
   message CustomImpressionQualificationFilterSpec {
     // The impression filter criteria, no more than on per MediaType
-    repeated ImpressionQualificationFilterSpec filter_spec = 1 [
+    repeated ImpressionQualificationFilterSpec filter_spec = 2 [
       (google.api.field_behavior) = IMMUTABLE,
       (google.api.field_behavior) = REQUIRED
     ];
   }
-  // Filter type selection. Required.
-  oneof selector {
+  // The filter to use. Required.
+  oneof filter {
     // The resource name of an ImpressionQualificationFilter.
     string impression_qualification_filter = 1 [
       (google.api.field_behavior) = IMMUTABLE,
