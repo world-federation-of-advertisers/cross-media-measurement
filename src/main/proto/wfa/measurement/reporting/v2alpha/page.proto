@@ -52,6 +52,184 @@ message WindowingSpec {
   ];
 }
 
+// Defines the dimesions over which metrics are grouped and filtered.
+message DimensionSpec {
+  // Specifies the dimensions on which to Group metrics
+  //
+  // Only those event template fields that are tagged as groupable
+  // and in the common template are supported.
+  message Grouping {
+    // A set field paths that indicate the dimensions to group by.
+    //
+    // Each field path is with respect to the Event message with `.` as the
+    // traversal operator.
+    //
+    // For example, if the Event message had an Event Template `common` with
+    // a field `age_group` then the field path would be `common.age_group`.
+    repeated string event_template_field = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
+  }
+  // Metric grouping
+  Grouping grouping = 3 [(google.api.field_behavior) = IMMUTABLE];
+
+  // A conjunction of Event Filters
+  //
+  // Event Template fields that are used by any filter Terms must be
+  // tagged as filterable.
+  repeated EventFilter filters = 4 [(google.api.field_behavior) = IMMUTABLE];
+}
+
+// Specifies a set of metrics to be computed
+message PageMetricSpec {
+  // If specified the total population for the specified groupings and
+  // filters that are associated with calculation spec is reported.
+  bool population_size = 1 [(google.api.field_behavior) = IMMUTABLE];
+
+  // The set of basic metrics that can be computed for any aspect of the
+  // reporting_unit (e.g. the whole thing, a single component, intersections,
+  // etc.)
+  message BasicMetricSetSpec {
+    // The reach
+    bool reach = 1 [(google.api.field_behavior) = IMMUTABLE];
+
+    // The reach divided by the population
+    bool percent_reach = 2 [(google.api.field_behavior) = IMMUTABLE];
+
+    // The k plus reach up to the frequency specified. Value must be
+    // positive.
+    int32 k_plus_reach = 3 [(google.api.field_behavior) = IMMUTABLE];
+
+    // This option requires that a positive value be given for
+    // k_plus_reach, in which case if specified the percent k+
+    // reach values are also computed.
+    bool percent_k_plus_reach = 4 [(google.api.field_behavior) = IMMUTABLE];
+
+    // The average frequency
+    bool average_frequency = 5 [(google.api.field_behavior) = IMMUTABLE];
+
+    // The impression count
+    bool impressions = 6 [(google.api.field_behavior) = IMMUTABLE];
+
+    // Gross ratings points
+    bool grps = 7 [(google.api.field_behavior) = IMMUTABLE];
+  }
+
+  // Metrics to be computed over the entire reporting_unit
+  message ReportingUnitMetricSetSpec {
+    // Metrics for the union of the items in the reporting)unit
+    BasicMetricSetSpec basic = 1 [(google.api.field_behavior) = IMMUTABLE];
+
+    // Compute a stacked incremental reach result for the reporting_unit
+    //
+    // For example if the order of the items in the reporting_unit.units
+    // field is "rs1, rs2, rs3" then the following are reported:
+    // 1. The reach of rs1
+    // 2. The incremental reach of (rs1+rs2) over rs1
+    //    (i.e. the unique contribution of rs2 with respect to rs2)
+    // 3. The incremental reach of (rs1+rs2+rs3) over (rs1+rs2)
+    //    (i.e. the unique contribution of rs3 with respect to rs1 and rs2.
+    //
+    // In the case a output for a category of components is desired, this
+    // can be achieved by first grouping the components by category. Then
+    // once the output is provided the reach values for the components in the
+    // category can be summed.
+    //
+    // For example, assume we have components EDP1, EDP2, EDP3 and EDP1
+    // is linear TV and EDP2 and EDP3 are digital, and suppose we want an
+    // incremental reach report of linear TV over digital. Then we can specify
+    // the reporting_unit components as [EDP2, EDP3, EDP1] and when the
+    // output is recieved sum the values for EDP2 and EDP3. This results
+    // in a vector where the first element is the combined reach of EDP2
+    // and EDP3 and the second element is the incremental reach of EDP1
+    // with respect to them. Note that it would also be okay to specify
+    // the components as [EDP3, EDP2, EDP1].
+    bool stacked_incremental_reach = 2;
+  }
+  // The set of metrics to compute for the entire reporting_unit
+  ReportingUnitMetricSetSpec reporting_unit = 2;
+
+  // Compute metrics that apply to each unit of the reporting_unit_spec
+  // with respect to all others.
+  message ComponentMetricSetSpec {
+    // The basic metrics for each ReportingUnit.unit
+    BasicMetricSetSpec basic = 1 [(google.api.field_behavior) = IMMUTABLE];
+
+    // Compute the unique reach of each reporting unit in the
+    // reporting_unit_spec with respect to all other reporting units.
+    //
+    // For example if reporting_sets=[RS1, RS2, RS3] the unique reach of
+    // RS1, RS2, and RS3 are computed.
+    //
+    // It is an error to specify this if only a single reporting unit is
+    // specified since it is the same thing as requesting union.reach.
+    bool unique_reach = 2 [(google.api.field_behavior) = IMMUTABLE];
+  }
+  // If reporting_unit.component is of size 1 the metrics computed for the
+  // component are identical to those computed for the union. Specifying this
+  // value is not recommended in this case.
+  ComponentMetricSetSpec component = 3
+      [(google.api.field_behavior) = IMMUTABLE];
+
+  // Request overlaps (i.e. intersections) of the various combinations
+  // of reporting_unit components
+  message ComponentIntersectionMetricSetSpec {
+    // The number of components that contribute to the intersection.
+    //
+    // For example, a value of 2 will provide all 2-way intersections of
+    // the reporting_unit_spec. A value of 2 and 3 will provide both the
+    // 2 and 3 way intersections.
+    //
+    // The max value is the number of distrinct reporting
+    // units in the reporting_unit
+    repeated int32 contributor_count = 1 [
+      (google.api.field_behavior) = IMMUTABLE,
+      (google.api.field_behavior) = REQUIRED
+    ];
+
+    // The set of metrics to be computed for each intersection
+    BasicMetricSetSpec basic = 2 [
+      (google.api.field_behavior) = IMMUTABLE,
+      (google.api.field_behavior) = REQUIRED
+    ];
+  }
+  // Compute n-way intersections
+  ComponentIntersectionMetricSetSpec component_intersection = 4
+      [(google.api.field_behavior) = IMMUTABLE];
+}
+
+// Specification for a Page of results.
+message PageSpec {
+  // The title of the page
+  string title = 1 [(google.api.field_behavior) = IMMUTABLE];
+
+  // The unit to compute metrics for
+  ReportingUnit reporting_unit = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // Specifies the window over which metrics are computed
+  // and whether they are cumulative or not.
+  WindowingSpec windowing_spec = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // Specfies the dimensions over which the report is filtered and grouped.
+  DimensionSpec dimension_spec = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // Specifies the Metrics to compute.
+  PageMetricSpec page_metric_spec = 5 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+}
+
 // A page of results.
 message Page {
   // The title of the page.
