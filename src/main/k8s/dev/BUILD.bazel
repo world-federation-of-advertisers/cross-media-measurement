@@ -400,11 +400,8 @@ kustomization_dir(
     testonly = True,
     srcs = [
         "synthetic_generator_config_files_kustomization.yaml",
-        "//src/main/k8s/testing/data:real_population_spec_large",
         "//src/main/k8s/testing/data:synthetic_generation_specs_large",
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
-        "//src/main/k8s/testing/secretfiles:person_type_set",
-        "//src/main/k8s/testing/secretfiles:test_event_type_set",
     ],
     renames = {
         "synthetic_generator_config_files_kustomization.yaml": "kustomization.yaml",
@@ -454,11 +451,8 @@ kustomization_dir(
     testonly = True,
     srcs = [
         "reporting_v2_config_files_kustomization.yaml",
-        "//src/main/k8s/testing/data:real_population_spec_large",
         "//src/main/k8s/testing/data:synthetic_generation_specs_large",
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
-        "//src/main/k8s/testing/secretfiles:person_type_set",
-        "//src/main/k8s/testing/secretfiles:test_event_type_set",
     ],
     renames = {"reporting_v2_config_files_kustomization.yaml": "kustomization.yaml"},
 )
