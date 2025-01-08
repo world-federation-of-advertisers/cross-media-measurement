@@ -24,7 +24,7 @@ option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ReportingIntervalProto";
 
-// The time interval over which Metrics are generated.
+// The time interval over which Metrics are reported.
 message ReportingInterval {
   // The date and time of the start of the report. The year,
   // month, day, and time_offset are all required.
@@ -32,7 +32,8 @@ message ReportingInterval {
   // If `utc_offset` is set, daylight savings is ignored and days will
   // be 24 hours based on the time of day specified here. If `time_zone` is
   // set, days will be based on the calendar and daylight savings will be
-  // considered; if 5 AM is chosen, the day will start with 5 AM year-round.
+  // considered; if 5 AM is chosen, the day will start at 5 AM year-round.
+  //
   // This side of the interval is closed.
   google.type.DateTime report_start = 1 [
     (google.api.field_behavior) = REQUIRED,

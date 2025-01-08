@@ -1,4 +1,4 @@
-// Copyright 2024 The Cross-Media Measurement Authors
+// Copyright 2025 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ message ListBasicReportsRequest {
   // Filter criteria. Repeated fields are treated as logical ORs, and multiple
   // fields are treated as logical ANDs.
   message Filter {
-    // Return BasicReports that were created after this time.
+    // Filters criteria for BasicReports that were created after the given time.
     // (-- api-linter: core::0140::prepositions=disabled
     //  -- api-linter: core::0142::time-field-names=disabled
     //     aip.dev/not-precedent: Structured filters are used instead of the
@@ -80,15 +80,14 @@ message ListBasicReportsRequest {
         [(google.api.field_behavior) = REQUIRED];
   }
 
-  // Filter for the list of BasicReports
+  // Filter criteria
   // (-- api-linter: core::0132::request-field-types=disabled
   //     aip.dev/not-precedent: Structured filters are used instead of the
   //     AIP-160 filtering language --)
   Filter filter = 2 [(google.api.field_behavior) = OPTIONAL];
 
   // The maximum number of basic reports to return. The service may return fewer
-  // than this value.
-  // If unspecified, at most 10 basic reports will be returned.
+  // than this value. If unspecified, at most 10 basic reports will be returned.
   // The maximum value is 25; values above 25 will be coerced to 25.
   int32 page_size = 3 [(google.api.field_behavior) = OPTIONAL];
 
