@@ -17,8 +17,10 @@
 package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
 import org.wfanet.measurement.gcloud.pubsub.Publisher
+import org.wfanet.measurement.gcloud.pubsub.TopicNotFoundException
 import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
 import com.google.protobuf.Message
+import io.grpc.Status
 import kotlinx.coroutines.runBlocking
 
 class GooglePubSubWorkItemsService(
@@ -28,9 +30,19 @@ class GooglePubSubWorkItemsService(
 
   private val publisher: Publisher<Message> = Publisher(projectId, googlePubSubClient)
 
-  override fun publishMessage(queueName: String, message: Message) {
+  override suspend fun publishMessage(queueName: String, message: Message) {
     runBlocking {
-      publisher.publishMessage(queueName, message)
+      try {
+        publisher.publishMessage(queueName, message)
+      } catch (e: TopicNotFoundException) {
+        throw Status.NOT_FOUND
+          .withDescription(e.message)
+          .asRuntimeException()
+      } catch (ex: Exception) {
+        throw Status.UNKNOWN
+          .withDescription("An unknown error occurred: ${ex.message}")
+          .asRuntimeException()
+      }
     }
   }
 
