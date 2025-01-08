@@ -1,4 +1,4 @@
-// Copyright 2024 The Cross-Media Measurement Authors
+// Copyright 2025 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@ option java_outer_classname = "MetricFrequencySpecProto";
 
 // Specifies the frequency at which metrics are reported.
 message MetricFrequencySpec {
-  // Specifies a single reporting frequency. Required.
-  oneof metric_frequency {
+  // Reporting frequency selection. Required.
+  oneof selector {
     // Specifies that metrics be reported weekly.
     //
     // If the day of the week is not the same as the start or end day of the
