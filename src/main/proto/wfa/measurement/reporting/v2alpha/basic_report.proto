@@ -43,10 +43,10 @@ message BasicReport {
   // Human readable title of the report.
   string title = 2 [(google.api.field_behavior) = IMMUTABLE];
 
-  // This is the resource name of a primitive Reporting Set that includes all of
-  // the Event Groups that may be reported on.
+  // This is the resource name of a primitive ReportingSet that includes all of
+  // the EventGroups that may be reported on.
   //
-  // Event Groups may span Data Providers and Media Types.
+  // EventGroups may span DataProviders and MediaTypes.
   string campaign_group = 3 [(google.api.resource_reference) = {
     type: "reporting.halo-cmm.org/ReportingSet"
     },
