@@ -30,7 +30,7 @@ message ReportingImpressionQualificationFilter {
   // The custom filter criteria for one or more MediaTypes
   message CustomImpressionQualificationFilterSpec {
     // The impression filter criteria, no more than on per MediaType
-    repeated ImpressionQualificationFilterSpec filter_spec = 2 [
+    repeated ImpressionQualificationFilterSpec filter_spec = 1 [
       (google.api.field_behavior) = IMMUTABLE,
       (google.api.field_behavior) = REQUIRED
     ];

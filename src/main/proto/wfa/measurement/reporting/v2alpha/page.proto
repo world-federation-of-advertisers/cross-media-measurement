@@ -39,9 +39,9 @@ message WindowingSpec {
   enum AccumulationOptions {
     // Default value. Unused.
     ACCUMULATION_OPTIONS_UNSPECIFIED = 0;
-    // Compute comulative metrics
+    // Comulative metrics
     CUMULATIVE = 1;
-    // Compute non-cumulative metrics
+    // Non-cumulative metrics
     NON_CUMULATIVE = 2;
   }
   // How to accumulate results.
@@ -75,7 +75,7 @@ message DimensionSpec {
 
   // A conjunction of Event Filters
   //
-  // Event Tempalte fields that are used by any filter Terms must be
+  // Event Template fields that are used by any filter Terms must be
   // tagged as filterable.
   repeated EventFilter filters = 4 [(google.api.field_behavior) = IMMUTABLE];
 }
@@ -85,12 +85,12 @@ message Page {
   // The title of the page.
   string title = 1 [(google.api.field_behavior) = IMMUTABLE];
 
-  // The result metadata
+  // The metric metadata
   message MetricMetadata {
-    // A summary of the Page Spec Reporting Unit or subset of it for which the
-    // Result was computed.
+    // A summary of the Page Spec ReportingUnit or subset of it for which the
+    // metric was computed.
     message ReportingUnitSummary {
-      // The reporting unit associated with the result.
+      // The reporting unit associated with the metric.
       ReportingUnit reporting_unit = 1
           [(google.api.field_behavior) = IMMUTABLE];
 
@@ -100,28 +100,27 @@ message Page {
     ReportingUnitSummary reporting_unit_summary = 1
         [(google.api.field_behavior) = IMMUTABLE];
 
-    // The time interval over which the result was computed.
+    // The time interval over which the metrics were computed
     google.type.Interval time_interval = 2
         [(google.api.field_behavior) = IMMUTABLE];
 
-    // The windowing spec used for the results.
+    // The windowing spec that was applied
     WindowingSpec windowing_spec = 3 [(google.api.field_behavior) = IMMUTABLE];
 
-    // The dimension spec used for the results.
+    // The dimension spec that was applied
     DimensionSpec dimension_spec = 4 [(google.api.field_behavior) = IMMUTABLE];
 
-    // The impression qualification filter used for computing the result.
+    // The impression qualification filter that was applied
     ReportingImpressionQualificationFilter filter = 5
         [(google.api.field_behavior) = IMMUTABLE];
   }
 
-  // The result value
-  message Metric {
+  // The metric values
+  message MetricSet {
     // The size of the population for the filters/grouping specified
     int32 population_size = 1 [(google.api.field_behavior) = IMMUTABLE];
 
-    // Captures results that are applicable to any subunit of the
-    // Reporting Unit.
+    // Metrics that are applicable to any subunit of the ReportingUnit.
     message BasicMetricSet {
       // The reach
       int32 reach = 1 [(google.api.field_behavior) = IMMUTABLE];
@@ -139,13 +138,13 @@ message Page {
       // The gross ratings points
       float grps = 7 [(google.api.field_behavior) = IMMUTABLE];
     }
-    // Stores the results for the entire Reporting Unit.
+    // Metrics for the entire reporting_unit.
     message ReportingUnitMetricSet {
-      // The metrics for the union of the units
+      // The metrics for the union of the reporting_unit components
       BasicMetricSet basic_metric_set = 1
           [(google.api.field_behavior) = IMMUTABLE];
 
-      // The stacked incremental reach of the Reporting Unit.
+      // The stacked incremental reach of the ReportingUnit.
       //
       // For example if the units in the ReportingUnit were "rs1", "rs2",
       // "rs3" then the values in this array are as follows:
@@ -154,25 +153,24 @@ message Page {
       //  3. reach(rs1+rs2+rs3) - reach(rs1+rs2)
       repeated int32 stacked_incremental_reach = 2;
     }
-    // The results for the whole Reporting Unit
+    // Metrics for the whole reporting_unit
     ReportingUnitMetricSet reporting_unit_metric_set = 2;
 
-    // Stores the results for a single component of the Reporting Unit.
+    // Metrics for a single component of the reporting_unit.
     message ComponentMetricSet {
-      // The basic metrics for this component, which would be either for a
-      // single component if the reporting_unit_spec has one item or for the
-      // union of all components if it has more than one item.
+      // The basic metrics for this component
       BasicMetricSet basic_metric_set = 1
           [(google.api.field_behavior) = IMMUTABLE];
 
       // The component's unique reach
       int32 unique_reach = 2 [(google.api.field_behavior) = IMMUTABLE];
     }
-    // Entry for the `pages` map.
+    // Entry for the `component_metric_sets` map.
     message ComponentMetricSetMapEntry {
       // Map entry key.
-      // This will be a DataProvider when use with a Basic Report and
-      // a Reporting Set when used with an Advanced Report.
+      //
+      // This is a DataProvider resource name when use with BasicReport and
+      // a ReportingSet resource name when used with an AdvancedReport.
       string key = 1 [
         (google.api.resource_reference) = { type: "reporting.halo-cmm.org/*" },
         (google.api.field_behavior) = IMMUTABLE,
@@ -189,16 +187,18 @@ message Page {
     repeated ComponentMetricSetMapEntry component_metric_sets = 3
         [(google.api.field_behavior) = IMMUTABLE];
 
-    // Stores results for the intersection of the components of the
-    // Reporting Unit
+    // Metrics for the intersection of the components of the reporting_unit
     message ComponentIntersectionMetricSet {
-      // The reporting unit components that this intersection corresponds to.
+      // The reporting_unit components that this intersection corresponds to.
+      //
+      // These are DataProvider resource names when used with a BasicReport and
+      // ReportingSet resource names when used with an AdvancedReport.
       repeated string components = 1 [(google.api.field_behavior) = IMMUTABLE];
-      // Results for the intersection of the components
+      // Basic metrics for the intersection of the components
       BasicMetricSet basic_metric_set = 2
           [(google.api.field_behavior) = IMMUTABLE];
     }
-    // The results for the requested intersections
+    // The metrics for the requested intersections
     repeated ComponentIntersectionMetricSet component_intersection_metric_set =
         4 [(google.api.field_behavior) = IMMUTABLE];
   }
@@ -208,7 +208,7 @@ message Page {
     // Metadata that describes the metric
     MetricMetadata metadata = 1 [(google.api.field_behavior) = IMMUTABLE];
     // Metric values
-    Metric metric = 2 [(google.api.field_behavior) = IMMUTABLE];
+    MetricSet metric_set = 2 [(google.api.field_behavior) = IMMUTABLE];
   }
   // The set of results for the Page, one per impression qualification filter
   // that was applicable to the page.
