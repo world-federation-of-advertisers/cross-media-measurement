@@ -44,4 +44,7 @@ exec $BAZEL_BIN/src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup/Re
 --edp-encryption-public-keysets=edp4=src/main/k8s/testing/secretfiles/edp4_enc_public.tink \
 --edp-encryption-public-keysets=edp5=src/main/k8s/testing/secretfiles/edp5_enc_public.tink \
 --edp-encryption-public-keysets=edp6=src/main/k8s/testing/secretfiles/edp6_enc_public.tink \
+--pdp-consent-signaling-cert-der-file=src/main/k8s/testing/secretfiles/pdp1_cs_cert.der \
+--pdp-consent-signaling-key-der-file=src/main/k8s/testing/secretfiles/pdp1_cs_private.der \
+--pdp-encryption-public-keyset=src/main/k8s/testing/secretfiles/pdp1_enc_public.tink \
 "$@"
