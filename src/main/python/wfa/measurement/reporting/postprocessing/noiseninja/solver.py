@@ -155,7 +155,8 @@ class Solver:
     self.G.append(variables)
     self.h.append([0])
 
-  def _solve_with_initial_value(self, solver_name, initial_values) -> Solution:
+  def _solve_with_initial_value(self, solver_name: str,
+      initial_values: np.array) -> Solution:
     problem = self._problem()
     solution = solve_problem(problem, solver=solver_name,
                              initvals=initial_values, verbose=False)
@@ -176,8 +177,9 @@ class Solver:
     logging.info("Solving the quadratic program.")
     attempt_count = 0
     while attempt_count < MAX_ATTEMPTS:
-      # TODO: check if qpsolvers is thread safe,
-      #  and remove this semaphore.
+      # The solver is not thread-safe in general. Synchronization mechanism is
+      # needed when it is called concurrently (e.g. in a report processing
+      # server).
       SEMAPHORE.acquire()
       solution = self._solve_with_initial_value(solver_name, self.base_value)
       SEMAPHORE.release()
