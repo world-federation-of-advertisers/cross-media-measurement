@@ -19,7 +19,8 @@ from noiseninja.noised_measurements import SetMeasurementsSpec
 from qpsolvers import solve_problem, Problem, Solution
 from threading import Semaphore
 
-SOLVER = "highs"
+HIGHS_SOLVER = "highs"
+OSQP_SOLVER = "osqp"
 MAX_ATTEMPTS = 10
 SEMAPHORE = Semaphore()
 
@@ -154,13 +155,11 @@ class Solver:
     self.G.append(variables)
     self.h.append([0])
 
-  def _solve(self):
-    x0 = np.random.randn(self.num_variables)
-    return self._solve_with_initial_value(x0)
-
-  def _solve_with_initial_value(self, x0) -> Solution:
+  def _solve_with_initial_value(self, solver_name: str,
+      initial_values: np.array) -> Solution:
     problem = self._problem()
-    solution = solve_problem(problem, solver=SOLVER, verbose=False)
+    solution = solve_problem(problem, solver=solver_name,
+                             initvals=initial_values, verbose=False)
     return solution
 
   def _problem(self):
@@ -174,9 +173,24 @@ class Solver:
           self.P, self.q, np.array(self.G), np.array(self.h))
     return problem
 
-  def solve(self) -> Solution:
+  def _solve(self, solver_name: str) -> Solution:
     logging.info("Solving the quadratic program.")
     attempt_count = 0
+    while attempt_count < MAX_ATTEMPTS:
+      # The solver is not thread-safe in general. Synchronization mechanism is
+      # needed when it is called concurrently (e.g. in a report processing
+      # server).
+      SEMAPHORE.acquire()
+      solution = self._solve_with_initial_value(solver_name, self.base_value)
+      SEMAPHORE.release()
+
+      if solution.found:
+        break
+      else:
+        attempt_count += 1
+    return solution
+
+  def solve(self) -> Solution:
     if self._is_feasible(self.base_value):
       logging.info(
           "The set measurement spec is feasible."
@@ -189,19 +203,18 @@ class Solver:
       logging.info(
           "Solving the quadratic program with the HIGHS solver."
       )
-      while attempt_count < MAX_ATTEMPTS:
-        logging.info(f"Attempt {attempt_count + 1}.")
-        # TODO: check if qpsolvers is thread safe,
-        #  and remove this semaphore.
-        SEMAPHORE.acquire()
-        solution = self._solve()
-        SEMAPHORE.release()
+      solution = self._solve(HIGHS_SOLVER)
 
-        if solution.found:
-          break
-        else:
-          attempt_count += 1
+      # If the highs solver does not converge, switch to the osqp solver which
+      # is more robust. However, OSQP in general is less accurate than HIGHS
+      # (See https://web.stanford.edu/~boyd/papers/pdf/osqp.pdf).
+      if not solution.found:
+        logging.info(
+            "Switching to OSQP solver as HIGHS solver failed to converge."
+        )
+        solution = self._solve(OSQP_SOLVER)
 
+    # Raise the exception when both solvers do not converge.
     if not solution.found:
       raise SolutionNotFoundError(solution)
 
