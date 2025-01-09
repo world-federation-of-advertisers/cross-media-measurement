@@ -272,8 +272,7 @@ message Page {
           1 [(google.api.field_behavior) = IMMUTABLE];
     }
 
-    // A summary of each component of the reporting_unit used to generate the
-    // Page
+    // A summary of each component of the reporting_unit reported on
     message ReportingUnitSummary {
       // Component summaries
       repeated ReportingUnitComponentSummary reporting_unit_component_summary =
