@@ -231,6 +231,11 @@ proto_library(
     ],
 )
 
+kt_jvm_proto_library(
+    name = "reporting_impression_qualification_filter_kt_jvm_proto",
+    deps = [":reporting_impression_qualification_filter_proto"],
+)
+
 proto_library(
     name = "reporting_interval_proto",
     srcs = ["reporting_interval.proto"],
