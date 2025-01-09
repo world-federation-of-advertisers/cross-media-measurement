@@ -420,14 +420,10 @@ kt_jvm_grpc_proto_library(
     deps = [":metric_calculation_specs_service_proto"],
 )
 
-# TODO(@kungfucraig): Figure out how to have a build rule for the operations service.
-# proto_library(
-#     name = "operations_service_proto",
-#     srcs = ["???"],
-#     strip_import_prefix = IMPORT_PREFIX,
-#     deps = [
-#     ],
-# )
+kt_jvm_grpc_proto_library(
+    name = "operations_service_kt_jvm_grpc_proto",
+    deps = ["@com_google_googleapis//google/longrunning:operations_proto",],
+)
 
 proto_library(
     name = "reports_service_proto",
