@@ -250,7 +250,19 @@ message Page {
 
       // Display name of the component
       string display_name = 2 [(google.api.field_behavior) = IMMUTABLE];
-      // TODO(@kungfucraig): Phase II - Add support for Event Group summaries.
+
+      // Summary of an EventGroup entailed by the component
+      message EventGroupSummary {
+        string event_group = 1 [
+          (google.api.field_behavior) = REQUIRED,
+          (google.api.field_behavior) = IMMUTABLE,
+          (google.api.resource_reference) = {
+            type: "halo.wfanet.org/EventGroup"
+          }
+        ];
+        // TODO(@kungfucraig): Add EventGroup metadata once it has been
+        // formally encoded in the EventGroup.
+      }
     }
 
     // A summary of each component of the reporting_unit reported on
