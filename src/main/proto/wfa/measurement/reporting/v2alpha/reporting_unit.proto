@@ -28,18 +28,11 @@ option java_outer_classname = "ReportingUnitProto";
 message ReportingUnit {
   // A list of resources to report on.
   //
-  // For use with BasicReport these must be Data Provider resource names
-  // For use with AdvancedReport these must be Reporting Set resource names
+  // For use with BasicReport these must be DataProvider resource names
+  // For use with AdvancedReport these must be ReportingSet resource names
   repeated string components = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.resource_reference) = { type: "*" }
-  ];
-
-  // Display names of the resource referenced by the Reporting Unit in the same
-  // as the components.
-  repeated string display_names = 2 [
-    (google.api.field_behavior) = OUTPUT_ONLY,
-    (google.api.field_behavior) = IMMUTABLE
   ];
 }

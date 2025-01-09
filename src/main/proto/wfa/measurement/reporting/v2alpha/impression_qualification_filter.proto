@@ -30,7 +30,7 @@ option java_outer_classname = "ImpressionQualificationFilterProto";
 // ImpressionQualificationFilterSpecs where there is at most
 // one spec per MediaType. For example, an IQF to filter all measurable
 // impressions for VIDEO and DISPLAY would provide one spec for
-// video with viewability and compleition percent set to zero and a
+// video with viewability and completion percent set to zero and a
 // another spec for DISPLAY with the viewability set to zero.
 message ImpressionQualificationFilter {
   option (google.api.resource) = {
@@ -51,7 +51,7 @@ message ImpressionQualificationFilter {
 
   // Specifies the filter criteria for each MediaType.
   //
-  // They may be at most one spec per MediaType.
+  // There may be at most one spec per MediaType.
   repeated ImpressionQualificationFilterSpec filter_specs = 4 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
