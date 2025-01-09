@@ -114,7 +114,7 @@ message ListBasicReportsRequest {
 
 // Response message for `ListBasicReports` method.
 message ListBasicReportsResponse {
-  // The Basic Reports that met the filter criteria
+  // The BasicReports that met the filter criteria
   repeated BasicReport basic_reports = 1
       [(google.api.field_behavior) = OPTIONAL];
 
@@ -133,14 +133,14 @@ message CreateBasicReportRequest {
     }
   ];
 
-  // The ID to use for the Basic Report, which will become the final component
-  // of the Basic Report's resource name.
+  // The ID to use for the BasicReport, which will become the final component
+  // of the BasicReport's resource name.
   //
   // This must conform to RFC 1034, with the additional restriction that all
   // letters must be lower-case.
-  string page_template_id = 2 [(google.api.field_behavior) = REQUIRED];
+  string basic_report_id = 2 [(google.api.field_behavior) = REQUIRED];
 
-  // The Basic Report to create.
+  // The BasicReport to create.
   BasicReport basic_report = 3;
 
   // A unique identifier for this request. Restricted to 36 ASCII characters.
