@@ -87,10 +87,9 @@ message Page {
 
   // The metric metadata
   message MetricMetadata {
-    // A summary of a component of the reporting_unit for which metrics were
-    // computed.
+    // A summary of a component of the reporting_unit being reported on
     message ReportingUnitComponentSummary {
-      // A component of the reporting_unit reported on.
+      // The resource name of a component of the reporting_unit
       //
       // For BasicReport this is a DataProvider resource name
       // For AdvancedReport this is a ReportingSet resource name
@@ -100,13 +99,12 @@ message Page {
         (google.api.resource_reference) = { type: "*" }
       ];
 
-      // Display names of the component
+      // Display name of the component
       string display_name = 2 [(google.api.field_behavior) = IMMUTABLE];
       // TODO(@kungfucraig): Phase II - Add support for Event Group summaries.
     }
 
-    // A summary of each component of the reporting_unit used to generate the
-    // Page
+    // A summary of each component of the reporting_unit reported on
     message ReportingUnitSummary {
       // Component summaries
       repeated ReportingUnitComponentSummary reporting_unit_component_summary =
