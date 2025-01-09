@@ -39,7 +39,7 @@ message WindowingSpec {
   enum AccumulationOptions {
     // Default value. Unused.
     ACCUMULATION_OPTIONS_UNSPECIFIED = 0;
-    // Comulative metrics
+    // Cumulative metrics
     CUMULATIVE = 1;
     // Non-cumulative metrics
     NON_CUMULATIVE = 2;
@@ -87,14 +87,30 @@ message Page {
 
   // The metric metadata
   message MetricMetadata {
-    // A summary of the Page Spec ReportingUnit or subset of it for which the
-    // metric was computed.
-    message ReportingUnitSummary {
-      // The reporting unit associated with the metric.
-      ReportingUnit reporting_unit = 1
-          [(google.api.field_behavior) = IMMUTABLE];
+    // A summary of a component of the reporting_unit for which metrics were
+    // computed.
+    message ReportingUnitComponentSummary {
+      // A component of the reporting_unit reported on.
+      //
+      // For BasicReport this is a DataProvider resource name
+      // For AdvancedReport this is a ReportingSet resource name
+      string component = 1 [
+        (google.api.field_behavior) = REQUIRED,
+        (google.api.field_behavior) = IMMUTABLE,
+        (google.api.resource_reference) = { type: "*" }
+      ];
 
+      // Display names of the component
+      string display_name = 2 [(google.api.field_behavior) = IMMUTABLE];
       // TODO(@kungfucraig): Phase II - Add support for Event Group summaries.
+    }
+
+    // A summary of each component of the reporting_unit used to generate the
+    // Page
+    message ReportingUnitSummary {
+      // Component summaries
+      repeated ReportingUnitComponentSummary reporting_unit_component_summary =
+          1 [(google.api.field_behavior) = IMMUTABLE];
     }
     // A summary of the ReportingUnit
     ReportingUnitSummary reporting_unit_summary = 1

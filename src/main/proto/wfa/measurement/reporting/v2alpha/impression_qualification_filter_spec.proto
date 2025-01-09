@@ -37,9 +37,9 @@ message ImpressionQualificationFilterSpec {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // The filter criteria.
+  // A conjunction of filters.
   //
-  // Event Tempalte fields that are used by any filter Terms must be
+  // Event Template fields that are used by any filter Terms must be
   // tagged as an impression qualifier and applicable to the provided
   // media_type.
   repeated EventFilter filters = 2 [
