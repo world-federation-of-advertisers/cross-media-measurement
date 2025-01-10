@@ -83,6 +83,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultOutput
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
@@ -197,7 +198,6 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsSketchParams as internalReachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMetricVarianceParams
@@ -543,8 +543,8 @@ private const val CONTAINING_REPORT = "report X"
 
 // Metric ID and Name
 private const val METRIC_ID = "metric-id"
-private val METRIC_NAME = MetricKey(
-  MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId, METRIC_ID).toName()
+private val METRIC_NAME =
+  MetricKey(MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId, METRIC_ID).toName()
 
 // Internal reporting sets
 
@@ -2568,9 +2568,12 @@ class MetricsServiceTest {
             nonceHashes += List(dataProvidersList.size) { Hashing.hashSha256(RANDOM_OUTPUT_LONG) }
             reportingMetadata = reportingMetadata {
               report = CONTAINING_REPORT
-              metric = MetricKey(
-                INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.cmmsMeasurementConsumerId,
-                INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId).toName()
+              metric =
+                MetricKey(
+                    INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.cmmsMeasurementConsumerId,
+                    INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId,
+                  )
+                  .toName()
             }
           }
         )
@@ -2663,9 +2666,10 @@ class MetricsServiceTest {
             width = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_WIDTH
           }
         modelLine = DEFAULT_VID_MODEL_LINE
-        reportingMetadata  = reportingMetadata {
+        reportingMetadata = reportingMetadata {
           report = CONTAINING_REPORT
-          metric = MetricKey(MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId, metricId).toName()
+          metric =
+            MetricKey(MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId, metricId).toName()
         }
       }
 
@@ -3536,15 +3540,21 @@ class MetricsServiceTest {
 
         val measurementSpec: MeasurementSpec =
           createMeasurementRequest.measurement.measurementSpec.unpack()
-        assertThat(measurementSpec).isEqualTo(
-          SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT_SPEC.copy {
-            reportingMetadata = reportingMetadata {
-              report = CONTAINING_REPORT
-              metric = MetricKey(
-                INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.cmmsMeasurementConsumerId,
-                INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.externalMetricId).toName()
+        assertThat(measurementSpec)
+          .isEqualTo(
+            SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT_SPEC.copy {
+              reportingMetadata = reportingMetadata {
+                report = CONTAINING_REPORT
+                metric =
+                  MetricKey(
+                      INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
+                        .cmmsMeasurementConsumerId,
+                      INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.externalMetricId,
+                    )
+                    .toName()
+              }
             }
-          })
+          )
 
         dataProvidersList.map { dataProviderEntry ->
           val signedRequisitionSpec =
@@ -3653,15 +3663,21 @@ class MetricsServiceTest {
 
       val measurementSpec: MeasurementSpec =
         createMeasurementRequest.measurement.measurementSpec.unpack()
-      assertThat(measurementSpec).isEqualTo(
-        SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC.copy {
-          reportingMetadata = reportingMetadata {
-            report = CONTAINING_REPORT
-            metric = MetricKey(
-              INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId,
-              INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId).toName()
+      assertThat(measurementSpec)
+        .isEqualTo(
+          SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC.copy {
+            reportingMetadata = reportingMetadata {
+              report = CONTAINING_REPORT
+              metric =
+                MetricKey(
+                    INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC
+                      .cmmsMeasurementConsumerId,
+                    INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId,
+                  )
+                  .toName()
+            }
           }
-        })
+        )
 
       dataProvidersList.map { dataProviderEntry ->
         val signedRequisitionSpec =
@@ -3756,9 +3772,12 @@ class MetricsServiceTest {
           }
         reportingMetadata = reportingMetadata {
           report = CONTAINING_REPORT
-          metric = MetricKey(
-              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
-              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId).toName()
+          metric =
+            MetricKey(
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+                INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId,
+              )
+              .toName()
         }
       }
 
@@ -4000,9 +4019,12 @@ class MetricsServiceTest {
             nonceHashes += List(dataProvidersList.size) { Hashing.hashSha256(RANDOM_OUTPUT_LONG) }
             reportingMetadata = reportingMetadata {
               report = CONTAINING_REPORT
-              metric = MetricKey(
-                INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.cmmsMeasurementConsumerId,
-                  INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId).toName()
+              metric =
+                MetricKey(
+                    INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.cmmsMeasurementConsumerId,
+                    INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId,
+                  )
+                  .toName()
             }
           }
         )
@@ -4065,6 +4087,7 @@ class MetricsServiceTest {
           binaryRepresentation = 1
         }
       }
+
     val internalCreateMetricRequest = internalCreateMetricRequest {
       metric =
         INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
@@ -4081,7 +4104,7 @@ class MetricsServiceTest {
               details = InternalMeasurementKt.details { dataProviderCount = 1 }
             }
           }
-          details = InternalMetricKt.details {}
+          details = InternalMetricKt.details { containingReport = CONTAINING_REPORT }
         }
       externalMetricId = METRIC_ID
     }
@@ -4101,7 +4124,7 @@ class MetricsServiceTest {
               }
             }
         }
-        details = InternalMetricKt.details {}
+        details = InternalMetricKt.details { containingReport = CONTAINING_REPORT }
       }
 
     whenever(
@@ -5259,24 +5282,30 @@ class MetricsServiceTest {
         createMeasurementRequest.measurement.measurementSpec.unpack()
       assertThat(measurementSpec)
         .isEqualTo(
-          if (dataProvidersList.size == 1) SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC.copy {
-            reportingMetadata = reportingMetadata {
-              report = CONTAINING_REPORT
-              metric = MetricKey(
-                INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId,
-                INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId).toName()
-           }
-
-          }
+          if (dataProvidersList.size == 1)
+            SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC.copy {
+              reportingMetadata = reportingMetadata {
+                report = CONTAINING_REPORT
+                metric =
+                  MetricKey(
+                      INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId,
+                      INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId,
+                    )
+                    .toName()
+              }
+            }
           else
             UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
               nonceHashes.clear()
               nonceHashes += List(dataProvidersList.size) { Hashing.hashSha256(RANDOM_OUTPUT_LONG) }
               reportingMetadata = reportingMetadata {
                 report = CONTAINING_REPORT
-                metric = MetricKey(
-                  INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.cmmsMeasurementConsumerId,
-                  INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId).toName()
+                metric =
+                  MetricKey(
+                      INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.cmmsMeasurementConsumerId,
+                      INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId,
+                    )
+                    .toName()
               }
             }
         )
@@ -10060,9 +10089,12 @@ class MetricsServiceTest {
           nonceHashes += List(dataProvidersList.size) { Hashing.hashSha256(RANDOM_OUTPUT_LONG) }
           reportingMetadata = reportingMetadata {
             report = CONTAINING_REPORT
-            metric = MetricKey(
-              INTERNAL_PENDING_INITIAL_POPULATION_METRIC.cmmsMeasurementConsumerId,
-              INTERNAL_PENDING_INITIAL_POPULATION_METRIC.externalMetricId).toName()
+            metric =
+              MetricKey(
+                  INTERNAL_PENDING_INITIAL_POPULATION_METRIC.cmmsMeasurementConsumerId,
+                  INTERNAL_PENDING_INITIAL_POPULATION_METRIC.externalMetricId,
+                )
+                .toName()
           }
         }
       )
