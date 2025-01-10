@@ -79,6 +79,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
@@ -160,7 +161,6 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -468,7 +468,7 @@ class MetricsService(
               measurementConsumer.name,
               packedMeasurementEncryptionPublicKey,
               dataProviders.map { it.value.nonceHash },
-              metric
+              metric,
             )
 
           measurementSpec =
@@ -552,7 +552,8 @@ class MetricsService(
         // Add reporting metadata
         reportingMetadata = reportingMetadata {
           report = metric.details.containingReport
-          this.metric = MetricKey(metric.cmmsMeasurementConsumerId, metric.externalMetricId).toName()
+          this.metric =
+            MetricKey(metric.cmmsMeasurementConsumerId, metric.externalMetricId).toName()
         }
       }
     }
@@ -1709,8 +1710,8 @@ class MetricsService(
       filters += source.details.filtersList
       state = source.state.toPublic()
       createTime = source.createTime
-      // The calculations can throw an error, but we still want to return the metric.
       containingReport = source.details.containingReport
+      // The calculations can throw an error, but we still want to return the metric.
       if (state == Metric.State.SUCCEEDED) {
         try {
           result = buildMetricResult(source, variances)
