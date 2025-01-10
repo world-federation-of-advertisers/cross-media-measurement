@@ -27,7 +27,7 @@ variable "subscription_name" {
 variable "message_retention_duration" {
   description = "The duration (in seconds) for which Pub/Sub retains unacknowledged messages."
   type        = string
-  default     = null
+  default     = "604800s"
 }
 
 variable "ack_deadline_seconds" {
