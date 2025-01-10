@@ -12,17 +12,48 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+module "mig_service_account" {
+  source                        = "../workload-identity-user"
+  k8s_service_account_name      = "mig-service-account"
+  iam_service_account_name      = var.mig_service_account_name
+  iam_service_account_description = "Service account for Managed Instance Group"
+}
+
+resource "google_project_iam_member" "mig_pubsub_user" {
+  project = data.google_project.project.name
+  role    = "roles/pubsub.subscriber"
+  member  = module.mig_service_account.iam_service_account.member
+}
+
+resource "google_project_iam_member" "mig_storage_user" {
+  project = data.google_project.project.name
+  role    = "roles/storage.objectViewer"
+  member  = module.mig_service_account.iam_service_account.member
+}
+
+resource "google_project_iam_member" "mig_kms_user" {
+  project = data.google_project.project.name
+  role    = "roles/cloudkms.cryptoKeyDecrypter"
+  member  = module.mig_service_account.iam_service_account.member
+}
+
 resource "google_compute_instance_template" "confidential_vm_template" {
   machine_type   = var.machine_type
 
   confidential_instance_config {
       enable_confidential_compute = true
       confidential_instance_type  = "SEV_SNP"
-    }
+  }
+
+  name = var.instance_template_name
 
   disks {
       source_image  = "projects/cos-cloud/global/images/family/cos-stable"
   }
+
+  network_interface {
+      network = "default"  # TODO(@marcopremier): Add VPC here.
+    }
 
   metadata = {
     "google-logging-enabled" = "true"
@@ -34,21 +65,30 @@ spec:
       image: ${var.docker_image}
       stdin: false
       tty: false
+      args: ${jsonencode(var.app_args)}
   restartPolicy: Always
 EOT
   }
 
   service_account {
-    scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+      email = module.mig_service_account.iam_service_account.name
   }
 }
 
 resource "google_compute_region_instance_group_manager" "mig" {
   name               = var.managed_instance_group_name
-  base_instance_name = "tee-app"
+  base_instance_name = var.base_instance_name
   version {
-      instance_template = google_compute_instance_template.confidential_vm_template.id
-    }
+    instance_template = google_compute_instance_template.confidential_vm_template.id
+  }
+
+  update_policy {
+    type                    = "PROACTIVE"
+    minimal_action          = "RESTART"
+    max_unavailable_fixed   = 1
+    replacement_method      = "RECREATE"
+  }
+
 }
 
 resource "google_compute_autoscaler" "mig_autoscaler" {

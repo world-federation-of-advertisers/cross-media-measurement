@@ -12,10 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+variable "instance_template_name" {
+  description   = "The name of the instance template."
+  type          = string
+}
+
+variable "base_instance_name" {
+  description   = "The base instance name to use for instances in this group."
+  type          = string
+  nullable      = false
+}
+
 variable "single_instance_assignment" {
   description   = "The amount of undelivered messages a single instance can handle. Used by the autoscaler to determine the number of instances needed based on the total number of undelivered messages."
   type          = number
   nullable      = false
+}
+
+variable "mig_service_account_name" {
+  description = "IAM `google_service_account.name`."
+  type = string
+  nullable = false
+}
+
+variable "app_args" {
+  description = "Arguments to pass to the application"
+  type        = list(string)
+  default     = []
 }
 
 variable "subscription_id" {
