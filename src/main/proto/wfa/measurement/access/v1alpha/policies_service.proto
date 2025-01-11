@@ -81,7 +81,7 @@ message GetPolicyRequest {
   // Resource name.
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {type: "access.halo-cmm.org/Policy"}
+    (google.api.resource_reference) = { type: "access.halo-cmm.org/Policy" }
   ];
 }
 
@@ -103,7 +103,7 @@ message LookupPolicyRequest {
   oneof lookup_key {
     // Name of the resource to which the policy applies.
     string protected_resource = 1 [
-      (google.api.resource_reference) = {type: "*"},
+      (google.api.resource_reference) = { type: "*" },
       (google.api.field_behavior) = OPTIONAL
     ];
   }
@@ -114,20 +114,20 @@ message AddPolicyBindingMembersRequest {
   // Resource name.
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {type: "access.halo-cmm.org/Policy"}
+    (google.api.resource_reference) = { type: "access.halo-cmm.org/Policy" }
   ];
 
   // Resource name of the role.
   string role = 2 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {type: "access.halo-cmm.org/Role"}
+    (google.api.resource_reference) = { type: "access.halo-cmm.org/Role" }
   ];
 
   // Resource names of the members to add.
   repeated string members = 3 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.field_behavior) = UNORDERED_LIST,
-    (google.api.resource_reference) = {type: "access.halo-cmm.org/Principal"}
+    (google.api.resource_reference) = { type: "access.halo-cmm.org/Principal" }
   ];
 
   // Current etag of the resource.
@@ -142,20 +142,20 @@ message RemovePolicyBindingMembersRequest {
   // Resource name.
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {type: "access.halo-cmm.org/Policy"}
+    (google.api.resource_reference) = { type: "access.halo-cmm.org/Policy" }
   ];
 
   // Resource name of the role.
   string role = 2 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {type: "access.halo-cmm.org/Role"}
+    (google.api.resource_reference) = { type: "access.halo-cmm.org/Role" }
   ];
 
   // Resource names of the members to remove.
   repeated string members = 3 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.field_behavior) = UNORDERED_LIST,
-    (google.api.resource_reference) = {type: "access.halo-cmm.org/Principal"}
+    (google.api.resource_reference) = { type: "access.halo-cmm.org/Principal" }
   ];
 
   // Current etag of the resource.
