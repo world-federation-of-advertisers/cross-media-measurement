@@ -28,22 +28,50 @@ option java_outer_classname = "PoliciesServiceProto";
 // Service for interacting with `Policy` resources.
 service Policies {
   // Retrieves a `Policy` by name.
+  //
+  // Error reasons:
+  // * `POLICY_NOT_FOUND`
   rpc GetPolicy(GetPolicyRequest) returns (Policy) {
     option (google.api.method_signature) = "name";
   }
 
   // Creates a `Policy`.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_TYPE_NOT_SUPPORTED`
+  // * `POLICY_ALREADY_EXISTS`
+  // * `ROLE_NOT_FOUND`
+  // * `PRINCIPAL_NOT_FOUND`
   rpc CreatePolicy(CreatePolicyRequest) returns (Policy) {
     option (google.api.method_signature) = "policy,policy_id";
   }
 
   // Looks up a `Policy` by lookup key.
+  //
+  // Error reasons:
+  // * `POLICY_NOT_FOUND_FOR_PROTECTED_RESOURCE`
   rpc LookupPolicy(LookupPolicyRequest) returns (Policy);
 
   // Adds members to a `Policy.Binding`.
+  //
+  // Error reasons:
+  // * `POLICY_NOT_FOUND`
+  // * `ETAG_MISMATCH`
+  // * `ROLE_NOT_FOUND`
+  // * `PRINCIPAL_NOT_FOUND`
+  // * `PRINCIPAL_TYPE_NOT_SUPPORTED`
+  // * `POLICY_BINDING_MEMBERSHIP_ALREADY_EXISTS`
   rpc AddPolicyBindingMembers(AddPolicyBindingMembersRequest) returns (Policy);
 
   // Removes members from a `Policy.Binding`.
+  //
+  // Error reasons:
+  // * `POLICY_NOT_FOUND`
+  // * `ETAG_MISMATCH`
+  // * `ROLE_NOT_FOUND`
+  // * `PRINCIPAL_NOT_FOUND`
+  // * `PRINCIPAL_TYPE_NOT_SUPPORTED`
+  // * `POLICY_BINDING_MEMBERSHIP_NOT_FOUND`
   rpc RemovePolicyBindingMembers(RemovePolicyBindingMembersRequest)
       returns (Policy);
 }
@@ -53,7 +81,7 @@ message GetPolicyRequest {
   // Resource name.
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = { type: "access.halo-cmm.org/Policy" }
+    (google.api.resource_reference) = {type: "access.halo-cmm.org/Policy"}
   ];
 }
 
@@ -75,7 +103,7 @@ message LookupPolicyRequest {
   oneof lookup_key {
     // Name of the resource to which the policy applies.
     string protected_resource = 1 [
-      (google.api.resource_reference) = { type: "*" },
+      (google.api.resource_reference) = {type: "*"},
       (google.api.field_behavior) = OPTIONAL
     ];
   }
@@ -86,20 +114,20 @@ message AddPolicyBindingMembersRequest {
   // Resource name.
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = { type: "access.halo-cmm.org/Policy" }
+    (google.api.resource_reference) = {type: "access.halo-cmm.org/Policy"}
   ];
 
   // Resource name of the role.
   string role = 2 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = { type: "access.halo-cmm.org/Role" }
+    (google.api.resource_reference) = {type: "access.halo-cmm.org/Role"}
   ];
 
   // Resource names of the members to add.
   repeated string members = 3 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.field_behavior) = UNORDERED_LIST,
-    (google.api.resource_reference) = { type: "access.halo-cmm.org/Principal" }
+    (google.api.resource_reference) = {type: "access.halo-cmm.org/Principal"}
   ];
 
   // Current etag of the resource.
@@ -114,20 +142,20 @@ message RemovePolicyBindingMembersRequest {
   // Resource name.
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = { type: "access.halo-cmm.org/Policy" }
+    (google.api.resource_reference) = {type: "access.halo-cmm.org/Policy"}
   ];
 
   // Resource name of the role.
   string role = 2 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = { type: "access.halo-cmm.org/Role" }
+    (google.api.resource_reference) = {type: "access.halo-cmm.org/Role"}
   ];
 
   // Resource names of the members to remove.
   repeated string members = 3 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.field_behavior) = UNORDERED_LIST,
-    (google.api.resource_reference) = { type: "access.halo-cmm.org/Principal" }
+    (google.api.resource_reference) = {type: "access.halo-cmm.org/Principal"}
   ];
 
   // Current etag of the resource.
