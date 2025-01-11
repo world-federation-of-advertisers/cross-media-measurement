@@ -1,12 +1,5 @@
 package org.wfanet.measurement.access.service.v1alpha
 
-import org.wfanet.measurement.internal.access.PoliciesGrpcKt as InternalPoliciesGrpcKt
-import org.wfanet.measurement.internal.access.PolicyKt as InternalPolicyKt
-import org.wfanet.measurement.internal.access.addPolicyBindingMembersRequest as internalAddPolicyBindingMembersRequest
-import org.wfanet.measurement.internal.access.getPolicyRequest as internalGetPolicyRequest
-import org.wfanet.measurement.internal.access.lookupPolicyRequest as internalLookupPolicyRequest
-import org.wfanet.measurement.internal.access.policy as internalPolicy
-import org.wfanet.measurement.internal.access.removePolicyBindingMembersRequest as internalRemovePolicyBindingMembersRequest
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.rpc.errorInfo
@@ -46,8 +39,15 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.internal.access.PoliciesGrpcKt as InternalPoliciesGrpcKt
 import org.wfanet.measurement.internal.access.PoliciesGrpcKt
+import org.wfanet.measurement.internal.access.PolicyKt as InternalPolicyKt
 import org.wfanet.measurement.internal.access.Principal
+import org.wfanet.measurement.internal.access.addPolicyBindingMembersRequest as internalAddPolicyBindingMembersRequest
+import org.wfanet.measurement.internal.access.getPolicyRequest as internalGetPolicyRequest
+import org.wfanet.measurement.internal.access.lookupPolicyRequest as internalLookupPolicyRequest
+import org.wfanet.measurement.internal.access.policy as internalPolicy
+import org.wfanet.measurement.internal.access.removePolicyBindingMembersRequest as internalRemovePolicyBindingMembersRequest
 
 @RunWith(JUnit4::class)
 class PoliciesServiceTest {
