@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+data "google_project" "project" {}
+
 module "mig_service_account" {
   source                        = "../workload-identity-user"
   k8s_service_account_name      = "mig-service-account"
@@ -25,9 +27,15 @@ resource "google_project_iam_member" "mig_pubsub_user" {
   member  = module.mig_service_account.iam_service_account.member
 }
 
-resource "google_project_iam_member" "mig_storage_user" {
+resource "google_project_iam_member" "mig_storage_viewer" {
   project = data.google_project.project.name
   role    = "roles/storage.objectViewer"
+  member  = module.mig_service_account.iam_service_account.member
+}
+
+resource "google_project_iam_member" "mig_storage_creator" {
+  project = data.google_project.project.name
+  role    = "roles/storage.objectCreator"
   member  = module.mig_service_account.iam_service_account.member
 }
 
