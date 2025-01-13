@@ -18,7 +18,6 @@ proto_library(
     srcs = ["basic_report.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":media_type_proto",
         ":page_proto",
         ":reporting_impression_qualification_filter_proto",
         ":reporting_interval_proto",
@@ -298,7 +297,6 @@ proto_library(
     srcs = ["reporting_unit.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":media_type_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
