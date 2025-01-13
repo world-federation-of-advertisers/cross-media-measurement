@@ -86,9 +86,10 @@ message PageMetricSpec {
   // filters that are associated with calculation spec is reported.
   bool population_size = 1 [(google.api.field_behavior) = IMMUTABLE];
 
-  // The set of basic metrics that can be computed for any aspect of the
-  // reporting_unit (e.g. the whole thing, a single component, intersections,
-  // etc.)
+  // Specifies the set of basic metrics that can be computed for any aspect of
+  // the reporting_unit (e.g. the whole thing, a single component, intersections,
+  // etc.). Each element specifies that a particular metric should be included
+  // in the report output.
   message BasicMetricSetSpec {
     // The reach
     bool reach = 1 [(google.api.field_behavior) = IMMUTABLE];

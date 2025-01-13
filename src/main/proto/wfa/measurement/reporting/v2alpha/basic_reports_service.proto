@@ -19,6 +19,7 @@ package wfa.measurement.reporting.v2alpha;
 import "google/api/annotations.proto";
 import "google/api/client.proto";
 import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
 import "google/api/resource.proto";
 import "google/longrunning/operations.proto";
 import "google/protobuf/timestamp.proto";
@@ -37,7 +38,7 @@ service BasicReports {
       post: "/v2alpha/{parent=measurementConsumers/*}/basicReports"
       body: "basicReport"
     };
-    option (google.api.method_signature) = "parent,basicReport";
+    option (google.api.method_signature) = "parent,basic_report,basic_report_id";
   }
 
   // Returns the `BasicReport` with the given resource key.
@@ -141,10 +142,12 @@ message CreateBasicReportRequest {
   string basic_report_id = 2 [(google.api.field_behavior) = REQUIRED];
 
   // The BasicReport to create.
-  BasicReport basic_report = 3;
+  BasicReport basic_report = 3 [(google.api.field_behavior) = REQUIRED];
 
   // A unique identifier for this request. Restricted to 36 ASCII characters.
   // A random UUID is recommended.
   // This request is only idempotent if a `request_id` is provided.
-  string request_id = 4;
+  string request_id = 4 [
+      (google.api.field_info).format = UUID4,
+      (google.api.field_behavior) = OPTIONAL];
 }
