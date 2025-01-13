@@ -43,7 +43,9 @@ message EventFilter {
       oneof selector {
         // The field value as a string
         string string_value = 1 [(google.api.field_behavior) = IMMUTABLE];
-        // The field value as a stringified enum value
+        // The field value as a stringified enum value. This is the symbol
+        // associated with the enum value, not a stringification of its integer
+        // value. For example, for MediaType.VIDEO we expect "VIDEO" not "1"
         string enum_value = 2 [(google.api.field_behavior) = IMMUTABLE];
         // The field value as a Boolean
         bool bool_value = 3 [(google.api.field_behavior) = IMMUTABLE];
