@@ -88,6 +88,7 @@ message Page {
   // The metric metadata
   message MetricMetadata {
     // A summary of a component of the reporting_unit being reported on
+    // TODO(@kungfucraig): Phase II - Add support for Event Group summaries.
     message ReportingUnitComponentSummary {
       // The resource name of a component of the reporting_unit
       //
@@ -101,7 +102,6 @@ message Page {
 
       // Display name of the component
       string display_name = 2 [(google.api.field_behavior) = IMMUTABLE];
-      // TODO(@kungfucraig): Phase II - Add support for Event Group summaries.
     }
 
     // A summary of each component of the reporting_unit reported on

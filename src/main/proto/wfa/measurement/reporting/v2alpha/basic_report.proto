@@ -19,7 +19,6 @@ package wfa.measurement.reporting.v2alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/reporting/v2alpha/media_type.proto";
 import "wfa/measurement/reporting/v2alpha/page.proto";
 import "wfa/measurement/reporting/v2alpha/reporting_impression_qualification_filter.proto";
 import "wfa/measurement/reporting/v2alpha/reporting_interval.proto";
