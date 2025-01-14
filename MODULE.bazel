@@ -37,7 +37,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.99.1",
+    version = "0.99.2",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -217,7 +217,6 @@ maven.install(
         "com.google.crypto.tink:tink-awskms:1.9.1",
         "com.google.crypto.tink:tink-gcpkms:1.9.0",
         "com.squareup.okhttp3:okhttp:4.12.0",
-        "info.picocli:picocli:4.7.6",
         "io.opentelemetry.semconv:opentelemetry-semconv:1.22.0-alpha",
         "io.kubernetes:client-java:" + K8S_CLIENT_VERSION,
         "io.kubernetes:client-java-extended:" + K8S_CLIENT_VERSION,
