@@ -1,0 +1,57 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.v2;
+
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
+option java_multiple_files = true;
+
+// Event filter criteria
+message EventFilter {
+  // A term in the Filter expression
+  message Term {
+    // A field path indicating a dimension to filter on.
+    //
+    // Each field path is with respect to the local market Event message
+    // with `.` as the traversal operator.
+    //
+    // For example, if the Event message had an event template `common` with
+    // a field `age_group` then the field path would be `common.age_group`.
+    string event_template_field = 1;
+
+    // The value of the event template field to filter
+    message FieldValue {
+      // Value type selector.
+      oneof selector {
+        // The field value as a string
+        string string_value = 1;
+        // The field value as the name of the enum value. This is the symbol
+        // associated with the enum value. For example, for MediaType.VIDEO we
+        // expect "VIDEO".
+        string enum_value = 2;
+        // The field value as a Boolean
+        bool bool_value = 3;
+      }
+    }
+    // The value of the event_template_field to filter
+    FieldValue value = 2;
+  }
+
+  // A disjunction of terms that define the filter criteria.
+  //
+  // A current limitation is that the number of terms must be exactly one.
+  repeated Term terms = 1;
+}

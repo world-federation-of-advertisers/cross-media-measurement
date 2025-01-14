@@ -1,4 +1,5 @@
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_descriptor_set")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_grpc_proto_library")
 load("//src/main/proto/wfa/measurement/internal/common:macros.bzl", "IMPORT_PREFIX", "proto_and_kt_jvm_proto_library")
 
@@ -205,4 +206,86 @@ proto_library(
 kt_jvm_grpc_proto_library(
     name = "report_schedule_iterations_service_kt_jvm_grpc_proto",
     deps = [":report_schedule_iterations_service_proto"],
+)
+
+proto_and_kt_jvm_proto_library(
+    name = "event_filter",
+)
+
+proto_and_kt_jvm_proto_library(
+    name = "impression_qualification_filter_spec",
+    deps = [":event_filter_proto"],
+)
+
+proto_and_kt_jvm_proto_library(
+    name = "reporting_impression_qualification_filter",
+    deps = [":impression_qualification_filter_spec_proto"],
+)
+
+proto_and_kt_jvm_proto_library(
+    name = "reporting_interval",
+    deps = [
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_googleapis//google/type:datetime_proto",
+    ],
+)
+
+proto_and_kt_jvm_proto_library(
+    name = "metric_frequency_spec",
+    deps = ["@com_google_googleapis//google/type:dayofweek_proto"],
+)
+
+proto_and_kt_jvm_proto_library(
+    name = "page",
+    deps = [
+        ":event_filter_proto",
+        ":metric_frequency_spec_proto",
+        ":reporting_impression_qualification_filter_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+    ],
+)
+
+proto_and_kt_jvm_proto_library(
+    name = "basic_report_details",
+    deps = [
+        ":page_proto",
+        ":reporting_impression_qualification_filter_proto",
+        ":reporting_interval_proto",
+    ],
+)
+
+proto_and_kt_jvm_proto_library(
+    name = "basic_report",
+    deps = [
+        ":basic_report_details_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "basic_reports_service_proto",
+    srcs = ["basic_reports_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":basic_report_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "basic_reports_service_kt_jvm_grpc_proto",
+    deps = [":basic_reports_service_proto"],
+)
+
+proto_descriptor_set(
+    name = "details_descriptor_set",
+    deps = [
+        ":basic_report_details_proto",
+        ":event_filter_proto",
+        ":impression_qualification_filter_spec_proto",
+        ":metric_frequency_spec_proto",
+        ":page_proto",
+        ":reporting_impression_qualification_filter_proto",
+        ":reporting_interval_proto",
+    ],
 )
