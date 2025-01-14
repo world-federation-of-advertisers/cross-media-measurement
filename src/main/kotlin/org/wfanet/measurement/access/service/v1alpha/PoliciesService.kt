@@ -151,8 +151,7 @@ class PoliciesService(private val internalPoliciesStub: InternalPoliciesCoroutin
             PrincipalTypeNotSupportedException(Principal.IdentityCase.TLS_CLIENT, e)
               .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
           InternalErrors.Reason.POLICY_ALREADY_EXISTS ->
-            PolicyAlreadyExistsException(request.policy.name, e)
-              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+            PolicyAlreadyExistsException(e).asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
           InternalErrors.Reason.ROLE_NOT_FOUND ->
             RoleNotFoundException.fromInternal(e).asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.PRINCIPAL_NOT_FOUND ->

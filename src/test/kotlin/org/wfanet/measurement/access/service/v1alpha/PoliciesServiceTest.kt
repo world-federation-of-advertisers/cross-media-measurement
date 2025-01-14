@@ -445,7 +445,6 @@ class PoliciesServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.POLICY_ALREADY_EXISTS.name
-          metadata[Errors.Metadata.POLICY.key] = request.policy.name
         }
       )
   }

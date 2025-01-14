@@ -328,13 +328,8 @@ class PolicyNotFoundForProtectedResourceException(name: String, cause: Throwable
     cause,
   )
 
-class PolicyAlreadyExistsException(name: String, cause: Throwable? = null) :
-  ServiceException(
-    Errors.Reason.POLICY_ALREADY_EXISTS,
-    "Policy $name already exists",
-    mapOf(Errors.Metadata.POLICY to name),
-    cause,
-  )
+class PolicyAlreadyExistsException(cause: Throwable? = null) :
+  ServiceException(Errors.Reason.POLICY_ALREADY_EXISTS, "Policy already exists", emptyMap(), cause)
 
 class PolicyBindingMembershipAlreadyExistsException(
   policyName: String,
