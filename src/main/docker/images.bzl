@@ -104,7 +104,7 @@ COMMON_IMAGES = [
     struct(
         name = "population_requisition_fulfiller_image",
         image = "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:population_requisition_fulfiller_daemon_image",
-        repository = _PREFIX + "/measurement/population-requisition-fulfiller",
+        repository = _PREFIX + "/data-provider/population-requisition-fulfiller",
     ),
     struct(
         name = "access_public_api_server_image",
