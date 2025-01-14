@@ -42,6 +42,7 @@ message BasicReport {
   // Human readable title of the report.
   string title = 2 [(google.api.field_behavior) = IMMUTABLE];
 
+  // A campaign group is the subject of the report.
   message CampaignGroup {
     // This is the resource name of a primitive ReportingSet that includes all
     // of the EventGroups that may be reported on.
@@ -54,6 +55,8 @@ message BasicReport {
       (google.api.field_behavior) = IMMUTABLE
     ];
 
+    // Human readable name for the campaign group. This is the ReportingSet's
+    // display_name.
     string display_name = 2 [
       (google.api.field_behavior) = IMMUTABLE,
       (google.api.field_behavior) = OUTPUT_ONLY
@@ -82,8 +85,8 @@ message BasicReport {
 
   // The report results
   repeated Page pages = 6 [
-    (google.api.field_behavior) = OUTPUT_ONLY,
-    (google.api.field_behavior) = IMMUTABLE
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.field_behavior) = OUTPUT_ONLY
   ];
 
   // The time when the BasicReport was created.
