@@ -87,9 +87,9 @@ message PageMetricSpec {
   bool population_size = 1 [(google.api.field_behavior) = IMMUTABLE];
 
   // Specifies the set of basic metrics that can be computed for any aspect of
-  // the reporting_unit (e.g. the whole thing, a single component, intersections,
-  // etc.). Each element specifies that a particular metric should be included
-  // in the report output.
+  // the reporting_unit (e.g. the whole thing, a single component,
+  // intersections, etc.). Each element specifies that a particular metric
+  // should be included in the report output.
   message BasicMetricSetSpec {
     // The reach
     bool reach = 1 [(google.api.field_behavior) = IMMUTABLE];
@@ -145,11 +145,12 @@ message PageMetricSpec {
     // and EDP3 and the second element is the incremental reach of EDP1
     // with respect to them. Note that it would also be okay to specify
     // the components as [EDP3, EDP2, EDP1].
-    bool stacked_incremental_reach = 2;
+    bool stacked_incremental_reach = 2
+        [(google.api.field_behavior) = IMMUTABLE];
   }
   // The set of metrics to compute for the entire reporting_unit
-  ReportingUnitMetricSetSpec reporting_unit = 2;
-
+  ReportingUnitMetricSetSpec reporting_unit = 2
+      [(google.api.field_behavior) = IMMUTABLE];
   // Metrics for each component of the reporting_unit
   message ComponentMetricSetSpec {
     // Basic metrics for each item in reporting_unit.components
@@ -250,6 +251,7 @@ message Page {
       // TODO(@kungfucraig): Add EventGroup metadata once it has been
       // formally encoded in the EventGroup.
       message EventGroupSummary {
+        // The resource name of an EventGroup
         string event_group = 1 [
           (google.api.field_behavior) = REQUIRED,
           (google.api.field_behavior) = IMMUTABLE,
@@ -257,7 +259,10 @@ message Page {
             type: "halo.wfanet.org/EventGroup"
           }
         ];
-     }
+      }
+      // A summary of each EventGroup entailed by the component.
+      repeated EventGroupSummary event_group_summaries = 3
+          [(google.api.field_behavior) = IMMUTABLE];
     }
 
     // A summary of each component of the reporting_unit reported on
@@ -320,10 +325,12 @@ message Page {
       //  1. reach(rs1)
       //  2. reach(rs1+rs2) - reach(rs1)
       //  3. reach(rs1+rs2+rs3) - reach(rs1+rs2)
-      repeated int32 stacked_incremental_reach = 2;
+      repeated int32 stacked_incremental_reach = 2
+          [(google.api.field_behavior) = IMMUTABLE];
     }
     // Metrics for the whole reporting_unit
-    ReportingUnitMetricSet reporting_unit = 2;
+    ReportingUnitMetricSet reporting_unit = 2
+        [(google.api.field_behavior) = IMMUTABLE];
 
     // Metrics for a single component of the reporting_unit.
     message ComponentMetricSet {
@@ -379,5 +386,5 @@ message Page {
   }
   // The set of results for the Page, one per impression qualification filter
   // that was applicable to the page.
-  repeated Result results = 2;
+  repeated Result results = 2 [(google.api.field_behavior) = IMMUTABLE];
 }
