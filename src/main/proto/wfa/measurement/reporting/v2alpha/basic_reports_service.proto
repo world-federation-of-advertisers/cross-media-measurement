@@ -36,9 +36,14 @@ service BasicReports {
       returns (google.longrunning.Operation) {
     option (google.api.http) = {
       post: "/v2alpha/{parent=measurementConsumers/*}/basicReports"
-      body: "basicReport"
+      body: "basic_report"
     };
-    option (google.api.method_signature) = "parent,basic_report,basic_report_id";
+    option (google.longrunning.operation_info) = {
+      response_type: "BasicReport"
+      metadata_type: "CreateBasicReportOperationMetadata"
+    };
+    option (google.api.method_signature) =
+        "parent,basic_report,basic_report_id";
   }
 
   // Returns the `BasicReport` with the given resource key.
@@ -148,6 +153,11 @@ message CreateBasicReportRequest {
   // A random UUID is recommended.
   // This request is only idempotent if a `request_id` is provided.
   string request_id = 4 [
-      (google.api.field_info).format = UUID4,
-      (google.api.field_behavior) = OPTIONAL];
+    (google.api.field_info).format = UUID4,
+    (google.api.field_behavior) = OPTIONAL
+  ];
 }
+
+// Operation metadata message for `CreateBasicReport`
+// TODO(@kungfucraig): Additional details to be provided as the design matures.
+message CreateBasicReportOperationMetadata {}
