@@ -60,7 +60,6 @@ message Page {
   // The metric metadata
   message MetricMetadata {
     // A summary of a component of the reporting_unit being reported on
-    // TODO(@kungfucraig): Phase II - Add support for Event Group summaries.
     message ReportingUnitComponentSummary {
       // The resource name of a component of the reporting_unit
       //
