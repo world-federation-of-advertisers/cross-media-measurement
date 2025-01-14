@@ -368,7 +368,7 @@ message Metric {
   // The Report that this Metric was first created for
   //
   // In the case this Metric is reused this field will
-  // referene the Report that originally created it.
+  // reference the Report that originally created it.
   string containing_report = 9 [
     (google.api.resource_reference) = { type: "reporting.halo-cmm.org/Report" },
     (google.api.field_behavior) = OPTIONAL,
