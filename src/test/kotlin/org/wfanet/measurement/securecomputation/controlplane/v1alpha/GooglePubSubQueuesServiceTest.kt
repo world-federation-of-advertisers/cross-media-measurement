@@ -19,7 +19,6 @@ package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 import com.google.common.truth.Truth.assertThat
 import org.junit.Assert.assertThrows
 import com.google.protobuf.Any
-import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.util.*
 import kotlinx.coroutines.runBlocking
@@ -29,7 +28,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import kotlinx.coroutines.CompletableDeferred
-import org.junit.After
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.junit.Rule
 import org.threeten.bp.Duration
@@ -37,7 +35,7 @@ import org.wfa.measurement.queue.testing.TestWork
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 
 @RunWith(JUnit4::class)
-class GooglePubSubWorkItemsServiceTest {
+class GooglePubSubQueuesServiceTest {
 
   @Rule
   @JvmField val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
@@ -46,7 +44,7 @@ class GooglePubSubWorkItemsServiceTest {
   private val topicId = "test-topid-id"
   private val workItemId = "test-work-item-1"
   private val subscriptionId = "test-subscription-id"
-  private lateinit var workItemsService: GooglePubSubWorkItemsService
+  private lateinit var queuesService: GooglePubSubQueuesService
   private lateinit var googlePubSubClient: GooglePubSubEmulatorClient
 
   @Before
@@ -55,7 +53,7 @@ class GooglePubSubWorkItemsServiceTest {
       host = pubSubEmulatorProvider.host,
       port = pubSubEmulatorProvider.port,
     )
-    workItemsService = GooglePubSubWorkItemsService(projectId, googlePubSubClient)
+    queuesService = GooglePubSubQueuesService(projectId, googlePubSubClient)
   }
 
   @Test
@@ -67,7 +65,7 @@ class GooglePubSubWorkItemsServiceTest {
     val workItemParams = createWorkItemParams()
     val request = createTestRequest(workItemId, workItemParams, topicId)
 
-    val response = workItemsService.createWorkItem(request)
+    val response = queuesService.enqueueWorkItem(request)
     assertThat(response.name).isEqualTo("workItems/$workItemId")
     assertThat(response.workItemParams).isEqualTo(workItemParams)
 
@@ -105,7 +103,7 @@ class GooglePubSubWorkItemsServiceTest {
 
     val exception =
       assertThrows(StatusRuntimeException::class.java) {
-        runBlocking { workItemsService.createWorkItem(request) }
+        runBlocking { queuesService.enqueueWorkItem(request) }
       }
     assertThat(exception.message).contains("Topic test-topid-id does not exist")
 
@@ -144,7 +142,7 @@ class GooglePubSubWorkItemsServiceTest {
 
       repeat(numMessages) { index ->
         val request = createTestRequest("test-work-item-multiple-$index", createWorkItemParams(), topicId)
-        val response = workItemsService.createWorkItem(request)
+        val response = queuesService.enqueueWorkItem(request)
         assertThat(response.name).isEqualTo("workItems/test-work-item-multiple-$index")
       }
 
@@ -211,7 +209,7 @@ class GooglePubSubWorkItemsServiceTest {
       listOf(firstTopic, secondTopic).forEach { topic ->
         repeat(messagesPerTopic) { index ->
           val request = createTestRequest("test-work-item-multiple-$index", createWorkItemParams(), topic)
-          val response = workItemsService.createWorkItem(request)
+          val response = queuesService.enqueueWorkItem(request)
           assertThat(response.name).isEqualTo("workItems/test-work-item-multiple-$index")
         }
       }
@@ -239,14 +237,13 @@ class GooglePubSubWorkItemsServiceTest {
   private fun createWorkItemParams(): Any {
     return Any.pack(TestWork.newBuilder().setUserName("test-user-name").setUserAge("25").setUserCountry("US").build())
   }
-  private fun createTestRequest(workItemId: String, workItemParams: Any, topicId: String): CreateWorkItemRequest {
+  private fun createTestRequest(workItemId: String, workItemParams: Any, topicId: String): EnqueueWorkItemRequest {
     val workItem = WorkItem.newBuilder()
       .setName("workItems/$workItemId")
-      .setQueue(topicId)
       .setWorkItemParams(workItemParams)
       .build()
-    return CreateWorkItemRequest.newBuilder()
-      .setWorkItemId(workItemId)
+    return EnqueueWorkItemRequest.newBuilder()
+      .setQueue(topicId)
       .setWorkItem(workItem)
       .build()
   }

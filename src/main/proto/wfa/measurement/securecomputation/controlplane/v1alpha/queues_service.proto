@@ -18,32 +18,34 @@ package wfa.measurement.securecomputation.controlplane.v1alpha;
 
 import "google/api/client.proto";
 import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
 import "wfa/measurement/securecomputation/controlplane/v1alpha/work_item.proto";
 
 option java_package = "org.wfanet.measurement.securecomputation.controlplane.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "WorkItemsServiceProto";
 
-// Service for interacting with `WorkItems` resources.
-service WorkItems {
-  // Creates a `WorkItem`.
+// Service for interacting with `Queue`.
+service Queues {
+  // Enqueue a `WorkItem`.
   //
   // Enqueues the `WorkItem` into the appropriate queue.
-  // Results in PERMISSION_DENIED if the queue specified in the `WorkItem`
-  // is not listed in the configuration file.
-  rpc CreateWorkItem(CreateWorkItemRequest) returns (WorkItem) {
+  // Results in NOT_FOUND if the queue specified in the `WorkItem`
+  // doesn't exist.
+  rpc EnqueueWorkItem(EnqueueWorkItemRequest) returns (WorkItem) {
     option (google.api.method_signature) = "work_item,work_item_id";
   }
 }
 
-// Request message for `CreateWorkItem` method.
-message CreateWorkItemRequest {
-  // The ID to use for the `WorkItem`, which will become the final
-  // component of the `WorkItem`s resource name.
-  //
-  // This must conform to RFC 1034, with the additional restriction that all
-  // letters must be lower-case.
-  string work_item_id = 1 [(google.api.field_behavior) = REQUIRED];
+// Request message for `EnqueueWorkItem` method.
+message EnqueueWorkItemRequest {
+  // The queue to which the WorkItem is enqueued.
+  string queue = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "control-plane.secure-computation.halo-cmm.org/Queue"
+    }
+  ];
 
   // The `WorkItem` to create.
   WorkItem work_item = 2 [(google.api.field_behavior) = REQUIRED];

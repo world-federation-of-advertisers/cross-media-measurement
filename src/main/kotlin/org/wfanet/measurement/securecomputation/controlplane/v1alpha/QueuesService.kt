@@ -17,20 +17,19 @@
 package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
 import com.google.protobuf.Message
-import io.grpc.Status
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.QueuesGrpcKt.QueuesCoroutineImplBase
 
 
-abstract class WorkItemsService: WorkItemsCoroutineImplBase() {
+abstract class QueuesService: QueuesCoroutineImplBase() {
 
   abstract suspend fun publishMessage(queueName: String, message: Message)
 
-  override suspend fun createWorkItem(
-    request: CreateWorkItemRequest
+  override suspend fun enqueueWorkItem(
+    request: EnqueueWorkItemRequest
   ): WorkItem {
 
     val workItem = request.workItem
-    val topicId = workItem.queue
+    val topicId = request.queue
 
     publishMessage(topicId, workItem.workItemParams)
 

@@ -3,11 +3,11 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 package(default_visibility = ["//visibility:public"])
 
 kt_jvm_library(
-    name = "work_items_service",
-    srcs = ["WorkItemsService.kt"],
+    name = "queues_service",
+    srcs = ["QueuesService.kt"],
     deps = [
-        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:queue_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:queues_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
@@ -16,10 +16,10 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "google_pub_sub_work_items_service",
-    srcs = ["GooglePubSubWorkItemsService.kt"],
+    name = "google_pub_sub_queues_service",
+    srcs = ["GooglePubSubQueuesService.kt"],
     deps = [
-        ":work_items_service",
+        ":queues_service",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:publisher",
     ],
 )

@@ -23,10 +23,10 @@ import com.google.protobuf.Message
 import io.grpc.Status
 import kotlinx.coroutines.runBlocking
 
-class GooglePubSubWorkItemsService(
+class GooglePubSubQueuesService(
   projectId: String,
   googlePubSubClient: GooglePubSubClient
-):  WorkItemsService() {
+):  QueuesService() {
 
   private val publisher: Publisher<Message> = Publisher(projectId, googlePubSubClient)
 
