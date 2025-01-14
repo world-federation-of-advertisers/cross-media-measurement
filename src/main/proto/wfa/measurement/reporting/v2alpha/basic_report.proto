@@ -42,16 +42,25 @@ message BasicReport {
   // Human readable title of the report.
   string title = 2 [(google.api.field_behavior) = IMMUTABLE];
 
-  // This is the resource name of a primitive ReportingSet that includes all of
-  // the EventGroups that may be reported on.
-  //
-  // EventGroups may span DataProviders and MediaTypes.
-  string campaign_group = 3 [
-    (google.api.resource_reference) = {
-      type: "reporting.halo-cmm.org/ReportingSet"
-    },
-    (google.api.field_behavior) = IMMUTABLE
-  ];
+  message CampaignGroup {
+    // This is the resource name of a primitive ReportingSet that includes all
+    // of the EventGroups that may be reported on.
+    //
+    // EventGroups may span DataProviders and MediaTypes.
+    string reporting_set = 1 [
+      (google.api.resource_reference) = {
+        type: "reporting.halo-cmm.org/ReportingSet"
+      },
+      (google.api.field_behavior) = IMMUTABLE
+    ];
+
+    string display_name = 2 [
+      (google.api.field_behavior) = IMMUTABLE,
+      (google.api.field_behavior) = OUTPUT_ONLY
+    ];
+  }
+  // The campaign group to report on
+  CampaignGroup campaign_group = 3 [(google.api.field_behavior) = IMMUTABLE];
 
   // The interval of time that the BasicReport spans
   //
@@ -73,8 +82,8 @@ message BasicReport {
 
   // The report results
   repeated Page pages = 6 [
-    (google.api.field_behavior) = IMMUTABLE,
-    (google.api.field_behavior) = OUTPUT_ONLY
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.field_behavior) = IMMUTABLE
   ];
 
   // The time when the BasicReport was created.

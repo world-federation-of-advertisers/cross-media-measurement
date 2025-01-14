@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.reporting.v2alpha;
 
 import "google/api/field_behavior.proto";
+import "wfa/measurement/reporting/v2alpha/event_template_field.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
@@ -24,43 +25,10 @@ option java_outer_classname = "EventFilterProto";
 
 // Event filter criteria
 message EventFilter {
-  // A term in the Filter expression
-  message Term {
-    // A field path indicating a dimension to filter on.
-    //
-    // Each field path is with respect to the local market Event message
-    // with `.` as the traversal operator.
-    //
-    // For example, if the Event message had an event template `common` with
-    // a field `age_group` then the field path would be `common.age_group`.
-    string event_template_field = 1 [
-      (google.api.field_behavior) = REQUIRED,
-      (google.api.field_behavior) = IMMUTABLE
-    ];
-    // The value of the event template field to filter
-    message FieldValue {
-      // Value type selector. Required.
-      oneof selector {
-        // The field value as a string
-        string string_value = 1 [(google.api.field_behavior) = IMMUTABLE];
-        // The field value as a stringified enum value. This is the symbol
-        // associated with the enum value, not a stringification of its integer
-        // value. For example, for MediaType.VIDEO we expect "VIDEO" not "1"
-        string enum_value = 2 [(google.api.field_behavior) = IMMUTABLE];
-        // The field value as a Boolean
-        bool bool_value = 3 [(google.api.field_behavior) = IMMUTABLE];
-      }
-    }
-    // The value of the event_template_field to filter
-    FieldValue value = 2 [
-      (google.api.field_behavior) = REQUIRED,
-      (google.api.field_behavior) = IMMUTABLE
-    ];
-  }
   // A disjunction of terms that define the filter criteria.
   //
   // A current limitation is that the number of terms must be exactly one.
-  repeated Term terms = 1 [
+  repeated EventTemplateField terms = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
