@@ -17,7 +17,6 @@ syntax = "proto3";
 package wfa.measurement.reporting.v2alpha;
 
 import "google/api/field_behavior.proto";
-import "google/protobuf/duration.proto";
 import "wfa/measurement/reporting/v2alpha/event_filter.proto";
 import "wfa/measurement/reporting/v2alpha/media_type.proto";
 

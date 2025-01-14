@@ -20,6 +20,7 @@ import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/reporting/v2alpha/event_filter.proto";
+import "wfa/measurement/reporting/v2alpha/event_template_field.proto";
 import "wfa/measurement/reporting/v2alpha/metric_frequency_spec.proto";
 import "wfa/measurement/reporting/v2alpha/reporting_impression_qualification_filter.proto";
 import "wfa/measurement/reporting/v2alpha/reporting_unit.proto";
@@ -88,7 +89,6 @@ message Page {
   // The metric metadata
   message MetricMetadata {
     // A summary of a component of the reporting_unit being reported on
-    // TODO(@kungfucraig): Phase II - Add support for Event Group summaries.
     message ReportingUnitComponentSummary {
       // The resource name of a component of the reporting_unit
       //
@@ -102,6 +102,23 @@ message Page {
 
       // Display name of the component
       string display_name = 2 [(google.api.field_behavior) = IMMUTABLE];
+
+      // Summary of an EventGroup entailed by the component
+      // TODO(@kungfucraig): Add EventGroup metadata once it has been
+      // formally encoded in the EventGroup.
+      message EventGroupSummary {
+        // The resource name of an EventGroup
+        string event_group = 1 [
+          (google.api.field_behavior) = REQUIRED,
+          (google.api.field_behavior) = IMMUTABLE,
+          (google.api.resource_reference) = {
+            type: "halo.wfanet.org/EventGroup"
+          }
+        ];
+      }
+      // A summary of each EventGroup entailed by the component.
+      repeated EventGroupSummary event_group_summaries = 3
+          [(google.api.field_behavior) = IMMUTABLE];
     }
 
     // A summary of each component of the reporting_unit reported on
@@ -121,8 +138,16 @@ message Page {
     // The windowing spec that was applied
     WindowingSpec windowing_spec = 3 [(google.api.field_behavior) = IMMUTABLE];
 
-    // The dimension spec that was applied
-    DimensionSpec dimension_spec = 4 [(google.api.field_behavior) = IMMUTABLE];
+    // A summary of the aspects of the DimensionSpec that were applied
+    message DimensionSpecSummary {
+      // The grouping dimensions and values for the reported metrics
+      EventTemplateField grouping = 1 [(google.api.field_behavior) = IMMUTABLE];
+      // The filters applied to the reported metrics
+      repeated EventFilter filters = 2
+          [(google.api.field_behavior) = IMMUTABLE];
+    }
+    DimensionSpecSummary dimension_spec_summary = 4
+        [(google.api.field_behavior) = IMMUTABLE];
 
     // The impression qualification filter that was applied
     ReportingImpressionQualificationFilter filter = 5
