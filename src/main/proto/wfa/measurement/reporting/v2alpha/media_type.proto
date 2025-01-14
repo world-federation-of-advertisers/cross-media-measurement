@@ -25,9 +25,9 @@ option java_outer_classname = "MediaTypeProto";
 enum MediaType {
   // Default value. Unused.
   MEDIA_TYPE_UNSPECIFIED = 0;
-  // Interpret a set of arifacts as Video
+  // Interpret a set of artifacts as Video
   VIDEO = 1;
-  // Interpret a set of arifacts as Display
+  // Interpret a set of artifacts as Display
   DISPLAY = 2;
   // Interpret as set of artifacts as Other
   OTHER = 3;
