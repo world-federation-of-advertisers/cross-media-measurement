@@ -45,7 +45,7 @@ objectSets: [ for fulfiller in populationRequisitionFulfillers {[fulfiller.deplo
 populationRequisitionFulfillers: {
     for config in _populationRequisitionFulfillerConfigs {
         "\(config.dataProviderDisplayName)": #PopulationRequisitionFulfiller & {
-            _imageConfig: repoSuffix: "measurement/population-requisition-fulfiller"
+            _imageConfig: repoSuffix: "data-provider/population-requisition-fulfiller"
             _populationRequisitionFulfillerSecretName: _secret_name
             _config: config
         }
