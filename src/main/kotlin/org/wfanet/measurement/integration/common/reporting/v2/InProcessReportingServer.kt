@@ -275,6 +275,7 @@ class InProcessReportingServer(
                     }
                 }
             }
+          singleDataProviderParams = multipleDataProviderParams
         }
 
       reachAndFrequencyParams =
@@ -300,6 +301,7 @@ class InProcessReportingServer(
                     }
                 }
             }
+          singleDataProviderParams = multipleDataProviderParams
           maximumFrequency = 10
         }
 
@@ -344,6 +346,8 @@ class InProcessReportingServer(
             }
           maximumWatchDurationPerUser = Durations.fromSeconds(4000)
         }
+
+      populationCountParams = MetricSpecConfig.PopulationCountParams.getDefaultInstance()
     }
   }
 }

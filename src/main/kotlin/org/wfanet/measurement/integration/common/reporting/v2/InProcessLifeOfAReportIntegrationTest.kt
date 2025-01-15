@@ -26,9 +26,7 @@ import com.google.type.interval
 import com.google.type.timeZone
 import java.io.File
 import java.nio.file.Paths
-import java.security.SecureRandom
 import java.time.LocalDate
-import kotlin.random.asKotlinRandom
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -80,7 +78,6 @@ import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer
-import org.wfanet.measurement.reporting.service.api.v2alpha.withDefaults
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.Metric
@@ -144,8 +141,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
   abstract val internalReportingServerServices: InternalReportingServer.Services
 
-  private val secureRandom = SecureRandom().asKotlinRandom()
-
   private val reportingServerRule =
     object : TestRule {
       lateinit var reportingServer: InProcessReportingServer
@@ -192,7 +187,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         return object : Statement() {
           override fun evaluate() {
             reportingServer = buildReportingServer()
-            reportingServer.apply(base, description)
+            reportingServer.apply(base, description).evaluate()
           }
         }
       }
@@ -328,12 +323,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             parent = measurementConsumerData.name
             metricCalculationSpec = metricCalculationSpec {
               displayName = "union reach"
-              metricSpecs +=
-                metricSpec {
-                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
-                  .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+              metricSpecs += metricSpec {
+                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
             }
             metricCalculationSpecId = "fed"
           }
@@ -372,7 +365,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val sampledVids =
       sampleVids(
         eventGroupSpecs,
-        createdMetricCalculationSpec.metricSpecsList.single().vidSamplingInterval,
+        createdMetricCalculationSpec.metricSpecsList
+          .single()
+          .reach
+          .multipleDataProviderParams
+          .vidSamplingInterval,
       )
     val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
 
@@ -452,12 +449,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             parent = measurementConsumerData.name
             metricCalculationSpec = metricCalculationSpec {
               displayName = "unique reach"
-              metricSpecs +=
-                metricSpec {
-                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
-                  .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+              metricSpecs += metricSpec {
+                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
             }
             metricCalculationSpecId = "fed"
           }
@@ -565,12 +560,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             parent = measurementConsumerData.name
             metricCalculationSpec = metricCalculationSpec {
               displayName = "intersection reach"
-              metricSpecs +=
-                metricSpec {
-                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
-                  .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+              metricSpecs += metricSpec {
+                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
             }
             metricCalculationSpecId = "fed"
           }
@@ -644,12 +637,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             parent = measurementConsumerData.name
             metricCalculationSpec = metricCalculationSpec {
               displayName = "union reach"
-              metricSpecs +=
-                metricSpec {
-                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
-                  .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+              metricSpecs += metricSpec {
+                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
             }
             metricCalculationSpecId = "fed"
           }
@@ -731,12 +722,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             parent = measurementConsumerData.name
             metricCalculationSpec = metricCalculationSpec {
               displayName = "union reach"
-              metricSpecs +=
-                metricSpec {
-                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
-                  .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+              metricSpecs += metricSpec {
+                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
             }
             metricCalculationSpecId = "fed"
           }
@@ -810,12 +799,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             parent = measurementConsumerData.name
             metricCalculationSpec = metricCalculationSpec {
               displayName = "union reach"
-              metricSpecs +=
-                metricSpec {
-                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
-                  .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+              metricSpecs += metricSpec {
+                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
               metricFrequencySpec =
                 MetricCalculationSpecKt.metricFrequencySpec {
                   daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
@@ -908,12 +895,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             parent = measurementConsumerData.name
             metricCalculationSpec = metricCalculationSpec {
               displayName = "union reach"
-              metricSpecs +=
-                metricSpec {
-                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
-                  .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+              metricSpecs += metricSpec {
+                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
               metricFrequencySpec =
                 MetricCalculationSpecKt.metricFrequencySpec {
                   weekly =
@@ -1021,12 +1006,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             parent = measurementConsumerData.name
             metricCalculationSpec = metricCalculationSpec {
               displayName = "union reach"
-              metricSpecs +=
-                metricSpec {
-                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
-                  .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+              metricSpecs += metricSpec {
+                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
               groupings +=
                 MetricCalculationSpecKt.grouping {
                   predicates += grouping1Predicate1
@@ -1111,14 +1094,12 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             parent = measurementConsumerData.name
             metricCalculationSpec = metricCalculationSpec {
               displayName = "load test"
-              metricSpecs +=
-                metricSpec {
-                    reach =
-                      MetricSpecKt.reachParams {
-                        privacyParams = MetricSpecKt.differentialPrivacyParams {}
-                      }
+              metricSpecs += metricSpec {
+                reach =
+                  MetricSpecKt.reachParams {
+                    privacyParams = MetricSpecKt.differentialPrivacyParams {}
                   }
-                  .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+              }
             }
             metricCalculationSpecId = "fed"
           }
@@ -1196,12 +1177,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
       timeInterval = EVENT_RANGE.toInterval()
-      metricSpec =
-        metricSpec {
-            reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-            vidSamplingInterval = VID_SAMPLING_INTERVAL
-          }
-          .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+      metricSpec = metricSpec {
+        reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+        vidSamplingInterval = VID_SAMPLING_INTERVAL
+      }
     }
 
     val createdMetric =
@@ -1245,23 +1224,21 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
       timeInterval = EVENT_RANGE.toInterval()
-      metricSpec =
-        metricSpec {
-            reach =
-              MetricSpecKt.reachParams {
-                multipleDataProviderParams =
-                  MetricSpecKt.samplingAndPrivacyParams {
-                    privacyParams = DP_PARAMS
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
-                singleDataProviderParams =
-                  MetricSpecKt.samplingAndPrivacyParams {
-                    privacyParams = SINGLE_DATA_PROVIDER_DP_PARAMS
-                    vidSamplingInterval = SINGLE_DATA_PROVIDER_VID_SAMPLING_INTERVAL
-                  }
+      metricSpec = metricSpec {
+        reach =
+          MetricSpecKt.reachParams {
+            multipleDataProviderParams =
+              MetricSpecKt.samplingAndPrivacyParams {
+                privacyParams = DP_PARAMS
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
+            singleDataProviderParams =
+              MetricSpecKt.samplingAndPrivacyParams {
+                privacyParams = SINGLE_DATA_PROVIDER_DP_PARAMS
+                vidSamplingInterval = SINGLE_DATA_PROVIDER_VID_SAMPLING_INTERVAL
               }
           }
-          .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+      }
     }
 
     val createdMetric =
@@ -1309,17 +1286,15 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
       timeInterval = EVENT_RANGE.toInterval()
-      metricSpec =
-        metricSpec {
-            reachAndFrequency =
-              MetricSpecKt.reachAndFrequencyParams {
-                reachPrivacyParams = DP_PARAMS
-                frequencyPrivacyParams = DP_PARAMS
-                maximumFrequency = 5
-              }
-            vidSamplingInterval = VID_SAMPLING_INTERVAL
+      metricSpec = metricSpec {
+        reachAndFrequency =
+          MetricSpecKt.reachAndFrequencyParams {
+            reachPrivacyParams = DP_PARAMS
+            frequencyPrivacyParams = DP_PARAMS
+            maximumFrequency = 5
           }
-          .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+        vidSamplingInterval = VID_SAMPLING_INTERVAL
+      }
     }
 
     val createdMetric =
@@ -1387,12 +1362,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
       timeInterval = EVENT_RANGE.toInterval()
-      metricSpec =
-        metricSpec {
-            impressionCount = MetricSpecKt.impressionCountParams { privacyParams = DP_PARAMS }
-            vidSamplingInterval = VID_SAMPLING_INTERVAL
-          }
-          .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+      metricSpec = metricSpec {
+        impressionCount = MetricSpecKt.impressionCountParams { privacyParams = DP_PARAMS }
+        vidSamplingInterval = VID_SAMPLING_INTERVAL
+      }
     }
 
     val createdMetric =
@@ -1413,7 +1386,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       eventGroupEntries.map { (eventGroup, filter) ->
         buildEventGroupSpec(eventGroup, filter, EVENT_RANGE.toInterval())
       }
-    val sampledVids = sampleVids(eventGroupSpecs, metric.metricSpec.vidSamplingInterval)
+    val sampledVids =
+      sampleVids(eventGroupSpecs, metric.metricSpec.impressionCount.params.vidSamplingInterval)
     val expectedResult =
       calculateExpectedImpressionMeasurementResult(
         sampledVids,
@@ -1446,12 +1420,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
       timeInterval = EVENT_RANGE.toInterval()
-      metricSpec =
-        metricSpec {
-            watchDuration = MetricSpecKt.watchDurationParams { privacyParams = DP_PARAMS }
-            vidSamplingInterval = VID_SAMPLING_INTERVAL
-          }
-          .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+      metricSpec = metricSpec {
+        watchDuration = MetricSpecKt.watchDurationParams { privacyParams = DP_PARAMS }
+        vidSamplingInterval = VID_SAMPLING_INTERVAL
+      }
     }
 
     val createdMetric =
@@ -1484,12 +1456,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
       timeInterval = EVENT_RANGE.toInterval()
-      metricSpec =
-        metricSpec {
-            reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-            vidSamplingInterval = VID_SAMPLING_INTERVAL
-          }
-          .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+      metricSpec = metricSpec {
+        reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+        vidSamplingInterval = VID_SAMPLING_INTERVAL
+      }
       filters += "person.gender == ${Person.Gender.MALE_VALUE}"
     }
 
@@ -1539,12 +1509,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         startTime = timestamp { seconds = 100 }
         endTime = timestamp { seconds = 200 }
       }
-      metricSpec =
-        metricSpec {
-            reach =
-              MetricSpecKt.reachParams { privacyParams = MetricSpecKt.differentialPrivacyParams {} }
-          }
-          .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+      metricSpec = metricSpec {
+        reach =
+          MetricSpecKt.reachParams { privacyParams = MetricSpecKt.differentialPrivacyParams {} }
+      }
     }
 
     val deferred: MutableList<Deferred<Metric>> = mutableListOf()

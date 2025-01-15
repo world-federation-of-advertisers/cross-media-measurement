@@ -19,6 +19,7 @@ package org.wfanet.measurement.integration.common
 import com.google.protobuf.ByteString
 import com.google.protobuf.TypeRegistry
 import java.security.cert.X509Certificate
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -153,6 +154,7 @@ class InProcessCmmsComponents(
   }
   private val publicAccountsClient by lazy {
     AccountsGrpcKt.AccountsCoroutineStub(kingdom.publicApiChannel)
+      .withDeadlineAfter(5L, TimeUnit.SECONDS)
   }
   private val publicApiKeysClient by lazy {
     ApiKeysGrpcKt.ApiKeysCoroutineStub(kingdom.publicApiChannel)
