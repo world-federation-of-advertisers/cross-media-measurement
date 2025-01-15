@@ -70,3 +70,21 @@ variable machine_type {
   type          = string
   nullable      = false
 }
+
+variable "topic_id" {
+  description = "The pubsub topic id to grant access to."
+  type        = string
+  nullable    = false
+}
+
+variable "storage_bucket_name" {
+  description = "The bucket to grant access to."
+  type        = string
+  nullable    = false
+}
+
+variable "kms_key_id" {
+  description = "The kms key id to grant access to."
+  type        = string
+  nullable    = false
+}

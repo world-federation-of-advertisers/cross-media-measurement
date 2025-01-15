@@ -14,35 +14,34 @@
 
 data "google_project" "project" {}
 
-module "mig_service_account" {
-  source                        = "../workload-identity-user"
-  k8s_service_account_name      = "mig-service-account"
-  iam_service_account_name      = var.mig_service_account_name
-  iam_service_account_description = "Service account for Managed Instance Group"
+resource "google_service_account" "mig_service_account" {
+  account_id   = var.mig_service_account_name
+  description  = "Service account for Managed Instance Group"
+  display_name = "MIG Service Account"
 }
 
-resource "google_project_iam_member" "mig_pubsub_user" {
-  project = data.google_project.project.name
-  role    = "roles/pubsub.subscriber"
-  member  = module.mig_service_account.iam_service_account.member
+resource "google_pubsub_topic_iam_member" "mig_pubsub_user" {
+  topic  = var.topic_id
+  role   = "roles/pubsub.subscriber"
+  member = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
-resource "google_project_iam_member" "mig_storage_viewer" {
-  project = data.google_project.project.name
-  role    = "roles/storage.objectViewer"
-  member  = module.mig_service_account.iam_service_account.member
+resource "google_storage_bucket_iam_member" "mig_storage_viewer" {
+  bucket = var.storage_bucket_name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
-resource "google_project_iam_member" "mig_storage_creator" {
-  project = data.google_project.project.name
-  role    = "roles/storage.objectCreator"
-  member  = module.mig_service_account.iam_service_account.member
+resource "google_storage_bucket_iam_member" "mig_storage_creator" {
+  bucket = var.storage_bucket_name
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
-resource "google_project_iam_member" "mig_kms_user" {
-  project = data.google_project.project.name
-  role    = "roles/cloudkms.cryptoKeyDecrypter"
-  member  = module.mig_service_account.iam_service_account.member
+resource "google_kms_crypto_key_iam_member" "mig_kms_user" {
+  crypto_key_id = var.kms_key_id
+  role          = "roles/cloudkms.cryptoKeyDecrypter"
+  member        = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
 resource "google_compute_instance_template" "confidential_vm_template" {
@@ -79,7 +78,7 @@ EOT
   }
 
   service_account {
-      email = module.mig_service_account.iam_service_account.name
+      email = google_service_account.mig_service_account.email
   }
 }
 
