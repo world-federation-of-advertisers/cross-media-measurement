@@ -22,3 +22,8 @@ filegroup(
     name = "real_population_spec_large",
     srcs = ["population_spec_large.textproto"],
 )
+
+filegroup(
+    name = "real_population_spec_small",
+    srcs = ["population_spec_small.textproto"],
+)
