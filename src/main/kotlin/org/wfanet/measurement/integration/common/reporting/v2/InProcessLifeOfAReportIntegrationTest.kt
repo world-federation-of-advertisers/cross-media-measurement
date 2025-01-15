@@ -894,7 +894,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           reportEnd = date {
             year = 2024
             month = 1
-            day = 18
+            day = 17
           }
         }
     }
@@ -925,7 +925,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             seconds = 1704268800 // January 3, 2024 at 12:00 AM, America/Los_Angeles
           }
           endTime = timestamp {
-            seconds - 1704873600 // January 10, 2024 at 12:00 AM, America/Los_Angeles
+            seconds = 1704873600 // January 10, 2024 at 12:00 AM, America/Los_Angeles
           }
         }
       )
@@ -1335,7 +1335,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val expectedResult =
       calculateExpectedImpressionMeasurementResult(
         eventGroupSpecs,
-        metric.metricSpec.impressionCount.maximumFrequencyPerUser,
+        createdMetric.metricSpec.impressionCount.maximumFrequencyPerUser,
       )
 
     val impressionResult = retrievedMetric.result.impressionCount
