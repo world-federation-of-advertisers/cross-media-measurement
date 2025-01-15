@@ -25,4 +25,12 @@ resource "google_pubsub_subscription" "subscription" {
 
   ack_deadline_seconds       = var.ack_deadline_seconds
   message_retention_duration = var.message_retention_duration
+
+  dead_letter_policy {
+    dead_letter_topic = google_pubsub_topic.topic.id
+    max_delivery_attempts = var.max_delivery_attempts
+  }
+
+  enable_exactly_once_delivery = true
+
 }

@@ -27,7 +27,7 @@ variable "subscription_name" {
 variable "message_retention_duration" {
   description = "The duration (in seconds) for which Pub/Sub retains unacknowledged messages."
   type        = string
-  default     = "604800s"
+  default     = null
 }
 
 variable "ack_deadline_seconds" {
@@ -36,8 +36,8 @@ variable "ack_deadline_seconds" {
   default     = null
 }
 
-variable "undelivered_messages_threshold" {
-  description = "Threshold for undelivered messages that triggers an alert."
+variable "max_delivery_attempts" {
+  description = "The maximum number of delivery attempts for a message before it is routed to the dead letter queue."
   type        = number
-  default     = 50
+  default     = null
 }
