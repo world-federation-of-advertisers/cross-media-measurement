@@ -92,7 +92,7 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
       PopulationData(
         populationDataProviderName!!,
         PopulationInfo(
-          SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE.toPopulationSpec(),
+          SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL.toPopulationSpec(),
           TestEvent.getDescriptor(),
         ),
         populationKey!!,
