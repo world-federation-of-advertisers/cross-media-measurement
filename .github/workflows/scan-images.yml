@@ -82,7 +82,7 @@ jobs:
           - duchy/aws-requisition-fulfillment
           - duchy/aws-postgres-internal-server
           - panel-exchange/forwarded-storage-daemon
-          - measurement/population-requisition-fulfiller
+          - data-provider/population-requisition-fulfiller
           - prober/measurement-system-prober
 
     steps:
