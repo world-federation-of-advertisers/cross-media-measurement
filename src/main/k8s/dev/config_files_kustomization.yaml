@@ -19,4 +19,4 @@ configMapGenerator:
   - population_spec_small.textproto
   - known_event_group_metadata_type_set.pb
   - person_type_set.pb
-  - test_event_type_set.pb
+  - test_event_message_descriptor_set.pb

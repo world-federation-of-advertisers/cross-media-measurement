@@ -337,7 +337,7 @@ kustomization_dir(
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
         "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
         "//src/main/k8s/testing/secretfiles:person_type_set",
-        "//src/main/k8s/testing/secretfiles:test_event_type_set",
+        "//src/main/k8s/testing/secretfiles:test_event_message_descriptor_set",
     ],
     renames = {
         "config_files_kustomization.yaml": "kustomization.yaml",
@@ -357,7 +357,7 @@ kustomization_dir(
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
         "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
         "//src/main/k8s/testing/secretfiles:person_type_set",
-        "//src/main/k8s/testing/secretfiles:test_event_type_set",
+        "//src/main/k8s/testing/secretfiles:test_event_message_descriptor_set",
     ],
     renames = {
         "config_files_kustomization.yaml": "kustomization.yaml",
