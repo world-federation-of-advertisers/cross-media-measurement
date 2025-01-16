@@ -56,7 +56,10 @@ class RequisitionFetcher(
       .listResources { pageToken ->
         val response: ListRequisitionsResponse =
           try {
-            listRequisitions(listRequisitionsRequest { this.pageToken = pageToken })
+            listRequisitions(listRequisitionsRequest {
+              parent = config.dataProvider
+              this.pageToken = pageToken
+            })
           } catch (e: StatusException) {
             throw Exception("Unable to list requisitions.", e)
           }

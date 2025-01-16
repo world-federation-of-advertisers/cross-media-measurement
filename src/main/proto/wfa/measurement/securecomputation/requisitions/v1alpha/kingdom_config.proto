@@ -35,7 +35,9 @@ message KingdomConfig {
 
   string api_authentication_key = 4;
 
-  string google_cloud_storage_project = 5;
+  string data_provider = 5;
 
-  string google_cloud_storage_bucket = 6;
+  string google_cloud_storage_project = 6;
+
+  string google_cloud_storage_bucket = 7;
 }
