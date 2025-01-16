@@ -19,6 +19,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -52,11 +53,9 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.internal.access.PoliciesGrpcKt
-import org.wfanet.measurement.internal.access.Principal
-import kotlin.test.assertFailsWith
 import org.wfanet.measurement.internal.access.PoliciesGrpcKt as InternalPoliciesGrpcKt
 import org.wfanet.measurement.internal.access.PolicyKt as InternalPolicyKt
+import org.wfanet.measurement.internal.access.Principal
 import org.wfanet.measurement.internal.access.addPolicyBindingMembersRequest as internalAddPolicyBindingMembersRequest
 import org.wfanet.measurement.internal.access.getPolicyRequest as internalGetPolicyRequest
 import org.wfanet.measurement.internal.access.lookupPolicyRequest as internalLookupPolicyRequest
@@ -93,7 +92,10 @@ class PoliciesServiceTest {
     val request = getPolicyRequest { name = "policies/${internalPolicy.policyResourceId}" }
     val response = service.getPolicy(request)
 
-    verifyProtoArgument(internalServiceMock, PoliciesGrpcKt.PoliciesCoroutineImplBase::getPolicy)
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalPoliciesGrpcKt.PoliciesCoroutineImplBase::getPolicy,
+      )
       .isEqualTo(internalGetPolicyRequest { policyResourceId = internalPolicy.policyResourceId })
     assertThat(response)
       .isEqualTo(
