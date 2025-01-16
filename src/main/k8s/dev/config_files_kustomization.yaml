@@ -16,7 +16,6 @@ configMapGenerator:
 - name: config-files
   files:
   - authority_key_identifier_to_principal_map.textproto
-  - synthetic_population_spec_small.textproto
   - population_spec_small.textproto
   - known_event_group_metadata_type_set.pb
   - person_type_set.pb

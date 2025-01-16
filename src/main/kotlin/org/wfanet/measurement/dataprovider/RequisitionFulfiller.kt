@@ -214,9 +214,7 @@ abstract class RequisitionFulfiller(
     }
 
     try {
-      val a = requisitionsStub.listRequisitions(request).requisitionsList
-      println("joji in rf: $a")
-      return a
+      return requisitionsStub.listRequisitions(request).requisitionsList
     } catch (e: StatusException) {
       throw Exception("Error listing requisitions", e)
     }
