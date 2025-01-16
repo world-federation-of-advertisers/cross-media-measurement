@@ -52,35 +52,6 @@ message WindowingSpec {
   ];
 }
 
-// Defines the dimesions over which metrics are grouped and filtered.
-message DimensionSpec {
-  // Specifies the dimensions on which to Group metrics
-  //
-  // Only those event template fields that are tagged as groupable
-  // and in the common template are supported.
-  message Grouping {
-    // A set field paths that indicate the dimensions to group by.
-    //
-    // Each field path is with respect to the Event message with `.` as the
-    // traversal operator.
-    //
-    // For example, if the Event message had an Event Template `common` with
-    // a field `age_group` then the field path would be `common.age_group`.
-    repeated string event_template_field = 1 [
-      (google.api.field_behavior) = REQUIRED,
-      (google.api.field_behavior) = IMMUTABLE
-    ];
-  }
-  // Metric grouping
-  Grouping grouping = 3 [(google.api.field_behavior) = IMMUTABLE];
-
-  // A conjunction of Event Filters
-  //
-  // Event Template fields that are used by any filter Terms must be
-  // tagged as filterable.
-  repeated EventFilter filters = 4 [(google.api.field_behavior) = IMMUTABLE];
-}
-
 // A page of results.
 message Page {
   // The title of the page.
