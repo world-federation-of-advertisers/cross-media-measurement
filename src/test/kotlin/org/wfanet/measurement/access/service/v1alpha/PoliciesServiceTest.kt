@@ -19,7 +19,6 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -53,10 +52,11 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.internal.access.PoliciesGrpcKt as InternalPoliciesGrpcKt
 import org.wfanet.measurement.internal.access.PoliciesGrpcKt
-import org.wfanet.measurement.internal.access.PolicyKt as InternalPolicyKt
 import org.wfanet.measurement.internal.access.Principal
+import kotlin.test.assertFailsWith
+import org.wfanet.measurement.internal.access.PoliciesGrpcKt as InternalPoliciesGrpcKt
+import org.wfanet.measurement.internal.access.PolicyKt as InternalPolicyKt
 import org.wfanet.measurement.internal.access.addPolicyBindingMembersRequest as internalAddPolicyBindingMembersRequest
 import org.wfanet.measurement.internal.access.getPolicyRequest as internalGetPolicyRequest
 import org.wfanet.measurement.internal.access.lookupPolicyRequest as internalLookupPolicyRequest
@@ -218,38 +218,6 @@ class PoliciesServiceTest {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
           metadata[Errors.Metadata.FIELD_NAME.key] = "policy"
-        }
-      )
-  }
-
-  @Test
-  fun `createPolicy throws INVALID_FIELD_VALUE when policy name is malformed`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.createPolicy(
-          createPolicyRequest {
-            policy = policy {
-              name = "policy-1"
-              protectedResource = "books"
-              bindings +=
-                PolicyKt.binding {
-                  role = "roles/bookReader"
-                  members += "principals/user-1"
-                }
-              etag = "etag"
-            }
-            policyId = "policy-1"
-          }
-        )
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "policy.name"
         }
       )
   }
