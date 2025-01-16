@@ -402,7 +402,7 @@ class PrincipalsServiceTest {
                     subject = "user1@example.com"
                   }
               }
-              principalId = "user-1"
+              principalId = "123"
             }
           )
         }
