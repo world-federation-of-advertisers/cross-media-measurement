@@ -22,6 +22,7 @@ import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
 import org.wfanet.measurement.access.v1alpha.PoliciesGrpcKt
 import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
 import org.wfanet.measurement.access.v1alpha.RolesGrpcKt
+import org.wfanet.measurement.internal.access.PermissionsGrpcKt as InternalPermissionsGrpcKt
 import org.wfanet.measurement.internal.access.PoliciesGrpcKt as InternalPoliciesGrpcKt
 import org.wfanet.measurement.internal.access.PrincipalsGrpcKt as InternalPrincipalsGrpcKt
 import org.wfanet.measurement.internal.access.RolesGrpcKt as InternalRolesGrpcKt
@@ -36,6 +37,8 @@ data class Services(
 
   companion object {
     fun build(internalApiChannel: Channel): Services {
+      val internalPermissionsStub =
+        InternalPermissionsGrpcKt.PermissionsCoroutineStub(internalApiChannel)
       val internalPrincipalsStub =
         InternalPrincipalsGrpcKt.PrincipalsCoroutineStub(internalApiChannel)
       val internalRolesStub = InternalRolesGrpcKt.RolesCoroutineStub(internalApiChannel)
@@ -43,10 +46,8 @@ data class Services(
 
       return Services(
         PrincipalsService(internalPrincipalsStub),
-        // TODO(@roaminggypsy): Replace with real implementation once available.
-        object : PermissionsGrpcKt.PermissionsCoroutineImplBase() {},
+        PermissionsService(internalPermissionsStub),
         RolesService(internalRolesStub),
-        // TODO(@roaminggypsy): Replace with real implementation once available.
         PoliciesService(internalPoliciesStub),
       )
     }

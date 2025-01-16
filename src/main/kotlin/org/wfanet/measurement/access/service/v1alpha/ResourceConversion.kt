@@ -20,15 +20,18 @@ import org.wfanet.measurement.access.service.PermissionKey
 import org.wfanet.measurement.access.service.PolicyKey
 import org.wfanet.measurement.access.service.PrincipalKey
 import org.wfanet.measurement.access.service.RoleKey
+import org.wfanet.measurement.access.v1alpha.Permission
 import org.wfanet.measurement.access.v1alpha.Policy
 import org.wfanet.measurement.access.v1alpha.PolicyKt.binding
 import org.wfanet.measurement.access.v1alpha.Principal
 import org.wfanet.measurement.access.v1alpha.PrincipalKt.oAuthUser
 import org.wfanet.measurement.access.v1alpha.PrincipalKt.tlsClient
 import org.wfanet.measurement.access.v1alpha.Role
+import org.wfanet.measurement.access.v1alpha.permission
 import org.wfanet.measurement.access.v1alpha.policy
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.access.v1alpha.role
+import org.wfanet.measurement.internal.access.Permission as InternalPermission
 import org.wfanet.measurement.internal.access.Policy as InternalPolicy
 import org.wfanet.measurement.internal.access.Principal as InternalPrincipal
 import org.wfanet.measurement.internal.access.PrincipalKt.oAuthUser as internalOAuthUser
@@ -59,6 +62,14 @@ fun InternalPrincipal.OAuthUser.toOAuthUser(): Principal.OAuthUser {
 fun InternalPrincipal.TlsClient.toTlsClient(): Principal.TlsClient {
   val source = this
   return tlsClient { authorityKeyIdentifier = source.authorityKeyIdentifier }
+}
+
+fun InternalPermission.toPermission(): Permission {
+  val source = this
+  return permission {
+    name = PermissionKey(source.permissionResourceId).toName()
+    resourceTypes += source.resourceTypesList
+  }
 }
 
 fun InternalRole.toRole(): Role {
