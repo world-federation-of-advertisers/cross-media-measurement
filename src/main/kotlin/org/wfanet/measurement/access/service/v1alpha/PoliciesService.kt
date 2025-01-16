@@ -100,10 +100,6 @@ class PoliciesService(private val internalPoliciesStub: InternalPoliciesCoroutin
       throw RequiredFieldNotSetException("policy")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    val policyKey =
-      PolicyKey.fromName(request.policy.name)
-        ?: throw InvalidFieldValueException("policy.name")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     if (request.policyId.isEmpty()) {
       throw RequiredFieldNotSetException("policy_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -139,7 +135,7 @@ class PoliciesService(private val internalPoliciesStub: InternalPoliciesCoroutin
       try {
         internalPoliciesStub.createPolicy(
           internalPolicy {
-            policyResourceId = policyKey.policyId
+            policyResourceId = request.policyId
             protectedResourceName = request.policy.protectedResource
             bindings.putAll(internalBindingMap)
             etag = request.policy.etag
