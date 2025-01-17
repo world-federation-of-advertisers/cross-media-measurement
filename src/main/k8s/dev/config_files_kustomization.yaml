@@ -17,3 +17,7 @@ configMapGenerator:
   files:
   - authority_key_identifier_to_principal_map.textproto
   - known_event_group_metadata_type_set.pb
+  - population_spec_small.textproto
+  - person_type_set.pb
+  - test_event_message_descriptor_set.pb
+

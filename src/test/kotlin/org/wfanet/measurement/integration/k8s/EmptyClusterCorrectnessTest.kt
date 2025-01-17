@@ -77,6 +77,15 @@ import org.wfanet.measurement.loadtest.resourcesetup.Resources
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt
+import org.wfanet.measurement.api.v2alpha.PopulationKey
+import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt
+
+
 
 /**
  * Test for correctness of the CMMS on a single "empty" Kubernetes cluster using the `local`
@@ -115,7 +124,11 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     val measurementConsumerCert: String,
     val apiKey: String,
     val dataProviders: Map<String, Resources.Resource>,
-  ) {
+    val population: String,
+    val populationDataProvider: String,
+    val populationDataProviderCert: String,
+    val modelLine: String,
+    ) {
     companion object {
       fun from(resources: Iterable<Resources.Resource>): ResourceInfo {
         var aggregatorCert: String? = null
@@ -124,7 +137,11 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         var measurementConsumer: String? = null
         var measurementConsumerCert: String? = null
         var apiKey: String? = null
-        val dataProviders = mutableMapOf<String, Resources.Resource>()
+        val eventDataProviders = mutableMapOf<String, Resources.Resource>()
+        var population: String? = null
+        var populationDataProvider: String? = null
+        var populationDataProviderCert: String? = null
+        var modelLine: String? = null
 
         for (resource in resources) {
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields cannot be null.
@@ -136,7 +153,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
             }
             Resources.Resource.ResourceCase.DATA_PROVIDER -> {
               val displayName = resource.dataProvider.displayName
-              require(dataProviders.putIfAbsent(displayName, resource) == null) {
+              require(eventDataProviders.putIfAbsent(displayName, resource) == null) {
                 "Entry already exists for DataProvider $displayName"
               }
             }
@@ -147,6 +164,16 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                 "worker2" -> worker2Cert = resource.name
                 else -> error("Unhandled Duchy $duchyId")
               }
+            }
+            Resources.Resource.ResourceCase.POPULATION -> {
+              population = resource.name
+            }
+            Resources.Resource.ResourceCase.POPULATION_DATA_PROVIDER -> {
+              populationDataProvider = resource.name
+              populationDataProviderCert = resource.populationDataProvider.certificate
+            }
+            Resources.Resource.ResourceCase.MODEL_LINE -> {
+              modelLine = resource.name
             }
             Resources.Resource.ResourceCase.RESOURCE_NOT_SET -> error("Unhandled type")
           }
@@ -159,7 +186,11 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           measurementConsumer = requireNotNull(measurementConsumer),
           measurementConsumerCert = requireNotNull(measurementConsumerCert),
           apiKey = requireNotNull(apiKey),
-          dataProviders = dataProviders,
+          dataProviders = eventDataProviders,
+          population = requireNotNull(population),
+          populationDataProvider = requireNotNull(populationDataProvider),
+          populationDataProviderCert = requireNotNull(populationDataProviderCert),
+          modelLine = requireNotNull(modelLine)
         )
       }
     }
@@ -179,12 +210,25 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     override val runId: String by runId
 
     private lateinit var _testHarness: MeasurementConsumerSimulator
+    private lateinit var _populationDataProviderName: String
+    private lateinit var _modelLineName: String
+
     override val testHarness: MeasurementConsumerSimulator
       get() = _testHarness
 
     private lateinit var _reportingTestHarness: ReportingUserSimulator
     override val reportingTestHarness: ReportingUserSimulator
       get() = _reportingTestHarness
+
+    private lateinit var _populationKey: PopulationKey
+    override val populationKey: PopulationKey
+      get() = _populationKey
+
+    override val populationDataProviderName: String?
+      get() = _populationDataProviderName
+
+    override val modelLineName: String?
+      get() = _modelLineName
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
@@ -214,6 +258,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       val duchyCerts =
         ALL_DUCHY_NAMES.map { DuchyCert(it, loadTestCertDerFile("${it}_cs_cert.der")) }
       val edpEntityContents = EDP_DISPLAY_NAMES.map { createEntityContent(it) }
+      val pdpContent = createEntityContent(PDP_DISPLAY_NAME)
       val measurementConsumerContent =
         withContext(Dispatchers.IO) { createEntityContent(MC_DISPLAY_NAME) }
 
@@ -223,7 +268,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
       loadKingdom()
       val resourceSetupOutput =
-        runResourceSetup(duchyCerts, edpEntityContents, measurementConsumerContent)
+        runResourceSetup(duchyCerts, edpEntityContents, measurementConsumerContent, pdpContent)
       val resourceInfo = ResourceInfo.from(resourceSetupOutput.resources)
       loadFullCmms(
         resourceInfo,
@@ -352,6 +397,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
               .replace("{mc_name}", resourceInfo.measurementConsumer)
               .replace("{mc_api_key}", resourceInfo.apiKey)
               .replace("{mc_cert_name}", resourceInfo.measurementConsumerCert)
+              .replace("{population_resource_name}", resourceInfo.population)
+              .replace("{pdp1_name}", resourceInfo.populationDataProvider)
+              .replace("{pdp1_cert_name}", resourceInfo.populationDataProviderCert)
               .let {
                 var config = it
                 for ((displayName, resource) in resourceInfo.dataProviders) {
@@ -365,6 +413,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
           kubectlApply(configContent)
         }
+      _populationKey = PopulationKey.fromName(resourceInfo.population)!!
+      _modelLineName = resourceInfo.modelLine
+      _populationDataProviderName = resourceInfo.populationDataProvider
 
       waitUntilDeploymentsComplete(appliedObjects)
     }
@@ -393,6 +444,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       duchyCerts: List<DuchyCert>,
       edpEntityContents: List<EntityContent>,
       measurementConsumerContent: EntityContent,
+      pdpContent: EntityContent,
     ): ResourceSetupOutput {
       val outputDir = withContext(Dispatchers.IO) { tempDir.newFolder("resource-setup") }
 
@@ -426,10 +478,16 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                   runId,
                   outputDir = outputDir,
                   requiredDuchies = listOf("aggregator", "worker1", "worker2"),
-                )
+                  internalModelProvidersClient = ModelProvidersGrpcKt.ModelProvidersCoroutineStub(internalChannel),
+                  internalPopulationsClient = PopulationsGrpcKt.PopulationsCoroutineStub(internalChannel),
+                  internalModelSuitesClient = ModelSuitesGrpcKt.ModelSuitesCoroutineStub(internalChannel),
+                  internalModelLinesClient = ModelLinesGrpcKt.ModelLinesCoroutineStub(internalChannel),
+                  internalModelReleasesClient = ModelReleasesGrpcKt.ModelReleasesCoroutineStub(internalChannel),
+                  internalModelRolloutsClient = ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(internalChannel),
+                  )
               withContext(Dispatchers.IO) {
                 resourceSetup
-                  .process(edpEntityContents, measurementConsumerContent, duchyCerts)
+                  .process(edpEntityContents, measurementConsumerContent, duchyCerts, pdpContent)
                   .also { publicChannel.shutdown() }
               }
             }
@@ -525,6 +583,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       "reporting-v2alpha-public-api-server-deployment"
     private const val NUM_DATA_PROVIDERS = 6
     private val EDP_DISPLAY_NAMES: List<String> = (1..NUM_DATA_PROVIDERS).map { "edp$it" }
+    private const val PDP_DISPLAY_NAME = "pdp1"
     private val READY_TIMEOUT = Duration.ofMinutes(2L)
 
     private val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")

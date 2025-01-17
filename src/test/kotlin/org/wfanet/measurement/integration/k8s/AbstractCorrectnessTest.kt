@@ -16,19 +16,29 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.protobuf.TypeRegistry
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
+import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Dummy
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadSigningKey
+import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
+import org.wfanet.measurement.loadtest.measurementconsumer.PopulationData
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
+import org.wfanet.measurement.populationdataprovider.PopulationInfo
+
 
 /** Test for correctness of the CMMS on Kubernetes. */
 abstract class AbstractCorrectnessTest(private val measurementSystem: MeasurementSystem) {
@@ -40,6 +50,16 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
 
   private val reportingTestHarness: ReportingUserSimulator
     get() = measurementSystem.reportingTestHarness
+
+  private val populationKey: PopulationKey?
+    get() = measurementSystem.populationKey
+
+  private val modelLineName: String?
+    get() = measurementSystem.modelLineName
+
+  private val populationDataProviderName: String?
+    get() = measurementSystem.populationDataProviderName
+
 
   @Test(timeout = 1 * 60 * 1000)
   fun `impression measurement completes with expected result`() = runBlocking {
@@ -67,6 +87,24 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     )
   }
 
+  @Test
+  fun `population measurement completes with expected result`() = runBlocking {
+    testHarness.testPopulation(
+      "$runId-population",
+      PopulationData(
+        populationDataProviderName!!,
+        PopulationInfo(
+          SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL.toPopulationSpec(),
+          TestEvent.getDescriptor(),
+        ),
+        populationKey!!,
+      ),
+      modelLineName!!,
+      "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
+      TypeRegistry.newBuilder().add(listOf(Person.getDescriptor(), Dummy.getDescriptor())).build(),
+    )
+  }
+
   @Test(timeout = 1 * 60 * 1000)
   fun `report can be created`() = runBlocking {
     reportingTestHarness.testCreateReport("$runId-test-report")
@@ -76,6 +114,9 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     val runId: String
     val testHarness: MeasurementConsumerSimulator
     val reportingTestHarness: ReportingUserSimulator
+    val populationKey: PopulationKey?
+    val modelLineName: String?
+    val populationDataProviderName: String?
   }
 
   companion object {
