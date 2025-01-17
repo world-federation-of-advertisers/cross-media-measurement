@@ -148,11 +148,25 @@ class EtagMismatchException(requestEtag: String, etag: String, cause: Throwable?
 
 class PrincipalNotFoundException(name: String, cause: Throwable? = null) :
   ServiceException(
-    Errors.Reason.PRINCIPAL_NOT_FOUND,
+    reason,
     "Principal $name not found",
     mapOf(Errors.Metadata.PRINCIPAL to name),
     cause,
-  )
+  ) {
+  companion object : Factory<PrincipalNotFoundException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.PRINCIPAL_NOT_FOUND
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): PrincipalNotFoundException {
+      val principalKey =
+        PrincipalKey(internalMetadata.getValue(InternalErrors.Metadata.PRINCIPAL_RESOURCE_ID))
+      return PrincipalNotFoundException(principalKey.toName(), cause)
+    }
+  }
+}
 
 class PrincipalAlreadyExistsException(cause: Throwable? = null) :
   ServiceException(
@@ -172,6 +186,40 @@ class PrincipalTypeNotSupportedException(
     mapOf(Errors.Metadata.PRINCIPAL_TYPE to identityCase.name),
     cause,
   )
+
+class PrincipalNotFoundForUserException(issuer: String, subject: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER,
+    "Principal not found for user with issuer $issuer and subject $subject",
+    mapOf(Errors.Metadata.ISSUER to issuer, Errors.Metadata.SUBJECT to subject),
+    cause,
+  )
+
+class PrincipalNotFoundForTlsClientException(
+  authorityKeyIdentifier: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    reason,
+    "Principal not found for tls client with authority key identifier $authorityKeyIdentifier",
+    mapOf(Errors.Metadata.AUTHORITY_KEY_IDENTIFIER to authorityKeyIdentifier),
+    cause,
+  ) {
+  companion object : Factory<PrincipalNotFoundForTlsClientException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): PrincipalNotFoundForTlsClientException {
+      return PrincipalNotFoundForTlsClientException(
+        internalMetadata.getValue(InternalErrors.Metadata.AUTHORITY_KEY_IDENTIFIER),
+        cause,
+      )
+    }
+  }
+}
 
 class PermissionNotFoundException(name: String, cause: Throwable? = null) :
   ServiceException(
@@ -207,9 +255,25 @@ class PermissionNotFoundForRoleException(role: String, cause: Throwable? = null)
   )
 
 class RoleNotFoundException(name: String, cause: Throwable? = null) :
+  ServiceException(reason, "Role $name not found", mapOf(Errors.Metadata.ROLE to name), cause) {
+  companion object : Factory<RoleNotFoundException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.ROLE_NOT_FOUND
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): RoleNotFoundException {
+      val roleKey = RoleKey(internalMetadata.getValue(InternalErrors.Metadata.ROLE_RESOURCE_ID))
+      return RoleNotFoundException(roleKey.toName(), cause)
+    }
+  }
+}
+
+class RoleAlreadyExistsException(name: String, cause: Throwable? = null) :
   ServiceException(
-    Errors.Reason.ROLE_NOT_FOUND,
-    "Role $name not found",
+    Errors.Reason.ROLE_ALREADY_EXISTS,
+    "Role $name already exists",
     mapOf(Errors.Metadata.ROLE to name),
     cause,
   )
@@ -242,6 +306,103 @@ class ResourceTypeNotFoundInPermissionException(
       return ResourceTypeNotFoundInPermissionException(
         internalMetadata.getValue(InternalErrors.Metadata.RESOURCE_TYPE),
         permissionKey.toName(),
+        cause,
+      )
+    }
+  }
+}
+
+class PolicyNotFoundException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.POLICY_NOT_FOUND,
+    "Policy $name not found",
+    mapOf(Errors.Metadata.POLICY to name),
+    cause,
+  )
+
+class PolicyNotFoundForProtectedResourceException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.POLICY_NOT_FOUND_FOR_PROTECTED_RESOURCE,
+    "Policy with protected resource $name not found",
+    mapOf(Errors.Metadata.PROTECTED_RESOURCE to name),
+    cause,
+  )
+
+class PolicyAlreadyExistsException(cause: Throwable? = null) :
+  ServiceException(Errors.Reason.POLICY_ALREADY_EXISTS, "Policy already exists", emptyMap(), cause)
+
+class PolicyBindingMembershipAlreadyExistsException(
+  policyName: String,
+  roleName: String,
+  principalName: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    reason,
+    "Principal $principalName is already a member of role $roleName on policy $policyName",
+    mapOf(
+      Errors.Metadata.POLICY to policyName,
+      Errors.Metadata.ROLE to roleName,
+      Errors.Metadata.PRINCIPAL to principalName,
+    ),
+    cause,
+  ) {
+  companion object : Factory<PolicyBindingMembershipAlreadyExistsException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.POLICY_BINDING_MEMBERSHIP_ALREADY_EXISTS
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): PolicyBindingMembershipAlreadyExistsException {
+      val policyKey =
+        PolicyKey(internalMetadata.getValue(InternalErrors.Metadata.POLICY_RESOURCE_ID))
+      val roleKey = RoleKey(internalMetadata.getValue(InternalErrors.Metadata.ROLE_RESOURCE_ID))
+      val principalKey =
+        PrincipalKey(internalMetadata.getValue(InternalErrors.Metadata.PRINCIPAL_RESOURCE_ID))
+      return PolicyBindingMembershipAlreadyExistsException(
+        policyKey.toName(),
+        roleKey.toName(),
+        principalKey.toName(),
+        cause,
+      )
+    }
+  }
+}
+
+class PolicyBindingMembershipNotFoundException(
+  policyName: String,
+  roleName: String,
+  principalName: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    reason,
+    "Principal $principalName is not a member of role $roleName on policy $policyName",
+    mapOf(
+      Errors.Metadata.POLICY to policyName,
+      Errors.Metadata.ROLE to roleName,
+      Errors.Metadata.PRINCIPAL to principalName,
+    ),
+    cause,
+  ) {
+  companion object : Factory<PolicyBindingMembershipNotFoundException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.POLICY_BINDING_MEMBERSHIP_NOT_FOUND
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): PolicyBindingMembershipNotFoundException {
+      val policyKey =
+        PolicyKey(internalMetadata.getValue(InternalErrors.Metadata.POLICY_RESOURCE_ID))
+      val roleKey = RoleKey(internalMetadata.getValue(InternalErrors.Metadata.ROLE_RESOURCE_ID))
+      val principalKey =
+        PrincipalKey(internalMetadata.getValue(InternalErrors.Metadata.PRINCIPAL_RESOURCE_ID))
+      return PolicyBindingMembershipNotFoundException(
+        policyKey.toName(),
+        roleKey.toName(),
+        principalKey.toName(),
         cause,
       )
     }

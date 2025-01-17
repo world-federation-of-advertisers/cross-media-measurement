@@ -15,6 +15,10 @@
 import json
 import math
 import sys
+
+from absl import app
+from absl import flags
+from absl import logging
 from noiseninja.noised_measurements import Measurement
 from report.report import MetricReport
 from report.report import Report
@@ -23,16 +27,16 @@ from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
 from typing import FrozenSet
 
 # This is a demo script that has the following assumptions :
-# 1. CUSTOM filters are not yet supported in this tool.
-# 2. AMI is a parent of MRC and there are no other relationships between metrics.
-# 3. Impression results are not corrected.
+# 1. Impression results are not corrected.
+
+FLAGS = flags.FLAGS
+
+flags.DEFINE_boolean("debug", False, "Enable debug mode.")
 
 ami = "ami"
 mrc = "mrc"
 
 
-# TODO(@ple13): Extend the class to support custom measurements and composite
-# set operations such as incremental.
 class ReportSummaryProcessor:
   """
   Processes a ReportSummary and corrects the measurements.
@@ -79,6 +83,8 @@ class ReportSummaryProcessor:
 
     :return: a mapping between measurement name and its adjusted value.
     """
+    logging.info("Processing the report summary.")
+
     # Processes primitive measurements (cumulative and union). This step needs
     # to be completed before processing different measurements (e.g. unique
     # reach) as we need to map every different measurement to two primitive
@@ -94,6 +100,13 @@ class ReportSummaryProcessor:
     """
     Correct the report and returns the adjusted value for each measurement.
     """
+    logging.info("Building a report from the report summary.")
+    children_metric = []
+    if "mrc" in self._cumulative_measurements:
+      children_metric.append("mrc")
+    if "custom" in self._cumulative_measurements:
+      children_metric.append("custom")
+
     # Builds the report based on the extracted primitive measurements.
     report = Report(
         {
@@ -102,14 +115,17 @@ class ReportSummaryProcessor:
             for policy in self._cumulative_measurements
         },
         metric_subsets_by_parent={
-            ami: [mrc]} if "mrc" in self._cumulative_measurements else {},
+            ami: children_metric} if children_metric else {},
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    # Gets the corrected report.
     corrected_report = report.get_corrected_report()
+    logging.info("Finished correcting the report.")
 
-    # Gets the mapping between a measurement and its corrected value.
+    logging.info(
+        "Generating the mapping between between measurement name and its "
+        "adjusted value."
+    )
     metric_name_to_value: dict[str, int] = {}
     measurements_policies = corrected_report.get_metrics()
     for policy in measurements_policies:
@@ -127,7 +143,6 @@ class ReportSummaryProcessor:
     for key, value in self._set_difference_map.items():
       metric_name_to_value.update({key: (
           metric_name_to_value[value[0]] - metric_name_to_value[value[1]])})
-
     return metric_name_to_value
 
   def _process_primitive_measurements(self):
@@ -145,21 +160,34 @@ class ReportSummaryProcessor:
       measurement is added to the `_whole_campaign_measurements` dictionary,
       keyed by the measurement policy and the set of data providers.
     """
+    logging.info(
+        "Processing primitive measurements (cumulative and union)."
+    )
     for entry in self._report_summary.measurement_details:
       measurements = [
           Measurement(result.reach, result.standard_deviation, result.metric)
           for result in entry.measurement_results
       ]
       if entry.set_operation == "cumulative":
+        logging.debug(
+            f"Processing {entry.measurement_policy} cumulative measurements "
+            f"for the EDP combination {entry.data_providers}."
+        )
         if entry.measurement_policy not in self._cumulative_measurements:
           self._cumulative_measurements[entry.measurement_policy] = {}
         self._cumulative_measurements[entry.measurement_policy][
           frozenset(entry.data_providers)] = measurements
       elif (entry.set_operation == "union") and (entry.is_cumulative == False):
+        logging.debug(
+            f"Processing {entry.measurement_policy} total campaign measurements"
+            f" for the EDP combination {entry.data_providers}."
+        )
         if entry.measurement_policy not in self._whole_campaign_measurements:
           self._whole_campaign_measurements[entry.measurement_policy] = {}
         self._whole_campaign_measurements[entry.measurement_policy][
           frozenset(entry.data_providers)] = measurements[0]
+
+    logging.info("Finished processing primitive measurements.")
 
   def _process_difference_measurements(self):
     """Processes difference measurements in the report summary.
@@ -193,22 +221,34 @@ class ReportSummaryProcessor:
     measurements such as reach(Z) and unique_reach(X) and add that to the
     measurement set before adding the above mapping.
     """
+    logging.info(
+        "Processing difference measurements (unique reach, incremental reach)"
+    )
     difference_measurements = []
     for entry in self._report_summary.measurement_details:
       if entry.set_operation == "difference":
-        subset = frozenset([edp for edp in entry.right_hand_side_targets])
-        superset = subset.union(
-            frozenset([edp for edp in entry.left_hand_side_targets]))
         measurements = [
             Measurement(result.reach, result.standard_deviation, result.metric)
             for result in entry.measurement_results
         ]
+        subset = frozenset([edp for edp in entry.right_hand_side_targets])
+        superset = subset.union(
+            frozenset([edp for edp in entry.left_hand_side_targets]))
+        logging.debug(
+            f"Processing the difference measurement {measurements[0]}. The "
+            f"left hand side and right hand side EDP combinations are "
+            f"{superset} and {subset} respectively."
+        )
         # The incremental reach (and unique reach) is computed as:
         # incremental_reach(superset \ subset, subset) = reach(superset) -
         # reach(subset). The set (superset \ subset) consists of a single EDP,
         # while the subset contains one or more EDPs.
         difference_measurements.append(
             [superset, subset, entry.measurement_policy, measurements[0]])
+        logging.debug(
+            "The left hand side and right hand side EDP combinations are "
+            f"{superset} and {subset} respectively."
+        )
 
     # Sorts the difference measurements based of the length of the superset.
     # In the report, the reach of union of all EDPs always exists, i.e.
@@ -247,6 +287,9 @@ class ReportSummaryProcessor:
         # std(incremental_reach(A) = sqrt(std(rach(A U subset))^2 +
         # std(reach(subset))^2), we have: std(reach(subset)) =
         # sqrt(std(incremental_reach(A))^2 - std(reach(A U subset))^2).
+        logging.debug(
+            f"Estimating the {measurement_policy} reach of {subset} from "
+            f"{superset_measurement.name} and {difference_measurement.name}.")
         subset_measurement = Measurement(
             superset_measurement.value - difference_measurement.value,
             math.sqrt(
@@ -259,19 +302,31 @@ class ReportSummaryProcessor:
             superset_measurement.name,
             subset_measurement.name
         ]
+    logging.info(
+        "Finished processing difference measurements (unique reach, incremental"
+        " reach)"
+    )
 
-def main():
+
+def main(argv):
+  # Sends the log to stderr.
+  FLAGS.logtostderr = True
+
+  # Sets the log level base on the --debug flag.
+  logging.set_verbosity(logging.DEBUG if FLAGS.debug else logging.INFO)
+
   report_summary = report_summary_pb2.ReportSummary()
-  # Read the encoded serialized report summary from stdin and convert it back to
-  # ReportSummary proto.
+  logging.info("Reading the report summary from stdin.")
   report_summary.ParseFromString(sys.stdin.buffer.read())
 
   corrected_measurements_dict = ReportSummaryProcessor(report_summary).process()
 
-  # Sends the JSON representation of corrected_measurements_dict to the parent
-  # program.
+  logging.info(
+      "Sending the JSON representation of corrected_measurements_dict to the "
+      "parent program."
+  )
   print(json.dumps(corrected_measurements_dict))
 
 
 if __name__ == "__main__":
-  main()
+  app.run(main)

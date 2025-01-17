@@ -17,16 +17,25 @@
 package org.wfanet.measurement.access.service.v1alpha
 
 import org.wfanet.measurement.access.service.PermissionKey
+import org.wfanet.measurement.access.service.PolicyKey
 import org.wfanet.measurement.access.service.PrincipalKey
 import org.wfanet.measurement.access.service.RoleKey
+import org.wfanet.measurement.access.v1alpha.Permission
+import org.wfanet.measurement.access.v1alpha.Policy
+import org.wfanet.measurement.access.v1alpha.PolicyKt.binding
 import org.wfanet.measurement.access.v1alpha.Principal
 import org.wfanet.measurement.access.v1alpha.PrincipalKt.oAuthUser
 import org.wfanet.measurement.access.v1alpha.PrincipalKt.tlsClient
 import org.wfanet.measurement.access.v1alpha.Role
+import org.wfanet.measurement.access.v1alpha.permission
+import org.wfanet.measurement.access.v1alpha.policy
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.access.v1alpha.role
+import org.wfanet.measurement.internal.access.Permission as InternalPermission
+import org.wfanet.measurement.internal.access.Policy as InternalPolicy
 import org.wfanet.measurement.internal.access.Principal as InternalPrincipal
 import org.wfanet.measurement.internal.access.PrincipalKt.oAuthUser as internalOAuthUser
+import org.wfanet.measurement.internal.access.PrincipalKt.tlsClient as internalTlsClient
 import org.wfanet.measurement.internal.access.Role as InternalRole
 
 fun InternalPrincipal.toPrincipal(): Principal {
@@ -55,6 +64,14 @@ fun InternalPrincipal.TlsClient.toTlsClient(): Principal.TlsClient {
   return tlsClient { authorityKeyIdentifier = source.authorityKeyIdentifier }
 }
 
+fun InternalPermission.toPermission(): Permission {
+  val source = this
+  return permission {
+    name = PermissionKey(source.permissionResourceId).toName()
+    resourceTypes += source.resourceTypesList
+  }
+}
+
 fun InternalRole.toRole(): Role {
   val source = this
   return role {
@@ -70,5 +87,26 @@ fun Principal.OAuthUser.toInternal(): InternalPrincipal.OAuthUser {
   return internalOAuthUser {
     issuer = source.issuer
     subject = source.subject
+  }
+}
+
+fun Principal.TlsClient.toInternal(): InternalPrincipal.TlsClient {
+  val source = this
+  return internalTlsClient { authorityKeyIdentifier = source.authorityKeyIdentifier }
+}
+
+fun InternalPolicy.toPolicy(): Policy {
+  val source = this
+  return policy {
+    name = PolicyKey(source.policyResourceId).toName()
+    protectedResource = source.protectedResourceName
+    bindings +=
+      source.bindingsMap.map { (role, members) ->
+        binding {
+          this.role = RoleKey(role).toName()
+          this.members += members.memberPrincipalResourceIdsList.map { PrincipalKey(it).toName() }
+        }
+      }
+    etag = source.etag
   }
 }
