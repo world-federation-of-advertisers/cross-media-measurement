@@ -27,7 +27,6 @@ message BasicReport {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
   string external_basic_report_id = 2;
-  string request_id = 3;
-  BasicReportDetails details = 4;
-  google.protobuf.Timestamp create_time = 5;
+  BasicReportDetails details = 3;
+  google.protobuf.Timestamp create_time = 4;
 }

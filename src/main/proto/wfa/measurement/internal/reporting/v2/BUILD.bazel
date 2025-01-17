@@ -209,7 +209,12 @@ kt_jvm_grpc_proto_library(
 )
 
 proto_and_kt_jvm_proto_library(
+    name = "event_template_field",
+)
+
+proto_and_kt_jvm_proto_library(
     name = "event_filter",
+    deps = [":event_template_field_proto"],
 )
 
 proto_and_kt_jvm_proto_library(
@@ -239,6 +244,7 @@ proto_and_kt_jvm_proto_library(
     name = "page",
     deps = [
         ":event_filter_proto",
+        ":event_template_field_proto",
         ":metric_frequency_spec_proto",
         ":reporting_impression_qualification_filter_proto",
         "@com_google_googleapis//google/type:interval_proto",
@@ -282,6 +288,7 @@ proto_descriptor_set(
     deps = [
         ":basic_report_details_proto",
         ":event_filter_proto",
+        ":event_template_field_proto",
         ":impression_qualification_filter_spec_proto",
         ":metric_frequency_spec_proto",
         ":page_proto",

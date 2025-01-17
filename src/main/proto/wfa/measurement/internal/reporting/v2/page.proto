@@ -18,6 +18,7 @@ package wfa.measurement.internal.reporting.v2;
 
 import "google/type/interval.proto";
 import "wfa/measurement/internal/reporting/v2/event_filter.proto";
+import "wfa/measurement/internal/reporting/v2/event_template_field.proto";
 import "wfa/measurement/internal/reporting/v2/metric_frequency_spec.proto";
 import "wfa/measurement/internal/reporting/v2/reporting_impression_qualification_filter.proto";
 
@@ -33,14 +34,33 @@ message Page {
   message MetricMetadata {
     // A summary of a component of the reporting_unit being reported on
     message ReportingUnitComponentSummary {
-      // The external ID of a component of the reporting_unit
-      //
-      // For BasicReport this is a DataProvider external ID
-      // For AdvancedReport this is a ReportingSet external ID
-      string external_component_id = 1;
+      message ExternalComponentIds {
+        message ExternalReportingSetIds {
+          // `MeasurementConsumer` ID from the CMMS public API.
+          string cmms_measurement_consumer_id = 1;
+          string external_reporting_set_id = 2;
+        }
+
+        oneof resource {
+          ExternalReportingSetIds reporting_set = 1;
+          // `DataProvider` ID from the CMMS public API.
+          string cmms_data_provider = 2;
+        }
+      }
+      ExternalComponentIds external_component_ids = 1;
 
       // Display name of the component
       string display_name = 2;
+
+      // Summary of an EventGroup entailed by the component
+      message EventGroupSummary {
+        // `MeasurementConsumer` ID from the CMMS public API.
+        string cmms_measurement_consumer_id = 1;
+        // `EventGroup` ID from the CMMS public API.
+        string cmms_event_group_id = 2;
+      }
+      // A summary of each EventGroup entailed by the component.
+      repeated EventGroupSummary event_group_summaries = 3;
     }
 
     // A summary of each component of the reporting_unit reported on
@@ -76,32 +96,14 @@ message Page {
     }
     WindowingSpec windowing_spec = 3;
 
-    // Defines the dimensions over which metrics are grouped and filtered.
-    message DimensionSpec {
-      // Specifies the dimensions on which to Group metrics
-      //
-      // Only those event template fields that are tagged as groupable
-      // and in the common template are supported.
-      message Grouping {
-        // A set field paths that indicate the dimensions to group by.
-        //
-        // Each field path is with respect to the Event message with `.` as the
-        // traversal operator.
-        //
-        // For example, if the Event message had an Event Template `common` with
-        // a field `age_group` then the field path would be `common.age_group`.
-        repeated string event_template_field = 1;
-      }
-      // Metric grouping
-      Grouping grouping = 3;
-
-      // A conjunction of Event Filters
-      //
-      // Event Template fields that are used by any filter Terms must be
-      // tagged as filterable.
-      repeated EventFilter filters = 4;
+    // A summary of the aspects of the DimensionSpec that were applied
+    message DimensionSpecSummary {
+      // The grouping dimensions and values for the reported metrics
+      EventTemplateField grouping = 1;
+      // The filters applied to the reported metrics
+      repeated EventFilter filters = 2;
     }
-    DimensionSpec dimension_spec = 4;
+    DimensionSpecSummary dimension_spec_summary = 4;
 
     // The impression qualification filter that was applied
     ReportingImpressionQualificationFilter filter = 5;
