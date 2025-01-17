@@ -12,22 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-module "cloud_function_service_account" {
-  source                        = "../workload-identity-user"
-  k8s_service_account_name      = "cloud_function-service-account"
-  iam_service_account_name      = var.cloud_function_service_account_name
-  iam_service_account_description = "Service account for Managed Instance Group"
+resource "google_service_account" "cloud_function_service_account" {
+  account_id   = var.cloud_function_service_account_name
+  description  = "Service account for Cloud Functions."
+  display_name = "Cloud Function Service Account"
 }
 
-resource "google_storage_bucket_iam_member" "storage_access" {
-  project = data.google_project.project.name
+resource "google_storage_bucket_iam_member" "storage_event_viewer" {
+  bucket = var.trigger_bucket_name
   role    = "roles/eventarc.eventReceiver"
-  member  = module.cloud_function_service_account.iam_service_account.member
+  member = "serviceAccount:${google_service_account.cloud_function_service_account.email}"
 }
 
 resource "google_cloudfunctions2_function" "cloud_function" {
   name        = var.cloud_function_name
-  runtime     = var.runtime
   entry_point = var.entry_point
 
   docker_registry  = var.docker_registry
@@ -36,7 +34,7 @@ resource "google_cloudfunctions2_function" "cloud_function" {
   event_trigger {
     event_type = "google.cloud.storage.object.v1.finalized"
     retry_policy = "RETRY_POLICY_RETRY"
-    service_account_email = module.cloud_function_service_account.iam_service_account
+    service_account_email = google_service_account.cloud_function_service_account.email
     event_filters {
       attribute = "bucket"
       value = var.trigger_bucket_name

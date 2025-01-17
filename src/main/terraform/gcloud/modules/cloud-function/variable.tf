@@ -22,17 +22,6 @@ variable "cloud_function_name" {
   description   = "The cloud function name."
   type          = string
   nullable      = false
-
-variable "runtine" {
-  description   = "The runtime in which the function is going to run."
-  type          = string
-  nullable      = false
-}
-
-variable "runtime" {
-  description   = "Name of the function that will be executed when the Google Cloud Function is triggered."
-  type          = string
-  nullable      = false
 }
 
 variable "trigger_bucket_name" {
