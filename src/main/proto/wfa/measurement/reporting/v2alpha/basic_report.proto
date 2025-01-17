@@ -76,7 +76,7 @@ message BasicReport {
       ];
 
   // Specifies the Pages to create
-  repeated PageSpec page_specs = 8 [
+  repeated PageSpec page_specs = 9 [
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.field_behavior) = REQUIRED
   ];
