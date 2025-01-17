@@ -51,7 +51,7 @@ message ImpressionQualificationFilter {
 
   // Specifies the filter criteria for each MediaType.
   //
-  // They may be at most one spec per MediaType.
+  // There may be at most one spec per MediaType.
   repeated ImpressionQualificationFilterSpec filter_specs = 4 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
