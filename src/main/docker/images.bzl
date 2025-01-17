@@ -102,6 +102,11 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/simulator/synthetic-generator-edp",
     ),
     struct(
+        name = "population_requisition_fulfiller_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:population_requisition_fulfiller_daemon_image",
+        repository = _PREFIX + "/data-provider/population-requisition-fulfiller",
+    ),
+    struct(
         name = "access_public_api_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/access/deploy/common/server:public_api_server_image",
         repository = _PREFIX + "/access/public-api",
