@@ -21,6 +21,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.timestamp
+import com.google.rpc.errorInfo
 import com.google.type.Interval
 import com.google.type.interval
 import io.grpc.Status
@@ -35,6 +36,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -1261,24 +1263,33 @@ class EventGroupsServiceTest {
 
   @Test
   fun `getEventGroup throws NOT_FOUND with event group name when event group not found`() {
-    internalEventGroupsMock.stub {
-      onBlocking { getEventGroup(any()) }
-        .thenThrow(
-          EventGroupNotFoundException(
-              ExternalId(DATA_PROVIDER_EXTERNAL_ID),
-              ExternalId(EVENT_GROUP_EXTERNAL_ID),
-            )
-            .asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup not found.")
+    val internalApiException =
+      EventGroupNotFoundException(
+          ExternalId(DATA_PROVIDER_EXTERNAL_ID),
+          ExternalId(EVENT_GROUP_EXTERNAL_ID),
         )
+        .asStatusRuntimeException(Status.Code.NOT_FOUND)
+    internalEventGroupsMock.stub {
+      onBlocking { getEventGroup(any()) } doThrow internalApiException
     }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withDataProviderPrincipal(DATA_PROVIDER_NAME) {
           runBlocking { service.getEventGroup(getEventGroupRequest { name = EVENT_GROUP_NAME }) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.errorInfo?.metadataMap).containsEntry("eventGroup", EVENT_GROUP_NAME)
+    assertThat(exception.cause).hasMessageThat().isEqualTo(internalApiException.message)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = "halo.wfanet.org"
+          reason = "EVENT_GROUP_NOT_FOUND"
+          metadata["eventGroup"] = EVENT_GROUP_NAME
+        }
+      )
   }
 
   @Test
