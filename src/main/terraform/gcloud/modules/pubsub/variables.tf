@@ -24,8 +24,8 @@ variable "subscription_name" {
   nullable = false
 }
 
-variable "message_retention_duration" {
-  description = "The duration (in seconds) for which Pub/Sub retains unacknowledged messages."
+variable "subscription_queue_retention_period" {
+  description = "The duration (in seconds) for which the subscription queue retains unacknowledged messages."
   type        = string
   default     = null
 }
