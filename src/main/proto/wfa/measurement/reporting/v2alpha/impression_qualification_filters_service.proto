@@ -1,0 +1,89 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "wfa/measurement/reporting/v2alpha/impression_qualification_filter.proto";
+import "wfa/measurement/reporting/v2alpha/impression_qualification_filter_spec.proto";
+import "wfa/measurement/reporting/v2alpha/media_type.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ImpressionQualificationFiltersServiceProto";
+
+// Service for managing `ImpressionQualificationFilter` resources.
+service ImpressionQualificationFilters {
+  // Returns the `ImpressionQualificationFilter` with the given resource key.
+  rpc GetImpressionQualificationFilter(GetImpressionQualificationFilterRequest)
+      returns (ImpressionQualificationFilter) {
+    option (google.api.http) = {
+      get: "/v2alpha/{name=impressionQualificationFilters/*}"
+    };
+    option (google.api.method_signature) = "name";
+  }
+
+  // Lists Impression Qualification Filters ordered by name.
+  rpc ListImpressionQualificationFilters(
+      ListImpressionQualificationFiltersRequest)
+      returns (ListImpressionQualificationFiltersResponse) {
+    option (google.api.http) = {
+      get: "/v2alpha/impressionQualificationFilters"
+    };
+  }
+}
+
+// Request message for `GetImpressionQualificationFilter` method
+message GetImpressionQualificationFilterRequest {
+  // The name of the impression qualification filter to retrieve.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/ImpressionQualificationFilter"
+    }
+  ];
+}
+
+// Request message for `ListImpressionQualificationFilter` method
+message ListImpressionQualificationFiltersRequest {
+  // The maximum number of filters to return. The service may return fewer
+  // than this value.
+  // If unspecified, at most 50 filters will be returned.
+  // The maximum value is 100; values above 100 will be coerced to 100.
+  int32 page_size = 1 [(google.api.field_behavior) = OPTIONAL];
+
+  // A page token, received from a previous `ListImpressionQualificationFilters`
+  // call. Provide this to retrieve the subsequent page.
+  //
+  // When paginating, all other parameters provided to
+  // `ListImpressionQualificationFilters` must match the call that provided the
+  // page token.
+  string page_token = 2 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Response message for `ListImpressionQualificationFilters` method.
+message ListImpressionQualificationFiltersResponse {
+  // The set of ImpressionQualificationFilters that met the filter criteria
+  repeated ImpressionQualificationFilter impression_qualification_filters = 1
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // A token, which can be sent as `page_token` to retrieve the next page.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2 [(google.api.field_behavior) = OPTIONAL];
+}
