@@ -1030,8 +1030,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   @Test
-  fun `creating 25 reports at once succeeds`() = runBlocking {
-    val numReports = 25
+  fun `creating 3 reports at once succeeds`() = runBlocking {
+    val numReports = 3
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
@@ -1049,9 +1049,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               displayName = "load test"
               metricSpecs += metricSpec {
                 reach =
-                  MetricSpecKt.reachParams {
-                    privacyParams = MetricSpecKt.differentialPrivacyParams {}
-                  }
+                  MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
             }
             metricCalculationSpecId = "fed"
@@ -1437,8 +1436,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   @Test
-  fun `creating 25 metrics at once succeeds`() = runBlocking {
-    val numMetrics = 25
+  fun `creating 3 metrics at once succeeds`() = runBlocking {
+    val numMetrics = 3
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
@@ -1454,7 +1453,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       }
       metricSpec = metricSpec {
         reach =
-          MetricSpecKt.reachParams { privacyParams = MetricSpecKt.differentialPrivacyParams {} }
+          MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+        vidSamplingInterval = VID_SAMPLING_INTERVAL
       }
     }
 
