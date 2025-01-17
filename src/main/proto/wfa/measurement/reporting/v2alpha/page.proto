@@ -290,6 +290,7 @@ message Page {
       repeated EventFilter filters = 2
           [(google.api.field_behavior) = IMMUTABLE];
     }
+    // Sumary of the grouping and filtering applied to the metrics
     DimensionSpecSummary dimension_spec_summary = 4
         [(google.api.field_behavior) = IMMUTABLE];
 
