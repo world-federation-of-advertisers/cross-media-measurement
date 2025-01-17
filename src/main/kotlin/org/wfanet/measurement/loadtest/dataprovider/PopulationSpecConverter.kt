@@ -20,7 +20,10 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.populationSpec
+import org.wfanet.measurement.common.pack
 
 fun SyntheticPopulationSpec.toPopulationSpec(): PopulationSpec {
   return populationSpec {
@@ -31,6 +34,11 @@ fun SyntheticPopulationSpec.toPopulationSpec(): PopulationSpec {
             startVid = it.vidSubRange.start
             endVidInclusive = (it.vidSubRange.endExclusive - 1)
           }
+          attributes += person {
+            gender = Person.Gender.forNumber(it.populationFieldsValuesMap["person.gender"]!!.enumValue)
+            ageGroup = Person.AgeGroup.forNumber(it.populationFieldsValuesMap["person.age_group"]!!.enumValue)
+            socialGradeGroup = Person.SocialGradeGroup.forNumber(it.populationFieldsValuesMap["person.social_grade_group"]!!.enumValue)
+          }.pack()
         }
       }
   }
