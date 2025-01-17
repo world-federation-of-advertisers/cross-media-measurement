@@ -16,3 +16,6 @@ output "cloud_function_resource_name" {
   description = "The resource name of the deployed Google Cloud Function."
   value       = google_cloudfunctions_function.cloud_function.name
 }
+output "cloud_function_service_account" {
+  value = google_service_account.cloud_function_service_account
+}
