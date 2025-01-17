@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-output "mig_service_account_email" {
-  value = google_service_account.mig_service_account.email
+output "mig_service_account" {
+  value = google_service_account.mig_service_account
 }
