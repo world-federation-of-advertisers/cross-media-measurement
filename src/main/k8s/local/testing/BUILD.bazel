@@ -57,34 +57,13 @@ cue_dump(
     ],
 )
 
-cue_dump(
-    name = "population_requisition_fulfillers",
-    cue_tags = {
-        "secret_name": SECRET_NAME,
-        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
-        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
-        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
-        "mc_name": "{mc_name}",
-        "pdp1_name": "{pdp1_name}",
-        "pdp1_cert_name": "{pdp1_cert_name}",
-        "population_resource_name": "{population_resource_name}",
-    },
-    tags = ["manual"],
-    deps = [
-        "//src/main/k8s/local:population_requisition_fulfillers_cue",
-    ],
-)
-
 kustomization_dir(
     name = "config_files",
     srcs = [
         "config_files_kustomization.yaml",
-        "//src/main/k8s/testing/data:real_population_spec_small",
         "//src/main/k8s/testing/data:synthetic_generation_specs_small",
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
         "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
-        "//src/main/k8s/testing/secretfiles:person_type_set",
-        "//src/main/k8s/testing/secretfiles:test_event_message_descriptor_set",
     ],
     renames = {"config_files_kustomization.yaml": "kustomization.yaml"},
     tags = ["manual"],
@@ -95,12 +74,9 @@ kustomization_dir(
     srcs = [
         "config_files_kustomization.yaml",
         "empty_encryption_key_pair_config.textproto",
-        "//src/main/k8s/testing/data:real_population_spec_small",
         "//src/main/k8s/testing/data:synthetic_generation_specs_small",
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
         "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
-        "//src/main/k8s/testing/secretfiles:person_type_set",
-        "//src/main/k8s/testing/secretfiles:test_event_message_descriptor_set",
     ],
     renames = {
         "config_files_kustomization.yaml": "kustomization.yaml",
@@ -130,7 +106,6 @@ kustomization_dir(
     srcs = [
         ":duchies",
         ":edp_simulators",
-        ":population_requisition_fulfillers",
         "//src/main/k8s/local:emulators",
         "//src/main/k8s/local:kingdom",
         "//src/main/k8s/local:postgres_database",

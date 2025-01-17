@@ -1,6 +1,4 @@
-load("@rules_java//java:defs.bzl", "java_binary")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
-load("//src/main/docker:macros.bzl", "java_image")
 
 package(
     default_visibility = [
@@ -45,20 +43,4 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
-)
-
-java_binary(
-    name = "PopulationRequisitionFulfillerDaemon",
-    main_class = "org.wfanet.measurement.populationdataprovider.PopulationRequisitionFulfillerDaemonKt",
-    runtime_deps = [
-        ":population_requisition_fulfiller_daemon",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
-    ],
-)
-
-java_image(
-    name = "population_requisition_fulfiller_daemon_image",
-    binary = ":PopulationRequisitionFulfillerDaemon",
-    main_class = "org.wfanet.measurement.populationdataprovider.PopulationRequisitionFulfillerDaemonKt",
-    visibility = ["//src:docker_image_deployment"],
 )

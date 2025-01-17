@@ -66,32 +66,6 @@ class ResourceSetupFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--pdp-consent-signaling-cert-der-file"],
-    description =
-    ["The PDP's consent signaling cert (DER format) file."],
-    required = true,
-  )
-  lateinit var pdpCsCertDerFiles: File
-    private set
-
-  @CommandLine.Option(
-    names = ["--pdp-consent-signaling-key-der-file"],
-    description =
-    ["The PDP's consent signaling private key (DER format) file."],
-    required = true,
-  )
-  lateinit var pdpCsKeyDerFiles: File
-    private set
-
-  @CommandLine.Option(
-    names = ["--pdp-encryption-public-keyset"],
-    description = ["The PDP's encryption public key Tink Keyset file."],
-    required = true,
-  )
-  lateinit var pdpEncryptionPublicKeysets: File
-    private set
-
-  @CommandLine.Option(
     names = ["--mc-consent-signaling-cert-der-file"],
     description = ["The MC's consent signaling cert (DER format) file."],
     required = true,

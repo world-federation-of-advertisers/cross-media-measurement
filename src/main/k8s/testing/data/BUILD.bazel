@@ -17,8 +17,3 @@ filegroup(
     name = "service_config",
     srcs = ["default_service_config.textproto"],
 )
-
-filegroup(
-    name = "real_population_spec_small",
-    srcs = ["population_spec_small.textproto"],
-)

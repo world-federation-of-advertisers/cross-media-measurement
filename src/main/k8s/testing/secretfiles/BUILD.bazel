@@ -133,20 +133,6 @@ proto_descriptor_set(
     ],
 )
 
-proto_descriptor_set(
-    name = "person_type_set",
-    deps = [
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:person_proto",
-    ],
-)
-
-proto_descriptor_set(
-    name = "test_event_message_descriptor_set",
-    deps = [
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_proto",
-    ],
-)
-
 SECRET_FILES = [
     "all_root_certs.pem",
     "edp_trusted_certs.pem",
@@ -228,14 +214,13 @@ SECRET_FILES = [
     "ro_llv2_protocol_config_config.textproto",
     "hmss_protocol_config_config.textproto",
     "exchange_workflow.textproto",
+    "reporting_root.pem",
     "reporting_tls.key",
     "reporting_tls.pem",
     "pdp1_cs_cert.der",
     "pdp1_cs_private.der",
     "pdp1_enc_private.tink",
     "pdp1_enc_public.tink",
-    "pdp1_root.pem",
-    "pdp1_root.key",
 ]
 
 filegroup(

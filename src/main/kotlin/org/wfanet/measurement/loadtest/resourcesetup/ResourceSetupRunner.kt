@@ -69,7 +69,7 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
     flags.edpCsCertDerFiles.keys == flags.edpCsKeyDerFiles.keys &&
       flags.edpCsCertDerFiles.keys == flags.edpEncryptionPublicKeysets.keys
   )
-  val edpContents =
+  val dataProviderContents =
     flags.edpCsCertDerFiles.map {
       EntityContent(
         displayName = it.key,
@@ -89,12 +89,6 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
       DuchyCert(duchyId = it.key, consentSignalCertificateDer = it.value.readByteString())
     }
 
-  val pdpContent = EntityContent(
-    displayName = "pdp1",
-    signingKey = loadSigningKey(flags.pdpCsCertDerFiles, flags.pdpCsKeyDerFiles),
-    encryptionPublicKey = loadPublicKey(flags.pdpEncryptionPublicKeysets).toEncryptionPublicKey(),
-  )
-
   runBlocking {
     // Runs the resource setup job.
     ResourceSetup(
@@ -109,7 +103,7 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
         flags.bazelConfigName,
         flags.outputDir,
       )
-      .process(edpContents, measurementConsumerContent, duchyCerts, pdpContent)
+      .process(dataProviderContents, measurementConsumerContent, duchyCerts)
   }
 }
 
