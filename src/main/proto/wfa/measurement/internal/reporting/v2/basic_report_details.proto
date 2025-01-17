@@ -27,11 +27,19 @@ message BasicReportDetails {
   // Human readable title of the report.
   string title = 1;
 
-  // This is the external ID of a primitive ReportingSet that includes all of
-  // the EventGroups that may be reported on.
+  // This contains the external IDs for a primitive ReportingSet that includes
+  // all of the EventGroups that may be reported on.
   //
   // EventGroups may span DataProviders and MediaTypes.
-  string external_campaign_group_id = 3;
+  message ExternalCampaignGroupIds {
+    // `MeasurementConsumer` ID from the CMMS public API.
+    string cmms_measurement_consumer_id = 1;
+    string external_reporting_set_id = 2;
+  }
+  ExternalCampaignGroupIds external_campaign_group_ids = 2;
+
+  // Denormalized. The display_name of the campaign_group
+  string campaign_group_display_name = 3;
 
   // The interval of time that the BasicReport spans
   //
