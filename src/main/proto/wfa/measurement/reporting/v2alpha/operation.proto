@@ -17,28 +17,27 @@ syntax = "proto3";
 package wfa.measurement.reporting.v2alpha;
 
 import "google/api/field_behavior.proto";
-import "wfa/measurement/reporting/v2alpha/event_filter.proto";
-import "wfa/measurement/reporting/v2alpha/media_type.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "google/type/datetime.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
-option java_outer_classname = "ImpressionQualificationFilterSpecProto";
+option java_outer_classname = "OperationProto";
 
-// Specifies impression qualification filter criteria for a MediaType
-message ImpressionQualificationFilterSpec {
-  // The Media Type the filter is applicable to.
-  MediaType media_type = 1 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE
-  ];
+// Resource representing a Advanced Report.
+message Operation {
+  option (google.api.resource) = {
+    type: "reporting.halo-cmm.org/Operation"
+    pattern: "measurementConsumers/{measurement_consumer}/operations/{operation}"
+    singular: "operation"
+    plural: "operations"
+  };
 
-  // A conjunction of filters.
+  // TODO(@kungfucraig): Discuss whether we should have a custom operation or
+  // use the one recommended by the AIP
   //
-  // Event Template fields that are used by any filter Terms must be
-  // tagged as an impression qualifier and applicable to the provided
-  // media_type.
-  repeated EventFilter filters = 2 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE
-  ];
+  // The custom operation would be a copy of the AIP one, but would use a oneof
+  // instead of an Any, any time an Any is used.
 }
