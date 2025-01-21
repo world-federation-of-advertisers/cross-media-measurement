@@ -31,6 +31,10 @@ message BasicReportDetails {
   // all of the EventGroups that may be reported on.
   //
   // EventGroups may span DataProviders and MediaTypes.
+  //
+  // Ex: If a `ReportingSet` has the name
+  // "measurementconsumers/abc/reportingsets/abcd", then the
+  // `MeasurementConsumer` ID is "abc" and the `ReportingSet` ID is "abcd".
   message ExternalCampaignGroupIds {
     // `MeasurementConsumer` ID from the CMMS public API.
     string cmms_measurement_consumer_id = 1;
@@ -38,7 +42,7 @@ message BasicReportDetails {
   }
   ExternalCampaignGroupIds external_campaign_group_ids = 2;
 
-  // Denormalized. The display_name of the campaign_group
+  // The display_name of the campaign_group
   string campaign_group_display_name = 3;
 
   // The interval of time that the BasicReport spans

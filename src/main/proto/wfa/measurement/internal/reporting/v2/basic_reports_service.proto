@@ -34,12 +34,15 @@ service BasicReports {
 
 message InsertBasicReportRequest {
   BasicReport basic_report = 1;
-  string external_basic_report_id = 2;
-  string request_id = 3;
+  // If set, it needs to be unique to create a new `BasicReport`. Recommended to
+  // use a UUID.
+  string request_id = 2;
 }
 
 message GetBasicReportRequest {
-  // `MeasurementConsumer` ID from the CMMS public API.
+  // Ex: If a `BasicReport` has the name
+  // "measurementconsumers/abc/basicreports/abcd", then the
+  // `MeasurementConsumer` ID is "abc" and the `BasicReport` ID is "abcd".
   string cmms_measurement_consumer_id = 1;
   string external_basic_report_id = 2;
 }

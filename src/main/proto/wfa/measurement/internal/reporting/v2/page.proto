@@ -35,16 +35,17 @@ message Page {
     // A summary of a component of the reporting_unit being reported on
     message ReportingUnitComponentSummary {
       message ExternalComponentIds {
-        message ExternalReportingSetIds {
-          // `MeasurementConsumer` ID from the CMMS public API.
-          string cmms_measurement_consumer_id = 1;
-          string external_reporting_set_id = 2;
-        }
-
+        // For a `ReportingSet`, the `MeasurementConsumer` ID will be assumed
+        // to be the same as the parent report.
+        //
+        // Ex: If a `DataProvider` has the name "dataproviders/abc", then the
+        // ID is "abc". If a `ReportingSet` has the name
+        // "measurementconsumers/abc/reportingsets/abcd", then the
+        // `ReportingSet` ID is "abcd".
         oneof resource {
-          ExternalReportingSetIds reporting_set = 1;
+          string external_reporting_set_id = 1;
           // `DataProvider` ID from the CMMS public API.
-          string cmms_data_provider = 2;
+          string cmms_data_provider_id = 2;
         }
       }
       ExternalComponentIds external_component_ids = 1;
@@ -53,6 +54,10 @@ message Page {
       string display_name = 2;
 
       // Summary of an EventGroup entailed by the component
+      //
+      // Ex: If an `EventGroup` has the name
+      // "measurementconsumers/abc/eventgroups/abcd", then the
+      // `MeasurementConsumer` ID is "abc" and the `EventGroup` ID is "abcd".
       message EventGroupSummary {
         // `MeasurementConsumer` ID from the CMMS public API.
         string cmms_measurement_consumer_id = 1;
@@ -160,8 +165,15 @@ message Page {
     message ComponentMetricSetMapEntry {
       // Map entry key.
       //
-      // This is a DataProvider external ID when use with BasicReport and
-      // a ReportingSet external ID when used with an AdvancedReport.
+      // This is a `DataProvider` CMMS ID when use with `BasicReport` and
+      // a `ReportingSet` external ID when used with an `AdvancedReport`. For
+      // a `ReportingSet` the `MeasurementConsumer` ID is assumed to be the
+      // the same as the one in the `AdvancedReport`.
+      //
+      // Ex: If a `DataProvider` has the name "dataproviders/abc", then the
+      // ID is "abc". If a `ReportingSet` has the name
+      // "measurementconsumers/abc/reportingsets/abcd", then the
+      // `ReportingSet` ID is "abcd".
       string key = 1;
 
       // Map entry value.
@@ -174,8 +186,15 @@ message Page {
     message ComponentIntersectionMetricSet {
       // The reporting_unit components that this intersection corresponds to.
       //
-      // These are DataProvider external IDs when used with a BasicReport and
-      // ReportingSet external IDs when used with an AdvancedReport.
+      // These are `DataProvider` CMMS IDs when used with a `BasicReport`
+      // and `ReportingSet` external IDs when used with an `AdvancedReport`.
+      // For a `ReportingSet`, the `MeasurementConsumer` ID is assumed to be
+      // the same as the one in the `AdvancedReport`.
+      //
+      // Ex: If a `DataProvider` has the name "dataproviders/abc", then the
+      // ID is "abc". If a `ReportingSet` has the name
+      // "measurementconsumers/abc/reportingsets/abcd", then the
+      // `ReportingSet` ID is "abcd" and the `MeasurementConsumer` ID is "abc".
       repeated string components = 1;
       // Basic metrics for the intersection of the components
       BasicMetricSet basic = 2;

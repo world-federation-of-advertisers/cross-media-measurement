@@ -24,7 +24,9 @@ option java_multiple_files = true;
 
 // Proto representation of the internal Basic Report entity type.
 message BasicReport {
-  // `MeasurementConsumer` ID from the CMMS public API.
+  // Ex: If a `BasicReport` has the name
+  // "measurementconsumers/abc/basicreports/abcd", then the
+  // `MeasurementConsumer` ID is "abc" and the `BasicReport` ID is "abcd".
   string cmms_measurement_consumer_id = 1;
   string external_basic_report_id = 2;
   BasicReportDetails details = 3;
