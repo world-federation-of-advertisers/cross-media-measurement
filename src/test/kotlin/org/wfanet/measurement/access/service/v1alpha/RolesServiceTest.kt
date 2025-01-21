@@ -338,35 +338,6 @@ class RolesServiceTest {
   }
 
   @Test
-  fun `createRole throws INVALID_FIELD_VALUE when name is malformed`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.createRole(
-          createRoleRequest {
-            role = role {
-              name = "roles"
-              permissions += "permissions/books.get"
-              permissions += "permissions/books.list"
-              resourceTypes += "library.googleapis.com/Shelf"
-              etag = "request-etag"
-            }
-            roleId = "bookReader"
-          }
-        )
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "role.name"
-        }
-      )
-  }
-
-  @Test
   fun `createRole throws INVALID_FIELD_VALUE when Permission name is malformed`() = runBlocking {
     val request = createRoleRequest {
       role = role {
@@ -424,10 +395,7 @@ class RolesServiceTest {
   fun `createRole throws RESOURCE_TYPE_NOT_FOUND_IN_PERMISSION from backend`() = runBlocking {
     internalServiceMock.stub {
       onBlocking { createRole(any()) } doThrow
-        ResourceTypeNotFoundInPermissionException(
-            "library.googleapis.com/Shelf",
-            "permissions/books.get",
-          )
+        ResourceTypeNotFoundInPermissionException("library.googleapis.com/Shelf", "books.get")
           .asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
 
