@@ -144,10 +144,6 @@ class RolesService(private val internalRolesStub: InternalRolesCoroutineStub) :
       throw InvalidFieldValueException("role_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    val key =
-      RoleKey.fromName(request.role.name)
-        ?: throw InvalidFieldValueException("role.name")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     val permissionKeys =
       request.role.permissionsList.map {
         PermissionKey.fromName(it)
@@ -159,7 +155,7 @@ class RolesService(private val internalRolesStub: InternalRolesCoroutineStub) :
       try {
         internalRolesStub.createRole(
           internalRole {
-            roleResourceId = key.roleId
+            roleResourceId = request.roleId
             resourceTypes += request.role.resourceTypesList
             permissionResourceIds += permissionKeys.map { it.permissionId }
             etag = request.role.etag
