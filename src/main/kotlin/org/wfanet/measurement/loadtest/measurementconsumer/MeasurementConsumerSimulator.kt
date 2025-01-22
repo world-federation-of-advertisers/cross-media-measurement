@@ -196,7 +196,7 @@ class MeasurementConsumerSimulator(
     val noiseMechanism: NoiseMechanism,
   )
 
-  private val MeasurementInfo.sampledVids: Sequence<Long>
+  private val MeasurementInfo.filteredVids: Sequence<Long>
     get() {
       val eventGroupSpecs =
         requisitions
@@ -208,7 +208,7 @@ class MeasurementConsumerSimulator(
             }
           }
           .asIterable()
-      return sampleVids(eventGroupSpecs, measurementSpec.vidSamplingInterval)
+      return sampleVids(eventGroupSpecs, FULL_VID_SAMPLING_INTERVAL)
     }
 
   private fun MeasurementInfo.sampleVidsByDataProvider(
@@ -1123,14 +1123,14 @@ class MeasurementConsumerSimulator(
   }
 
   private fun getExpectedReachResult(measurementInfo: MeasurementInfo): Result {
-    val reach = MeasurementResults.computeReach(measurementInfo.sampledVids.asIterable())
+    val reach = MeasurementResults.computeReach(measurementInfo.filteredVids.asIterable())
     return result { this.reach = reach { value = reach.toLong() } }
   }
 
   private fun getExpectedReachAndFrequencyResult(measurementInfo: MeasurementInfo): Result {
     val (reach, relativeFrequencyDistribution) =
       MeasurementResults.computeReachAndFrequency(
-        measurementInfo.sampledVids.asIterable(),
+        measurementInfo.filteredVids.asIterable(),
         measurementInfo.measurementSpec.reachAndFrequency.maximumFrequency,
       )
     return result {
@@ -1163,7 +1163,7 @@ class MeasurementConsumerSimulator(
       reach = MeasurementSpecKt.reach { privacyParams = outputDpParams }
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
-        width = 1.0f
+        width = 0.27f
       }
       this.nonceHashes += nonceHashes
     }
@@ -1182,7 +1182,7 @@ class MeasurementConsumerSimulator(
       }
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
-        width = 1.0f
+        width = 0.27f
       }
       this.nonceHashes += nonceHashes
     }
@@ -1197,7 +1197,7 @@ class MeasurementConsumerSimulator(
       reach = MeasurementSpecKt.reach { privacyParams = outputDpParams }
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
-        width = 1.0f
+        width = 0.27f
       }
       this.nonceHashes += nonceHashes
     }
@@ -1232,7 +1232,7 @@ class MeasurementConsumerSimulator(
       }
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
-        width = 1.0f
+        width = 0.27f
       }
       this.nonceHashes += nonceHashes
     }
@@ -1396,6 +1396,11 @@ class MeasurementConsumerSimulator(
   }
 
   companion object {
+    private val FULL_VID_SAMPLING_INTERVAL = vidSamplingInterval {
+      start = 0.0f
+      width = 1.0f
+    }
+
     private const val DEFAULT_FILTER_EXPRESSION =
       "person.gender == ${Person.Gender.MALE_VALUE} && " +
         "(video_ad.viewed_fraction > 0.25 || video_ad.viewed_fraction == 0.25)"
