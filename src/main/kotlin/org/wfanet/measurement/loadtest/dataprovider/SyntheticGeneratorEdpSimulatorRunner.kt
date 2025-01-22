@@ -17,6 +17,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
+import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
 import java.io.File
@@ -175,7 +176,9 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
     files: Iterable<File>
   ): List<DescriptorProtos.FileDescriptorSet> {
     return files.map { file ->
-      file.inputStream().use { input -> DescriptorProtos.FileDescriptorSet.parseFrom(input) }
+      file.inputStream().use { input ->
+        DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
+      }
     }
   }
 
@@ -197,6 +200,11 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
           EventAnnotationsProto.getDescriptor() +
           TestEvent.getDescriptor().file)
         .asIterable()
+
+    private val EXTENSION_REGISTRY =
+      ExtensionRegistry.newInstance()
+        .also { EventAnnotationsProto.registerAllExtensions(it) }
+        .unmodifiable
 
     init {
       check(TestEvent.getDescriptor().fullName == TEST_EVENT_MESSAGE_TYPE)

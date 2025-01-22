@@ -24,12 +24,19 @@ option java_outer_classname = "PermissionsServiceProto";
 
 service Permissions {
   // Gets a `Permission` by resource ID.
+  //
+  // Error reasons:
+  // * `PERMISSION_NOT_FOUND`
   rpc GetPermission(GetPermissionRequest) returns (Permission);
 
   // Lists `Permission`s ordered by resource ID.
   rpc ListPermissions(ListPermissionsRequest) returns (ListPermissionsResponse);
 
   // Checks what permissions a `Principal` has on a given resource.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_NOT_FOUND`
+  // * `PERMISSION_NOT_FOUND`
   rpc CheckPermissions(CheckPermissionsRequest)
       returns (CheckPermissionsResponse);
 }

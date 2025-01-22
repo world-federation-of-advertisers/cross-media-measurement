@@ -25,13 +25,16 @@ message MeasurementDetail {
   string set_operation = 2;
   bool is_cumulative = 3;
   repeated string data_providers = 4;
+  string unique_reach_target = 5;
+  repeated string left_hand_side_targets = 6;
+  repeated string right_hand_side_targets = 7;
 
   message MeasurementResult {
     int64 reach = 1;
     double standard_deviation = 2;
     string metric = 3;
   }
-  repeated MeasurementResult measurement_results = 5;
+  repeated MeasurementResult measurement_results = 8;
 }
 
 message ReportSummary {

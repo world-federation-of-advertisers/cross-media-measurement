@@ -29,11 +29,17 @@ option java_outer_classname = "PrincipalsServiceProto";
 // Service for interacting with `Principal` resources.
 service Principals {
   // Retrieves a `Principal` by resource name.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_NOT_FOUND`
   rpc GetPrincipal(GetPrincipalRequest) returns (Principal) {
     option (google.api.method_signature) = "name";
   }
 
   // Creates a `Principal`.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_ALREADY_EXISTS`
   rpc CreatePrincipal(CreatePrincipalRequest) returns (Principal) {
     option (google.api.method_signature) = "principal,principal_id";
   }
@@ -41,11 +47,19 @@ service Principals {
   // Deletes a `Principal`.
   //
   // This will also remove the `Principal` from all `Policy` bindings.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_NOT_FOUND`
+  // * `PRINCIPAL_TYPE_NOT_SUPPORTED`
   rpc DeletePrincipal(DeletePrincipalRequest) returns (google.protobuf.Empty) {
     option (google.api.method_signature) = "name";
   }
 
   // Looks up a `Principal` by lookup key.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_NOT_FOUND_FOR_USER`
+  // * `PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT`
   rpc LookupPrincipal(LookupPrincipalRequest) returns (Principal);
 }
 

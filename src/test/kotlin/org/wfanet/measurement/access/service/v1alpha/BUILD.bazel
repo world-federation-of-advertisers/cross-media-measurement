@@ -1,0 +1,73 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "PrincipalsServiceTest",
+    srcs = ["PrincipalsServiceTest.kt"],
+    test_class = "org.wfanet.measurement.access.service.v1alpha.PrincipalsServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/service:errors",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/v1alpha:principals_service",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "PermissionsServiceTest",
+    srcs = ["PermissionsServiceTest.kt"],
+    test_class = "org.wfanet.measurement.access.service.v1alpha.PermissionsServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/service:errors",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/v1alpha:permissions_service",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "RolesServiceTest",
+    srcs = ["RolesServiceTest.kt"],
+    test_class = "org.wfanet.measurement.access.service.v1alpha.RolesServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/service:errors",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/v1alpha:roles_service",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "PoliciesServiceTest",
+    srcs = ["PoliciesServiceTest.kt"],
+    test_class = "org.wfanet.measurement.access.service.v1alpha.PoliciesServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/service:errors",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/v1alpha:policies_service",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)

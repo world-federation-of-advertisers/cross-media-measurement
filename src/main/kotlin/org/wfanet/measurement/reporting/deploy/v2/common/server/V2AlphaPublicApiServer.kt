@@ -108,6 +108,23 @@ private object V2AlphaPublicApiServer {
     @CommandLine.Mixin v2AlphaFlags: V2AlphaFlags,
     @CommandLine.Mixin v2AlphaPublicServerFlags: V2AlphaPublicServerFlags,
     @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
+    @CommandLine.Option(
+      names = ["--access-api-target"],
+      description = ["gRPC target of the Access public API server"],
+      required = true,
+    )
+    accessApiTarget: String,
+    @CommandLine.Option(
+      names = ["--access-api-cert-host"],
+      description =
+        [
+          "Expected hostname (DNS-ID) in the Access public API server's TLS certificate.",
+          "This overrides derivation of the TLS DNS-ID from --access-api-target.",
+        ],
+      required = false,
+      defaultValue = CommandLine.Option.NULL_VALUE,
+    )
+    accessApiCertHost: String?,
   ) {
     val clientCerts =
       SigningCerts.fromPemFiles(
@@ -196,6 +213,8 @@ private object V2AlphaPublicApiServer {
         SecureRandom().asKotlinRandom(),
         v2AlphaFlags.signingPrivateKeyStoreDir,
         commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
+        reportingApiServerFlags.defaultVidModelLine,
+        reportingApiServerFlags.measurementConsumerModelLines,
         certificateCacheExpirationDuration =
           v2AlphaPublicServerFlags.certificateCacheExpirationDuration,
         dataProviderCacheExpirationDuration =

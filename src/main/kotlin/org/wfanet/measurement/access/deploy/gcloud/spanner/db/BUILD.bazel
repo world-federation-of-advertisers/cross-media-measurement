@@ -1,0 +1,24 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner:__pkg__",
+    ],
+)
+
+kt_jvm_library(
+    name = "db",
+    srcs = glob(["*.kt"]),
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:permission_mapping",
+        "//src/main/kotlin/org/wfanet/measurement/common:flows",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:etags",
+        "//src/main/proto/wfa/measurement/internal/access:policy_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/access:principal_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/access:role_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/access:roles_service_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)

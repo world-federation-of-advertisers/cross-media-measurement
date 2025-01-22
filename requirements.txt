@@ -1,7 +1,10 @@
+absl-py~=2.1.0
 numpy~=2.1.0
 scipy~=1.14.1
 highs~=1.7.2
 highspy~=1.7.2
+osqp~=0.6.3
+qdldl~=0.1.7
 qpsolvers~=4.3.3
 tzdata~=2024.1
 six~=1.16.0

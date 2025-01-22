@@ -149,6 +149,7 @@ duchy: #SpannerDuchy & {
 		}
 		"mill-job-scheduler-deployment": {
 			_liquidLegionsV2MaxConcurrency: #Llv2MillMaxConcurrency
+			_shareShuffleMaxConcurrency:    #HmssMillMaxConcurrency
 		}
 		"computation-control-server-deployment": {
 			_container: {
