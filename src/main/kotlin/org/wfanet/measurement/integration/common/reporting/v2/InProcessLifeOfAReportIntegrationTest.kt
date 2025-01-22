@@ -73,7 +73,6 @@ import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.integration.common.reporting.v2.identity.withPrincipalName
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
-import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
@@ -1725,7 +1724,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   ): Measurement.Result {
     val reach =
       MeasurementResults.computeReach(
-        sampleVids(eventGroupSpecs, FULL_VID_SAMPLING_INTERVAL).asIterable()
+        eventGroupSpecs.asSequence().flatMap { eventQuery.getUserVirtualIds(it) }.asIterable()
       )
     return MeasurementKt.result {
       this.reach = MeasurementKt.ResultKt.reach { value = reach.toLong() }
@@ -1738,7 +1737,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   ): Measurement.Result {
     val reachAndFrequency =
       MeasurementResults.computeReachAndFrequency(
-        sampleVids(eventGroupSpecs, FULL_VID_SAMPLING_INTERVAL).asIterable(),
+        eventGroupSpecs.asSequence().flatMap { eventQuery.getUserVirtualIds(it) }.asIterable(),
         maxFrequency,
       )
     return MeasurementKt.result {
@@ -1758,7 +1757,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   ): Measurement.Result {
     val impression =
       MeasurementResults.computeImpression(
-        sampleVids(eventGroupSpecs, FULL_VID_SAMPLING_INTERVAL).asIterable(),
+        eventGroupSpecs.asSequence().flatMap { eventQuery.getUserVirtualIds(it) }.asIterable(),
         maxFrequency,
       )
     return MeasurementKt.result {
@@ -1816,19 +1815,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         },
       )
     )
-  }
-
-  private fun sampleVids(
-    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
-    vidSamplingInterval: VidSamplingInterval,
-  ): Sequence<Long> {
-    return sampleVids(
-        SYNTHETIC_EVENT_QUERY,
-        eventGroupSpecs,
-        vidSamplingInterval.start,
-        vidSamplingInterval.width,
-      )
-      .asSequence()
   }
 
   private fun Sequence<Long>.calculateSampledVids(
@@ -1895,12 +1881,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       MetricSpecKt.vidSamplingInterval {
         start = 0.0f
         width = 0.9f
-      }
-
-    private val FULL_VID_SAMPLING_INTERVAL =
-      MetricSpecKt.vidSamplingInterval {
-        start = 0.0f
-        width = 1.0f
       }
 
     // For a 99.9% Confidence Interval.
