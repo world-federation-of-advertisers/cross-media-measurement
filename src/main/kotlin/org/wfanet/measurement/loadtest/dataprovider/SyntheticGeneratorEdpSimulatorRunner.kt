@@ -17,9 +17,11 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
+import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
 import java.io.File
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
@@ -63,10 +65,7 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
   )
   private fun setKnownEventGroupMetadataTypes(files: List<File>) {
     knownEventGroupMetadataTypes =
-      ProtoReflection.buildFileDescriptors(
-        loadFileDescriptorSets(files),
-        WELL_KNOWN_METADATA_TYPES.asIterable(),
-      )
+      ProtoReflection.buildFileDescriptors(loadFileDescriptorSets(files), COMPILED_PROTOBUF_TYPES)
   }
 
   private lateinit var knownEventGroupMetadataTypes: List<Descriptors.FileDescriptor>
@@ -159,12 +158,14 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
   private fun buildTypeRegistry(): TypeRegistry {
     return TypeRegistry.newBuilder()
       .apply {
-        add(ProtoReflection.WELL_KNOWN_TYPES.flatMap { it.messageTypes })
+        add(COMPILED_PROTOBUF_TYPES.flatMap { it.messageTypes })
         add(knownEventGroupMetadataTypes.flatMap { it.messageTypes })
-        add(TestEvent.getDescriptor())
         if (::eventMessageDescriptorSetFiles.isInitialized) {
           add(
-            ProtoReflection.buildDescriptors(loadFileDescriptorSets(eventMessageDescriptorSetFiles))
+            ProtoReflection.buildDescriptors(
+              loadFileDescriptorSets(eventMessageDescriptorSetFiles),
+              COMPILED_PROTOBUF_TYPES,
+            )
           )
         }
       }
@@ -175,7 +176,9 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
     files: Iterable<File>
   ): List<DescriptorProtos.FileDescriptorSet> {
     return files.map { file ->
-      file.inputStream().use { input -> DescriptorProtos.FileDescriptorSet.parseFrom(input) }
+      file.inputStream().use { input ->
+        DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
+      }
     }
   }
 
@@ -186,8 +189,22 @@ class SyntheticGeneratorEdpSimulatorRunner : EdpSimulatorRunner() {
       "wfa.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec"
     private const val DEFAULT_METADATA_TYPE_URL =
       "${ProtoReflection.DEFAULT_TYPE_URL_PREFIX}/$SYNTHETIC_EVENT_GROUP_SPEC_MESSAGE_TYPE"
-    private val WELL_KNOWN_METADATA_TYPES =
-      ProtoReflection.WELL_KNOWN_TYPES.asSequence() + SyntheticEventGroupSpec.getDescriptor().file
+
+    /**
+     * [Descriptors.FileDescriptor]s of protobuf types known at compile-time that may be loaded from
+     * a [DescriptorProtos.FileDescriptorSet].
+     */
+    private val COMPILED_PROTOBUF_TYPES: Iterable<Descriptors.FileDescriptor> =
+      (ProtoReflection.WELL_KNOWN_TYPES.asSequence() +
+          SyntheticEventGroupSpec.getDescriptor().file +
+          EventAnnotationsProto.getDescriptor() +
+          TestEvent.getDescriptor().file)
+        .asIterable()
+
+    private val EXTENSION_REGISTRY =
+      ExtensionRegistry.newInstance()
+        .also { EventAnnotationsProto.registerAllExtensions(it) }
+        .unmodifiable
 
     init {
       check(TestEvent.getDescriptor().fullName == TEST_EVENT_MESSAGE_TYPE)

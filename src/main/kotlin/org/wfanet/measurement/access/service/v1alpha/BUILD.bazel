@@ -1,0 +1,98 @@
+load("@wfa_common_jvm//build:defs.bzl", "test_target")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy:__subpackages__",
+        test_target(":__pkg__"),
+    ],
+)
+
+kt_jvm_library(
+    name = "permissions_service",
+    srcs = ["PermissionsService.kt"],
+    deps = [
+        ":resource_conversion",
+        "//src/main/kotlin/org/wfanet/measurement/access/service:errors",
+        "//src/main/kotlin/org/wfanet/measurement/access/service:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:errors",
+        "//src/main/proto/wfa/measurement/access/v1alpha:permissions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/access:permissions_service_kt_jvm_grpc_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "principals_service",
+    srcs = ["PrincipalsService.kt"],
+    deps = [
+        ":resource_conversion",
+        "//src/main/kotlin/org/wfanet/measurement/access/service:errors",
+        "//src/main/kotlin/org/wfanet/measurement/access/service:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_ids",
+        "//src/main/proto/wfa/measurement/access/v1alpha:principals_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/access:principals_service_kt_jvm_grpc_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "roles_service",
+    srcs = ["RolesService.kt"],
+    deps = [
+        ":resource_conversion",
+        "//src/main/kotlin/org/wfanet/measurement/access/service:errors",
+        "//src/main/kotlin/org/wfanet/measurement/access/service:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_ids",
+        "//src/main/proto/wfa/measurement/access/v1alpha:roles_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/access:roles_service_kt_jvm_grpc_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "policies_service",
+    srcs = ["PoliciesService.kt"],
+    deps = [
+        ":resource_conversion",
+        "//src/main/kotlin/org/wfanet/measurement/access/service:errors",
+        "//src/main/kotlin/org/wfanet/measurement/access/service:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_ids",
+        "//src/main/proto/wfa/measurement/access/v1alpha:policies_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/access:policies_service_kt_jvm_grpc_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "resource_conversion",
+    srcs = ["ResourceConversion.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/service:resource_key",
+        "//src/main/proto/wfa/measurement/access/v1alpha:permission_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/access/v1alpha:policy_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/access/v1alpha:principal_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/access/v1alpha:role_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/access:permission_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/access:policy_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/access:principal_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/access:role_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "services",
+    srcs = ["Services.kt"],
+    deps = [
+        ":permissions_service",
+        ":policies_service",
+        ":principals_service",
+        ":roles_service",
+        "//src/main/proto/wfa/measurement/access/v1alpha:permissions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/access/v1alpha:policies_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/access/v1alpha:principals_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/access/v1alpha:roles_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/access:permissions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/access:policies_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/access:principals_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/access:roles_service_kt_jvm_grpc_proto",
+    ],
+)

@@ -27,8 +27,8 @@ module "reporting_v2_default_node_pool" {
   name            = "default"
   cluster         = module.reporting_v2_cluster.cluster
   service_account = module.common.cluster_service_account
-  machine_type    = "e2-small"
-  max_node_count  = 8
+  machine_type    = "e2-custom-2-4096"
+  max_node_count  = 4
 }
 
 module "reporting_v2" {
@@ -37,6 +37,7 @@ module "reporting_v2" {
   iam_service_account_name = "reporting-v2-internal"
   postgres_instance        = google_sql_database_instance.postgres
   postgres_database_name   = "reporting-v2"
+  spanner_instance         = google_spanner_instance.spanner_instance
 }
 
 resource "google_compute_address" "reporting_v2alpha" {

@@ -1,0 +1,112 @@
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load(
+    "@wfa_rules_kotlin_jvm//kotlin:defs.bzl",
+    "kt_jvm_grpc_proto_library",
+    "kt_jvm_proto_library",
+)
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/access:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/access:__subpackages__",
+])
+
+IMPORT_PREFIX = "/src/main/proto"
+
+proto_library(
+    name = "principal_proto",
+    srcs = ["principal.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "principals_service_proto",
+    srcs = ["principals_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":principal_proto",
+        "@com_google_protobuf//:empty_proto",
+    ],
+)
+
+proto_library(
+    name = "permission_proto",
+    srcs = ["permission.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+proto_library(
+    name = "permissions_service_proto",
+    srcs = ["permissions_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":permission_proto",
+    ],
+)
+
+proto_library(
+    name = "role_proto",
+    srcs = ["role.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "roles_service_proto",
+    srcs = ["roles_service.proto"],
+    deps = [
+        ":role_proto",
+        "@com_google_protobuf//:empty_proto",
+    ],
+)
+
+proto_library(
+    name = "policy_proto",
+    srcs = ["policy.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "policies_service_proto",
+    srcs = ["policies_service.proto"],
+    deps = [
+        ":policy_proto",
+    ],
+)
+
+MESSAGE_LIBS = [
+    "principal",
+    "permission",
+    "role",
+    "policy",
+]
+
+SERVICE_LIBS = [
+    "principals",
+    "permissions",
+    "roles",
+    "policies",
+]
+
+[
+    kt_jvm_proto_library(
+        name = "{prefix}_kt_jvm_proto".format(prefix = prefix),
+        deps = [":{prefix}_proto".format(prefix = prefix)],
+    )
+    for prefix in MESSAGE_LIBS
+]
+
+[
+    kt_jvm_grpc_proto_library(
+        name = "{prefix}_service_kt_jvm_grpc_proto".format(prefix = prefix),
+        deps = [":{prefix}_service_proto".format(prefix = prefix)],
+    )
+    for prefix in SERVICE_LIBS
+]

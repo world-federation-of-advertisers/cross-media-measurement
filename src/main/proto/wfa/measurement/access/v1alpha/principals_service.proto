@@ -1,0 +1,105 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.access.v1alpha;
+
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/empty.proto";
+import "wfa/measurement/access/v1alpha/principal.proto";
+
+option java_package = "org.wfanet.measurement.access.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "PrincipalsServiceProto";
+
+// Service for interacting with `Principal` resources.
+service Principals {
+  // Retrieves a `Principal` by resource name.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_NOT_FOUND`
+  rpc GetPrincipal(GetPrincipalRequest) returns (Principal) {
+    option (google.api.method_signature) = "name";
+  }
+
+  // Creates a `Principal`.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_ALREADY_EXISTS`
+  rpc CreatePrincipal(CreatePrincipalRequest) returns (Principal) {
+    option (google.api.method_signature) = "principal,principal_id";
+  }
+
+  // Deletes a `Principal`.
+  //
+  // This will also remove the `Principal` from all `Policy` bindings.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_NOT_FOUND`
+  // * `PRINCIPAL_TYPE_NOT_SUPPORTED`
+  rpc DeletePrincipal(DeletePrincipalRequest) returns (google.protobuf.Empty) {
+    option (google.api.method_signature) = "name";
+  }
+
+  // Looks up a `Principal` by lookup key.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_NOT_FOUND_FOR_USER`
+  // * `PRINCIPAL_NOT_FOUND_FOR_TLS_CLIENT`
+  rpc LookupPrincipal(LookupPrincipalRequest) returns (Principal);
+}
+
+// Request message for `GetPrincipal` method.
+message GetPrincipalRequest {
+  // Resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "access.halo-cmm.org/Principal"
+  ];
+}
+
+// Request message for `CreatePrincipal` method.
+message CreatePrincipalRequest {
+  // Resource to create.
+  Principal principal = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // Resource ID.
+  //
+  // This must confirm to RFC-1034 with the following exceptions:
+  // * IDs are case-sensitive.
+  string principal_id = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for `DeletePrincipal` method.
+message DeletePrincipalRequest {
+  // Resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "access.halo-cmm.org/Principal"
+  ];
+}
+
+// Request message for the `LookupPrincipal` method.
+message LookupPrincipalRequest {
+  // Lookup key. Required.
+  oneof lookup_key {
+    // User identity.
+    Principal.OAuthUser user = 1 [(google.api.field_behavior) = OPTIONAL];
+    // TLS client identity.
+    Principal.TlsClient tls_client = 2 [(google.api.field_behavior) = OPTIONAL];
+  }
+}

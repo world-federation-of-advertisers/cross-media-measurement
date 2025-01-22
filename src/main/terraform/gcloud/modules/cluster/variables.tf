@@ -42,3 +42,9 @@ variable "autoscaling_profile" {
   type        = string
   default     = null
 }
+
+variable "deletion_protection" {
+  description = "Whether deletion protection is enabled"
+  type        = bool
+  default     = null
+}

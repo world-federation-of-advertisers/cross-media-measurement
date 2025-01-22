@@ -56,3 +56,8 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:hashing",
     ],
 )
+
+kt_jvm_library(
+    name = "resource_ids",
+    srcs = ["ResourceIds.kt"],
+)

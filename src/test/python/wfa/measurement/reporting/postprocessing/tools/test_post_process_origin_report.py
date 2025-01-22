@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 import unittest
 
+from google.protobuf.json_format import Parse
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_summary_pb2
-from tools.post_process_origin_report import correctExcelFile, readExcel, \
-  processReportSummary
+from tools.post_process_origin_report import ReportSummaryProcessor
 
 EDP_MAP = {
     "edp1": {"edp1"},
@@ -45,10 +46,22 @@ MRC_MEASUREMENTS = {
               31775635, 31917650, 31478465, 31784354, 31542065],
 }
 
+SIGMAS = {
+    'edp1': 13000.0,
+    'edp2': 13000.0,
+    'union': 1300.0,
+}
+
+TOLERANCE = 1
+
+
 class TestOriginReport(unittest.TestCase):
   def test_report_summary_is_corrected_successfully(self):
     report_summary = report_summary_pb2.ReportSummary()
-    # Generates report summary from the measurements
+    # Generates report summary from the measurements. For each edp combination,
+    # all measurements except the last one are cumulative measurements, and the
+    # last one is the whole campaign measurement.
+    num_periods = len(AMI_MEASUREMENTS['edp1']) - 1
     for edp in EDP_MAP:
       ami_measurement_detail = report_summary.measurement_details.add()
       ami_measurement_detail.measurement_policy = "ami"
@@ -58,19 +71,21 @@ class TestOriginReport(unittest.TestCase):
       for i in range(len(AMI_MEASUREMENTS[edp]) - 1):
         ami_result = ami_measurement_detail.measurement_results.add()
         ami_result.reach = AMI_MEASUREMENTS[edp][i]
-        ami_result.standard_deviation = 1.0
-        ami_result.metric = "metric_" + edp + "_ami_" + str(i).zfill(5)
+        ami_result.standard_deviation = SIGMAS[edp]
+        ami_result.metric = "cumulative_metric_" + edp + "_ami_" + str(i).zfill(
+            5)
 
       mrc_measurement_detail = report_summary.measurement_details.add()
       mrc_measurement_detail.measurement_policy = "mrc"
       mrc_measurement_detail.set_operation = "cumulative"
       mrc_measurement_detail.is_cumulative = True
       mrc_measurement_detail.data_providers.extend(EDP_MAP[edp])
-      for i in range(len(MRC_MEASUREMENTS[edp]) - 1):
+      for i in range(num_periods):
         mrc_result = mrc_measurement_detail.measurement_results.add()
         mrc_result.reach = MRC_MEASUREMENTS[edp][i]
-        mrc_result.standard_deviation = 1.0
-        mrc_result.metric = "metric_" + edp + "_mrc_" + str(i).zfill(5)
+        mrc_result.standard_deviation = SIGMAS[edp]
+        mrc_result.metric = "cumulative_metric_" + edp + "_mrc_" + str(i).zfill(
+            5)
 
     for edp in EDP_MAP:
       ami_measurement_detail = report_summary.measurement_details.add()
@@ -80,9 +95,8 @@ class TestOriginReport(unittest.TestCase):
       ami_measurement_detail.data_providers.extend(EDP_MAP[edp])
       ami_result = ami_measurement_detail.measurement_results.add()
       ami_result.reach = AMI_MEASUREMENTS[edp][len(AMI_MEASUREMENTS[edp]) - 1]
-      ami_result.standard_deviation = 1.0
-      ami_result.metric = "metric_" + edp + "_ami_" + str(
-          len(AMI_MEASUREMENTS[edp]) - 1).zfill(5)
+      ami_result.standard_deviation = SIGMAS[edp]
+      ami_result.metric = "total_metric_" + edp + "_ami_"
 
       mrc_measurement_detail = report_summary.measurement_details.add()
       mrc_measurement_detail.measurement_policy = "mrc"
@@ -91,43 +105,431 @@ class TestOriginReport(unittest.TestCase):
       mrc_measurement_detail.data_providers.extend(EDP_MAP[edp])
       mrc_result = mrc_measurement_detail.measurement_results.add()
       mrc_result.reach = MRC_MEASUREMENTS[edp][len(MRC_MEASUREMENTS[edp]) - 1]
-      mrc_result.standard_deviation = 1.0
-      mrc_result.metric = "metric_" + edp + "_mrc_" + str(
-          len(MRC_MEASUREMENTS[edp]) - 1).zfill(5)
+      mrc_result.standard_deviation = SIGMAS[edp]
+      mrc_result.metric = "total_metric_" + edp + "_mrc_"
 
-    corrected_measurements_map = processReportSummary(report_summary)
+    corrected_measurements_map = ReportSummaryProcessor(
+        report_summary).process()
+
     # Verifies that the updated reach values are consistent.
     for edp in EDP_MAP:
-      ami_metric_prefix = "metric_" + edp + "_ami_"
-      mrc_metric_prefix = "metric_" + edp + "_mrc_"
+      cumulative_ami_metric_prefix = "cumulative_metric_" + edp + "_ami_"
+      cumulative_mrc_metric_prefix = "cumulative_metric_" + edp + "_mrc_"
+      total_ami_metric = "total_metric_" + edp + "_ami_"
+      total_mrc_metric = "total_metric_" + edp + "_mrc_"
       # Verifies that cumulative measurements are consistent.
-      for i in range(len(AMI_MEASUREMENTS) - 1):
-        self.assertTrue(
-            corrected_measurements_map[ami_metric_prefix + str(i).zfill(5)] <=
-            corrected_measurements_map[ami_metric_prefix + str(i + 1).zfill(5)])
-        self.assertTrue(
-            corrected_measurements_map[mrc_metric_prefix + str(i).zfill(5)] <=
-            corrected_measurements_map[mrc_metric_prefix + str(i + 1).zfill(5)])
+      for i in range(num_periods - 1):
+        self.assertLessEqual(
+            corrected_measurements_map[
+              cumulative_ami_metric_prefix + str(i).zfill(5)],
+            corrected_measurements_map[
+              cumulative_ami_metric_prefix + str(i + 1).zfill(5)])
+        self.assertLessEqual(
+            corrected_measurements_map[
+              cumulative_mrc_metric_prefix + str(i).zfill(5)],
+            corrected_measurements_map[
+              cumulative_mrc_metric_prefix + str(i + 1).zfill(5)])
       # Verifies that the mrc measurements is less than or equal to the ami ones.
-      for i in range(len(AMI_MEASUREMENTS)):
-        self.assertTrue(
-            corrected_measurements_map[mrc_metric_prefix + str(i).zfill(5)] <=
-            corrected_measurements_map[ami_metric_prefix + str(i).zfill(5)]
+      for i in range(num_periods):
+        self.assertLessEqual(
+            corrected_measurements_map[
+              cumulative_mrc_metric_prefix + str(i).zfill(5)],
+            corrected_measurements_map[
+              cumulative_ami_metric_prefix + str(i).zfill(5)]
         )
+      # Verifies that the total reach is greater than or equal to the last
+      # cumulative reach.
+      self.assertLessEqual(
+          corrected_measurements_map[
+            cumulative_ami_metric_prefix + str(num_periods - 1).zfill(5)],
+          corrected_measurements_map[total_ami_metric]
+      )
+      self.assertLessEqual(
+          corrected_measurements_map[
+            cumulative_mrc_metric_prefix + str(num_periods - 1).zfill(5)],
+          corrected_measurements_map[total_mrc_metric]
+      )
 
     # Verifies that the union reach is less than or equal to the sum of
     # individual reaches.
-    for i in range(len(AMI_MEASUREMENTS) - 1):
-      self.assertTrue(
-          corrected_measurements_map["metric_union_ami_" + str(i).zfill(5)] <=
-          corrected_measurements_map["metric_edp1_ami_" + str(i).zfill(5)] +
-          corrected_measurements_map["metric_edp2_ami_" + str(i).zfill(5)]
+    for i in range(num_periods - 1):
+      self._assertFuzzyLessEqual(
+          corrected_measurements_map[
+            "cumulative_metric_union_ami_" + str(i).zfill(5)],
+          corrected_measurements_map[
+            "cumulative_metric_edp1_ami_" + str(i).zfill(5)] +
+          corrected_measurements_map[
+            "cumulative_metric_edp2_ami_" + str(i).zfill(5)],
+          TOLERANCE
       )
-      self.assertTrue(
-          corrected_measurements_map["metric_union_mrc_" + str(i).zfill(5)] <=
-          corrected_measurements_map["metric_edp1_mrc_" + str(i).zfill(5)] +
-          corrected_measurements_map["metric_edp2_mrc_" + str(i).zfill(5)]
+      self._assertFuzzyLessEqual(
+          corrected_measurements_map[
+            "cumulative_metric_union_mrc_" + str(i).zfill(5)],
+          corrected_measurements_map[
+            "cumulative_metric_edp1_mrc_" + str(i).zfill(5)] +
+          corrected_measurements_map[
+            "cumulative_metric_edp2_mrc_" + str(i).zfill(5)],
+          TOLERANCE
       )
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map["total_metric_union_ami_"],
+        corrected_measurements_map["total_metric_edp1_ami_"] +
+        corrected_measurements_map["total_metric_edp2_ami_"],
+        TOLERANCE
+    )
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map["total_metric_union_mrc_"],
+        corrected_measurements_map["total_metric_edp1_mrc_"] +
+        corrected_measurements_map["total_metric_edp2_mrc_"],
+        TOLERANCE
+    )
+
+  def test_report_with_unique_reach_is_parsed_correctly(self):
+    report_summary = get_report_summary(
+        "src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_with_unique_reach.json")
+    reportSummaryProcessor = ReportSummaryProcessor(report_summary)
+
+    reportSummaryProcessor._process_primitive_measurements()
+    reportSummaryProcessor._process_difference_measurements()
+
+    expected_unique_reach_map = {
+        'difference/ami/unique_reach_edp2': ['union/ami/edp1_edp2_edp3',
+                                             'union/ami/edp1_edp3'],
+        'difference/ami/unique_reach_edp1': ['union/ami/edp1_edp2_edp3',
+                                             'union/ami/edp2_edp3'],
+        'difference/ami/difference_reach_edp1': ['union/ami/edp1_edp2',
+                                                 'union/ami/edp2'],
+        'difference/ami/unique_reach_edp3': ['union/ami/edp1_edp2_edp3',
+                                             'union/ami/edp1_edp2'],
+    }
+
+    self.assertDictEqual(reportSummaryProcessor._set_difference_map,
+                         expected_unique_reach_map)
+
+  def test_report_with_custom_policy_is_corrected_successfully(self):
+    report_summary = get_report_summary(
+        "src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_with_custom_policy.json")
+    corrected_measurements_map = ReportSummaryProcessor(
+        report_summary).process()
+
+    primitive_edp_combinations = ["edp1", "edp2", "edp1_edp2"]
+    composite_edp_combinations = ["edp1_minus_edp2", "edp2_minus_edp1"]
+
+    # Verifies that cumulative measurements are non-decreasing.
+    for i in range(9):
+      for edp_combination in primitive_edp_combinations:
+        self.assertLessEqual(
+            corrected_measurements_map[
+              'cumulative/ami/' + edp_combination + '_' + str(i).zfill(2)],
+            corrected_measurements_map[
+              'cumulative/ami/' + edp_combination + '_' + str(i + 1).zfill(2)],
+        )
+        self.assertLessEqual(
+            corrected_measurements_map[
+              'cumulative/mrc/' + edp_combination + '_' + str(i).zfill(2)],
+            corrected_measurements_map[
+              'cumulative/mrc/' + edp_combination + '_' + str(i + 1).zfill(2)],
+        )
+        self.assertLessEqual(
+            corrected_measurements_map[
+              'cumulative/custom/' + edp_combination + '_' + str(i).zfill(2)],
+            corrected_measurements_map[
+              'cumulative/custom/' + edp_combination + '_' + str(i + 1).zfill(
+                2)],
+        )
+
+    # Verifies that cumulative measurements are less than or equal to total
+    # measurements.
+    for edp_combination in primitive_edp_combinations:
+      self.assertLessEqual(
+          corrected_measurements_map[
+            'cumulative/ami/' + edp_combination + '_' + str(9).zfill(2)],
+          corrected_measurements_map['union/ami/' + edp_combination]
+      )
+      self.assertLessEqual(
+          corrected_measurements_map[
+            'cumulative/mrc/' + edp_combination + '_' + str(9).zfill(2)],
+          corrected_measurements_map['union/mrc/' + edp_combination]
+      )
+      self.assertLessEqual(
+          corrected_measurements_map[
+            'cumulative/custom/' + edp_combination + '_' + str(9).zfill(2)],
+          corrected_measurements_map['union/custom/' + edp_combination]
+      )
+
+    # Verifies that subset measurements are less than superset measurements
+    for i in range(10):
+      self.assertLessEqual(
+          corrected_measurements_map['cumulative/ami/edp1_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/ami/edp1_edp2_' + str(i).zfill(2)],
+      )
+      self.assertLessEqual(
+          corrected_measurements_map['cumulative/ami/edp2_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/ami/edp1_edp2_' + str(i).zfill(2)],
+      )
+      self.assertLessEqual(
+          corrected_measurements_map['cumulative/mrc/edp1_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/mrc/edp1_edp2_' + str(i).zfill(2)],
+      )
+      self.assertLessEqual(
+          corrected_measurements_map['cumulative/mrc/edp2_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/mrc/edp1_edp2_' + str(i).zfill(2)],
+      )
+      self.assertLessEqual(
+          corrected_measurements_map[
+            'cumulative/custom/edp1_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/custom/edp1_edp2_' + str(i).zfill(2)],
+      )
+      self.assertLessEqual(
+          corrected_measurements_map[
+            'cumulative/custom/edp2_' + str(i).zfill(2)],
+          corrected_measurements_map[
+            'cumulative/custom/edp1_edp2_' + str(i).zfill(2)],
+      )
+    self.assertLessEqual(
+        corrected_measurements_map['union/ami/edp1'],
+        corrected_measurements_map['union/ami/edp1_edp2'],
+    )
+    self.assertLessEqual(
+        corrected_measurements_map['union/ami/edp2'],
+        corrected_measurements_map['union/ami/edp1_edp2'],
+    )
+    self.assertLessEqual(
+        corrected_measurements_map['union/mrc/edp1'],
+        corrected_measurements_map['union/mrc/edp1_edp2'],
+    )
+    self.assertLessEqual(
+        corrected_measurements_map['union/mrc/edp2'],
+        corrected_measurements_map['union/mrc/edp1_edp2'],
+    )
+    self.assertLessEqual(
+        corrected_measurements_map['union/custom/edp1'],
+        corrected_measurements_map['union/custom/edp1_edp2'],
+    )
+    self.assertLessEqual(
+        corrected_measurements_map['union/custom/edp2'],
+        corrected_measurements_map['union/custom/edp1_edp2'],
+    )
+
+    # Verifies that cover set measurements are less than the sum of child set
+    # measurements.
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/ami/edp1_edp2'],
+        corrected_measurements_map['union/ami/edp1'] +
+        corrected_measurements_map['union/ami/edp2'],
+        TOLERANCE
+    )
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/mrc/edp1_edp2'],
+        corrected_measurements_map['union/mrc/edp1'] +
+        corrected_measurements_map['union/mrc/edp2'],
+        TOLERANCE
+    )
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/custom/edp1_edp2'],
+        corrected_measurements_map['union/custom/edp1'] +
+        corrected_measurements_map['union/custom/edp2'],
+        TOLERANCE
+    )
+
+    # Verifies that difference measurements are mapped correctly to primitive
+    # measurements.
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/ami/edp2_minus_edp1'],
+        corrected_measurements_map['union/ami/edp1_edp2'] -
+        corrected_measurements_map['union/ami/edp1'],
+        TOLERANCE
+    )
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/ami/edp1_minus_edp2'],
+        corrected_measurements_map['union/ami/edp1_edp2'] -
+        corrected_measurements_map['union/ami/edp2'],
+        TOLERANCE
+    )
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/mrc/edp2_minus_edp1'],
+        corrected_measurements_map['union/mrc/edp1_edp2'] -
+        corrected_measurements_map['union/mrc/edp1'],
+        TOLERANCE
+    )
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/mrc/edp1_minus_edp2'],
+        corrected_measurements_map['union/mrc/edp1_edp2'] -
+        corrected_measurements_map['union/mrc/edp2'],
+        TOLERANCE
+    )
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/custom/edp2_minus_edp1'],
+        corrected_measurements_map['union/custom/edp1_edp2'] -
+        corrected_measurements_map['union/custom/edp1'],
+        TOLERANCE
+    )
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/custom/edp1_minus_edp2'],
+        corrected_measurements_map['union/custom/edp1_edp2'] -
+        corrected_measurements_map['union/custom/edp2'],
+        TOLERANCE
+    )
+
+    # Verifies that mrc/custom measurements are less than or equal to ami ones.
+    for i in range(10):
+      for edp_combination in primitive_edp_combinations:
+        self.assertLessEqual(
+            corrected_measurements_map[
+              'cumulative/mrc/' + edp_combination + '_' + str(i).zfill(2)],
+            corrected_measurements_map[
+              'cumulative/ami/' + edp_combination + '_' + str(i).zfill(2)]
+        )
+        self.assertLessEqual(
+            corrected_measurements_map[
+              'cumulative/custom/' + edp_combination + '_' + str(i).zfill(2)],
+            corrected_measurements_map[
+              'cumulative/ami/' + edp_combination + '_' + str(i).zfill(2)]
+        )
+    for edp_combination in primitive_edp_combinations:
+      self.assertLessEqual(
+          corrected_measurements_map['union/mrc/' + edp_combination],
+          corrected_measurements_map['union/ami/' + edp_combination]
+      )
+      self.assertLessEqual(
+          corrected_measurements_map['union/custom/' + edp_combination],
+          corrected_measurements_map['union/ami/' + edp_combination]
+      )
+    for edp_combination in composite_edp_combinations:
+      self.assertLessEqual(
+          corrected_measurements_map['difference/mrc/' + edp_combination],
+          corrected_measurements_map['difference/ami/' + edp_combination]
+      )
+      self.assertLessEqual(
+          corrected_measurements_map['difference/custom/' + edp_combination],
+          corrected_measurements_map['difference/ami/' + edp_combination]
+      )
+
+  def test_report_with_unique_reach_is_corrected_successfully(self):
+    report_summary = get_report_summary(
+        "src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_with_unique_reach.json")
+    corrected_measurements_map = ReportSummaryProcessor(
+        report_summary).process()
+
+    # Cumulative measurements are less than or equal to total measurements.
+    self.assertLessEqual(corrected_measurements_map['cumulative/ami/edp1'],
+                         corrected_measurements_map['union/ami/edp1'])
+    self.assertLessEqual(corrected_measurements_map['cumulative/ami/edp2'],
+                         corrected_measurements_map['union/ami/edp2'])
+    self.assertLessEqual(corrected_measurements_map['cumulative/ami/edp3'],
+                         corrected_measurements_map['union/ami/edp3'])
+
+    # Subset measurements are less than or equal to superset measurements.
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp1'],
+                         corrected_measurements_map['union/ami/edp1_edp2'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp1'],
+                         corrected_measurements_map['union/ami/edp1_edp3'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp1'],
+                         corrected_measurements_map['union/ami/edp1_edp2_edp3'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp2'],
+                         corrected_measurements_map['union/ami/edp1_edp2'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp2'],
+                         corrected_measurements_map['union/ami/edp2_edp3'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp2'],
+                         corrected_measurements_map['union/ami/edp1_edp2_edp3'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp3'],
+                         corrected_measurements_map['union/ami/edp1_edp3'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp3'],
+                         corrected_measurements_map['union/ami/edp2_edp3'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp3'],
+                         corrected_measurements_map['union/ami/edp1_edp2_edp3'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp1_edp2'],
+                         corrected_measurements_map['union/ami/edp1_edp2_edp3'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp1_edp3'],
+                         corrected_measurements_map['union/ami/edp1_edp2_edp3'])
+    self.assertLessEqual(corrected_measurements_map['union/ami/edp2_edp3'],
+                         corrected_measurements_map['union/ami/edp1_edp2_edp3'])
+
+    # Checks cover relationships.
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/ami/edp1_edp2_edp3'],
+        corrected_measurements_map['union/ami/edp1'] +
+        corrected_measurements_map['union/ami/edp2'] +
+        corrected_measurements_map['union/ami/edp3'], TOLERANCE)
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/ami/edp1_edp2_edp3'],
+        corrected_measurements_map['union/ami/edp1'] +
+        corrected_measurements_map['union/ami/edp2_edp3'], TOLERANCE)
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/ami/edp1_edp2_edp3'],
+        corrected_measurements_map['union/ami/edp2'] +
+        corrected_measurements_map['union/ami/edp1_edp3'], TOLERANCE)
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/ami/edp1_edp2_edp3'],
+        corrected_measurements_map['union/ami/edp3'] +
+        corrected_measurements_map['union/ami/edp1_edp2'], TOLERANCE)
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/ami/edp1_edp2'],
+        corrected_measurements_map['union/ami/edp1'] +
+        corrected_measurements_map['union/ami/edp2'], TOLERANCE)
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/ami/edp1_edp3'],
+        corrected_measurements_map['union/ami/edp1'] +
+        corrected_measurements_map['union/ami/edp3'], TOLERANCE)
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['union/ami/edp2_edp3'],
+        corrected_measurements_map['union/ami/edp2'] +
+        corrected_measurements_map['union/ami/edp3'], TOLERANCE)
+
+    # Checks unique reach measurements.
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/ami/unique_reach_edp1'],
+        corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
+        corrected_measurements_map['union/ami/edp2_edp3'],
+        TOLERANCE
+    )
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/ami/unique_reach_edp2'],
+        corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
+        corrected_measurements_map['union/ami/edp1_edp3'],
+        TOLERANCE
+    )
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/ami/unique_reach_edp3'],
+        corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
+        corrected_measurements_map['union/ami/edp1_edp2'],
+        TOLERANCE
+    )
+
+    # Checks incremental reach measurements.
+    self._assertFuzzyEqual(
+        corrected_measurements_map['difference/ami/difference_reach_edp1'],
+        corrected_measurements_map['union/ami/edp1_edp2'] -
+        corrected_measurements_map['union/ami/edp2'],
+        TOLERANCE
+    )
+
+  def _assertFuzzyEqual(self, x: int, y: int, tolerance: int):
+    self.assertLessEqual(abs(x - y), tolerance)
+
+  def _assertFuzzyLessEqual(self, x: int, y: int, tolerance: int):
+    self.assertLessEqual(x, y + tolerance)
+
+
+def read_file_to_string(filename: str) -> str:
+  try:
+    with open(filename, 'r') as file:
+      return file.read()
+  except FileNotFoundError:
+    sys.exit(1)
+
+
+def get_report_summary(filename: str):
+  input = read_file_to_string(filename)
+  report_summary = report_summary_pb2.ReportSummary()
+  Parse(input, report_summary)
+  return report_summary
+
 
 if __name__ == "__main__":
   unittest.main()

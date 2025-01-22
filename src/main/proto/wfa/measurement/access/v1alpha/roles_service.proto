@@ -1,0 +1,147 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.access.v1alpha;
+
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/empty.proto";
+import "wfa/measurement/access/v1alpha/role.proto";
+
+option java_package = "org.wfanet.measurement.access.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RolesServiceProto";
+
+// Service for interacting with `Role` resources.
+service Roles {
+  // Retrieves a `Role` by resource name.
+  //
+  // Error reasons:
+  // * `ROLE_NOT_FOUND`
+  rpc GetRole(GetRoleRequest) returns (Role) {
+    option (google.api.method_signature) = "name";
+  }
+
+  // Lists `Role` resources.
+  rpc ListRoles(ListRolesRequest) returns (ListRolesResponse) {
+    option (google.api.method_signature) = "parent";
+  }
+
+  // Creates a `Role`.
+  //
+  // Error reasons:
+  // * `PERMISSION_NOT_FOUND`
+  // * `RESOURCE_TYPE_NOT_FOUND_IN_PERMISSION`
+  // * `ROLE_ALREADY_EXISTS`
+  rpc CreateRole(CreateRoleRequest) returns (Role) {
+    option (google.api.method_signature) = "role,role_id";
+  }
+
+  // Updates a `Role`.
+  //
+  // Error reasons:
+  // * `ROLE_NOT_FOUND`
+  // * `PERMISSION_NOT_FOUND_FOR_ROLE`
+  // * `ETAG_MISMATCH`
+  // * `PERMISSION_NOT_FOUND`
+  // * `RESOURCE_TYPE_NOT_FOUND_IN_PERMISSION`
+  //
+  // (-- api-linter: core::0134::method-signature=disabled
+  //     aip.dev/not-precedent: Partial update not supported. --)
+  rpc UpdateRole(UpdateRoleRequest) returns (Role) {
+    option (google.api.method_signature) = "role";
+  }
+
+  // Deletes a `Role`.
+  //
+  // This will also remove all `Policy` bindings which reference the `Role`.
+  //
+  // Error reasons:
+  // * `ROLE_NOT_FOUND`
+  rpc DeleteRole(DeleteRoleRequest) returns (google.protobuf.Empty) {
+    option (google.api.method_signature) = "name";
+  }
+}
+
+// Request message for `GetRole` method.
+message GetRoleRequest {
+  // Resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "access.halo-cmm.org/Role"
+  ];
+}
+
+// Request message for `ListRoles` method.
+message ListRolesRequest {
+  // The maximum number of resources to return.
+  //
+  // The service may return fewer resources than this value. If unspecified, at
+  // most 50 resources will be returned. The maximum value is 100; values above
+  // this will be coerced to the maximum value.
+  int32 page_size = 1 [(google.api.field_behavior) = OPTIONAL];
+
+  // A page token from a previous call to the method, used to retrieve the
+  // subsequent page of results.
+  //
+  // If specified, all other request parameter values must match the call that
+  // provided the token.
+  string page_token = 2 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Response message for `ListRoles` method.
+message ListRolesResponse {
+  // Resources.
+  repeated Role roles = 1;
+
+  // A token, which can be sent as `page_token` to retrieve the next page.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2;
+}
+
+// Request message for `CreateRole` method.
+message CreateRoleRequest {
+  // Resource to create.
+  Role role = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // Resource ID.
+  //
+  // This must confirm to RFC-1034 with the following exceptions:
+  // * IDs are case-sensitive.
+  string role_id = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for the `UpdateRole` method.
+//
+// (-- api-linter: core::0134::request-mask-required=disabled
+//     aip.dev/not-precedent: Partial update not supported. --)
+message UpdateRoleRequest {
+  // Resource to update.
+  //
+  // The `name` field is used to identify the resource. The `etag` field is
+  // required.
+  Role role = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for `DeleteRole` method.
+message DeleteRoleRequest {
+  // Resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "access.halo-cmm.org/Role"
+  ];
+}

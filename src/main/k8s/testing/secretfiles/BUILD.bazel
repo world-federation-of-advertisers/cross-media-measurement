@@ -19,7 +19,6 @@ package(
 )
 
 exports_files([
-    "measurement_spec_config.textproto",
     "metric_spec_config.textproto",
 ])
 
@@ -215,6 +214,7 @@ SECRET_FILES = [
     "ro_llv2_protocol_config_config.textproto",
     "hmss_protocol_config_config.textproto",
     "exchange_workflow.textproto",
+    "reporting_root.pem",
     "reporting_tls.key",
     "reporting_tls.pem",
     "pdp1_cs_cert.der",

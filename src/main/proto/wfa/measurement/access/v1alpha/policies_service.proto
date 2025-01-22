@@ -1,0 +1,166 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.access.v1alpha;
+
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "wfa/measurement/access/v1alpha/policy.proto";
+
+option java_package = "org.wfanet.measurement.access.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "PoliciesServiceProto";
+
+// Service for interacting with `Policy` resources.
+service Policies {
+  // Retrieves a `Policy` by name.
+  //
+  // Error reasons:
+  // * `POLICY_NOT_FOUND`
+  rpc GetPolicy(GetPolicyRequest) returns (Policy) {
+    option (google.api.method_signature) = "name";
+  }
+
+  // Creates a `Policy`.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_TYPE_NOT_SUPPORTED`
+  // * `POLICY_ALREADY_EXISTS`
+  // * `ROLE_NOT_FOUND`
+  // * `PRINCIPAL_NOT_FOUND`
+  rpc CreatePolicy(CreatePolicyRequest) returns (Policy) {
+    option (google.api.method_signature) = "policy,policy_id";
+  }
+
+  // Looks up a `Policy` by lookup key.
+  //
+  // Error reasons:
+  // * `POLICY_NOT_FOUND_FOR_PROTECTED_RESOURCE`
+  rpc LookupPolicy(LookupPolicyRequest) returns (Policy);
+
+  // Adds members to a `Policy.Binding`.
+  //
+  // Error reasons:
+  // * `POLICY_NOT_FOUND`
+  // * `ETAG_MISMATCH`
+  // * `ROLE_NOT_FOUND`
+  // * `PRINCIPAL_NOT_FOUND`
+  // * `PRINCIPAL_TYPE_NOT_SUPPORTED`
+  // * `POLICY_BINDING_MEMBERSHIP_ALREADY_EXISTS`
+  rpc AddPolicyBindingMembers(AddPolicyBindingMembersRequest) returns (Policy);
+
+  // Removes members from a `Policy.Binding`.
+  //
+  // Error reasons:
+  // * `POLICY_NOT_FOUND`
+  // * `ETAG_MISMATCH`
+  // * `ROLE_NOT_FOUND`
+  // * `PRINCIPAL_NOT_FOUND`
+  // * `PRINCIPAL_TYPE_NOT_SUPPORTED`
+  // * `POLICY_BINDING_MEMBERSHIP_NOT_FOUND`
+  rpc RemovePolicyBindingMembers(RemovePolicyBindingMembersRequest)
+      returns (Policy);
+}
+
+// Request message for the `GetPolicy` method.
+message GetPolicyRequest {
+  // Resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "access.halo-cmm.org/Policy" }
+  ];
+}
+
+// Request message for `CreatePolicy` method.
+message CreatePolicyRequest {
+  // Resource to create.
+  Policy policy = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // Resource ID.
+  //
+  // This must confirm to RFC-1034 with the following exceptions:
+  // * IDs are case-sensitive.
+  string policy_id = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for the `LookupPolicy` method.
+message LookupPolicyRequest {
+  // Lookup key. Required.
+  oneof lookup_key {
+    // Name of the resource to which the policy applies.
+    string protected_resource = 1 [
+      (google.api.resource_reference) = { type: "*" },
+      (google.api.field_behavior) = OPTIONAL
+    ];
+  }
+}
+
+// Request message for the `AddPolicyBindingMembers` method.
+message AddPolicyBindingMembersRequest {
+  // Resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "access.halo-cmm.org/Policy" }
+  ];
+
+  // Resource name of the role.
+  string role = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "access.halo-cmm.org/Role" }
+  ];
+
+  // Resource names of the members to add.
+  repeated string members = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = UNORDERED_LIST,
+    (google.api.resource_reference) = { type: "access.halo-cmm.org/Principal" }
+  ];
+
+  // Current etag of the resource.
+  //
+  // If it is specified and the value does not match the current etag, the
+  // operation will not occur and will result in an ABORTED status.
+  string etag = 4 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Request message for the `RemovePolicyBindingMembers` method.
+message RemovePolicyBindingMembersRequest {
+  // Resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "access.halo-cmm.org/Policy" }
+  ];
+
+  // Resource name of the role.
+  string role = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "access.halo-cmm.org/Role" }
+  ];
+
+  // Resource names of the members to remove.
+  repeated string members = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = UNORDERED_LIST,
+    (google.api.resource_reference) = { type: "access.halo-cmm.org/Principal" }
+  ];
+
+  // Current etag of the resource.
+  //
+  // If it is specified and the value does not match the current etag, the
+  // operation will not occur and will result in an ABORTED status.
+  optional string etag = 4 [(google.api.field_behavior) = OPTIONAL];
+}

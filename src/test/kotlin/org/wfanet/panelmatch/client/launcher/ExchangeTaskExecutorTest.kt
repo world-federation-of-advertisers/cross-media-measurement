@@ -19,7 +19,6 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.job
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -109,8 +108,7 @@ class ExchangeTaskExecutorTest {
     prepareBlob("some-blob")
     whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
 
-    val job = exchangeTaskExecutor.execute(EXCHANGE_STEP)
-    job.join()
+    exchangeTaskExecutor.execute(EXCHANGE_STEP)
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")?.toStringUtf8())
       .isEqualTo("Out:commutative-deterministic-encrypt-some-blob")
@@ -121,8 +119,7 @@ class ExchangeTaskExecutorTest {
     timeout.expired = true
     whenever(validator.validate(any())).thenReturn(VALIDATED_EXCHANGE_STEP)
 
-    val job = exchangeTaskExecutor.execute(EXCHANGE_STEP)
-    job.join()
+    exchangeTaskExecutor.execute(EXCHANGE_STEP)
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")).isNull()
   }
@@ -135,8 +132,7 @@ class ExchangeTaskExecutorTest {
     val exchangeTaskExecutor =
       createExchangeTaskExecutor(FakeExchangeTaskMapper(::TransientThrowingExchangeTask))
 
-    val job = exchangeTaskExecutor.execute(EXCHANGE_STEP)
-    job.join()
+    exchangeTaskExecutor.execute(EXCHANGE_STEP)
 
     verify(apiClient).finishExchangeStepAttempt(eq(ATTEMPT_KEY), eq(State.FAILED), any())
   }
@@ -149,8 +145,7 @@ class ExchangeTaskExecutorTest {
     val exchangeTaskExecutor =
       createExchangeTaskExecutor(FakeExchangeTaskMapper(::PermanentThrowingExchangeTask))
 
-    val job = exchangeTaskExecutor.execute(EXCHANGE_STEP)
-    job.join()
+    exchangeTaskExecutor.execute(EXCHANGE_STEP)
 
     verify(apiClient).finishExchangeStepAttempt(eq(ATTEMPT_KEY), eq(State.FAILED_STEP), any())
   }

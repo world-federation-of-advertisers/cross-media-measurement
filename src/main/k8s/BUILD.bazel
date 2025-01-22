@@ -1,4 +1,4 @@
-load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
+load("@wfa_rules_cue//cue:defs.bzl", "cue_library", "cue_string_field")
 
 package(default_visibility = ["//src/main/k8s:__subpackages__"])
 
@@ -49,6 +49,15 @@ cue_library(
 )
 
 cue_library(
+    name = "measurement_system_prober",
+    srcs = ["measurement_system_prober.cue"],
+    deps = [
+        ":base",
+        ":config",
+    ],
+)
+
+cue_library(
     name = "spanner_duchy",
     srcs = ["spanner_duchy.cue"],
     deps = [
@@ -78,14 +87,18 @@ cue_library(
     srcs = ["postgres.cue"],
 )
 
+cue_string_field(
+    name = "permissions_config_cue",
+    srcs = ["//src/main/proto/wfa/measurement/reporting/v2alpha:permissions_config.textproto"],
+    identifier = "#PermissionsConfig",
+    package = "k8s",
+    visibility = ["//visibility:private"],
+)
+
 cue_library(
-    name = "reporting",
-    srcs = ["reporting.cue"],
-    deps = [
-        ":base",
-        ":config",
-        ":postgres",
-    ],
+    name = "permissions_config",
+    srcs = [":permissions_config_cue"],
+    visibility = ["//visibility:private"],
 )
 
 cue_library(
@@ -94,6 +107,8 @@ cue_library(
     deps = [
         ":base",
         ":config",
+        ":permissions_config",
         ":postgres",
+        ":spanner",
     ],
 )
