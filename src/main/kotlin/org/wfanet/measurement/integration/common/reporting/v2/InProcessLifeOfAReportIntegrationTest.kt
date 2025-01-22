@@ -16,8 +16,6 @@
 
 package org.wfanet.measurement.integration.common.reporting.v2
 
-import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
 import com.google.type.Interval
 import com.google.type.date
@@ -369,12 +367,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       eventGroupEntries.map { (eventGroup, filter) ->
         buildEventGroupSpec(eventGroup, filter, EVENT_RANGE.toInterval())
       }
-    val sampledVids =
-      sampleVids(
-        eventGroupSpecs,
-        createdMetricCalculationSpec.metricSpecsList.single().vidSamplingInterval,
-      )
-    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+    val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
     val reachResult =
       retrievedReport.metricCalculationResultsList
@@ -494,12 +487,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         "person.age_group == ${Person.Gender.FEMALE_VALUE}"
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
       listOf(buildEventGroupSpec(eventGroup, equivalentFilter, EVENT_RANGE.toInterval()))
-    val sampledVids =
-      sampleVids(
-        eventGroupSpecs,
-        createdMetricCalculationSpec.metricSpecsList.single().vidSamplingInterval,
-      )
-    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+    val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
     val reachResult =
       retrievedReport.metricCalculationResultsList
@@ -606,12 +594,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       "(${createdPrimitiveReportingSets[0].filter}) && (${createdPrimitiveReportingSets[1].filter})"
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
       listOf(buildEventGroupSpec(eventGroup, equivalentFilter, EVENT_RANGE.toInterval()))
-    val sampledVids =
-      sampleVids(
-        eventGroupSpecs,
-        createdMetricCalculationSpec.metricSpecsList.single().vidSamplingInterval,
-      )
-    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+    val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
     val reachResult =
       retrievedReport.metricCalculationResultsList
@@ -693,12 +676,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       eventGroupEntries.map { (eventGroup, filter) ->
         buildEventGroupSpec(eventGroup, filter, EVENT_RANGE.toInterval())
       }
-    val sampledVids =
-      sampleVids(
-        eventGroupSpecs,
-        createdMetricCalculationSpec.metricSpecsList.single().vidSamplingInterval,
-      )
-    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+    val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
     for (resultAttribute in
       retrievedReport.metricCalculationResultsList.single().resultAttributesList) {
@@ -781,12 +759,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         eventGroupEntries.map { (eventGroup, filter) ->
           buildEventGroupSpec(eventGroup, filter, resultAttribute.timeInterval)
         }
-      val sampledVids =
-        sampleVids(
-          eventGroupSpecs,
-          createdMetricCalculationSpec.metricSpecsList.single().vidSamplingInterval,
-        )
-      val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+      val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
       assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
     }
@@ -879,12 +852,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         eventGroupEntries.map { (eventGroup, filter) ->
           buildEventGroupSpec(eventGroup, filter, resultAttribute.timeInterval)
         }
-      val sampledVids =
-        sampleVids(
-          eventGroupSpecs,
-          createdMetricCalculationSpec.metricSpecsList.single().vidSamplingInterval,
-        )
-      val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+      val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
       assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
     }
@@ -1082,12 +1050,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               .joinToString(" && ")
           buildEventGroupSpec(eventGroup, allFilters, EVENT_RANGE.toInterval())
         }
-      val sampledVids =
-        sampleVids(
-          eventGroupSpecs,
-          createdMetricCalculationSpec.metricSpecsList.single().vidSamplingInterval,
-        )
-      val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+      val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
       assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
     }
@@ -1222,8 +1185,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       eventGroupEntries.map { (eventGroup, filter) ->
         buildEventGroupSpec(eventGroup, filter, EVENT_RANGE.toInterval())
       }
-    val sampledVids = sampleVids(eventGroupSpecs, metric.metricSpec.vidSamplingInterval)
-    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+    val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
     val reachResult = retrievedMetric.result.reach
     val actualResult =
@@ -1282,12 +1244,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       eventGroupEntries.map { (eventGroup, filter) ->
         buildEventGroupSpec(eventGroup, filter, EVENT_RANGE.toInterval())
       }
-    val sampledVids =
-      sampleVids(
-        eventGroupSpecs,
-        metric.metricSpec.reach.singleDataProviderParams.vidSamplingInterval,
-      )
-    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+    val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
     val reachResult = retrievedMetric.result.reach
     val actualResult =
@@ -1340,10 +1297,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       eventGroupEntries.map { (eventGroup, filter) ->
         buildEventGroupSpec(eventGroup, filter, EVENT_RANGE.toInterval())
       }
-    val sampledVids = sampleVids(eventGroupSpecs, metric.metricSpec.vidSamplingInterval)
     val expectedResult =
       calculateExpectedReachAndFrequencyMeasurementResult(
-        sampledVids,
+        eventGroupSpecs,
         metric.metricSpec.reachAndFrequency.maximumFrequency,
       )
 
@@ -1413,10 +1369,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       eventGroupEntries.map { (eventGroup, filter) ->
         buildEventGroupSpec(eventGroup, filter, EVENT_RANGE.toInterval())
       }
-    val sampledVids = sampleVids(eventGroupSpecs, metric.metricSpec.vidSamplingInterval)
     val expectedResult =
       calculateExpectedImpressionMeasurementResult(
-        sampledVids,
+        eventGroupSpecs,
         metric.metricSpec.impressionCount.maximumFrequencyPerUser,
       )
 
@@ -1513,8 +1468,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           (metric.filtersList + filter).filter { it.isNotBlank() }.joinToString(" && ")
         buildEventGroupSpec(eventGroup, allFilters, EVENT_RANGE.toInterval())
       }
-    val sampledVids = sampleVids(eventGroupSpecs, metric.metricSpec.vidSamplingInterval)
-    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+    val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
     val reachResult = retrievedMetric.result.reach
     val actualResult =
@@ -1765,20 +1719,26 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   private fun calculateExpectedReachMeasurementResult(
-    sampledVids: Sequence<Long>
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>
   ): Measurement.Result {
-    val reach = MeasurementResults.computeReach(sampledVids.asIterable())
+    val reach =
+      MeasurementResults.computeReach(
+        sampleVids(eventGroupSpecs, FULL_VID_SAMPLING_INTERVAL).asIterable()
+      )
     return MeasurementKt.result {
       this.reach = MeasurementKt.ResultKt.reach { value = reach.toLong() }
     }
   }
 
   private fun calculateExpectedReachAndFrequencyMeasurementResult(
-    sampledVids: Sequence<Long>,
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
     maxFrequency: Int,
   ): Measurement.Result {
     val reachAndFrequency =
-      MeasurementResults.computeReachAndFrequency(sampledVids.asIterable(), maxFrequency)
+      MeasurementResults.computeReachAndFrequency(
+        sampleVids(eventGroupSpecs, FULL_VID_SAMPLING_INTERVAL).asIterable(),
+        maxFrequency,
+      )
     return MeasurementKt.result {
       reach = MeasurementKt.ResultKt.reach { value = reachAndFrequency.reach.toLong() }
       frequency =
@@ -1791,10 +1751,14 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   private fun calculateExpectedImpressionMeasurementResult(
-    sampledVids: Sequence<Long>,
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
     maxFrequency: Int,
   ): Measurement.Result {
-    val impression = MeasurementResults.computeImpression(sampledVids.asIterable(), maxFrequency)
+    val impression =
+      MeasurementResults.computeImpression(
+        sampleVids(eventGroupSpecs, FULL_VID_SAMPLING_INTERVAL).asIterable(),
+        maxFrequency,
+      )
     return MeasurementKt.result {
       this.impression = MeasurementKt.ResultKt.impression { value = impression }
     }
@@ -1929,6 +1893,12 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       MetricSpecKt.vidSamplingInterval {
         start = 0.0f
         width = 0.9f
+      }
+
+    private val FULL_VID_SAMPLING_INTERVAL =
+      MetricSpecKt.vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
       }
 
     // For a 99.9% Confidence Interval.
