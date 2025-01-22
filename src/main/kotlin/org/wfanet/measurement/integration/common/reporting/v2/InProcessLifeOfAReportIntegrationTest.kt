@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.integration.common.reporting.v2
 
+import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
 import com.google.type.Interval
 import com.google.type.date
