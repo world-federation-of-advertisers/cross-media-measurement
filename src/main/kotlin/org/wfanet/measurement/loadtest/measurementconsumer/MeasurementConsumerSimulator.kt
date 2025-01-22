@@ -207,8 +207,9 @@ class MeasurementConsumerSimulator(
               EventQuery.EventGroupSpec(eventGroup, eventGroupsMap.getValue(eventGroup.name))
             }
           }
-          .asIterable()
-      return sampleVids(eventGroupSpecs, FULL_VID_SAMPLING_INTERVAL)
+          .asSequence()
+
+      return eventGroupSpecs.flatMap { eventQuery.getUserVirtualIds(it) }
     }
 
   private fun MeasurementInfo.filterVidsByDataProvider(
@@ -228,21 +229,8 @@ class MeasurementConsumerSimulator(
               EventQuery.EventGroupSpec(eventGroup, eventGroupsMap.getValue(eventGroup.name))
             }
         }
-        .asIterable()
-    return sampleVids(eventGroupSpecs, FULL_VID_SAMPLING_INTERVAL)
-  }
-
-  private fun sampleVids(
-    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
-    vidSamplingInterval: VidSamplingInterval,
-  ): Sequence<Long> {
-    return sampleVids(
-        eventQuery,
-        eventGroupSpecs,
-        vidSamplingInterval.start,
-        vidSamplingInterval.width,
-      )
-      .asSequence()
+        .asSequence()
+    return eventGroupSpecs.flatMap { eventQuery.getUserVirtualIds(it) }
   }
 
   data class ExecutionResult(
@@ -1396,11 +1384,6 @@ class MeasurementConsumerSimulator(
   }
 
   companion object {
-    private val FULL_VID_SAMPLING_INTERVAL = vidSamplingInterval {
-      start = 0.0f
-      width = 1.0f
-    }
-
     private const val DEFAULT_FILTER_EXPRESSION =
       "person.gender == ${Person.Gender.MALE_VALUE} && " +
         "(video_ad.viewed_fraction > 0.25 || video_ad.viewed_fraction == 0.25)"
