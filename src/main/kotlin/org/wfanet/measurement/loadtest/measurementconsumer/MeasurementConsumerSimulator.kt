@@ -211,7 +211,7 @@ class MeasurementConsumerSimulator(
       return sampleVids(eventGroupSpecs, FULL_VID_SAMPLING_INTERVAL)
     }
 
-  private fun MeasurementInfo.sampleVidsByDataProvider(
+  private fun MeasurementInfo.filterVidsByDataProvider(
     targetDataProviderId: String
   ): Sequence<Long> {
     val eventGroupSpecs =
@@ -229,7 +229,7 @@ class MeasurementConsumerSimulator(
             }
         }
         .asIterable()
-    return sampleVids(eventGroupSpecs, measurementSpec.vidSamplingInterval)
+    return sampleVids(eventGroupSpecs, FULL_VID_SAMPLING_INTERVAL)
   }
 
   private fun sampleVids(
@@ -1072,7 +1072,7 @@ class MeasurementConsumerSimulator(
         MeasurementKt.ResultKt.impression {
           value =
             MeasurementResults.computeImpression(
-              measurementInfo.sampleVidsByDataProvider(targetDataProviderId).asIterable(),
+              measurementInfo.filterVidsByDataProvider(targetDataProviderId).asIterable(),
               measurementInfo.measurementSpec.impression.maximumFrequencyPerUser,
             )
         }
