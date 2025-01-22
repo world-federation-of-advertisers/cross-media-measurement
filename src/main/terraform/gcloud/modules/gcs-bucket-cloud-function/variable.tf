@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-variable "cloud_function_service_account_name" {
-  description = "IAM `google_service_account.name`."
-  type = string
-  nullable = false
+variable "cloud_function_service_account_email" {
+  description = "Optional: Email of an existing service account to use. If not set, a new service account will be created."
+  type        = string
+  nullable    = false
 }
 
 variable "cloud_function_name" {

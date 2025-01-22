@@ -12,16 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-resource "google_service_account" "cloud_function_service_account" {
-  account_id   = var.cloud_function_service_account_name
-  description  = "Service account for Cloud Functions."
-  display_name = "Cloud Function Service Account"
-}
-
 resource "google_storage_bucket_iam_member" "storage_event_viewer" {
   bucket = var.trigger_bucket_name
   role    = "roles/eventarc.eventReceiver"
-  member = "serviceAccount:${google_service_account.cloud_function_service_account.email}"
+  member = "serviceAccount:${var.cloud_function_service_account_email}"
 }
 
 resource "google_cloudfunctions2_function" "cloud_function" {
@@ -34,7 +28,7 @@ resource "google_cloudfunctions2_function" "cloud_function" {
   event_trigger {
     event_type = "google.cloud.storage.object.v1.finalized"
     retry_policy = "RETRY_POLICY_RETRY"
-    service_account_email = google_service_account.cloud_function_service_account.email
+    service_account_email = var.cloud_function_service_account_email
     event_filters {
       attribute = "bucket"
       value = var.trigger_bucket_name
