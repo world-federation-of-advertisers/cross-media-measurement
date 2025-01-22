@@ -114,7 +114,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signRequisition
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
-import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
