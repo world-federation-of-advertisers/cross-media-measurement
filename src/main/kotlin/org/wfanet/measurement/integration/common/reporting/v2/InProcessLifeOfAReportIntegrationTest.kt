@@ -1720,11 +1720,12 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   private fun calculateExpectedReachMeasurementResult(
-    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
   ): Measurement.Result {
     val reach =
       MeasurementResults.computeReach(
-        eventGroupSpecs.asSequence().flatMap { eventQuery.getUserVirtualIds(it) }.asIterable()
+        eventGroupSpecs.asSequence().flatMap { SYNTHETIC_EVENT_QUERY.getUserVirtualIds(it) }
+          .asIterable()
       )
     return MeasurementKt.result {
       this.reach = MeasurementKt.ResultKt.reach { value = reach.toLong() }
@@ -1737,7 +1738,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   ): Measurement.Result {
     val reachAndFrequency =
       MeasurementResults.computeReachAndFrequency(
-        eventGroupSpecs.asSequence().flatMap { eventQuery.getUserVirtualIds(it) }.asIterable(),
+        eventGroupSpecs.asSequence().flatMap { SYNTHETIC_EVENT_QUERY.getUserVirtualIds(it) }
+          .asIterable(),
         maxFrequency,
       )
     return MeasurementKt.result {
@@ -1757,7 +1759,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   ): Measurement.Result {
     val impression =
       MeasurementResults.computeImpression(
-        eventGroupSpecs.asSequence().flatMap { eventQuery.getUserVirtualIds(it) }.asIterable(),
+        eventGroupSpecs.asSequence().flatMap { SYNTHETIC_EVENT_QUERY.getUserVirtualIds(it) }
+          .asIterable(),
         maxFrequency,
       )
     return MeasurementKt.result {
