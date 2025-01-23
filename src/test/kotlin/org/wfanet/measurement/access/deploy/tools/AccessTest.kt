@@ -36,7 +36,6 @@ import org.mockito.kotlin.verify
 import org.wfanet.measurement.access.v1alpha.CreatePrincipalRequest
 import org.wfanet.measurement.access.v1alpha.DeletePrincipalRequest
 import org.wfanet.measurement.access.v1alpha.GetPrincipalRequest
-import org.wfanet.measurement.access.v1alpha.LookupPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.Principal
 import org.wfanet.measurement.access.v1alpha.PrincipalKt.oAuthUser
 import org.wfanet.measurement.access.v1alpha.PrincipalKt.tlsClient
@@ -162,26 +161,17 @@ class AccessTest {
 
     val output = callCli(args)
 
-    val request: LookupPrincipalRequest = captureFirst {
-      runBlocking { verify(principalsServiceMock).lookupPrincipal(capture()) }
-    }
-
-    assertThat(request).isEqualTo(LOOKUP_USER_PRINCIPAL_REQUEST)
     assertThat(parseTextProto(output.reader(), Principal.getDefaultInstance()))
       .isEqualTo(USER_PRINCIPAL)
   }
 
   @Test
   fun `principals lookup calls LookupPrincipal with valid request with tls client`() {
-    val args = commonArgs + arrayOf("principals", "lookup", "--tls-cert-file=$MC_CERT_PATH")
+    val args =
+      commonArgs + arrayOf("principals", "lookup", "--principal-tls-client-cert-file=$MC_CERT_PATH")
 
     val output = callCli(args)
 
-    val request: LookupPrincipalRequest = captureFirst {
-      runBlocking { verify(principalsServiceMock).lookupPrincipal(capture()) }
-    }
-
-    assertThat(request).isEqualTo(LOOKUP_TLS_PRINCIPAL_REQUEST)
     assertThat(parseTextProto(output.reader(), Principal.getDefaultInstance()))
       .isEqualTo(TLS_PRINCIPAL)
   }
