@@ -17,6 +17,8 @@
 package org.wfanet.measurement.access.deploy.tools
 
 import io.grpc.ManagedChannel
+import java.io.File
+import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.access.v1alpha.PrincipalKt
 import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt.PrincipalsCoroutineStub
@@ -38,8 +40,6 @@ import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
 import picocli.CommandLine.Parameters
 import picocli.CommandLine.ParentCommand
-import java.io.File
-import java.time.Duration
 
 private val CHANNEL_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30)
 
