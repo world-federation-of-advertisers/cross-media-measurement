@@ -16,10 +16,9 @@
 
 package org.wfanet.measurement.access.deploy.tools
 
-import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.ManagedChannel
+import java.io.File
 import java.time.Duration
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.access.v1alpha.PrincipalKt
 import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt.PrincipalsCoroutineStub
@@ -29,6 +28,8 @@ import org.wfanet.measurement.access.v1alpha.getPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.lookupPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
+import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
@@ -36,11 +37,9 @@ import picocli.CommandLine
 import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
-import picocli.CommandLine.Model.CommandSpec
 import picocli.CommandLine.Option
 import picocli.CommandLine.Parameters
 import picocli.CommandLine.ParentCommand
-import picocli.CommandLine.Spec
 
 private val CHANNEL_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30)
 
@@ -50,11 +49,6 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30)
   subcommands = [CommandLine.HelpCommand::class, Principals::class],
 )
 class Access private constructor() : Runnable {
-  @Spec private lateinit var commandSpec: CommandSpec
-
-  val commandLine: CommandLine
-    get() = commandSpec.commandLine()
-
   @Mixin private lateinit var tlsFlags: TlsFlags
 
   @Option(
@@ -89,28 +83,34 @@ class Access private constructor() : Runnable {
   }
 }
 
-class PrincipalIdentity {
+private class PrincipalIdentity {
   @ArgGroup(exclusive = false, multiplicity = "1", heading = "OAuth user")
   var user: OAuthUserFlags? = null
+    private set
 
   class OAuthUserFlags {
     @Option(names = ["--issuer"], description = ["OAuth issuer identifier"], required = true)
     lateinit var issuer: String
+      private set
 
-    @Option(names = ["--subject"], description = ["OAuth subject identifier"])
+    @Option(names = ["--subject"], description = ["OAuth subject identifier"], required = true)
     lateinit var subject: String
+      private set
   }
 
   @ArgGroup(exclusive = false, multiplicity = "1", heading = "tls client")
   var tlsClient: TlsClientFlags? = null
+    private set
 
   class TlsClientFlags {
     @Option(
-      names = ["--authority-key-identifier"],
-      description = ["Tls client authority key identifier (AKID)"],
+      names = ["--tls-cert-file"],
+      description = ["User's own TLS cert file."],
+      defaultValue = "",
       required = true,
     )
-    lateinit var authorityKeyIdentifier: String
+    lateinit var tlsCertFile: File
+      private set
   }
 }
 
@@ -126,9 +126,7 @@ class PrincipalIdentity {
     ],
 )
 private class Principals {
-  @ParentCommand
-  lateinit var parentCommand: Access
-    private set
+  @ParentCommand private lateinit var parentCommand: Access
 
   val principalsClient: PrincipalsCoroutineStub by lazy {
     PrincipalsCoroutineStub(parentCommand.accessChannel)
@@ -143,10 +141,9 @@ class GetPrincipal : Runnable {
   private lateinit var principalName: String
 
   override fun run() {
-    val principal =
-      runBlocking(Dispatchers.IO) {
-        parentCommand.principalsClient.getPrincipal(getPrincipalRequest { name = principalName })
-      }
+    val principal = runBlocking {
+      parentCommand.principalsClient.getPrincipal(getPrincipalRequest { name = principalName })
+    }
     println(principal)
   }
 }
@@ -155,51 +152,41 @@ class GetPrincipal : Runnable {
 class CreatePrincipal : Runnable {
   @ParentCommand private lateinit var parentCommand: Principals
 
-  @ArgGroup(exclusive = false, heading = "Principal specification")
-  lateinit var principalFlags: PrincipalFlags
+  @Option(names = ["--name"], description = ["API resource name of the Principal"])
+  private lateinit var principalName: String
 
-  class PrincipalFlags {
-    @Option(names = ["--name"], description = ["API resource name of the Principal"])
-    lateinit var name: String
-
-    @ArgGroup(exclusive = true, multiplicity = "1", heading = "Principal identity specification")
-    lateinit var identityInput: PrincipalIdentity
-  }
+  @ArgGroup(exclusive = true, multiplicity = "1", heading = "Principal identity specification")
+  private lateinit var principalIdentity: PrincipalIdentity
 
   @Option(
     names = ["--principal-id"],
     description = ["Resource ID of the Principal"],
     required = true,
   )
-  lateinit var id: String
+  private lateinit var id: String
 
   override fun run() {
-    val principal =
-      runBlocking(Dispatchers.IO) {
-        parentCommand.principalsClient.createPrincipal(
-          createPrincipalRequest {
-            principal = principal {
-              name = principalFlags.name
-              if (principalFlags.identityInput.user != null) {
-                user =
-                  PrincipalKt.oAuthUser {
-                    issuer = principalFlags.identityInput.user!!.issuer
-                    subject = principalFlags.identityInput.user!!.subject
-                  }
-              } else {
-                tlsClient =
-                  PrincipalKt.tlsClient {
-                    authorityKeyIdentifier =
-                      principalFlags.identityInput.tlsClient!!
-                        .authorityKeyIdentifier
-                        .toByteStringUtf8()
-                  }
-              }
+    val principal = runBlocking {
+      parentCommand.principalsClient.createPrincipal(
+        createPrincipalRequest {
+          principal = principal {
+            name = principalName
+            if (principalIdentity.user != null) {
+              user =
+                PrincipalKt.oAuthUser {
+                  issuer = principalIdentity.user!!.issuer
+                  subject = principalIdentity.user!!.subject
+                }
+            } else {
+              val certificate = readCertificate(principalIdentity.tlsClient!!.tlsCertFile)
+              val akid = checkNotNull(certificate.authorityKeyIdentifier)
+              tlsClient = PrincipalKt.tlsClient { authorityKeyIdentifier = akid }
             }
-            this.principalId = id
           }
-        )
-      }
+          this.principalId = id
+        }
+      )
+    }
     println(principal)
   }
 }
@@ -209,10 +196,10 @@ class DeletePrincipal : Runnable {
   @ParentCommand private lateinit var parentCommand: Principals
 
   @Option(names = ["--name"], description = ["API resource name of the Principal"])
-  lateinit var principalName: String
+  private lateinit var principalName: String
 
   override fun run() {
-    runBlocking(Dispatchers.IO) {
+    runBlocking {
       parentCommand.principalsClient.deletePrincipal(
         deletePrincipalRequest { this.name = principalName }
       )
@@ -225,29 +212,26 @@ class LookupPrincipal : Runnable {
   @ParentCommand private lateinit var parentCommand: Principals
 
   @ArgGroup(exclusive = true, multiplicity = "1", heading = "Principal lookup key")
-  lateinit var lookupKey: PrincipalIdentity
+  private lateinit var lookupKey: PrincipalIdentity
 
   override fun run() {
-    val principal =
-      runBlocking(Dispatchers.IO) {
-        parentCommand.principalsClient.lookupPrincipal(
-          lookupPrincipalRequest {
-            if (lookupKey.user != null) {
-              user =
-                PrincipalKt.oAuthUser {
-                  issuer = lookupKey.user!!.issuer
-                  subject = lookupKey.user!!.subject
-                }
-            } else {
-              tlsClient =
-                PrincipalKt.tlsClient {
-                  authorityKeyIdentifier =
-                    lookupKey.tlsClient!!.authorityKeyIdentifier.toByteStringUtf8()
-                }
-            }
+    val principal = runBlocking {
+      parentCommand.principalsClient.lookupPrincipal(
+        lookupPrincipalRequest {
+          if (lookupKey.user != null) {
+            user =
+              PrincipalKt.oAuthUser {
+                issuer = lookupKey.user!!.issuer
+                subject = lookupKey.user!!.subject
+              }
+          } else {
+            val certificate = readCertificate(lookupKey.tlsClient!!.tlsCertFile)
+            val akid = checkNotNull(certificate.authorityKeyIdentifier)
+            tlsClient = PrincipalKt.tlsClient { authorityKeyIdentifier = akid }
           }
-        )
-      }
+        }
+      )
+    }
     println(principal)
   }
 }
