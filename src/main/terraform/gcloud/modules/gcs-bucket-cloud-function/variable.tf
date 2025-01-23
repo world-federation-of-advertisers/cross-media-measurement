@@ -13,7 +13,7 @@
 # limitations under the License.
 
 variable "cloud_function_service_account_email" {
-  description = "Optional: Email of an existing service account to use. If not set, a new service account will be created."
+  description = "Email of an existing service account to use."
   type        = string
   nullable    = false
 }
