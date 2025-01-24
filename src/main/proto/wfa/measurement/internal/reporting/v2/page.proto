@@ -25,7 +25,7 @@ import "wfa/measurement/internal/reporting/v2/reporting_impression_qualification
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
- message ExternalComponentId {
+message ExternalComponentId {
   // For a `ReportingSet`, the `MeasurementConsumer` ID will be assumed
   // to be the same as the parent report.
   //
