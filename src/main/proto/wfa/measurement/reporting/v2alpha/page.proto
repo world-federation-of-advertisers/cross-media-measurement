@@ -62,8 +62,7 @@ message DimensionSpec {
     // Field paths that indicate the dimensions to group by.
     //
     // Each field path is with respect to the Event message with `.` as the
-    // traversal operator. Any field path may appear in the list at
-    // at most once.
+    // traversal operator. Any field path may appear in the list at most once.
     //
     // For example, if the Event message had an Event Template `common` with
     // a field `age_group` then the field path would be `common.age_group`.
@@ -118,9 +117,9 @@ message PageMetricSpec {
     bool grps = 7 [(google.api.field_behavior) = IMMUTABLE];
   }
 
-  // Metrics to be computed over the entire PageSpec's reporting_unit
+  // Metrics to be computed over the PageSpec's entire reporting_unit
   message ReportingUnitMetricSetSpec {
-    // Metrics for the union of the reporting_unit components
+    // Metrics for the union of the reporting_unit.components
     BasicMetricSetSpec basic = 1 [(google.api.field_behavior) = IMMUTABLE];
 
     // Compute a stacked incremental reach result for the reporting_unit
@@ -150,7 +149,7 @@ message PageMetricSpec {
     bool stacked_incremental_reach = 2
         [(google.api.field_behavior) = IMMUTABLE];
   }
-  // The set of metrics to compute for the entire PageSpec's reporting_unit
+  // The set of metrics to compute for the PageSpec's entire reporting_unit
   ReportingUnitMetricSetSpec reporting_unit = 2
       [(google.api.field_behavior) = IMMUTABLE];
 
