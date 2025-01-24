@@ -23,7 +23,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGr
 
 abstract class WorkItemsService: WorkItemsCoroutineImplBase() {
 
-  abstract fun publishMessage(queueName: String, message: Message)
+  abstract suspend fun publishMessage(queueName: String, message: Message)
 
   override suspend fun createWorkItem(
     request: CreateWorkItemRequest

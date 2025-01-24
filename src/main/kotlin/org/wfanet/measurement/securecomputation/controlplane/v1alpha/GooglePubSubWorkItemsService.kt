@@ -28,10 +28,8 @@ class GooglePubSubWorkItemsService(
 
   private val publisher: Publisher<Message> = Publisher(projectId, googlePubSubClient)
 
-  override fun publishMessage(queueName: String, message: Message) {
-    runBlocking {
-      publisher.publishMessage(queueName, message)
-    }
+  override suspend fun publishMessage(queueName: String, message: Message) {
+    publisher.publishMessage(queueName, message)
   }
 
 }
