@@ -32,20 +32,16 @@ message BasicReport {
   string cmms_measurement_consumer_id = 1;
   string external_basic_report_id = 2;
 
-  // This contains the external IDs for a primitive ReportingSet that includes
-  // all of the EventGroups that may be reported on.
+  // This is the external ID for a primitive `ReportingSet` that includes
+  // all of the EventGroups that may be reported on. The `MeasurementConsumer`
+  // ID is assumed to be the same as the top level one.
   //
   // EventGroups may span DataProviders and MediaTypes.
   //
   // Ex: If a `ReportingSet` has the name
   // "measurementconsumers/abc/reportingsets/abcd", then the
   // `MeasurementConsumer` ID is "abc" and the `ReportingSet` ID is "abcd".
-  message ExternalCampaignGroupIds {
-    // `MeasurementConsumer` ID from the CMMS public API.
-    string cmms_measurement_consumer_id = 1;
-    string external_reporting_set_id = 2;
-  }
-  ExternalCampaignGroupIds external_campaign_group_ids = 3;
+  string external_campaign_group_id = 3;
 
   // The impression qualification filters for the BasicReport.
   //
