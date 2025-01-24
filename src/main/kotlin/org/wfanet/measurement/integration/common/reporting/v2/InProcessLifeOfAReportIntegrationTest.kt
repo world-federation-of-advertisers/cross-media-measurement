@@ -1,3 +1,4 @@
+[0.002s][warning][perf,memops] Cannot use file /tmp/hsperfdata_sanjayvas/1536411 because it is locked by another process (errno = 11)
 /*
  * Copyright 2023 The Cross-Media Measurement Authors
  *
@@ -70,10 +71,8 @@ import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.integration.common.reporting.v2.identity.withPrincipalName
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
-import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
-import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
@@ -82,7 +81,6 @@ import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.MetricSpec.VidSamplingInterval
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.Report
@@ -1751,45 +1749,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         this.filter = eventFilter
       },
     )
-  }
-
-  private fun SyntheticGeneratorEventQuery.getUserVirtualIds(
-    eventGroup: EventGroup,
-    filter: String,
-    collectionInterval: Interval,
-  ): Sequence<Long> {
-    val cmmsMetadata =
-      CmmsEventGroupKt.metadata {
-        eventGroupMetadataDescriptor = eventGroup.metadata.eventGroupMetadataDescriptor
-        metadata = eventGroup.metadata.metadata
-      }
-    val encryptedCmmsMetadata =
-      encryptMetadata(cmmsMetadata, InProcessCmmsComponents.MC_ENTITY_CONTENT.encryptionPublicKey)
-    val cmmsEventGroup = cmmsEventGroup { encryptedMetadata = encryptedCmmsMetadata }
-
-    val eventFilter = RequisitionSpecKt.eventFilter { expression = filter }
-
-    return this.getUserVirtualIds(
-      EventQuery.EventGroupSpec(
-        cmmsEventGroup,
-        RequisitionSpecKt.EventGroupEntryKt.value {
-          this.collectionInterval = collectionInterval
-          this.filter = eventFilter
-        },
-      )
-    )
-  }
-
-  private fun Sequence<Long>.calculateSampledVids(
-    vidSamplingInterval: VidSamplingInterval
-  ): Sequence<Long> {
-    return this.filter { vid ->
-      VidSampling.sampler.vidIsInSamplingBucket(
-        vid,
-        vidSamplingInterval.start,
-        vidSamplingInterval.width,
-      )
-    }
   }
 
   /** Computes the margin of error, i.e. half width, of a 99.9% confidence interval. */
