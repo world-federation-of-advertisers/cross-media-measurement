@@ -59,10 +59,11 @@ message DimensionSpec {
   // Only those event template fields that are tagged as groupable
   // and in the common template are supported.
   message Grouping {
-    // A set field paths that indicate the dimensions to group by.
+    // Field paths that indicate the dimensions to group by.
     //
     // Each field path is with respect to the Event message with `.` as the
-    // traversal operator.
+    // traversal operator. Any field path may appear in the list at
+    // at most once.
     //
     // For example, if the Event message had an Event Template `common` with
     // a field `age_group` then the field path would be `common.age_group`.
@@ -117,9 +118,9 @@ message PageMetricSpec {
     bool grps = 7 [(google.api.field_behavior) = IMMUTABLE];
   }
 
-  // Metrics to be computed over the entire reporting_unit
+  // Metrics to be computed over the entire PageSpec's reporting_unit
   message ReportingUnitMetricSetSpec {
-    // Metrics for the union of the items in the reporting_unit
+    // Metrics for the union of the reporting_unit components
     BasicMetricSetSpec basic = 1 [(google.api.field_behavior) = IMMUTABLE];
 
     // Compute a stacked incremental reach result for the reporting_unit
@@ -149,10 +150,11 @@ message PageMetricSpec {
     bool stacked_incremental_reach = 2
         [(google.api.field_behavior) = IMMUTABLE];
   }
-  // The set of metrics to compute for the entire reporting_unit
+  // The set of metrics to compute for the entire PageSpec's reporting_unit
   ReportingUnitMetricSetSpec reporting_unit = 2
       [(google.api.field_behavior) = IMMUTABLE];
-  // Metrics for each component of the reporting_unit
+
+  // Metrics for each component of the PageSpec's reporting_unit
   message ComponentMetricSetSpec {
     // Basic metrics for each item in reporting_unit.components
     BasicMetricSetSpec basic = 1 [(google.api.field_behavior) = IMMUTABLE];
@@ -161,14 +163,14 @@ message PageMetricSpec {
     // with respect to all other components
     bool unique_reach = 2 [(google.api.field_behavior) = IMMUTABLE];
   }
-  // If reporting_unit.components is of size 1 the metrics computed for the
-  // component are identical to those computed for the entire reporting_unit.
-  // Specifying this value is not recommended in that case.
+  // If the PageSpec's reporting_unit.components is of size 1 the metrics
+  // computed for the component are identical to those computed for the entire
+  // reporting_unit. Specifying this value is not recommended in that case.
   ComponentMetricSetSpec component = 3
       [(google.api.field_behavior) = IMMUTABLE];
 
   // Metrics for the intersections (aka overlaps) of the n-way combinations
-  // of reporting_unit.components
+  // of PageSpec's reporting_unit.components
   message ComponentIntersectionMetricSetSpec {
     // The number of components that contribute to the intersection.
     //
@@ -396,38 +398,4 @@ message Page {
   // The set of results for the Page, one per impression qualification filter
   // that was applicable to the page.
   repeated Result results = 2 [(google.api.field_behavior) = IMMUTABLE];
-}
-
-// The result for a single PageSpec
-//
-// There will be one Page per active ImpresionQualificationFilter.
-// See the definition of `ReportingImpressionQualificationFilter` for details
-// on what it means for a filter to be active.
-message PageResult {
-  // Entry for the `pages` map.
-  message PagesMapEntry {
-    // Map entry key.
-    string key = 1 [
-      (google.api.resource_reference) = {
-        type: "reporting.halo-cmm.org/ImpressionQualificationFilter"
-      },
-      (google.api.field_behavior) = IMMUTABLE,
-      (google.api.field_behavior) = REQUIRED
-    ];
-
-    // Map entry value.
-    Page value = 2 [
-      (google.api.field_behavior) = IMMUTABLE,
-      (google.api.field_behavior) = REQUIRED
-    ];
-  }
-
-  // Map of `ImpressionQualificationFilter` to `Page`.
-  repeated PagesMapEntry pages = 1 [(google.api.field_behavior) = IMMUTABLE];
-
-  // The `Page` entry for a custom filter.
-  Page custom_filter_page = 2 [
-    (google.api.field_behavior) = IMMUTABLE,
-    (google.api.field_behavior) = OPTIONAL
-  ];
 }
