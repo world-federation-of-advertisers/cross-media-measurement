@@ -254,8 +254,6 @@ proto_and_kt_jvm_proto_library(
 proto_and_kt_jvm_proto_library(
     name = "basic_report_details",
     deps = [
-        ":page_proto",
-        ":reporting_impression_qualification_filter_proto",
         ":reporting_interval_proto",
     ],
 )
@@ -264,6 +262,8 @@ proto_and_kt_jvm_proto_library(
     name = "basic_report",
     deps = [
         ":basic_report_details_proto",
+        ":page_proto",
+        ":reporting_impression_qualification_filter_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -284,7 +284,7 @@ kt_jvm_grpc_proto_library(
 )
 
 proto_descriptor_set(
-    name = "details_descriptor_set",
+    name = "descriptor_set",
     deps = [
         ":basic_report_details_proto",
         ":event_filter_proto",

@@ -16,8 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
-import "wfa/measurement/internal/reporting/v2/page.proto";
-import "wfa/measurement/internal/reporting/v2/reporting_impression_qualification_filter.proto";
 import "wfa/measurement/internal/reporting/v2/reporting_interval.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
@@ -27,21 +25,6 @@ message BasicReportDetails {
   // Human readable title of the report.
   string title = 1;
 
-  // This contains the external IDs for a primitive ReportingSet that includes
-  // all of the EventGroups that may be reported on.
-  //
-  // EventGroups may span DataProviders and MediaTypes.
-  //
-  // Ex: If a `ReportingSet` has the name
-  // "measurementconsumers/abc/reportingsets/abcd", then the
-  // `MeasurementConsumer` ID is "abc" and the `ReportingSet` ID is "abcd".
-  message ExternalCampaignGroupIds {
-    // `MeasurementConsumer` ID from the CMMS public API.
-    string cmms_measurement_consumer_id = 1;
-    string external_reporting_set_id = 2;
-  }
-  ExternalCampaignGroupIds external_campaign_group_ids = 2;
-
   // The display_name of the campaign_group
   string campaign_group_display_name = 3;
 
@@ -49,14 +32,4 @@ message BasicReportDetails {
   //
   // Both the start and the end of the interval are immutable.
   ReportingInterval reporting_interval = 4;
-
-  // The impression qualification filters for the BasicReport.
-  //
-  // The custom criteria and any specific impression_qualification_filter may
-  // each be used at most once.
-  repeated ReportingImpressionQualificationFilter
-      impression_qualification_filters = 5;
-
-  // The report results
-  repeated Page pages = 6;
 }
