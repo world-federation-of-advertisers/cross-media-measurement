@@ -221,7 +221,7 @@ MESSAGE_LIBS = [
     "impression_qualification_filter_spec",
     "metric_frequency_spec",
     "metric_metadata_details",
-    "metric_set",
+    "metric_set_details",
     "page",
     "reporting_impression_qualification_filter",
     "reporting_interval",
@@ -293,8 +293,8 @@ proto_library(
 )
 
 proto_library(
-    name = "metric_set_proto",
-    srcs = ["metric_set.proto"],
+    name = "metric_set_details_proto",
+    srcs = ["metric_set_details.proto"],
     strip_import_prefix = IMPORT_PREFIX,
 )
 
@@ -304,7 +304,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":metric_metadata_details_proto",
-        ":metric_set_proto",
+        ":metric_set_details_proto",
         ":reporting_impression_qualification_filter_proto",
     ],
 )
@@ -366,7 +366,7 @@ proto_descriptor_set(
         ":impression_qualification_filter_spec_proto",
         ":metric_frequency_spec_proto",
         ":metric_metadata_details_proto",
-        ":metric_set_proto",
+        ":metric_set_details_proto",
         ":reporting_interval_proto",
     ],
 )

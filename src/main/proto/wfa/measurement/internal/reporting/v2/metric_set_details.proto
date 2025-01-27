@@ -19,8 +19,7 @@ package wfa.measurement.internal.reporting.v2;
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
-// The metric values
-message MetricSet {
+message MetricSetDetails {
   // The size of the population for the filters/grouping specified
   int32 population_size = 1;
 

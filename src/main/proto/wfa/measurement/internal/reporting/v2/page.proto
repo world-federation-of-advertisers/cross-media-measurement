@@ -17,7 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.reporting.v2;
 
 import "wfa/measurement/internal/reporting/v2/metric_metadata_details.proto";
-import "wfa/measurement/internal/reporting/v2/metric_set.proto";
+import "wfa/measurement/internal/reporting/v2/metric_set_details.proto";
 import "wfa/measurement/internal/reporting/v2/reporting_impression_qualification_filter.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
@@ -33,6 +33,11 @@ message Page {
     // The impression qualification filter that was applied.
     ReportingImpressionQualificationFilter filter = 1;
     MetricMetadataDetails details = 2;
+  }
+
+  // The metric values
+  message MetricSet {
+    MetricSetDetails details = 1;
   }
 
   // The metadata and metrics for a impression qualification filter
