@@ -46,6 +46,7 @@ import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.testing.CloseableResource
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
@@ -80,7 +81,7 @@ import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineSt
 /** TestRule that starts and stops all Reporting Server gRPC services. */
 class InProcessReportingServer(
   private val internalReportingServerServices: InternalReportingServer.Services,
-  private val kingdomPublicApiChannel: Channel,
+  kingdomPublicApiChannel: Channel,
   private val encryptionKeyPairConfig: EncryptionKeyPairConfig,
   private val signingPrivateKeyDir: File,
   private val measurementConsumerConfig: MeasurementConsumerConfig,
@@ -129,6 +130,22 @@ class InProcessReportingServer(
 
   lateinit var metricSpecConfig: MetricSpecConfig
 
+  private val celEnvCacheProvider =
+    object :
+      CloseableResource<CelEnvCacheProvider>({
+        CelEnvCacheProvider(
+          publicKingdomEventGroupMetadataDescriptorsClient.withAuthenticationKey(
+            measurementConsumerConfig.apiKey
+          ),
+          EventGroup.getDescriptor(),
+          Duration.ofSeconds(5),
+          knownEventGroupMetadataTypes,
+        )
+      }) {
+      val value: CelEnvCacheProvider
+        get() = resource
+    }
+
   private fun createPublicApiTestServerRule(): GrpcTestServerRule =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       runBlocking {
@@ -175,16 +192,6 @@ class InProcessReportingServer(
           }
         }
 
-        val celEnvCacheProvider =
-          CelEnvCacheProvider(
-            publicKingdomEventGroupMetadataDescriptorsClient.withAuthenticationKey(
-              measurementConsumerConfig.apiKey
-            ),
-            EventGroup.getDescriptor(),
-            Duration.ofSeconds(5),
-            knownEventGroupMetadataTypes,
-          )
-
         METRIC_SPEC_CONFIG.validate()
         metricSpecConfig = METRIC_SPEC_CONFIG
 
@@ -196,7 +203,7 @@ class InProcessReportingServer(
             EventGroupsService(
                 publicKingdomEventGroupsClient,
                 encryptionKeyPairStore,
-                celEnvCacheProvider,
+                celEnvCacheProvider.value,
               )
               .withMetadataPrincipalIdentities(measurementConsumerConfigs),
             MetricCalculationSpecsService(
@@ -246,10 +253,10 @@ class InProcessReportingServer(
   val publicApiChannel: Channel
     get() = publicApiServer.channel
 
-  override fun apply(statement: Statement, description: Description): Statement {
+  override fun apply(base: Statement, description: Description): Statement {
     publicApiServer = createPublicApiTestServerRule()
-    return chainRulesSequentially(internalReportingServer, publicApiServer)
-      .apply(statement, description)
+    return chainRulesSequentially(internalReportingServer, celEnvCacheProvider, publicApiServer)
+      .apply(base, description)
   }
 
   companion object {
@@ -275,6 +282,7 @@ class InProcessReportingServer(
                     }
                 }
             }
+          singleDataProviderParams = multipleDataProviderParams
         }
 
       reachAndFrequencyParams =
@@ -300,6 +308,7 @@ class InProcessReportingServer(
                     }
                 }
             }
+          singleDataProviderParams = multipleDataProviderParams
           maximumFrequency = 10
         }
 
@@ -344,6 +353,8 @@ class InProcessReportingServer(
             }
           maximumWatchDurationPerUser = Durations.fromSeconds(4000)
         }
+
+      populationCountParams = MetricSpecConfig.PopulationCountParams.getDefaultInstance()
     }
   }
 }
