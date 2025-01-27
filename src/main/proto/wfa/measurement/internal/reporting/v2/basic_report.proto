@@ -43,17 +43,20 @@ message BasicReport {
   // `MeasurementConsumer` ID is "abc" and the `ReportingSet` ID is "abcd".
   string external_campaign_group_id = 3;
 
+  // The display_name of the campaign_group
+  string campaign_group_display_name = 4;
+
   // The impression qualification filters for the BasicReport.
   //
   // The custom criteria and any specific impression_qualification_filter may
   // each be used at most once.
   repeated ReportingImpressionQualificationFilter
-      impression_qualification_filters = 4;
+      impression_qualification_filters = 5;
 
   // The report results
-  repeated Page pages = 5;
+  repeated Page pages = 6;
 
-  BasicReportDetails details = 6;
+  BasicReportDetails details = 7;
 
-  google.protobuf.Timestamp create_time = 7;
+  google.protobuf.Timestamp create_time = 8;
 }
