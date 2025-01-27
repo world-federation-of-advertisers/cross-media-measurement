@@ -79,8 +79,8 @@ message MetricSetDetails {
     BasicMetricSet basic = 2;
   }
   // The metrics for the requested intersections
-  repeated DataProviderComponentIntersectionMetricSet
-    component_intersections = 3;
+  repeated DataProviderComponentIntersectionMetricSet component_intersections =
+      3;
 
   // Metrics for the entire reporting_unit.
   message ReportingUnitMetricSet {
