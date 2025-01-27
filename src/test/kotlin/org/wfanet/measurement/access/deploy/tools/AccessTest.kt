@@ -232,9 +232,10 @@ class AccessTest {
         arrayOf(
           "roles",
           "create",
-          "--name=$ROLE_NAME",
           "--resource-type=$SHELF_RESOURCE",
+          "--resource-type=$DESK_RESOURCE",
           "--permission=$GET_BOOK_PERMISSION",
+          "--permission=$WRITE_BOOK_PERMISSION",
           "--etag=$ROLE_REQUEST_ETAG",
           "--role-id=$ROLE_ID",
         )
@@ -248,7 +249,11 @@ class AccessTest {
     assertThat(request)
       .isEqualTo(
         createRoleRequest {
-          role = ROLE.copy { etag = ROLE_REQUEST_ETAG }
+          role =
+            ROLE.copy {
+              name = ""
+              etag = ROLE_REQUEST_ETAG
+            }
           roleId = ROLE_ID
         }
       )
@@ -264,7 +269,9 @@ class AccessTest {
           "update",
           "--name=$ROLE_NAME",
           "--resource-type=$SHELF_RESOURCE",
+          "--resource-type=$DESK_RESOURCE",
           "--permission=$GET_BOOK_PERMISSION",
+          "--permission=$WRITE_BOOK_PERMISSION",
           "--etag=$ROLE_REQUEST_ETAG",
         )
 
@@ -331,12 +338,16 @@ class AccessTest {
     private const val ROLE_NAME = "roles/bookReader"
     private const val ROLE_ID = "bookReader"
     private const val SHELF_RESOURCE = "library.googleapis.com/Shelf"
+    private const val DESK_RESOURCE = "library.googleapis.com/Desk"
+    private const val WRITE_BOOK_PERMISSION = "permissions/books.write"
     private const val GET_BOOK_PERMISSION = "permissions/books.get"
     private const val ROLE_REQUEST_ETAG = "request-etag"
     private val ROLE = role {
       name = ROLE_NAME
       resourceTypes += SHELF_RESOURCE
+      resourceTypes += DESK_RESOURCE
       permissions += GET_BOOK_PERMISSION
+      permissions += WRITE_BOOK_PERMISSION
       etag = "response-etag"
     }
   }
