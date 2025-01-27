@@ -41,7 +41,7 @@ resource "aws_acmpca_certificate_authority" "root_ca" {
 
     subject {
       organization = var.ca_org_name
-      common_name = var.ca_common_name
+      common_name  = var.ca_common_name
       # can add other parameters later
     }
   }

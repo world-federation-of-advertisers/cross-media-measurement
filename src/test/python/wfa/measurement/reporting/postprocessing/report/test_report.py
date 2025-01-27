@@ -15,7 +15,7 @@
 import unittest
 
 from noiseninja.noised_measurements import Measurement, SetMeasurementsSpec
-from report.report import Report, MetricReport, is_cover, get_covers
+from report.report import MetricReport, Report, get_covers, is_cover
 
 EXPECTED_PRECISION = 3
 EDP_ONE = "EDP_ONE"

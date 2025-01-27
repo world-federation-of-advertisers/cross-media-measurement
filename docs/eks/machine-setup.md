@@ -26,8 +26,8 @@ with using these.
 
 See the
 [configure](https://awscli.amazonaws.com/v2/documentation/api/latest/reference/configure/index.html)
-section for setting AWS Cli to with correct accesses.
-After the EKS cluster is created, you'll also want to configure the
+section for setting AWS Cli to with correct accesses. After the EKS cluster is
+created, you'll also want to configure the
 [kubeconfig](https://cloud.google.com/container-registry/docs/advanced-authentication?hl=en#gcloud-helper).
 
 ## Download the source code

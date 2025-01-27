@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
 import unittest
-
-from noiseninja.noised_measurements import SetMeasurementsSpec, Measurement
-from noiseninja.solver import Solver
-from qpsolvers import Solution, Problem
 from unittest.mock import MagicMock
+
+from noiseninja.noised_measurements import Measurement, SetMeasurementsSpec
+from noiseninja.solver import Solver
+import numpy as np
+from qpsolvers import Problem, Solution
 
 HIGHS_SOLVER = "highs"
 

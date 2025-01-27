@@ -414,7 +414,7 @@ private suspend inline fun <T> awaitData(
 enum class PropagationPolicy(val value: String) {
   ORPHAN("Orphan"),
   BACKGROUND("Background"),
-  FOREGROUND("Foreground")
+  FOREGROUND("Foreground"),
 }
 
 /**
@@ -427,5 +427,5 @@ private enum class WatchEventType {
   MODIFIED,
   DELETED,
   BOOKMARK,
-  ERROR
+  ERROR,
 }
