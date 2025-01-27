@@ -25,11 +25,8 @@ message BasicReportDetails {
   // Human readable title of the report.
   string title = 1;
 
-  // The display_name of the campaign_group
-  string campaign_group_display_name = 3;
-
   // The interval of time that the BasicReport spans
   //
   // Both the start and the end of the interval are immutable.
-  ReportingInterval reporting_interval = 4;
+  ReportingInterval reporting_interval = 2;
 }
