@@ -19,6 +19,7 @@ package org.wfanet.measurement.access.deploy.tools
 import io.grpc.ManagedChannel
 import java.io.File
 import java.time.Duration
+import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.access.v1alpha.ListRolesResponse
 import org.wfanet.measurement.access.v1alpha.PrincipalKt
@@ -277,12 +278,13 @@ class GetRole : Runnable {
 class ListRoles : Runnable {
   @ParentCommand private lateinit var parentCommand: Roles
 
-  @Option(
+  @set:Option(
     names = ["--page-size"],
     description = ["The maximum number of Roles to return"],
+    defaultValue = "1000",
     required = false,
   )
-  private var listPageSize: Int = 1000
+  private var listPageSize: Int by Delegates.notNull()
 
   @Option(
     names = ["--page-token"],
@@ -312,19 +314,18 @@ class ListRoles : Runnable {
 class CreateRole : Runnable {
   @ParentCommand private lateinit var parentCommand: Roles
 
-  @Option(names = ["--name"], description = ["API resource name of the Role"])
-  private lateinit var roleName: String
-
   @Option(
     names = ["--resource-type"],
-    description = ["Set of resource types that this Role can be granted on"],
+    description =
+      ["Resource type that this Role can be granted on. Can be specified multiple times."],
     required = true,
   )
   private lateinit var resourceTypeList: List<String>
 
   @Option(
     names = ["--permission"],
-    description = ["Set of resource names of permissions granted by this Role"],
+    description =
+      ["Resource name of permission granted by this Role. Can be specified multiple times."],
     required = true,
   )
   private lateinit var permissionList: List<String>
@@ -340,7 +341,6 @@ class CreateRole : Runnable {
       parentCommand.rolesClient.createRole(
         createRoleRequest {
           role = role {
-            name = roleName
             resourceTypes += resourceTypeList
             permissions += permissionList
             etag = roleEtag
@@ -363,14 +363,16 @@ class UpdateRole : Runnable {
 
   @Option(
     names = ["--resource-type"],
-    description = ["Set of resource types that this Role can be granted on"],
+    description =
+      ["Resource type that that this Role can be granted on. Can be specified multiple times."],
     required = true,
   )
   private lateinit var resourceTypeList: List<String>
 
   @Option(
     names = ["--permission"],
-    description = ["Set of resource names of permissions granted by this Role"],
+    description =
+      ["Resource name of permission granted by this Role. Can be specified multiple times."],
     required = true,
   )
   private lateinit var permissionList: List<String>
