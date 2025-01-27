@@ -34,17 +34,31 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.access.v1alpha.CreatePrincipalRequest
+import org.wfanet.measurement.access.v1alpha.CreateRoleRequest
 import org.wfanet.measurement.access.v1alpha.DeletePrincipalRequest
 import org.wfanet.measurement.access.v1alpha.GetPrincipalRequest
+import org.wfanet.measurement.access.v1alpha.GetRoleRequest
+import org.wfanet.measurement.access.v1alpha.ListRolesRequest
+import org.wfanet.measurement.access.v1alpha.ListRolesResponse
 import org.wfanet.measurement.access.v1alpha.Principal
 import org.wfanet.measurement.access.v1alpha.PrincipalKt.oAuthUser
 import org.wfanet.measurement.access.v1alpha.PrincipalKt.tlsClient
 import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt.PrincipalsCoroutineImplBase
+import org.wfanet.measurement.access.v1alpha.Role
+import org.wfanet.measurement.access.v1alpha.RolesGrpcKt
+import org.wfanet.measurement.access.v1alpha.UpdateRoleRequest
+import org.wfanet.measurement.access.v1alpha.copy
 import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
+import org.wfanet.measurement.access.v1alpha.createRoleRequest
 import org.wfanet.measurement.access.v1alpha.deletePrincipalRequest
 import org.wfanet.measurement.access.v1alpha.getPrincipalRequest
+import org.wfanet.measurement.access.v1alpha.getRoleRequest
+import org.wfanet.measurement.access.v1alpha.listRolesRequest
+import org.wfanet.measurement.access.v1alpha.listRolesResponse
 import org.wfanet.measurement.access.v1alpha.lookupPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.principal
+import org.wfanet.measurement.access.v1alpha.role
+import org.wfanet.measurement.access.v1alpha.updateRoleRequest
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -64,6 +78,13 @@ class AccessTest {
     onBlocking { lookupPrincipal(LOOKUP_TLS_PRINCIPAL_REQUEST) }.thenReturn(TLS_PRINCIPAL)
   }
 
+  private val rolesServiceMock: RolesGrpcKt.RolesCoroutineImplBase = mockService {
+    onBlocking { getRole(any()) }.thenReturn(ROLE)
+    onBlocking { listRoles(any()) }.thenReturn(listRolesResponse { roles += ROLE })
+    onBlocking { createRole(any()) }.thenReturn(ROLE)
+    onBlocking { updateRole(any()) }.thenReturn(ROLE)
+  }
+
   private val serverCerts =
     SigningCerts.fromPemFiles(
       certificateFile = SECRETS_DIR.resolve("reporting_tls.pem").toFile(),
@@ -71,7 +92,8 @@ class AccessTest {
       trustedCertCollectionFile = SECRETS_DIR.resolve("reporting_root.pem").toFile(),
     )
 
-  private val services: List<ServerServiceDefinition> = listOf(principalsServiceMock.bindService())
+  private val services: List<ServerServiceDefinition> =
+    listOf(principalsServiceMock.bindService(), rolesServiceMock.bindService())
 
   private val server: Server =
     NettyServerBuilder.forPort(0)
@@ -176,6 +198,87 @@ class AccessTest {
       .isEqualTo(TLS_PRINCIPAL)
   }
 
+  @Test
+  fun `roles get calls GetRole with valid request`() {
+    val args = commonArgs + arrayOf("roles", "get", ROLE_NAME)
+    val output = callCli(args)
+
+    val request: GetRoleRequest = captureFirst {
+      runBlocking { verify(rolesServiceMock).getRole(capture()) }
+    }
+
+    assertThat(request).isEqualTo(getRoleRequest { name = ROLE_NAME })
+    assertThat(parseTextProto(output.reader(), Role.getDefaultInstance())).isEqualTo(ROLE)
+  }
+
+  @Test
+  fun `roles list calls ListRoles with valid request`() {
+    val args = commonArgs + arrayOf("roles", "list")
+    val output = callCli(args)
+
+    val request: ListRolesRequest = captureFirst {
+      runBlocking { verify(rolesServiceMock).listRoles(capture()) }
+    }
+
+    assertThat(request).isEqualTo(listRolesRequest { pageSize = 1000 })
+    assertThat(parseTextProto(output.reader(), ListRolesResponse.getDefaultInstance()))
+      .isEqualTo(listRolesResponse { roles += ROLE })
+  }
+
+  @Test
+  fun `roles create calls CreateRole with valid request`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "roles",
+          "create",
+          "--name=$ROLE_NAME",
+          "--resource-type=$SHELF_RESOURCE",
+          "--permission=$GET_BOOK_PERMISSION",
+          "--etag=$ROLE_REQUEST_ETAG",
+          "--role-id=$ROLE_ID",
+        )
+
+    val output = callCli(args)
+
+    val request: CreateRoleRequest = captureFirst {
+      runBlocking { verify(rolesServiceMock).createRole(capture()) }
+    }
+
+    assertThat(request)
+      .isEqualTo(
+        createRoleRequest {
+          role = ROLE.copy { etag = ROLE_REQUEST_ETAG }
+          roleId = ROLE_ID
+        }
+      )
+    assertThat(parseTextProto(output.reader(), Role.getDefaultInstance())).isEqualTo(ROLE)
+  }
+
+  @Test
+  fun `roles update calls UpdateRole with valid request`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "roles",
+          "update",
+          "--name=$ROLE_NAME",
+          "--resource-type=$SHELF_RESOURCE",
+          "--permission=$GET_BOOK_PERMISSION",
+          "--etag=$ROLE_REQUEST_ETAG",
+        )
+
+    val output = callCli(args)
+
+    val request: UpdateRoleRequest = captureFirst {
+      runBlocking { verify(rolesServiceMock).updateRole(capture()) }
+    }
+
+    assertThat(request)
+      .isEqualTo(updateRoleRequest { role = ROLE.copy { etag = ROLE_REQUEST_ETAG } })
+    assertThat(parseTextProto(output.reader(), Role.getDefaultInstance())).isEqualTo(ROLE)
+  }
+
   private val commonArgs: Array<String>
     get() =
       arrayOf(
@@ -223,6 +326,18 @@ class AccessTest {
 
     private val LOOKUP_TLS_PRINCIPAL_REQUEST = lookupPrincipalRequest {
       tlsClient = tlsClient { authorityKeyIdentifier = TLS_CLIENT_AKID }
+    }
+
+    private const val ROLE_NAME = "roles/bookReader"
+    private const val ROLE_ID = "bookReader"
+    private const val SHELF_RESOURCE = "library.googleapis.com/Shelf"
+    private const val GET_BOOK_PERMISSION = "permissions/books.get"
+    private const val ROLE_REQUEST_ETAG = "request-etag"
+    private val ROLE = role {
+      name = ROLE_NAME
+      resourceTypes += SHELF_RESOURCE
+      permissions += GET_BOOK_PERMISSION
+      etag = "response-etag"
     }
   }
 }
