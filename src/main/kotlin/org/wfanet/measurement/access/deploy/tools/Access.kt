@@ -20,13 +20,20 @@ import io.grpc.ManagedChannel
 import java.io.File
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.access.v1alpha.ListRolesResponse
 import org.wfanet.measurement.access.v1alpha.PrincipalKt
 import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt.PrincipalsCoroutineStub
+import org.wfanet.measurement.access.v1alpha.RolesGrpcKt.RolesCoroutineStub
 import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
+import org.wfanet.measurement.access.v1alpha.createRoleRequest
 import org.wfanet.measurement.access.v1alpha.deletePrincipalRequest
 import org.wfanet.measurement.access.v1alpha.getPrincipalRequest
+import org.wfanet.measurement.access.v1alpha.getRoleRequest
+import org.wfanet.measurement.access.v1alpha.listRolesRequest
 import org.wfanet.measurement.access.v1alpha.lookupPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.principal
+import org.wfanet.measurement.access.v1alpha.role
+import org.wfanet.measurement.access.v1alpha.updateRoleRequest
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -46,7 +53,7 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30)
 @Command(
   name = "Access",
   description = ["Interacts with Cross-Media Access API"],
-  subcommands = [CommandLine.HelpCommand::class, Principals::class],
+  subcommands = [CommandLine.HelpCommand::class, Principals::class, Roles::class],
 )
 class Access private constructor() : Runnable {
   @Mixin private lateinit var tlsFlags: TlsFlags
@@ -233,5 +240,158 @@ class LookupPrincipal : Runnable {
       )
     }
     println(principal)
+  }
+}
+
+@Command(
+  name = "roles",
+  subcommands =
+    [
+      CommandLine.HelpCommand::class,
+      GetRole::class,
+      ListRoles::class,
+      CreateRole::class,
+      UpdateRole::class,
+    ],
+)
+private class Roles {
+  @ParentCommand private lateinit var parentCommand: Access
+
+  val rolesClient: RolesCoroutineStub by lazy { RolesCoroutineStub(parentCommand.accessChannel) }
+}
+
+@Command(name = "get", description = ["Get a Role"])
+class GetRole : Runnable {
+  @ParentCommand private lateinit var parentCommand: Roles
+
+  @Parameters(index = "0", description = ["API resource name of the Role"])
+  private lateinit var roleName: String
+
+  override fun run() {
+    val role = runBlocking { parentCommand.rolesClient.getRole(getRoleRequest { name = roleName }) }
+    println(role)
+  }
+}
+
+@Command(name = "list", description = ["List Roles"])
+class ListRoles : Runnable {
+  @ParentCommand private lateinit var parentCommand: Roles
+
+  @Option(
+    names = ["--page-size"],
+    description = ["The maximum number of Roles to return"],
+    required = false,
+  )
+  private var listPageSize: Int = 1000
+
+  @Option(
+    names = ["--page-token"],
+    description =
+      [
+        "A page token, received from a previous `ListRoles` call. Provide this to retrieve the subsequent page."
+      ],
+    defaultValue = "",
+    required = false,
+  )
+  private lateinit var listPageToken: String
+
+  override fun run() {
+    val response: ListRolesResponse = runBlocking {
+      parentCommand.rolesClient.listRoles(
+        listRolesRequest {
+          pageSize = listPageSize
+          pageToken = listPageToken
+        }
+      )
+    }
+    println(response)
+  }
+}
+
+@Command(name = "create", description = ["Create a Role"])
+class CreateRole : Runnable {
+  @ParentCommand private lateinit var parentCommand: Roles
+
+  @Option(names = ["--name"], description = ["API resource name of the Role"])
+  private lateinit var roleName: String
+
+  @Option(
+    names = ["--resource-type"],
+    description = ["Set of resource types that this Role can be granted on"],
+    required = true,
+  )
+  private lateinit var resourceTypeList: List<String>
+
+  @Option(
+    names = ["--permission"],
+    description = ["Set of resource names of permissions granted by this Role"],
+    required = true,
+  )
+  private lateinit var permissionList: List<String>
+
+  @Option(names = ["--etag"], description = ["Entity tag of the Role"])
+  private lateinit var roleEtag: String
+
+  @Option(names = ["--role-id"], description = ["Resource ID of the Role"], required = true)
+  private lateinit var id: String
+
+  override fun run() {
+    val role = runBlocking {
+      parentCommand.rolesClient.createRole(
+        createRoleRequest {
+          role = role {
+            name = roleName
+            resourceTypes += resourceTypeList
+            permissions += permissionList
+            etag = roleEtag
+          }
+          roleId = id
+        }
+      )
+    }
+
+    println(role)
+  }
+}
+
+@Command(name = "update", description = ["Update a Role"])
+class UpdateRole : Runnable {
+  @ParentCommand private lateinit var parentCommand: Roles
+
+  @Option(names = ["--name"], description = ["API resource name of the Role"], required = true)
+  private lateinit var roleName: String
+
+  @Option(
+    names = ["--resource-type"],
+    description = ["Set of resource types that this Role can be granted on"],
+    required = true,
+  )
+  private lateinit var resourceTypeList: List<String>
+
+  @Option(
+    names = ["--permission"],
+    description = ["Set of resource names of permissions granted by this Role"],
+    required = true,
+  )
+  private lateinit var permissionList: List<String>
+
+  @Option(names = ["--etag"], description = ["Entity tag of the Role"], required = true)
+  private lateinit var roleEtag: String
+
+  override fun run() {
+    val role = runBlocking {
+      parentCommand.rolesClient.updateRole(
+        updateRoleRequest {
+          role = role {
+            name = roleName
+            resourceTypes += resourceTypeList
+            permissions += permissionList
+            etag = roleEtag
+          }
+        }
+      )
+    }
+
+    println(role)
   }
 }
