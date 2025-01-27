@@ -28,6 +28,39 @@ message MetricMetadataDetails {
   // The time interval over which the metrics were computed
   google.type.Interval time_interval = 1;
 
+  // A summary of a component of the reporting_unit being reported on
+  message ReportingUnitComponentSummary {
+    // Ex: If a `DataProvider` has the name "dataproviders/abc", then the
+    // ID is "abc".
+    string cmms_data_provider_id = 1;
+
+    // Display name of the `DataProvider`.
+    string cmms_data_provider_display_name = 2;
+
+    // Summary of an EventGroup entailed by the component
+    //
+    // Ex: If an `EventGroup` has the name
+    // "measurementconsumers/abc/eventgroups/abcd", then the
+    // `MeasurementConsumer` ID is "abc" and the `EventGroup` ID is "abcd".
+    message EventGroupSummary {
+      // `MeasurementConsumer` ID from the CMMS public API.
+      string cmms_measurement_consumer_id = 1;
+      // `EventGroup` ID from the CMMS public API.
+      string cmms_event_group_id = 2;
+    }
+    // A summary of each EventGroup entailed by the component.
+    repeated EventGroupSummary event_group_summaries = 3;
+  }
+
+  // A summary of each component of the reporting_unit reported on
+  message ReportingUnitSummary {
+    // Component summaries
+    repeated ReportingUnitComponentSummary reporting_unit_component_summary =
+        1;
+  }
+  // A summary of the ReportingUnit
+  ReportingUnitSummary reporting_unit_summary = 2;
+
   // Defines the windowing criteria for a set of Metrics including the time
   // period over which they are computed and whether they are cumulative or
   // not.
@@ -47,7 +80,7 @@ message MetricMetadataDetails {
     // How to accumulate results.
     AccumulationOptions accumulation_options = 2;
   }
-  WindowingSpec windowing_spec = 2;
+  WindowingSpec windowing_spec = 3;
 
   // A summary of the aspects of the DimensionSpec that were applied
   message DimensionSpecSummary {
@@ -56,5 +89,5 @@ message MetricMetadataDetails {
     // The filters applied to the reported metrics
     repeated EventFilter filters = 2;
   }
-  DimensionSpecSummary dimension_spec_summary = 3;
+  DimensionSpecSummary dimension_spec_summary = 4;
 }

@@ -16,91 +16,23 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
-import "wfa/measurement/internal/reporting/v2/component_intersection_metric_set_details.proto";
-import "wfa/measurement/internal/reporting/v2/component_metric_set.proto";
 import "wfa/measurement/internal/reporting/v2/metric_metadata_details.proto";
-import "wfa/measurement/internal/reporting/v2/metric_set_details.proto";
+import "wfa/measurement/internal/reporting/v2/metric_set.proto";
 import "wfa/measurement/internal/reporting/v2/reporting_impression_qualification_filter.proto";
-import "wfa/measurement/internal/reporting/v2/reporting_unit_component_summary_details.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
-
-message ExternalComponentId {
-  // For a `ReportingSet`, the `MeasurementConsumer` ID will be assumed
-  // to be the same as the parent report.
-  //
-  // Ex: If a `DataProvider` has the name "dataproviders/abc", then the
-  // ID is "abc". If a `ReportingSet` has the name
-  // "measurementconsumers/abc/reportingsets/abcd", then the
-  // `ReportingSet` ID is "abcd".
-  oneof resource {
-    string external_reporting_set_id = 1;
-    // `DataProvider` ID from the CMMS public API.
-    string cmms_data_provider_id = 2;
-  }
-}
 
 // A page of results.
 message Page {
   // The title of the page.
   string title = 1;
 
-  // The metric metadata
+  // The metric metadata.
   message MetricMetadata {
-    // A summary of a component of the reporting_unit being reported on
-    message ReportingUnitComponentSummary {
-      ExternalComponentId external_component_id = 1;
-      ReportingUnitComponentSummaryDetails details = 2;
-    }
-
-    // A summary of each component of the reporting_unit reported on
-    message ReportingUnitSummary {
-      // Component summaries
-      repeated ReportingUnitComponentSummary reporting_unit_component_summary =
-          1;
-    }
-    // A summary of the ReportingUnit
-    ReportingUnitSummary reporting_unit_summary = 1;
-
-    // The impression qualification filter that was applied
-    ReportingImpressionQualificationFilter filter = 2;
-
-    MetricMetadataDetails details = 3;
-  }
-
-  // The metric values
-  message MetricSet {
-    // Entry for `components` map.
-    message ComponentMetricSetMapEntry {
-      // Map entry key.
-      ExternalComponentId key = 1;
-
-      // Map entry value.
-      ComponentMetricSet value = 2;
-    }
-    // Map of `component` to `ComponentMetricSet`.
-    repeated ComponentMetricSetMapEntry components = 1;
-
-    // Metrics for the intersection of the components of the reporting_unit
-    message ComponentIntersectionMetricSet {
-      // The reporting_unit `ReportingSet` components that this intersection
-      // corresponds to.
-      //
-      // For a `ReportingSet`, the `MeasurementConsumer` ID is assumed to be
-      // the same as the one in the `AdvancedReport`.
-      //
-      // Ex: If a `ReportingSet` has the name
-      // "measurementconsumers/abc/reportingsets/abcd", then the
-      // `ReportingSet` ID is "abcd" and the `MeasurementConsumer` ID is "abc".
-      repeated string external_reporting_set_ids = 1;
-
-      ComponentIntersectionMetricSetDetails details = 2;
-    }
-    // The metrics for the requested intersections
-    repeated ComponentIntersectionMetricSet component_intersections = 2;
-
-    MetricSetDetails details = 3;
+    // The impression qualification filter that was applied.
+    ReportingImpressionQualificationFilter filter = 1;
+    MetricMetadataDetails details = 2;
   }
 
   // The metadata and metrics for a impression qualification filter
