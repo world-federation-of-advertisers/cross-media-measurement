@@ -44,6 +44,7 @@ class Solver:
         set_measurement_spec)
     self.num_variables = len(variable_index_by_set_id)
     self._init_qp(self.num_variables)
+    self._add_equals(set_measurement_spec, variable_index_by_set_id)
     self._add_covers(set_measurement_spec, variable_index_by_set_id)
     self._add_subsets(set_measurement_spec, variable_index_by_set_id)
     self._add_measurement_targets(set_measurement_spec,
@@ -103,6 +104,15 @@ class Solver:
     # and A x = h
     self.A = []
     self.b = []
+
+  def _add_equals(self, set_measurement_spec: SetMeasurementsSpec,
+      variable_index_by_set_id: dict[int, int]):
+    logging.info("Adding equal set constraints.")
+    for equal_set in set_measurement_spec.get_equal_sets():
+      variables = np.zeros(self.num_variables)
+      variables[variable_index_by_set_id[equal_set[0]]] = 1
+      variables[variable_index_by_set_id[equal_set[1]]] = -1
+      self._add_eq_term(variables, 0)
 
   def _add_subsets(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
