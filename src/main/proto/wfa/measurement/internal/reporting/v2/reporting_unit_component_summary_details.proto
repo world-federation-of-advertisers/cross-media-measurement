@@ -1,3 +1,4 @@
+
 // Copyright 2025 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,20 +17,24 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
-import "wfa/measurement/internal/reporting/v2/custom_impression_qualification_filter_spec.proto";
-
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
-// An impression qualification filter for reporting that allows either a filter
-// ID or a custom filter.
-message ReportingImpressionQualificationFilter {
-  // Filter type selection.
-  oneof selector {
-    // The external ID of an ImpressionQualificationFilter.
-    string external_impression_qualification_filter_id = 1;
+message ReportingUnitComponentSummaryDetails {
+  // Display name of the component
+  string display_name = 1;
 
-    // Custom filter criteria.
-    CustomImpressionQualificationFilterSpec custom = 2;
+  // Summary of an EventGroup entailed by the component
+  //
+  // Ex: If an `EventGroup` has the name
+  // "measurementconsumers/abc/eventgroups/abcd", then the
+  // `MeasurementConsumer` ID is "abc" and the `EventGroup` ID is "abcd".
+  message EventGroupSummary {
+    // `MeasurementConsumer` ID from the CMMS public API.
+    string cmms_measurement_consumer_id = 1;
+    // `EventGroup` ID from the CMMS public API.
+    string cmms_event_group_id = 2;
   }
+  // A summary of each EventGroup entailed by the component.
+  repeated EventGroupSummary event_group_summaries = 2;
 }

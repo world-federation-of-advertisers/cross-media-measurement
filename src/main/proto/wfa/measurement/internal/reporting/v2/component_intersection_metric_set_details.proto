@@ -16,20 +16,19 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
-import "wfa/measurement/internal/reporting/v2/custom_impression_qualification_filter_spec.proto";
+import "wfa/measurement/internal/reporting/v2/basic_metric_set.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
-// An impression qualification filter for reporting that allows either a filter
-// ID or a custom filter.
-message ReportingImpressionQualificationFilter {
-  // Filter type selection.
-  oneof selector {
-    // The external ID of an ImpressionQualificationFilter.
-    string external_impression_qualification_filter_id = 1;
+message ComponentIntersectionMetricSetDetails {
+  // The reporting_unit `DataProvider` components that this intersection
+  // corresponds to.
+  //
+  // Ex: If a `DataProvider` has the name "dataproviders/abc", then the
+  // ID is "abc".
+  repeated string cmms_data_provider_ids = 1;
 
-    // Custom filter criteria.
-    CustomImpressionQualificationFilterSpec custom = 2;
-  }
+  // Basic metrics for the intersection of the components
+  BasicMetricSet basic = 2;
 }

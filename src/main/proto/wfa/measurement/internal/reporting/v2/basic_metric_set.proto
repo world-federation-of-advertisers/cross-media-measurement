@@ -1,3 +1,4 @@
+
 // Copyright 2025 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,20 +17,23 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
-import "wfa/measurement/internal/reporting/v2/custom_impression_qualification_filter_spec.proto";
-
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
-// An impression qualification filter for reporting that allows either a filter
-// ID or a custom filter.
-message ReportingImpressionQualificationFilter {
-  // Filter type selection.
-  oneof selector {
-    // The external ID of an ImpressionQualificationFilter.
-    string external_impression_qualification_filter_id = 1;
-
-    // Custom filter criteria.
-    CustomImpressionQualificationFilterSpec custom = 2;
-  }
+// Metrics that are applicable to any subunit of the ReportingUnit.
+message BasicMetricSet {
+  // The reach
+  int32 reach = 1;
+  // The reach divided by the population_size
+  float percent_reach = 2;
+  // The k+ reach where the index is frequency - 1.
+  repeated int32 k_plus_reach = 3;
+  // The percent k+ reach
+  repeated float percent_k_plus_reach = 4;
+  // The average frequency
+  float average_frequency = 5;
+  // The impression count
+  int32 impressions = 6;
+  // The gross ratings points
+  float grps = 7;
 }
