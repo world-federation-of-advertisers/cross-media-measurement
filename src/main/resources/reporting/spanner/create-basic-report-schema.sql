@@ -40,6 +40,7 @@ CREATE PROTO BUNDLE (
   `wfa.measurement.internal.reporting.v2.MetricMetadataDetails.WindowingSpec.AccumulationOptions`,
   `wfa.measurement.internal.reporting.v2.BasicMetricSet`,
   `wfa.measurement.internal.reporting.v2.ComponentMetricSet`,
+  `wfa.measurement.internal.reporting.v2.DataProviderComponentMetricSetDetails`,
   `wfa.measurement.internal.reporting.v2.MetricSetDetails`,
   `wfa.measurement.internal.reporting.v2.MetricSetDetails.ReportingUnitMetricSet`,
   `wfa.measurement.internal.reporting.v2.BasicReportDetails`,
@@ -78,7 +79,7 @@ CREATE TABLE ReportingImpressionQualificationFilter (
   ReportingImpressionQualificationFilter INT64 NOT NULL,
 
   ExternalImpressionQualificationFilterId STRING(MAX),
-  CustomImpressionQualificationFilterSpec `wfa.measurement.internal.reporting.v2.ReportingImpressionQualificationFilter.CustomImpressionQualificationFilterSpec`,
+  CustomImpressionQualificationFilterSpec `wfa.measurement.internal.reporting.v2.CustomImpressionQualificationFilterSpec`,
 
   CONSTRAINT FK_ReportingImpressionQualificationFiltersBasicReports FOREIGN KEY BasicReportId REFERENCES BasicReports(BasicReportId) ON DELETE CASCADE
 ) PRIMARY KEY (BasicReportId, ReportingImpressionQualificationFilterId);
@@ -107,7 +108,7 @@ CREATE TABLE MetricMetadata (
   MetricMetadataId INT64 NOT NULL,
 
   ReportingImpressionQualificationFilterId INT64 NOT NULL,
-  MetricMetadataDetails `wfa.measurement.internal.reporting.v2.Page.MetricMetadata.MetricMetadataDetails`
+  MetricMetadataDetails `wfa.measurement.internal.reporting.v2.MetricMetadataDetails`
     NOT NULL,
 
   CONSTRAINT FK_MetricMetadataReportingImpressionQualificationFilters FOREIGN KEY (BasicReportId, ReportingImpressionQualificationFilterId)
@@ -136,7 +137,7 @@ CREATE TABLE ReportingUnitComponentSummaries (
 
   ReportingSetId INT64,
   CmmsDataProviderId STRING(MAX),
-  ReportingUnitComponentSummaryDetails `wfa.measurement.internal.reporting.v2.Page.MetricMetadata.ReportingUnitComponentSummary.ReportingUnitComponentSummaryDetails`
+  ReportingUnitComponentSummaryDetails `wfa.measurement.internal.reporting.v2.ReportingUnitComponentSummaryDetails`
     NOT NULL,
 
   CONSTRAINT FK_ReportingUnitComponentSummariesReportingSets FOREIGN KEY ReportingSetId REFERENCES ReportingSets(ReportingSetId),
@@ -150,7 +151,7 @@ CREATE TABLE MetricSets (
   ResultId INT64 NOT NULL,
   MetricSetId INT64 NOT NULL,
 
-  MetricSetDetails `wfa.measurement.internal.reporting.v2.Page.MetricSet.MetricSetDetails` NOT NULL,
+  MetricSetDetails `wfa.measurement.internal.reporting.v2.MetricSetDetails` NOT NULL,
 
   CONSTRAINT FK_MetricSetsResults FOREIGN KEY (BasicReportId, PageId, ResultId) REFERENCES Results(BasicReportId, PageId, ResultId) ON DELETE CASCADE
 ) PRIMARY KEY (BasicReportId, PageId, ResultId, MetricSetId);
@@ -164,7 +165,7 @@ CREATE TABLE ComponentMetricSetMapEntries (
 
   ReportingSetId INT64,
   CmmsDataProviderId STRING(MAX),
-  ComponentMetricSet `wfa.measurement.internal.reporting.v2.Page.MetricSet.ComponentMetricSet` NOT NULL,
+  ComponentMetricSet `wfa.measurement.internal.reporting.v2.ComponentMetricSet` NOT NULL,
 
   CONSTRAINT FK_ComponentMetricSetMapEntriesReportingSets FOREIGN KEY ReportingSetId REFERENCES ReportingSets(ReportingSetId),
   CONSTRAINT FK_ComponentMetricSetMapEntriesMetricSets FOREIGN KEY (BasicReportId, PageId, ResultId, MetricSetId)
@@ -178,8 +179,7 @@ CREATE TABLE ComponentIntersectionMetricSets (
   MetricSetId INT64 NOT NULL,
   ComponentIntersectionMetricSetId NOT NULL,
 
-  ComponentIntersectionMetricSetDetails `wfa.measurement.internal.reporting.v2.Page.MetricSet.ComponentIntersectionMetricSet.ComponentIntersectionMetricSetDetails`
-   NOT NULL,
+  DataProviderComponentIntersectionMetricSetDetails `wfa.measurement.internal.reporting.v2.DataProviderComponentIntersectionMetricSetDetails` NOT NULL,
 
   CONSTRAINT FK_ComponentIntersectionMetricSetsReportingSets FOREIGN KEY ReportingSetId REFERENCES ReportingSets(ReportingSetId),
   CONSTRAINT FK_ComponentIntersectionMetricSetsMetricSets FOREIGN KEY (BasicReportId, PageId, ResultId, MetricSetId)
