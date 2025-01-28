@@ -53,7 +53,7 @@ message Page {
         string cmms_event_group_id = 2;
       }
       // A summary of each EventGroup entailed by the component.
-       repeated EventGroupSummary event_group_summaries = 3;
+      repeated EventGroupSummary event_group_summaries = 3;
     }
 
     // A summary of each component of the reporting_unit reported on
