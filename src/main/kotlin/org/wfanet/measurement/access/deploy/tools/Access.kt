@@ -483,8 +483,7 @@ class CheckPermissions : Runnable {
     description =
       [
         "Name of resource on which to check permissions. " +
-          "If not specified, this means the root of the protected API. " +
-          "Can be specified multiple times."
+          "If not specified, this means the root of the protected API."
       ],
     defaultValue = "",
     required = false,
