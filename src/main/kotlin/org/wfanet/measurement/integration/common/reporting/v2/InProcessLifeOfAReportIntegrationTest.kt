@@ -32,12 +32,26 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.access.client.v1alpha.TrustedPrincipalAuthInterceptor
+import org.wfanet.measurement.access.service.PermissionKey
+import org.wfanet.measurement.access.v1alpha.PoliciesGrpc
+import org.wfanet.measurement.access.v1alpha.PolicyKt
+import org.wfanet.measurement.access.v1alpha.PrincipalKt
+import org.wfanet.measurement.access.v1alpha.PrincipalsGrpc
+import org.wfanet.measurement.access.v1alpha.RolesGrpc
+import org.wfanet.measurement.access.v1alpha.createPolicyRequest
+import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
+import org.wfanet.measurement.access.v1alpha.createRoleRequest
+import org.wfanet.measurement.access.v1alpha.policy
+import org.wfanet.measurement.access.v1alpha.principal
+import org.wfanet.measurement.access.v1alpha.role
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
@@ -65,6 +79,7 @@ import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.princip
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
+import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
@@ -72,6 +87,7 @@ import org.wfanet.measurement.integration.common.reporting.v2.identity.withPrinc
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
+import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
@@ -121,6 +137,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         String, ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
       ) -> InProcessDuchy.DuchyDependencies
     >,
+  accessServicesFactory: AccessServicesFactory,
 ) {
   private val inProcessCmmsComponents: InProcessCmmsComponents =
     InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
@@ -172,6 +189,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
         return InProcessReportingServer(
           internalReportingServerServices,
+          accessServicesFactory,
           inProcessCmmsComponents.kingdom.publicApiChannel,
           encryptionKeyPairConfig,
           SECRETS_DIR,
@@ -202,6 +220,92 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       inProcessCmmsComponentsStartup,
       reportingServerRule,
     )
+
+  private lateinit var credentials: TrustedPrincipalAuthInterceptor.Credentials
+
+  @Before
+  fun createAccessPolicy() {
+    val measurementConsumerData: MeasurementConsumerData =
+      inProcessCmmsComponents.getMeasurementConsumerData()
+    val accessChannel = reportingServer.accessChannel
+
+    val rolesStub = RolesGrpc.newBlockingStub(accessChannel)
+    val mcResourceType = "halo.wfanet.org/MeasurementConsumer"
+    val mcUserRole =
+      rolesStub.createRole(
+        createRoleRequest {
+          roleId = "mcUser"
+          role = role {
+            resourceTypes += mcResourceType
+            permissions +=
+              PERMISSIONS_CONFIG.permissionsMap
+                .filterValues { it.protectedResourceTypesList.contains(mcResourceType) }
+                .keys
+                .map { PermissionKey(it).toName() }
+          }
+        }
+      )
+    val rootResourceType = "reporting.halo-cmm.org/Root"
+    val kingdomUserRole =
+      rolesStub.createRole(
+        createRoleRequest {
+          roleId = "kingdomUser"
+          role = role {
+            resourceTypes += rootResourceType
+            permissions +=
+              PERMISSIONS_CONFIG.permissionsMap
+                .filterValues { it.protectedResourceTypesList.contains(rootResourceType) }
+                .keys
+                .map { PermissionKey(it).toName() }
+          }
+        }
+      )
+
+    val principalsStub = PrincipalsGrpc.newBlockingStub(accessChannel)
+    val principal =
+      principalsStub.createPrincipal(
+        createPrincipalRequest {
+          principalId = "mc-user"
+          this.principal = principal {
+            user =
+              PrincipalKt.oAuthUser {
+                issuer = "example.com"
+                subject = "mc-user@example.com"
+              }
+          }
+        }
+      )
+
+    val policiesStub = PoliciesGrpc.newBlockingStub(accessChannel)
+    policiesStub.createPolicy(
+      createPolicyRequest {
+        policyId = "test-mc-policy"
+        policy = policy {
+          protectedResource = measurementConsumerData.name
+          bindings +=
+            PolicyKt.binding {
+              this.role = mcUserRole.name
+              members += principal.name
+            }
+        }
+      }
+    )
+    policiesStub.createPolicy(
+      createPolicyRequest {
+        policyId = "test-root-policy"
+        policy = policy {
+          protectedResource = "" // Root
+          bindings +=
+            PolicyKt.binding {
+              this.role = kingdomUserRole.name
+              members += principal.name
+            }
+        }
+      }
+    )
+
+    credentials = TrustedPrincipalAuthInterceptor.Credentials(principal, setOf("reporting.*"))
+  }
 
   private val publicKingdomMeasurementConsumersClient by lazy {
     MeasurementConsumersCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
