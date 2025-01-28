@@ -13,26 +13,26 @@
 # limitations under the License.
 
 variable "instance_template_name" {
-  description   = "The name of the instance template."
-  type          = string
+  description = "The name of the instance template."
+  type        = string
 }
 
 variable "base_instance_name" {
-  description   = "The base instance name to use for instances in this group."
-  type          = string
-  nullable      = false
+  description = "The base instance name to use for instances in this group."
+  type        = string
+  nullable    = false
 }
 
 variable "single_instance_assignment" {
-  description   = "The amount of undelivered messages a single instance can handle. Used by the autoscaler to determine the number of instances needed based on the total number of undelivered messages."
-  type          = number
-  nullable      = false
+  description = "The amount of undelivered messages a single instance can handle. Used by the autoscaler to determine the number of instances needed based on the total number of undelivered messages."
+  type        = number
+  nullable    = false
 }
 
 variable "mig_service_account_name" {
   description = "IAM `google_service_account.name`."
-  type = string
-  nullable = false
+  type        = string
+  nullable    = false
 }
 
 variable "app_args" {
@@ -42,33 +42,33 @@ variable "app_args" {
 }
 
 variable "subscription_id" {
-  description   = "The subscription used to determine the amount of undelivered messages."
-  type          = number
-  nullable      = false
+  description = "The subscription used to determine the amount of undelivered messages."
+  type        = number
+  nullable    = false
 }
 
 variable "managed_instance_group_name" {
-  description   = "The name of the Managed Instance Group."
-  type          = string
-  nullable      = false
+  description = "The name of the Managed Instance Group."
+  type        = string
+  nullable    = false
 }
 
 variable "max_replicas" {
-  description   = "The maximum number of instances that can be deployed in this Managed Instance Group (MIG). This defines the upper limit for autoscaling."
-  type          = number
-  nullable      = false
+  description = "The maximum number of instances that can be deployed in this Managed Instance Group (MIG). This defines the upper limit for autoscaling."
+  type        = number
+  nullable    = false
 }
 
 variable "min_replicas" {
-  description   = "The minimum number of instances that must always be running in this Managed Instance Group (MIG), even during low-load periods."
-  type          = number
-  nullable      = false
+  description = "The minimum number of instances that must always be running in this Managed Instance Group (MIG), even during low-load periods."
+  type        = number
+  nullable    = false
 }
 
-variable machine_type {
-  description   = "The machine type to create."
-  type          = string
-  nullable      = false
+variable "machine_type" {
+  description = "The machine type to create."
+  type        = string
+  nullable    = false
 }
 
 variable "topic_id" {

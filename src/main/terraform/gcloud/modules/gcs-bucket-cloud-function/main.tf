@@ -14,7 +14,7 @@
 
 resource "google_storage_bucket_iam_member" "storage_event_viewer" {
   bucket = var.trigger_bucket_name
-  role    = "roles/eventarc.eventReceiver"
+  role   = "roles/eventarc.eventReceiver"
   member = "serviceAccount:${var.cloud_function_service_account_email}"
 }
 
@@ -22,16 +22,16 @@ resource "google_cloudfunctions2_function" "cloud_function" {
   name        = var.cloud_function_name
   entry_point = var.entry_point
 
-  docker_registry  = var.docker_registry
+  docker_registry   = var.docker_registry
   docker_repository = var.docker_repository
 
   event_trigger {
-    event_type = "google.cloud.storage.object.v1.finalized"
-    retry_policy = "RETRY_POLICY_RETRY"
+    event_type            = "google.cloud.storage.object.v1.finalized"
+    retry_policy          = "RETRY_POLICY_RETRY"
     service_account_email = var.cloud_function_service_account_email
     event_filters {
       attribute = "bucket"
-      value = var.trigger_bucket_name
+      value     = var.trigger_bucket_name
     }
   }
 }

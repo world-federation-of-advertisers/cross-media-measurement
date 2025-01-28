@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-terraform {
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = ">= 6.12.0"
-    }
-  }
-}
+"""Common utility function definitions."""
+
+def proto_lib_prefix(label_str):
+    """Returns the prefix of the proto_library name.
+
+    Args:
+        label_str: the proto_library label as a string.
+    Returns:
+        The prefix of the name with the `_proto` suffix removed.
+    """
+    return Label(label_str).name.removesuffix("_proto")

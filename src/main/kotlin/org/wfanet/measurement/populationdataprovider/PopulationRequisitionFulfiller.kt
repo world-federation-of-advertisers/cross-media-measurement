@@ -67,6 +67,7 @@ data class PopulationInfo(
   //  a DescriptorProto.
   val eventMessageDescriptor: Descriptor,
 )
+
 /** A requisition fulfiller for PDP businesses. */
 class PopulationRequisitionFulfiller(
   pdpData: DataProviderData,
@@ -91,6 +92,7 @@ class PopulationRequisitionFulfiller(
   override suspend fun run() {
     throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
   }
+
   /** Executes the requisition fulfillment workflow. */
   override suspend fun executeRequisitionFulfillingWorkflow() {
     logger.info("Executing requisitionFulfillingWorkflow...")

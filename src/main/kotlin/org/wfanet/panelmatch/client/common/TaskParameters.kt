@@ -26,6 +26,7 @@ class TaskParameters(parameters: Set<Any>) {
 
   fun <T : Any> get(key: KClass<T>): T? {
     require(key.isData) { "Task Parameters only store data classes" }
-    @Suppress("UNCHECKED_CAST") return underlyingMap[key] as T?
+    @Suppress("UNCHECKED_CAST")
+    return underlyingMap[key] as T?
   }
 }
