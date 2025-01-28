@@ -477,25 +477,22 @@ class Report:
         )
     logging.info("Finished adding subset relations to spec.")
 
-  # TODO(@ple13):Use timestamp to check if the last cumulative measurement covers
-  # the whole campaign. If yes, make sure that the two measurements are equal
-  # instead of less than or equal.
   def _add_cumulative_whole_campaign_relations_to_spec(self,
       spec: SetMeasurementsSpec):
     # Adds relations between cumulative and whole campaign measurements.
-    # For an edp combination, the last cumulative measurement is less than or
-    # equal to the whole campaign measurement.
+    # For an edp combination, the last cumulative reach is equal to the whole
+    # campaign reach.
     for metric in self._metric_reports:
       for edp_combination in self._metric_reports[
         metric].get_cumulative_edp_combinations().intersection(
           self._metric_reports[
             metric].get_whole_campaign_edp_combinations()):
-        spec.add_subset_relation(
-            child_set_id=self._get_measurement_index(
+        spec.add_equal_relation(
+            set_id_one=self._get_measurement_index(
                 self._metric_reports[
                   metric].get_cumulative_measurement(
                     edp_combination, (self._num_periods - 1))),
-            parent_set_id=self._get_measurement_index(
+            set_id_two=self._get_measurement_index(
                 self._metric_reports[
                   metric].get_whole_campaign_measurement(
                     edp_combination)),
@@ -615,7 +612,7 @@ class Report:
                         measurement.name),
         )
     logging.info(
-      "Finished adding the measurements to the set measurement spec.")
+        "Finished adding the measurements to the set measurement spec.")
 
   def _normalized_sigma(self, sigma: float) -> float:
     """Normalizes the standard deviation.

@@ -130,7 +130,7 @@ class ReportProcessorTest {
           return false
         }
         if (edpCombination in totalMeasurements) {
-          if (measurements[measurements.size - 1] > totalMeasurements[edpCombination]!!) {
+          if (measurements[measurements.size - 1] != totalMeasurements[edpCombination]!!) {
             return false
           }
         }
