@@ -16,16 +16,12 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
-import "wfa/measurement/internal/reporting/v2/basic_metric_set.proto";
+import "wfa/measurement/internal/reporting/v2/page.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
-// Metrics for a single component of the reporting_unit.
-message ComponentMetricSet {
-  // The basic metrics for this component
-  BasicMetricSet basic = 1;
-
-  // The component's unique reach
-  int32 unique_reach = 2;
+message BasicReportResultsDetails {
+  // The report results
+  repeated Page pages = 1;
 }

@@ -24,8 +24,13 @@ option java_multiple_files = true;
 
 // Internal service for persistence of Basic Report entities.
 service BasicReports {
+  // Error reasons:
+  // * `REPORTING_SET_NOT_FOUND`
+  // * `BASIC_REPORT_ALREADY_EXISTS`
   rpc InsertBasicReport(InsertBasicReportRequest) returns (BasicReport);
 
+  // Error reasons:
+  // * `BASIC_REPORT_NOT_FOUND`
   rpc GetBasicReport(GetBasicReportRequest) returns (BasicReport);
 
   // Ordered by `create_time` descending, `external_basic_report_id` ascending.

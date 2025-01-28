@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
+import "wfa/measurement/internal/reporting/v2/reporting_impression_qualification_filter.proto";
 import "wfa/measurement/internal/reporting/v2/reporting_interval.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
@@ -25,8 +26,12 @@ message BasicReportDetails {
   // Human readable title of the report.
   string title = 1;
 
+  // The impression qualification filters for the BasicReport.
+  repeated ReportingImpressionQualificationFilter
+      impression_qualification_filters = 2;
+
   // The interval of time that the BasicReport spans
   //
   // Both the start and the end of the interval are immutable.
-  ReportingInterval reporting_interval = 2;
+  ReportingInterval reporting_interval = 3;
 }

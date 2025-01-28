@@ -16,20 +16,17 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
-import "wfa/measurement/internal/reporting/v2/custom_impression_qualification_filter_spec.proto";
+import "wfa/measurement/internal/reporting/v2/impression_qualification_filter_spec.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
-// An impression qualification filter for reporting that allows either a filter
-// ID or a custom filter.
+// An impression qualification filter for reporting.
 message ReportingImpressionQualificationFilter {
-  // Filter type selection.
-  oneof selector {
-    // The external ID of an ImpressionQualificationFilter.
-    string external_impression_qualification_filter_id = 1;
+  // The external ID of an ImpressionQualificationFilter. Only set if it
+  // represents the `filter_specs` below.
+  string external_impression_qualification_filter_id = 1;
 
-    // Custom filter criteria.
-    CustomImpressionQualificationFilterSpec custom = 2;
-  }
+  // The impression filter criteria, no more than on per MediaType.
+  repeated ImpressionQualificationFilterSpec filter_specs = 2;
 }

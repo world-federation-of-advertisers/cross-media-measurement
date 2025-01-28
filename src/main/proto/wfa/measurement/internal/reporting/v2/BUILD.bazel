@@ -213,35 +213,33 @@ kt_jvm_grpc_proto_library(
 )
 
 MESSAGE_LIBS = [
-    "basic_metric_set",
     "basic_report_details",
+    "basic_report_results_details",
     "basic_report",
-    "component_metric_set",
-    "custom_impression_qualification_filter_spec",
-    "data_provider_component_intersection_metric_set_details",
     "event_filter",
     "event_template_field",
     "impression_qualification_filter_spec",
     "metric_frequency_spec",
-    "metric_metadata_details",
-    "metric_set_details",
     "page",
     "reporting_impression_qualification_filter",
     "reporting_interval",
-    "reporting_unit_component_summary_details",
 ]
-
-proto_library(
-    name = "basic_metric_set_proto",
-    srcs = ["basic_metric_set.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-)
 
 proto_library(
     name = "basic_report_details_proto",
     srcs = ["basic_report_details.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = [":reporting_interval_proto"],
+    deps = [
+        ":reporting_impression_qualification_filter_proto",
+        ":reporting_interval_proto",
+    ],
+)
+
+proto_library(
+    name = "basic_report_results_details_proto",
+    srcs = ["basic_report_results_details.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [":page_proto"],
 )
 
 proto_library(
@@ -250,31 +248,9 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":basic_report_details_proto",
-        ":page_proto",
-        ":reporting_impression_qualification_filter_proto",
+        ":basic_report_results_details_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
-)
-
-proto_library(
-    name = "component_metric_set_proto",
-    srcs = ["component_metric_set.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [":basic_metric_set_proto"],
-)
-
-proto_library(
-    name = "custom_impression_qualification_filter_spec_proto",
-    srcs = ["custom_impression_qualification_filter_spec.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [":impression_qualification_filter_spec_proto"],
-)
-
-proto_library(
-    name = "data_provider_component_intersection_metric_set_details_proto",
-    srcs = ["data_provider_component_intersection_metric_set_details.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [":basic_metric_set_proto"],
 )
 
 proto_library(
@@ -305,35 +281,15 @@ proto_library(
 )
 
 proto_library(
-    name = "metric_metadata_details_proto",
-    srcs = ["metric_metadata_details.proto"],
+    name = "page_proto",
+    srcs = ["page.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":event_filter_proto",
         ":event_template_field_proto",
         ":metric_frequency_spec_proto",
-        "@com_google_googleapis//google/type:interval_proto",
-    ],
-)
-
-proto_library(
-    name = "metric_set_details_proto",
-    srcs = ["metric_set_details.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [":basic_metric_set_proto"],
-)
-
-proto_library(
-    name = "page_proto",
-    srcs = ["page.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        ":component_metric_set_proto",
-        ":data_provider_component_intersection_metric_set_details_proto",
-        ":metric_metadata_details_proto",
-        ":metric_set_details_proto",
         ":reporting_impression_qualification_filter_proto",
-        ":reporting_unit_component_summary_details_proto",
+        "@com_google_googleapis//google/type:interval_proto",
     ],
 )
 
@@ -341,7 +297,7 @@ proto_library(
     name = "reporting_impression_qualification_filter_proto",
     srcs = ["reporting_impression_qualification_filter.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = [":custom_impression_qualification_filter_spec_proto"],
+    deps = [":impression_qualification_filter_spec_proto"],
 )
 
 proto_library(
@@ -352,12 +308,6 @@ proto_library(
         "@com_google_googleapis//google/type:date_proto",
         "@com_google_googleapis//google/type:datetime_proto",
     ],
-)
-
-proto_library(
-    name = "reporting_unit_component_summary_details_proto",
-    srcs = ["reporting_unit_component_summary_details.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
 )
 
 SERVICE_LIBS = [
@@ -393,18 +343,14 @@ proto_library(
 proto_descriptor_set(
     name = "descriptor_set",
     deps = [
-        ":basic_metric_set_proto",
         ":basic_report_details_proto",
-        ":component_metric_set_proto",
-        ":custom_impression_qualification_filter_spec_proto",
-        ":data_provider_component_intersection_metric_set_details_proto",
+        ":basic_report_results_details_proto",
         ":event_filter_proto",
         ":event_template_field_proto",
         ":impression_qualification_filter_spec_proto",
         ":metric_frequency_spec_proto",
-        ":metric_metadata_details_proto",
-        ":metric_set_details_proto",
+        ":page_proto",
+        ":reporting_impression_qualification_filter_proto",
         ":reporting_interval_proto",
-        ":reporting_unit_component_summary_details_proto",
     ],
 )

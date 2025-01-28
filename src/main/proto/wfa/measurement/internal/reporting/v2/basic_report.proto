@@ -18,8 +18,7 @@ package wfa.measurement.internal.reporting.v2;
 
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/reporting/v2/basic_report_details.proto";
-import "wfa/measurement/internal/reporting/v2/page.proto";
-import "wfa/measurement/internal/reporting/v2/reporting_impression_qualification_filter.proto";
+import "wfa/measurement/internal/reporting/v2/basic_report_results_details.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
@@ -46,16 +45,7 @@ message BasicReport {
   // The display_name of the campaign_group
   string campaign_group_display_name = 4;
 
-  // The impression qualification filters for the BasicReport.
-  //
-  // The custom criteria and any specific impression_qualification_filter may
-  // each be used at most once.
-  repeated ReportingImpressionQualificationFilter
-      impression_qualification_filters = 5;
-
-  // The report results
-  repeated Page pages = 6;
-
+  BasicReportResultsDetails results = 6;
   BasicReportDetails details = 7;
 
   google.protobuf.Timestamp create_time = 8;
