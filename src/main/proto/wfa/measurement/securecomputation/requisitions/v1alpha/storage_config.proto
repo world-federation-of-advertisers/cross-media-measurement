@@ -17,23 +17,23 @@ syntax = "proto3";
 package wfa.measurement.securecomputation.requisitions.v1alpha;
 
 import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 
+
 option java_package = "org.wfanet.measurement.securecomputation.requisitions.v1alpha";
 option java_multiple_files = true;
-option java_outer_classname = "KingdomConfigProto";
+option java_outer_classname = "StorageConfigProto";
 
 
 
-message KingdomConfig {
-  string public_api_cert_host = 1;
+message StorageConfig {
+  string project = 1;
 
-  string public_api_target = 2;
+  string bucket = 2;
 
-  string cert_collection_path = 3;
+  string blob_uri = 3;
 
-  string api_authentication_key = 4;
-
-  string data_provider = 5;
+  google.protobuf.Timestamp last_update = 4;
 }

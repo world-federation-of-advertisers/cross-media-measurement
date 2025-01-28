@@ -19,15 +19,10 @@ import com.google.cloud.storage.StorageOptions
 import io.grpc.StatusException
 import java.io.File
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.forEach
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
-//import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
-//import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.common.crypto.readCertificateCollection
-//import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.grpc.buildTlsChannel
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
@@ -36,28 +31,44 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-//import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.securecomputation.requisitions.v1alpha.KingdomConfig
+import org.wfanet.measurement.securecomputation.requisitions.v1alpha.StorageConfig
+import com.google.cloud.functions.CloudEventsFunction
+import io.cloudevents.CloudEvent
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.runBlocking
 
+
+// 1. Polls for new requisitions
+// 2. Stores new requisitions into Google Cloud Storage
 class RequisitionFetcher(
-  val config: KingdomConfig,
-  val blobUri: String // Output location to write requisitions to
-) {
+  private val kingdomConfig: KingdomConfig,
+  private val storageConfig: StorageConfig,
+): CloudEventsFunction {
 
-  suspend fun fetchRequisitions(): Flow<Requisition> {
+  override fun accept(event: CloudEvent) {
+    runBlocking {
+      storeRequisitions(fetchRequisitions())
+    }
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  private suspend fun fetchRequisitions(): Flow<Requisition> {
     val publicChannel = buildTlsChannel(
-      config.publicApiTarget,
-      readCertificateCollection(requireNotNull(File(config.certCollectionPath))),
-      config.publicApiCertHost,
+      kingdomConfig.publicApiTarget,
+      readCertificateCollection(File(kingdomConfig.certCollectionPath)),
+      kingdomConfig.publicApiCertHost,
     )
     val requisitionsStub = RequisitionsCoroutineStub(publicChannel)
+
     return requisitionsStub
-      .withAuthenticationKey(config.apiAuthenticationKey)
+      .withAuthenticationKey(kingdomConfig.apiAuthenticationKey)
       .listResources { pageToken ->
         val response: ListRequisitionsResponse =
           try {
             listRequisitions(listRequisitionsRequest {
-              parent = config.dataProvider
+              parent = kingdomConfig.dataProvider
               this.pageToken = pageToken
             })
           } catch (e: StatusException) {
@@ -66,23 +77,16 @@ class RequisitionFetcher(
         ResourceList(response.requisitionsList, response.nextPageToken)
       }
       .flattenConcat()
+      .filter { it.updateTime.seconds > storageConfig.lastUpdate.seconds }
   }
 
-  suspend fun storeRequisitions(requisitions: Flow<Requisition>) {
+  private suspend fun storeRequisitions(requisitions: Flow<Requisition>) {
     val storageClient = GcsStorageClient(
-      StorageOptions.newBuilder().setProjectId(config.googleCloudStorageProject).build().service,
-      config.googleCloudStorageBucket
+      StorageOptions.newBuilder().setProjectId(storageConfig.project).build().service,
+      storageConfig.bucket
     )
-    storageClient.writeBlob(blobUri, requisitions.map { it.toByteString() })
-  }
-
-  suspend fun run() {
-    val requisitions = fetchRequisitions()
-    storeRequisitions(requisitions)
+    storageClient.writeBlob(storageConfig.blobUri, requisitions.map { it.toByteString() })
   }
 }
-
-// question: who are we fetching requisitions for? is it an mc? how does this fit into the datawatcher architecture?
-
 
 
