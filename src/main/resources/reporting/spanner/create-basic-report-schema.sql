@@ -30,20 +30,17 @@ CREATE PROTO BUNDLE (
   `wfa.measurement.internal.reporting.v2.EventFilter`,
   `wfa.measurement.internal.reporting.v2.EventTemplateField`,
   `wfa.measurement.internal.reporting.v2.EventTemplateField.FieldValue`,
+  `wfa.measurement.internal.reporting.v2.ReportingUnitComponentSummaryDetails`,
+  `wfa.measurement.internal.reporting.v2.ReportingUnitComponentSummaryDetails.EventGroupSummary`,
   `wfa.measurement.internal.reporting.v2.MetricMetadataDetails`,
-  `wfa.measurement.internal.reporting.v2.MetricMetadataDetails.ReportingUnitComponentSummary`,
-  `wfa.measurement.internal.reporting.v2.MetricMetadataDetails.ReportingUnitComponentSummary.EventGroupSummary`,
-  `wfa.measurement.internal.reporting.v2.MetricMetadataDetails.ReportingUnitSummary`,
   `wfa.measurement.internal.reporting.v2.MetricMetadataDetails.WindowingSpec`,
   `wfa.measurement.internal.reporting.v2.MetricMetadataDetails.DimensionSpecSummary`,
   `wfa.measurement.internal.reporting.v2.MetricFrequencySpec`,
   `google.type.DayOfWeek`,
   `wfa.measurement.internal.reporting.v2.MetricMetadataDetails.WindowingSpec.AccumulationOptions`,
+  `wfa.measurement.internal.reporting.v2.BasicMetricSet`,
+  `wfa.measurement.internal.reporting.v2.ComponentMetricSet`,
   `wfa.measurement.internal.reporting.v2.MetricSetDetails`,
-  `wfa.measurement.internal.reporting.v2.MetricSetDetails.BasicMetricSet`,
-  `wfa.measurement.internal.reporting.v2.MetricSetDetails.ComponentMetricSet`,
-  `wfa.measurement.internal.reporting.v2.MetricSetDetails.DataProviderComponentMetricSetMapEntry`,
-  `wfa.measurement.internal.reporting.v2.MetricSetDetails.DataProviderComponentIntersectionMetricSet`,
   `wfa.measurement.internal.reporting.v2.MetricSetDetails.ReportingUnitMetricSet`,
   `wfa.measurement.internal.reporting.v2.BasicReportDetails`,
   `wfa.measurement.internal.reporting.v2.ReportingInterval`,
@@ -118,6 +115,35 @@ CREATE TABLE MetricMetadata (
   CONSTRAINT FK_MetricMetadataResults FOREIGN KEY (BasicReportId, PageId, ResultId) REFERENCES Results(BasicReportId, PageId, ResultId) ON DELETE CASCADE
 ) PRIMARY KEY (BasicReportId, PageId, ResultId, MetricMetadataId);
 
+CREATE TABLE ReportingUnitSummaries (
+  BasicReportId NOT NULL,
+  PageId INT64 NOT NULL,
+  ResultId INT64 NOT NULL,
+  MetricMetadataId INT64 NOT NULL,
+  ReportingUnitSummaryId INT64 NOT NULL,
+
+  CONSTRAINT FK_ReportingUnitSummariesMetricMetadata FOREIGN KEY (BasicReportId, PageId, ResultId, MetricMetadataId)
+    REFERENCES MetricMetadata(BasicReportId, PageId, ResultId, MetricMetadataId) ON DELETE CASCADE
+) PRIMARY KEY (BasicReportId, PageId, ResultId, MetricMetadataId, ReportingUnitSummaryId);
+
+CREATE TABLE ReportingUnitComponentSummaries (
+  BasicReportId NOT NULL,
+  PageId INT64 NOT NULL,
+  ResultId INT64 NOT NULL,
+  MetricMetadataId INT64 NOT NULL,
+  ReportingUnitSummaryId INT64 NOT NULL,
+  ReportingUnitComponentSummaryId INT64 NOT NULL,
+
+  ReportingSetId INT64,
+  CmmsDataProviderId STRING(MAX),
+  ReportingUnitComponentSummaryDetails `wfa.measurement.internal.reporting.v2.Page.MetricMetadata.ReportingUnitComponentSummary.ReportingUnitComponentSummaryDetails`
+    NOT NULL,
+
+  CONSTRAINT FK_ReportingUnitComponentSummariesReportingSets FOREIGN KEY ReportingSetId REFERENCES ReportingSets(ReportingSetId),
+  CONSTRAINT FK_ReportingUnitComponentSummariesReportingUnitSummaries FOREIGN KEY (BasicReportId, PageId, ResultId, MetricMetadataId)
+    REFERENCES ReportingUnitSummaries(BasicReportId, PageId, ResultId, MetricMetadataId, ReportingUnitSummaryId) ON DELETE CASCADE
+) PRIMARY KEY (BasicReportId, PageId, ResultId, MetricMetadataId, ReportingUnitSummaryId, ReportingUnitComponentSummaryId);
+
 CREATE TABLE MetricSets (
   BasicReportId NOT NULL,
   PageId INT64 NOT NULL,
@@ -128,5 +154,49 @@ CREATE TABLE MetricSets (
 
   CONSTRAINT FK_MetricSetsResults FOREIGN KEY (BasicReportId, PageId, ResultId) REFERENCES Results(BasicReportId, PageId, ResultId) ON DELETE CASCADE
 ) PRIMARY KEY (BasicReportId, PageId, ResultId, MetricSetId);
+
+CREATE TABLE ComponentMetricSetMapEntries (
+  BasicReportId NOT NULL,
+  PageId INT64 NOT NULL,
+  ResultId INT64 NOT NULL,
+  MetricSetId INT64 NOT NULL,
+  ComponentMetricSetMapEntryId NOT NULL,
+
+  ReportingSetId INT64,
+  CmmsDataProviderId STRING(MAX),
+  ComponentMetricSet `wfa.measurement.internal.reporting.v2.Page.MetricSet.ComponentMetricSet` NOT NULL,
+
+  CONSTRAINT FK_ComponentMetricSetMapEntriesReportingSets FOREIGN KEY ReportingSetId REFERENCES ReportingSets(ReportingSetId),
+  CONSTRAINT FK_ComponentMetricSetMapEntriesMetricSets FOREIGN KEY (BasicReportId, PageId, ResultId, MetricSetId)
+    REFERENCES MetricSets(BasicReportId, PageId, ResultId, MetricSetId) ON DELETE CASCADE
+) PRIMARY KEY (BasicReportId, PageId, ResultId, MetricSetId, ComponentMetricSetMapEntryId);
+
+CREATE TABLE ComponentIntersectionMetricSets (
+  BasicReportId NOT NULL,
+  PageId INT64 NOT NULL,
+  ResultId INT64 NOT NULL,
+  MetricSetId INT64 NOT NULL,
+  ComponentIntersectionMetricSetId NOT NULL,
+
+  ComponentIntersectionMetricSetDetails `wfa.measurement.internal.reporting.v2.Page.MetricSet.ComponentIntersectionMetricSet.ComponentIntersectionMetricSetDetails`
+   NOT NULL,
+
+  CONSTRAINT FK_ComponentIntersectionMetricSetsReportingSets FOREIGN KEY ReportingSetId REFERENCES ReportingSets(ReportingSetId),
+  CONSTRAINT FK_ComponentIntersectionMetricSetsMetricSets FOREIGN KEY (BasicReportId, PageId, ResultId, MetricSetId)
+    REFERENCES MetricSets(BasicReportId, PageId, ResultId, MetricSetId) ON DELETE CASCADE
+) PRIMARY KEY (BasicReportId, PageId, ResultId, MetricSetId, ComponentIntersectionMetricSetId);
+
+CREATE TABLE ComponentIntersectionMetricSetDataProviders (
+  BasicReportId NOT NULL,
+  PageId INT64 NOT NULL,
+  ResultId INT64 NOT NULL,
+  MetricSetId INT64 NOT NULL,
+  ComponentIntersectionMetricSetId NOT NULL,
+  CmmsDataProviderId STRING(MAX) NOT NULL,
+
+  CONSTRAINT FK_ComponentIntersectionMetricSetReportingSetsComponentIntersectionMetricSets
+    FOREIGN KEY (BasicReportId, PageId, ResultId, MetricSetId, ComponentIntersectionMetricSetId)
+    REFERENCES ComponentIntersectionMetricSets(BasicReportId, PageId, ResultId, MetricSetId, ComponentIntersectionMetricSets) ON DELETE CASCADE
+) PRIMARY KEY (BasicReportId, PageId, ResultId, MetricSetId, ComponentIntersectionMetricSetId, ReportingSetId);
 
 RUN BATCH;
