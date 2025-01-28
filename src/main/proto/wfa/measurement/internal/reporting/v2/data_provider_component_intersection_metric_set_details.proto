@@ -21,7 +21,7 @@ import "wfa/measurement/internal/reporting/v2/basic_metric_set.proto";
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
-message ComponentIntersectionMetricSetDetails {
+message DataProviderComponentIntersectionMetricSetDetails {
   // Basic metrics for the intersection of the components
   BasicMetricSet basic = 2;
 }

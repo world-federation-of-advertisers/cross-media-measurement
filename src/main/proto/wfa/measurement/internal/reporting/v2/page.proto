@@ -16,8 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
-import "wfa/measurement/internal/reporting/v2/component_intersection_metric_set_details.proto";
 import "wfa/measurement/internal/reporting/v2/component_metric_set.proto";
+import "wfa/measurement/internal/reporting/v2/data_provider_component_intersection_metric_set_details.proto";
 import "wfa/measurement/internal/reporting/v2/metric_metadata_details.proto";
 import "wfa/measurement/internal/reporting/v2/metric_set_details.proto";
 import "wfa/measurement/internal/reporting/v2/reporting_impression_qualification_filter.proto";
@@ -70,7 +70,7 @@ message Page {
       ComponentMetricSet value = 2;
     }
     // Map of `DataProvider` to `DataProviderComponentMetricSet`.
-    repeated DataProviderComponentMetricSetMapEntry components = 2;
+    repeated DataProviderComponentMetricSetMapEntry components = 1;
 
     // Metrics for the intersection of the `DataProvider` components of the
     // reporting_unit.
@@ -81,13 +81,11 @@ message Page {
       // Ex: If a `DataProvider` has the name "dataproviders/abc", then the
       // ID is "abc".
       repeated string cmms_data_provider_ids = 1;
-
-      // Basic metrics for the intersection of the components
-      BasicMetricSet basic = 2;
+      DataProviderComponentIntersectionMetricSetDetails details = 2;
     }
     // The metrics for the requested intersections
     repeated DataProviderComponentIntersectionMetricSet component_intersections =
-        3;
+        2;
 
     MetricSetDetails details = 3;
   }

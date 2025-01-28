@@ -216,9 +216,9 @@ MESSAGE_LIBS = [
     "basic_metric_set",
     "basic_report_details",
     "basic_report",
-    "component_intersection_metric_set_details",
     "component_metric_set",
     "custom_impression_qualification_filter_spec",
+    "data_provider_component_intersection_metric_set_details",
     "event_filter",
     "event_template_field",
     "impression_qualification_filter_spec",
@@ -257,13 +257,6 @@ proto_library(
 )
 
 proto_library(
-    name = "component_intersection_metric_set_details_proto",
-    srcs = ["component_intersection_metric_set_details.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [":basic_metric_set_proto"],
-)
-
-proto_library(
     name = "component_metric_set_proto",
     srcs = ["component_metric_set.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -275,6 +268,13 @@ proto_library(
     srcs = ["custom_impression_qualification_filter_spec.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [":impression_qualification_filter_spec_proto"],
+)
+
+proto_library(
+    name = "data_provider_component_intersection_metric_set_details_proto",
+    srcs = ["data_provider_component_intersection_metric_set_details.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [":basic_metric_set_proto"],
 )
 
 proto_library(
@@ -328,8 +328,8 @@ proto_library(
     srcs = ["page.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":component_intersection_metric_set_details_proto",
         ":component_metric_set_proto",
+        ":data_provider_component_intersection_metric_set_details_proto",
         ":metric_metadata_details_proto",
         ":metric_set_details_proto",
         ":reporting_impression_qualification_filter_proto",
@@ -395,9 +395,9 @@ proto_descriptor_set(
     deps = [
         ":basic_metric_set_proto",
         ":basic_report_details_proto",
-        ":component_intersection_metric_set_details_proto",
         ":component_metric_set_proto",
         ":custom_impression_qualification_filter_spec_proto",
+        ":data_provider_component_intersection_metric_set_details_proto",
         ":event_filter_proto",
         ":event_template_field_proto",
         ":impression_qualification_filter_spec_proto",
