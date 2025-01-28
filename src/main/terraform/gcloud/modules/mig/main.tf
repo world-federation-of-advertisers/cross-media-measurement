@@ -45,25 +45,25 @@ resource "google_kms_crypto_key_iam_member" "mig_kms_user" {
 }
 
 resource "google_compute_instance_template" "confidential_vm_template" {
-  machine_type   = var.machine_type
+  machine_type = var.machine_type
 
   confidential_instance_config {
-      enable_confidential_compute = true
-      confidential_instance_type  = "SEV_SNP"
+    enable_confidential_compute = true
+    confidential_instance_type  = "SEV_SNP"
   }
 
   name = var.instance_template_name
 
   disks {
-      source_image  = "projects/cos-cloud/global/images/family/cos-stable"
+    source_image = "projects/cos-cloud/global/images/family/cos-stable"
   }
 
   network_interface {
-      network = "default"  # TODO(@marcopremier): Add VPC here.
-    }
+    network = "default" # TODO(@marcopremier): Add VPC here.
+  }
 
   metadata = {
-    "google-logging-enabled" = "true"
+    "google-logging-enabled"    = "true"
     "google-monitoring-enabled" = "true"
     "gce-container-declaration" = <<EOT
 spec:
@@ -78,7 +78,7 @@ EOT
   }
 
   service_account {
-      email = google_service_account.mig_service_account.email
+    email = google_service_account.mig_service_account.email
   }
 }
 
@@ -90,10 +90,10 @@ resource "google_compute_region_instance_group_manager" "mig" {
   }
 
   update_policy {
-    type                    = "PROACTIVE"
-    minimal_action          = "RESTART"
-    max_unavailable_fixed   = 1
-    replacement_method      = "RECREATE"
+    type                  = "PROACTIVE"
+    minimal_action        = "RESTART"
+    max_unavailable_fixed = 1
+    replacement_method    = "RECREATE"
   }
 
 }
@@ -103,8 +103,8 @@ resource "google_compute_autoscaler" "mig_autoscaler" {
   target = google_compute_instance_group_manager.mig.id
 
   autoscaling_policy {
-    max_replicas    = var.max_replicas
-    min_replicas    = var.min_replicas
+    max_replicas = var.max_replicas
+    min_replicas = var.min_replicas
 
     metric {
       name                       = "pubsub.googleapis.com/subscription/num_undelivered_messages"

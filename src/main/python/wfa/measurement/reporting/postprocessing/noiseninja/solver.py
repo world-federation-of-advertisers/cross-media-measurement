@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-
+from threading import Semaphore
 from absl import logging
 from noiseninja.noised_measurements import SetMeasurementsSpec
-from qpsolvers import solve_problem, Problem, Solution
-from threading import Semaphore
+import numpy as np
+from qpsolvers import Problem, Solution, solve_problem
 
 HIGHS_SOLVER = "highs"
 OSQP_SOLVER = "osqp"
@@ -49,6 +48,7 @@ class Solver:
     self._add_subsets(set_measurement_spec, variable_index_by_set_id)
     self._add_measurement_targets(set_measurement_spec,
                                   variable_index_by_set_id)
+    self._add_lower_bounds()
     self._init_base_value(set_measurement_spec, variable_index_by_set_id)
 
     self.variable_map = dict(
@@ -131,6 +131,14 @@ class Solver:
         self._add_cover_set_constraint(
             list(variable_index_by_set_id[i] for i in cover),
             variable_index_by_set_id[measured_set])
+
+  # Enforces that all the variables are non-negative.
+  def _add_lower_bounds(self):
+    logging.info("Adding lower bounds constraints.")
+    for i in range(self.num_variables):
+      variables = np.zeros(self.num_variables)
+      variables[i] = -1
+      self._add_gt_term(variables)
 
   def _add_cover_set_constraint(self, cover_variables: set[int],
       set_variable: int):
