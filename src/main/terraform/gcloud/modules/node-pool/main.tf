@@ -29,7 +29,7 @@ resource "google_container_node_pool" "node_pool" {
       enable_secure_boot = true
     }
     kubelet_config {
-      cpu_manager_policy = "none"
+      cpu_manager_policy                     = "none"
       insecure_kubelet_readonly_port_enabled = "FALSE"
     }
 

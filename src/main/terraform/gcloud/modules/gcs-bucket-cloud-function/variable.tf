@@ -19,15 +19,15 @@ variable "cloud_function_service_account_email" {
 }
 
 variable "cloud_function_name" {
-  description   = "The cloud function name."
-  type          = string
-  nullable      = false
+  description = "The cloud function name."
+  type        = string
+  nullable    = false
 }
 
 variable "trigger_bucket_name" {
-  description   = "The name of the Google Cloud Storage bucket that triggers the Cloud Function. The Cloud Function will be invoked when a specific file is uploaded in this bucket."
-  type          = string
-  nullable      = false
+  description = "The name of the Google Cloud Storage bucket that triggers the Cloud Function. The Cloud Function will be invoked when a specific file is uploaded in this bucket."
+  type        = string
+  nullable    = false
 }
 
 variable "docker_registry" {
@@ -43,7 +43,7 @@ variable "docker_registry" {
 }
 
 variable "docker_repository" {
-  description   = "The full image path."
-  type          = string
-  nullable      = false
+  description = "The full image path."
+  type        = string
+  nullable    = false
 }

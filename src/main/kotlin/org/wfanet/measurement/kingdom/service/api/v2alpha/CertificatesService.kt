@@ -74,7 +74,7 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     LIST,
     CREATE,
     REVOKE,
-    RELEASE_HOLD
+    RELEASE_HOLD,
   }
 
   override suspend fun getCertificate(request: GetCertificateRequest): Certificate {

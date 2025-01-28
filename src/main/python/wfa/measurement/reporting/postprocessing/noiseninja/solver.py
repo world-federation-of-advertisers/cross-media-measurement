@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-
+from threading import Semaphore
 from absl import logging
 from noiseninja.noised_measurements import SetMeasurementsSpec
-from qpsolvers import solve_problem, Problem, Solution
-from threading import Semaphore
+import numpy as np
+from qpsolvers import Problem, Solution, solve_problem
 
 HIGHS_SOLVER = "highs"
 OSQP_SOLVER = "osqp"
