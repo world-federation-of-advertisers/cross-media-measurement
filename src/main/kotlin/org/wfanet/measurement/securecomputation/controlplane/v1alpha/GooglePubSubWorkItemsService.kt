@@ -19,7 +19,6 @@ package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
 import com.google.protobuf.Message
-import kotlinx.coroutines.runBlocking
 
 class GooglePubSubWorkItemsService(
   projectId: String,
