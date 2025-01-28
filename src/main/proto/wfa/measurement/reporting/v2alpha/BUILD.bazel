@@ -111,11 +111,6 @@ proto_library(
     ],
 )
 
-kt_jvm_proto_library(
-    name = "media_type_kt_jvm_proto",
-    deps = [":media_type_proto"],
-)
-
 proto_library(
     name = "metric_proto",
     srcs = ["metric.proto"],
@@ -202,11 +197,6 @@ proto_library(
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
-)
-
-kt_jvm_proto_library(
-    name = "reporting_impression_qualification_filter_kt_jvm_proto",
-    deps = [":reporting_impression_qualification_filter_proto"],
 )
 
 proto_library(
