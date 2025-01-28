@@ -21,15 +21,21 @@ import java.io.File
 import java.time.Duration
 import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.access.v1alpha.CheckPermissionsResponse
+import org.wfanet.measurement.access.v1alpha.ListPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.ListRolesResponse
+import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt.PermissionsCoroutineStub
 import org.wfanet.measurement.access.v1alpha.PrincipalKt
 import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt.PrincipalsCoroutineStub
 import org.wfanet.measurement.access.v1alpha.RolesGrpcKt.RolesCoroutineStub
+import org.wfanet.measurement.access.v1alpha.checkPermissionsRequest
 import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.createRoleRequest
 import org.wfanet.measurement.access.v1alpha.deletePrincipalRequest
+import org.wfanet.measurement.access.v1alpha.getPermissionRequest
 import org.wfanet.measurement.access.v1alpha.getPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.getRoleRequest
+import org.wfanet.measurement.access.v1alpha.listPermissionsRequest
 import org.wfanet.measurement.access.v1alpha.listRolesRequest
 import org.wfanet.measurement.access.v1alpha.lookupPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.principal
@@ -54,7 +60,8 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30)
 @Command(
   name = "Access",
   description = ["Interacts with Cross-Media Access API"],
-  subcommands = [CommandLine.HelpCommand::class, Principals::class, Roles::class],
+  subcommands =
+    [CommandLine.HelpCommand::class, Permissions::class, Principals::class, Roles::class],
 )
 class Access private constructor() : Runnable {
   @Mixin private lateinit var tlsFlags: TlsFlags
@@ -395,5 +402,119 @@ class UpdateRole : Runnable {
     }
 
     println(role)
+  }
+}
+
+@Command(
+  name = "permissions",
+  subcommands =
+    [
+      CommandLine.HelpCommand::class,
+      GetPermission::class,
+      ListPermissions::class,
+      CheckPermissions::class,
+    ],
+)
+private class Permissions {
+  @ParentCommand private lateinit var parentCommand: Access
+
+  val permissionsClient: PermissionsCoroutineStub by lazy {
+    PermissionsCoroutineStub(parentCommand.accessChannel)
+  }
+}
+
+@Command(name = "get", description = ["Get a Permission"])
+class GetPermission : Runnable {
+  @ParentCommand private lateinit var parentCommand: Permissions
+
+  @Parameters(index = "0", description = ["API resource name of the Permission"])
+  private lateinit var permissionName: String
+
+  override fun run() {
+    val permission = runBlocking {
+      parentCommand.permissionsClient.getPermission(getPermissionRequest { name = permissionName })
+    }
+    println(permission)
+  }
+}
+
+@Command(name = "list", description = ["List Permissions"])
+class ListPermissions : Runnable {
+  @ParentCommand private lateinit var parentCommand: Permissions
+
+  @set:Option(
+    names = ["--page-size"],
+    description = ["The maximum number of Permissions to return"],
+    defaultValue = "1000",
+    required = false,
+  )
+  private var listPageSize: Int by Delegates.notNull()
+
+  @Option(
+    names = ["--page-token"],
+    description =
+      [
+        "A page token, received from a previous `ListPermissions` call. Provide this to retrieve the subsequent page."
+      ],
+    defaultValue = "",
+    required = false,
+  )
+  private lateinit var listPageToken: String
+
+  override fun run() {
+    val response: ListPermissionsResponse = runBlocking {
+      parentCommand.permissionsClient.listPermissions(
+        listPermissionsRequest {
+          pageSize = listPageSize
+          pageToken = listPageToken
+        }
+      )
+    }
+    println(response)
+  }
+}
+
+@Command(name = "check", description = ["Check Permissions"])
+class CheckPermissions : Runnable {
+  @ParentCommand private lateinit var parentCommand: Permissions
+
+  @Option(
+    names = ["--protected-resource"],
+    description =
+      [
+        "Name of resource on which to check permissions. " +
+          "If not specified, this means the root of the protected API."
+      ],
+    defaultValue = "",
+    required = false,
+  )
+  private lateinit var protectedResourceName: String
+
+  @Option(
+    names = ["--principal"],
+    description = ["Resource name of the Principal"],
+    required = true,
+  )
+  private lateinit var principalName: String
+
+  @Option(
+    names = ["--permission"],
+    description = ["Resource name of permission to check. Can be specified multiple times."],
+    required = true,
+  )
+  private lateinit var permissionList: List<String>
+
+  override fun run() {
+    val response: CheckPermissionsResponse = runBlocking {
+      parentCommand.permissionsClient.checkPermissions(
+        checkPermissionsRequest {
+          protectedResource = protectedResourceName
+          principal = principalName
+          permissions += permissionList
+        }
+      )
+    }
+
+    println(response)
   }
 }
