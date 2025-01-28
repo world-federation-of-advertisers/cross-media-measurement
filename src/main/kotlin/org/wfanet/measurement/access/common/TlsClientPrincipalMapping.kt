@@ -26,7 +26,7 @@ class TlsClientPrincipalMapping(config: AuthorityKeyToPrincipalMap) {
     /** ID of the Principal resource. */
     val principalResourceId: String,
     /** Name of the resource protected by the Policy. */
-    val protectedResourceName: String,
+    val protectedResourceNames: Set<String>,
     /** Authority key identifier (AKID) key ID of the certificate. */
     val authorityKeyIdentifier: ByteString,
   )
@@ -43,7 +43,11 @@ class TlsClientPrincipalMapping(config: AuthorityKeyToPrincipalMap) {
         check(ResourceIds.RFC_1034_REGEX.matches(principalResourceId)) {
           "Invalid character in protected resource name $protectedResourceName"
         }
-        TlsClient(principalResourceId, protectedResourceName, it.authorityKeyIdentifier)
+        TlsClient(
+          principalResourceId,
+          setOf(protectedResourceName, ROOT_RESOURCE_NAME),
+          it.authorityKeyIdentifier,
+        )
       }
 
     clientsByPrincipalResourceId = clients.associateBy(TlsClient::principalResourceId)
@@ -57,4 +61,9 @@ class TlsClientPrincipalMapping(config: AuthorityKeyToPrincipalMap) {
   /** Returns the [TlsClient] for the specified [authorityKeyIdentifier], or `null` if not found. */
   fun getByAuthorityKeyIdentifier(authorityKeyIdentifier: ByteString): TlsClient? =
     clientsByAuthorityKeyIdentifier[authorityKeyIdentifier]
+
+  companion object {
+    /** Resource name used to indicate the API root. */
+    private const val ROOT_RESOURCE_NAME = ""
+  }
 }
