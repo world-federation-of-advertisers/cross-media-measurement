@@ -110,6 +110,9 @@ class TestOriginReport(unittest.TestCase):
     corrected_measurements_map = ReportSummaryProcessor(
         report_summary).process()
 
+    # Verifies that the updated reach values are non-negative.
+    for value in corrected_measurements_map.values():
+      self.assertGreaterEqual(value, 0)
     # Verifies that the updated reach values are consistent.
     for edp in EDP_MAP:
       cumulative_ami_metric_prefix = "cumulative_metric_" + edp + "_ami_"
@@ -213,6 +216,9 @@ class TestOriginReport(unittest.TestCase):
     primitive_edp_combinations = ["edp1", "edp2", "edp1_edp2"]
     composite_edp_combinations = ["edp1_minus_edp2", "edp2_minus_edp1"]
 
+    # Verifies that the updated reach values are non-negative.
+    for value in corrected_measurements_map.values():
+      self.assertGreaterEqual(value, 0)
     # Verifies that cumulative measurements are non-decreasing.
     for i in range(9):
       for edp_combination in primitive_edp_combinations:
@@ -233,7 +239,7 @@ class TestOriginReport(unittest.TestCase):
               'cumulative/custom/' + edp_combination + '_' + str(i).zfill(2)],
             corrected_measurements_map[
               'cumulative/custom/' + edp_combination + '_' + str(i + 1).zfill(
-                2)],
+                  2)],
         )
 
     # Verifies that the last cumulative measurements are equal to total
@@ -414,13 +420,16 @@ class TestOriginReport(unittest.TestCase):
     corrected_measurements_map = ReportSummaryProcessor(
         report_summary).process()
 
+    # Verifies that the updated reach values are non-negative.
+    for value in corrected_measurements_map.values():
+      self.assertGreaterEqual(value, 0)
     # Last cumulative measurements are equal to total measurements.
     self.assertEqual(corrected_measurements_map['cumulative/ami/edp1'],
-                         corrected_measurements_map['union/ami/edp1'])
+                     corrected_measurements_map['union/ami/edp1'])
     self.assertEqual(corrected_measurements_map['cumulative/ami/edp2'],
-                         corrected_measurements_map['union/ami/edp2'])
+                     corrected_measurements_map['union/ami/edp2'])
     self.assertEqual(corrected_measurements_map['cumulative/ami/edp3'],
-                         corrected_measurements_map['union/ami/edp3'])
+                     corrected_measurements_map['union/ami/edp3'])
 
     # Subset measurements are less than or equal to superset measurements.
     self.assertLessEqual(corrected_measurements_map['union/ami/edp1'],

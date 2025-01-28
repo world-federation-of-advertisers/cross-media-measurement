@@ -785,6 +785,7 @@ class TestReport(unittest.TestCase):
     # reach[edp1][i] <= reach[edp1][i+1].
     # 2. Reach of the child set is less than or equal to reach of the parent set
     # for all period, e.g. reach[edp1][i] <= reach[edp1 U edp2][i].
+    # 3. All reach values are non-negative.
     corrected = report.get_corrected_report()
 
     expected = Report(
@@ -873,6 +874,7 @@ class TestReport(unittest.TestCase):
     # etc.
     # 3. Reach of the child set is less than or equal to reach of the parent set
     # for all period, e.g. reach[edp1][i] <= reach[edp1 U edp2][i].
+    # 4. All reach values are non-negative.
     corrected = report.get_corrected_report()
 
     expected = Report(
@@ -1004,6 +1006,7 @@ class TestReport(unittest.TestCase):
     # for all period, e.g. reach[edp1][i] <= reach[edp1 U edp2][i].
     # 4. Last time series reach is equal to whole campaign reach,
     # e.g. cumulative_reach[edp1][#num_periods - 1] = whole_campaign_reach[edp1].
+    # 5. All reach values are non-negative.
     corrected = report.get_corrected_report()
 
     expected = Report(
@@ -1123,7 +1126,7 @@ class TestReport(unittest.TestCase):
     # The corrected report should be consistent between time series reaches and
     # whole campaign reach: the last time series reach is equal to whole
     # campaign reach, e.g. cumulative_reach[edp1][#num_period - 1] =
-    # whole_campaign_reach[edp1].
+    # whole_campaign_reach[edp1]. All reach values must be non-negative.
     corrected = report.get_corrected_report()
 
     expected = Report(
@@ -1203,7 +1206,8 @@ class TestReport(unittest.TestCase):
 
     # The corrected report should be consistent: all the time series reaches are
     # monotonic increasing, e.g. reach[edp1][i] <= reach[edp1][i+1], except for
-    # the one in the exception list, e.g. edp1.
+    # the one in the exception list, e.g. edp1. All reach values must be
+    # non-negative.
     corrected = report.get_corrected_report()
 
     expected = Report(
@@ -1262,7 +1266,8 @@ class TestReport(unittest.TestCase):
 
     # The corrected report should be consistent for metric relations: MRC
     # measurements are less than or equal to the AMI measurements, e.g.
-    # mrc_reach[edp1][0] <= ami_reach[edp1][0].
+    # mrc_reach[edp1][0] <= ami_reach[edp1][0]. All reach values must be
+    # non-negative.
     corrected = report.get_corrected_report()
 
     expected = Report(
@@ -1324,7 +1329,8 @@ class TestReport(unittest.TestCase):
 
     # The corrected report should be consistent for metric relations: MRC
     # measurements are less than or equal to the AMI measurements, e.g.
-    # mrc_reach[edp1][0] <= ami_reach[edp1][0].
+    # mrc_reach[edp1][0] <= ami_reach[edp1][0]. All reach values must be
+    # non-negative.
     corrected = report.get_corrected_report()
 
     expected = Report(

@@ -126,6 +126,9 @@ class ReportProcessorTest {
         return true
       }
       for ((edpCombination, measurements) in cumulativeMeasurements) {
+        if (measurements.any { it < 0 }) {
+          return false
+        }
         if (measurements.zipWithNext().any { (a, b) -> a > b }) {
           return false
         }
