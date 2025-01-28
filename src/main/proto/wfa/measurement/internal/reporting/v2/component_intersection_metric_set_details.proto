@@ -21,24 +21,7 @@ import "wfa/measurement/internal/reporting/v2/basic_metric_set.proto";
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
-message MetricSetDetails {
-  // The size of the population for the filters/grouping specified
-  int32 population_size = 1;
-
-  // Metrics for the entire reporting_unit.
-  message ReportingUnitMetricSet {
-    // The metrics for the union of the reporting_unit components
-    BasicMetricSet basic = 1;
-
-    // The stacked incremental reach of the ReportingUnit.
-    //
-    // For example if the units in the ReportingUnit were "edp1", "edp2",
-    // "edp3" then the values in this array are as follows:
-    //  1. reach(edp1)
-    //  2. reach(edp1+edp2) - reach(edp1)
-    //  3. reach(edp1+edp2+edp3) - reach(edp1+edp2)
-    repeated int32 stacked_incremental_reach = 2;
-  }
-  // Metrics for the whole reporting_unit
-  ReportingUnitMetricSet reporting_unit = 2;
+message ComponentIntersectionMetricSetDetails {
+  // Basic metrics for the intersection of the components
+  BasicMetricSet basic = 2;
 }
