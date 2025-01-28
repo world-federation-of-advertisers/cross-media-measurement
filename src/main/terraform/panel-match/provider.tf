@@ -14,9 +14,9 @@
 
 terraform {
   backend "s3" {
-    bucket = "tf-panel-exchange-test-bucket"
-    key = "panel-exchange.tfstate"
-    region = "us-west-1"
+    bucket  = "tf-panel-exchange-test-bucket"
+    key     = "panel-exchange.tfstate"
+    region  = "us-west-1"
     encrypt = true
   }
 }

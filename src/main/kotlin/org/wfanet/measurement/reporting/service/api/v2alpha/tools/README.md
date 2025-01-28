@@ -54,14 +54,14 @@ Reporting \
   --id=abc
 ```
 
-User specifies a primitive ReportingSet with one or more `--cmms-event-group` 
+User specifies a primitive ReportingSet with one or more `--cmms-event-group`
 and a composite ReportingSet with `--set-expression`.
 
 The `--set-expression` option expects a
 [`SetExpression`](../../../../../../../../../proto/wfa/measurement/reporting/v2alpha/reporting_set.proto)
-protobuf message in text format. You can use shell quoting for a multiline string, or
-use command substitution to read the message from a file e.g. `--set-expression=$(cat
-set_expression.textproto)`.
+protobuf message in text format. You can use shell quoting for a multiline
+string, or use command substitution to read the message from a file e.g.
+`--set-expression=$(cat set_expression.textproto)`.
 
 #### list
 
@@ -105,17 +105,18 @@ Reporting \
 
 User specifies the type of time args by using either repeated interval params(
 `--interval-start-time`, `--interval-end-time`) or reporting interval args(
-`--reporting-interval-report-start-time`, 
-`-reporting-interval-report-start-utc-offset`/`--reporting-interval-report-start-time-zone`, 
+`--reporting-interval-report-start-time`,
+`-reporting-interval-report-start-utc-offset`/`--reporting-interval-report-start-time-zone`,
 and `--reporting-interval-report-end`)
 
 The `--reporting-metric-entry` option expects a
 [`ReportingMetricEntry`](../../../../../../../../../proto/wfa/measurement/reporting/v2alpha/report.proto)
-protobuf message in text format. You can use shell quoting for a multiline string, or
-use command substitution to read the message from a file e.g. `--reporting-metric-entry=$(cat
-reporting_metric_entry.textproto)`.
+protobuf message in text format. You can use shell quoting for a multiline
+string, or use command substitution to read the message from a file e.g.
+`--reporting-metric-entry=$(cat reporting_metric_entry.textproto)`.
 
 #### create ui
+
 ```shell
 Reporting \
   --tls-cert-file=secretfiles/mc_tls.pem \
@@ -148,17 +149,31 @@ Reporting \
   --predicate='person.age == 3'
 ```
 
-There currently needs to be at least two groups of primitive reporting sets defined by the arg group: --cmms-event-group, --reporting-set-id, and --reporting-set-display-name. You can pass in multiple event groups, but be sure to specify the display name or ID first. There is a parsing issue if the ID and display name are specified later in the arg group. This is similar to creating a reporting set.
+There currently needs to be at least two groups of primitive reporting sets
+defined by the arg group: --cmms-event-group, --reporting-set-id, and
+--reporting-set-display-name. You can pass in multiple event groups, but be sure
+to specify the display name or ID first. There is a parsing issue if the ID and
+display name are specified later in the arg group. This is similar to creating a
+reporting set.
 
-The union and unique reporting sets are created automatically from the provided reporting sets. IDs and display names are derived.
+The union and unique reporting sets are created automatically from the provided
+reporting sets. IDs and display names are derived.
 
-Metric Calculation Specs are automatically created in the command to generate the proper report for the UI, but there is no input by the user.
+Metric Calculation Specs are automatically created in the command to generate
+the proper report for the UI, but there is no input by the user.
 
-The time range of the report must be specified through the start time and end (date): --report-start and --report-end as an interval time range. These are formatted as the example above and are the same as in create report. The user may optionally pass the desired time zone with --report-time-zone. If unspecified, it will use the user's default system time zone.
+The time range of the report must be specified through the start time and end
+(date): --report-start and --report-end as an interval time range. These are
+formatted as the example above and are the same as in create report. The user
+may optionally pass the desired time zone with --report-time-zone. If
+unspecified, it will use the user's default system time zone.
 
-The user must specify the interval frequency: --daily-frequency, --day-of-the-week, or --day-of-the-month. This is used in combination with the interval time range.
+The user must specify the interval frequency: --daily-frequency,
+--day-of-the-week, or --day-of-the-month. This is used in combination with the
+interval time range.
 
-The user must specify the grouping predicates using --has-group to denote a new set and --grouping for each predicate within the set.
+The user must specify the grouping predicates using --has-group to denote a new
+set and --grouping for each predicate within the set.
 
 #### list
 
@@ -227,15 +242,15 @@ Reporting \
 
 The `--metric-spec` option expects a
 [`MetricSpec`](../../../../../../../../../proto/wfa/measurement/reporting/v2alpha/metric.proto)
-protobuf message in text format. You can use shell quoting for a multiline string, or
-use command substitution to read the message from a file e.g. `--metric-spec=$(cat
-metric_spec.textproto)`.
+protobuf message in text format. You can use shell quoting for a multiline
+string, or use command substitution to read the message from a file e.g.
+`--metric-spec=$(cat metric_spec.textproto)`.
 
 MetricFrequencySpec expects `--daily`, `--day-of-the-week`, or
-`--day-of-the-month`. `--daily` is a boolean and `--day-of-the-week` is 
+`--day-of-the-month`. `--daily` is a boolean and `--day-of-the-week` is
 represented by 1-7, with 1 being Monday.
 
-TrailingWindow expects `--day-window-count`, `--week-window-count`, or 
+TrailingWindow expects `--day-window-count`, `--week-window-count`, or
 `--month-window-count`.
 
 #### list
@@ -263,6 +278,7 @@ Reporting \
 ### event-groups
 
 #### list
+
 ```shell
 Reporting \
   --tls-cert-file=secretfiles/mc_tls.pem \
@@ -276,6 +292,7 @@ Reporting \
 ### data-providers
 
 #### get
+
 ```shell
 Reporting \
   --tls-cert-file=secretfiles/mc_tls.pem \
@@ -289,6 +306,7 @@ Reporting \
 ### event-group-metadata-descriptors
 
 #### get
+
 ```shell
 Reporting \
   --tls-cert-file=secretfiles/mc_tls.pem \
@@ -300,6 +318,7 @@ Reporting \
 ```
 
 #### batch-get
+
 ```shell
 Reporting \
   --tls-cert-file=secretfiles/mc_tls.pem \

@@ -19,7 +19,6 @@ def proto_lib_prefix(label_str):
 
     Args:
         label_str: the proto_library label as a string.
-
     Returns:
         The prefix of the name with the `_proto` suffix removed.
     """

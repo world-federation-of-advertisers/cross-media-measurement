@@ -84,7 +84,7 @@ private typealias VennDiagramDecompositionCache =
 enum class Operator {
   UNION,
   INTERSECT,
-  DIFFERENCE
+  DIFFERENCE,
 }
 
 interface Operand

@@ -111,8 +111,8 @@ kubectl port-forward --address=localhost services/v2alpha-public-api-server 8443
 kubectl port-forward --address=localhost services/gcp-kingdom-data-server 9443:8443
 ```
 
-Then run the tool, outputting to some directory (e.g. `/tmp/cmms/resource-setup`,
-make sure this directory has been created):
+Then run the tool, outputting to some directory (e.g.
+`/tmp/cmms/resource-setup`, make sure this directory has been created):
 
 ```shell
 src/main/k8s/testing/resource_setup.sh \
@@ -226,7 +226,8 @@ The code is instrumented with OpenTelemetry. To enable metrics collection in the
 cluster, we use the
 [OpenTelemetry Operator for Kubernetes](https://github.com/open-telemetry/opentelemetry-operator).
 This depends on [cert-manager](https://github.com/cert-manager/cert-manager), so
-we install that first. Make sure their versions are the same as versions listed in
+we install that first. Make sure their versions are the same as versions listed
+in
 [install-otel-operator/action.yml](/.github/actions/install-otel-operator/action.yml#L4):
 
 ```shell
@@ -316,9 +317,9 @@ bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGen
 
 ## Debugging Tips
 
-To quickly test changes on a deployed cluster, build and push container
-images first with a new image_tag, and then edit corresponding resource's
-`image` field in its configuration with `kubectl edit`
+To quickly test changes on a deployed cluster, build and push container images
+first with a new image_tag, and then edit corresponding resource's `image` field
+in its configuration with `kubectl edit`
 
 ```shell
 tools/bazel-container-run //src/main/docker:push_all_local_images \
@@ -439,8 +440,8 @@ https://github.com/kubernetes/minikube/issues/18667
 
 ### Delete Existing Kind Cluster
 
-Only execute this part if you want to delete existing local cluster before creating
-a new one. Let's say the cluster is named `kind`.
+Only execute this part if you want to delete existing local cluster before
+creating a new one. Let's say the cluster is named `kind`.
 
 Delete the KIND cluster:
 
@@ -455,6 +456,7 @@ docker rm -f kind-registry
 ```
 
 Prune Docker resources (optional, recommended):
+
 ```shell
 docker system prune -a
 ```
