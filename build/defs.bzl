@@ -12,15 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Common utility function definitions."""
-
-def proto_lib_prefix(label_str):
-    """Returns the prefix of the proto_library name.
-
-    Args:
-        label_str: the proto_library label as a string.
-
-    Returns:
-        The prefix of the name with the `_proto` suffix removed.
-    """
-    return Label(label_str).name.removesuffix("_proto")
+output "cloud_function_resource_name" {
+  description = "The resource name of the deployed Google Cloud Function."
+  value       = google_cloudfunctions_function.cloud_function.name
+}
+output "cloud_function_service_account" {
+  value = google_service_account.cloud_function_service_account
+}

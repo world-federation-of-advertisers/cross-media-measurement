@@ -16,7 +16,7 @@ data "google_project" "project" {}
 
 resource "google_pubsub_topic" "topic" {
   project = data.google_project.project.name
-  name = var.topic_name
+  name    = var.topic_name
 }
 
 resource "google_pubsub_subscription" "subscription" {
@@ -27,7 +27,7 @@ resource "google_pubsub_subscription" "subscription" {
   message_retention_duration = var.subscription_queue_retention_period
 
   dead_letter_policy {
-    dead_letter_topic = google_pubsub_topic.topic.id
+    dead_letter_topic     = google_pubsub_topic.topic.id
     max_delivery_attempts = var.max_delivery_attempts
   }
 
