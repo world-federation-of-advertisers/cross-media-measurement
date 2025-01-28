@@ -1,0 +1,50 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+kt_jvm_library(
+    name = "context_keys",
+    srcs = ["ContextKeys.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/access/v1alpha:principal_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:context",
+    ],
+)
+
+kt_jvm_library(
+    name = "principal_auth_interceptor",
+    srcs = ["PrincipalAuthInterceptor.kt"],
+    deps = [
+        ":context_keys",
+        "//src/main/proto/wfa/measurement/access/v1alpha:principals_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/config/access:open_id_providers_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:context",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+kt_jvm_library(
+    name = "trusted_principal_auth_interceptor",
+    srcs = ["TrustedPrincipalAuthInterceptor.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:context_keys",
+        "//src/main/proto/wfa/measurement/access/v1alpha:principal_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/grpc:context",
+        "@wfa_common_jvm//imports/java/io/grpc/stub",
+    ],
+)
+
+kt_jvm_library(
+    name = "authorization",
+    srcs = ["Authorization.kt"],
+    deps = [
+        ":context_keys",
+        "//src/main/kotlin/org/wfanet/measurement/access/client:value_in_scope",
+        "//src/main/kotlin/org/wfanet/measurement/access/service:resource_key",
+        "//src/main/proto/wfa/measurement/access/v1alpha:permissions_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
