@@ -16,19 +16,16 @@
 
 package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
-import org.wfanet.measurement.gcloud.pubsub.Publisher
-import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
 import com.google.protobuf.Message
+import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
+import org.wfanet.measurement.gcloud.pubsub.Publisher
 
-class GooglePubSubWorkItemsService(
-  projectId: String,
-  googlePubSubClient: GooglePubSubClient
-):  WorkItemsService() {
+class GooglePubSubWorkItemsService(projectId: String, googlePubSubClient: GooglePubSubClient) :
+  WorkItemsService() {
 
   private val publisher: Publisher<Message> = Publisher(projectId, googlePubSubClient)
 
   override suspend fun publishMessage(queueName: String, message: Message) {
     publisher.publishMessage(queueName, message)
   }
-
 }

@@ -20,14 +20,11 @@ import com.google.protobuf.Message
 import io.grpc.Status
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 
-
-abstract class WorkItemsService: WorkItemsCoroutineImplBase() {
+abstract class WorkItemsService : WorkItemsCoroutineImplBase() {
 
   abstract suspend fun publishMessage(queueName: String, message: Message)
 
-  override suspend fun createWorkItem(
-    request: CreateWorkItemRequest
-  ): WorkItem {
+  override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
 
     val workItem = request.workItem
     val topicId = workItem.queue
@@ -37,19 +34,15 @@ abstract class WorkItemsService: WorkItemsCoroutineImplBase() {
     } catch (e: Exception) {
       throw when {
         e.message?.contains("Topic id: $topicId does not exist") == true -> {
-          Status.NOT_FOUND
-            .withDescription(e.message)
-            .asRuntimeException()
+          Status.NOT_FOUND.withDescription(e.message).asRuntimeException()
         }
 
         else -> {
-          Status.UNKNOWN
-            .withDescription("An unknown error occurred: ${e.message}")
+          Status.UNKNOWN.withDescription("An unknown error occurred: ${e.message}")
             .asRuntimeException()
         }
       }
     }
     return workItem
   }
-
 }

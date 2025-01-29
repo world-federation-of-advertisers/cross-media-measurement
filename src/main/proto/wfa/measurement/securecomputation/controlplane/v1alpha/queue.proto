@@ -34,5 +34,4 @@ message Queue {
 
   // Resource name.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
-
 }
