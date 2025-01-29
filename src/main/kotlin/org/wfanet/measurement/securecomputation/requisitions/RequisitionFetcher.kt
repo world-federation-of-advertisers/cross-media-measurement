@@ -33,11 +33,12 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.securecomputation.requisitions.v1alpha.KingdomConfig
 import org.wfanet.measurement.securecomputation.requisitions.v1alpha.StorageConfig
-import com.google.cloud.functions.CloudEventsFunction
-import io.cloudevents.CloudEvent
+import com.google.cloud.functions.HttpFunction
+import com.google.cloud.functions.HttpRequest
+import com.google.cloud.functions.HttpResponse
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
 
 
 // 1. Polls for new requisitions
@@ -45,12 +46,13 @@ import kotlinx.coroutines.runBlocking
 class RequisitionFetcher(
   private val kingdomConfig: KingdomConfig,
   private val storageConfig: StorageConfig,
-): CloudEventsFunction {
+): HttpFunction {
 
-  override fun accept(event: CloudEvent) {
+  override fun service(request: HttpRequest, response: HttpResponse) {
     runBlocking {
       storeRequisitions(fetchRequisitions())
     }
+    response.writer.write("New requisitions persisted in GCS")
   }
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
@@ -60,6 +62,7 @@ class RequisitionFetcher(
       readCertificateCollection(File(kingdomConfig.certCollectionPath)),
       kingdomConfig.publicApiCertHost,
     )
+
     val requisitionsStub = RequisitionsCoroutineStub(publicChannel)
 
     return requisitionsStub
@@ -70,14 +73,14 @@ class RequisitionFetcher(
             listRequisitions(listRequisitionsRequest {
               parent = kingdomConfig.dataProvider
               this.pageToken = pageToken
+              filter = ListRequisitionsRequestKt.filter { states += Requisition.State.UNFULFILLED }
             })
           } catch (e: StatusException) {
             throw Exception("Unable to list requisitions.", e)
           }
-        ResourceList(response.requisitionsList, response.nextPageToken)
+        ResourceList(response.requisitionsList.filter { it.updateTime.seconds > storageConfig.lastUpdate.seconds }, response.nextPageToken)
       }
       .flattenConcat()
-      .filter { it.updateTime.seconds > storageConfig.lastUpdate.seconds }
   }
 
   private suspend fun storeRequisitions(requisitions: Flow<Requisition>) {
