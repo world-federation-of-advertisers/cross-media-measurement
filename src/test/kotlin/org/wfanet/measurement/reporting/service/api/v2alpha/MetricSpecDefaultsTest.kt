@@ -35,6 +35,7 @@ import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.impressionCountParams
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.reachAndFrequencyParams
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.reachParams
+import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.vidSamplingInterval
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.watchDurationParams
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
@@ -295,6 +296,29 @@ class MetricSpecDefaultsTest {
     val exception =
       assertThrows(IllegalArgumentException::class.java) { metricSpecConfig.validate() }
     assertThat(exception).hasMessageThat().contains("reach_and_frequency_params")
+  }
+
+  @Test
+  fun `MetricSpecConfig validate does not throw exception with valid config`() {
+    METRIC_SPEC_CONFIG.validate()
+  }
+
+  @Test
+  fun `MetricSpecConfig validate does not throw exception with valid random start`() {
+    val vidSamplingInterval =
+      MetricSpecConfigKt.vidSamplingInterval {
+        randomStart = MetricSpecConfigKt.VidSamplingIntervalKt.randomStart { width = 0.27F }
+      }
+    val metricSpecConfig =
+      METRIC_SPEC_CONFIG.copy {
+        reachParams =
+          reachParams.copy {
+            multipleDataProviderParams =
+              multipleDataProviderParams.copy { this.vidSamplingInterval = vidSamplingInterval }
+          }
+      }
+
+    metricSpecConfig.validate()
   }
 
   @Test
