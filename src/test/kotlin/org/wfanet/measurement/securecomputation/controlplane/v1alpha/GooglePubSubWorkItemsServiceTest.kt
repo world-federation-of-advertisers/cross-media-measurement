@@ -233,10 +233,10 @@ class GooglePubSubWorkItemsServiceTest {
       queue = topicId
       this.workItemParams = workItemParams
     }
-    return CreateWorkItemRequest.newBuilder()
-      .setWorkItemId(workItemId)
-      .setWorkItem(workItem)
-      .build()
+    return createWorkItemRequest {
+      this.workItemId = workItemId
+      this.workItem = workItem
+    }
   }
 }
 
