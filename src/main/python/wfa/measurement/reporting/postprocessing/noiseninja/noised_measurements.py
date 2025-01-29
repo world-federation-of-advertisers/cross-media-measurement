@@ -39,6 +39,8 @@ class SetMeasurementsSpec:
     retrieve this information.
 
     Attributes:
+        _equal_sets: A list of tuples, each containing two set IDs that have
+                     equal measurement values.
         _subsets_by_set: A dictionary mapping a set ID to a list of its subset
                          set IDs.
         _covers_by_set: A dictionary mapping a set ID to a list of its covers,
@@ -49,9 +51,13 @@ class SetMeasurementsSpec:
   """
 
   def __init__(self):
+    self._equal_sets = []
     self._subsets_by_set = defaultdict(list[int])
     self._covers_by_set = defaultdict(list[list[int]])
     self._measurements_by_set = defaultdict(list[Measurement])
+
+  def add_equal_relation(self, set_id_one: int, set_id_two: int):
+    self._equal_sets.append([set_id_one, set_id_two])
 
   def add_subset_relation(self, parent_set_id: int, child_set_id: int):
     self._subsets_by_set[parent_set_id].append(child_set_id)
@@ -64,6 +70,9 @@ class SetMeasurementsSpec:
 
   def all_sets(self) -> set[int]:
     return set(i for i in self._measurements_by_set.keys())
+
+  def get_equal_sets(self):
+    return self._equal_sets
 
   def get_covers_of_set(self, set_id: int) -> list[list[int]]:
     return self._covers_by_set[set_id]

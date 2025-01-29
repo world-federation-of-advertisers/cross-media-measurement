@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-
+from threading import Semaphore
 from absl import logging
 from noiseninja.noised_measurements import SetMeasurementsSpec
-from qpsolvers import solve_problem, Problem, Solution
-from threading import Semaphore
+import numpy as np
+from qpsolvers import Problem, Solution, solve_problem
 
-SOLVER = "highs"
+HIGHS_SOLVER = "highs"
+OSQP_SOLVER = "osqp"
 MAX_ATTEMPTS = 10
 SEMAPHORE = Semaphore()
 
@@ -43,10 +43,12 @@ class Solver:
         set_measurement_spec)
     self.num_variables = len(variable_index_by_set_id)
     self._init_qp(self.num_variables)
+    self._add_equals(set_measurement_spec, variable_index_by_set_id)
     self._add_covers(set_measurement_spec, variable_index_by_set_id)
     self._add_subsets(set_measurement_spec, variable_index_by_set_id)
     self._add_measurement_targets(set_measurement_spec,
                                   variable_index_by_set_id)
+    self._add_lower_bounds()
     self._init_base_value(set_measurement_spec, variable_index_by_set_id)
 
     self.variable_map = dict(
@@ -103,6 +105,15 @@ class Solver:
     self.A = []
     self.b = []
 
+  def _add_equals(self, set_measurement_spec: SetMeasurementsSpec,
+      variable_index_by_set_id: dict[int, int]):
+    logging.info("Adding equal set constraints.")
+    for equal_set in set_measurement_spec.get_equal_sets():
+      variables = np.zeros(self.num_variables)
+      variables[variable_index_by_set_id[equal_set[0]]] = 1
+      variables[variable_index_by_set_id[equal_set[1]]] = -1
+      self._add_eq_term(variables, 0)
+
   def _add_subsets(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
     logging.info("Adding subset constraints.")
@@ -120,6 +131,14 @@ class Solver:
         self._add_cover_set_constraint(
             list(variable_index_by_set_id[i] for i in cover),
             variable_index_by_set_id[measured_set])
+
+  # Enforces that all the variables are non-negative.
+  def _add_lower_bounds(self):
+    logging.info("Adding lower bounds constraints.")
+    for i in range(self.num_variables):
+      variables = np.zeros(self.num_variables)
+      variables[i] = -1
+      self._add_gt_term(variables)
 
   def _add_cover_set_constraint(self, cover_variables: set[int],
       set_variable: int):
@@ -154,13 +173,11 @@ class Solver:
     self.G.append(variables)
     self.h.append([0])
 
-  def _solve(self):
-    x0 = np.random.randn(self.num_variables)
-    return self._solve_with_initial_value(x0)
-
-  def _solve_with_initial_value(self, x0) -> Solution:
+  def _solve_with_initial_value(self, solver_name: str,
+      initial_values: np.array) -> Solution:
     problem = self._problem()
-    solution = solve_problem(problem, solver=SOLVER, verbose=False)
+    solution = solve_problem(problem, solver=solver_name,
+                             initvals=initial_values, verbose=False)
     return solution
 
   def _problem(self):
@@ -174,9 +191,24 @@ class Solver:
           self.P, self.q, np.array(self.G), np.array(self.h))
     return problem
 
-  def solve(self) -> Solution:
+  def _solve(self, solver_name: str) -> Solution:
     logging.info("Solving the quadratic program.")
     attempt_count = 0
+    while attempt_count < MAX_ATTEMPTS:
+      # The solver is not thread-safe in general. Synchronization mechanism is
+      # needed when it is called concurrently (e.g. in a report processing
+      # server).
+      SEMAPHORE.acquire()
+      solution = self._solve_with_initial_value(solver_name, self.base_value)
+      SEMAPHORE.release()
+
+      if solution.found:
+        break
+      else:
+        attempt_count += 1
+    return solution
+
+  def solve(self) -> Solution:
     if self._is_feasible(self.base_value):
       logging.info(
           "The set measurement spec is feasible."
@@ -189,19 +221,18 @@ class Solver:
       logging.info(
           "Solving the quadratic program with the HIGHS solver."
       )
-      while attempt_count < MAX_ATTEMPTS:
-        logging.info(f"Attempt {attempt_count + 1}.")
-        # TODO: check if qpsolvers is thread safe,
-        #  and remove this semaphore.
-        SEMAPHORE.acquire()
-        solution = self._solve()
-        SEMAPHORE.release()
+      solution = self._solve(HIGHS_SOLVER)
 
-        if solution.found:
-          break
-        else:
-          attempt_count += 1
+      # If the highs solver does not converge, switch to the osqp solver which
+      # is more robust. However, OSQP in general is less accurate than HIGHS
+      # (See https://web.stanford.edu/~boyd/papers/pdf/osqp.pdf).
+      if not solution.found:
+        logging.info(
+            "Switching to OSQP solver as HIGHS solver failed to converge."
+        )
+        solution = self._solve(OSQP_SOLVER)
 
+    # Raise the exception when both solvers do not converge.
     if not solution.found:
       raise SolutionNotFoundError(solution)
 

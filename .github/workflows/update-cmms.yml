@@ -141,6 +141,7 @@ jobs:
       update-worker1-duchy,
       update-worker2-duchy,
       update-simulators,
+      update-reporting-v2,
     ]
     uses: ./.github/workflows/run-k8s-tests.yml
     secrets: inherit

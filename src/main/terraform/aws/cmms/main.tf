@@ -23,7 +23,7 @@ locals {
   azs             = slice(data.aws_availability_zones.available.names, 0, local.az_count)
   vpc_cidr        = "10.0.0.0/16"
   duchy_names     = toset(["worker2"])
-  vpc_subnet_tags = {for name in local.duchy_names : "kubernetes.io/cluster/${name}-duchy" => "shared"}
+  vpc_subnet_tags = { for name in local.duchy_names : "kubernetes.io/cluster/${name}-duchy" => "shared" }
   vpc_name        = var.aws_project_env
   bucket_name     = var.aws_s3_bucket
 }

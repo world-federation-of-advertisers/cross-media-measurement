@@ -6,7 +6,7 @@ steps {
     key: "certificate-resource-name"
     value: "edp-certificate-resource-name"
   }
-  generate_certificate_step { }
+  generate_certificate_step {}
 }
 
 # MP generates a certificate.
@@ -17,14 +17,14 @@ steps {
     key: "certificate-resource-name"
     value: "mp-certificate-resource-name"
   }
-  generate_certificate_step { }
+  generate_certificate_step {}
 }
 
 # EDP provides a previously generated pepper used in generating AES keys.
 steps {
   step_id: "input-hkdf-pepper"
   party: DATA_PROVIDER
-  input_step { }
+  input_step {}
   output_labels { key: "input" value: "edp-hkdf-pepper" }
 }
 

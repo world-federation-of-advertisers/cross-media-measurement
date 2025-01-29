@@ -18,6 +18,7 @@ package org.wfanet.measurement.common.grpc
 
 import com.google.protobuf.Any
 import com.google.rpc.ErrorInfo
+import com.google.rpc.copy
 import com.google.rpc.status
 import io.grpc.Metadata
 import io.grpc.Status
@@ -37,6 +38,14 @@ val StatusRuntimeException.errorInfo: ErrorInfo?
     return getErrorInfo(this.status, this.trailers)
   }
 
+/**
+ * Converts this [Status] to a [StatusRuntimeException] with the specified [errorInfo].
+ *
+ * @see Status.asRuntimeException
+ */
+fun Status.asRuntimeException(errorInfo: ErrorInfo): StatusRuntimeException =
+  Errors.buildStatusRuntimeException(this, errorInfo)
+
 object Errors {
   /** Builds a [StatusRuntimeException] with the specified [errorInfo]. */
   fun buildStatusRuntimeException(
@@ -54,15 +63,26 @@ object Errors {
     // Unpack exception to add cause.
     // TODO(grpc/grpc-java#10230): Use new API when available.
     val exception = StatusProto.toStatusRuntimeException(statusProto)
-    return exception.status
-      .run {
-        if (cause != null) {
-          withCause(cause)
-        } else {
-          this
-        }
-      }
-      .asRuntimeException(exception.trailers)
+    return if (cause == null) {
+      exception
+    } else {
+      exception.status.withCause(exception).asRuntimeException(exception.trailers)
+    }
+  }
+
+  /** Builds a [StatusRuntimeException] with the specified [errorInfo]. */
+  fun buildStatusRuntimeException(status: Status, errorInfo: ErrorInfo): StatusRuntimeException {
+    val statusProto =
+      StatusProto.fromStatusAndTrailers(status, null).copy { details += Any.pack(errorInfo) }
+
+    // Unpack exception to add cause.
+    // TODO(grpc/grpc-java#10230): Use new API when available.
+    val exception = StatusProto.toStatusRuntimeException(statusProto)
+    return if (status.cause == null) {
+      exception
+    } else {
+      exception.status.withCause(status.cause).asRuntimeException(exception.trailers)
+    }
   }
 }
 

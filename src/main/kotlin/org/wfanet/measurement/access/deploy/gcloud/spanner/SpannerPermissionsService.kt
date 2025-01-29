@@ -120,7 +120,7 @@ class SpannerPermissionsService(
       tlsClientMapping.getByPrincipalResourceId(request.principalResourceId)
     if (tlsClient != null) {
       val permissionResourceIds: List<String> =
-        if (request.protectedResourceName == tlsClient.protectedResourceName) {
+        if (request.protectedResourceName in tlsClient.protectedResourceNames) {
           request.permissionResourceIdsList
         } else {
           emptyList()

@@ -21,7 +21,7 @@ resource "aws_s3_bucket" "blob_storage" {
 
 resource "aws_s3_bucket_acl" "blob_storage" {
   bucket = aws_s3_bucket.blob_storage.id
-  acl = "private"
+  acl    = "private"
 }
 
 resource "aws_s3_bucket_versioning" "blob_storage" {
@@ -32,37 +32,37 @@ resource "aws_s3_bucket_versioning" "blob_storage" {
 }
 
 resource "aws_s3_bucket_public_access_block" "blob_storage" {
-  bucket = aws_s3_bucket.blob_storage.id
-  block_public_acls = true
-  block_public_policy = true
-  ignore_public_acls = true
+  bucket                  = aws_s3_bucket.blob_storage.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
   restrict_public_buckets = true
 }
 
 resource "aws_s3_bucket_policy" "block_access_from_http" {
   bucket = aws_s3_bucket.blob_storage.id
   policy = jsonencode({
-     Version = "2012-10-17"
-     Statement = [
-       {
-         Sid = "BlockHttpAccess"
-         Action = [
-           "s3:*",
-         ]
-         Effect   = "Deny"
-         Resource = [
-           aws_s3_bucket.blob_storage.arn,
-           "${aws_s3_bucket.blob_storage.arn}/*",
-          ]
-         Condition = {
-           Bool = {
-             "aws:SecureTransport" = "false"
-           }
-         }
-         "Principal": "*"
-       },
-     ]
-   })
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid = "BlockHttpAccess"
+        Action = [
+          "s3:*",
+        ]
+        Effect = "Deny"
+        Resource = [
+          aws_s3_bucket.blob_storage.arn,
+          "${aws_s3_bucket.blob_storage.arn}/*",
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
+        "Principal" : "*"
+      },
+    ]
+  })
 }
 
 resource "aws_s3_bucket" "blob_storage_logging" {
