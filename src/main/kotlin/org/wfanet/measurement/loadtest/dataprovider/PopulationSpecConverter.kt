@@ -36,17 +36,17 @@ fun SyntheticPopulationSpec.toPopulationSpec(): PopulationSpec {
           }
           attributes +=
             person {
-              gender =
-                Person.Gender.forNumber(it.populationFieldsValuesMap["person.gender"]!!.enumValue)
-              ageGroup =
-                Person.AgeGroup.forNumber(
-                  it.populationFieldsValuesMap["person.age_group"]!!.enumValue
-                )
-              socialGradeGroup =
-                Person.SocialGradeGroup.forNumber(
-                  it.populationFieldsValuesMap["person.social_grade_group"]!!.enumValue
-                )
-            }
+                gender =
+                  Person.Gender.forNumber(it.populationFieldsValuesMap["person.gender"]!!.enumValue)
+                ageGroup =
+                  Person.AgeGroup.forNumber(
+                    it.populationFieldsValuesMap["person.age_group"]!!.enumValue
+                  )
+                socialGradeGroup =
+                  Person.SocialGradeGroup.forNumber(
+                    it.populationFieldsValuesMap["person.social_grade_group"]!!.enumValue
+                  )
+              }
               .pack()
         }
       }
