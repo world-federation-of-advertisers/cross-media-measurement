@@ -69,11 +69,18 @@ message BasicReport {
   //
   // The custom criteria and any specific impression_qualification_filter may
   // each be used at most once.
+  // TODO(@kungfucraig): Denormalize the impression qualification filters.
   repeated ReportingImpressionQualificationFilter
       impression_qualification_filters = 6 [
         (google.api.field_behavior) = REQUIRED,
         (google.api.field_behavior) = IMMUTABLE
       ];
+
+  // Specifies the Pages to create
+  repeated PageSpec page_specs = 9 [
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.field_behavior) = REQUIRED
+  ];
 
   // The report results
   repeated Page pages = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
