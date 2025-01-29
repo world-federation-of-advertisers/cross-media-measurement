@@ -21,7 +21,7 @@ import "wfa/measurement/internal/reporting/v2/page.proto";
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
-message BasicReportResultsDetails {
+message BasicReportResultDetails {
   // The report results
   repeated Page pages = 1;
 }

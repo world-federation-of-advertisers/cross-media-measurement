@@ -214,7 +214,7 @@ kt_jvm_grpc_proto_library(
 
 MESSAGE_LIBS = [
     "basic_report_details",
-    "basic_report_results_details",
+    "basic_report_result_details",
     "basic_report",
     "event_filter",
     "event_template_field",
@@ -237,8 +237,8 @@ proto_library(
 )
 
 proto_library(
-    name = "basic_report_results_details_proto",
-    srcs = ["basic_report_results_details.proto"],
+    name = "basic_report_result_details_proto",
+    srcs = ["basic_report_result_details.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [":page_proto"],
 )
@@ -249,7 +249,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":basic_report_details_proto",
-        ":basic_report_results_details_proto",
+        ":basic_report_result_details_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -352,7 +352,7 @@ proto_descriptor_set(
     name = "descriptor_set",
     deps = [
         ":basic_report_details_proto",
-        ":basic_report_results_details_proto",
+        ":basic_report_result_details_proto",
         ":event_filter_proto",
         ":event_template_field_proto",
         ":impression_qualification_filter_spec_proto",
