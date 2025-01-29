@@ -26,8 +26,8 @@ build:remote-cache --remote_cache=grpcs://halo-cmm.buildbuddy.io
 build:remote-cache --experimental_remote_cache_compression
 build:remote-cache --experimental_remote_cache_compression_threshold=100
 build:remote-cache --experimental_remote_cache_eviction_retries=5
-build:remote-cache --experimental_remote_cache_lease_extension
-build:remote-cache --experimental_remote_cache_ttl
+build:remote-cache --experimental_remote_cache_lease_extension=true
+build:remote-cache --experimental_remote_cache_ttl=3h
 
 
 # Configuration for continuous integration (CI).
