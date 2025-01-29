@@ -4,6 +4,7 @@ package(
     default_visibility = [
         "//src/main/kotlin/org/wfanet/measurement/access/deploy:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/access/service:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/access/service:__subpackages__",
     ],
 )
