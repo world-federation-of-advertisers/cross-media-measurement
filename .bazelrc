@@ -25,6 +25,7 @@ build --remote_timeout=3600
 build:remote-cache --remote_cache=grpcs://halo-cmm.buildbuddy.io
 build:remote-cache --experimental_remote_cache_compression
 build:remote-cache --experimental_remote_cache_compression_threshold=100
+build:remote-cache --experimental_remote_cache_eviction_retries
 
 # Configuration for continuous integration (CI).
 common:ci --lockfile_mode=error
