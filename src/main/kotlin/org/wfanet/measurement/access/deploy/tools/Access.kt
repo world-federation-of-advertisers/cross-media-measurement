@@ -560,6 +560,24 @@ private class Policies {
   }
 }
 
+private class PolicyBinding {
+  @Option(names = ["--binding-role"], description = ["Resource name of the Role"], required = true)
+  lateinit var role: String
+    private set
+
+  @Option(
+    names = ["--binding-member"],
+    description =
+      [
+        "Resource name of the principals which are members of the this Role on `resource`" +
+          "Can be specified multiple times."
+      ],
+    required = true,
+  )
+  lateinit var members: List<String>
+    private set
+}
+
 @Command(name = "get", description = ["Get a Policy"])
 class GetPolicy : Runnable {
   @ParentCommand private lateinit var parentCommand: Policies
@@ -579,9 +597,6 @@ class GetPolicy : Runnable {
 class CreatePolicy : Runnable {
   @ParentCommand private lateinit var parentCommand: Policies
 
-  @Option(names = ["--name"], description = ["Resource name of Policy"])
-  private lateinit var policyName: String
-
   @Option(
     names = ["--protected-resource"],
     description =
@@ -593,17 +608,14 @@ class CreatePolicy : Runnable {
   )
   private lateinit var resource: String
 
-  @Option(
-    names = ["--binding"],
-    description =
-      [
-        "A Policy Binding that maps Role to members (Principals). " +
-          "Role-Principals pairs. Principals are comma-separated lists. " +
-          "Can be specified multiple times"
-      ],
-    paramLabel = "ROLE=MEMBER1,MEMBER2,...",
+  @ArgGroup(
+    exclusive = false,
+    multiplicity = "0..*",
+    heading =
+      "Policy Bindings that map Role to members (Principals). " +
+        "Optional and can be specified multiple times.",
   )
-  private lateinit var bindingList: List<String>
+  private lateinit var policyBindings: List<PolicyBinding>
 
   @Option(names = ["--etag"], description = ["Entity tag of the Policy"])
   private lateinit var policyEtag: String
@@ -611,24 +623,15 @@ class CreatePolicy : Runnable {
   override fun run() {
     val createPolicyRequest = createPolicyRequest {
       policy = policy {
-        name = policyName
         protectedResource = resource
+        bindings +=
+          policyBindings.map { binding ->
+            binding {
+              role = binding.role
+              members += binding.members
+            }
+          }
         etag = policyEtag
-        for (binding in bindingList) {
-          val values = binding.split("=")
-          if (values.size != 2) {
-            throw CommandLine.ParameterException(
-              parentCommand.commandLine,
-              "Invalid Policy Binding",
-            )
-          }
-          val roleName = values[0].trim()
-          val principals = values[1].split(",")
-          bindings += binding {
-            role = roleName
-            members += principals
-          }
-        }
       }
     }
 
@@ -658,34 +661,43 @@ class LookupPolicy : Runnable {
   }
 }
 
+private class PolicyBindingChangeFlags {
+  @Option(names = ["--name"], description = ["Resource name of the Policy"], required = true)
+  lateinit var policyName: String
+    private set
+
+  @Option(names = ["--role"], description = ["Resource name of the Role"], required = true)
+  lateinit var roleName: String
+    private set
+
+  @Option(
+    names = ["--member"],
+    description = ["Resource name of the member to add/remove"],
+    required = false,
+  )
+  lateinit var memberList: List<String>
+    private set
+
+  @Option(names = ["--etag"], description = ["Current etag of the resource"], required = false)
+  lateinit var currentEtag: String
+    private set
+}
+
 @Command(name = "add-members", description = ["Add members to a Policy Binding"])
 class AddPolicyBindingMembers : Runnable {
   @ParentCommand private lateinit var parentCommand: Policies
 
-  @Option(names = ["--name"], description = ["Resource name of the Policy"], required = true)
-  private lateinit var policyName: String
-
-  @Option(names = ["--role"], description = ["Resource name of the Role"], required = true)
-  private lateinit var roleName: String
-
-  @Option(
-    names = ["--member"],
-    description = ["Resource name of the member to add"],
-    required = false,
-  )
-  private lateinit var memberList: List<String>
-
-  @Option(names = ["--etag"], description = ["Current etag of the resource"], required = false)
-  private lateinit var currentEtag: String
+  @ArgGroup(exclusive = false, multiplicity = "1", heading = "Policy Binding addition flags")
+  private lateinit var policyBindingChangeFlags: PolicyBindingChangeFlags
 
   override fun run() {
     val policy = runBlocking {
       parentCommand.policiesClient.addPolicyBindingMembers(
         addPolicyBindingMembersRequest {
-          name = policyName
-          role = roleName
-          members += memberList
-          etag = currentEtag
+          name = policyBindingChangeFlags.policyName
+          role = policyBindingChangeFlags.roleName
+          members += policyBindingChangeFlags.memberList
+          etag = policyBindingChangeFlags.currentEtag
         }
       )
     }
@@ -698,30 +710,17 @@ class AddPolicyBindingMembers : Runnable {
 class RemovePolicyBindingMembers : Runnable {
   @ParentCommand private lateinit var parentCommand: Policies
 
-  @Option(names = ["--name"], description = ["Resource name of the Policy"], required = true)
-  private lateinit var policyName: String
-
-  @Option(names = ["--role"], description = ["Resource name of the Role"], required = true)
-  private lateinit var roleName: String
-
-  @Option(
-    names = ["--member"],
-    description = ["Resource name of the member to remove"],
-    required = false,
-  )
-  private lateinit var memberList: List<String>
-
-  @Option(names = ["--etag"], description = ["Current etag of the resource"], required = false)
-  private lateinit var currentEtag: String
+  @ArgGroup(exclusive = false, multiplicity = "1", heading = "Policy Binding removal flags")
+  private lateinit var policyBindingChangeFlags: PolicyBindingChangeFlags
 
   override fun run() {
     val policy = runBlocking {
       parentCommand.policiesClient.removePolicyBindingMembers(
         removePolicyBindingMembersRequest {
-          name = policyName
-          role = roleName
-          members += memberList
-          etag = currentEtag
+          name = policyBindingChangeFlags.policyName
+          role = policyBindingChangeFlags.roleName
+          members += policyBindingChangeFlags.memberList
+          etag = policyBindingChangeFlags.currentEtag
         }
       )
     }
