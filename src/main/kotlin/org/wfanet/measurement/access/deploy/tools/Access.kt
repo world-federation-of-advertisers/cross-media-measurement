@@ -569,7 +569,7 @@ private class PolicyBinding {
     names = ["--binding-member"],
     description =
       [
-        "Resource name of the principals which are members of the this Role on `resource`" +
+        "Resource name of the principal which is a member of the this Role on `resource`" +
           "Can be specified multiple times."
       ],
     required = true,
@@ -672,7 +672,8 @@ private class PolicyBindingChangeFlags {
 
   @Option(
     names = ["--member"],
-    description = ["Resource name of the member to add/remove"],
+    description =
+      ["Resource name of the member to add/remove. Optional and can be specified multiple times."],
     required = false,
   )
   lateinit var memberList: List<String>
