@@ -1,3 +1,5 @@
+# TODO(@SanjayVas): Move this to common-jvm.
+
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = ["//visibility:public"])
@@ -15,5 +17,13 @@ kt_jvm_library(
         "//src/main/proto/google/rpc:error_details_kt_jvm_proto",
         "//src/main/proto/google/rpc:status_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc/protobuf",
+    ],
+)
+
+kt_jvm_library(
+    name = "interceptors",
+    srcs = ["Interceptors.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/io/grpc:api",
     ],
 )

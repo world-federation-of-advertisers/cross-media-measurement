@@ -21,6 +21,8 @@ import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.random.Random
 import org.projectnessie.cel.Env
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
@@ -56,6 +58,7 @@ import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 class MetricCalculationSpecsService(
   private val internalMetricCalculationSpecsStub: MetricCalculationSpecsCoroutineStub,
   private val metricSpecConfig: MetricSpecConfig,
+  private val authorization: Authorization,
   private val secureRandom: Random,
 ) : MetricCalculationSpecsCoroutineImplBase() {
   override suspend fun createMetricCalculationSpec(
@@ -65,16 +68,6 @@ class MetricCalculationSpecsService(
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid."
       }
-
-    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
-      is MeasurementConsumerPrincipal -> {
-        if (parentKey.measurementConsumerId != principal.resourceKey.measurementConsumerId) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot create a MetricCalculationSpec for another MeasurementConsumer."
-          }
-        }
-      }
-    }
 
     grpcRequire(request.metricCalculationSpec.displayName.isNotEmpty()) {
       "display_name must be set."
@@ -99,6 +92,8 @@ class MetricCalculationSpecsService(
       "metric_calculation_spec_id is invalid."
     }
 
+    authorization.check(request.parent, Permission.CREATE)
+
     val internalCreateMetricCalculationSpecRequest = createMetricCalculationSpecRequest {
       metricCalculationSpec =
         request.metricCalculationSpec.toInternal(parentKey.measurementConsumerId)
@@ -111,7 +106,16 @@ class MetricCalculationSpecsService(
           internalCreateMetricCalculationSpecRequest
         )
       } catch (e: StatusException) {
-        throw Exception("Unable to create Metric Calculation Spec.", e)
+        throw when (e.status.code) {
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("${request.parent} not found")
+            Status.Code.ALREADY_EXISTS ->
+              Status.ALREADY_EXISTS.withDescription(
+                "MetricCalculationSpec with ID ${request.metricCalculationSpecId} already exists"
+              )
+            else -> Status.INTERNAL.withDescription("Unable to create MetricCalculationSpec")
+          }
+          .withCause(e)
+          .asRuntimeException()
       }
 
     return internalMetricCalculationSpec.toPublic()
@@ -125,15 +129,10 @@ class MetricCalculationSpecsService(
         "MetricCalculationSpec name is either unspecified or invalid"
       }
 
-    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
-      is MeasurementConsumerPrincipal -> {
-        if (metricCalculationSpecKey.parentKey != principal.resourceKey) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot get MetricCalculationSpec belonging to other MeasurementConsumers."
-          }
-        }
-      }
-    }
+    authorization.check(
+      listOf(request.name, metricCalculationSpecKey.parentKey.toName()),
+      Permission.GET,
+    )
 
     val internalMetricCalculationSpec =
       try {
@@ -145,13 +144,10 @@ class MetricCalculationSpecsService(
         )
       } catch (e: StatusException) {
         throw when (e.status.code) {
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            Status.Code.CANCELLED -> Status.CANCELLED
-            Status.Code.NOT_FOUND -> Status.NOT_FOUND
-            else -> Status.UNKNOWN
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("${request.name} not found")
+            else -> Status.INTERNAL.withDescription("Unable to get MetricCalculationSpec")
           }
           .withCause(e)
-          .withDescription("Unable to get MetricCalculationSpec.")
           .asRuntimeException()
       }
 
@@ -161,21 +157,12 @@ class MetricCalculationSpecsService(
   override suspend fun listMetricCalculationSpecs(
     request: ListMetricCalculationSpecsRequest
   ): ListMetricCalculationSpecsResponse {
-    val parentKey: MeasurementConsumerKey =
-      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
-        "Parent is either unspecified or invalid."
-      }
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+      "Parent is either unspecified or invalid."
+    }
     val listMetricCalculationSpecsPageToken = request.toListMetricCalculationSpecsPageToken()
 
-    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
-      is MeasurementConsumerPrincipal -> {
-        if (parentKey.measurementConsumerId != principal.resourceKey.measurementConsumerId) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot list MetricCalculationSpecs belonging to other MeasurementConsumers."
-          }
-        }
-      }
-    }
+    authorization.check(request.parent, Permission.LIST)
 
     val internalListMetricCalculationSpecsRequest =
       listMetricCalculationSpecsPageToken.toInternalListMetricCalculationSpecsRequest()
@@ -187,12 +174,10 @@ class MetricCalculationSpecsService(
         )
       } catch (e: StatusException) {
         throw when (e.status.code) {
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            Status.Code.CANCELLED -> Status.CANCELLED
-            else -> Status.UNKNOWN
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("${request.parent} not found")
+            else -> Status.INTERNAL.withDescription("Unable to list MetricCalculationSpecs")
           }
           .withCause(e)
-          .withDescription("Unable to list MetricCalculationSpecs.")
           .asRuntimeException()
       }
 
@@ -285,6 +270,13 @@ class MetricCalculationSpecsService(
     } catch (e: IllegalArgumentException) {
       throw Status.INVALID_ARGUMENT.withDescription(e.message).asRuntimeException()
     }
+  }
+
+  object Permission {
+    private const val TYPE = "reporting.metricCalculationSpecs"
+    const val GET = "$TYPE.get"
+    const val LIST = "$TYPE.list"
+    const val CREATE = "$TYPE.create"
   }
 
   companion object {

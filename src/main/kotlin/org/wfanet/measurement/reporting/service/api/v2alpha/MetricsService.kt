@@ -61,6 +61,9 @@ import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.BlockingExecutor
 import org.jetbrains.annotations.NonBlockingExecutor
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.check
+import org.wfanet.measurement.api.ApiKeyCredentials
 import org.wfanet.measurement.api.v2alpha.BatchCreateMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.BatchGetMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.Certificate
@@ -73,6 +76,7 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
@@ -108,6 +112,8 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -216,6 +222,7 @@ private const val BATCH_SET_MEASUREMENT_FAILURES_LIMIT = 1000
 
 class MetricsService(
   private val metricSpecConfig: MetricSpecConfig,
+  private val measurementConsumerConfigs: MeasurementConsumerConfigs,
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
   private val internalMetricsStub: InternalMetricsCoroutineStub,
   private val variances: Variances,
@@ -224,6 +231,7 @@ class MetricsService(
   measurementsStub: MeasurementsCoroutineStub,
   certificatesStub: CertificatesCoroutineStub,
   measurementConsumersStub: MeasurementConsumersCoroutineStub,
+  private val authorization: Authorization,
   encryptionKeyPairStore: EncryptionKeyPairStore,
   private val secureRandom: Random,
   signingPrivateKeyDir: File,
@@ -235,6 +243,23 @@ class MetricsService(
   keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
   cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
 ) : MetricsCoroutineImplBase() {
+
+  private data class MeasurementConsumerCredentials(
+    val resourceKey: MeasurementConsumerKey,
+    val callCredentials: ApiKeyCredentials,
+    val signingCertificateKey: MeasurementConsumerCertificateKey,
+    val signingPrivateKeyPath: String,
+  ) {
+    companion object {
+      fun fromConfig(resourceKey: MeasurementConsumerKey, config: MeasurementConsumerConfig) =
+        MeasurementConsumerCredentials(
+          resourceKey,
+          ApiKeyCredentials(config.apiKey),
+          requireNotNull(MeasurementConsumerCertificateKey.fromName(config.signingCertificateName)),
+          config.signingPrivateKeyPath,
+        )
+    }
+  }
 
   private data class DataProviderInfo(
     val dataProviderName: String,
@@ -311,9 +336,10 @@ class MetricsService(
     suspend fun createCmmsMeasurements(
       internalMetricsList: List<InternalMetric>,
       internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
-      principal: MeasurementConsumerPrincipal,
+      measurementConsumerCreds: MeasurementConsumerCredentials,
     ) {
-      val measurementConsumer: MeasurementConsumer = getMeasurementConsumer(principal)
+      val measurementConsumer: MeasurementConsumer =
+        getMeasurementConsumer(measurementConsumerCreds)
 
       val dataProviderNames = mutableSetOf<String>()
       for (internalPrimitiveReportingSet in internalPrimitiveReportingSetMap.values) {
@@ -322,9 +348,9 @@ class MetricsService(
         }
       }
       val dataProviderInfoMap: Map<String, DataProviderInfo> =
-        buildDataProviderInfoMap(principal.config.apiKey, dataProviderNames)
+        buildDataProviderInfoMap(measurementConsumerCreds.callCredentials, dataProviderNames)
 
-      val measurementConsumerSigningKey = getMeasurementConsumerSigningKey(principal)
+      val measurementConsumerSigningKey = getMeasurementConsumerSigningKey(measurementConsumerCreds)
 
       val cmmsCreateMeasurementRequests: Flow<CreateMeasurementRequest> = flow {
         for (internalMetric in internalMetricsList) {
@@ -336,7 +362,7 @@ class MetricsService(
                   internalMetric.metricSpec,
                   internalPrimitiveReportingSetMap,
                   measurementConsumer,
-                  principal,
+                  measurementConsumerCreds,
                   dataProviderInfoMap,
                   measurementConsumerSigningKey,
                 )
@@ -350,7 +376,7 @@ class MetricsService(
       val callBatchCreateMeasurementsRpc:
         suspend (List<CreateMeasurementRequest>) -> BatchCreateMeasurementsResponse =
         { items ->
-          batchCreateCmmsMeasurements(principal, items)
+          batchCreateCmmsMeasurements(measurementConsumerCreds, items)
         }
 
       @OptIn(ExperimentalCoroutinesApi::class)
@@ -367,7 +393,10 @@ class MetricsService(
 
       // Set CMMS measurement IDs.
       val callBatchSetCmmsMeasurementIdsRpc: suspend (List<MeasurementIds>) -> Unit = { items ->
-        batchSetCmmsMeasurementIds(principal.resourceKey.measurementConsumerId, items)
+        batchSetCmmsMeasurementIds(
+          measurementConsumerCreds.resourceKey.measurementConsumerId,
+          items,
+        )
       }
 
       submitBatchRequests(
@@ -404,15 +433,15 @@ class MetricsService(
 
     /** Batch create CMMS measurements. */
     private suspend fun batchCreateCmmsMeasurements(
-      principal: MeasurementConsumerPrincipal,
+      measurementConsumerCreds: MeasurementConsumerCredentials,
       createMeasurementRequests: List<CreateMeasurementRequest>,
     ): BatchCreateMeasurementsResponse {
       try {
         return measurementsStub
-          .withAuthenticationKey(principal.config.apiKey)
+          .withCallCredentials(measurementConsumerCreds.callCredentials)
           .batchCreateMeasurements(
             batchCreateMeasurementsRequest {
-              parent = principal.resourceKey.toName()
+              parent = measurementConsumerCreds.resourceKey.toName()
               requests += createMeasurementRequests
             }
           )
@@ -427,7 +456,9 @@ class MetricsService(
             Status.Code.FAILED_PRECONDITION ->
               Status.FAILED_PRECONDITION.withDescription("Failed precondition.")
             Status.Code.NOT_FOUND ->
-              Status.NOT_FOUND.withDescription("${principal.resourceKey.toName()} is not found.")
+              Status.NOT_FOUND.withDescription(
+                "${measurementConsumerCreds.resourceKey.toName()} is not found."
+              )
             else -> Status.UNKNOWN.withDescription("Unable to create CMMS Measurements.")
           }
           .withCause(e)
@@ -441,7 +472,7 @@ class MetricsService(
       metricSpec: InternalMetricSpec,
       internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
       measurementConsumer: MeasurementConsumer,
-      principal: MeasurementConsumerPrincipal,
+      measurementConsumerCreds: MeasurementConsumerCredentials,
       dataProviderInfoMap: Map<String, DataProviderInfo>,
       measurementConsumerSigningKey: SigningKeyHandle,
     ): CreateMeasurementRequest {
@@ -452,7 +483,7 @@ class MetricsService(
       return createMeasurementRequest {
         parent = measurementConsumer.name
         measurement = measurement {
-          measurementConsumerCertificate = principal.config.signingCertificateName
+          measurementConsumerCertificate = measurementConsumerCreds.signingCertificateKey.toName()
 
           dataProviders +=
             buildDataProviderEntries(
@@ -481,15 +512,17 @@ class MetricsService(
 
     /** Gets a [SigningKeyHandle] for a [MeasurementConsumerPrincipal]. */
     private suspend fun getMeasurementConsumerSigningKey(
-      principal: MeasurementConsumerPrincipal
+      measurementConsumerCreds: MeasurementConsumerCredentials
     ): SigningKeyHandle {
       // TODO: Factor this out to a separate class similar to EncryptionKeyPairStore.
       val signingPrivateKeyDer: ByteString =
         withContext(keyReaderContext) {
-          signingPrivateKeyDir.resolve(principal.config.signingPrivateKeyPath).readByteString()
+          signingPrivateKeyDir
+            .resolve(measurementConsumerCreds.signingPrivateKeyPath)
+            .readByteString()
         }
       val measurementConsumerCertificate: X509Certificate =
-        readCertificate(getSigningCertificateDer(principal))
+        readCertificate(getSigningCertificateDer(measurementConsumerCreds))
       val signingPrivateKey: PrivateKey =
         readPrivateKey(signingPrivateKeyDer, measurementConsumerCertificate.publicKey.algorithm)
 
@@ -551,7 +584,7 @@ class MetricsService(
 
     /** Builds a [Map] of [DataProvider] name to [DataProviderInfo]. */
     private suspend fun buildDataProviderInfoMap(
-      apiAuthenticationKey: String,
+      callCredentials: ApiKeyCredentials,
       dataProviderNames: Collection<String>,
     ): Map<String, DataProviderInfo> {
       val dataProviderInfoMap = mutableMapOf<String, DataProviderInfo>()
@@ -569,7 +602,7 @@ class MetricsService(
                 dataProviderCache.getValue(
                   ResourceNameApiAuthenticationKey(
                     name = dataProviderName,
-                    apiAuthenticationKey = apiAuthenticationKey,
+                    apiAuthenticationKey = callCredentials.apiAuthenticationKey,
                   )
                 )
 
@@ -577,7 +610,7 @@ class MetricsService(
                 certificateCache.getValue(
                   ResourceNameApiAuthenticationKey(
                     name = dataProvider.certificate,
-                    apiAuthenticationKey = apiAuthenticationKey,
+                    apiAuthenticationKey = callCredentials.apiAuthenticationKey,
                   )
                 )
 
@@ -714,21 +747,20 @@ class MetricsService(
 
     /** Gets a [MeasurementConsumer] based on a CMMS ID. */
     private suspend fun getMeasurementConsumer(
-      principal: MeasurementConsumerPrincipal
+      measurementConsumerCreds: MeasurementConsumerCredentials
     ): MeasurementConsumer {
+      val measurementConsumerName = measurementConsumerCreds.resourceKey.toName()
       return try {
         measurementConsumersStub
-          .withAuthenticationKey(principal.config.apiKey)
-          .getMeasurementConsumer(
-            getMeasurementConsumerRequest { name = principal.resourceKey.toName() }
-          )
+          .withCallCredentials(measurementConsumerCreds.callCredentials)
+          .getMeasurementConsumer(getMeasurementConsumerRequest { name = measurementConsumerName })
       } catch (e: StatusException) {
         throw when (e.status.code) {
             Status.Code.NOT_FOUND ->
-              Status.NOT_FOUND.withDescription("${principal.resourceKey.toName()} not found.")
+              Status.NOT_FOUND.withDescription("$measurementConsumerName not found.")
             else ->
               Status.UNKNOWN.withDescription(
-                "Unable to retrieve the measurement consumer [${principal.resourceKey.toName()}]."
+                "Unable to retrieve the measurement consumer [$measurementConsumerName]."
               )
           }
           .withCause(e)
@@ -738,13 +770,13 @@ class MetricsService(
 
     /** Gets a signing certificate x509Der in ByteString. */
     private suspend fun getSigningCertificateDer(
-      principal: MeasurementConsumerPrincipal
+      measurementConsumerCreds: MeasurementConsumerCredentials
     ): ByteString {
       val certificate =
         certificateCache.getValue(
           ResourceNameApiAuthenticationKey(
-            name = principal.config.signingCertificateName,
-            apiAuthenticationKey = principal.config.apiKey,
+            name = measurementConsumerCreds.signingCertificateKey.toName(),
+            apiAuthenticationKey = measurementConsumerCreds.callCredentials.apiAuthenticationKey,
           )
         )
 
@@ -758,15 +790,15 @@ class MetricsService(
      */
     suspend fun syncInternalMeasurements(
       internalMeasurements: List<InternalMeasurement>,
-      apiAuthenticationKey: String,
-      principal: MeasurementConsumerPrincipal,
+      measurementConsumerCreds: MeasurementConsumerCredentials,
     ): Boolean {
       val failedMeasurements: MutableList<Measurement> = mutableListOf()
 
       // Most Measurements are expected to be SUCCEEDED so SUCCEEDED Measurements will be collected
       // via a Flow.
       val succeededMeasurements: Flow<Measurement> =
-        getCmmsMeasurements(internalMeasurements, principal).transform { measurements ->
+        getCmmsMeasurements(internalMeasurements, measurementConsumerCreds).transform { measurements
+          ->
           for (measurement in measurements) {
             @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
             when (measurement.state) {
@@ -792,7 +824,7 @@ class MetricsService(
 
       val callBatchSetInternalMeasurementResultsRpc: suspend (List<Measurement>) -> Unit =
         { items ->
-          batchSetInternalMeasurementResults(items, apiAuthenticationKey, principal)
+          batchSetInternalMeasurementResults(items, measurementConsumerCreds)
         }
       val count =
         submitBatchRequests(
@@ -811,7 +843,10 @@ class MetricsService(
       if (failedMeasurements.isNotEmpty()) {
         val callBatchSetInternalMeasurementFailuresRpc: suspend (List<Measurement>) -> Unit =
           { items ->
-            batchSetInternalMeasurementFailures(items, principal.resourceKey.measurementConsumerId)
+            batchSetInternalMeasurementFailures(
+              items,
+              measurementConsumerCreds.resourceKey.measurementConsumerId,
+            )
           }
         submitBatchRequests(
             failedMeasurements.asFlow(),
@@ -852,7 +887,9 @@ class MetricsService(
           batchSetInternalMeasurementFailuresRequest
         )
       } catch (e: StatusException) {
-        throw Exception("Unable to set measurement failures for Measurements.", e)
+        throw Status.INTERNAL.withDescription("Unable to set measurement failures for Measurements")
+          .withCause(e)
+          .asRuntimeException()
       }
     }
 
@@ -862,18 +899,13 @@ class MetricsService(
      */
     private suspend fun batchSetInternalMeasurementResults(
       succeededMeasurementsList: List<Measurement>,
-      apiAuthenticationKey: String,
-      principal: MeasurementConsumerPrincipal,
+      measurementConsumerCreds: MeasurementConsumerCredentials,
     ) {
       val batchSetMeasurementResultsRequest = batchSetMeasurementResultsRequest {
-        cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
+        cmmsMeasurementConsumerId = measurementConsumerCreds.resourceKey.measurementConsumerId
         measurementResults +=
           succeededMeasurementsList.map { measurement ->
-            buildInternalMeasurementResult(
-              measurement,
-              apiAuthenticationKey,
-              principal.resourceKey.toName(),
-            )
+            buildInternalMeasurementResult(measurement, measurementConsumerCreds)
           }
       }
 
@@ -887,14 +919,14 @@ class MetricsService(
     /** Retrieves [Measurement]s from the CMMS. */
     private suspend fun getCmmsMeasurements(
       internalMeasurements: List<InternalMeasurement>,
-      principal: MeasurementConsumerPrincipal,
+      measurementConsumerCreds: MeasurementConsumerCredentials,
     ): Flow<List<Measurement>> {
       val measurementNames: Flow<String> = flow {
         buildSet {
           for (internalMeasurement in internalMeasurements) {
             val name =
               MeasurementKey(
-                  principal.resourceKey.measurementConsumerId,
+                  measurementConsumerCreds.resourceKey.measurementConsumerId,
                   internalMeasurement.cmmsMeasurementId,
                 )
                 .toName()
@@ -911,7 +943,7 @@ class MetricsService(
 
       val callBatchGetMeasurementsRpc: suspend (List<String>) -> BatchGetMeasurementsResponse =
         { items ->
-          batchGetCmmsMeasurements(principal, items)
+          batchGetCmmsMeasurements(measurementConsumerCreds, items)
         }
 
       return submitBatchRequests(
@@ -925,15 +957,15 @@ class MetricsService(
 
     /** Batch get CMMS measurements. */
     private suspend fun batchGetCmmsMeasurements(
-      principal: MeasurementConsumerPrincipal,
+      measurementConsumerCreds: MeasurementConsumerCredentials,
       measurementNames: List<String>,
     ): BatchGetMeasurementsResponse {
       try {
         return measurementsStub
-          .withAuthenticationKey(principal.config.apiKey)
+          .withCallCredentials(measurementConsumerCreds.callCredentials)
           .batchGetMeasurements(
             batchGetMeasurementsRequest {
-              parent = principal.resourceKey.toName()
+              parent = measurementConsumerCreds.resourceKey.toName()
               names += measurementNames
             }
           )
@@ -944,7 +976,7 @@ class MetricsService(
               Status.PERMISSION_DENIED.withDescription(
                 "Doesn't have permission to get measurements."
               )
-            else -> Status.UNKNOWN.withDescription("Unable to retrieve Measurements.")
+            else -> Status.INTERNAL.withDescription("Unable to retrieve Measurements.")
           }
           .withCause(e)
           .asRuntimeException()
@@ -954,13 +986,12 @@ class MetricsService(
     /** Builds an [InternalMeasurement.Result]. */
     private suspend fun buildInternalMeasurementResult(
       measurement: Measurement,
-      apiAuthenticationKey: String,
-      principalName: String,
+      measurementConsumerCreds: MeasurementConsumerCredentials,
     ): BatchSetMeasurementResultsRequest.MeasurementResult {
       val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
       val encryptionPrivateKeyHandle =
         encryptionKeyPairStore.getPrivateKeyHandle(
-          principalName,
+          measurementConsumerCreds.resourceKey.toName(),
           measurementSpec.measurementPublicKey.unpack<EncryptionPublicKey>().data,
         )
           ?: failGrpc(Status.FAILED_PRECONDITION) {
@@ -969,7 +1000,11 @@ class MetricsService(
 
       val decryptedMeasurementResults: List<Measurement.Result> =
         measurement.resultsList.map {
-          decryptMeasurementResultOutput(it, encryptionPrivateKeyHandle, apiAuthenticationKey)
+          decryptMeasurementResultOutput(
+            it,
+            encryptionPrivateKeyHandle,
+            measurementConsumerCreds.callCredentials,
+          )
         }
 
       return measurementResult {
@@ -997,13 +1032,13 @@ class MetricsService(
     private suspend fun decryptMeasurementResultOutput(
       measurementResultOutput: Measurement.ResultOutput,
       encryptionPrivateKeyHandle: PrivateKeyHandle,
-      apiAuthenticationKey: String,
+      callCredentials: ApiKeyCredentials,
     ): Measurement.Result {
       val certificate =
         certificateCache.getValue(
           ResourceNameApiAuthenticationKey(
             name = measurementResultOutput.certificate,
-            apiAuthenticationKey = apiAuthenticationKey,
+            apiAuthenticationKey = callCredentials.apiAuthenticationKey,
           )
         )
 
@@ -1051,7 +1086,7 @@ class MetricsService(
         throw when (e.status.code) {
             Status.Code.NOT_FOUND ->
               Status.FAILED_PRECONDITION.withDescription("Certificate $name not found.")
-            else -> Status.UNKNOWN.withDescription("Unable to retrieve Certificate $name.")
+            else -> Status.INTERNAL.withDescription("Unable to retrieve Certificate $name.")
           }
           .withCause(e)
           .asRuntimeException()
@@ -1088,23 +1123,35 @@ class MetricsService(
         "Metric name is either unspecified or invalid."
       }
 
-    val principal: ReportingPrincipal = principalFromCurrentContext
-    when (principal) {
-      is MeasurementConsumerPrincipal -> {
-        if (metricKey.parentKey != principal.resourceKey) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot get a Metric for another MeasurementConsumer."
-          }
-        }
-      }
-    }
+    val measurementConsumerName: String = metricKey.parentKey.toName()
+    authorization.check(listOf(request.name, measurementConsumerName), Permission.GET)
+
+    val measurementConsumerConfig =
+      measurementConsumerConfigs.configsMap[measurementConsumerName]
+        ?: throw Status.INTERNAL.withDescription("Config not found for $measurementConsumerName")
+          .asRuntimeException()
+    val measurementConsumerCredentials =
+      MeasurementConsumerCredentials.fromConfig(metricKey.parentKey, measurementConsumerConfig)
 
     val internalMetric: InternalMetric =
-      getInternalMetric(metricKey.cmmsMeasurementConsumerId, metricKey.metricId)
-
+      try {
+          batchGetInternalMetrics(
+            metricKey.parentKey.measurementConsumerId,
+            listOf(metricKey.metricId),
+          )
+        } catch (e: StatusException) {
+          throw when (e.status.code) {
+              Status.Code.NOT_FOUND ->
+                Status.NOT_FOUND.withDescription("Metric ${request.name} not found")
+              else -> Status.INTERNAL
+            }
+            .withCause(e)
+            .asRuntimeException()
+        }
+        .single()
     return syncAndConvertInternalMetricsToPublicMetrics(
         mapOf(internalMetric.state to listOf(internalMetric)),
-        principal,
+        measurementConsumerCredentials,
       )
       .single()
   }
@@ -1114,18 +1161,17 @@ class MetricsService(
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid."
       }
+    val measurementConsumerName: String = parentKey.toName()
 
-    val principal: ReportingPrincipal = principalFromCurrentContext
+    // TODO(@SanjayVas): Consider also allowing permission on each Metric.
+    authorization.check(measurementConsumerName, Permission.GET)
 
-    when (principal) {
-      is MeasurementConsumerPrincipal -> {
-        if (parentKey != principal.resourceKey) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot get Metrics for another MeasurementConsumer."
-          }
-        }
-      }
-    }
+    val measurementConsumerConfig =
+      measurementConsumerConfigs.configsMap[measurementConsumerName]
+        ?: throw Status.INTERNAL.withDescription("Config not found for $measurementConsumerName")
+          .asRuntimeException()
+    val measurementConsumerCreds =
+      MeasurementConsumerCredentials.fromConfig(parentKey, measurementConsumerConfig)
 
     grpcRequire(request.namesList.isNotEmpty()) { "No metric name is provided." }
     grpcRequire(request.namesList.size <= MAX_BATCH_SIZE) {
@@ -1142,12 +1188,24 @@ class MetricsService(
       }
 
     val internalMetricsByState: Map<InternalMetric.State, List<InternalMetric>> =
-      batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, metricIds).groupBy {
-        it.state
-      }
+      try {
+          batchGetInternalMetrics(parentKey.measurementConsumerId, metricIds)
+        } catch (e: StatusException) {
+          throw when (e.status.code) {
+              Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("Metric not found")
+              else -> Status.INTERNAL
+            }
+            .withCause(e)
+            .asRuntimeException()
+        }
+        .groupBy { it.state }
 
     return batchGetMetricsResponse {
-      metrics += syncAndConvertInternalMetricsToPublicMetrics(internalMetricsByState, principal)
+      metrics +=
+        syncAndConvertInternalMetricsToPublicMetrics(
+          internalMetricsByState,
+          measurementConsumerCreds,
+        )
     }
   }
 
@@ -1157,18 +1215,17 @@ class MetricsService(
         "Parent is either unspecified or invalid."
       }
 
-    val principal: ReportingPrincipal = principalFromCurrentContext
-    when (principal) {
-      is MeasurementConsumerPrincipal -> {
-        if (parentKey != principal.resourceKey) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot list Metrics belonging to other MeasurementConsumers."
-          }
-        }
-      }
-    }
-    val listMetricsPageToken: ListMetricsPageToken = request.toListMetricsPageToken()
+    val measurementConsumerName: String = parentKey.toName()
+    authorization.check(measurementConsumerName, Permission.LIST)
 
+    val measurementConsumerConfig =
+      measurementConsumerConfigs.configsMap[measurementConsumerName]
+        ?: throw Status.INTERNAL.withDescription("Config not found for $measurementConsumerName")
+          .asRuntimeException()
+    val measurementConsumerCreds =
+      MeasurementConsumerCredentials.fromConfig(parentKey, measurementConsumerConfig)
+
+    val listMetricsPageToken: ListMetricsPageToken = request.toListMetricsPageToken()
     val streamInternalMetricRequest: StreamMetricsRequest =
       listMetricsPageToken.toStreamMetricsRequest()
 
@@ -1176,7 +1233,7 @@ class MetricsService(
       try {
         internalMetricsStub.streamMetrics(streamInternalMetricRequest).toList()
       } catch (e: StatusException) {
-        throw Exception("Unable to list Metrics.", e)
+        throw Status.INTERNAL.withCause(e).asRuntimeException()
       }
 
     if (results.isEmpty()) {
@@ -1199,7 +1256,8 @@ class MetricsService(
       results.subList(0, min(results.size, listMetricsPageToken.pageSize)).groupBy { it.state }
 
     return listMetricsResponse {
-      metrics += syncAndConvertInternalMetricsToPublicMetrics(subResultsByState, principal)
+      metrics +=
+        syncAndConvertInternalMetricsToPublicMetrics(subResultsByState, measurementConsumerCreds)
 
       if (nextPageToken != null) {
         this.nextPageToken = nextPageToken.toByteString().base64UrlEncode()
@@ -1207,7 +1265,11 @@ class MetricsService(
     }
   }
 
-  /** Gets a batch of [InternalMetric]s. */
+  /**
+   * Gets a batch of [InternalMetric]s.
+   *
+   * @throws StatusException
+   */
   private suspend fun batchGetInternalMetrics(
     cmmsMeasurementConsumerId: String,
     metricIds: List<String>,
@@ -1217,24 +1279,7 @@ class MetricsService(
       this.externalMetricIds += metricIds
     }
 
-    return try {
-      internalMetricsStub.batchGetMetrics(batchGetMetricsRequest).metricsList
-    } catch (e: StatusException) {
-      throw Exception("Unable to get Metrics.", e)
-    }
-  }
-
-  /** Gets an [InternalMetric]. */
-  private suspend fun getInternalMetric(
-    cmmsMeasurementConsumerId: String,
-    metricId: String,
-  ): InternalMetric {
-    return try {
-      batchGetInternalMetrics(cmmsMeasurementConsumerId, listOf(metricId)).first()
-    } catch (e: StatusException) {
-      val metricName = MetricKey(cmmsMeasurementConsumerId, metricId).toName()
-      throw Exception("Unable to get the Metric with the name = [${metricName}].", e)
-    }
+    return internalMetricsStub.batchGetMetrics(batchGetMetricsRequest).metricsList
   }
 
   override suspend fun createMetric(request: CreateMetricRequest): Metric {
@@ -1242,31 +1287,26 @@ class MetricsService(
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid."
       }
-
-    val principal: ReportingPrincipal = principalFromCurrentContext
-
-    when (principal) {
-      is MeasurementConsumerPrincipal -> {
-        if (parentKey != principal.resourceKey) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot create a Metric for another MeasurementConsumer."
-          }
-        }
-      }
-    }
-
+    val measurementConsumerName: String = parentKey.toName()
     grpcRequire(request.hasMetric()) { "Metric is not specified." }
 
     val reportingSetKey =
-      grpcRequireNotNull(ReportingSetKey.fromName(request.metric.reportingSet)) {
-        "Invalid reporting set name ${request.metric.reportingSet}."
-      }
-
-    if (reportingSetKey.cmmsMeasurementConsumerId != parentKey.measurementConsumerId) {
-      failGrpc(Status.PERMISSION_DENIED) {
-        "No access to the reporting set [${request.metric.reportingSet}]."
-      }
+      ReportingSetKey.fromName(request.metric.reportingSet)
+        ?: throw Status.INVALID_ARGUMENT.withDescription("metric.reporting_set is invalid")
+          .asRuntimeException()
+    if (reportingSetKey.parentKey != parentKey) {
+      throw Status.INVALID_ARGUMENT.withDescription("metric.reporting_set has incorrect parent")
+        .asRuntimeException()
     }
+
+    authorization.check(measurementConsumerName, Permission.CREATE)
+
+    val measurementConsumerConfig =
+      measurementConsumerConfigs.configsMap[measurementConsumerName]
+        ?: throw Status.INTERNAL.withDescription("Config not found for $measurementConsumerName")
+          .asRuntimeException()
+    val measurementConsumerCreds =
+      MeasurementConsumerCredentials.fromConfig(parentKey, measurementConsumerConfig)
 
     val batchGetReportingSetsResponse =
       batchGetInternalReportingSets(
@@ -1282,7 +1322,7 @@ class MetricsService(
 
     val internalCreateMetricRequest: InternalCreateMetricRequest =
       buildInternalCreateMetricRequest(
-        principal.resourceKey.measurementConsumerId,
+        parentKey.measurementConsumerId,
         request,
         batchGetReportingSetsResponse.reportingSetsList.single(),
         internalPrimitiveReportingSetMap,
@@ -1313,7 +1353,7 @@ class MetricsService(
       measurementSupplier.createCmmsMeasurements(
         listOf(internalMetric),
         internalPrimitiveReportingSetMap,
-        principal,
+        measurementConsumerCreds,
       )
     }
 
@@ -1329,17 +1369,15 @@ class MetricsService(
         "Parent is either unspecified or invalid."
       }
 
-    val principal: ReportingPrincipal = principalFromCurrentContext
+    val measurementConsumerName: String = parentKey.toName()
+    authorization.check(measurementConsumerName, Permission.CREATE)
 
-    when (principal) {
-      is MeasurementConsumerPrincipal -> {
-        if (parentKey != principal.resourceKey) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot create a Metric for another MeasurementConsumer."
-          }
-        }
-      }
-    }
+    val measurementConsumerConfig =
+      measurementConsumerConfigs.configsMap[measurementConsumerName]
+        ?: throw Status.INTERNAL.withDescription("Config not found for $measurementConsumerName")
+          .asRuntimeException()
+    val measurementConsumerCreds =
+      MeasurementConsumerCredentials.fromConfig(parentKey, measurementConsumerConfig)
 
     grpcRequire(request.requestsList.isNotEmpty()) { "Requests is empty." }
     grpcRequire(request.requestsList.size <= MAX_BATCH_SIZE) {
@@ -1445,7 +1483,7 @@ class MetricsService(
       measurementSupplier.createCmmsMeasurements(
         internalRunningMetrics,
         internalPrimitiveReportingSetMap,
-        principal,
+        measurementConsumerCreds,
       )
     }
 
@@ -1622,7 +1660,7 @@ class MetricsService(
   /** Converts [InternalMetric]s to public [Metric]s after syncing [Measurement]s. */
   private suspend fun syncAndConvertInternalMetricsToPublicMetrics(
     metricsByState: Map<InternalMetric.State, List<InternalMetric>>,
-    principal: MeasurementConsumerPrincipal,
+    measurementConsumerCreds: MeasurementConsumerCredentials,
   ): List<Metric> {
     // Only syncs pending measurements which can only be in metrics that are still running.
     val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
@@ -1641,8 +1679,7 @@ class MetricsService(
     val anyMeasurementUpdated: Boolean =
       measurementSupplier.syncInternalMeasurements(
         toBeSyncedInternalMeasurements,
-        principal.config.apiKey,
-        principal,
+        measurementConsumerCreds,
       )
 
     return buildList {
@@ -1654,10 +1691,18 @@ class MetricsService(
           InternalMetric.State.RUNNING -> {
             if (anyMeasurementUpdated) {
               val updatedInternalMetrics =
-                batchGetInternalMetrics(
-                  principal.resourceKey.measurementConsumerId,
-                  metricsByState.getValue(InternalMetric.State.RUNNING).map { it.externalMetricId },
-                )
+                try {
+                  batchGetInternalMetrics(
+                    measurementConsumerCreds.resourceKey.measurementConsumerId,
+                    metricsByState.getValue(InternalMetric.State.RUNNING).map {
+                      it.externalMetricId
+                    },
+                  )
+                } catch (e: StatusException) {
+                  throw Status.INTERNAL.withDescription("Unable to get internal Metrics")
+                    .withCause(e)
+                    .asRuntimeException()
+                }
               addAll(updatedInternalMetrics.map { it.toMetric(variances) })
             } else {
               addAll(metricsByState.getValue(state).map { it.toMetric(variances) })
@@ -1725,6 +1770,12 @@ class MetricsService(
         }
       }
     }
+  }
+
+  object Permission {
+    const val GET = "reporting.metrics.get"
+    const val LIST = "reporting.metrics.list"
+    const val CREATE = "reporting.metrics.create"
   }
 
   companion object {
