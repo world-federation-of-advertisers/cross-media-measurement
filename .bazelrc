@@ -25,7 +25,7 @@ build --remote_timeout=3600
 build:remote-cache --remote_cache=grpcs://halo-cmm.buildbuddy.io
 build:remote-cache --experimental_remote_cache_compression
 build:remote-cache --experimental_remote_cache_compression_threshold=100
-# These next three flags are due to a workaround for missing digiest files described here
+# These next three flags are due to a workaround for missing digest files described here
 # https://www.buildbuddy.io/docs/troubleshooting-rbe/#cachenotfoundexception-missing-digest
 build:remote-cache --experimental_remote_cache_eviction_retries=5
 build:remote-cache --experimental_remote_cache_lease_extension=true
