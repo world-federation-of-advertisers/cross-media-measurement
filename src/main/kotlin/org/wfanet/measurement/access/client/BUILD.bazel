@@ -1,0 +1,10 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+kt_jvm_library(
+    name = "value_in_scope",
+    srcs = ["ValueInScope.kt"],
+)
