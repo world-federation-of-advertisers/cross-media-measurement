@@ -1,0 +1,50 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.v2;
+
+import "wfa/measurement/internal/reporting/v2/event_filter.proto";
+
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
+option java_multiple_files = true;
+
+// Specifies impression qualification filter criteria for a MediaType
+//
+// If particular filter values are not applicable to the media they
+// are applied to it is an error (e.g. DISPLAY cannot be filtered by
+// percent completion)
+message ImpressionQualificationFilterSpec {
+  // MediaType is used to designate how various artifacts
+  // should be interpreted for reporting.
+  enum MediaType {
+    // Default value. Unused.
+    MEDIA_TYPE_UNSPECIFIED = 0;
+    // Interpret a set of artifacts as Video
+    VIDEO = 1;
+    // Interpret a set of artifacts as Display
+    DISPLAY = 2;
+    // Interpret as set of artifacts as Other
+    OTHER = 3;
+  }
+  MediaType media_type = 1;
+
+  // A conjunction of filters.
+  //
+  // Event Template fields that are used by any filter Terms must be
+  // tagged as an impression qualifier and applicable to the provided
+  // media_type.
+  repeated EventFilter filters = 2;
+}
