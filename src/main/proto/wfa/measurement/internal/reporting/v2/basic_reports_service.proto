@@ -26,6 +26,7 @@ option java_multiple_files = true;
 service BasicReports {
   // Error reasons:
   // * `REPORTING_SET_NOT_FOUND`
+  // * `IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND`
   // * `BASIC_REPORT_ALREADY_EXISTS`
   rpc InsertBasicReport(InsertBasicReportRequest) returns (BasicReport);
 
