@@ -441,10 +441,14 @@ class AccessTest {
         arrayOf(
           "policies",
           "create",
-          "--name=$POLICY_NAME",
           "--protected-resource=$SHELF_RESOURCE",
-          "--binding=$READER_ROLE_NAME=$OWNER_PRINCIPAL_NAME,$EDITOR_PRINCIPAL_NAME,$MEMBER_PRINCIPAL_NAME",
-          "--binding=$WRITER_ROLE_NAME=$OWNER_PRINCIPAL_NAME,$EDITOR_PRINCIPAL_NAME",
+          "--binding-role=$READER_ROLE_NAME",
+          "--binding-member=$OWNER_PRINCIPAL_NAME",
+          "--binding-member=$EDITOR_PRINCIPAL_NAME",
+          "--binding-member=$MEMBER_PRINCIPAL_NAME",
+          "--binding-role=$WRITER_ROLE_NAME",
+          "--binding-member=$OWNER_PRINCIPAL_NAME",
+          "--binding-member=$EDITOR_PRINCIPAL_NAME",
           "--etag=$REQUEST_ETAG",
         )
     val output = callCli(args)
@@ -457,7 +461,6 @@ class AccessTest {
       .isEqualTo(
         createPolicyRequest {
           policy = policy {
-            name = POLICY_NAME
             protectedResource = SHELF_RESOURCE
             bindings += READER_BINDING
             bindings += WRITER_BINDING
