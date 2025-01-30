@@ -672,9 +672,8 @@ private class PolicyBindingChangeFlags {
 
   @Option(
     names = ["--member"],
-    description =
-      ["Resource name of the member to add/remove. Optional and can be specified multiple times."],
-    required = false,
+    description = ["Resource name of the member to add/remove. Can be specified multiple times."],
+    required = true,
   )
   lateinit var memberList: List<String>
     private set
