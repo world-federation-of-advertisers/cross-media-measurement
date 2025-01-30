@@ -26,13 +26,9 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
 
   override val reader =
     RequisitionReader().apply {
-      val orderByClause =
-        "ORDER BY UpdateTime ASC, ExternalDataProviderId ASC, ExternalRequisitionId ASC"
-      this.orderByClause = orderByClause
-
       fillStatementBuilder {
         appendWhereClause(requestFilter)
-        appendClause(orderByClause)
+        appendClause(ORDER_BY_CLAUSE)
         if (limit > 0) {
           appendClause("LIMIT @$LIMIT")
           bind(LIMIT to limit.toLong())
@@ -97,6 +93,9 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
   }
 
   companion object {
+    private const val ORDER_BY_CLAUSE =
+      "ORDER BY UpdateTime ASC, ExternalDataProviderId ASC, ExternalRequisitionId ASC"
+
     const val LIMIT = "limit"
     const val EXTERNAL_MEASUREMENT_CONSUMER_ID = "externalMeasurementConsumerId"
     const val EXTERNAL_MEASUREMENT_ID = "externalMeasurementId"
