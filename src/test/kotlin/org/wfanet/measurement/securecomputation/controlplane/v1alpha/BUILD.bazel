@@ -3,11 +3,11 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "GooglePubSubWorkItemsServiceTest",
     srcs = ["GooglePubSubWorkItemsServiceTest.kt"],
-    tags = [
-        "no-remote-exec",
-    ],
     associates = [
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_items_service",
+    ],
+    tags = [
+        "no-remote-exec",
     ],
     test_class = "org.wfanet.measurement.securecomputation.controlplane.v1alpha.GooglePubSubWorkItemsServiceTest",
     deps = [
