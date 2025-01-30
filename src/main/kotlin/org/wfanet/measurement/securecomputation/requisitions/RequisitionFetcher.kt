@@ -19,7 +19,6 @@ import com.google.cloud.storage.StorageOptions
 import io.grpc.StatusException
 import java.io.File
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.common.crypto.readCertificateCollection
@@ -40,7 +39,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
 
-
 // 1. Polls for new requisitions
 // 2. Stores new requisitions into Google Cloud Storage
 class RequisitionFetcher(
@@ -52,7 +50,7 @@ class RequisitionFetcher(
     runBlocking {
       storeRequisitions(fetchRequisitions())
     }
-    response.writer.write("New requisitions persisted in GCS")
+    response.writer.write("New requisitions stored in GCS bucket: ${storageConfig.bucket}")
   }
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
@@ -70,6 +68,7 @@ class RequisitionFetcher(
       .listResources { pageToken ->
         val response: ListRequisitionsResponse =
           try {
+            // Retrieve all UNFULFILLED requisitions for a given EDP
             listRequisitions(listRequisitionsRequest {
               parent = kingdomConfig.dataProvider
               this.pageToken = pageToken
@@ -78,7 +77,7 @@ class RequisitionFetcher(
           } catch (e: StatusException) {
             throw Exception("Unable to list requisitions.", e)
           }
-        ResourceList(response.requisitionsList.filter { it.updateTime.seconds > storageConfig.lastUpdate.seconds }, response.nextPageToken)
+        ResourceList(response.requisitionsList, response.nextPageToken)
       }
       .flattenConcat()
   }
@@ -88,7 +87,15 @@ class RequisitionFetcher(
       StorageOptions.newBuilder().setProjectId(storageConfig.project).build().service,
       storageConfig.bucket
     )
-    storageClient.writeBlob(storageConfig.blobUri, requisitions.map { it.toByteString() })
+
+    // Only stores the requisition if it does not already exist in the GCS bucket by checking if the blob URI(created
+    // using the requisition name, ensuring uniqueness) is populated.
+    requisitions.collect { requisition ->
+      val blobUri = "gs://${storageConfig.bucket}/${requisition.name}"
+      if(storageClient.getBlob(blobUri) != null) {
+        storageClient.writeBlob(blobUri, requisition.toByteString())
+      }
+    }
   }
 }
 

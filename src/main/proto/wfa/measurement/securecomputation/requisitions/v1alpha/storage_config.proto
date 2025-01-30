@@ -32,8 +32,4 @@ message StorageConfig {
   string project = 1;
 
   string bucket = 2;
-
-  string blob_uri = 3;
-
-  google.protobuf.Timestamp last_update = 4;
 }
