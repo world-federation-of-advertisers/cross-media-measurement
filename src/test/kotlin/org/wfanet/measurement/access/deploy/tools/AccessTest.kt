@@ -205,7 +205,6 @@ class AccessTest {
         arrayOf(
           "principals",
           "create",
-          "--name=$OWNER_PRINCIPAL_NAME",
           "--issuer=example.com",
           "--subject=user1@example.com",
           "--principal-id=user-1",
@@ -220,7 +219,6 @@ class AccessTest {
       .isEqualTo(
         createPrincipalRequest {
           principal = principal {
-            name = OWNER_PRINCIPAL_NAME
             user = oAuthUser {
               issuer = "example.com"
               subject = "user1@example.com"
