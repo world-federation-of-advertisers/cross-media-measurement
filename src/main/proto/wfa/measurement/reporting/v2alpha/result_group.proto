@@ -27,12 +27,12 @@ import "wfa/measurement/reporting/v2alpha/reporting_unit.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
-option java_outer_classname = "PageProto";
+option java_outer_classname = "ResultProto";
 
 // Defines the windowing criteria for a set of Metrics including the time
 // period over which they are computed and whether they are cumulative or not.
 message WindowingSpec {
-  // The reporting frequency for this page of results.
+  // The reporting frequency for this result group
   MetricFrequencySpec metric_frequency = 1
       [(google.api.field_behavior) = IMMUTABLE];
 
@@ -82,7 +82,7 @@ message DimensionSpec {
 }
 
 // Specifies a set of metrics to be computed
-message PageMetricSpec {
+message ResultGroupMetricSpec {
   // If specified the total population for the specified groupings and
   // filters that are associated with calculation spec is reported.
   bool population_size = 1 [(google.api.field_behavior) = IMMUTABLE];
@@ -117,7 +117,7 @@ message PageMetricSpec {
     bool grps = 7 [(google.api.field_behavior) = IMMUTABLE];
   }
 
-  // Metrics to be computed over the PageSpec's entire reporting_unit
+  // Metrics to be computed over the ResultGroupSpec's entire reporting_unit
   message ReportingUnitMetricSetSpec {
     // Metrics for the union of the reporting_unit.components
     BasicMetricSetSpec basic = 1 [(google.api.field_behavior) = IMMUTABLE];
@@ -149,11 +149,12 @@ message PageMetricSpec {
     bool stacked_incremental_reach = 2
         [(google.api.field_behavior) = IMMUTABLE];
   }
-  // The set of metrics to compute for the PageSpec's entire reporting_unit
+  // The set of metrics to compute for the ResultGroupSpec's entire
+  // reporting_unit
   ReportingUnitMetricSetSpec reporting_unit = 2
       [(google.api.field_behavior) = IMMUTABLE];
 
-  // Metrics for each component of the PageSpec's reporting_unit
+  // Metrics for each component of the ResultGroupSpec's reporting_unit
   message ComponentMetricSetSpec {
     // Basic metrics for each item in reporting_unit.components
     BasicMetricSetSpec basic = 1 [(google.api.field_behavior) = IMMUTABLE];
@@ -162,14 +163,14 @@ message PageMetricSpec {
     // with respect to all other components
     bool unique_reach = 2 [(google.api.field_behavior) = IMMUTABLE];
   }
-  // If the PageSpec's reporting_unit.components is of size 1 the metrics
+  // If the ResultGroupSpec's reporting_unit.components is of size 1 the metrics
   // computed for the component are identical to those computed for the entire
   // reporting_unit. Specifying this value is not recommended in that case.
   ComponentMetricSetSpec component = 3
       [(google.api.field_behavior) = IMMUTABLE];
 
   // Metrics for the intersections (aka overlaps) of the n-way combinations
-  // of PageSpec's reporting_unit.components
+  // of ResultGroupSpec's reporting_unit.components
   message ComponentIntersectionMetricSetSpec {
     // The number of components that contribute to the intersection.
     //
@@ -195,9 +196,9 @@ message PageMetricSpec {
       [(google.api.field_behavior) = IMMUTABLE];
 }
 
-// Specification for a Page of results.
-message PageSpec {
-  // The title of the page
+// Specification for a ResultGroup
+message ResultGroupSpec {
+  // The title of the result group
   string title = 1 [(google.api.field_behavior) = IMMUTABLE];
 
   // The unit to compute metrics for
@@ -220,15 +221,15 @@ message PageSpec {
   ];
 
   // Specifies the Metrics to compute.
-  PageMetricSpec page_metric_spec = 5 [
+  ResultGroupMetricSpec result_group_metric_spec = 5 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
 }
 
-// A page of results.
-message Page {
-  // The title of the page.
+// A group of results.
+message ResultGroup {
+  // The title of the result group.
   string title = 1 [(google.api.field_behavior) = IMMUTABLE];
 
   // The metric metadata
@@ -394,7 +395,7 @@ message Page {
     // Metric values
     MetricSet metric_set = 2 [(google.api.field_behavior) = IMMUTABLE];
   }
-  // The set of results for the Page, one per impression qualification filter
-  // that was applicable to the page.
+  // The set of results for the ResultGroup, one per impression qualification
+  // filter that was applicable to the result group.
   repeated Result results = 2 [(google.api.field_behavior) = IMMUTABLE];
 }

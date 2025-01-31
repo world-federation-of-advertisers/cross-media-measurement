@@ -25,9 +25,9 @@ import "wfa/measurement/internal/reporting/v2/windowing_spec.proto";
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
-// A page of results.
-message Page {
-  // The title of the page.
+// A group of results.
+message ResultGroup {
+  // The title of the result group.
   string title = 1;
 
   // The metric metadata.
@@ -168,7 +168,7 @@ message Page {
     // Metric values
     MetricSet metric_set = 2;
   }
-  // The set of results for the Page, one per impression qualification filter
-  // that was applicable to the page.
+  // The set of results for the ResultGroup, one per impression qualification
+  // filter that was applicable to the result group.
   repeated Result results = 2;
 }
