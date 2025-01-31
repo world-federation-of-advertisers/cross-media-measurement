@@ -357,9 +357,9 @@ proto_descriptor_set(
         ":event_template_field_proto",
         ":impression_qualification_filter_spec_proto",
         ":metric_frequency_spec_proto",
-        ":result_group_proto",
         ":reporting_impression_qualification_filter_proto",
         ":reporting_interval_proto",
+        ":result_group_proto",
         ":windowing_spec_proto",
     ],
 )
