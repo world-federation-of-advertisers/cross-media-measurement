@@ -183,9 +183,6 @@ class GetPrincipal : Runnable {
 class CreatePrincipal : Runnable {
   @ParentCommand private lateinit var parentCommand: Principals
 
-  @Option(names = ["--name"], description = ["API resource name of the Principal"])
-  private lateinit var principalName: String
-
   @ArgGroup(exclusive = true, multiplicity = "1", heading = "Principal identity specification")
   private lateinit var principalIdentity: PrincipalIdentity
 
@@ -201,7 +198,6 @@ class CreatePrincipal : Runnable {
       parentCommand.principalsClient.createPrincipal(
         createPrincipalRequest {
           principal = principal {
-            name = principalName
             if (principalIdentity.user != null) {
               user =
                 PrincipalKt.oAuthUser {
