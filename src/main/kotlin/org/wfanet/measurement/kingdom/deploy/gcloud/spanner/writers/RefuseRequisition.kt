@@ -114,12 +114,13 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
     val externalRequisitionId = request.externalRequisitionId
 
     val readResult: RequisitionReader.Result =
-      RequisitionReader()
-        .readByExternalDataProviderId(
+      run {
+        RequisitionReader.readByExternalDataProviderId(
           transactionContext,
           externalDataProviderId = externalDataProviderId,
           externalRequisitionId = externalRequisitionId,
         )
+      }
         ?: throw RequisitionNotFoundByDataProviderException(
           ExternalId(externalDataProviderId),
           ExternalId(externalRequisitionId),
