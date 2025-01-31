@@ -191,9 +191,3 @@ server's trusted certificate collection file.
   --binding-member=principals/member \
   --etag=request-etag
   ```
-
-
-
-
-
-
