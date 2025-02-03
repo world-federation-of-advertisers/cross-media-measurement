@@ -139,12 +139,13 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
     val externalRequisitionId = request.externalRequisitionId
     if (request.hasComputedParams()) {
       val externalComputationId = request.computedParams.externalComputationId
-      return RequisitionReader()
-        .readByExternalComputationId(
+      return run {
+        RequisitionReader.readByExternalComputationId(
           transactionContext,
           externalComputationId = externalComputationId,
           externalRequisitionId = externalRequisitionId,
         )
+      }
         ?: throw RequisitionNotFoundByComputationException(
           ExternalId(externalComputationId),
           ExternalId(externalRequisitionId),
@@ -154,12 +155,13 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
         }
     } else {
       val externalDataProviderId = request.directParams.externalDataProviderId
-      return RequisitionReader()
-        .readByExternalDataProviderId(
+      return run {
+        RequisitionReader.readByExternalDataProviderId(
           transactionContext,
           externalDataProviderId = externalDataProviderId,
           externalRequisitionId = externalRequisitionId,
         )
+      }
         ?: throw RequisitionNotFoundByDataProviderException(
           ExternalId(externalDataProviderId),
           ExternalId(externalRequisitionId),
