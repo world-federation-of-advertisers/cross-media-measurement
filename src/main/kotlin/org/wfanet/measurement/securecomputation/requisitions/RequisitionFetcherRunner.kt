@@ -14,6 +14,10 @@ import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 
 class RequisitionFetcherRunner : HttpFunction {
   override fun service(request: HttpRequest?, response: HttpResponse?) {
+    runBlocking { requisitionFetcher.executeRequisitionFetchingWorkflow() }
+  }
+
+  companion object {
     val clientCerts = runBlocking { getClientCerts() }
 
     val publicChannel =
@@ -29,52 +33,51 @@ class RequisitionFetcherRunner : HttpFunction {
         System.getenv("REQUISITIONS_GCS_BUCKET"),
       )
 
-    val fetcher =
+    val requisitionFetcher =
       RequisitionFetcher(
         requisitionsStub,
         requisitionsStorageClient,
         System.getenv("DATAPROVIDER_NAME"),
         System.getenv("REQUISITIONS_GCS_BUCKET"),
       )
-    runBlocking { fetcher.executeRequisitionFetchingWorkflow() }
-  }
 
-  private suspend fun getClientCerts(): SigningCerts {
-    val authenticationStorageClient =
-      GcsStorageClient(
-        StorageOptions.newBuilder()
-          .setProjectId(System.getenv("AUTHENTICATION_GCS_PROJECT_ID"))
-          .build()
-          .service,
-        System.getenv("AUTHENTICATION_GCS_BUCKET"),
+    private suspend fun getClientCerts(): SigningCerts {
+      val authenticationStorageClient =
+        GcsStorageClient(
+          StorageOptions.newBuilder()
+            .setProjectId(System.getenv("AUTHENTICATION_GCS_PROJECT_ID"))
+            .build()
+            .service,
+          System.getenv("AUTHENTICATION_GCS_BUCKET"),
+        )
+
+      val certBlob =
+        authenticationStorageClient.getBlob(
+          "gs://${System.getenv("AUTHENTICATION_GCS_BUCKET")}/${System.getenv("CERT_FILE_PATH")}"
+        )
+      val privateKeyBlob =
+        authenticationStorageClient.getBlob(
+          "gs://${System.getenv("AUTHENTICATION_GCS_BUCKET")}/${System.getenv("PRIVATE_KEY_FILE_PATH")}"
+        )
+      val certCollectionBlob =
+        authenticationStorageClient.getBlob(
+          "gs://${System.getenv("AUTHENTICATION_GCS_BUCKET")}/${System.getenv("CERT_COLLECTION_FILE_PATH")}"
+        )
+
+      val certFile = File.createTempFile("cert", ".pem")
+      certFile.writeBytes(checkNotNull(certBlob).read().toByteArray())
+
+      val privateKeyFile = File.createTempFile("private_key", ".key")
+      privateKeyFile.writeBytes(checkNotNull(privateKeyBlob).read().toByteArray())
+
+      val certCollectionFile = File.createTempFile("cert_collection", ".pem")
+      certCollectionFile.writeBytes(checkNotNull(certCollectionBlob).read().toByteArray())
+
+      return SigningCerts.fromPemFiles(
+        certificateFile = certFile,
+        privateKeyFile = privateKeyFile,
+        trustedCertCollectionFile = certCollectionFile,
       )
-
-    val certBlob =
-      authenticationStorageClient.getBlob(
-        "gs://${System.getenv("AUTHENTICATION_GCS_BUCKET")}/${System.getenv("CERT_FILE_PATH")}"
-      )
-    val privateKeyBlob =
-      authenticationStorageClient.getBlob(
-        "gs://${System.getenv("AUTHENTICATION_GCS_BUCKET")}/${System.getenv("PRIVATE_KEY_FILE_PATH")}"
-      )
-    val certCollectionBlob =
-      authenticationStorageClient.getBlob(
-        "gs://${System.getenv("AUTHENTICATION_GCS_BUCKET")}/${System.getenv("CERT_COLLECTION_FILE_PATH")}"
-      )
-
-    val certFile = File.createTempFile("cert", ".pem")
-    certFile.writeBytes(checkNotNull(certBlob).read().toByteArray())
-
-    val privateKeyFile = File.createTempFile("private_key", ".key")
-    privateKeyFile.writeBytes(checkNotNull(privateKeyBlob).read().toByteArray())
-
-    val certCollectionFile = File.createTempFile("cert_collection", ".pem")
-    certCollectionFile.writeBytes(checkNotNull(certCollectionBlob).read().toByteArray())
-
-    return SigningCerts.fromPemFiles(
-      certificateFile = certFile,
-      privateKeyFile = privateKeyFile,
-      trustedCertCollectionFile = certCollectionFile,
-    )
+    }
   }
 }
