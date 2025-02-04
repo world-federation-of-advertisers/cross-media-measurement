@@ -29,11 +29,39 @@ message MeasurementDetail {
   repeated string left_hand_side_targets = 6;
   repeated string right_hand_side_targets = 7;
 
-  message MeasurementResult {
-    int64 reach = 1;
+  message ReachResult {
+    int64 value = 1;
     double standard_deviation = 2;
-    string metric = 3;
   }
+
+  message FrequencyResult {
+    message BinResult {
+      string label = 1;
+      double value = 2;
+      double standard_deviation = 3;
+    }
+    repeated BinResult bins = 1;
+  }
+
+  message ImpressionCountResult {
+    int64 value = 1;
+    double standard_deviation = 2;
+  }
+
+  message ReachAndFrequencyResult {
+    ReachResult reach = 1;
+    FrequencyResult frequency = 2;
+  }
+
+  message MeasurementResult {
+    oneof result {
+      ReachResult reach = 1;
+      ReachAndFrequencyResult reach_and_frequency = 2;
+      ImpressionCountResult impression_count = 3;
+    }
+    string metric = 4;
+  }
+
   repeated MeasurementResult measurement_results = 8;
 }
 

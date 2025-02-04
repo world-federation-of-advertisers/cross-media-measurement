@@ -52,12 +52,17 @@ class SetMeasurementsSpec:
 
   def __init__(self):
     self._equal_sets = []
+    self._weighted_sum_upperbound_sets = defaultdict(list[list[int]])
     self._subsets_by_set = defaultdict(list[int])
     self._covers_by_set = defaultdict(list[list[int]])
     self._measurements_by_set = defaultdict(list[Measurement])
 
-  def add_equal_relation(self, set_id_one: int, set_id_two: int):
+  def add_equal_relation(self, set_id_one: int, set_id_two: list[int]):
     self._equal_sets.append([set_id_one, set_id_two])
+
+  def add_weighted_sum_upperbound_relation(self, upperbound_id: int,
+      weighted_id_set: list[list[int]]):
+    self._weighted_sum_upperbound_sets[upperbound_id] = weighted_id_set
 
   def add_subset_relation(self, parent_set_id: int, child_set_id: int):
     self._subsets_by_set[parent_set_id].append(child_set_id)
@@ -73,6 +78,9 @@ class SetMeasurementsSpec:
 
   def get_equal_sets(self):
     return self._equal_sets
+
+  def get_weighted_sum_upperbound_sets(self):
+    return self._weighted_sum_upperbound_sets
 
   def get_covers_of_set(self, set_id: int) -> list[list[int]]:
     return self._covers_by_set[set_id]

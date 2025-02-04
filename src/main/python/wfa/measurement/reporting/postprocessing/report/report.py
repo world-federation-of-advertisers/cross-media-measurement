@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
+import random
+from absl import logging
 from functools import reduce
 from itertools import combinations
-import random
-from typing import Any
-from typing import FrozenSet
-from typing import Tuple
-from absl import logging
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from noiseninja.solver import Solver
-import numpy as np
 from qpsolvers import Solution
+from typing import Any
+from typing import FrozenSet
+from typing import Tuple
 
 MIN_STANDARD_VARIATION_RATIO = 0.001
 UNIT_SCALING_FACTOR = 1.0
@@ -161,8 +161,13 @@ class MetricReport:
       self,
       reach_time_series: dict[FrozenSet[str], list[Measurement]],
       reach_whole_campaign: dict[FrozenSet[str], Measurement],
+      kreach: dict[FrozenSet[str], dict[int, Measurement]],
+      impression: dict[FrozenSet[str], Measurement],
   ):
-    num_periods = len(next(iter(reach_time_series.values())))
+    num_periods = len(
+        next(iter(reach_time_series.values()))) if reach_time_series else 0
+    num_frequencies = len(next(iter(kreach.values()))) if kreach else 0
+
     for series in reach_time_series.values():
       if len(series) != num_periods:
         raise ValueError(
@@ -171,8 +176,18 @@ class MetricReport:
             )
         )
 
+    for item in kreach.values():
+      if len(item) != num_frequencies:
+        raise ValueError(
+            "All kreach must have the same length {a: d} vs {2: d}".format(
+                len(item), len(num_frequencies)
+            )
+        )
+
     self._reach_time_series = reach_time_series
     self._reach_whole_campaign = reach_whole_campaign
+    self._impression = impression
+    self._kreach = kreach
 
   def sample_with_noise(self) -> "MetricReport":
     """
@@ -200,11 +215,25 @@ class MetricReport:
       edp_combination: FrozenSet[str]) -> Measurement:
     return self._reach_whole_campaign[edp_combination]
 
+  def get_impression_measurement(self,
+      edp_combination: FrozenSet[str]) -> Measurement:
+    return self._impression[edp_combination]
+
+  def get_kreach_measurement(self, edp_combination: FrozenSet[str],
+      frequency: int) -> Measurement:
+    return self._kreach[edp_combination][frequency]
+
   def get_cumulative_edp_combinations(self) -> set[FrozenSet[str]]:
     return set(self._reach_time_series.keys())
 
   def get_whole_campaign_edp_combinations(self) -> set[FrozenSet[str]]:
     return set(self._reach_whole_campaign.keys())
+
+  def get_impression_edp_combinations(self) -> set[FrozenSet[str]]:
+    return set(self._impression.keys())
+
+  def get_kreach_edp_combinations(self) -> set[FrozenSet[str]]:
+    return set(self._kreach.keys())
 
   def get_cumulative_edp_combinations_count(self) -> int:
     return len(self._reach_time_series.keys())
@@ -214,6 +243,9 @@ class MetricReport:
 
   def get_number_of_periods(self) -> int:
     return len(next(iter(self._reach_time_series.values())))
+
+  def get_number_of_frequencies(self) -> int:
+    return len(next(iter(self._kreach.values()))) if self._kreach else 0
 
   def get_cumulative_subset_relationships(self) -> list[
     Tuple[FrozenSet[str], FrozenSet[str]]]:
@@ -299,34 +331,57 @@ class Report:
     self._num_periods = next(
         iter(metric_reports.values())).get_number_of_periods()
 
-    # Assigns an index to each measurement.
+    self._num_frequencies = next(
+        iter(metric_reports.values())).get_number_of_frequencies()
+
+    # Assigns an index to each measurement and keeps track of the max standard
+    # deviation. This max standard deviation will be used to normalized the
+    # standard deviation of the measurements when the report is corrected.
     measurement_index = 0
     self._measurement_name_to_index = {}
     self._max_standard_deviation = UNIT_SCALING_FACTOR
     for metric in metric_reports.keys():
+      # Assigns an index for whole campaign reaches.
       for edp_combination in metric_reports[
         metric].get_whole_campaign_edp_combinations():
         measurement = metric_reports[metric].get_whole_campaign_measurement(
             edp_combination)
         self._measurement_name_to_index[measurement.name] = measurement_index
-        # Updates the max standard deviation. This max standard deviation will
-        # be used to normalized the standard deviation of the measurements when
-        # the report is corrected.
         self._max_standard_deviation = max(self._max_standard_deviation,
                                            measurement.sigma)
         measurement_index += 1
+
+      # Assigns an index for cumulative reaches.
       for edp_combination in metric_reports[
         metric].get_cumulative_edp_combinations():
         for period in range(0, self._num_periods):
           measurement = metric_reports[metric].get_cumulative_measurement(
               edp_combination, period)
           self._measurement_name_to_index[measurement.name] = measurement_index
-          # Updates the max standard deviation. This max standard deviation will
-          # be used to normalized the standard deviation of the measurements when
-          # the report is corrected.
           self._max_standard_deviation = max(self._max_standard_deviation,
                                              measurement.sigma)
           measurement_index += 1
+
+      # Assign an index for kreach.
+      for edp_combination in metric_reports[
+        metric].get_kreach_edp_combinations():
+        for frequency in range(1, self._num_frequencies + 1):
+          measurement = metric_reports[metric].get_kreach_measurement(
+              edp_combination, frequency)
+          self._measurement_name_to_index[measurement.name] = measurement_index
+          self._max_standard_deviation = max(self._max_standard_deviation,
+                                             measurement.sigma)
+          measurement_index += 1
+
+      # Assigns an index for impressions.
+      for edp_combination in metric_reports[
+        metric].get_impression_edp_combinations():
+        measurement = metric_reports[metric].get_impression_measurement(
+            edp_combination)
+        self._measurement_name_to_index[measurement.name] = measurement_index
+        self._max_standard_deviation = max(self._max_standard_deviation,
+                                           measurement.sigma)
+        measurement_index += 1
 
     self._num_vars = measurement_index
 
@@ -396,6 +451,28 @@ class Report:
             self._metric_reports[metric]
             .get_whole_campaign_measurement(edp_combination)
             .value,
+        )
+      for edp_combination in self._metric_reports[
+        metric].get_kreach_edp_combinations():
+        for frequency in range(1, self._num_frequencies + 1):
+          array.put(
+              self._get_measurement_index(
+                  self._metric_reports[metric].get_kreach_measurement(
+                      edp_combination, frequency)
+              ),
+              self._metric_reports[metric].get_kreach_measurement(
+                  edp_combination, frequency).value
+          )
+
+      for edp_combination in self._metric_reports[
+        metric].get_impression_edp_combinations():
+        array.put(
+            self._get_measurement_index(
+                self._metric_reports[metric].get_impression_measurement(
+                    edp_combination)
+            ),
+            self._metric_reports[metric].get_impression_measurement(
+                edp_combination).value
         )
     return array
 
@@ -492,15 +569,86 @@ class Report:
                 self._metric_reports[
                   metric].get_cumulative_measurement(
                     edp_combination, (self._num_periods - 1))),
-            set_id_two=self._get_measurement_index(
-                self._metric_reports[
-                  metric].get_whole_campaign_measurement(
-                    edp_combination)),
+            set_id_two=[
+                self._get_measurement_index(
+                    self._metric_reports[
+                      metric].get_whole_campaign_measurement(
+                        edp_combination))
+            ],
         )
     logging.info(
         "Finished adding the relationship between cumulative and total "
         "campaign measurements to spec."
     )
+
+  def _add_kreach_whole_campaign_relations_to_spec(self,
+      spec: SetMeasurementsSpec):
+    for metric in self._metric_reports:
+      for edp_combination in self._metric_reports[
+        metric].get_whole_campaign_edp_combinations().intersection(
+          self._metric_reports[
+            metric].get_kreach_edp_combinations()):
+        spec.add_equal_relation(
+            set_id_one=self._get_measurement_index(
+                self._metric_reports[
+                  metric].get_whole_campaign_measurement(edp_combination)),
+            set_id_two=[
+                self._get_measurement_index(
+                    self._metric_reports[
+                      metric
+                    ].get_kreach_measurement(edp_combination, frequency)
+                )
+                for frequency in range(1, self._num_frequencies + 1)
+            ]
+        )
+
+  def _add_impression_relations_to_spec(self, spec: SetMeasurementsSpec):
+    for metric in self._metric_reports:
+      edp_combinations = self._metric_reports[
+        metric].get_impression_edp_combinations()
+      for edp_combination in edp_combinations:
+        if len(edp_combination) > 1:
+          single_edp_subset = [
+              comb for comb in edp_combinations
+              if len(comb) == 1 and comb.issubset(edp_combination)
+          ]
+          spec.add_equal_relation(
+              set_id_one=self._get_measurement_index(
+                  self._metric_reports[
+                    metric].get_impression_measurement(edp_combination)),
+              set_id_two=[
+                  self._get_measurement_index(
+                      self._metric_reports[
+                        metric
+                      ].get_impression_measurement(child_edp)
+                  )
+                  for child_edp in single_edp_subset
+              ]
+          )
+
+  def _add_kreach_impression_relations_to_spec(self, spec: SetMeasurementsSpec):
+    for metric in self._metric_reports:
+      for edp_combination in self._metric_reports[
+        metric].get_kreach_edp_combinations().intersection(
+          self._metric_reports[metric].get_impression_edp_combinations()):
+        spec.add_weighted_sum_upperbound_relation(
+            weighted_id_set=[
+                [
+                    self._get_measurement_index(
+                        self._metric_reports[
+                          metric
+                        ].get_kreach_measurement(
+                            edp_combination, frequency)),
+                    frequency
+                ]
+                for frequency in range(1, self._num_frequencies + 1)
+            ],
+            upperbound_id=self._get_measurement_index(
+                self._metric_reports[
+                  metric
+                ].get_impression_measurement(
+                    edp_combination))
+        )
 
   def _add_metric_relations_to_spec(self, spec: SetMeasurementsSpec):
     # metric1>=metric#2
@@ -541,6 +689,23 @@ class Report:
                     parent_metric].get_whole_campaign_measurement(
                       edp_combination)),
           )
+
+        # Handles impression measurements of common edp combinations.
+        for edp_combination in self._metric_reports[
+          parent_metric].get_impression_edp_combinations().intersection(
+            self._metric_reports[
+              child_metric].get_impression_edp_combinations()):
+          spec.add_subset_relation(
+              child_set_id=self._get_measurement_index(
+                  self._metric_reports[
+                    child_metric].get_impression_measurement(
+                      edp_combination)),
+              parent_set_id=self._get_measurement_index(
+                  self._metric_reports[
+                    parent_metric].get_impression_measurement(
+                      edp_combination)),
+          )
+
     logging.info(
         "Finished adding the relationship for measurements from different "
         "metrics."
@@ -584,6 +749,12 @@ class Report:
     # period1 <= period2.
     self._add_cumulative_relations_to_spec(spec)
 
+    self._add_kreach_whole_campaign_relations_to_spec(spec)
+
+    self._add_impression_relations_to_spec(spec)
+
+    self._add_kreach_impression_relations_to_spec(spec)
+
     # Last cumulative measurement <= whole campaign measurement.
     self._add_cumulative_whole_campaign_relations_to_spec(spec)
     logging.info("Finished adding set relations to spec.")
@@ -611,8 +782,29 @@ class Report:
                         self._normalized_sigma(measurement.sigma),
                         measurement.name),
         )
-    logging.info(
-        "Finished adding the measurements to the set measurement spec.")
+      for edp_combination in self._metric_reports[
+        metric].get_kreach_edp_combinations():
+        for frequency in range(1, self._num_frequencies + 1):
+          measurement = self._metric_reports[metric].get_kreach_measurement(
+              edp_combination, frequency)
+          spec.add_measurement(
+              self._get_measurement_index(measurement),
+              Measurement(measurement.value,
+                          self._normalized_sigma(measurement.sigma),
+                          measurement.name),
+          )
+      for edp_combination in self._metric_reports[
+        metric].get_impression_edp_combinations():
+        measurement = self._metric_reports[
+          metric].get_impression_measurement(edp_combination)
+        spec.add_measurement(
+            self._get_measurement_index(measurement),
+            Measurement(measurement.value,
+                        self._normalized_sigma(measurement.sigma),
+                        measurement.name),
+        )
+      logging.info(
+          "Finished adding the measurements to the set measurement spec.")
 
   def _normalized_sigma(self, sigma: float) -> float:
     """Normalizes the standard deviation.
@@ -656,6 +848,9 @@ class Report:
     logging.debug(f"Generating the metric report for {metric}.")
     solution_time_series = {}
     solution_whole_campaign = {}
+    solution_kreach = {}
+    solution_impression = {}
+
     for edp_combination in self._metric_reports[
       metric].get_cumulative_edp_combinations():
       solution_time_series[edp_combination] = [
@@ -685,7 +880,39 @@ class Report:
           self._metric_reports[metric].get_whole_campaign_measurement(
               edp_combination).name,
       )
+    for edp_combination in self._metric_reports[
+      metric].get_kreach_edp_combinations():
+      solution_kreach[edp_combination] = {
+          frequency: Measurement(
+              solution[
+                self._get_measurement_index(self._metric_reports[
+                  metric].get_kreach_measurement(
+                    edp_combination, frequency))
+              ],
+              self._metric_reports[metric].get_kreach_measurement(
+                  edp_combination, frequency).sigma,
+              self._metric_reports[metric].get_kreach_measurement(
+                  edp_combination, frequency).name
+          )
+          for frequency in range(1, self._num_frequencies + 1)
+      }
+
+    for edp_combination in self._metric_reports[
+      metric].get_impression_edp_combinations():
+      solution_impression[edp_combination] = Measurement(
+          solution[
+            self._get_measurement_index(self._metric_reports[
+              metric].get_impression_measurement(
+                edp_combination))
+          ],
+          self._metric_reports[metric].get_impression_measurement(
+              edp_combination).sigma,
+          self._metric_reports[metric].get_impression_measurement(
+              edp_combination).name,
+      )
     return MetricReport(
         reach_time_series=solution_time_series,
         reach_whole_campaign=solution_whole_campaign,
+        kreach=solution_kreach,
+        impression=solution_impression,
     )

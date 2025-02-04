@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from threading import Semaphore
+import numpy as np
 from absl import logging
 from noiseninja.noised_measurements import SetMeasurementsSpec
-import numpy as np
-from qpsolvers import Problem, Solution, solve_problem
+from qpsolvers import Problem
+from qpsolvers import Solution
+from qpsolvers import solve_problem
+from threading import Semaphore
 
 HIGHS_SOLVER = "highs"
 OSQP_SOLVER = "osqp"
@@ -44,6 +46,8 @@ class Solver:
     self.num_variables = len(variable_index_by_set_id)
     self._init_qp(self.num_variables)
     self._add_equals(set_measurement_spec, variable_index_by_set_id)
+    self._add_weighted_sum_upperbounds(set_measurement_spec,
+                                       variable_index_by_set_id)
     self._add_covers(set_measurement_spec, variable_index_by_set_id)
     self._add_subsets(set_measurement_spec, variable_index_by_set_id)
     self._add_measurement_targets(set_measurement_spec,
@@ -111,8 +115,20 @@ class Solver:
     for equal_set in set_measurement_spec.get_equal_sets():
       variables = np.zeros(self.num_variables)
       variables[variable_index_by_set_id[equal_set[0]]] = 1
-      variables[variable_index_by_set_id[equal_set[1]]] = -1
+      variables.put([variable_index_by_set_id[i] for i in equal_set[1]], -1)
       self._add_eq_term(variables, 0)
+
+  def _add_weighted_sum_upperbounds(self,
+      set_measurement_spec: SetMeasurementsSpec,
+      variable_index_by_set_id: dict[int, int]):
+    logging.info("Adding weighted sum upperbound constraints.")
+    for key, value in set_measurement_spec.get_weighted_sum_upperbound_sets().items():
+      variables = np.zeros(self.num_variables)
+      variables[variable_index_by_set_id[key]] = -1
+      for entry in value:
+        # entry = tuple(index, weight)
+        variables[variable_index_by_set_id[entry[0]]] = entry[1]
+      self._add_gt_term(variables)
 
   def _add_subsets(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):

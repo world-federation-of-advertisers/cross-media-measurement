@@ -15,15 +15,15 @@
 import json
 import math
 import sys
-from typing import FrozenSet
-
 from absl import app
 from absl import flags
 from absl import logging
 from noiseninja.noised_measurements import Measurement
 from report.report import MetricReport
 from report.report import Report
-from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import report_summary_pb2
+from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
+  report_summary_pb2
+from typing import FrozenSet
 
 # This is a demo script that has the following assumptions :
 # 1. Impression results are not corrected.
@@ -70,6 +70,8 @@ class ReportSummaryProcessor:
       str, dict[FrozenSet[str], list[Measurement]]] = {}
     self._whole_campaign_measurements: dict[
       str, dict[FrozenSet[str], Measurement]] = {}
+    self._kreach: dict[str, dict[FrozenSet[str], dict[int, Measurement]]] = {}
+    self._impression: dict[str, dict[FrozenSet[str], Measurement]] = {}
     self._set_difference_map: dict[str, tuple[str, str]] = {}
 
   def process(self) -> dict[str, int]:
@@ -109,8 +111,11 @@ class ReportSummaryProcessor:
     # Builds the report based on the extracted primitive measurements.
     report = Report(
         {
-            policy: MetricReport(self._cumulative_measurements[policy],
-                                 self._whole_campaign_measurements[policy])
+            policy: MetricReport(
+                reach_time_series=self._cumulative_measurements[policy],
+                reach_whole_campaign=self._whole_campaign_measurements[policy],
+                kreach=self._kreach[policy],
+                impression=self._impression[policy])
             for policy in self._cumulative_measurements
         },
         metric_subsets_by_parent={
@@ -133,10 +138,19 @@ class ReportSummaryProcessor:
         for index in range(metric_report.get_number_of_periods()):
           entry = metric_report.get_cumulative_measurement(edp_combination,
                                                            index)
-          metric_name_to_value.update({entry.name: int(entry.value)})
+          metric_name_to_value.update({entry.name: entry.value})
       for edp_combination in metric_report.get_whole_campaign_edp_combinations():
         entry = metric_report.get_whole_campaign_measurement(edp_combination)
-        metric_name_to_value.update({entry.name: int(entry.value)})
+        metric_name_to_value.update({entry.name: entry.value})
+      for edp_combination in metric_report.get_kreach_edp_combinations():
+        for frequency in range(1,
+                               metric_report.get_number_of_frequencies() + 1):
+          entry = metric_report.get_kreach_measurement(edp_combination,
+                                                       frequency)
+          metric_name_to_value.update({entry.name: entry.value})
+      for edp_combination in metric_report.get_impression_edp_combinations():
+        entry = metric_report.get_impression_measurement(edp_combination)
+        metric_name_to_value.update({entry.name: entry.value})
 
     # Updates difference measurements.
     for key, value in self._set_difference_map.items():
@@ -156,22 +170,28 @@ class ReportSummaryProcessor:
       `_cumulative_measurements` dictionary, keyed by the measurement policy
       and the set of data providers.
     - If the set_operation is "union" and is_cumulative is False, the
-      measurement is added to the `_whole_campaign_measurements` dictionary,
-      keyed by the measurement policy and the set of data providers.
+      measurement is added to the `_whole_campaign_measurements`, or
+      `_kreach`, or `_impression` dictionary keyed by the measurement policy and
+       the set of data providers.
     """
     logging.info(
         "Processing primitive measurements (cumulative and union)."
     )
     for entry in self._report_summary.measurement_details:
-      measurements = [
-          Measurement(result.reach, result.standard_deviation, result.metric)
-          for result in entry.measurement_results
-      ]
       if entry.set_operation == "cumulative":
         logging.debug(
             f"Processing {entry.measurement_policy} cumulative measurements "
             f"for the EDP combination {entry.data_providers}."
         )
+        if not all(
+            result.HasField('reach') for result in entry.measurement_results):
+          raise ValueError(
+              "Cumulative measurements must be reach measurements.")
+        measurements = [
+            Measurement(result.reach.value, result.reach.standard_deviation,
+                        result.metric)
+            for result in entry.measurement_results
+        ]
         if entry.measurement_policy not in self._cumulative_measurements:
           self._cumulative_measurements[entry.measurement_policy] = {}
         self._cumulative_measurements[entry.measurement_policy][
@@ -183,8 +203,35 @@ class ReportSummaryProcessor:
         )
         if entry.measurement_policy not in self._whole_campaign_measurements:
           self._whole_campaign_measurements[entry.measurement_policy] = {}
-        self._whole_campaign_measurements[entry.measurement_policy][
-          frozenset(entry.data_providers)] = measurements[0]
+          self._kreach[entry.measurement_policy] = {}
+          self._impression[entry.measurement_policy] = {}
+        if not all(result.HasField('reach_and_frequency') or result.HasField(
+            'impression_count') for result in entry.measurement_results):
+          raise ValueError(
+              "Total campaign measurements must be either reach and frequency "
+              "or impression count."
+          )
+        for measurement_result in entry.measurement_results:
+          if measurement_result.HasField('reach_and_frequency'):
+            self._whole_campaign_measurements[entry.measurement_policy][
+              frozenset(entry.data_providers)] = Measurement(
+                measurement_result.reach_and_frequency.reach.value,
+                measurement_result.reach_and_frequency.reach.standard_deviation,
+                measurement_result.metric)
+            self._kreach[entry.measurement_policy][
+              frozenset(entry.data_providers)] = {}
+            for bin in measurement_result.reach_and_frequency.frequency.bins:
+              self._kreach[entry.measurement_policy][
+                frozenset(entry.data_providers)][int(bin.label)] = Measurement(
+                  bin.value,
+                  bin.standard_deviation,
+                  measurement_result.metric + "-frequency-" + bin.label)
+          elif measurement_result.HasField('impression_count'):
+            self._impression[entry.measurement_policy][
+              frozenset(entry.data_providers)] = Measurement(
+                measurement_result.impression_count.value,
+                measurement_result.impression_count.standard_deviation,
+                measurement_result.metric)
 
     logging.info("Finished processing primitive measurements.")
 
@@ -227,7 +274,8 @@ class ReportSummaryProcessor:
     for entry in self._report_summary.measurement_details:
       if entry.set_operation == "difference":
         measurements = [
-            Measurement(result.reach, result.standard_deviation, result.metric)
+            Measurement(result.reach.value, result.reach.standard_deviation,
+                        result.metric)
             for result in entry.measurement_results
         ]
         subset = frozenset([edp for edp in entry.right_hand_side_targets])

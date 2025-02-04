@@ -17,6 +17,7 @@ package org.wfanet.measurement.reporting.postprocessing.v2alpha
 import com.google.common.truth.Truth.assertThat
 import java.nio.file.Path
 import java.nio.file.Paths
+import kotlin.math.abs
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -26,6 +27,8 @@ import org.wfanet.measurement.reporting.v2alpha.Report
 data class MetricReport(
   val cumulativeMeasurements: Map<Set<String>, List<Long>>,
   val totalMeasurements: Map<Set<String>, Long>,
+  val kreach: Map<Set<String>, Map<Int, Double>>,
+  val impression: Map<Set<String>, Long>,
 )
 
 @RunWith(JUnit4::class)
@@ -36,11 +39,11 @@ class ReportProcessorTest {
     val reportAsJson = reportFile.readText()
 
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
-    assertThat(report.hasConsistentCumulativeMeasurements()).isFalse()
+    assertThat(report.hasConsistentMeasurements()).isFalse()
 
     val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
-    assertThat(updatedReport.hasConsistentCumulativeMeasurements()).isTrue()
+    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
   }
 
   @Test
@@ -51,11 +54,11 @@ class ReportProcessorTest {
     val reportAsJson = reportFile.readText()
 
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
-    assertThat(report.hasConsistentCumulativeMeasurements()).isFalse()
+    assertThat(report.hasConsistentMeasurements()).isFalse()
 
     val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
-    assertThat(updatedReport.hasConsistentCumulativeMeasurements()).isTrue()
+    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
   }
 
   @Test
@@ -64,14 +67,15 @@ class ReportProcessorTest {
     val reportAsJson = reportFile.readText()
 
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
-    assertThat(report.hasConsistentCumulativeMeasurements()).isFalse()
+    assertThat(report.hasConsistentMeasurements()).isFalse()
 
     val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
-    assertThat(updatedReport.hasConsistentCumulativeMeasurements()).isTrue()
+    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
   }
 
   companion object {
+    private val TOLERANCE: Double = 1.0
     private val POLICIES = listOf("ami", "mrc", "custom")
     private val TEST_DATA_RUNTIME_DIR: Path =
       getRuntimePath(
@@ -92,39 +96,54 @@ class ReportProcessorTest {
     private fun ReportSummary.toMetricReport(measurementPolicy: String): MetricReport {
       val cumulativeMeasurements: MutableMap<Set<String>, List<Long>> = mutableMapOf()
       val totalMeasurements: MutableMap<Set<String>, Long> = mutableMapOf()
+      val kreach: MutableMap<Set<String>, Map<Int, Double>> = mutableMapOf()
+      val impression: MutableMap<Set<String>, Long> = mutableMapOf()
 
       // Processes cumulative measurements.
       for (entry in measurementDetailsList) {
-        if (entry.setOperation == "cumulative") {
-          val dataProviders = entry.dataProvidersList.toSortedSet()
-          val measurements = entry.measurementResultsList.map { result -> result.reach }
-          if (entry.measurementPolicy == measurementPolicy) {
-            cumulativeMeasurements[dataProviders] = measurements
+        if (entry.measurementPolicy == measurementPolicy) {
+          if (entry.setOperation == "cumulative") {
+            val dataProviders = entry.dataProvidersList.toSortedSet()
+            val measurements = entry.measurementResultsList.map { result -> result.reach.value }
+            cumulativeMeasurements[entry.dataProvidersList.toSortedSet()] = measurements
           }
         }
       }
 
-      // Processes total union measurements.
+      // Processes total measurements.
       for (entry in measurementDetailsList) {
-        if (entry.setOperation == "union" && !entry.isCumulative) {
-          val measurements = entry.measurementResultsList.map { result -> result.reach }
-          if (entry.measurementPolicy == measurementPolicy) {
-            totalMeasurements[entry.dataProvidersList.toSortedSet()] = measurements[0]
+        if (entry.measurementPolicy == measurementPolicy) {
+          if (entry.setOperation == "union" && !entry.isCumulative) {
+            entry.measurementResultsList.map { result ->
+              if (result.hasReachAndFrequency()) {
+                totalMeasurements[entry.dataProvidersList.toSortedSet()] =
+                  result.reachAndFrequency.reach.value
+                kreach[entry.dataProvidersList.toSortedSet()] =
+                  result.reachAndFrequency.frequency.binsList
+                    .map { bin -> bin.label.toInt() to bin.value }
+                    .toMap()
+                    .toMutableMap()
+              } else if (result.hasImpressionCount()) {
+                impression[entry.dataProvidersList.toSortedSet()] = result.impressionCount.value
+              }
+            }
           }
         }
       }
 
-      return MetricReport(cumulativeMeasurements, totalMeasurements)
+      return MetricReport(cumulativeMeasurements, totalMeasurements, kreach, impression)
     }
 
     private fun ReportSummary.toReportByPolicy(): Map<String, MetricReport> {
       return POLICIES.associateWith { policy -> this.toMetricReport(policy) }
     }
 
-    private fun MetricReport.hasConsistentCumulativeMeasurements(): Boolean {
+    private fun MetricReport.hasConsistentMeasurements(): Boolean {
       if (cumulativeMeasurements.isEmpty()) {
         return true
       }
+
+      // Verifies that cumulative measurements are consistent.
       for ((edpCombination, measurements) in cumulativeMeasurements) {
         if (measurements.any { it < 0 }) {
           return false
@@ -132,21 +151,137 @@ class ReportProcessorTest {
         if (measurements.zipWithNext().any { (a, b) -> a > b }) {
           return false
         }
-        if (edpCombination in totalMeasurements) {
-          if (measurements[measurements.size - 1] != totalMeasurements[edpCombination]!!) {
+      }
+
+      // Verifies that last cumulative reach equals to the total reach.
+      for (edpCombination in totalMeasurements.keys.intersect(cumulativeMeasurements.keys)) {
+        if (
+          !fuzzyEqual(
+            cumulativeMeasurements[edpCombination]!![
+                cumulativeMeasurements[edpCombination]!!.size - 1]
+              .toDouble(),
+            totalMeasurements[edpCombination]!!.toDouble(),
+            TOLERANCE,
+          )
+        ) {
+          return false
+        }
+      }
+
+      // Verifies that total reach equals to sum of kreach.
+      for (edpCombination in totalMeasurements.keys.intersect(kreach.keys)) {
+        val kreachSum = kreach[edpCombination]!!.values.sumOf { it }
+        if (
+          !fuzzyEqual(
+            totalMeasurements[edpCombination]!!.toDouble(),
+            kreachSum,
+            kreach[edpCombination]!!.size * TOLERANCE,
+          )
+        ) {
+          return false
+        }
+      }
+
+      // Verifies that the relationship between kreach and impression holds.
+      for (edpCombination in impression.keys.intersect(kreach.keys)) {
+        val kreachWeightedSum =
+          kreach[edpCombination]!!.entries.sumOf { (key, value) -> key * value }
+        if (
+          !fuzzyLessEqual(kreachWeightedSum, impression[edpCombination]!!.toDouble(), TOLERANCE)
+        ) {
+          return false
+        }
+      }
+
+      // Verifies that the relationship between impression holds.
+      for (edpCombination in impression.keys) {
+        if (edpCombination.size > 1) {
+          val singleEdpCombinations = edpCombination.map { setOf(it) }
+          val sumOfImpressions =
+            impression.entries.sumOf { (key, value) ->
+              if (key in singleEdpCombinations) value else 0
+            }
+          if (
+            !fuzzyEqual(
+              sumOfImpressions.toDouble(),
+              impression[edpCombination]!!.toDouble(),
+              edpCombination.size * TOLERANCE,
+            )
+          ) {
             return false
           }
         }
       }
+
       return true
     }
 
-    private fun Report.hasConsistentCumulativeMeasurements(): Boolean {
-      return this.toReportSummaries().all {
-        it.toReportByPolicy().values.all { metricReport ->
-          metricReport.hasConsistentCumulativeMeasurements()
+    private fun Report.hasConsistentMeasurements(): Boolean {
+      val reportSummaries = this.toReportSummaries()
+
+      for (reportSummary in reportSummaries) {
+        val metricReports = reportSummary.toReportByPolicy()
+
+        if (!metricReports.values.all { it -> it.hasConsistentMeasurements() }) {
+          return false
+        }
+
+        if (metricReports.containsKey("ami") && metricReports.containsKey("mrc")) {
+          if (!metricReportsAreConsistent(metricReports["ami"]!!, metricReports["mrc"]!!)) {
+            return false
+          }
         }
       }
+
+      return true
+    }
+
+    private fun metricReportsAreConsistent(parent: MetricReport, child: MetricReport): Boolean {
+      for (edpCombination in
+        parent.cumulativeMeasurements.keys.intersect(child.cumulativeMeasurements.keys)) {
+        if (
+          !child.cumulativeMeasurements[edpCombination]!!
+            .zip(parent.cumulativeMeasurements[edpCombination]!!)
+            .all { (a, b) -> fuzzyLessEqual(a.toDouble(), b.toDouble(), TOLERANCE) }
+        ) {
+          return false
+        }
+      }
+
+      for (edpCombination in
+        parent.totalMeasurements.keys.intersect(child.totalMeasurements.keys)) {
+        if (
+          !fuzzyLessEqual(
+            child.totalMeasurements[edpCombination]!!.toDouble(),
+            parent.totalMeasurements[edpCombination]!!.toDouble(),
+            TOLERANCE,
+          )
+        ) {
+          return false
+        }
+      }
+
+      for (edpCombination in parent.impression.keys.intersect(child.impression.keys)) {
+        if (
+          !fuzzyLessEqual(
+            child.impression[edpCombination]!!.toDouble(),
+            parent.impression[edpCombination]!!.toDouble(),
+            TOLERANCE,
+          )
+        ) {
+          return false
+        }
+      }
+
+      return true
+    }
+
+    private fun fuzzyEqual(val1: Double, val2: Double, tolerance: Double): Boolean {
+      return abs(val1 - val2) < tolerance
+    }
+
+    private fun fuzzyLessEqual(val1: Double, val2: Double, tolerance: Double): Boolean {
+      return val1 < val2 + tolerance
     }
   }
 }

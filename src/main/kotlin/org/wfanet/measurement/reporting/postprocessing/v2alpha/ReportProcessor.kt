@@ -76,7 +76,7 @@ interface ReportProcessor {
      */
     private fun processReport(report: Report, verbose: Boolean = false): Report {
       val reportSummaries = report.toReportSummaries()
-      val correctedMeasurementsMap = mutableMapOf<String, Long>()
+      val correctedMeasurementsMap = mutableMapOf<String, Double>()
       for (reportSummary in reportSummaries) {
         correctedMeasurementsMap.putAll(processReportSummary(reportSummary, verbose))
       }
@@ -93,7 +93,7 @@ interface ReportProcessor {
     private fun processReportSummary(
       reportSummary: ReportSummary,
       verbose: Boolean = false,
-    ): Map<String, Long> {
+    ): Map<String, Double> {
       logger.info { "Start processing report.." }
 
       // TODO(bazelbuild/bazel#17629): Execute the Python zip directly once this bug is fixed.
@@ -131,9 +131,9 @@ interface ReportProcessor {
       logger.info { "Finished processing report.." }
 
       // Converts the process output to the correction map.
-      val correctedMeasurementsMap = mutableMapOf<String, Long>()
+      val correctedMeasurementsMap = mutableMapOf<String, Double>()
       GsonBuilder().create().fromJson(processOutput, Map::class.java).forEach { (key, value) ->
-        correctedMeasurementsMap[key as String] = (value as Double).toLong()
+        correctedMeasurementsMap[key as String] = (value as Double)
       }
       return correctedMeasurementsMap
     }
@@ -147,7 +147,7 @@ interface ReportProcessor {
      */
     private fun updateMetricCalculationResult(
       metricCalculationResult: Report.MetricCalculationResult,
-      correctedMeasurementsMap: Map<String, Long>,
+      correctedMeasurementsMap: Map<String, Double>,
     ): Report.MetricCalculationResult {
       val updatedMetricCalculationResult =
         metricCalculationResult.copy {
@@ -157,20 +157,25 @@ interface ReportProcessor {
               entry.copy {
                 // The result attribute is updated only if its metric is in the correction map.
                 if (entry.metric in correctedMeasurementsMap) {
-                  val correctedReach = correctedMeasurementsMap.getValue(entry.metric)
                   when {
                     entry.metricResult.hasReach() -> {
                       metricResult =
-                        metricResult.copy { reach = reach.copy { value = correctedReach } }
+                        metricResult.copy {
+                          reach =
+                            reach.copy {
+                              value = correctedMeasurementsMap.getValue(entry.metric).toLong()
+                            }
+                        }
                     }
                     entry.metricResult.hasReachAndFrequency() -> {
-                      val scale: Double =
-                        correctedReach / entry.metricResult.reachAndFrequency.reach.value.toDouble()
                       metricResult =
                         metricResult.copy {
                           reachAndFrequency =
                             reachAndFrequency.copy {
-                              reach = reach.copy { value = correctedReach }
+                              reach =
+                                reach.copy {
+                                  value = correctedMeasurementsMap.getValue(entry.metric).toLong()
+                                }
                               frequencyHistogram =
                                 frequencyHistogram.copy {
                                   bins.clear()
@@ -179,10 +184,26 @@ interface ReportProcessor {
                                       .map { bin ->
                                         bin.copy {
                                           binResult =
-                                            binResult.copy { value = bin.binResult.value * scale }
+                                            binResult.copy {
+                                              value =
+                                                correctedMeasurementsMap
+                                                  .getValue(
+                                                    entry.metric + "-frequency-" + bin.label
+                                                  )
+                                                  .toDouble()
+                                            }
                                         }
                                       }
                                 }
+                            }
+                        }
+                    }
+                    entry.metricResult.hasImpressionCount() -> {
+                      metricResult =
+                        metricResult.copy {
+                          impressionCount =
+                            impressionCount.copy {
+                              value = correctedMeasurementsMap.getValue(entry.metric).toLong()
                             }
                         }
                     }
@@ -196,7 +217,7 @@ interface ReportProcessor {
     }
 
     /** Returns a [Report] with updated reach values from the [correctedMeasurementsMap]. */
-    private fun updateReport(report: Report, correctedMeasurementsMap: Map<String, Long>): Report {
+    private fun updateReport(report: Report, correctedMeasurementsMap: Map<String, Double>): Report {
       val correctedMetricCalculationResults =
         report.metricCalculationResultsList.map { result ->
           updateMetricCalculationResult(result, correctedMeasurementsMap)

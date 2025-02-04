@@ -16,6 +16,7 @@ package org.wfanet.measurement.reporting.postprocessing.v2alpha
 
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
+import org.wfanet.measurement.reporting.postprocessing.v2alpha.MeasurementDetailKt.reachResult
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.Report
 
@@ -171,21 +172,68 @@ fun Report.toReportSummaries(): List<ReportSummary> {
               value
                 .flatMap { it.resultAttributesList }
                 .sortedBy { it.timeInterval.endTime.seconds }
-                .filter { it.metricResult.hasReach() || it.metricResult.hasReachAndFrequency() }
+                .filter {
+                  it.metricResult.hasReach() ||
+                    it.metricResult.hasReachAndFrequency() ||
+                    it.metricResult.hasImpressionCount()
+                }
                 .map { resultAttribute ->
                   require(resultAttribute.state == Metric.State.SUCCEEDED) {
                     "Unsucceeded measurement result is not supported."
                   }
                   MeasurementDetailKt.measurementResult {
                     if (resultAttribute.metricResult.hasReach()) {
-                      reach = resultAttribute.metricResult.reach.value
-                      standardDeviation =
-                        resultAttribute.metricResult.reach.univariateStatistics.standardDeviation
+                      reach =
+                        MeasurementDetailKt.reachResult {
+                          this.value = resultAttribute.metricResult.reach.value
+                          standardDeviation =
+                            resultAttribute.metricResult.reach.univariateStatistics
+                              .standardDeviation
+                        }
+                    } else if (resultAttribute.metricResult.hasReachAndFrequency()) {
+                      reachAndFrequency =
+                        MeasurementDetailKt.reachAndFrequencyResult {
+                          reach =
+                            MeasurementDetailKt.reachResult {
+                              this.value =
+                                resultAttribute.metricResult.reachAndFrequency.reach.value
+                              standardDeviation =
+                                resultAttribute.metricResult.reachAndFrequency.reach
+                                  .univariateStatistics
+                                  .standardDeviation
+                            }
+                          frequency =
+                            MeasurementDetailKt.frequencyResult {
+                              bins +=
+                                resultAttribute.metricResult.reachAndFrequency.frequencyHistogram
+                                  .binsList
+                                  .map { bin ->
+                                    MeasurementDetailKt.FrequencyResultKt.binResult {
+                                      label = bin.label
+                                      // If reach is 0, all frequencies are set to 0 as well.
+                                      this.value =
+                                        if (
+                                          resultAttribute.metricResult.reachAndFrequency.reach
+                                            .value > 0
+                                        ) {
+                                          bin.binResult.value
+                                        } else {
+                                          0.0
+                                        }
+                                      standardDeviation =
+                                        bin.resultUnivariateStatistics.standardDeviation
+                                    }
+                                  }
+                            }
+                        }
                     } else {
-                      reach = resultAttribute.metricResult.reachAndFrequency.reach.value
-                      standardDeviation =
-                        resultAttribute.metricResult.reachAndFrequency.reach.univariateStatistics
-                          .standardDeviation
+                      impressionCount =
+                        MeasurementDetailKt.impressionCountResult {
+                          this.value = resultAttribute.metricResult.impressionCount.value
+                          standardDeviation =
+                            resultAttribute.metricResult.impressionCount.univariateStatistics
+                              .standardDeviation
+                        }
                     }
                     metric = resultAttribute.metric
                   }
