@@ -592,7 +592,7 @@ private class PolicyBinding {
 class GetPolicy : Runnable {
   @ParentCommand private lateinit var parentCommand: Policies
 
-  @Parameters(index = "0", description = ["Resource name of the Policy"])
+  @Parameters(index = "0", description = ["Resource name of the Policy"], arity = "1")
   private lateinit var policyName: String
 
   override fun run() {
@@ -627,8 +627,11 @@ class CreatePolicy : Runnable {
   )
   private lateinit var policyBindings: List<PolicyBinding>
 
-  @Option(names = ["--etag"], description = ["Entity tag of the Policy"])
+  @Option(names = ["--etag"], description = ["Entity tag of the Policy"], required = false)
   private lateinit var policyEtag: String
+
+  @Option(names = ["--id"], description = ["Resource ID of the Policy"], required = false)
+  private lateinit var id: String
 
   override fun run() {
     val createPolicyRequest = createPolicyRequest {
@@ -643,6 +646,7 @@ class CreatePolicy : Runnable {
           }
         etag = policyEtag
       }
+      policyId = id
     }
 
     val policy = runBlocking { parentCommand.policiesClient.createPolicy(createPolicyRequest) }
@@ -657,6 +661,7 @@ class LookupPolicy : Runnable {
   @Option(
     names = ["--protected-resource"],
     description = ["Name of the resource to which the policy applies"],
+    required = true,
   )
   private lateinit var resource: String
 
@@ -676,17 +681,8 @@ private class PolicyBindingChangeFlags {
   lateinit var policyName: String
     private set
 
-  @Option(names = ["--role"], description = ["Resource name of the Role"], required = true)
-  lateinit var roleName: String
-    private set
-
-  @Option(
-    names = ["--member"],
-    description = ["Resource name of the member to add/remove. Can be specified multiple times."],
-    required = true,
-  )
-  lateinit var memberList: List<String>
-    private set
+  @ArgGroup(exclusive = false, multiplicity = "1", heading = "Policy Bindings to add/remove")
+  lateinit var policyBindings: PolicyBinding
 
   @Option(names = ["--etag"], description = ["Current etag of the resource"], required = false)
   lateinit var currentEtag: String
@@ -705,8 +701,8 @@ class AddPolicyBindingMembers : Runnable {
       parentCommand.policiesClient.addPolicyBindingMembers(
         addPolicyBindingMembersRequest {
           name = policyBindingChangeFlags.policyName
-          role = policyBindingChangeFlags.roleName
-          members += policyBindingChangeFlags.memberList
+          role = policyBindingChangeFlags.policyBindings.role
+          members += policyBindingChangeFlags.policyBindings.members
           etag = policyBindingChangeFlags.currentEtag
         }
       )
@@ -728,8 +724,8 @@ class RemovePolicyBindingMembers : Runnable {
       parentCommand.policiesClient.removePolicyBindingMembers(
         removePolicyBindingMembersRequest {
           name = policyBindingChangeFlags.policyName
-          role = policyBindingChangeFlags.roleName
-          members += policyBindingChangeFlags.memberList
+          role = policyBindingChangeFlags.policyBindings.role
+          members += policyBindingChangeFlags.policyBindings.members
           etag = policyBindingChangeFlags.currentEtag
         }
       )

@@ -360,14 +360,14 @@ class AccessTest {
 
   @Test
   fun `roles delete calls DeleteRole with valid request`() {
-    val args = commonArgs + arrayOf("roles", "delete", ROLE_NAME)
+    val args = commonArgs + arrayOf("roles", "delete", READER_ROLE_NAME)
     callCli(args)
 
     val request: DeleteRoleRequest = captureFirst {
       runBlocking { verify(rolesServiceMock).deleteRole(capture()) }
     }
 
-    assertThat(request).isEqualTo(deleteRoleRequest { name = ROLE_NAME })
+    assertThat(request).isEqualTo(deleteRoleRequest { name = READER_ROLE_NAME })
   }
 
   @Test
@@ -464,6 +464,7 @@ class AccessTest {
           "--binding-member=$OWNER_PRINCIPAL_NAME",
           "--binding-member=$EDITOR_PRINCIPAL_NAME",
           "--etag=$REQUEST_ETAG",
+          "--id=$POLICY_ID",
         )
     val output = callCli(args)
 
@@ -480,6 +481,7 @@ class AccessTest {
             bindings += WRITER_BINDING
             etag = REQUEST_ETAG
           }
+          policyId = POLICY_ID
         }
       )
 
@@ -507,8 +509,8 @@ class AccessTest {
           "policies",
           "add-members",
           "--name=$POLICY_NAME",
-          "--role=$READER_ROLE_NAME",
-          "--member=$NON_MEMBER_PRINCIPAL_NAME",
+          "--binding-role=$READER_ROLE_NAME",
+          "--binding-member=$NON_MEMBER_PRINCIPAL_NAME",
           "--etag=$REQUEST_ETAG",
         )
     val output = callCli(args)
@@ -549,8 +551,8 @@ class AccessTest {
           "policies",
           "remove-members",
           "--name=$POLICY_NAME",
-          "--role=$READER_ROLE_NAME",
-          "--member=$MEMBER_PRINCIPAL_NAME",
+          "--binding-role=$READER_ROLE_NAME",
+          "--binding-member=$MEMBER_PRINCIPAL_NAME",
           "--etag=$REQUEST_ETAG",
         )
     val output = callCli(args)
@@ -660,7 +662,8 @@ class AccessTest {
       resourceTypes += DESK_RESOURCE
     }
 
-    private const val POLICY_NAME = "policies/policy-1"
+    private const val POLICY_ID = "policy-1"
+    private const val POLICY_NAME = "policies/$POLICY_ID"
     private val READER_BINDING =
       PolicyKt.binding {
         role = "roles/bookReader"
