@@ -223,7 +223,7 @@ class CreatePrincipal : Runnable {
 class DeletePrincipal : Runnable {
   @ParentCommand private lateinit var parentCommand: Principals
 
-  @Option(names = ["--name"], description = ["API resource name of the Principal"], required = true)
+  @Parameters(index = "0", description = ["API resource name of the Principal"], arity = "1")
   private lateinit var principalName: String
 
   override fun run() {
@@ -658,10 +658,10 @@ class CreatePolicy : Runnable {
 class LookupPolicy : Runnable {
   @ParentCommand private lateinit var parentCommand: Policies
 
-  @Option(
-    names = ["--protected-resource"],
+  @Parameters(
+    index = "0",
     description = ["Name of the resource to which the policy applies"],
-    required = true,
+    arity = "1",
   )
   private lateinit var resource: String
 

@@ -237,7 +237,7 @@ class AccessTest {
 
   @Test
   fun `principals delete calls DeletePrincipal with valid request`() {
-    val args = commonArgs + arrayOf("principals", "delete", "--name=$OWNER_PRINCIPAL_NAME")
+    val args = commonArgs + arrayOf("principals", "delete", OWNER_PRINCIPAL_NAME)
 
     callCli(args)
 
@@ -490,7 +490,7 @@ class AccessTest {
 
   @Test
   fun `policies lookup calls LookupPolicy with valid request`() {
-    val args = commonArgs + arrayOf("policies", "lookup", "--protected-resource=$SHELF_RESOURCE")
+    val args = commonArgs + arrayOf("policies", "lookup", SHELF_RESOURCE)
     val output = callCli(args)
 
     val request: LookupPolicyRequest = captureFirst {
