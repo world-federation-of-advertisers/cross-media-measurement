@@ -18,6 +18,7 @@ package org.wfanet.measurement.access.deploy.tools
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.Empty
 import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.netty.NettyServerBuilder
@@ -40,6 +41,7 @@ import org.wfanet.measurement.access.v1alpha.CreatePolicyRequest
 import org.wfanet.measurement.access.v1alpha.CreatePrincipalRequest
 import org.wfanet.measurement.access.v1alpha.CreateRoleRequest
 import org.wfanet.measurement.access.v1alpha.DeletePrincipalRequest
+import org.wfanet.measurement.access.v1alpha.DeleteRoleRequest
 import org.wfanet.measurement.access.v1alpha.GetPermissionRequest
 import org.wfanet.measurement.access.v1alpha.GetPolicyRequest
 import org.wfanet.measurement.access.v1alpha.GetPrincipalRequest
@@ -70,6 +72,7 @@ import org.wfanet.measurement.access.v1alpha.createPolicyRequest
 import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.createRoleRequest
 import org.wfanet.measurement.access.v1alpha.deletePrincipalRequest
+import org.wfanet.measurement.access.v1alpha.deleteRoleRequest
 import org.wfanet.measurement.access.v1alpha.getPermissionRequest
 import org.wfanet.measurement.access.v1alpha.getPolicyRequest
 import org.wfanet.measurement.access.v1alpha.getPrincipalRequest
@@ -149,6 +152,7 @@ class AccessTest {
     onBlocking { listRoles(any()) }.thenReturn(listRolesResponse { roles += ROLE })
     onBlocking { createRole(any()) }.thenReturn(ROLE)
     onBlocking { updateRole(any()) }.thenReturn(ROLE)
+    onBlocking { deleteRole(any()) }.thenReturn(Empty.getDefaultInstance())
   }
 
   private val serverCerts =
@@ -352,6 +356,18 @@ class AccessTest {
 
     assertThat(request).isEqualTo(updateRoleRequest { role = ROLE.copy { etag = REQUEST_ETAG } })
     assertThat(parseTextProto(output.reader(), Role.getDefaultInstance())).isEqualTo(ROLE)
+  }
+
+  @Test
+  fun `roles delete calls DeleteRole with valid request`() {
+    val args = commonArgs + arrayOf("roles", "delete", ROLE_NAME)
+    callCli(args)
+
+    val request: DeleteRoleRequest = captureFirst {
+      runBlocking { verify(rolesServiceMock).deleteRole(capture()) }
+    }
+
+    assertThat(request).isEqualTo(deleteRoleRequest { name = ROLE_NAME })
   }
 
   @Test

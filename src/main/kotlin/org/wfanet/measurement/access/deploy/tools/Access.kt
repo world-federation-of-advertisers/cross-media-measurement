@@ -36,6 +36,7 @@ import org.wfanet.measurement.access.v1alpha.createPolicyRequest
 import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.createRoleRequest
 import org.wfanet.measurement.access.v1alpha.deletePrincipalRequest
+import org.wfanet.measurement.access.v1alpha.deleteRoleRequest
 import org.wfanet.measurement.access.v1alpha.getPermissionRequest
 import org.wfanet.measurement.access.v1alpha.getPolicyRequest
 import org.wfanet.measurement.access.v1alpha.getPrincipalRequest
@@ -168,7 +169,7 @@ private class Principals {
 class GetPrincipal : Runnable {
   @ParentCommand private lateinit var parentCommand: Principals
 
-  @Parameters(index = "0", description = ["API resource name of the Principal"])
+  @Parameters(index = "0", description = ["API resource name of the Principal"], arity = "1")
   private lateinit var principalName: String
 
   override fun run() {
@@ -222,7 +223,7 @@ class CreatePrincipal : Runnable {
 class DeletePrincipal : Runnable {
   @ParentCommand private lateinit var parentCommand: Principals
 
-  @Option(names = ["--name"], description = ["API resource name of the Principal"])
+  @Option(names = ["--name"], description = ["API resource name of the Principal"], required = true)
   private lateinit var principalName: String
 
   override fun run() {
@@ -272,6 +273,7 @@ class LookupPrincipal : Runnable {
       ListRoles::class,
       CreateRole::class,
       UpdateRole::class,
+      DeleteRole::class,
     ],
 )
 private class Roles {
@@ -284,7 +286,7 @@ private class Roles {
 class GetRole : Runnable {
   @ParentCommand private lateinit var parentCommand: Roles
 
-  @Parameters(index = "0", description = ["API resource name of the Role"])
+  @Parameters(index = "0", description = ["API resource name of the Role"], arity = "1")
   private lateinit var roleName: String
 
   override fun run() {
@@ -349,7 +351,7 @@ class CreateRole : Runnable {
   )
   private lateinit var permissionList: List<String>
 
-  @Option(names = ["--etag"], description = ["Entity tag of the Role"])
+  @Option(names = ["--etag"], description = ["Entity tag of the Role"], required = false)
   private lateinit var roleEtag: String
 
   @Option(names = ["--role-id"], description = ["Resource ID of the Role"], required = true)
@@ -417,6 +419,18 @@ class UpdateRole : Runnable {
   }
 }
 
+@Command(name = "delete", description = ["Delete a Role"])
+class DeleteRole : Runnable {
+  @ParentCommand private lateinit var parentCommand: Roles
+
+  @Parameters(index = "0", description = ["API resource name of the Role"], arity = "1")
+  private lateinit var roleName: String
+
+  override fun run() {
+    runBlocking { parentCommand.rolesClient.deleteRole(deleteRoleRequest { name = roleName }) }
+  }
+}
+
 @Command(
   name = "permissions",
   subcommands =
@@ -439,7 +453,7 @@ private class Permissions {
 class GetPermission : Runnable {
   @ParentCommand private lateinit var parentCommand: Permissions
 
-  @Parameters(index = "0", description = ["API resource name of the Permission"])
+  @Parameters(index = "0", description = ["API resource name of the Permission"], arity = "1")
   private lateinit var permissionName: String
 
   override fun run() {
