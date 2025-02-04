@@ -1,6 +1,7 @@
 package org.wfanet.measurement.securecomputation.requisitions
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
+import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import java.nio.file.Path
@@ -41,26 +42,23 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.toByteArray
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import com.google.common.truth.Truth.assertThat
-import org.wfanet.measurement.common.toByteArray
 
 @RunWith(JUnit4::class)
 class RequisitionFetcherTest {
 
-  private val requisitionsServiceMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase = mockService {
-    onBlocking { listRequisitions(any()) }
-      .thenReturn(listRequisitionsResponse { requisitions += REQUISITION })
-  }
+  private val requisitionsServiceMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase =
+    mockService {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += REQUISITION })
+    }
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule {
-    addService(requisitionsServiceMock)
-  }
+  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub by lazy {
     RequisitionsGrpcKt.RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
@@ -72,7 +70,12 @@ class RequisitionFetcherTest {
     var persistedRequisition: ByteString?
     runBlocking {
       fetcher.executeRequisitionFetchingWorkflow()
-      persistedRequisition = storageClient.getBlob("gs://${BUCKET}/${REQUISITION.name}")?.read()?.toByteArray()?.toByteString()
+      persistedRequisition =
+        storageClient
+          .getBlob("gs://${BUCKET}/${REQUISITION.name}")
+          ?.read()
+          ?.toByteArray()
+          ?.toByteString()
     }
     println(persistedRequisition)
     assertThat(REQUISITION.toByteString()).isEqualTo(persistedRequisition)
@@ -135,9 +138,10 @@ class RequisitionFetcherTest {
     private val REQUISITION_SPEC = requisitionSpec {
       population =
         RequisitionSpecKt.population {
-          filter = RequisitionSpecKt.eventFilter {
-            expression = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
-          }
+          filter =
+            RequisitionSpecKt.eventFilter {
+              expression = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+            }
         }
       measurementPublicKey = MC_PUBLIC_KEY.pack()
       nonce = Random.nextLong()
@@ -154,15 +158,17 @@ class RequisitionFetcherTest {
     }
     private val MEASUREMENT_SPEC = measurementSpec {
       measurementPublicKey = MC_PUBLIC_KEY.pack()
-      reachAndFrequency = MeasurementSpecKt.reachAndFrequency {
-        reachPrivacyParams = OUTPUT_DP_PARAMS
-        frequencyPrivacyParams = OUTPUT_DP_PARAMS
-        maximumFrequency = 10
-      }
-      vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval {
-        start = 0.0f
-        width = 1.0f
-      }
+      reachAndFrequency =
+        MeasurementSpecKt.reachAndFrequency {
+          reachPrivacyParams = OUTPUT_DP_PARAMS
+          frequencyPrivacyParams = OUTPUT_DP_PARAMS
+          maximumFrequency = 10
+        }
+      vidSamplingInterval =
+        MeasurementSpecKt.vidSamplingInterval {
+          start = 0.0f
+          width = 1.0f
+        }
       nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
       modelLine = MODEL_LINE_NAME
     }

@@ -16,13 +16,13 @@
 package org.wfanet.measurement.securecomputation.requisitions
 
 import io.grpc.StatusException
+import java.util.logging.Logger
+import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
-import org.wfanet.measurement.api.v2alpha.Measurement
-import java.util.logging.Logger
 
 // 1. Polls for new requisitions
 // 2. Stores new requisitions into Google Cloud Storage
@@ -31,7 +31,7 @@ class RequisitionFetcher(
   private val gcsStorageClient: GcsStorageClient,
   private val gcsBucket: String,
   private val dataProviderName: String,
-  ) {
+) {
   suspend fun executeRequisitionFetchingWorkflow() {
     logger.info("Executing requisitionFetchingWorkflow for $dataProviderName...")
 
@@ -48,10 +48,11 @@ class RequisitionFetcher(
   private suspend fun fetchRequisitions(): List<Requisition> {
     val request = listRequisitionsRequest {
       parent = dataProviderName
-      filter = ListRequisitionsRequestKt.filter {
-        states += Requisition.State.UNFULFILLED
-        measurementStates += Measurement.State.AWAITING_REQUISITION_FULFILLMENT
-      }
+      filter =
+        ListRequisitionsRequestKt.filter {
+          states += Requisition.State.UNFULFILLED
+          measurementStates += Measurement.State.AWAITING_REQUISITION_FULFILLMENT
+        }
     }
 
     try {
@@ -65,9 +66,10 @@ class RequisitionFetcher(
     for (requisition in requisitions) {
       val blobUri = "gs://${gcsBucket}/${requisition.name}"
 
-      // Only stores the requisition if it does not already exist in the GCS bucket by checking if the blob URI(created
+      // Only stores the requisition if it does not already exist in the GCS bucket by checking if
+      // the blob URI(created
       // using the requisition name, ensuring uniqueness) is populated.
-      if(gcsStorageClient.getBlob(blobUri) == null) {
+      if (gcsStorageClient.getBlob(blobUri) == null) {
         gcsStorageClient.writeBlob(blobUri, requisition.toByteString())
       }
     }
@@ -77,5 +79,3 @@ class RequisitionFetcher(
     val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
-
-
