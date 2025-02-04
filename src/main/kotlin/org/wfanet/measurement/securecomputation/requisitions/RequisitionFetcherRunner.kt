@@ -17,11 +17,7 @@ class RequisitionFetcherRunner : HttpFunction {
     val clientCerts = runBlocking { getClientCerts() }
 
     val publicChannel =
-      buildMutualTlsChannel(
-        System.getenv("TARGET"),
-        clientCerts,
-        System.getenv("CERT_HOST"),
-      )
+      buildMutualTlsChannel(System.getenv("TARGET"), clientCerts, System.getenv("CERT_HOST"))
 
     val requisitionsStub = RequisitionsCoroutineStub(publicChannel)
     val requisitionsStorageClient =
@@ -30,7 +26,7 @@ class RequisitionFetcherRunner : HttpFunction {
           .setProjectId(System.getenv("REQUISITIONS_GCS_PROJECT_ID"))
           .build()
           .service,
-        System.getenv("REQUISITIONS_GCS_BUCKET")
+        System.getenv("REQUISITIONS_GCS_BUCKET"),
       )
 
     val fetcher =
@@ -38,7 +34,7 @@ class RequisitionFetcherRunner : HttpFunction {
         requisitionsStub,
         requisitionsStorageClient,
         System.getenv("DATAPROVIDER_NAME"),
-        System.getenv("GCS_BUCKET")
+        System.getenv("REQUISITIONS_GCS_BUCKET"),
       )
     runBlocking { fetcher.executeRequisitionFetchingWorkflow() }
   }
@@ -50,7 +46,7 @@ class RequisitionFetcherRunner : HttpFunction {
           .setProjectId(System.getenv("AUTHENTICATION_GCS_PROJECT_ID"))
           .build()
           .service,
-        System.getenv("AUTHENTICATION_GCS_BUCKET")
+        System.getenv("AUTHENTICATION_GCS_BUCKET"),
       )
 
     val certBlob =

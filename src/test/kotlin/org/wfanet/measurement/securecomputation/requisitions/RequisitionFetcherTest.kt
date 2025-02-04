@@ -2,7 +2,6 @@ package org.wfanet.measurement.securecomputation.requisitions
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -33,15 +32,12 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
-import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
-import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.toByteArray
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -51,7 +47,6 @@ import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 
 @RunWith(JUnit4::class)
 class RequisitionFetcherTest {
-
   private val requisitionsServiceMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase =
     mockService {
       onBlocking { listRequisitions(any()) }
@@ -62,22 +57,21 @@ class RequisitionFetcherTest {
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub by lazy {
     RequisitionsGrpcKt.RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
+
   @Test
-  fun `fetch new requisitions`() {
+  fun `fetch new requisitions and store in GCS bucket`() {
     val storage = LocalStorageHelper.getOptions().service
     val storageClient = GcsStorageClient(storage, BUCKET)
     val fetcher = RequisitionFetcher(requisitionsStub, storageClient, BUCKET, DATA_PROVIDER_NAME)
-    var persistedRequisition: ByteString?
-    runBlocking {
+    val persistedRequisition = runBlocking {
       fetcher.executeRequisitionFetchingWorkflow()
-      persistedRequisition =
-        storageClient
-          .getBlob("gs://${BUCKET}/${REQUISITION.name}")
-          ?.read()
-          ?.toByteArray()
-          ?.toByteString()
+      storageClient
+        .getBlob("gs://${BUCKET}/${REQUISITION.name}")
+        ?.read()
+        ?.toByteArray()
+        ?.toByteString()
     }
-    println(persistedRequisition)
+
     assertThat(REQUISITION.toByteString()).isEqualTo(persistedRequisition)
   }
 
@@ -95,16 +89,10 @@ class RequisitionFetcherTest {
     private const val PDP_ID = "somePopulationDataProvider"
     private const val PDP_NAME = "dataProviders/$PDP_ID"
 
-    private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
-      SECRET_FILES_PATH.resolve("edp_trusted_certs.pem").toFile().readByteString()
     private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
     private const val MEASUREMENT_NAME = "$MC_NAME/measurements/BBBBBBBBBHs"
     private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
       "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
-    private val MEASUREMENT_CONSUMER_CERTIFICATE = certificate {
-      name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
-      x509Der = MEASUREMENT_CONSUMER_CERTIFICATE_DER
-    }
 
     private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
 
@@ -129,8 +117,6 @@ class RequisitionFetcherTest {
     private val MC_PUBLIC_KEY: EncryptionPublicKey =
       loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
         .toEncryptionPublicKey()
-    private val MC_PRIVATE_KEY: TinkPrivateKeyHandle =
-      loadPrivateKey(SECRET_FILES_PATH.resolve("mc_enc_private.tink").toFile())
     private val DATA_PROVIDER_PUBLIC_KEY: EncryptionPublicKey =
       loadPublicKey(SECRET_FILES_PATH.resolve("${PDP_DISPLAY_NAME}_enc_public.tink").toFile())
         .toEncryptionPublicKey()
