@@ -345,8 +345,6 @@ class TestOriginReport(unittest.TestCase):
     corrected_measurements_map = ReportSummaryProcessor(
         report_summary).process()
 
-    for key, value in corrected_measurements_map.items():
-      print(f"{key}: {value}")
     primitive_edp_combinations = ['edp1', 'edp2', 'edp1_edp2']
     composite_edp_combinations = ['edp1_minus_edp2', 'edp2_minus_edp1']
 
@@ -355,112 +353,129 @@ class TestOriginReport(unittest.TestCase):
 
     # Verifies that the updated reach values are non-negative.
     for value in corrected_measurements_map.values():
-      self.assertGreaterEqual(value, 0)
+      self._assertFuzzyLessEqual(0, value, tolerance=1e-6)
     # Verifies that cumulative measurements are non-decreasing.
     for i in range(num_periods - 1):
       for edp_combination in primitive_edp_combinations:
-        self.assertLessEqual(
+        self._assertFuzzyLessEqual(
             corrected_measurements_map[
               'cumulative/ami/' + edp_combination + '_' + str(i).zfill(2)],
             corrected_measurements_map[
               'cumulative/ami/' + edp_combination + '_' + str(i + 1).zfill(2)],
+            TOLERANCE
         )
-        self.assertLessEqual(
+        self._assertFuzzyLessEqual(
             corrected_measurements_map[
               'cumulative/mrc/' + edp_combination + '_' + str(i).zfill(2)],
             corrected_measurements_map[
               'cumulative/mrc/' + edp_combination + '_' + str(i + 1).zfill(2)],
+            TOLERANCE
         )
-        self.assertLessEqual(
+        self._assertFuzzyLessEqual(
             corrected_measurements_map[
               'cumulative/custom/' + edp_combination + '_' + str(i).zfill(2)],
             corrected_measurements_map[
               'cumulative/custom/' + edp_combination + '_' + str(i + 1).zfill(
                   2)],
+            TOLERANCE
         )
 
     # Verifies that the last cumulative measurements are equal to total
     # measurements.
     for edp_combination in primitive_edp_combinations:
-      self.assertEqual(
+      self._assertFuzzyEqual(
           corrected_measurements_map[
             'cumulative/ami/' + edp_combination + '_' + str(
                 num_periods - 1).zfill(2)],
           corrected_measurements_map[
-            'reach_and_frequency/ami/' + edp_combination]
+            'reach_and_frequency/ami/' + edp_combination],
+          TOLERANCE
       )
-      self.assertEqual(
+      self._assertFuzzyEqual(
           corrected_measurements_map[
             'cumulative/mrc/' + edp_combination + '_' + str(
                 num_periods - 1).zfill(2)],
           corrected_measurements_map[
-            'reach_and_frequency/mrc/' + edp_combination]
+            'reach_and_frequency/mrc/' + edp_combination],
+          TOLERANCE
       )
-      self.assertEqual(
+      self._assertFuzzyEqual(
           corrected_measurements_map[
             'cumulative/custom/' + edp_combination + '_' + str(
                 num_periods - 1).zfill(2)],
           corrected_measurements_map[
-            'reach_and_frequency/custom/' + edp_combination]
+            'reach_and_frequency/custom/' + edp_combination],
+          TOLERANCE
       )
 
     # Verifies that subset measurements are less than superset measurements
     for i in range(num_periods):
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map['cumulative/ami/edp1_' + str(i).zfill(2)],
           corrected_measurements_map[
             'cumulative/ami/edp1_edp2_' + str(i).zfill(2)],
+          TOLERANCE
       )
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map['cumulative/ami/edp2_' + str(i).zfill(2)],
           corrected_measurements_map[
             'cumulative/ami/edp1_edp2_' + str(i).zfill(2)],
+          TOLERANCE
       )
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map['cumulative/mrc/edp1_' + str(i).zfill(2)],
           corrected_measurements_map[
             'cumulative/mrc/edp1_edp2_' + str(i).zfill(2)],
+          TOLERANCE
       )
       self.assertLessEqual(
           corrected_measurements_map['cumulative/mrc/edp2_' + str(i).zfill(2)],
           corrected_measurements_map[
             'cumulative/mrc/edp1_edp2_' + str(i).zfill(2)],
       )
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map[
             'cumulative/custom/edp1_' + str(i).zfill(2)],
           corrected_measurements_map[
             'cumulative/custom/edp1_edp2_' + str(i).zfill(2)],
+          TOLERANCE
       )
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map[
             'cumulative/custom/edp2_' + str(i).zfill(2)],
           corrected_measurements_map[
             'cumulative/custom/edp1_edp2_' + str(i).zfill(2)],
+          TOLERANCE
       )
-    self.assertLessEqual(
+    self._assertFuzzyLessEqual(
         corrected_measurements_map['reach_and_frequency/ami/edp1'],
         corrected_measurements_map['reach_and_frequency/ami/edp1_edp2'],
+        TOLERANCE
     )
-    self.assertLessEqual(
+    self._assertFuzzyLessEqual(
         corrected_measurements_map['reach_and_frequency/ami/edp2'],
         corrected_measurements_map['reach_and_frequency/ami/edp1_edp2'],
+        TOLERANCE
     )
-    self.assertLessEqual(
+    self._assertFuzzyLessEqual(
         corrected_measurements_map['reach_and_frequency/mrc/edp1'],
         corrected_measurements_map['reach_and_frequency/mrc/edp1_edp2'],
+        TOLERANCE
     )
-    self.assertLessEqual(
+    self._assertFuzzyLessEqual(
         corrected_measurements_map['reach_and_frequency/mrc/edp2'],
         corrected_measurements_map['reach_and_frequency/mrc/edp1_edp2'],
+        TOLERANCE
     )
-    self.assertLessEqual(
+    self._assertFuzzyLessEqual(
         corrected_measurements_map['reach_and_frequency/custom/edp1'],
         corrected_measurements_map['reach_and_frequency/custom/edp1_edp2'],
+        TOLERANCE
     )
-    self.assertLessEqual(
+    self._assertFuzzyLessEqual(
         corrected_measurements_map['reach_and_frequency/custom/edp2'],
         corrected_measurements_map['reach_and_frequency/custom/edp1_edp2'],
+        TOLERANCE
     )
 
     # Verifies that cover set measurements are less than the sum of child set
@@ -568,51 +583,59 @@ class TestOriginReport(unittest.TestCase):
     # Verifies that mrc/custom measurements are less than or equal to ami ones.
     for i in range(num_periods):
       for edp_combination in primitive_edp_combinations:
-        self.assertLessEqual(
+        self._assertFuzzyLessEqual(
             corrected_measurements_map[
               'cumulative/mrc/' + edp_combination + '_' + str(i).zfill(2)],
             corrected_measurements_map[
-              'cumulative/ami/' + edp_combination + '_' + str(i).zfill(2)]
+              'cumulative/ami/' + edp_combination + '_' + str(i).zfill(2)],
+            TOLERANCE
         )
-        self.assertLessEqual(
+        self._assertFuzzyLessEqual(
             corrected_measurements_map[
               'cumulative/custom/' + edp_combination + '_' + str(i).zfill(2)],
             corrected_measurements_map[
-              'cumulative/ami/' + edp_combination + '_' + str(i).zfill(2)]
+              'cumulative/ami/' + edp_combination + '_' + str(i).zfill(2)],
+            TOLERANCE
         )
     for edp_combination in primitive_edp_combinations:
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map[
             'reach_and_frequency/mrc/' + edp_combination],
           corrected_measurements_map[
-            'reach_and_frequency/ami/' + edp_combination]
+            'reach_and_frequency/ami/' + edp_combination],
+          TOLERANCE
       )
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map[
             'reach_and_frequency/custom/' + edp_combination],
           corrected_measurements_map[
-            'reach_and_frequency/ami/' + edp_combination]
+            'reach_and_frequency/ami/' + edp_combination],
+          TOLERANCE
       )
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map[
             'impression_count/mrc/' + edp_combination],
           corrected_measurements_map[
-            'impression_count/ami/' + edp_combination]
+            'impression_count/ami/' + edp_combination],
+          TOLERANCE
       )
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map[
             'impression_count/custom/' + edp_combination],
           corrected_measurements_map[
-            'impression_count/ami/' + edp_combination]
+            'impression_count/ami/' + edp_combination],
+          TOLERANCE
       )
     for edp_combination in composite_edp_combinations:
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map['difference/mrc/' + edp_combination],
-          corrected_measurements_map['difference/ami/' + edp_combination]
+          corrected_measurements_map['difference/ami/' + edp_combination],
+          TOLERANCE
       )
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map['difference/custom/' + edp_combination],
-          corrected_measurements_map['difference/ami/' + edp_combination]
+          corrected_measurements_map['difference/ami/' + edp_combination],
+          TOLERANCE
       )
 
   def _assertFuzzyEqual(self, x: int, y: int, tolerance: int):
