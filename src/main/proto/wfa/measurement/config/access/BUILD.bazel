@@ -18,3 +18,13 @@ kt_jvm_proto_library(
     name = "permissions_config_kt_jvm_proto",
     deps = [":permissions_config_proto"],
 )
+
+proto_library(
+    name = "open_id_providers_config_proto",
+    srcs = ["open_id_providers_config.proto"],
+)
+
+kt_jvm_proto_library(
+    name = "open_id_providers_config_kt_jvm_proto",
+    deps = [":open_id_providers_config_proto"],
+)

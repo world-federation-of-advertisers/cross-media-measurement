@@ -1,5 +1,5 @@
-load("@rules_pkg//pkg:pkg.bzl", "pkg_tar")
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
+load("@rules_pkg//pkg:pkg.bzl", "pkg_tar")
 load("//build/k8s:defs.bzl", "k8s_apply", "kustomization_dir")
 
 package(

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 resource "aws_eks_cluster" "cluster" {
-  name = "${var.project}-cluster"
+  name     = "${var.project}-cluster"
   role_arn = aws_iam_role.cluster_role.arn
 
   vpc_config {
@@ -22,8 +22,8 @@ resource "aws_eks_cluster" "cluster" {
       aws_subnet.private_subnet[*].id,
     ])
     endpoint_private_access = true
-    endpoint_public_access = true
-    public_access_cidrs = ["0.0.0.0/0"]
+    endpoint_public_access  = true
+    public_access_cidrs     = ["0.0.0.0/0"]
   }
 
   depends_on = [
@@ -33,32 +33,32 @@ resource "aws_eks_cluster" "cluster" {
 }
 
 resource "aws_cloudwatch_log_group" "aws_eks_cluster" {
-  name = "/aws/eks/${var.project}-cluster/cluster"
+  name              = "/aws/eks/${var.project}-cluster/cluster"
   retention_in_days = 14
 }
 
 resource "aws_security_group" "eks_cluster" {
-  name = "${var.project}-cluster-sg"
+  name        = "${var.project}-cluster-sg"
   description = "Cluster communication with worker nodes."
-  vpc_id = aws_vpc.vpc.id
+  vpc_id      = aws_vpc.vpc.id
 }
 
 resource "aws_security_group_rule" "cluster_inbound" {
-  description = "Allow worker nodes to communicate with the cluster API Server"
-  from_port = 443
-  protocol = "tcp"
-  security_group_id = aws_security_group.eks_cluster.id
+  description              = "Allow worker nodes to communicate with the cluster API Server"
+  from_port                = 443
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.eks_cluster.id
   source_security_group_id = aws_security_group.eks_nodes.id
-  to_port = 443
-  type = "ingress"
+  to_port                  = 443
+  type                     = "ingress"
 }
 
 resource "aws_security_group_rule" "cluster_outbound" {
-  description = "Allow cluster API Server to communicate with the worker nodes"
-  from_port = 1024
-  protocol = "tcp"
-  security_group_id = aws_security_group.eks_cluster.id
+  description              = "Allow cluster API Server to communicate with the worker nodes"
+  from_port                = 1024
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.eks_cluster.id
   source_security_group_id = aws_security_group.eks_nodes.id
-  to_port = 65535
-  type = "egress"
+  to_port                  = 65535
+  type                     = "egress"
 }

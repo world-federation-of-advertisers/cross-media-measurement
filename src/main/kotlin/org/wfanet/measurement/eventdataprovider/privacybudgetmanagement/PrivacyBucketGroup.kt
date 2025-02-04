@@ -18,12 +18,12 @@ import java.time.LocalDate
 enum class AgeGroup(val string: String) {
   RANGE_18_34("18_34"),
   RANGE_35_54("35_54"),
-  ABOVE_54("55+")
+  ABOVE_54("55+"),
 }
 
 enum class Gender(val string: String) {
   MALE("M"),
-  FEMALE("F")
+  FEMALE("F"),
 }
 
 /** A set of users whose privacy budget usage is being tracked as a unit. */

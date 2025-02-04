@@ -1,0 +1,12 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "ValueInScopeTest",
+    srcs = ["ValueInScopeTest.kt"],
+    test_class = "org.wfanet.measurement.access.client.ValueInScopeTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/client:value_in_scope",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)

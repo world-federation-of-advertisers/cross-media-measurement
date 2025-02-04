@@ -17,7 +17,6 @@ syntax = "proto3";
 package wfa.measurement.internal.duchy.protocol;
 
 import "google/protobuf/duration.proto";
-
 import "wfa/measurement/internal/duchy/differential_privacy.proto";
 import "wfa/measurement/internal/duchy/noise_mechanism.proto";
 import "wfa/measurement/internal/duchy/protocol/share_shuffle_frequency_vector_params.proto";

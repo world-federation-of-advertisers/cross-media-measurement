@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.db.computation
 /** Provides methods for working with an enum representation of stages for a MPC protocol */
 interface ProtocolStageEnumHelper<StageT> {
   val validInitialStages: Set<StageT>
+
   /** True if a computation may start in the given stage. */
   fun validInitialStage(stage: StageT): Boolean {
     return stage in validInitialStages
@@ -27,6 +28,7 @@ interface ProtocolStageEnumHelper<StageT> {
   fun validTerminalStage(stage: StageT): Boolean = stage in validTerminalStages
 
   val validSuccessors: Map<StageT, Set<StageT>>
+
   /** True if a computation may progress from the [currentStage] to the [nextStage]. */
   fun validTransition(currentStage: StageT, nextStage: StageT): Boolean {
     return nextStage in validSuccessors.getOrDefault(currentStage, setOf())

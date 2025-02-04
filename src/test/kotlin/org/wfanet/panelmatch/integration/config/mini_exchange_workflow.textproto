@@ -9,7 +9,7 @@ steps {
     key: "certificate-resource-name"
     value: "edp-certificate-resource-name"
   }
-  generate_certificate_step { }
+  generate_certificate_step {}
 }
 
 # EDP provides a previously generated pepper used in generating AES keys.

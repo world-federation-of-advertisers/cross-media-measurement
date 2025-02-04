@@ -22,7 +22,7 @@ K8S_CLIENT_VERSION = "21.0.1"
 # See https://github.com/bazelbuild/bazel/discussions/23075.
 bazel_dep(
     name = "rules_kotlin_jvm",
-    version = "0.5.0",
+    version = "0.6.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
 bazel_dep(
@@ -37,7 +37,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.99.1",
+    version = "0.100.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -47,7 +47,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.70.0",
+    version = "0.71.0",
     repo_name = "wfa_measurement_proto",
 )
 bazel_dep(
@@ -108,7 +108,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_proto",
-    version = "7.0.2",
+    version = "7.1.0",
 )
 bazel_dep(
     name = "rules_cc",
@@ -116,7 +116,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_pkg",
-    version = "0.9.1",
+    version = "1.0.1",
 )
 bazel_dep(
     name = "rules_go",
@@ -130,7 +130,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_java",
-    version = "8.6.2",
+    version = "8.7.1",
 )
 bazel_dep(
     name = "rules_jvm_external",
@@ -142,7 +142,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "protobuf",
-    version = "27.3",
+    version = "29.3",
     repo_name = "com_google_protobuf",
 )
 bazel_dep(
@@ -217,7 +217,6 @@ maven.install(
         "com.google.crypto.tink:tink-awskms:1.9.1",
         "com.google.crypto.tink:tink-gcpkms:1.9.0",
         "com.squareup.okhttp3:okhttp:4.12.0",
-        "info.picocli:picocli:4.7.6",
         "io.opentelemetry.semconv:opentelemetry-semconv:1.22.0-alpha",
         "io.kubernetes:client-java:" + K8S_CLIENT_VERSION,
         "io.kubernetes:client-java-extended:" + K8S_CLIENT_VERSION,

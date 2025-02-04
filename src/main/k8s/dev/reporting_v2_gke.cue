@@ -87,6 +87,11 @@ reporting: #Reporting & {
 		"reporting-v2alpha-public-api-server": {
 			_container: resources: #PublicServerResourceRequirements
 		}
+		"access-internal-api-server": {
+			spec: template: spec: #ServiceAccountPodSpec & {
+				serviceAccountName: #InternalAccessServerServiceAccount
+			}
+		}
 	}
 
 	services: {
