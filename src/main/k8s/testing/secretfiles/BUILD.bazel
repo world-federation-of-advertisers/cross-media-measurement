@@ -14,6 +14,7 @@ package(
         "//src/test/kotlin/org/wfanet/measurement/kingdom/batch:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/reporting:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation/requisitions:__subpackages__",
         "//src/test/kotlin/org/wfanet/panelmatch/integration:__subpackages__",
     ],
 )

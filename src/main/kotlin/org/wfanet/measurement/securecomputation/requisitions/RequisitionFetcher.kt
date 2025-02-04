@@ -22,7 +22,6 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
 import org.wfanet.measurement.api.v2alpha.Measurement
-import org.wfanet.measurement.common.throttler.Throttler
 import java.util.logging.Logger
 
 // 1. Polls for new requisitions
@@ -32,13 +31,7 @@ class RequisitionFetcher(
   private val gcsStorageClient: GcsStorageClient,
   private val gcsBucket: String,
   private val dataProviderName: String,
-  private val throttler: Throttler,
   ) {
-
-  suspend fun run() {
-    throttler.loopOnReady { executeRequisitionFetchingWorkflow() }
-  }
-
   suspend fun executeRequisitionFetchingWorkflow() {
     logger.info("Executing requisitionFetchingWorkflow for $dataProviderName...")
 
@@ -74,7 +67,7 @@ class RequisitionFetcher(
 
       // Only stores the requisition if it does not already exist in the GCS bucket by checking if the blob URI(created
       // using the requisition name, ensuring uniqueness) is populated.
-      if(gcsStorageClient.getBlob(blobUri) != null) {
+      if(gcsStorageClient.getBlob(blobUri) == null) {
         gcsStorageClient.writeBlob(blobUri, requisition.toByteString())
       }
     }
