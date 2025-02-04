@@ -1120,6 +1120,31 @@ class PoliciesServiceTest {
     }
 
   @Test
+  fun `removePolicyBindingMembers throws REQUIRED_FIELD_NOT_SET when members is not set`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.removePolicyBindingMembers(
+            removePolicyBindingMembersRequest {
+              name = "policies/policy-1"
+              role = "roles/bookReader"
+              etag = "etag"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "members"
+          }
+        )
+    }
+
+  @Test
   fun `removePolicyBindingMembers throws INVALID_FIELD_VALUE when members is malformed`() =
     runBlocking {
       val exception =
