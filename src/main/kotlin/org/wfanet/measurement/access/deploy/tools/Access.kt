@@ -658,9 +658,9 @@ class CreatePolicy : Runnable {
 class LookupPolicy : Runnable {
   @ParentCommand private lateinit var parentCommand: Policies
 
-  @Parameters(
-    index = "0",
-    description = ["Name of the resource to which the policy applies"],
+  @Option(
+    names = ["--protected-resource"],
+    description = ["Name of the protected resource to which the policy applies"],
     arity = "1",
   )
   private lateinit var resource: String
