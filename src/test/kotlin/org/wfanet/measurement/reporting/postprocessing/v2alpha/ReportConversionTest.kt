@@ -16,7 +16,6 @@ package org.wfanet.measurement.reporting.postprocessing.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.util.JsonFormat
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.test.assertFailsWith
@@ -38,8 +37,6 @@ class ReportConversionTest {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_custom_policy.json").toFile()
     val reportAsJson = reportFile.readText()
     val reportSummary = ReportConversion.convertJsontoReportSummaries(reportAsJson)
-
-    println(JsonFormat.printer().preservingProtoFieldNames().print(reportSummary[0]))
 
     // A custom total campaign measurement that contains impression and reach and frequency.
     val unionCustomEdp1Edp2MeasurementDetail = measurementDetail {
@@ -88,6 +85,48 @@ class ReportConversionTest {
           }
         }
         metric = "measurementConsumers/fLhOpt2Z4x8/metrics/adacfb57a-fe7b-44b5-9c29-022be610a407"
+      }
+    }
+
+    // Measurement with NaN values in k reach result.
+    val unionCustomEdp2MeasurementDetail = measurementDetail {
+      measurementPolicy = "custom"
+      setOperation = "union"
+      dataProviders += "edp2"
+      measurementResults += measurementResult {
+        reachAndFrequency = reachAndFrequencyResult {
+          reach = reachResult { standardDeviation = 102011.27564649425 }
+          frequency = frequencyResult {
+            bins += binResult {
+              label = "1"
+              standardDeviation = 102011.27564649425
+            }
+            bins += binResult {
+              label = "2"
+              standardDeviation = 102011.27564649425
+            }
+            bins += binResult {
+              label = "3"
+              standardDeviation = 29448.118727440287
+            }
+            bins += binResult {
+              label = "4"
+              standardDeviation = 29448.118727440287
+            }
+            bins += binResult {
+              label = "5"
+              standardDeviation = 29448.118727440287
+            }
+          }
+        }
+        metric = "measurementConsumers/fLhOpt2Z4x8/metrics/a410a1c14-1214-449a-b08e-2df1b292dc4a"
+      }
+      measurementResults += measurementResult {
+        impressionCount = impressionCountResult {
+          value = 70833
+          standardDeviation = 358181.0108199463
+        }
+        metric = "measurementConsumers/fLhOpt2Z4x8/metrics/a8133cd9a-1803-41b4-a82a-01025c1c01e6"
       }
     }
 
@@ -177,6 +216,7 @@ class ReportConversionTest {
     assertThat(reportSummary[0].measurementDetailsList)
       .containsAtLeast(
         unionCustomEdp1Edp2MeasurementDetail,
+        unionCustomEdp2MeasurementDetail,
         cummulativeCustomEdp1Edp2MeasurementDetail,
       )
   }

@@ -224,8 +224,22 @@ fun Report.toReportSummaries(): List<ReportSummary> {
                                           } else {
                                             0
                                           }
+                                        // TODO(@ple13): Read the standard deviations directly from
+                                        // the frequency buckets when the report populates the
+                                        // standard deviations for frequency histogram when reach is
+                                        // 0.
                                         standardDeviation =
-                                          bin.resultUnivariateStatistics.standardDeviation
+                                          if (
+                                            resultAttribute.metricResult.reachAndFrequency.reach
+                                              .value > 0 ||
+                                              bin.resultUnivariateStatistics.standardDeviation > 0
+                                          ) {
+                                            bin.resultUnivariateStatistics.standardDeviation
+                                          } else {
+                                            resultAttribute.metricResult.reachAndFrequency.reach
+                                              .univariateStatistics
+                                              .standardDeviation
+                                          }
                                       }
                                     }
                               }
@@ -241,8 +255,12 @@ fun Report.toReportSummaries(): List<ReportSummary> {
                           }
                       }
                       MetricResult.ResultCase.WATCH_DURATION,
-                      MetricResult.ResultCase.POPULATION_COUNT,
-                      MetricResult.ResultCase.RESULT_NOT_SET -> {}
+                      MetricResult.ResultCase.POPULATION_COUNT -> {}
+                      MetricResult.ResultCase.RESULT_NOT_SET -> {
+                        throw IllegalArgumentException(
+                          "The result type in MetricResult is not specified."
+                        )
+                      }
                     }
                     metric = resultAttribute.metric
                   }

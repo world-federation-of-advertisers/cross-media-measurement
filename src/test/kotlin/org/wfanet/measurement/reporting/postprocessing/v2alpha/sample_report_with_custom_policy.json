@@ -849,18 +849,12 @@
                     "label": "1",
                     "binResult": {
                       "value": "NaN"
-                    },
-                    "resultUnivariateStatistics": {
-                      "standardDeviation": 29448.118727440287
                     }
                   },
                   {
                     "label": "2",
                     "binResult": {
                       "value": "NaN"
-                    },
-                    "resultUnivariateStatistics": {
-                      "standardDeviation": 29448.118727440287
                     }
                   },
                   {
@@ -1462,18 +1456,12 @@
                     "label": "1",
                     "binResult": {
                       "value": "NaN"
-                    },
-                    "resultUnivariateStatistics": {
-                      "standardDeviation": 29448.118727440287
                     }
                   },
                   {
                     "label": "2",
                     "binResult": {
                       "value": "NaN"
-                    },
-                    "resultUnivariateStatistics": {
-                      "standardDeviation": 29448.118727440287
                     }
                   },
                   {

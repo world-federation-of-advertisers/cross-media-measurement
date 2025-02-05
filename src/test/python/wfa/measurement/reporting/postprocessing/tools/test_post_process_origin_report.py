@@ -35,72 +35,72 @@ class TestOriginReport(unittest.TestCase):
     expected_cumulative_measurements = {
         'custom': {
             frozenset({'edp1', 'edp2'}): [
-                Measurement(100.00, 184302.26,
+                Measurement(100, 184302.26,
                             'cumulative/custom/edp1_edp2_00'),
-                Measurement(100.00, 184302.26, 'cumulative/custom/edp1_edp2_01')
+                Measurement(100, 184302.26, 'cumulative/custom/edp1_edp2_01')
             ],
             frozenset({'edp2'}): [
-                Measurement(0.00, 137708.80, 'cumulative/custom/edp2_00'),
-                Measurement(0.00, 137708.80, 'cumulative/custom/edp2_01')
+                Measurement(0, 137708.80, 'cumulative/custom/edp2_00'),
+                Measurement(0, 137708.80, 'cumulative/custom/edp2_01')
             ],
             frozenset({'edp1'}): [
-                Measurement(0.00, 137708.80, 'cumulative/custom/edp1_00'),
-                Measurement(0.00, 137708.80, 'cumulative/custom/edp1_01')
+                Measurement(0, 137708.80, 'cumulative/custom/edp1_00'),
+                Measurement(0, 137708.80, 'cumulative/custom/edp1_01')
             ]
         },
         'ami': {
             frozenset({'edp1', 'edp2'}): [
-                Measurement(100.00, 184302.26, 'cumulative/ami/edp1_edp2_00'),
-                Measurement(182300.00, 197680.10, 'cumulative/ami/edp1_edp2_01')
+                Measurement(100, 184302.26, 'cumulative/ami/edp1_edp2_00'),
+                Measurement(182300, 197680.10, 'cumulative/ami/edp1_edp2_01')
             ],
             frozenset({'edp1'}): [
-                Measurement(0.00, 137708.80, 'cumulative/ami/edp1_00'),
-                Measurement(0.00, 137708.80, 'cumulative/ami/edp1_01')
+                Measurement(0, 137708.80, 'cumulative/ami/edp1_00'),
+                Measurement(0, 137708.80, 'cumulative/ami/edp1_01')
             ],
             frozenset({'edp2'}): [
-                Measurement(168600.00, 137769.39, 'cumulative/ami/edp2_00'),
-                Measurement(101700.00, 137745.35, 'cumulative/ami/edp2_01')
+                Measurement(168600, 137769.39, 'cumulative/ami/edp2_00'),
+                Measurement(101700, 137745.35, 'cumulative/ami/edp2_01')
             ]
         },
         'mrc': {
             frozenset({'edp1', 'edp2'}): [
-                Measurement(100.00, 184302.26, 'cumulative/mrc/edp1_edp2_00'),
-                Measurement(100.00, 184302.26, 'cumulative/mrc/edp1_edp2_01')
+                Measurement(100, 184302.26, 'cumulative/mrc/edp1_edp2_00'),
+                Measurement(100, 184302.26, 'cumulative/mrc/edp1_edp2_01')
             ],
             frozenset({'edp2'}): [
-                Measurement(29500.00, 137719.40, 'cumulative/mrc/edp2_00'),
-                Measurement(113200.00, 137749.48, 'cumulative/mrc/edp2_01')
+                Measurement(29500, 137719.40, 'cumulative/mrc/edp2_00'),
+                Measurement(113200, 137749.48, 'cumulative/mrc/edp2_01')
             ],
             frozenset({'edp1'}): [
-                Measurement(234600.00, 137793.10, 'cumulative/mrc/edp1_00'),
-                Measurement(11900.00, 137713.08, 'cumulative/mrc/edp1_01')
+                Measurement(234600, 137793.10, 'cumulative/mrc/edp1_00'),
+                Measurement(11900, 137713.08, 'cumulative/mrc/edp1_01')
             ]
         }
     }
 
     expected_whole_campaign_measurements = {
         'custom': {
-            frozenset({'edp1', 'edp2'}): Measurement(92459.00, 145777.47,
+            frozenset({'edp1', 'edp2'}): Measurement(92459, 145777.47,
                                                      'reach_and_frequency/custom/edp1_edp2'),
-            frozenset({'edp2'}): Measurement(0.00, 102011.28,
+            frozenset({'edp2'}): Measurement(0, 102011.28,
                                              'reach_and_frequency/custom/edp2'),
-            frozenset({'edp1'}): Measurement(0.00, 102011.28,
+            frozenset({'edp1'}): Measurement(0, 102011.28,
                                              'reach_and_frequency/custom/edp1'),
         },
         'ami': {
-            frozenset({'edp1'}): Measurement(0.00, 102011.28,
+            frozenset({'edp1'}): Measurement(0, 102011.28,
                                              'reach_and_frequency/ami/edp1'),
-            frozenset({'edp1', 'edp2'}): Measurement(243539.00, 160194.11,
+            frozenset({'edp1', 'edp2'}): Measurement(243539, 160194.11,
                                                      'reach_and_frequency/ami/edp1_edp2'),
-            frozenset({'edp2'}): Measurement(0.00, 102011.28,
+            frozenset({'edp2'}): Measurement(0, 102011.28,
                                              'reach_and_frequency/ami/edp2')
         },
         'mrc': {
-            frozenset({'edp1', 'edp2'}): Measurement(59.00, 137388.94,
+            frozenset({'edp1', 'edp2'}): Measurement(59, 137388.94,
                                                      'reach_and_frequency/mrc/edp1_edp2'),
-            frozenset({'edp2'}): Measurement(182759.00, 102064.11,
+            frozenset({'edp2'}): Measurement(182759, 102064.11,
                                              'reach_and_frequency/mrc/edp2'),
-            frozenset({'edp1'}): Measurement(58679.00, 102028.24,
+            frozenset({'edp1'}): Measurement(58679, 102028.24,
                                              'reach_and_frequency/mrc/edp1')
         }
     }
@@ -108,139 +108,139 @@ class TestOriginReport(unittest.TestCase):
     expected_k_reach_measurements = {
         'custom': {
             frozenset({'edp1', 'edp2'}): {
-                1: Measurement(0.00, 49832.83,
+                1: Measurement(0, 49832.83,
                                'reach_and_frequency/custom/edp1_edp2-frequency-1'),
-                2: Measurement(52259.43, 96293.33,
+                2: Measurement(52259, 96293.33,
                                'reach_and_frequency/custom/edp1_edp2-frequency-2'),
-                3: Measurement(0.00, 49832.83,
+                3: Measurement(0, 49832.83,
                                'reach_and_frequency/custom/edp1_edp2-frequency-3'),
-                4: Measurement(0.00, 49832.83,
+                4: Measurement(0, 49832.83,
                                'reach_and_frequency/custom/edp1_edp2-frequency-4'),
-                5: Measurement(40199.57, 80625.84,
+                5: Measurement(40199, 80625.84,
                                'reach_and_frequency/custom/edp1_edp2-frequency-5'),
             }, frozenset({'edp2'}): {
-                1: Measurement(0.00, 29448.12,
+                1: Measurement(0, 29448.12,
                                'reach_and_frequency/custom/edp2-frequency-1'),
-                2: Measurement(0.00, 29448.12,
+                2: Measurement(0, 29448.12,
                                'reach_and_frequency/custom/edp2-frequency-2'),
-                3: Measurement(0.00, 29448.12,
+                3: Measurement(0, 29448.12,
                                'reach_and_frequency/custom/edp2-frequency-3'),
-                4: Measurement(0.00, 29448.12,
+                4: Measurement(0, 29448.12,
                                'reach_and_frequency/custom/edp2-frequency-4'),
-                5: Measurement(0.00, 29448.12,
+                5: Measurement(0, 29448.12,
                                'reach_and_frequency/custom/edp2-frequency-5'),
             },
             frozenset({'edp1'}): {
-                1: Measurement(0.00, 29448.12,
+                1: Measurement(0, 29448.12,
                                'reach_and_frequency/custom/edp1-frequency-1'),
-                2: Measurement(0.00, 29448.12,
+                2: Measurement(0, 29448.12,
                                'reach_and_frequency/custom/edp1-frequency-2'),
-                3: Measurement(0.00, 29448.12,
+                3: Measurement(0, 29448.12,
                                'reach_and_frequency/custom/edp1-frequency-3'),
-                4: Measurement(0.00, 29448.12,
+                4: Measurement(0, 29448.12,
                                'reach_and_frequency/custom/edp1-frequency-4'),
-                5: Measurement(0.00, 29448.12,
+                5: Measurement(0, 29448.12,
                                'reach_and_frequency/custom/edp1-frequency-5'),
             }
         },
         'ami': {
             frozenset({'edp1'}): {
-                1: Measurement(0.00, 29448.12,
+                1: Measurement(0, 29448.12,
                                'reach_and_frequency/ami/edp1-frequency-1'),
-                2: Measurement(0.00, 29448.12,
+                2: Measurement(0, 29448.12,
                                'reach_and_frequency/ami/edp1-frequency-2'),
-                3: Measurement(0.00, 29448.12,
+                3: Measurement(0, 29448.12,
                                'reach_and_frequency/ami/edp1-frequency-3'),
-                4: Measurement(0.00, 29448.12,
+                4: Measurement(0, 29448.12,
                                'reach_and_frequency/ami/edp1-frequency-4'),
-                5: Measurement(0.00, 29448.12,
+                5: Measurement(0, 29448.12,
                                'reach_and_frequency/ami/edp1-frequency-5'),
             },
             frozenset({'edp1', 'edp2'}): {
-                1: Measurement(0.00, 84149.37,
+                1: Measurement(0, 84149.37,
                                'reach_and_frequency/ami/edp1_edp2-frequency-1'),
-                2: Measurement(0.00, 84149.37,
+                2: Measurement(0, 84149.37,
                                'reach_and_frequency/ami/edp1_edp2-frequency-2'),
-                3: Measurement(82755.97, 100221.13,
+                3: Measurement(82755, 100221.13,
                                'reach_and_frequency/ami/edp1_edp2-frequency-3'),
-                4: Measurement(111129.45, 111465.13,
+                4: Measurement(111129, 111465.13,
                                'reach_and_frequency/ami/edp1_edp2-frequency-4'),
-                5: Measurement(49653.58, 90265.46,
+                5: Measurement(49653, 90265.46,
                                'reach_and_frequency/ami/edp1_edp2-frequency-5'),
             },
             frozenset({'edp2'}): {
-                1: Measurement(0.00, 29448.12,
+                1: Measurement(0, 29448.12,
                                'reach_and_frequency/ami/edp2-frequency-1'),
-                2: Measurement(0.00, 29448.12,
+                2: Measurement(0, 29448.12,
                                'reach_and_frequency/ami/edp2-frequency-2'),
-                3: Measurement(0.00, 29448.12,
+                3: Measurement(0, 29448.12,
                                'reach_and_frequency/ami/edp2-frequency-3'),
-                4: Measurement(0.00, 29448.12,
+                4: Measurement(0, 29448.12,
                                'reach_and_frequency/ami/edp2-frequency-4'),
-                5: Measurement(0.00, 29448.12,
+                5: Measurement(0, 29448.12,
                                'reach_and_frequency/ami/edp2-frequency-5'),
             }},
         'mrc': {
             frozenset({'edp1', 'edp2'}): {
-                1: Measurement(18.44, 58449.20,
+                1: Measurement(18, 58449.20,
                                'reach_and_frequency/mrc/edp1_edp2-frequency-1'),
-                2: Measurement(0.00, 39660.77,
+                2: Measurement(0, 39660.77,
                                'reach_and_frequency/mrc/edp1_edp2-frequency-2'),
-                3: Measurement(0.00, 39660.77,
+                3: Measurement(0, 39660.77,
                                'reach_and_frequency/mrc/edp1_edp2-frequency-3'),
-                4: Measurement(40.56, 102443.67,
+                4: Measurement(40, 102443.67,
                                'reach_and_frequency/mrc/edp1_edp2-frequency-4'),
-                5: Measurement(0.00, 39660.77,
+                5: Measurement(0, 39660.77,
                                'reach_and_frequency/mrc/edp1_edp2-frequency-5'),
             },
             frozenset({'edp2'}): {
-                1: Measurement(0.00, 60427.60,
+                1: Measurement(0, 60427.60,
                                'reach_and_frequency/mrc/edp2-frequency-1'),
-                2: Measurement(0.00, 60427.60,
+                2: Measurement(0, 60427.60,
                                'reach_and_frequency/mrc/edp2-frequency-2'),
-                3: Measurement(0.00, 60427.60,
+                3: Measurement(0, 60427.60,
                                'reach_and_frequency/mrc/edp2-frequency-3'),
-                4: Measurement(182759.00, 118611.04,
+                4: Measurement(182759, 118611.04,
                                'reach_and_frequency/mrc/edp2-frequency-4'),
-                5: Measurement(0.00, 60427.60,
+                5: Measurement(0, 60427.60,
                                'reach_and_frequency/mrc/edp2-frequency-5'),
             },
             frozenset({'edp1'}): {
-                1: Measurement(37968.76, 74248.42,
+                1: Measurement(37968, 74248.42,
                                'reach_and_frequency/mrc/edp1-frequency-1'),
-                2: Measurement(0.00, 33976.69,
+                2: Measurement(0, 33976.69,
                                'reach_and_frequency/mrc/edp1-frequency-2'),
-                3: Measurement(0.00, 33976.69,
+                3: Measurement(0, 33976.69,
                                'reach_and_frequency/mrc/edp1-frequency-3'),
-                4: Measurement(0.00, 33976.69,
+                4: Measurement(0, 33976.69,
                                'reach_and_frequency/mrc/edp1-frequency-4'),
-                5: Measurement(20710.24, 49508.92,
+                5: Measurement(20710, 49508.92,
                                'reach_and_frequency/mrc/edp1-frequency-5'),
             }
         }
     }
     expected_impression_measurements = {
         'custom': {
-            frozenset({'edp1', 'edp2'}): Measurement(239912.00, 506550.03,
+            frozenset({'edp1', 'edp2'}): Measurement(239912, 506550.03,
                                                      'impression_count/custom/edp1_edp2'),
-            frozenset({'edp2'}): Measurement(70833.00, 358181.01,
+            frozenset({'edp2'}): Measurement(70833, 358181.01,
                                              'impression_count/custom/edp2'),
-            frozenset({'edp1'}): Measurement(0.00, 358175.32,
+            frozenset({'edp1'}): Measurement(0, 358175.32,
                                              'impression_count/custom/edp1')
         },
-        'ami': {frozenset({'edp1'}): Measurement(0.00, 358175.32,
+        'ami': {frozenset({'edp1'}): Measurement(0, 358175.32,
                                                  'impression_count/ami/edp1'),
-                frozenset({'edp1', 'edp2'}): Measurement(0.00, 506536.39,
+                frozenset({'edp1', 'edp2'}): Measurement(0, 506536.39,
                                                          'impression_count/ami/edp1_edp2'),
-                frozenset({'edp2'}): Measurement(0.00, 358175.32,
+                frozenset({'edp2'}): Measurement(0, 358175.32,
                                                  'impression_count/ami/edp2')
                 },
         'mrc': {
-            frozenset({'edp1', 'edp2'}): Measurement(593825.00, 506570.14,
+            frozenset({'edp1', 'edp2'}): Measurement(593825, 506570.14,
                                                      'impression_count/mrc/edp1_edp2'),
-            frozenset({'edp2'}): Measurement(0.00, 358175.32,
+            frozenset({'edp2'}): Measurement(0, 358175.32,
                                              'impression_count/mrc/edp2'),
-            frozenset({'edp1'}): Measurement(0.00, 358175.32,
+            frozenset({'edp1'}): Measurement(0, 358175.32,
                                              'impression_count/mrc/edp1')
         }}
 
