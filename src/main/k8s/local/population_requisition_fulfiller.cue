@@ -19,7 +19,6 @@ _pdpCertName:            string @tag("pdp_cert_name")
 _populationResourceName: string @tag("population_resource_name")
 _secretName:             string @tag("secret_name")
 
-
 _populationSpec:                       "/etc/\(#AppName)/config-files/population_spec_small.textproto"
 _populationRequisitionFulfillerConfig: #PopulationRequisitionFulfillerConfig & {
 	dataProviderDisplayName:      "pdp1"
@@ -36,8 +35,8 @@ _populationRequisitionFulfillerConfig: #PopulationRequisitionFulfillerConfig & {
 }
 
 objectSets: [
-    populationRequisitionFulfiller.deployment,
-    populationRequisitionFulfiller.networkPolicies
+   populationRequisitionFulfiller.deployment,
+   populationRequisitionFulfiller.networkPolicies,
 ]
 
 populationRequisitionFulfiller: #PopulationRequisitionFulfiller & {
