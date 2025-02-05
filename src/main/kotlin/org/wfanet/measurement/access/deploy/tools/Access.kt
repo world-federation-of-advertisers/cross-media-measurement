@@ -661,7 +661,7 @@ class LookupPolicy : Runnable {
   @Option(
     names = ["--protected-resource"],
     description = ["Name of the protected resource to which the policy applies"],
-    arity = "1",
+    required = true,
   )
   private lateinit var resource: String
 
