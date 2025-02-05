@@ -24,7 +24,7 @@ import "list"
     dataProviderResourceName:    string
     dataProviderCertResourceName: string
     throttlerMinimumInterval:     string | *"2s"
-    eventMessageDescriptorSet:   [...string]
+    eventMessageDescriptor:   string
     populationKeyAndInfoList: [...#PopulationKeyAndInfo]
 }
 
@@ -39,7 +39,7 @@ import "list"
     _imageConfig: #ImageConfig
     _populationRequisitionFulfillerSecretName: string
 
-    let displayName = _config.dataProviderDisplayName
+    let DisplayName = _config.dataProviderDisplayName
 
     _populationFlags: {
     	let flagLists = [ for config in _config.populationKeyAndInfoList {[
@@ -50,15 +50,8 @@ import "list"
    		list.FlattenN(flagLists, 2)
     }
 
-    _eventDescriptorFlags: {
-        let flagLists = [ for file in _config.eventMessageDescriptorSet {[
-            "--event-message-descriptor-set=\(file)"
-        ]}]
-        list.FlattenN(flagLists, 2)
-    }
-
     deployment: #Deployment & {
-    	_name:       displayName + "-simulator"
+    	_name:       DisplayName + "-simulator"
     	_secretName: _populationRequisitionFulfillerSecretName
     	_system:     "population"
     	_container: {
@@ -67,16 +60,17 @@ import "list"
                 "--kingdom-public-api-target=\(#KingdomPublicApiTarget)",
                 "--kingdom-public-api-cert-host=localhost",
                 "--data-provider-resource-name=\(_config.dataProviderResourceName)",
-                "--data-provider-display-name=\(displayName)",
+                "--data-provider-display-name=\(DisplayName)",
                 "--data-provider-certificate-resource-name=\(_config.dataProviderCertResourceName)",
-                "--data-provider-encryption-private-keyset=/var/run/secrets/files/\(displayName)_enc_private.tink",
-                "--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(displayName)_cs_private.der",
-                "--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(displayName)_cs_cert.der",
+                "--data-provider-encryption-private-keyset=/var/run/secrets/files/\(DisplayName)_enc_private.tink",
+                "--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(DisplayName)_cs_private.der",
+                "--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(DisplayName)_cs_cert.der",
                 "--throttler-minimum-interval=\(_config.throttlerMinimumInterval)",
-                "--tls-cert-file=/var/run/secrets/files/\(displayName)_root.pem",
-                "--tls-key-file=/var/run/secrets/files/\(displayName)_root.key",
+                "--tls-cert-file=/var/run/secrets/files/\(DisplayName)_root.pem",
+                "--tls-key-file=/var/run/secrets/files/\(DisplayName)_root.key",
    				"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
-            ] + _populationFlags + _eventDescriptorFlags
+   				"--event-message-descriptor-set=\(_config.eventMessageDescriptor)"
+            ] + _populationFlags
     	}
     	spec: template: spec: {
             _dependencies: [
