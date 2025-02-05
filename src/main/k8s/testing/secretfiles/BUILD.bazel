@@ -134,6 +134,13 @@ proto_descriptor_set(
     ],
 )
 
+proto_descriptor_set(
+    name = "test_event_message_descriptor_set",
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_proto",
+    ],
+)
+
 SECRET_FILES = [
     "all_root_certs.pem",
     "edp_trusted_certs.pem",
@@ -222,6 +229,8 @@ SECRET_FILES = [
     "pdp1_cs_private.der",
     "pdp1_enc_private.tink",
     "pdp1_enc_public.tink",
+    "pdp1_root.pem",
+    "pdp1_root.key",
 ]
 
 filegroup(

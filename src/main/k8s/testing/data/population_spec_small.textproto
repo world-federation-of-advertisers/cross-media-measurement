@@ -1,0 +1,123 @@
+# proto-file: wfa/measurement/api/v2alpha/population_spec.proto
+# proto-message: PopulationSpec
+
+subpopulations {
+  attributes {
+    type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person"
+    value: "\b\001\020\001\030\001"
+  }
+  vid_ranges {
+    start_vid: 1
+    end_vid_inclusive: 9999
+  }
+}
+subpopulations {
+  attributes {
+    type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person"
+    value: "\b\001\020\001\030\002"
+  }
+  vid_ranges {
+    start_vid: 10000
+    end_vid_inclusive: 19999
+  }
+}
+subpopulations {
+  attributes {
+    type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person"
+    value: "\b\001\020\002\030\001"
+  }
+  vid_ranges {
+    start_vid: 20000
+    end_vid_inclusive: 29999
+  }
+}
+subpopulations {
+  attributes {
+    type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person"
+    value: "\b\001\020\002\030\002"
+  }
+  vid_ranges {
+    start_vid: 30000
+    end_vid_inclusive: 39999
+  }
+}
+subpopulations {
+  attributes {
+    type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person"
+    value: "\b\001\020\003\030\001"
+  }
+  vid_ranges {
+    start_vid: 40000
+    end_vid_inclusive: 49999
+  }
+}
+subpopulations {
+  attributes {
+    type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person"
+    value: "\b\001\020\003\030\002"
+  }
+  vid_ranges {
+    start_vid: 50000
+    end_vid_inclusive: 59999
+  }
+}
+subpopulations {
+  attributes {
+    type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person"
+    value: "\b\002\020\001\030\001"
+  }
+  vid_ranges {
+    start_vid: 60000
+    end_vid_inclusive: 69999
+  }
+}
+subpopulations {
+  attributes {
+    type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person"
+    value: "\b\002\020\001\030\002"
+  }
+  vid_ranges {
+    start_vid: 70000
+    end_vid_inclusive: 79999
+  }
+}
+subpopulations {
+  attributes {
+    type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person"
+    value: "\b\002\020\002\030\001"
+  }
+  vid_ranges {
+    start_vid: 80000
+    end_vid_inclusive: 84999
+  }
+}
+subpopulations {
+  attributes {
+    type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person"
+    value: "\b\002\020\002\030\002"
+  }
+  vid_ranges {
+    start_vid: 85000
+    end_vid_inclusive: 89999
+  }
+}
+subpopulations {
+  attributes {
+    type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person"
+    value: "\b\002\020\003\030\001"
+  }
+  vid_ranges {
+    start_vid: 90000
+    end_vid_inclusive: 94999
+  }
+}
+subpopulations {
+  attributes {
+    type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person"
+    value: "\b\002\020\003\030\002"
+  }
+  vid_ranges {
+    start_vid: 95000
+    end_vid_inclusive: 99999
+  }
+}

@@ -22,3 +22,5 @@ configMapGenerator:
   - synthetic_event_group_spec_small_1.textproto
   - synthetic_event_group_spec_small_2.textproto
   - known_event_group_metadata_type_set.pb
+  - population_spec_small.textproto
+  - test_event_message_descriptor_set.pb
