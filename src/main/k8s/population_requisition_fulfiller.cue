@@ -40,14 +40,14 @@ import "list"
 
 	let DisplayName = _config.dataProviderDisplayName
 
-    _populationFlags: {
-	    let flagLists = [ for config in _config.populationKeyAndInfoList {[
-	 	    "--population-resource-name=\(config.populationResourceName)",
-		    "--population-spec=\(config.populationSpecFile)",
-		    "--event-message-type-url=\(config.eventMessageTypeUrl)",
-	    ]}]
-	    list.FlattenN(flagLists, 2)
-    }
+	_populationFlags: {
+		let flagLists = [ for config in _config.populationKeyAndInfoList {[
+			"--population-resource-name=\(config.populationResourceName)",
+			"--population-spec=\(config.populationSpecFile)",
+			"--event-message-type-url=\(config.eventMessageTypeUrl)",
+		]}]
+		list.FlattenN(flagLists, 2)
+	}
 
 	deployment: #Deployment & {
 		_name:       DisplayName + "-simulator"
