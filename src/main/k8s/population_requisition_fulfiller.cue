@@ -38,7 +38,7 @@ import "list"
 	_imageConfig:                              #ImageConfig
 	_populationRequisitionFulfillerSecretName: string
 
-     let DisplayName = _config.dataProviderDisplayName
+	let DisplayName = _config.dataProviderDisplayName
 
     _populationFlags: {
 	    let flagLists = [ for config in _config.populationKeyAndInfoList {[

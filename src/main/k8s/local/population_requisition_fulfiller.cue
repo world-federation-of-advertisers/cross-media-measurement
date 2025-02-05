@@ -35,8 +35,8 @@ _populationRequisitionFulfillerConfig: #PopulationRequisitionFulfillerConfig & {
 }
 
 objectSets: [
-   populationRequisitionFulfiller.deployment,
-   populationRequisitionFulfiller.networkPolicies,
+	populationRequisitionFulfiller.deployment,
+	populationRequisitionFulfiller.networkPolicies,
 ]
 
 populationRequisitionFulfiller: #PopulationRequisitionFulfiller & {
