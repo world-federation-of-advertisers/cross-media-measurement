@@ -218,10 +218,7 @@ interface ReportProcessor {
     }
 
     /** Returns a [Report] with updated reach values from the [correctedMeasurementsMap]. */
-    private fun updateReport(
-      report: Report,
-      correctedMeasurementsMap: Map<String, Long>,
-    ): Report {
+    private fun updateReport(report: Report, correctedMeasurementsMap: Map<String, Long>): Report {
       val correctedMetricCalculationResults =
         report.metricCalculationResultsList.map { result ->
           updateMetricCalculationResult(result, correctedMeasurementsMap)
