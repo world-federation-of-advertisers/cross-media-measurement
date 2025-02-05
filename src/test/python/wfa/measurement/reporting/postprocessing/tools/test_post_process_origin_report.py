@@ -14,10 +14,14 @@
 
 import sys
 import unittest
+
 from google.protobuf.json_format import Parse
+
 from noiseninja.noised_measurements import Measurement
+
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_summary_pb2
+
 from tools.post_process_origin_report import ReportSummaryProcessor
 
 TOLERANCE = 1

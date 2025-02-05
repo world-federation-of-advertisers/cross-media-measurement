@@ -15,15 +15,19 @@
 import json
 import math
 import sys
+from typing import FrozenSet
+
 from absl import app
 from absl import flags
 from absl import logging
+
 from noiseninja.noised_measurements import Measurement
+
 from report.report import MetricReport
 from report.report import Report
+
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_summary_pb2
-from typing import FrozenSet
 
 # This is a demo script that has the following assumptions :
 # 1. Impression results are not corrected.
@@ -146,7 +150,7 @@ class ReportSummaryProcessor:
         for frequency in range(1,
                                metric_report.get_number_of_frequencies() + 1):
           entry = metric_report.get_k_reach_measurement(edp_combination,
-                                                       frequency)
+                                                        frequency)
           metric_name_to_value.update({entry.name: int(entry.value)})
       for edp_combination in metric_report.get_impression_edp_combinations():
         entry = metric_report.get_impression_measurement(edp_combination)

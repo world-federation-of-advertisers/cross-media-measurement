@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import unittest
+
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import SetMeasurementsSpec
+
 from report.report import MetricReport
 from report.report import Report
 from report.report import get_covers

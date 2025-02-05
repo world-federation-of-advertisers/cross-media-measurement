@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import unittest
+from unittest.mock import MagicMock
+
+from qpsolvers import Solution
+
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from noiseninja.solver import Solver
-from qpsolvers import Solution
-from unittest.mock import MagicMock
 
 HIGHS_SOLVER = "highs"
 

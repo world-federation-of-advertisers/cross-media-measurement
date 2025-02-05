@@ -163,9 +163,7 @@ interface ReportProcessor {
                       metricResult =
                         metricResult.copy {
                           reach =
-                            reach.copy {
-                              value = correctedMeasurementsMap.getValue(entry.metric).toLong()
-                            }
+                            reach.copy { value = correctedMeasurementsMap.getValue(entry.metric) }
                         }
                     }
                     entry.metricResult.hasReachAndFrequency() -> {
@@ -175,7 +173,7 @@ interface ReportProcessor {
                             reachAndFrequency.copy {
                               reach =
                                 reach.copy {
-                                  value = correctedMeasurementsMap.getValue(entry.metric).toLong()
+                                  value = correctedMeasurementsMap.getValue(entry.metric)
                                 }
                               frequencyHistogram =
                                 frequencyHistogram.copy {
@@ -204,7 +202,7 @@ interface ReportProcessor {
                         metricResult.copy {
                           impressionCount =
                             impressionCount.copy {
-                              value = correctedMeasurementsMap.getValue(entry.metric).toLong()
+                              value = correctedMeasurementsMap.getValue(entry.metric)
                             }
                         }
                     }

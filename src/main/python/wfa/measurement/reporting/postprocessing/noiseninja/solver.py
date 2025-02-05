@@ -13,12 +13,15 @@
 # limitations under the License.
 
 import numpy as np
+from threading import Semaphore
+
 from absl import logging
-from noiseninja.noised_measurements import SetMeasurementsSpec
+
 from qpsolvers import Problem
 from qpsolvers import Solution
 from qpsolvers import solve_problem
-from threading import Semaphore
+
+from noiseninja.noised_measurements import SetMeasurementsSpec
 
 HIGHS_SOLVER = "highs"
 OSQP_SOLVER = "osqp"
