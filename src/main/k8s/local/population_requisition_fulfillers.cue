@@ -35,7 +35,7 @@ _populationRequisitionFulfillerConfigs: [
                 eventMessageTypeUrl: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
             }
         ]
-        eventMessageDescriptorSet: ["/etc/\(#AppName)/config-files/person_type_set.pb", "/etc/\(#AppName)/config-files/test_event_message_descriptor_set.pb"]
+        eventMessageDescriptorSet: ["/etc/\(#AppName)/config-files/test_event_message_descriptor_set.pb"]
     }
 ]
 

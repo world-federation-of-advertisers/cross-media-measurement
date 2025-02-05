@@ -134,13 +134,6 @@ proto_descriptor_set(
 )
 
 proto_descriptor_set(
-    name = "person_type_set",
-    deps = [
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:person_proto",
-    ],
-)
-
-proto_descriptor_set(
     name = "test_event_message_descriptor_set",
     deps = [
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_proto",
