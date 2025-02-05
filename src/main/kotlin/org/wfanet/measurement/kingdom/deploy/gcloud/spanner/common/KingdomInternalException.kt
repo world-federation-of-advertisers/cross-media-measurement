@@ -410,19 +410,20 @@ class ComputationParticipantNotFoundByMeasurementException(
     get() = emptyMap<String, String>()
 }
 
-open class RequisitionNotFoundException(
+abstract class RequisitionNotFoundException(
   val externalRequisitionId: ExternalId,
-  provideDescription: () -> String = { "Requisition not found" },
-) : KingdomInternalException(ErrorCode.REQUISITION_NOT_FOUND, provideDescription) {
-  override val context
-    get() = mapOf("external_requisition_id" to externalRequisitionId.value.toString())
-}
+  message: String,
+  cause: Throwable?,
+) : KingdomInternalException(ErrorCode.REQUISITION_NOT_FOUND, message, cause)
 
 class RequisitionNotFoundByComputationException(
   val externalComputationId: ExternalId,
   externalRequisitionId: ExternalId,
-  provideDescription: () -> String = { "Requisition not found by Computation" },
-) : RequisitionNotFoundException(externalRequisitionId, provideDescription) {
+  message: String =
+    "Requisition with external Computation ID ${externalComputationId.value} and external " +
+      "Requisition ID ${externalRequisitionId.value} not found",
+  cause: Throwable? = null,
+) : RequisitionNotFoundException(externalRequisitionId, message, cause) {
   override val context
     get() =
       mapOf(
@@ -434,8 +435,11 @@ class RequisitionNotFoundByComputationException(
 class RequisitionNotFoundByDataProviderException(
   val externalDataProviderId: ExternalId,
   externalRequisitionId: ExternalId,
-  provideDescription: () -> String = { "Requisition not found by DataProvider" },
-) : RequisitionNotFoundException(externalRequisitionId, provideDescription) {
+  message: String =
+    "Requisition with external DataProvider ID ${externalDataProviderId.value} and external " +
+      "Requisition ID ${externalRequisitionId.value} not found",
+  cause: Throwable? = null,
+) : RequisitionNotFoundException(externalRequisitionId, message, cause) {
   override val context
     get() =
       mapOf(

@@ -136,37 +136,29 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
   }
 
   private suspend fun TransactionScope.readRequisition(): RequisitionReader.Result {
-    val externalRequisitionId = request.externalRequisitionId
+    val externalRequisitionId = ExternalId(request.externalRequisitionId)
     if (request.hasComputedParams()) {
-      val externalComputationId = request.computedParams.externalComputationId
-      return RequisitionReader()
-        .readByExternalComputationId(
-          transactionContext,
-          externalComputationId = externalComputationId,
-          externalRequisitionId = externalRequisitionId,
-        )
+      val externalComputationId = ExternalId(request.computedParams.externalComputationId)
+      return RequisitionReader.readByExternalComputationId(
+        transactionContext,
+        externalComputationId = externalComputationId,
+        externalRequisitionId = externalRequisitionId,
+      )
         ?: throw RequisitionNotFoundByComputationException(
-          ExternalId(externalComputationId),
-          ExternalId(externalRequisitionId),
-        ) {
-          "Requisition with external Computation ID $externalComputationId and external " +
-            "Requisition ID $externalRequisitionId not found"
-        }
-    } else {
-      val externalDataProviderId = request.directParams.externalDataProviderId
-      return RequisitionReader()
-        .readByExternalDataProviderId(
-          transactionContext,
-          externalDataProviderId = externalDataProviderId,
-          externalRequisitionId = externalRequisitionId,
+          externalComputationId,
+          externalRequisitionId,
         )
+    } else {
+      val externalDataProviderId = ExternalId(request.directParams.externalDataProviderId)
+      return RequisitionReader.readByExternalDataProviderId(
+        transactionContext,
+        externalDataProviderId = externalDataProviderId,
+        externalRequisitionId = externalRequisitionId,
+      )
         ?: throw RequisitionNotFoundByDataProviderException(
-          ExternalId(externalDataProviderId),
-          ExternalId(externalRequisitionId),
-        ) {
-          "Requisition with external DataProvider ID $externalDataProviderId and external " +
-            "Requisition ID $externalRequisitionId not found"
-        }
+          externalDataProviderId,
+          externalRequisitionId,
+        )
     }
   }
 
