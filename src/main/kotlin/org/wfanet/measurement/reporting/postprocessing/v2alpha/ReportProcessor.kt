@@ -76,7 +76,7 @@ interface ReportProcessor {
      */
     private fun processReport(report: Report, verbose: Boolean = false): Report {
       val reportSummaries = report.toReportSummaries()
-      val correctedMeasurementsMap = mutableMapOf<String, Double>()
+      val correctedMeasurementsMap = mutableMapOf<String, Long>()
       for (reportSummary in reportSummaries) {
         correctedMeasurementsMap.putAll(processReportSummary(reportSummary, verbose))
       }
@@ -93,7 +93,7 @@ interface ReportProcessor {
     private fun processReportSummary(
       reportSummary: ReportSummary,
       verbose: Boolean = false,
-    ): Map<String, Double> {
+    ): Map<String, Long> {
       logger.info { "Start processing report.." }
 
       // TODO(bazelbuild/bazel#17629): Execute the Python zip directly once this bug is fixed.
@@ -130,10 +130,11 @@ interface ReportProcessor {
 
       logger.info { "Finished processing report.." }
 
+      // TODO(@ple13): Use protocol buffers for passing messages.
       // Converts the process output to the correction map.
-      val correctedMeasurementsMap = mutableMapOf<String, Double>()
+      val correctedMeasurementsMap = mutableMapOf<String, Long>()
       GsonBuilder().create().fromJson(processOutput, Map::class.java).forEach { (key, value) ->
-        correctedMeasurementsMap[key as String] = (value as Double)
+        correctedMeasurementsMap[key as String] = (value as Double).toLong()
       }
       return correctedMeasurementsMap
     }
@@ -147,7 +148,7 @@ interface ReportProcessor {
      */
     private fun updateMetricCalculationResult(
       metricCalculationResult: Report.MetricCalculationResult,
-      correctedMeasurementsMap: Map<String, Double>,
+      correctedMeasurementsMap: Map<String, Long>,
     ): Report.MetricCalculationResult {
       val updatedMetricCalculationResult =
         metricCalculationResult.copy {
@@ -219,7 +220,7 @@ interface ReportProcessor {
     /** Returns a [Report] with updated reach values from the [correctedMeasurementsMap]. */
     private fun updateReport(
       report: Report,
-      correctedMeasurementsMap: Map<String, Double>,
+      correctedMeasurementsMap: Map<String, Long>,
     ): Report {
       val correctedMetricCalculationResults =
         report.metricCalculationResultsList.map { result ->

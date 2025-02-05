@@ -70,7 +70,7 @@ class ReportSummaryProcessor:
       str, dict[FrozenSet[str], list[Measurement]]] = {}
     self._whole_campaign_measurements: dict[
       str, dict[FrozenSet[str], Measurement]] = {}
-    self._kreach: dict[str, dict[FrozenSet[str], dict[int, Measurement]]] = {}
+    self._k_reach: dict[str, dict[FrozenSet[str], dict[int, Measurement]]] = {}
     self._impression: dict[str, dict[FrozenSet[str], Measurement]] = {}
     self._set_difference_map: dict[str, tuple[str, str]] = {}
 
@@ -114,7 +114,7 @@ class ReportSummaryProcessor:
             policy: MetricReport(
                 reach_time_series=self._cumulative_measurements[policy],
                 reach_whole_campaign=self._whole_campaign_measurements[policy],
-                kreach=self._kreach[policy],
+                k_reach=self._k_reach[policy],
                 impression=self._impression[policy])
             for policy in self._cumulative_measurements
         },
@@ -138,23 +138,23 @@ class ReportSummaryProcessor:
         for index in range(metric_report.get_number_of_periods()):
           entry = metric_report.get_cumulative_measurement(edp_combination,
                                                            index)
-          metric_name_to_value.update({entry.name: entry.value})
+          metric_name_to_value.update({entry.name: int(entry.value)})
       for edp_combination in metric_report.get_whole_campaign_edp_combinations():
         entry = metric_report.get_whole_campaign_measurement(edp_combination)
-        metric_name_to_value.update({entry.name: entry.value})
-      for edp_combination in metric_report.get_kreach_edp_combinations():
+        metric_name_to_value.update({entry.name: int(entry.value)})
+      for edp_combination in metric_report.get_k_reach_edp_combinations():
         for frequency in range(1,
                                metric_report.get_number_of_frequencies() + 1):
-          entry = metric_report.get_kreach_measurement(edp_combination,
+          entry = metric_report.get_k_reach_measurement(edp_combination,
                                                        frequency)
-          metric_name_to_value.update({entry.name: entry.value})
+          metric_name_to_value.update({entry.name: int(entry.value)})
       for edp_combination in metric_report.get_impression_edp_combinations():
         entry = metric_report.get_impression_measurement(edp_combination)
-        metric_name_to_value.update({entry.name: entry.value})
+        metric_name_to_value.update({entry.name: int(entry.value)})
 
     # Updates difference measurements.
     for key, value in self._set_difference_map.items():
-      metric_name_to_value.update({key: (
+      metric_name_to_value.update({key: int(
           metric_name_to_value[value[0]] - metric_name_to_value[value[1]])})
     return metric_name_to_value
 
@@ -171,7 +171,7 @@ class ReportSummaryProcessor:
       and the set of data providers.
     - If the set_operation is "union" and is_cumulative is False, the
       measurement is added to the `_whole_campaign_measurements`, or
-      `_kreach`, or `_impression` dictionary keyed by the measurement policy and
+      `_k_reach`, or `_impression` dictionary keyed by the measurement policy and
        the set of data providers.
     """
     logging.info(
@@ -203,7 +203,7 @@ class ReportSummaryProcessor:
         )
         if entry.measurement_policy not in self._whole_campaign_measurements:
           self._whole_campaign_measurements[entry.measurement_policy] = {}
-          self._kreach[entry.measurement_policy] = {}
+          self._k_reach[entry.measurement_policy] = {}
           self._impression[entry.measurement_policy] = {}
         if not all(result.HasField('reach_and_frequency') or result.HasField(
             'impression_count') for result in entry.measurement_results):
@@ -218,10 +218,10 @@ class ReportSummaryProcessor:
                 measurement_result.reach_and_frequency.reach.value,
                 measurement_result.reach_and_frequency.reach.standard_deviation,
                 measurement_result.metric)
-            self._kreach[entry.measurement_policy][
+            self._k_reach[entry.measurement_policy][
               frozenset(entry.data_providers)] = {}
             for bin in measurement_result.reach_and_frequency.frequency.bins:
-              self._kreach[entry.measurement_policy][
+              self._k_reach[entry.measurement_policy][
                 frozenset(entry.data_providers)][int(bin.label)] = Measurement(
                   bin.value,
                   bin.standard_deviation,

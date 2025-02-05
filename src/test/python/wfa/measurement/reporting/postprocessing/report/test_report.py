@@ -55,7 +55,7 @@ SAMPLE_REPORT = Report(
                 frozenset({EDP_ONE, EDP_TWO, EDP_THREE}):
                   Measurement(1, 0, "measurement_13"),
             },
-            kreach={
+            k_reach={
                 frozenset({EDP_ONE}): {
                     1: Measurement(1, 0, "measurement_14"),
                     2: Measurement(1, 0, "measurement_15"),
@@ -109,7 +109,7 @@ SAMPLE_REPORT = Report(
                 frozenset({EDP_TWO, EDP_THREE}):
                   Measurement(1, 0, "measurement_38"),
             },
-            kreach={
+            k_reach={
                 frozenset({EDP_ONE}): {
                     1: Measurement(1, 0, "measurement_39"),
                     2: Measurement(1, 0, "measurement_40"),
@@ -162,7 +162,7 @@ SAMPLE_REPORT = Report(
                 frozenset({EDP_ONE, EDP_THREE}):
                   Measurement(1, 0, "measurement_62"),
             },
-            kreach={
+            k_reach={
                 frozenset({EDP_ONE}): {
                     1: Measurement(1, 0, "measurement_63"),
                     2: Measurement(1, 0, "measurement_64"),
@@ -262,7 +262,7 @@ class TestReport(unittest.TestCase):
                 Measurement(1, 0, "measurement_07")],
         },
         reach_whole_campaign={},
-        kreach={
+        k_reach={
             frozenset({EDP_ONE}): {1: Measurement(1, 0, "measurement_08")},
         },
         impression={
@@ -905,7 +905,7 @@ class TestReport(unittest.TestCase):
     self.assertEqual(len(spec._weighted_sum_upperbound_sets), 0)
     self.assertCountEqual(spec._equal_sets, expected_equal_sets)
 
-  def test_add_kreach_whole_campaign_relations(self):
+  def test_add_k_reach_whole_campaign_relations(self):
     report = SAMPLE_REPORT
     name_to_index = report._measurement_name_to_index
 
@@ -938,7 +938,7 @@ class TestReport(unittest.TestCase):
     ]
 
     spec = SetMeasurementsSpec()
-    report._add_kreach_whole_campaign_relations_to_spec(spec)
+    report._add_k_reach_whole_campaign_relations_to_spec(spec)
 
     self.assertEqual(len(spec._covers_by_set), 0)
     self.assertEqual(len(spec._subsets_by_set), 0)
@@ -984,7 +984,7 @@ class TestReport(unittest.TestCase):
     self.assertEqual(len(spec._weighted_sum_upperbound_sets), 0)
     self.assertCountEqual(spec._equal_sets, expected_equal_sets)
 
-  def test_add_kreach_impression_relationships(self):
+  def test_add_k_reach_impression_relationships(self):
     report = SAMPLE_REPORT
     name_to_index = report._measurement_name_to_index
 
@@ -1017,7 +1017,7 @@ class TestReport(unittest.TestCase):
     }
 
     spec = SetMeasurementsSpec()
-    report._add_kreach_impression_relations_to_spec(spec)
+    report._add_k_reach_impression_relations_to_spec(spec)
 
     self.assertEqual(len(spec._covers_by_set), 0)
     self.assertEqual(len(spec._subsets_by_set), 0)
@@ -1046,7 +1046,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 reach_whole_campaign={},
-                kreach={},
+                k_reach={},
                 impression={},
             )
         },
@@ -1078,7 +1078,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 reach_whole_campaign={},
-                kreach={},
+                k_reach={},
                 impression={},
             )
         },
@@ -1134,7 +1134,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 reach_whole_campaign={},
-                kreach={},
+                k_reach={},
                 impression={},
             )
         },
@@ -1199,7 +1199,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 reach_whole_campaign={},
-                kreach={},
+                k_reach={},
                 impression={},
             )
         },
@@ -1268,7 +1268,7 @@ class TestReport(unittest.TestCase):
                     frozenset({EDP_ONE, EDP_TWO, EDP_THREE}):
                       Measurement(11.90, 1.00, "measurement_21"),
                 },
-                kreach={},
+                k_reach={},
                 impression={},
             )
         },
@@ -1346,7 +1346,7 @@ class TestReport(unittest.TestCase):
                     frozenset({EDP_ONE, EDP_TWO, EDP_THREE}):
                       Measurement(9.95, 1.00, "measurement_21"),
                 },
-                kreach={},
+                k_reach={},
                 impression={},
             )
         },
@@ -1401,7 +1401,7 @@ class TestReport(unittest.TestCase):
                     frozenset({EDP_ONE, EDP_TWO, EDP_THREE}):
                       Measurement(11.90, 1.00, "measurement_21"),
                 },
-                kreach={},
+                k_reach={},
                 impression={},
             )
         },
@@ -1457,7 +1457,7 @@ class TestReport(unittest.TestCase):
                     frozenset({EDP_ONE, EDP_TWO, EDP_THREE}):
                       Measurement(9.9499, 1.00, "measurement_21"),
                 },
-                kreach={},
+                k_reach={},
                 impression={},
             )
         },
@@ -1485,7 +1485,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 reach_whole_campaign={},
-                kreach={},
+                k_reach={},
                 impression={},
             )
         },
@@ -1516,7 +1516,7 @@ class TestReport(unittest.TestCase):
                     ],
                 },
                 reach_whole_campaign={},
-                kreach={},
+                k_reach={},
                 impression={},
             )
         },
@@ -1540,7 +1540,7 @@ class TestReport(unittest.TestCase):
                         Measurement(50, 1, "measurement_02")],
                 },
                 reach_whole_campaign={},
-                kreach={},
+                k_reach={},
                 impression={},
             ),
             mrc: MetricReport(
@@ -1551,7 +1551,7 @@ class TestReport(unittest.TestCase):
                         Measurement(51, 1, "measurement_04")],
                 },
                 reach_whole_campaign={},
-                kreach={},
+                k_reach={},
                 impression={},
             ),
         },
@@ -1576,7 +1576,7 @@ class TestReport(unittest.TestCase):
                         Measurement(50.5, 1, "measurement_02")],
                 },
                 reach_whole_campaign={},
-                kreach={},
+                k_reach={},
                 impression={},
             ),
             mrc: MetricReport(
@@ -1587,7 +1587,7 @@ class TestReport(unittest.TestCase):
                         Measurement(50.5, 1, "measurement_04")],
                 },
                 reach_whole_campaign={},
-                kreach={},
+                k_reach={},
                 impression={},
             ),
         },
@@ -1612,7 +1612,7 @@ class TestReport(unittest.TestCase):
                         Measurement(1, 1, "measurement_03")],
                 },
                 reach_whole_campaign={},
-                kreach={},
+                k_reach={},
                 impression={},
             ),
             "mrc": MetricReport(
@@ -1623,7 +1623,7 @@ class TestReport(unittest.TestCase):
                         Measurement(2, 1, "measurement_05")],
                 },
                 reach_whole_campaign={},
-                kreach={},
+                k_reach={},
                 impression={},
             ),
         },
@@ -1649,7 +1649,7 @@ class TestReport(unittest.TestCase):
                         Measurement(1.667, 1, "measurement_03")],
                 },
                 reach_whole_campaign={},
-                kreach={},
+                k_reach={},
                 impression={},
             ),
             "mrc": MetricReport(
@@ -1660,7 +1660,7 @@ class TestReport(unittest.TestCase):
                         Measurement(1.667, 1, "measurement_05")],
                 },
                 reach_whole_campaign={},
-                kreach={},
+                k_reach={},
                 impression={},
             ),
         },
@@ -1683,7 +1683,7 @@ class TestReport(unittest.TestCase):
                 reach_whole_campaign={
                     frozenset({EDP_ONE}): Measurement(40, 1, "measurement_03"),
                 },
-                kreach={
+                k_reach={
                     frozenset({EDP_ONE}): {
                         1: Measurement(20.0, 1, "measurement_04"),
                         2: Measurement(0, 1, "measurement_05"),
@@ -1703,7 +1703,7 @@ class TestReport(unittest.TestCase):
                 reach_whole_campaign={
                     frozenset({EDP_ONE}): Measurement(40, 1, "measurement_09"),
                 },
-                kreach={
+                k_reach={
                     frozenset({EDP_ONE}): {
                         1: Measurement(20.0, 1, "measurement_10"),
                         2: Measurement(0, 1, "measurement_11"),
@@ -1723,7 +1723,7 @@ class TestReport(unittest.TestCase):
                 reach_whole_campaign={
                     frozenset({EDP_ONE}): Measurement(40, 1, "measurement_15"),
                 },
-                kreach={
+                k_reach={
                     frozenset({EDP_ONE}): {
                         1: Measurement(20.0, 1, "measurement_16"),
                         2: Measurement(0, 1, "measurement_17"),
@@ -1740,6 +1740,20 @@ class TestReport(unittest.TestCase):
 
     corrected = report.get_corrected_report()
 
+    # The corrected report should be consistent:
+    # 1. Within the same metric report:
+    # a) Time series measurements form a non-decreasing sequences.
+    # b) The last time series reach is equal to the whole campaign reach.
+    # c) The whole campaign reach is equal to the sum of the k reaches.
+    # d) The impression is greater than or equal to the weighted sum of the k
+    # reaches (where the weights are the corresponding frequency).
+    # e) The impression of the union set is equal to the sum of the impression
+    # of the individual sets (e.g. impression(edp1 U edp2) = impression(edp1) +
+    # impression(edp2)).
+    # f) The reach of the union set is less than or equal to the sum of the
+    # reach of the subsets it covers (e.g. r(edp1 U edp2) <= r(edp1) + r(edp2)).
+    # 2. Excepted for k reaches, mrc/custom measurements <= ami measurements.
+    # (e.g. mrc_whole_campaign_reach(edp1) <= ami_whole_campaign_reach(edp1)).
     expected = Report(
         metric_reports={
             "ami": MetricReport(
@@ -1753,7 +1767,7 @@ class TestReport(unittest.TestCase):
                     frozenset({EDP_ONE}): Measurement(35.844, 1,
                                                       "measurement_03"),
                 },
-                kreach={
+                k_reach={
                     frozenset({EDP_ONE}): {
                         1: Measurement(32.510, 1, "measurement_04"),
                         2: Measurement(3.333, 1, "measurement_05"),
@@ -1775,7 +1789,7 @@ class TestReport(unittest.TestCase):
                     frozenset({EDP_ONE}): Measurement(35.844, 1,
                                                       "measurement_09"),
                 },
-                kreach={
+                k_reach={
                     frozenset({EDP_ONE}): {
                         1: Measurement(32.510, 1, "measurement_10"),
                         2: Measurement(3.333, 1, "measurement_11"),
@@ -1797,7 +1811,7 @@ class TestReport(unittest.TestCase):
                     frozenset({EDP_ONE}): Measurement(34.599, 1,
                                                       "measurement_15"),
                 },
-                kreach={
+                k_reach={
                     frozenset({EDP_ONE}): {
                         1: Measurement(31.266, 1, "measurement_16"),
                         2: Measurement(3.333, 1, "measurement_17"),
@@ -1834,7 +1848,7 @@ class TestReport(unittest.TestCase):
                     frozenset({EDP_ONE, EDP_TWO}):
                       Measurement(1, 1, "measurement_06"),
                 },
-                kreach={
+                k_reach={
                     frozenset({EDP_ONE}): {
                         1: Measurement(1, 1, "measurement_07"),
                         2: Measurement(1, 1, "measurement_08"),
@@ -1860,12 +1874,19 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    # The corrected report should be consistent:
-    # 1. reach[edp1][0] <= reach[edp1 U edp2][0]
-    # 2. reach[edp2][0] <= reach[edp1 U edp2][0]
-    # 3. reach[edp1 U edp2][0] <= reach[edp1][0] + reach[edp2][0].
     corrected = report.get_corrected_report()
 
+    # The corrected report should be consistent:
+    # a) Time series measurements form a non-decreasing sequences.
+    # b) The last time series reach is equal to the whole campaign reach.
+    # c) The whole campaign reach is equal to the sum of the k reaches.
+    # d) The impression is greater than or equal to the weighted sum of the k
+    # reaches (where the weights are the corresponding frequency).
+    # e) The impression of the union set is equal to the sum of the impression
+    # of the individual sets (e.g. impression(edp1 U edp2) = impression(edp1) +
+    # impression(edp2)).
+    # f) The reach of the union set is less than or equal to the sum of the
+    # reach of the subsets it covers (e.g. r(edp1 U edp2) <= r(edp1) + r(edp2)).
     expected = Report(
         metric_reports={
             "ami": MetricReport(
@@ -1887,7 +1908,7 @@ class TestReport(unittest.TestCase):
                     frozenset({EDP_ONE, EDP_TWO}):
                       Measurement(48.0, 1, "measurement_06"),
                 },
-                kreach={
+                k_reach={
                     frozenset({EDP_ONE}): {
                         1: Measurement(48.0, 1, "measurement_07"),
                         2: Measurement(0, 1, "measurement_08"),
@@ -1960,14 +1981,14 @@ class TestReport(unittest.TestCase):
       )
 
     self.assertCountEqual(
-        expected.get_kreach_edp_combinations(),
-        actual.get_kreach_edp_combinations()
+        expected.get_k_reach_edp_combinations(),
+        actual.get_k_reach_edp_combinations()
     )
-    for edp_combination in expected.get_kreach_edp_combinations():
+    for edp_combination in expected.get_k_reach_edp_combinations():
       for frequency in range(1, expected.get_number_of_frequencies() + 1):
         self._assertMeasurementAlmostEquals(
-            expected.get_kreach_measurement(edp_combination, frequency),
-            actual.get_kreach_measurement(edp_combination, frequency),
+            expected.get_k_reach_measurement(edp_combination, frequency),
+            actual.get_k_reach_measurement(edp_combination, frequency),
             msg
         )
 

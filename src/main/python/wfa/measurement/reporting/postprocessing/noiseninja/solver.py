@@ -126,7 +126,6 @@ class Solver:
       variables = np.zeros(self.num_variables)
       variables[variable_index_by_set_id[key]] = -1
       for entry in value:
-        # entry = tuple(index, weight)
         variables[variable_index_by_set_id[entry[0]]] = entry[1]
       self._add_gt_term(variables)
 

@@ -29,12 +29,12 @@
               "bins": [
                 {
                   "label": "5",
-                  "value": 40199.565217391304,
+                  "value": 40199,
                   "standard_deviation": 80625.84487265335
                 },
                 {
                   "label": "2",
-                  "value": 52259.43478260869,
+                  "value": 52259,
                   "standard_deviation": 96293.33072911394
                 },
                 {
@@ -315,17 +315,17 @@
               "bins": [
                 {
                   "label": "3",
-                  "value": 82755.97087378641,
+                  "value": 82755,
                   "standard_deviation": 100221.12562251546
                 },
                 {
                   "label": "5",
-                  "value": 49653.58252427184,
+                  "value": 49653,
                   "standard_deviation": 90265.45967776074
                 },
                 {
                   "label": "4",
-                  "value": 111129.44660194175,
+                  "value": 111129,
                   "standard_deviation": 111465.13199283823
                 },
                 {
@@ -407,12 +407,12 @@
               "bins": [
                 {
                   "label": "4",
-                  "value": 40.5625,
+                  "value": 40,
                   "standard_deviation": 102443.66625294062
                 },
                 {
                   "label": "1",
-                  "value": 18.4375,
+                  "value": 18,
                   "standard_deviation": 58449.20219978285
                 },
                 {
@@ -569,7 +569,7 @@
                 },
                 {
                   "label": "4",
-                  "value": 182759.0,
+                  "value": 182759,
                   "standard_deviation": 118611.03549483734
                 },
                 {
@@ -630,7 +630,7 @@
               "bins": [
                 {
                   "label": "1",
-                  "value": 37968.76470588236,
+                  "value": 37968,
                   "standard_deviation": 74248.42261749375
                 },
                 {
@@ -647,7 +647,7 @@
                 },
                 {
                   "label": "5",
-                  "value": 20710.235294117647,
+                  "value": 20710,
                   "standard_deviation": 49508.92274954926
                 }
               ]

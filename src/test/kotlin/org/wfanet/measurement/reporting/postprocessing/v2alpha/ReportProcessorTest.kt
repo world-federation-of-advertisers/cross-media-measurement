@@ -27,7 +27,7 @@ import org.wfanet.measurement.reporting.v2alpha.Report
 data class MetricReport(
   val cumulativeMeasurements: Map<Set<String>, List<Long>>,
   val totalMeasurements: Map<Set<String>, Long>,
-  val kreach: Map<Set<String>, Map<Int, Double>>,
+  val kreach: Map<Set<String>, Map<Int, Long>>,
   val impression: Map<Set<String>, Long>,
 )
 
@@ -96,14 +96,13 @@ class ReportProcessorTest {
     private fun ReportSummary.toMetricReport(measurementPolicy: String): MetricReport {
       val cumulativeMeasurements: MutableMap<Set<String>, List<Long>> = mutableMapOf()
       val totalMeasurements: MutableMap<Set<String>, Long> = mutableMapOf()
-      val kreach: MutableMap<Set<String>, Map<Int, Double>> = mutableMapOf()
+      val kreach: MutableMap<Set<String>, Map<Int, Long>> = mutableMapOf()
       val impression: MutableMap<Set<String>, Long> = mutableMapOf()
 
       // Processes cumulative measurements.
       for (entry in measurementDetailsList) {
         if (entry.measurementPolicy == measurementPolicy) {
           if (entry.setOperation == "cumulative") {
-            val dataProviders = entry.dataProvidersList.toSortedSet()
             val measurements = entry.measurementResultsList.map { result -> result.reach.value }
             cumulativeMeasurements[entry.dataProvidersList.toSortedSet()] = measurements
           }
@@ -144,7 +143,7 @@ class ReportProcessorTest {
       }
 
       // Verifies that cumulative measurements are consistent.
-      for ((edpCombination, measurements) in cumulativeMeasurements) {
+      for ((_, measurements) in cumulativeMeasurements) {
         if (measurements.any { it < 0 }) {
           return false
         }
@@ -174,7 +173,7 @@ class ReportProcessorTest {
         if (
           !fuzzyEqual(
             totalMeasurements[edpCombination]!!.toDouble(),
-            kreachSum,
+            kreachSum.toDouble(),
             kreach[edpCombination]!!.size * TOLERANCE,
           )
         ) {
@@ -187,7 +186,11 @@ class ReportProcessorTest {
         val kreachWeightedSum =
           kreach[edpCombination]!!.entries.sumOf { (key, value) -> key * value }
         if (
-          !fuzzyLessEqual(kreachWeightedSum, impression[edpCombination]!!.toDouble(), TOLERANCE)
+          !fuzzyLessEqual(
+            kreachWeightedSum.toDouble(),
+            impression[edpCombination]!!.toDouble(),
+            TOLERANCE,
+          )
         ) {
           return false
         }

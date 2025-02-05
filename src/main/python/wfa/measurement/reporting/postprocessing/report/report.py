@@ -161,12 +161,12 @@ class MetricReport:
       self,
       reach_time_series: dict[FrozenSet[str], list[Measurement]],
       reach_whole_campaign: dict[FrozenSet[str], Measurement],
-      kreach: dict[FrozenSet[str], dict[int, Measurement]],
+      k_reach: dict[FrozenSet[str], dict[int, Measurement]],
       impression: dict[FrozenSet[str], Measurement],
   ):
     num_periods = len(
         next(iter(reach_time_series.values()))) if reach_time_series else 0
-    num_frequencies = len(next(iter(kreach.values()))) if kreach else 0
+    num_frequencies = len(next(iter(k_reach.values()))) if k_reach else 0
 
     for series in reach_time_series.values():
       if len(series) != num_periods:
@@ -176,10 +176,10 @@ class MetricReport:
             )
         )
 
-    for item in kreach.values():
+    for item in k_reach.values():
       if len(item) != num_frequencies:
         raise ValueError(
-            "All kreach must have the same length {a: d} vs {2: d}".format(
+            "All k_reach must have the same length {a: d} vs {2: d}".format(
                 len(item), len(num_frequencies)
             )
         )
@@ -187,7 +187,7 @@ class MetricReport:
     self._reach_time_series = reach_time_series
     self._reach_whole_campaign = reach_whole_campaign
     self._impression = impression
-    self._kreach = kreach
+    self._k_reach = k_reach
 
   def sample_with_noise(self) -> "MetricReport":
     """
@@ -219,9 +219,9 @@ class MetricReport:
       edp_combination: FrozenSet[str]) -> Measurement:
     return self._impression[edp_combination]
 
-  def get_kreach_measurement(self, edp_combination: FrozenSet[str],
+  def get_k_reach_measurement(self, edp_combination: FrozenSet[str],
       frequency: int) -> Measurement:
-    return self._kreach[edp_combination][frequency]
+    return self._k_reach[edp_combination][frequency]
 
   def get_cumulative_edp_combinations(self) -> set[FrozenSet[str]]:
     return set(self._reach_time_series.keys())
@@ -232,8 +232,8 @@ class MetricReport:
   def get_impression_edp_combinations(self) -> set[FrozenSet[str]]:
     return set(self._impression.keys())
 
-  def get_kreach_edp_combinations(self) -> set[FrozenSet[str]]:
-    return set(self._kreach.keys())
+  def get_k_reach_edp_combinations(self) -> set[FrozenSet[str]]:
+    return set(self._k_reach.keys())
 
   def get_cumulative_edp_combinations_count(self) -> int:
     return len(self._reach_time_series.keys())
@@ -245,7 +245,7 @@ class MetricReport:
     return len(next(iter(self._reach_time_series.values())))
 
   def get_number_of_frequencies(self) -> int:
-    return len(next(iter(self._kreach.values()))) if self._kreach else 0
+    return len(next(iter(self._k_reach.values()))) if self._k_reach else 0
 
   def get_cumulative_subset_relationships(self) -> list[
     Tuple[FrozenSet[str], FrozenSet[str]]]:
@@ -362,11 +362,11 @@ class Report:
                                              measurement.sigma)
           measurement_index += 1
 
-      # Assign an index for kreach.
+      # Assign an index for k_reach.
       for edp_combination in metric_reports[
-        metric].get_kreach_edp_combinations():
+        metric].get_k_reach_edp_combinations():
         for frequency in range(1, self._num_frequencies + 1):
-          measurement = metric_reports[metric].get_kreach_measurement(
+          measurement = metric_reports[metric].get_k_reach_measurement(
               edp_combination, frequency)
           self._measurement_name_to_index[measurement.name] = measurement_index
           self._max_standard_deviation = max(self._max_standard_deviation,
@@ -453,14 +453,14 @@ class Report:
             .value,
         )
       for edp_combination in self._metric_reports[
-        metric].get_kreach_edp_combinations():
+        metric].get_k_reach_edp_combinations():
         for frequency in range(1, self._num_frequencies + 1):
           array.put(
               self._get_measurement_index(
-                  self._metric_reports[metric].get_kreach_measurement(
+                  self._metric_reports[metric].get_k_reach_measurement(
                       edp_combination, frequency)
               ),
-              self._metric_reports[metric].get_kreach_measurement(
+              self._metric_reports[metric].get_k_reach_measurement(
                   edp_combination, frequency).value
           )
 
@@ -494,11 +494,13 @@ class Report:
         covering_children = cover_relationship[1]
         for period in range(0, self._num_periods):
           spec.add_cover(
-              children=list(self._get_cumulative_measurement_index(
-                  metric, covering_child, period)
-                            for covering_child in covering_children),
-              parent=self._get_cumulative_measurement_index(
-                  metric, covered_parent, period),
+              children=list(
+                  self._get_cumulative_measurement_index(metric, covering_child,
+                                                         period) for
+                  covering_child in covering_children),
+              parent=self._get_cumulative_measurement_index(metric,
+                                                            covered_parent,
+                                                            period),
           )
       for cover_relationship in self._metric_reports[
         metric].get_whole_campaign_cover_relationships():
@@ -560,19 +562,18 @@ class Report:
     # For an edp combination, the last cumulative reach is equal to the whole
     # campaign reach.
     for metric in self._metric_reports:
-      for edp_combination in self._metric_reports[
-        metric].get_cumulative_edp_combinations().intersection(
-          self._metric_reports[
-            metric].get_whole_campaign_edp_combinations()):
+      metric_report = self._metric_reports[metric]
+      common_edp_combinations = \
+        metric_report.get_cumulative_edp_combinations().intersection(
+            metric_report.get_whole_campaign_edp_combinations())
+      for edp_combination in common_edp_combinations:
         spec.add_equal_relation(
             set_id_one=self._get_measurement_index(
-                self._metric_reports[
-                  metric].get_cumulative_measurement(
-                    edp_combination, (self._num_periods - 1))),
+                metric_report.get_cumulative_measurement(edp_combination, (
+                    self._num_periods - 1))),
             set_id_two=[
                 self._get_measurement_index(
-                    self._metric_reports[
-                      metric].get_whole_campaign_measurement(
+                    metric_report.get_whole_campaign_measurement(
                         edp_combination))
             ],
         )
@@ -581,22 +582,21 @@ class Report:
         "campaign measurements to spec."
     )
 
-  def _add_kreach_whole_campaign_relations_to_spec(self,
+  def _add_k_reach_whole_campaign_relations_to_spec(self,
       spec: SetMeasurementsSpec):
     for metric in self._metric_reports:
-      for edp_combination in self._metric_reports[
-        metric].get_whole_campaign_edp_combinations().intersection(
-          self._metric_reports[
-            metric].get_kreach_edp_combinations()):
+      metric_report = self._metric_reports[metric]
+      common_edp_combinations = \
+        metric_report.get_whole_campaign_edp_combinations().intersection(
+            metric_report.get_k_reach_edp_combinations())
+      for edp_combination in common_edp_combinations:
         spec.add_equal_relation(
             set_id_one=self._get_measurement_index(
-                self._metric_reports[
-                  metric].get_whole_campaign_measurement(edp_combination)),
+                metric_report.get_whole_campaign_measurement(edp_combination)),
             set_id_two=[
                 self._get_measurement_index(
-                    self._metric_reports[
-                      metric
-                    ].get_kreach_measurement(edp_combination, frequency)
+                    metric_report.get_k_reach_measurement(edp_combination,
+                                                          frequency)
                 )
                 for frequency in range(1, self._num_frequencies + 1)
             ]
@@ -604,8 +604,8 @@ class Report:
 
   def _add_impression_relations_to_spec(self, spec: SetMeasurementsSpec):
     for metric in self._metric_reports:
-      edp_combinations = self._metric_reports[
-        metric].get_impression_edp_combinations()
+      metric_report = self._metric_reports[metric]
+      edp_combinations = metric_report.get_impression_edp_combinations()
       for edp_combination in edp_combinations:
         if len(edp_combination) > 1:
           single_edp_subset = [
@@ -614,40 +614,35 @@ class Report:
           ]
           spec.add_equal_relation(
               set_id_one=self._get_measurement_index(
-                  self._metric_reports[
-                    metric].get_impression_measurement(edp_combination)),
+                  metric_report.get_impression_measurement(edp_combination)),
               set_id_two=[
                   self._get_measurement_index(
-                      self._metric_reports[
-                        metric
-                      ].get_impression_measurement(child_edp)
+                      metric_report.get_impression_measurement(child_edp)
                   )
                   for child_edp in single_edp_subset
               ]
           )
 
-  def _add_kreach_impression_relations_to_spec(self, spec: SetMeasurementsSpec):
+  def _add_k_reach_impression_relations_to_spec(self,
+      spec: SetMeasurementsSpec):
     for metric in self._metric_reports:
-      for edp_combination in self._metric_reports[
-        metric].get_kreach_edp_combinations().intersection(
-          self._metric_reports[metric].get_impression_edp_combinations()):
+      metric_report = self._metric_reports[metric]
+      common_edp_combinations = \
+        metric_report.get_k_reach_edp_combinations().intersection(
+            metric_report.get_impression_edp_combinations())
+      for edp_combination in common_edp_combinations:
         spec.add_weighted_sum_upperbound_relation(
             weighted_id_set=[
                 [
                     self._get_measurement_index(
-                        self._metric_reports[
-                          metric
-                        ].get_kreach_measurement(
-                            edp_combination, frequency)),
+                        metric_report.get_k_reach_measurement(edp_combination,
+                                                              frequency)),
                     frequency
                 ]
                 for frequency in range(1, self._num_frequencies + 1)
             ],
             upperbound_id=self._get_measurement_index(
-                self._metric_reports[
-                  metric
-                ].get_impression_measurement(
-                    edp_combination))
+                metric_report.get_impression_measurement(edp_combination))
         )
 
   def _add_metric_relations_to_spec(self, spec: SetMeasurementsSpec):
@@ -658,58 +653,57 @@ class Report:
             f"Adding metric relationship for {child_metric} and "
             f"{parent_metric}."
         )
+
+        parent_metric_report = self._metric_reports[parent_metric]
+        child_metric_report = self._metric_reports[child_metric]
+
         # Handles cumulative measurements of common edp combinations.
-        for edp_combination in self._metric_reports[
-          parent_metric].get_cumulative_edp_combinations().intersection(
-            self._metric_reports[
-              child_metric].get_cumulative_edp_combinations()):
+        common_cumulative_edp_combinations = \
+          parent_metric_report.get_cumulative_edp_combinations().intersection(
+              child_metric_report.get_cumulative_edp_combinations())
+        for edp_combination in common_cumulative_edp_combinations:
           for period in range(0, self._num_periods):
             spec.add_subset_relation(
                 child_set_id=self._get_measurement_index(
-                    self._metric_reports[
-                      child_metric].get_cumulative_measurement(
+                    child_metric_report.get_cumulative_measurement(
                         edp_combination, period)),
                 parent_set_id=self._get_measurement_index(
-                    self._metric_reports[
-                      parent_metric].get_cumulative_measurement(
+                    parent_metric_report.get_cumulative_measurement(
                         edp_combination, period)),
             )
+
         # Handles whole campaign measurements of common edp combinations.
-        for edp_combination in self._metric_reports[
-          parent_metric].get_whole_campaign_edp_combinations().intersection(
-            self._metric_reports[
-              child_metric].get_whole_campaign_edp_combinations()):
+        common_whole_campaign_edp_combinations = \
+          parent_metric_report.get_whole_campaign_edp_combinations().intersection(
+              child_metric_report.get_whole_campaign_edp_combinations())
+        for edp_combination in common_whole_campaign_edp_combinations:
           spec.add_subset_relation(
               child_set_id=self._get_measurement_index(
-                  self._metric_reports[
-                    child_metric].get_whole_campaign_measurement(
+                  child_metric_report.get_whole_campaign_measurement(
                       edp_combination)),
               parent_set_id=self._get_measurement_index(
-                  self._metric_reports[
-                    parent_metric].get_whole_campaign_measurement(
+                  parent_metric_report.get_whole_campaign_measurement(
                       edp_combination)),
           )
 
         # Handles impression measurements of common edp combinations.
-        for edp_combination in self._metric_reports[
-          parent_metric].get_impression_edp_combinations().intersection(
-            self._metric_reports[
-              child_metric].get_impression_edp_combinations()):
+        common_impression_edp_combinations = \
+          parent_metric_report.get_impression_edp_combinations().intersection(
+              child_metric_report.get_impression_edp_combinations())
+        for edp_combination in common_impression_edp_combinations:
           spec.add_subset_relation(
               child_set_id=self._get_measurement_index(
-                  self._metric_reports[
-                    child_metric].get_impression_measurement(
+                  child_metric_report.get_impression_measurement(
                       edp_combination)),
               parent_set_id=self._get_measurement_index(
-                  self._metric_reports[
-                    parent_metric].get_impression_measurement(
+                  parent_metric_report.get_impression_measurement(
                       edp_combination)),
           )
 
-    logging.info(
-        "Finished adding the relationship for measurements from different "
-        "metrics."
-    )
+  logging.info(
+      "Finished adding the relationship for measurements from different "
+      "metrics."
+  )
 
   def _add_cumulative_relations_to_spec(self, spec: SetMeasurementsSpec):
     for metric in self._metric_reports.keys():
@@ -749,11 +743,11 @@ class Report:
     # period1 <= period2.
     self._add_cumulative_relations_to_spec(spec)
 
-    self._add_kreach_whole_campaign_relations_to_spec(spec)
+    self._add_k_reach_whole_campaign_relations_to_spec(spec)
 
     self._add_impression_relations_to_spec(spec)
 
-    self._add_kreach_impression_relations_to_spec(spec)
+    self._add_k_reach_impression_relations_to_spec(spec)
 
     # Last cumulative measurement <= whole campaign measurement.
     self._add_cumulative_whole_campaign_relations_to_spec(spec)
@@ -783,9 +777,9 @@ class Report:
                         measurement.name),
         )
       for edp_combination in self._metric_reports[
-        metric].get_kreach_edp_combinations():
+        metric].get_k_reach_edp_combinations():
         for frequency in range(1, self._num_frequencies + 1):
-          measurement = self._metric_reports[metric].get_kreach_measurement(
+          measurement = self._metric_reports[metric].get_k_reach_measurement(
               edp_combination, frequency)
           spec.add_measurement(
               self._get_measurement_index(measurement),
@@ -848,7 +842,7 @@ class Report:
     logging.debug(f"Generating the metric report for {metric}.")
     solution_time_series = {}
     solution_whole_campaign = {}
-    solution_kreach = {}
+    solution_k_reach = {}
     solution_impression = {}
 
     for edp_combination in self._metric_reports[
@@ -881,17 +875,17 @@ class Report:
               edp_combination).name,
       )
     for edp_combination in self._metric_reports[
-      metric].get_kreach_edp_combinations():
-      solution_kreach[edp_combination] = {
+      metric].get_k_reach_edp_combinations():
+      solution_k_reach[edp_combination] = {
           frequency: Measurement(
               solution[
                 self._get_measurement_index(self._metric_reports[
-                  metric].get_kreach_measurement(
+                  metric].get_k_reach_measurement(
                     edp_combination, frequency))
               ],
-              self._metric_reports[metric].get_kreach_measurement(
+              self._metric_reports[metric].get_k_reach_measurement(
                   edp_combination, frequency).sigma,
-              self._metric_reports[metric].get_kreach_measurement(
+              self._metric_reports[metric].get_k_reach_measurement(
                   edp_combination, frequency).name
           )
           for frequency in range(1, self._num_frequencies + 1)
@@ -913,6 +907,6 @@ class Report:
     return MetricReport(
         reach_time_series=solution_time_series,
         reach_whole_campaign=solution_whole_campaign,
-        kreach=solution_kreach,
+        k_reach=solution_k_reach,
         impression=solution_impression,
     )

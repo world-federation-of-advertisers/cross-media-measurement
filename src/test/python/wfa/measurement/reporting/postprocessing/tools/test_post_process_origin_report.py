@@ -105,7 +105,7 @@ class TestOriginReport(unittest.TestCase):
         }
     }
 
-    expected_kreach_measurements = {
+    expected_k_reach_measurements = {
         'custom': {
             frozenset({'edp1', 'edp2'}): {
                 1: Measurement(0.00, 49832.83,
@@ -287,8 +287,8 @@ class TestOriginReport(unittest.TestCase):
       )
 
       self.assertCountEqual(
-          reportSummaryProcessor._kreach[measurement_policy].keys(),
-          expected_kreach_measurements[measurement_policy].keys()
+          reportSummaryProcessor._k_reach[measurement_policy].keys(),
+          expected_k_reach_measurements[measurement_policy].keys()
       )
 
       self.assertCountEqual(
@@ -303,7 +303,7 @@ class TestOriginReport(unittest.TestCase):
               edp_combination],
             expected_cumulative_measurements[measurement_policy][
               edp_combination],
-            tolerance=0.1
+            TOLERANCE
         )
 
       for edp_combination in expected_whole_campaign_measurements[
@@ -314,19 +314,19 @@ class TestOriginReport(unittest.TestCase):
               edp_combination],
             expected_whole_campaign_measurements[measurement_policy][
               edp_combination],
-            tolerance=0.1
+            TOLERANCE
         )
 
-      for edp_combination in expected_kreach_measurements[
+      for edp_combination in expected_k_reach_measurements[
         measurement_policy].keys():
-        for frequency in expected_kreach_measurements[measurement_policy][
+        for frequency in expected_k_reach_measurements[measurement_policy][
           edp_combination].keys():
           self._assertMeasurementsEqual(
-              reportSummaryProcessor._kreach[measurement_policy][
+              reportSummaryProcessor._k_reach[measurement_policy][
                 edp_combination][frequency],
-              expected_kreach_measurements[
+              expected_k_reach_measurements[
                 measurement_policy][edp_combination][frequency],
-              tolerance=0.1
+              TOLERANCE
           )
 
       for edp_combination in expected_impression_measurements[
@@ -336,7 +336,7 @@ class TestOriginReport(unittest.TestCase):
               edp_combination],
             expected_impression_measurements[measurement_policy][
               edp_combination],
-            tolerance=0.1
+            TOLERANCE
         )
 
   def test_report_summary_is_corrected_successfully(self):
@@ -353,7 +353,7 @@ class TestOriginReport(unittest.TestCase):
 
     # Verifies that the updated reach values are non-negative.
     for value in corrected_measurements_map.values():
-      self._assertFuzzyLessEqual(0, value, tolerance=1e-6)
+      self._assertFuzzyLessEqual(0, value, TOLERANCE)
     # Verifies that cumulative measurements are non-decreasing.
     for i in range(num_periods - 1):
       for edp_combination in primitive_edp_combinations:
@@ -379,7 +379,6 @@ class TestOriginReport(unittest.TestCase):
                   2)],
             TOLERANCE
         )
-
     # Verifies that the last cumulative measurements are equal to total
     # measurements.
     for edp_combination in primitive_edp_combinations:
@@ -499,31 +498,31 @@ class TestOriginReport(unittest.TestCase):
         TOLERANCE
     )
 
-    # Verifies that total reach is equal to the sum of kreach.
+    # Verifies that total reach is equal to the sum of k_reach.
     for measurement_policy in ['ami', 'mrc', 'custom']:
       for edp_combination in primitive_edp_combinations:
-        kreach_sum = 0.0
+        k_reach_sum = 0.0
         for frequency in range(1, num_frequencies + 1):
-          kreach_sum += corrected_measurements_map[
+          k_reach_sum += corrected_measurements_map[
             'reach_and_frequency/' + measurement_policy + '/' + edp_combination
             + '-frequency-' + str(frequency)]
         self._assertFuzzyEqual(
             corrected_measurements_map[
               'reach_and_frequency/' + measurement_policy + '/' + edp_combination],
-            kreach_sum,
+            k_reach_sum,
             num_frequencies * TOLERANCE
         )
 
-    # Verifies that the relationship between kreach and impression holds.
+    # Verifies that the relationship between k_reach and impression holds.
     for measurement_policy in ['ami', 'mrc', 'custom']:
       for edp_combination in primitive_edp_combinations:
-        kreach_sum = 0.0
+        k_reach_sum = 0.0
         for frequency in range(1, num_frequencies + 1):
-          kreach_sum += frequency * corrected_measurements_map[
+          k_reach_sum += frequency * corrected_measurements_map[
             'reach_and_frequency/' + measurement_policy + '/' + edp_combination
             + '-frequency-' + str(frequency)]
         self._assertFuzzyLessEqual(
-            kreach_sum,
+            k_reach_sum,
             corrected_measurements_map[
               'impression_count/' + measurement_policy + '/' + edp_combination],
             TOLERANCE
