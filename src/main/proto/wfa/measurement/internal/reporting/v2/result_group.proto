@@ -1,0 +1,174 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.v2;
+
+import "google/type/interval.proto";
+import "wfa/measurement/internal/reporting/v2/event_filter.proto";
+import "wfa/measurement/internal/reporting/v2/event_template_field.proto";
+import "wfa/measurement/internal/reporting/v2/reporting_impression_qualification_filter.proto";
+import "wfa/measurement/internal/reporting/v2/windowing_spec.proto";
+
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
+option java_multiple_files = true;
+
+// A group of results.
+message ResultGroup {
+  // The title of the result group.
+  string title = 1;
+
+  // The metric metadata.
+  message MetricMetadata {
+    // A summary of a component of the reporting_unit being reported on
+    message ReportingUnitComponentSummary {
+      // Ex: If a `DataProvider` has the name "dataproviders/abc", then the
+      // ID is "abc".
+      string cmms_data_provider_id = 1;
+
+      // Display name of the `DataProvider`.
+      string cmms_data_provider_display_name = 2;
+
+      // Summary of an EventGroup entailed by the component
+      //
+      // Ex: If an `EventGroup` has the name
+      // "measurementconsumers/abc/eventgroups/abcd", then the
+      // `MeasurementConsumer` ID is "abc" and the `EventGroup` ID is "abcd".
+      message EventGroupSummary {
+        // `MeasurementConsumer` ID from the CMMS public API.
+        string cmms_measurement_consumer_id = 1;
+        // `EventGroup` ID from the CMMS public API.
+        string cmms_event_group_id = 2;
+      }
+      // A summary of each EventGroup entailed by the component.
+      repeated EventGroupSummary event_group_summaries = 3;
+    }
+
+    // A summary of each component of the reporting_unit reported on
+    message ReportingUnitSummary {
+      // Component summaries
+      repeated ReportingUnitComponentSummary reporting_unit_component_summary =
+          1;
+    }
+    // A summary of the ReportingUnit
+    ReportingUnitSummary reporting_unit_summary = 1;
+
+    // The time interval over which the metrics were computed
+    google.type.Interval time_interval = 2;
+
+    WindowingSpec windowing_spec = 3;
+
+    // A summary of the aspects of the DimensionSpec that were applied
+    message DimensionSpecSummary {
+      // The grouping dimensions and values for the reported metrics
+      EventTemplateField grouping = 1;
+      // The filters applied to the reported metrics
+      repeated EventFilter filters = 2;
+    }
+    DimensionSpecSummary dimension_spec_summary = 4;
+
+    // The impression qualification filter that was applied
+    ReportingImpressionQualificationFilter filter = 5;
+  }
+
+  // The metric values
+  message MetricSet {
+    // The size of the population for the filters/grouping specified
+    int32 population_size = 1;
+
+    // Metrics that are applicable to any subunit of the ReportingUnit.
+    message BasicMetricSet {
+      // The reach
+      int32 reach = 1;
+      // The reach divided by the population_size
+      float percent_reach = 2;
+      // The k+ reach where the index is frequency - 1.
+      repeated int32 k_plus_reach = 3;
+      // The percent k+ reach
+      repeated float percent_k_plus_reach = 4;
+      // The average frequency
+      float average_frequency = 5;
+      // The impression count
+      int32 impressions = 6;
+      // The gross ratings points
+      float grps = 7;
+    }
+    // Metrics for the entire reporting_unit.
+    message ReportingUnitMetricSet {
+      // The metrics for the union of the reporting_unit components
+      BasicMetricSet basic = 1;
+
+      // The stacked incremental reach of the ReportingUnit.
+      //
+      // For example if the units in the ReportingUnit were "edp1", "edp2",
+      // "edp3" then the values in this array are as follows:
+      //  1. reach(edp1)
+      //  2. reach(edp1+edp2) - reach(edp1)
+      //  3. reach(edp1+edp2+edp3) - reach(edp1+edp2)
+      repeated int32 stacked_incremental_reach = 2;
+    }
+    // Metrics for the whole reporting_unit
+    ReportingUnitMetricSet reporting_unit = 2;
+
+    // Metrics for a single component of the reporting_unit.
+    message ComponentMetricSet {
+      // The basic metrics for this component
+      BasicMetricSet basic = 1;
+
+      // The component's unique reach
+      int32 unique_reach = 2;
+    }
+    // Entry for `DataProvider` components map.
+    message DataProviderComponentMetricSetMapEntry {
+      // Map entry key.
+      //
+      // Ex: If a `DataProvider` has the name "dataproviders/abc", then the
+      // ID is "abc", which is the key.
+      string key = 1;
+
+      // Map entry value.
+      ComponentMetricSet value = 2;
+    }
+    // Map of `DataProvider` to `DataProviderComponentMetricSet`.
+    repeated DataProviderComponentMetricSetMapEntry components = 3;
+
+    // Metrics for the intersection of the `DataProvider` components of the
+    // reporting_unit.
+    message DataProviderComponentIntersectionMetricSet {
+      // The reporting_unit `DataProvider` components that this intersection
+      // corresponds to.
+      //
+      // Ex: If a `DataProvider` has the name "dataproviders/abc", then the
+      // ID is "abc".
+      repeated string cmms_data_provider_ids = 1;
+      // Basic metrics for the intersection of the components
+      BasicMetricSet basic = 2;
+    }
+    // The metrics for the requested intersections
+    repeated DataProviderComponentIntersectionMetricSet
+        component_intersections = 4;
+  }
+
+  // The metadata and metrics for a impression qualification filter
+  message Result {
+    // Metadata that describes the metric
+    MetricMetadata metadata = 1;
+    // Metric values
+    MetricSet metric_set = 2;
+  }
+  // The set of results for the ResultGroup, one per impression qualification
+  // filter that was applicable to the result group.
+  repeated Result results = 2;
+}

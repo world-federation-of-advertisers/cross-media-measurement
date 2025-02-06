@@ -25,7 +25,7 @@ MESSAGE_LIBS = [
     ":metric_calculation_spec_proto",
     ":metric_frequency_spec_proto",
     ":metric_proto",
-    ":page_proto",
+    ":result_group_proto",
     ":page_token_proto",
     ":report_proto",
     ":report_schedule_iteration_proto",
@@ -42,9 +42,9 @@ proto_library(
     srcs = ["basic_report.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":page_proto",
         ":reporting_impression_qualification_filter_proto",
         ":reporting_interval_proto",
+        ":result_group_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:timestamp_proto",
@@ -107,6 +107,8 @@ proto_library(
     name = "media_type_proto",
     srcs = ["media_type.proto"],
     strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+    ],
 )
 
 proto_library(
@@ -229,18 +231,8 @@ proto_library(
 )
 
 proto_library(
-    name = "time_interval_proto",
-    srcs = ["time_interval.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        "@com_google_googleapis//google/api:field_behavior_proto",
-        "@com_google_googleapis//google/type:interval_proto",
-    ],
-)
-
-proto_library(
-    name = "page_proto",
-    srcs = ["page.proto"],
+    name = "result_group_proto",
+    srcs = ["result_group.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":event_filter_proto",
@@ -253,6 +245,16 @@ proto_library(
         "@com_google_googleapis//google/type:dayofweek_proto",
         "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "time_interval_proto",
+    srcs = ["time_interval.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/type:interval_proto",
     ],
 )
 
@@ -287,7 +289,9 @@ proto_library(
         "@com_google_googleapis//google/api:annotations_proto",
         "@com_google_googleapis//google/api:client_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:field_info_proto",
         "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/longrunning:operations_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -330,6 +334,7 @@ proto_library(
         "@com_google_googleapis//google/api:annotations_proto",
         "@com_google_googleapis//google/api:client_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:field_info_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
 )

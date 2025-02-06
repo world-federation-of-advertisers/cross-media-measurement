@@ -19,9 +19,9 @@ package wfa.measurement.reporting.v2alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/reporting/v2alpha/page.proto";
 import "wfa/measurement/reporting/v2alpha/reporting_impression_qualification_filter.proto";
 import "wfa/measurement/reporting/v2alpha/reporting_interval.proto";
+import "wfa/measurement/reporting/v2alpha/result_group.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
@@ -69,14 +69,22 @@ message BasicReport {
   //
   // The custom criteria and any specific impression_qualification_filter may
   // each be used at most once.
+  // TODO(@kungfucraig): Denormalize the impression qualification filters.
   repeated ReportingImpressionQualificationFilter
       impression_qualification_filters = 6 [
         (google.api.field_behavior) = REQUIRED,
         (google.api.field_behavior) = IMMUTABLE
       ];
 
+  // Specifies the ResultGroups to create
+  repeated ResultGroupSpec result_group_specs = 9 [
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.field_behavior) = REQUIRED
+  ];
+
   // The report results
-  repeated Page pages = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+  repeated ResultGroup result_groups = 7
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The time when the BasicReport was created.
   google.protobuf.Timestamp create_time = 8

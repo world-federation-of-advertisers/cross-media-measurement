@@ -1,0 +1,52 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.v2;
+
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/reporting/v2/basic_report_details.proto";
+import "wfa/measurement/internal/reporting/v2/basic_report_result_details.proto";
+
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
+option java_multiple_files = true;
+
+// Proto representation of the internal Basic Report entity type.
+message BasicReport {
+  // Ex: If a `BasicReport` has the name
+  // "measurementconsumers/abc/basicreports/abcd", then the
+  // `MeasurementConsumer` ID is "abc" and the `BasicReport` ID is "abcd".
+  string cmms_measurement_consumer_id = 1;
+  string external_basic_report_id = 2;
+
+  // This is the external ID for a primitive `ReportingSet` that includes
+  // all of the EventGroups that may be reported on. The `MeasurementConsumer`
+  // ID is assumed to be the same as the top level one.
+  //
+  // EventGroups may span DataProviders and MediaTypes.
+  //
+  // Ex: If a `ReportingSet` has the name
+  // "measurementconsumers/abc/reportingsets/abcd", then the
+  // `MeasurementConsumer` ID is "abc" and the `ReportingSet` ID is "abcd".
+  string external_campaign_group_id = 3;
+
+  // The display_name of the campaign_group
+  string campaign_group_display_name = 4;
+
+  BasicReportResultDetails result_details = 6;
+  BasicReportDetails details = 7;
+
+  google.protobuf.Timestamp create_time = 8;
+}

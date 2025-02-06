@@ -79,6 +79,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
@@ -333,7 +334,7 @@ class MetricsService(
               emit(
                 buildCreateMeasurementRequest(
                   weightedMeasurement.measurement,
-                  internalMetric.metricSpec,
+                  internalMetric,
                   internalPrimitiveReportingSetMap,
                   measurementConsumer,
                   principal,
@@ -438,7 +439,7 @@ class MetricsService(
     /** Builds a CMMS [CreateMeasurementRequest]. */
     private fun buildCreateMeasurementRequest(
       internalMeasurement: InternalMeasurement,
-      metricSpec: InternalMetricSpec,
+      metric: InternalMetric,
       internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
       measurementConsumer: MeasurementConsumer,
       principal: MeasurementConsumerPrincipal,
@@ -467,7 +468,7 @@ class MetricsService(
               measurementConsumer.name,
               packedMeasurementEncryptionPublicKey,
               dataProviders.map { it.value.nonceHash },
-              metricSpec,
+              metric,
             )
 
           measurementSpec =
@@ -501,9 +502,10 @@ class MetricsService(
       measurementConsumerName: String,
       packedMeasurementEncryptionPublicKey: ProtoAny,
       nonceHashes: List<ByteString>,
-      metricSpec: InternalMetricSpec,
+      metric: InternalMetric,
     ): MeasurementSpec {
       val isSingleDataProvider: Boolean = nonceHashes.size == 1
+      val metricSpec = metric.metricSpec
 
       return measurementSpec {
         measurementPublicKey = packedMeasurementEncryptionPublicKey
@@ -546,6 +548,13 @@ class MetricsService(
         // TODO(@jojijac0b): Complete support for VID Model Line
         modelLine =
           measurementConsumerModelLines.getOrDefault(measurementConsumerName, defaultModelLine)
+
+        // Add reporting metadata
+        reportingMetadata = reportingMetadata {
+          report = metric.details.containingReport
+          this.metric =
+            MetricKey(metric.cmmsMeasurementConsumerId, metric.externalMetricId).toName()
+        }
       }
     }
 
@@ -1521,7 +1530,11 @@ class MetricsService(
             internalReportingSet,
             internalPrimitiveReportingSetMap,
           )
-        details = InternalMetricKt.details { filters += request.metric.filtersList }
+        details =
+          InternalMetricKt.details {
+            containingReport = request.metric.containingReport
+            filters += request.metric.filtersList
+          }
       }
     }
   }
@@ -1697,6 +1710,7 @@ class MetricsService(
       filters += source.details.filtersList
       state = source.state.toPublic()
       createTime = source.createTime
+      containingReport = source.details.containingReport
       // The calculations can throw an error, but we still want to return the metric.
       if (state == Metric.State.SUCCEEDED) {
         try {

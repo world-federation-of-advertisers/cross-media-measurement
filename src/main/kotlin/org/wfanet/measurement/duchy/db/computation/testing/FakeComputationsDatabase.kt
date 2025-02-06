@@ -17,7 +17,6 @@ package org.wfanet.measurement.duchy.db.computation.testing
 import io.grpc.Status
 import java.time.Duration
 import java.time.Instant
-import kotlin.experimental.ExperimentalTypeInference
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
@@ -150,22 +149,9 @@ private constructor(
    * references are unchanged.
    *
    * @param tokenToUpdate token of the computation that will be changed.
-   * @param changedTokenBuilderFunc function which returns a [ComputationToken.Builder] used to
-   *   replace the [tokenToUpdate]. The version of the token is always incremented.
+   * @param fillUpdatedToken function which fills the token to replace [tokenToUpdate]. The version
+   *   of the token is always incremented.
    */
-  @OptIn(ExperimentalTypeInference::class)
-  @OverloadResolutionByLambdaReturnType
-  private fun updateToken(
-    tokenToUpdate: ComputationEditToken<ComputationType, ComputationStage>,
-    changedTokenBuilderFunc: (ComputationToken) -> ComputationToken.Builder,
-  ) {
-    val current = requireTokenFromCurrent(tokenToUpdate)
-    tokens[tokenToUpdate.localId] =
-      changedTokenBuilderFunc(current).setVersion(tokenToUpdate.editVersion + 1).build()
-  }
-
-  /** @see [updateToken] */
-  @JvmName("updateTokenDsl")
   private inline fun updateToken(
     tokenToUpdate: ComputationEditToken<ComputationType, ComputationStage>,
     fillUpdatedToken: ComputationTokenKt.Dsl.() -> Unit,
@@ -208,53 +194,46 @@ private constructor(
     nextStageDetails: ComputationStageDetails,
     lockExtension: Duration?,
   ) {
-    updateToken(token) { existing ->
-      require(validTransition(existing.computationStage, nextStage))
+    updateToken(token) {
+      require(validTransition(computationStage, nextStage))
       // The next stage token will be a variant of the current token for the computation.
-      existing.toBuilder().apply {
-        computationStage = nextStage
+      computationStage = nextStage
 
-        clearStageSpecificDetails()
-        if (nextStageDetails != ComputationStageDetails.getDefaultInstance()) {
-          stageSpecificDetails = nextStageDetails
+      clearStageSpecificDetails()
+      if (nextStageDetails != ComputationStageDetails.getDefaultInstance()) {
+        stageSpecificDetails = nextStageDetails
+      }
+
+      // The blob metadata will always be different.
+      blobs.clear()
+      // Add input blob metadata to token.
+      blobs +=
+        inputBlobPaths.mapIndexed { idx, objectKey ->
+          newInputBlobMetadata(id = idx.toLong(), key = objectKey)
         }
-
-        // The blob metadata will always be different.
-        clearBlobs()
-        // Add input blob metadata to token.
-        addAllBlobs(
-          inputBlobPaths.mapIndexed { idx, objectKey ->
-            newInputBlobMetadata(id = idx.toLong(), key = objectKey)
-          }
-        )
-        // Add input blob metadata to token.
-        addAllBlobs(
-          passThroughBlobPaths.mapIndexed { idx, objectKey ->
-            newPassThroughBlobMetadata(id = idx.toLong() + inputBlobPaths.size, key = objectKey)
-          }
-        )
-        // Add output blob metadata to token.
-        addAllBlobs(
-          (0 until outputBlobs).map { idx ->
-            newEmptyOutputBlobMetadata(
-              idx.toLong() + inputBlobPaths.size + passThroughBlobPaths.size
-            )
-          }
-        )
-        // Set attempt number and presence in the queue.
-        when (afterTransition) {
-          AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> {
-            attempt = 0
-            claimedComputationIds.remove(existing.globalComputationId)
-          }
-          AfterTransition.DO_NOT_ADD_TO_QUEUE -> {
-            attempt = 1
-            claimedComputationIds.remove(existing.globalComputationId)
-          }
-          AfterTransition.CONTINUE_WORKING -> {
-            attempt = 1
-            claimedComputationIds.add(existing.globalComputationId)
-          }
+      // Add input blob metadata to token.
+      blobs +=
+        passThroughBlobPaths.mapIndexed { idx, objectKey ->
+          newPassThroughBlobMetadata(id = idx.toLong() + inputBlobPaths.size, key = objectKey)
+        }
+      // Add output blob metadata to token.
+      blobs +=
+        (0 until outputBlobs).map { idx ->
+          newEmptyOutputBlobMetadata(idx.toLong() + inputBlobPaths.size + passThroughBlobPaths.size)
+        }
+      // Set attempt number and presence in the queue.
+      when (afterTransition) {
+        AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> {
+          attempt = 0
+          claimedComputationIds.remove(globalComputationId)
+        }
+        AfterTransition.DO_NOT_ADD_TO_QUEUE -> {
+          attempt = 1
+          claimedComputationIds.remove(globalComputationId)
+        }
+        AfterTransition.CONTINUE_WORKING -> {
+          attempt = 1
+          claimedComputationIds.add(globalComputationId)
         }
       }
     }
@@ -265,7 +244,6 @@ private constructor(
     computationDetails: ComputationDetails,
     requisitions: List<RequisitionEntry>,
   ) {
-    @Suppress("CANDIDATE_CHOSEN_USING_OVERLOAD_RESOLUTION_BY_LAMBDA_ANNOTATION")
     updateToken(token) {
       this.computationDetails = computationDetails
 
@@ -291,14 +269,13 @@ private constructor(
     computationDetails: ComputationDetails,
   ) {
     require(validTerminalStage(token.protocol, endingStage))
-    updateToken(token) { existing ->
-      claimedComputationIds.remove(existing.globalComputationId)
-      existing.toBuilder().also {
-        it.computationStage = endingStage
-        it.computationDetailsBuilder.endingState = endComputationReason.toCompletedReason()
-        it.clearBlobs()
-        it.clearStageSpecificDetails()
-      }
+    updateToken(token) {
+      claimedComputationIds.remove(globalComputationId)
+      computationStage = endingStage
+      this.computationDetails =
+        computationDetails.copy { endingState = endComputationReason.toCompletedReason() }
+      blobs.clear()
+      clearStageSpecificDetails()
     }
   }
 
@@ -306,14 +283,16 @@ private constructor(
     token: ComputationEditToken<ComputationType, ComputationStage>,
     blobRef: BlobRef,
   ) {
-    updateToken(token) { existing ->
+    updateToken(token) {
       val existingBlobInToken = newEmptyOutputBlobMetadata(blobRef.idInRelationalDatabase)
       val blobs: MutableSet<ComputationStageBlobMetadata> =
-        getNonNull(existing.localComputationId).blobsList.toMutableSet()
+        getNonNull(localComputationId).blobsList.toMutableSet()
       // Replace the blob metadata in the token.
       check(blobs.remove(existingBlobInToken)) { "$existingBlobInToken not in $blobs" }
-      blobs.add(existingBlobInToken.toBuilder().setPath(blobRef.key).build())
-      existing.toBuilder().clearBlobs().addAllBlobs(blobs)
+      blobs.add(existingBlobInToken.copy { path = blobRef.key })
+
+      this.blobs.clear()
+      this.blobs += blobs
     }
   }
 
@@ -324,7 +303,6 @@ private constructor(
     publicApiVersion: String,
     protocol: RequisitionDetails.RequisitionProtocol?,
   ) {
-    @Suppress("CANDIDATE_CHOSEN_USING_OVERLOAD_RESOLUTION_BY_LAMBDA_ANNOTATION")
     updateToken(token) {
       val requisitionIndex = requisitions.indexOfFirst { it.externalKey == externalRequisitionKey }
       if (requisitionIndex < 0) {
@@ -349,10 +327,7 @@ private constructor(
     delaySecond: Int,
   ) {
     // ignore the delaySecond in the fake
-    updateToken(token) { existing ->
-      claimedComputationIds.remove(existing.globalComputationId)
-      existing.toBuilder()
-    }
+    updateToken(token) { claimedComputationIds.remove(globalComputationId) }
   }
 
   override suspend fun claimTask(
@@ -394,9 +369,9 @@ private constructor(
         editTokens.firstOrNull() ?: return null
       }
 
-    updateToken(claimed) { existing ->
-      claimedComputationIds.add(existing.globalComputationId)
-      existing.toBuilder().setAttempt(claimed.attempt + 1)
+    updateToken(claimed) {
+      claimedComputationIds.add(globalComputationId)
+      this.attempt = claimed.attempt + 1
     }
     return claimed.localId.toString()
   }
