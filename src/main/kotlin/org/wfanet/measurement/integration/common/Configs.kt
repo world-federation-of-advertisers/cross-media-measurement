@@ -36,6 +36,7 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.config.access.PermissionsConfig
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
@@ -44,12 +45,10 @@ import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 
+private const val REPO_NAME = "wfa_measurement_system"
+
 private val SECRET_FILES_PATH: Path =
-  checkNotNull(
-    getRuntimePath(
-      Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
-    )
-  )
+  checkNotNull(getRuntimePath(Paths.get(REPO_NAME, "src", "main", "k8s", "testing", "secretfiles")))
 
 val AGGREGATOR_PROTOCOLS_SETUP_CONFIG: ProtocolsSetupConfig =
   loadTextProto(
@@ -110,6 +109,27 @@ val ALL_DUCHIES =
       duchy.activeStartTime.toInstant()..activeEndTime,
     )
   }
+
+val PERMISSIONS_CONFIG: PermissionsConfig =
+  parseTextProto(
+    checkNotNull(
+        getRuntimePath(
+          Paths.get(
+            REPO_NAME,
+            "src",
+            "main",
+            "proto",
+            "wfa",
+            "measurement",
+            "reporting",
+            "v2alpha",
+            "permissions_config.textproto",
+          )
+        )
+      )
+      .toFile(),
+    PermissionsConfig.getDefaultInstance(),
+  )
 
 val ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES = listOf("edp1", "edp3")
 val ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES = listOf("edp2")
