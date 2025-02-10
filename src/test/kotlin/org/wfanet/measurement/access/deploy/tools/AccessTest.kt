@@ -309,7 +309,6 @@ class AccessTest {
           "--resource-type=$DESK_RESOURCE",
           "--permission=$GET_BOOK_PERMISSION_NAME",
           "--permission=$WRITE_BOOK_PERMISSION_NAME",
-          "--etag=$REQUEST_ETAG",
           "--role-id=$READER_ROLE_ID",
         )
 
@@ -325,7 +324,7 @@ class AccessTest {
           role =
             ROLE.copy {
               name = ""
-              etag = REQUEST_ETAG
+              etag = ""
             }
           roleId = READER_ROLE_ID
         }
@@ -463,8 +462,7 @@ class AccessTest {
           "--binding-role=$WRITER_ROLE_NAME",
           "--binding-member=$OWNER_PRINCIPAL_NAME",
           "--binding-member=$EDITOR_PRINCIPAL_NAME",
-          "--etag=$REQUEST_ETAG",
-          "--id=$POLICY_ID",
+          "--policy-id=$POLICY_ID",
         )
     val output = callCli(args)
 
@@ -479,7 +477,6 @@ class AccessTest {
             protectedResource = SHELF_RESOURCE
             bindings += READER_BINDING
             bindings += WRITER_BINDING
-            etag = REQUEST_ETAG
           }
           policyId = POLICY_ID
         }

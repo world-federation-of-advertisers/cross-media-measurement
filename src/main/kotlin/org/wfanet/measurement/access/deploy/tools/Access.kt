@@ -351,9 +351,6 @@ class CreateRole : Runnable {
   )
   private lateinit var permissionList: List<String>
 
-  @Option(names = ["--etag"], description = ["Entity tag of the Role"], required = false)
-  private lateinit var roleEtag: String
-
   @Option(names = ["--role-id"], description = ["Resource ID of the Role"], required = true)
   private lateinit var id: String
 
@@ -364,7 +361,6 @@ class CreateRole : Runnable {
           role = role {
             resourceTypes += resourceTypeList
             permissions += permissionList
-            etag = roleEtag
           }
           roleId = id
         }
@@ -627,10 +623,7 @@ class CreatePolicy : Runnable {
   )
   private lateinit var policyBindings: List<PolicyBinding>
 
-  @Option(names = ["--etag"], description = ["Entity tag of the Policy"], required = false)
-  private lateinit var policyEtag: String
-
-  @Option(names = ["--id"], description = ["Resource ID of the Policy"], required = false)
+  @Option(names = ["--policy-id"], description = ["Resource ID of the Policy"], required = false)
   private lateinit var id: String
 
   override fun run() {
@@ -644,7 +637,6 @@ class CreatePolicy : Runnable {
               members += binding.members
             }
           }
-        etag = policyEtag
       }
       policyId = id
     }
