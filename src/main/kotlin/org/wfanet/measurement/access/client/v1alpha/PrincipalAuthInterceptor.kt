@@ -31,7 +31,7 @@ import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
 import org.wfanet.measurement.access.v1alpha.lookupPrincipalRequest
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.grpc.ClientCertificateAuthentication
-import org.wfanet.measurement.common.grpc.OpenIdConnectAuthentication
+import org.wfanet.measurement.common.grpc.OAuthTokenAuthentication
 import org.wfanet.measurement.common.grpc.SuspendableServerInterceptor
 import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 
@@ -42,11 +42,11 @@ class PrincipalAuthInterceptor(
   private val tlsClientSupported: Boolean,
   clock: Clock = Clock.systemUTC(),
 ) : SuspendableServerInterceptor() {
-  private val openIdConnectAuth =
-    OpenIdConnectAuthentication(
+  private val authentication =
+    OAuthTokenAuthentication(
       openIdProvidersConfig.audience,
       openIdProvidersConfig.providerConfigByIssuerMap.map { (issuer, config) ->
-        OpenIdConnectAuthentication.OpenIdProviderConfig(issuer, config.jwks)
+        OAuthTokenAuthentication.OpenIdProviderConfig(issuer, config.jwks)
       },
       clock,
     )
@@ -58,7 +58,7 @@ class PrincipalAuthInterceptor(
   ): ServerCall.Listener<ReqT> {
     val verifiedToken =
       try {
-        openIdConnectAuth.verifyAndDecodeBearerToken(headers)
+        authentication.verifyAndDecodeBearerToken(headers)
       } catch (e: StatusException) {
         if (tlsClientSupported) {
           null
