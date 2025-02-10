@@ -70,4 +70,3 @@ fun SyntheticPopulationSpec.toPopulationSpecWithAttributes(): PopulationSpec {
       }
   }
 }
-
