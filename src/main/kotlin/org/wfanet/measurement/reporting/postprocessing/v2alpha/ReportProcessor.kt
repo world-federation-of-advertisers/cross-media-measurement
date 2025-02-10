@@ -130,6 +130,7 @@ interface ReportProcessor {
 
       logger.info { "Finished processing report.." }
 
+      // TODO(@ple13): Use protocol buffers for passing messages.
       // Converts the process output to the correction map.
       val correctedMeasurementsMap = mutableMapOf<String, Long>()
       GsonBuilder().create().fromJson(processOutput, Map::class.java).forEach { (key, value) ->
@@ -157,20 +158,23 @@ interface ReportProcessor {
               entry.copy {
                 // The result attribute is updated only if its metric is in the correction map.
                 if (entry.metric in correctedMeasurementsMap) {
-                  val correctedReach = correctedMeasurementsMap.getValue(entry.metric)
                   when {
                     entry.metricResult.hasReach() -> {
                       metricResult =
-                        metricResult.copy { reach = reach.copy { value = correctedReach } }
+                        metricResult.copy {
+                          reach =
+                            reach.copy { value = correctedMeasurementsMap.getValue(entry.metric) }
+                        }
                     }
                     entry.metricResult.hasReachAndFrequency() -> {
-                      val scale: Double =
-                        correctedReach / entry.metricResult.reachAndFrequency.reach.value.toDouble()
                       metricResult =
                         metricResult.copy {
                           reachAndFrequency =
                             reachAndFrequency.copy {
-                              reach = reach.copy { value = correctedReach }
+                              reach =
+                                reach.copy {
+                                  value = correctedMeasurementsMap.getValue(entry.metric)
+                                }
                               frequencyHistogram =
                                 frequencyHistogram.copy {
                                   bins.clear()
@@ -179,10 +183,26 @@ interface ReportProcessor {
                                       .map { bin ->
                                         bin.copy {
                                           binResult =
-                                            binResult.copy { value = bin.binResult.value * scale }
+                                            binResult.copy {
+                                              value =
+                                                correctedMeasurementsMap
+                                                  .getValue(
+                                                    entry.metric + "-frequency-" + bin.label
+                                                  )
+                                                  .toDouble()
+                                            }
                                         }
                                       }
                                 }
+                            }
+                        }
+                    }
+                    entry.metricResult.hasImpressionCount() -> {
+                      metricResult =
+                        metricResult.copy {
+                          impressionCount =
+                            impressionCount.copy {
+                              value = correctedMeasurementsMap.getValue(entry.metric)
                             }
                         }
                     }

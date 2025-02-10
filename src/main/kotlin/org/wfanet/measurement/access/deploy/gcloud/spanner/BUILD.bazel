@@ -5,6 +5,7 @@ load("//src/main/docker:macros.bzl", "java_image")
 package(
     default_visibility = [
         "//src/main/kotlin/org/wfanet/measurement/access/deploy:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/access/deploy:__subpackages__",
     ],
 )
