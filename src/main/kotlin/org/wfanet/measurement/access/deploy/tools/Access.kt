@@ -25,20 +25,28 @@ import org.wfanet.measurement.access.v1alpha.CheckPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.ListPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.ListRolesResponse
 import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt.PermissionsCoroutineStub
+import org.wfanet.measurement.access.v1alpha.PoliciesGrpcKt.PoliciesCoroutineStub
+import org.wfanet.measurement.access.v1alpha.PolicyKt.binding
 import org.wfanet.measurement.access.v1alpha.PrincipalKt
 import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt.PrincipalsCoroutineStub
 import org.wfanet.measurement.access.v1alpha.RolesGrpcKt.RolesCoroutineStub
+import org.wfanet.measurement.access.v1alpha.addPolicyBindingMembersRequest
 import org.wfanet.measurement.access.v1alpha.checkPermissionsRequest
+import org.wfanet.measurement.access.v1alpha.createPolicyRequest
 import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.createRoleRequest
 import org.wfanet.measurement.access.v1alpha.deletePrincipalRequest
 import org.wfanet.measurement.access.v1alpha.getPermissionRequest
+import org.wfanet.measurement.access.v1alpha.getPolicyRequest
 import org.wfanet.measurement.access.v1alpha.getPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.getRoleRequest
 import org.wfanet.measurement.access.v1alpha.listPermissionsRequest
 import org.wfanet.measurement.access.v1alpha.listRolesRequest
+import org.wfanet.measurement.access.v1alpha.lookupPolicyRequest
 import org.wfanet.measurement.access.v1alpha.lookupPrincipalRequest
+import org.wfanet.measurement.access.v1alpha.policy
 import org.wfanet.measurement.access.v1alpha.principal
+import org.wfanet.measurement.access.v1alpha.removePolicyBindingMembersRequest
 import org.wfanet.measurement.access.v1alpha.role
 import org.wfanet.measurement.access.v1alpha.updateRoleRequest
 import org.wfanet.measurement.common.commandLineMain
@@ -51,9 +59,11 @@ import picocli.CommandLine
 import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
+import picocli.CommandLine.Model.CommandSpec
 import picocli.CommandLine.Option
 import picocli.CommandLine.Parameters
 import picocli.CommandLine.ParentCommand
+import picocli.CommandLine.Spec
 
 private val CHANNEL_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30)
 
@@ -61,7 +71,13 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30)
   name = "Access",
   description = ["Interacts with Cross-Media Access API"],
   subcommands =
-    [CommandLine.HelpCommand::class, Permissions::class, Principals::class, Roles::class],
+    [
+      CommandLine.HelpCommand::class,
+      Permissions::class,
+      Principals::class,
+      Policies::class,
+      Roles::class,
+    ],
 )
 class Access private constructor() : Runnable {
   @Mixin private lateinit var tlsFlags: TlsFlags
@@ -167,9 +183,6 @@ class GetPrincipal : Runnable {
 class CreatePrincipal : Runnable {
   @ParentCommand private lateinit var parentCommand: Principals
 
-  @Option(names = ["--name"], description = ["API resource name of the Principal"])
-  private lateinit var principalName: String
-
   @ArgGroup(exclusive = true, multiplicity = "1", heading = "Principal identity specification")
   private lateinit var principalIdentity: PrincipalIdentity
 
@@ -185,7 +198,6 @@ class CreatePrincipal : Runnable {
       parentCommand.principalsClient.createPrincipal(
         createPrincipalRequest {
           principal = principal {
-            name = principalName
             if (principalIdentity.user != null) {
               user =
                 PrincipalKt.oAuthUser {
@@ -516,5 +528,198 @@ class CheckPermissions : Runnable {
     }
 
     println(response)
+  }
+}
+
+@Command(
+  name = "policies",
+  subcommands =
+    [
+      CommandLine.HelpCommand::class,
+      GetPolicy::class,
+      CreatePolicy::class,
+      LookupPolicy::class,
+      AddPolicyBindingMembers::class,
+      RemovePolicyBindingMembers::class,
+    ],
+)
+private class Policies {
+  @Spec private lateinit var commandSpec: CommandSpec
+
+  val commandLine: CommandLine
+    get() = commandSpec.commandLine()
+
+  @ParentCommand private lateinit var parentCommand: Access
+
+  val policiesClient: PoliciesCoroutineStub by lazy {
+    PoliciesCoroutineStub(parentCommand.accessChannel)
+  }
+}
+
+private class PolicyBinding {
+  @Option(names = ["--binding-role"], description = ["Resource name of the Role"], required = true)
+  lateinit var role: String
+    private set
+
+  @Option(
+    names = ["--binding-member"],
+    description =
+      [
+        "Resource name of the principal which is a member of the this Role on `resource`" +
+          "Can be specified multiple times."
+      ],
+    required = true,
+  )
+  lateinit var members: List<String>
+    private set
+}
+
+@Command(name = "get", description = ["Get a Policy"])
+class GetPolicy : Runnable {
+  @ParentCommand private lateinit var parentCommand: Policies
+
+  @Parameters(index = "0", description = ["Resource name of the Policy"])
+  private lateinit var policyName: String
+
+  override fun run() {
+    val policy = runBlocking {
+      parentCommand.policiesClient.getPolicy(getPolicyRequest { name = policyName })
+    }
+    println(policy)
+  }
+}
+
+@Command(name = "create", description = ["Create a Policy"])
+class CreatePolicy : Runnable {
+  @ParentCommand private lateinit var parentCommand: Policies
+
+  @Option(
+    names = ["--protected-resource"],
+    description =
+      [
+        "Name of the resource protected by this Policy. " +
+          "If not specified, this means the root of the protected API."
+      ],
+    required = false,
+  )
+  private lateinit var resource: String
+
+  @ArgGroup(
+    exclusive = false,
+    multiplicity = "0..*",
+    heading =
+      "Policy Bindings that map Role to members (Principals). " +
+        "Optional and can be specified multiple times.",
+  )
+  private lateinit var policyBindings: List<PolicyBinding>
+
+  @Option(names = ["--etag"], description = ["Entity tag of the Policy"])
+  private lateinit var policyEtag: String
+
+  override fun run() {
+    val createPolicyRequest = createPolicyRequest {
+      policy = policy {
+        protectedResource = resource
+        bindings +=
+          policyBindings.map { binding ->
+            binding {
+              role = binding.role
+              members += binding.members
+            }
+          }
+        etag = policyEtag
+      }
+    }
+
+    val policy = runBlocking { parentCommand.policiesClient.createPolicy(createPolicyRequest) }
+    println(policy)
+  }
+}
+
+@Command(name = "lookup", description = ["Lookup a Policy by lookup key"])
+class LookupPolicy : Runnable {
+  @ParentCommand private lateinit var parentCommand: Policies
+
+  @Option(
+    names = ["--protected-resource"],
+    description = ["Name of the resource to which the policy applies"],
+  )
+  private lateinit var resource: String
+
+  override fun run() {
+    val policy = runBlocking {
+      parentCommand.policiesClient.lookupPolicy(
+        lookupPolicyRequest { protectedResource = resource }
+      )
+    }
+
+    println(policy)
+  }
+}
+
+private class PolicyBindingChangeFlags {
+  @Option(names = ["--name"], description = ["Resource name of the Policy"], required = true)
+  lateinit var policyName: String
+    private set
+
+  @Option(names = ["--role"], description = ["Resource name of the Role"], required = true)
+  lateinit var roleName: String
+    private set
+
+  @Option(
+    names = ["--member"],
+    description = ["Resource name of the member to add/remove. Can be specified multiple times."],
+    required = true,
+  )
+  lateinit var memberList: List<String>
+    private set
+
+  @Option(names = ["--etag"], description = ["Current etag of the resource"], required = false)
+  lateinit var currentEtag: String
+    private set
+}
+
+@Command(name = "add-members", description = ["Add members to a Policy Binding"])
+class AddPolicyBindingMembers : Runnable {
+  @ParentCommand private lateinit var parentCommand: Policies
+
+  @ArgGroup(exclusive = false, multiplicity = "1", heading = "Policy Binding addition flags")
+  private lateinit var policyBindingChangeFlags: PolicyBindingChangeFlags
+
+  override fun run() {
+    val policy = runBlocking {
+      parentCommand.policiesClient.addPolicyBindingMembers(
+        addPolicyBindingMembersRequest {
+          name = policyBindingChangeFlags.policyName
+          role = policyBindingChangeFlags.roleName
+          members += policyBindingChangeFlags.memberList
+          etag = policyBindingChangeFlags.currentEtag
+        }
+      )
+    }
+
+    println(policy)
+  }
+}
+
+@Command(name = "remove-members", description = ["Remove members from a Policy Binding"])
+class RemovePolicyBindingMembers : Runnable {
+  @ParentCommand private lateinit var parentCommand: Policies
+
+  @ArgGroup(exclusive = false, multiplicity = "1", heading = "Policy Binding removal flags")
+  private lateinit var policyBindingChangeFlags: PolicyBindingChangeFlags
+
+  override fun run() {
+    val policy = runBlocking {
+      parentCommand.policiesClient.removePolicyBindingMembers(
+        removePolicyBindingMembersRequest {
+          name = policyBindingChangeFlags.policyName
+          role = policyBindingChangeFlags.roleName
+          members += policyBindingChangeFlags.memberList
+          etag = policyBindingChangeFlags.currentEtag
+        }
+      )
+    }
+    println(policy)
   }
 }
