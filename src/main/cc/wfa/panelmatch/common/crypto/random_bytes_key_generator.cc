@@ -15,8 +15,8 @@
 #include "wfa/panelmatch/common/crypto/random_bytes_key_generator.h"
 
 #include "absl/status/statusor.h"
-#include "openssl/rand.h"
 #include "tink/util/secret_data.h"
+#include "third_party/tink/cc/subtle/random.h"
 
 namespace wfa::panelmatch::common::crypto {
 
@@ -27,12 +27,7 @@ absl::StatusOr<SecretData> RandomBytesKeyGenerator::GenerateKey(
   if (size <= 0)
     return absl::InvalidArgumentError("Size must be greater than 0");
 
-  SecretData key;
-  key.resize(size);
-  // In BoringSSL, this call is guaranteed to return 1 so we do not need to
-  // check the return value.
-  RAND_bytes(key.data(), size);
-  return key;
+  return ::crypto::tink::subtle::Random::GetRandomKeyBytes(size);
 }
 
 }  // namespace wfa::panelmatch::common::crypto
