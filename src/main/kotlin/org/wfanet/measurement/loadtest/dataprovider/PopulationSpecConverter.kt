@@ -39,6 +39,7 @@ fun SyntheticPopulationSpec.toPopulationSpec(): PopulationSpec {
   }
 }
 
+/** Adds the attribute field for TestEvents. */
 fun SyntheticPopulationSpec.toPopulationSpecWithAttributes(): PopulationSpec {
   return populationSpec {
     subpopulations +=
