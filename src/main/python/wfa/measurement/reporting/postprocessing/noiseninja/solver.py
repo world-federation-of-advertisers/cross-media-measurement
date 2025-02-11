@@ -165,11 +165,6 @@ class Solver:
     variables[set_variable] = 1
     self._add_gt_term(variables)
 
-  def _is_feasible(self, vector: np.array) -> bool:
-    for i, g in enumerate(self.G):
-      if np.dot(vector, g) > self.h[i][0]:
-        return False
-    return True
 
   def _add_parent_gt_child_term(self, parent: int, child: int):
     variables = np.zeros(self.num_variables)
@@ -227,28 +222,19 @@ class Solver:
     return solution
 
   def solve(self) -> Solution:
-    if self._is_feasible(self.base_value):
-      logging.info(
-          "The set measurement spec is feasible."
-      )
-      solution = Solution(x=self.base_value,
-                          found=True,
-                          extras={'status': 'trivial'},
-                          problem=self._problem())
-    else:
-      logging.info(
-          "Solving the quadratic program with the HIGHS solver."
-      )
-      solution = self._solve(HIGHS_SOLVER)
+    logging.info(
+        "Solving the quadratic program with the HIGHS solver."
+    )
+    solution = self._solve(HIGHS_SOLVER)
 
-      # If the highs solver does not converge, switch to the osqp solver which
-      # is more robust. However, OSQP in general is less accurate than HIGHS
-      # (See https://web.stanford.edu/~boyd/papers/pdf/osqp.pdf).
-      if not solution.found:
-        logging.info(
-            "Switching to OSQP solver as HIGHS solver failed to converge."
-        )
-        solution = self._solve(OSQP_SOLVER)
+    # If the highs solver does not converge, switch to the osqp solver which
+    # is more robust. However, OSQP in general is less accurate than HIGHS
+    # (See https://web.stanford.edu/~boyd/papers/pdf/osqp.pdf).
+    if not solution.found:
+      logging.info(
+          "Switching to OSQP solver as HIGHS solver failed to converge."
+      )
+      solution = self._solve(OSQP_SOLVER)
 
     # Raise the exception when both solvers do not converge.
     if not solution.found:
