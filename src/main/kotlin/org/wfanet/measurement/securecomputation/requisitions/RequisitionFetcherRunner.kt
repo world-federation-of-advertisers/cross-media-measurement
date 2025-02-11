@@ -29,7 +29,7 @@ import org.wfanet.measurement.common.toByteArray
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 
 class RequisitionFetcherRunner : HttpFunction {
-  override fun service(request: HttpRequest?, response: HttpResponse?) {
+  override fun service(request: HttpRequest, response: HttpResponse) {
     runBlocking { requisitionFetcher.executeRequisitionFetchingWorkflow() }
   }
 
@@ -54,7 +54,6 @@ class RequisitionFetcherRunner : HttpFunction {
         requisitionsStub,
         requisitionsStorageClient,
         System.getenv("DATAPROVIDER_NAME"),
-        System.getenv("REQUISITIONS_GCS_BUCKET"),
       )
 
     private suspend fun getClientCerts(): SigningCerts {

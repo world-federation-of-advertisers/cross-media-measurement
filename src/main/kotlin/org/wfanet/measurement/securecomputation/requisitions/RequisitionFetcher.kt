@@ -25,12 +25,18 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 
-// 1. Polls for new requisitions
-// 2. Stores new requisitions into Google Cloud Storage
+/**
+ * Kotlin class responsible for fetching requisitions from the Kingdom and persisting them into GCS.
+ *
+ * @param requisitionsStub used to pull [Requisition]s from the kingdom
+ *
+ * @param gcsStorageClient used to store new [Requisition]s
+ *
+ * @param dataProviderName of the EDP for which [Requisition]s will be retrieved
+ */
 class RequisitionFetcher(
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val gcsStorageClient: GcsStorageClient,
-  private val gcsBucket: String,
   private val dataProviderName: String,
 ) {
   suspend fun executeRequisitionFetchingWorkflow() {
@@ -38,12 +44,11 @@ class RequisitionFetcher(
 
     val requisitions = fetchRequisitions()
 
-    if (requisitions.isEmpty()) {
-      logger.fine("No unfulfilled requisitions for $dataProviderName. Polling again later...")
-      return
-    }
+    logger.fine("${requisitions.size} unfulfilled requisitions retrieved for $dataProviderName")
 
-    storeRequisitions(requisitions)
+    if (requisitions.isNotEmpty()) {
+      storeRequisitions(requisitions)
+    }
   }
 
   private suspend fun fetchRequisitions(): List<Requisition> {
@@ -52,7 +57,6 @@ class RequisitionFetcher(
       filter =
         ListRequisitionsRequestKt.filter {
           states += Requisition.State.UNFULFILLED
-          measurementStates += Measurement.State.AWAITING_REQUISITION_FULFILLMENT
         }
     }
 
@@ -65,13 +69,13 @@ class RequisitionFetcher(
 
   private suspend fun storeRequisitions(requisitions: List<Requisition>) {
     for (requisition in requisitions) {
-      val blobUri = "gs://${gcsBucket}/${requisition.name}"
+      val blobKey= requisition.name
 
       // Only stores the requisition if it does not already exist in the GCS bucket by checking if
-      // the blob URI(created
+      // the blob key(created
       // using the requisition name, ensuring uniqueness) is populated.
-      if (gcsStorageClient.getBlob(blobUri) == null) {
-        gcsStorageClient.writeBlob(blobUri, requisition.toByteString())
+      if (gcsStorageClient.getBlob(blobKey) == null) {
+        gcsStorageClient.writeBlob(blobKey, requisition.toByteString())
       }
     }
   }

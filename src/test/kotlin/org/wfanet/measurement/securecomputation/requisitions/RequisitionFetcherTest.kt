@@ -78,11 +78,11 @@ class RequisitionFetcherTest {
   fun `fetch new requisitions and store in GCS bucket`() {
     val storage = LocalStorageHelper.getOptions().service
     val storageClient = GcsStorageClient(storage, BUCKET)
-    val fetcher = RequisitionFetcher(requisitionsStub, storageClient, BUCKET, DATA_PROVIDER_NAME)
+    val fetcher = RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME)
     val persistedRequisition = runBlocking {
       fetcher.executeRequisitionFetchingWorkflow()
       storageClient
-        .getBlob("gs://${BUCKET}/${REQUISITION.name}")
+        .getBlob(REQUISITION.name)
         ?.read()
         ?.toByteArray()
         ?.toByteString()
