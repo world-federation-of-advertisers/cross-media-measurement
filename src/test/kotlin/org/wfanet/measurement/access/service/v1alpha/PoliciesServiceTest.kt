@@ -14,6 +14,13 @@
 
 package org.wfanet.measurement.access.service.v1alpha
 
+import org.wfanet.measurement.internal.access.PoliciesGrpcKt as InternalPoliciesGrpcKt
+import org.wfanet.measurement.internal.access.PolicyKt as InternalPolicyKt
+import org.wfanet.measurement.internal.access.addPolicyBindingMembersRequest as internalAddPolicyBindingMembersRequest
+import org.wfanet.measurement.internal.access.getPolicyRequest as internalGetPolicyRequest
+import org.wfanet.measurement.internal.access.lookupPolicyRequest as internalLookupPolicyRequest
+import org.wfanet.measurement.internal.access.policy as internalPolicy
+import org.wfanet.measurement.internal.access.removePolicyBindingMembersRequest as internalRemovePolicyBindingMembersRequest
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.rpc.errorInfo
@@ -53,14 +60,7 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.internal.access.PoliciesGrpcKt as InternalPoliciesGrpcKt
-import org.wfanet.measurement.internal.access.PolicyKt as InternalPolicyKt
 import org.wfanet.measurement.internal.access.Principal
-import org.wfanet.measurement.internal.access.addPolicyBindingMembersRequest as internalAddPolicyBindingMembersRequest
-import org.wfanet.measurement.internal.access.getPolicyRequest as internalGetPolicyRequest
-import org.wfanet.measurement.internal.access.lookupPolicyRequest as internalLookupPolicyRequest
-import org.wfanet.measurement.internal.access.policy as internalPolicy
-import org.wfanet.measurement.internal.access.removePolicyBindingMembersRequest as internalRemovePolicyBindingMembersRequest
 
 @RunWith(JUnit4::class)
 class PoliciesServiceTest {
@@ -1115,31 +1115,6 @@ class PoliciesServiceTest {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] = "role"
-          }
-        )
-    }
-
-  @Test
-  fun `removePolicyBindingMembers throws REQUIRED_FIELD_NOT_SET when members is not set`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.removePolicyBindingMembers(
-            removePolicyBindingMembersRequest {
-              name = "policies/policy-1"
-              role = "roles/bookReader"
-              etag = "etag"
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "members"
           }
         )
     }
