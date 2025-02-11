@@ -169,7 +169,7 @@ private class Principals {
 class GetPrincipal : Runnable {
   @ParentCommand private lateinit var parentCommand: Principals
 
-  @Parameters(index = "0", description = ["API resource name of the Principal"], arity = '1')
+  @Parameters(index = "0", description = ["API resource name of the Principal"], arity = "1")
   private lateinit var principalName: String
 
   override fun run() {
@@ -223,7 +223,7 @@ class CreatePrincipal : Runnable {
 class DeletePrincipal : Runnable {
   @ParentCommand private lateinit var parentCommand: Principals
 
-  @Parameters(index = "0", description = ["API resource name of the Principal"], arity = '1')
+  @Parameters(index = "0", description = ["API resource name of the Principal"], arity = "1")
   private lateinit var principalName: String
 
   override fun run() {
