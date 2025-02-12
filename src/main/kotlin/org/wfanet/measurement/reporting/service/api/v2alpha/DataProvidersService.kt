@@ -16,22 +16,26 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.withAuthenticationKey
 
-class DataProvidersService(private val dataProvidersStub: DataProvidersCoroutineStub) :
-  DataProvidersCoroutineImplBase() {
+class DataProvidersService(
+  private val dataProvidersStub: DataProvidersCoroutineStub,
+  private val authorization: Authorization,
+  private val apiAuthenticationKey: String,
+) : DataProvidersCoroutineImplBase() {
   override suspend fun getDataProvider(request: GetDataProviderRequest): DataProvider {
-    val principal: ReportingPrincipal = principalFromCurrentContext
-    when (principal) {
-      is MeasurementConsumerPrincipal -> {}
-    }
-
-    val apiAuthenticationKey: String = principal.config.apiKey
-
+    authorization.check(Authorization.ROOT_RESOURCE_NAME, GET_DATA_PROVIDER_PERMISSIONS)
     return dataProvidersStub.withAuthenticationKey(apiAuthenticationKey).getDataProvider(request)
+  }
+
+  companion object {
+    private const val GET_DATA_PROVIDER_PERMISSION = "reporting.dataProviders.get"
+    val GET_DATA_PROVIDER_PERMISSIONS = setOf(GET_DATA_PROVIDER_PERMISSION)
   }
 }
