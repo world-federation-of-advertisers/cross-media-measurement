@@ -1939,6 +1939,164 @@ class TestReport(unittest.TestCase):
 
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
+  def test_get_corrected_report_when_cumulative_reaches_are_consistent(self):
+    # AMI reaches are consistent.
+    ami_time_series = [
+        2931765,
+        3049283,
+        3081004,
+    ]
+    # MRC reaches are consistent.
+    mrc_time_series = [
+        2043370,
+        2130897,
+        2181590,
+    ]
+
+    # Total reach is the sum of k reaches, and is different from the
+    # corresponding last cumulative reach.
+    AMI_TOTAL_REACH = 3072651
+    MRC_TOTAL_REACH = 2169768
+
+    ami_k_reach = [2020883, 491853, 328201, 200862, 30852]
+    mrc_k_reach = [1580273, 389637, 138795, 27131, 33932]
+
+    ami_impression = 5262888
+    mrc_impression = 3343141
+
+    report = Report(
+        metric_reports={
+            "ami": MetricReport(
+                reach_time_series={
+                    frozenset({EDP_ONE}): [
+                        Measurement(ami_time_series[i], 10000,
+                                    "measurement_" + str(i))
+                        for i in range(0, len(ami_time_series))
+                    ],
+                },
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(AMI_TOTAL_REACH, 10000,
+                                                      "measurement_3")
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(ami_k_reach[0], 10000, "measurement_4"),
+                        2: Measurement(ami_k_reach[1], 10000, "measurement_5"),
+                        3: Measurement(ami_k_reach[2], 10000, "measurement_6"),
+                        4: Measurement(ami_k_reach[3], 10000, "measurement_7"),
+                        5: Measurement(ami_k_reach[4], 10000, "measurement_8"),
+                    }
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(ami_impression, 10000,
+                                                      "measurement_9")
+                },
+            ),
+            "mrc": MetricReport(
+                reach_time_series={
+                    frozenset({EDP_ONE}): [
+                        Measurement(mrc_time_series[i], 10000,
+                                    "measurement_" + str(10 + i))
+                        for i in range(0, len(mrc_time_series))
+                    ],
+                },
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(MRC_TOTAL_REACH, 10000,
+                                                      "measurement_13")
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(mrc_k_reach[0], 10000, "measurement_14"),
+                        2: Measurement(mrc_k_reach[1], 10000, "measurement_15"),
+                        3: Measurement(mrc_k_reach[2], 10000, "measurement_16"),
+                        4: Measurement(mrc_k_reach[3], 10000, "measurement_17"),
+                        5: Measurement(mrc_k_reach[4], 10000, "measurement_18"),
+                    }
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(mrc_impression, 10000,
+                                                      "measurement_19")
+                },
+            )
+        },
+        metric_subsets_by_parent={"ami": ["mrc"]},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
+
+    corrected = report.get_corrected_report()
+
+    # The corrected report should be consistent:
+    # a) Time series measurements form a non-decreasing sequences.
+    # b) The last time series reach is equal to the whole campaign reach.
+    # c) The whole campaign reach is equal to the sum of the k reaches.
+    # d) The impression is greater than or equal to the weighted sum of the k
+    # reaches (where the weights are the corresponding frequency).
+    # e) The impression of the union set is equal to the sum of the impression
+    # of the individual sets (e.g. impression(edp1 U edp2) = impression(edp1) +
+    # impression(edp2)).
+    # f) The reach of the union set is less than or equal to the sum of the
+    # reach of the subsets it covers (e.g. r(edp1 U edp2) <= r(edp1) + r(edp2)).
+    expected = Report(
+        metric_reports={
+            "ami": MetricReport(
+                reach_time_series={
+                    frozenset({EDP_ONE}): [
+                        Measurement(2931764.71, 10000, "measurement_0"),
+                        Measurement(3049282.70, 10000, "measurement_1"),
+                        Measurement(3076447.51, 10000, "measurement_2"),
+                    ],
+                },
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(3076447.51, 10000,
+                                                      "measurement_3")
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(2021642.16, 10000, "measurement_4"),
+                        2: Measurement(492612.31, 10000, "measurement_5"),
+                        3: Measurement(328960.33, 10000, "measurement_6"),
+                        4: Measurement(201621.34, 10000, "measurement_7"),
+                        5: Measurement(31611.36, 10000, "measurement_8"),
+                    }
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(5262887.47, 10000,
+                                                      "measurement_9")
+                },
+            ),
+            "mrc": MetricReport(
+                reach_time_series={
+                    frozenset({EDP_ONE}): [
+                        Measurement(2043369.80, 10000, "measurement_10"),
+                        Measurement(2130896.79, 10000, "measurement_11"),
+                        Measurement(2175141.42, 10000, "measurement_12"),
+                    ],
+                },
+                reach_whole_campaign={
+                    frozenset({EDP_ONE}): Measurement(2175141.42, 10000,
+                                                      "measurement_13")
+                },
+                k_reach={
+                    frozenset({EDP_ONE}): {
+                        1: Measurement(1581347.57, 10000, "measurement_14"),
+                        2: Measurement(390711.69, 10000, "measurement_15"),
+                        3: Measurement(139869.71, 10000, "measurement_16"),
+                        4: Measurement(28205.72, 10000, "measurement_17"),
+                        5: Measurement(35006.72, 10000, "measurement_18"),
+                    }
+                },
+                impression={
+                    frozenset({EDP_ONE}): Measurement(3343140.67, 10000,
+                                                      "measurement_19")
+                },
+            )
+        },
+        metric_subsets_by_parent={"ami": ["mrc"]},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
+
+    self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
+
   def _assertMeasurementAlmostEquals(
       self, expected: Measurement, actual: Measurement, msg
   ):
