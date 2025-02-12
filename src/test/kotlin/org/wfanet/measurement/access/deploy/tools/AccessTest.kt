@@ -18,6 +18,7 @@ package org.wfanet.measurement.access.deploy.tools
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.Empty
 import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.netty.NettyServerBuilder
@@ -40,6 +41,7 @@ import org.wfanet.measurement.access.v1alpha.CreatePolicyRequest
 import org.wfanet.measurement.access.v1alpha.CreatePrincipalRequest
 import org.wfanet.measurement.access.v1alpha.CreateRoleRequest
 import org.wfanet.measurement.access.v1alpha.DeletePrincipalRequest
+import org.wfanet.measurement.access.v1alpha.DeleteRoleRequest
 import org.wfanet.measurement.access.v1alpha.GetPermissionRequest
 import org.wfanet.measurement.access.v1alpha.GetPolicyRequest
 import org.wfanet.measurement.access.v1alpha.GetPrincipalRequest
@@ -70,6 +72,7 @@ import org.wfanet.measurement.access.v1alpha.createPolicyRequest
 import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.createRoleRequest
 import org.wfanet.measurement.access.v1alpha.deletePrincipalRequest
+import org.wfanet.measurement.access.v1alpha.deleteRoleRequest
 import org.wfanet.measurement.access.v1alpha.getPermissionRequest
 import org.wfanet.measurement.access.v1alpha.getPolicyRequest
 import org.wfanet.measurement.access.v1alpha.getPrincipalRequest
@@ -149,6 +152,7 @@ class AccessTest {
     onBlocking { listRoles(any()) }.thenReturn(listRolesResponse { roles += ROLE })
     onBlocking { createRole(any()) }.thenReturn(ROLE)
     onBlocking { updateRole(any()) }.thenReturn(ROLE)
+    onBlocking { deleteRole(any()) }.thenReturn(Empty.getDefaultInstance())
   }
 
   private val serverCerts =
@@ -233,7 +237,7 @@ class AccessTest {
 
   @Test
   fun `principals delete calls DeletePrincipal with valid request`() {
-    val args = commonArgs + arrayOf("principals", "delete", "--name=$OWNER_PRINCIPAL_NAME")
+    val args = commonArgs + arrayOf("principals", "delete", OWNER_PRINCIPAL_NAME)
 
     callCli(args)
 
@@ -305,7 +309,6 @@ class AccessTest {
           "--resource-type=$DESK_RESOURCE",
           "--permission=$GET_BOOK_PERMISSION_NAME",
           "--permission=$WRITE_BOOK_PERMISSION_NAME",
-          "--etag=$REQUEST_ETAG",
           "--role-id=$READER_ROLE_ID",
         )
 
@@ -321,7 +324,7 @@ class AccessTest {
           role =
             ROLE.copy {
               name = ""
-              etag = REQUEST_ETAG
+              etag = ""
             }
           roleId = READER_ROLE_ID
         }
@@ -352,6 +355,18 @@ class AccessTest {
 
     assertThat(request).isEqualTo(updateRoleRequest { role = ROLE.copy { etag = REQUEST_ETAG } })
     assertThat(parseTextProto(output.reader(), Role.getDefaultInstance())).isEqualTo(ROLE)
+  }
+
+  @Test
+  fun `roles delete calls DeleteRole with valid request`() {
+    val args = commonArgs + arrayOf("roles", "delete", READER_ROLE_NAME)
+    callCli(args)
+
+    val request: DeleteRoleRequest = captureFirst {
+      runBlocking { verify(rolesServiceMock).deleteRole(capture()) }
+    }
+
+    assertThat(request).isEqualTo(deleteRoleRequest { name = READER_ROLE_NAME })
   }
 
   @Test
@@ -447,7 +462,7 @@ class AccessTest {
           "--binding-role=$WRITER_ROLE_NAME",
           "--binding-member=$OWNER_PRINCIPAL_NAME",
           "--binding-member=$EDITOR_PRINCIPAL_NAME",
-          "--etag=$REQUEST_ETAG",
+          "--policy-id=$POLICY_ID",
         )
     val output = callCli(args)
 
@@ -462,8 +477,8 @@ class AccessTest {
             protectedResource = SHELF_RESOURCE
             bindings += READER_BINDING
             bindings += WRITER_BINDING
-            etag = REQUEST_ETAG
           }
+          policyId = POLICY_ID
         }
       )
 
@@ -491,8 +506,8 @@ class AccessTest {
           "policies",
           "add-members",
           "--name=$POLICY_NAME",
-          "--role=$READER_ROLE_NAME",
-          "--member=$NON_MEMBER_PRINCIPAL_NAME",
+          "--binding-role=$READER_ROLE_NAME",
+          "--binding-member=$NON_MEMBER_PRINCIPAL_NAME",
           "--etag=$REQUEST_ETAG",
         )
     val output = callCli(args)
@@ -533,8 +548,8 @@ class AccessTest {
           "policies",
           "remove-members",
           "--name=$POLICY_NAME",
-          "--role=$READER_ROLE_NAME",
-          "--member=$MEMBER_PRINCIPAL_NAME",
+          "--binding-role=$READER_ROLE_NAME",
+          "--binding-member=$MEMBER_PRINCIPAL_NAME",
           "--etag=$REQUEST_ETAG",
         )
     val output = callCli(args)
@@ -644,6 +659,7 @@ class AccessTest {
       resourceTypes += DESK_RESOURCE
     }
 
+    private const val POLICY_ID = "policy-1"
     private const val POLICY_NAME = "policies/policy-1"
     private val READER_BINDING =
       PolicyKt.binding {
