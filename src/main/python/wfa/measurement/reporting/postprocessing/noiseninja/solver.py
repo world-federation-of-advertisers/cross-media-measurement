@@ -168,37 +168,32 @@ class Solver:
 
   def solve(self) -> Solution:
     attempt_count = 0
-    if self._is_feasible(self.base_value):
-      solution = Solution(x=self.base_value,
-                          found=True,
-                          extras={'status': 'trivial'},
-                          problem=self._problem())
-    else:
+
+    while attempt_count < MAX_ATTEMPTS:
+      # TODO: check if qpsolvers is thread safe,
+      #  and remove this semaphore.
+      SEMAPHORE.acquire()
+      solution = self._solve_with_initial_value(HIGHS_SOLVER, self.base_value)
+      SEMAPHORE.release()
+
+      if solution.found:
+        break
+      else:
+        attempt_count += 1
+
+    # If the highs solver does not converge, switch to the osqp solver which
+    # is more robust.
+    if not solution.found:
+      attempt_count = 0
       while attempt_count < MAX_ATTEMPTS:
-        # TODO: check if qpsolvers is thread safe,
-        #  and remove this semaphore.
         SEMAPHORE.acquire()
-        solution = self._solve_with_initial_value(HIGHS_SOLVER, self.base_value)
+        solution = self._solve_with_initial_value(OSQP_SOLVER, self.base_value)
         SEMAPHORE.release()
 
         if solution.found:
           break
         else:
           attempt_count += 1
-
-      # If the highs solver does not converge, switch to the osqp solver which
-      # is more robust.
-      if not solution.found:
-        attempt_count = 0
-        while attempt_count < MAX_ATTEMPTS:
-          SEMAPHORE.acquire()
-          solution = self._solve_with_initial_value(OSQP_SOLVER, self.base_value)
-          SEMAPHORE.release()
-
-          if solution.found:
-            break
-          else:
-            attempt_count += 1
 
     # Raise the exception when both solvers do not converge.
     if not solution.found:

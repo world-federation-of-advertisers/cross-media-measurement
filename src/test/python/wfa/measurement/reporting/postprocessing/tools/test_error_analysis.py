@@ -14,11 +14,9 @@
 
 import numpy as np
 import random
-import openpyxl
 import statistics
 import sys
 import unittest
-import os
 
 from google.protobuf.json_format import Parse
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
@@ -63,15 +61,18 @@ EDP_MAP = {
     "union": frozenset({"edp1", "edp2", "edp3", "edp4"}),
 }
 
-probabilities = {"edp1": 0.015, "edp2": 0.02, "edp3": 0.2, "edp4": 0.25}
+# probabilities = {"edp1": 0.0000005, "edp2": 0.0000006, "edp3": 0.2, "edp4": 0.25}
+probabilities = {"edp1": 0.0005, "edp2": 0.0006, "edp3": 0.001, "edp4": 0.002}
+# probabilities = {"edp1": 0.0000001, "edp2": 0.0000002, "edp3": 0.0005, "edp4": 0.0006}
+# probabilities = {"edp1": 0.0000001, "edp2": 0.0000002, "edp3": 0.0000005, "edp4": 0.0000006}
 scales = {"edp1": 0.9, "edp2": 0.9, "edp3": 0.5, "edp4": 0.5}
 
 mrc_to_ami_rate = 0.9
 
 MEASUREMENT_POLICIES = ["ami", "mrc"]
-POPULATION_SIZE = 55000000
+POPULATION_SIZE = 335000000
 CUMULATIVE_LENGTH = 18
-ITERATIONS = 50
+ITERATIONS = 100
 
 # DP params:
 # a) Direct measurement: (eps, delta) = (0.00643, 1e-15) --> sigma = 1051
@@ -266,7 +267,7 @@ def generate_test_report(probabilities: dict[str, float]):
     for i in range(CUMULATIVE_LENGTH):
       reach_time_series[EDP_MAP[key]].append(
           max(int((0.9 + 0.09 * i / CUMULATIVE_LENGTH) *
-              metric_reports["ami"].reach_time_series[EDP_MAP[key]][i]), 1))
+                  metric_reports["ami"].reach_time_series[EDP_MAP[key]][i]), 1))
     reach_whole_campaign[EDP_MAP[key]] = int(0.999 *
                                              metric_reports[
                                                "ami"].reach_whole_campaign[
@@ -308,8 +309,8 @@ def get_report_summary_from_data(metric_reports):
         result.metric = policy + "_cumulative_" + edp + "_" + str(i).zfill(2)
 
         result.reach = max(
-          metric_reports[policy].reach_time_series[EDP_MAP[edp]][i] + int(
-              np.random.normal(0, SIGMAS[edp], 1)[0]), 0)
+            metric_reports[policy].reach_time_series[EDP_MAP[edp]][i] + int(
+                np.random.normal(0, SIGMAS[edp], 1)[0]), 0)
         true_measurement_map[result.metric] = \
           metric_reports[policy].reach_time_series[EDP_MAP[edp]][i]
         noisy_measurement_map[result.metric] = result.reach
@@ -326,8 +327,8 @@ def get_report_summary_from_data(metric_reports):
       result.standard_deviation = SIGMAS["union"]
       result.metric = "total_" + policy + "_" + edp
       result.reach = max(
-        metric_reports[policy].reach_whole_campaign[EDP_MAP[edp]] + int(
-            np.random.normal(0, SIGMAS["union"], 1)[0]), 0)
+          metric_reports[policy].reach_whole_campaign[EDP_MAP[edp]] + int(
+              np.random.normal(0, SIGMAS["union"], 1)[0]), 0)
       true_measurement_map[result.metric] = \
         metric_reports[policy].reach_whole_campaign[EDP_MAP[edp]]
       noisy_measurement_map[result.metric] = result.reach
@@ -395,7 +396,6 @@ def get_test_results():
   corrected_results = {}
 
   for i in range(0, ITERATIONS):
-    print(f"iteration {i}")
     metric_reports = generate_test_report(probabilities)
     report_summary, true_measurement_map, noisy_measurement_map = \
       get_report_summary_from_data(metric_reports)
@@ -410,6 +410,7 @@ def get_test_results():
     sorted_corrected_measurements = [
         value for key, value in sorted(corrected_measurement_map.items())
     ]
+
     noisy_results[i] = sorted_noisy_measurements
     corrected_results[i] = sorted_corrected_measurements
 
@@ -421,54 +422,51 @@ def compute_statistic(true_values, measurements):
   # Each row of the array is the result of a test run.
   measurements_array = np.array(list(measurements.values()))
 
-  # Calculate the mean of the measurements.
+  # Calculate the mean of each measurement.
   mean_measurements = np.mean(measurements_array, axis=0)
 
-  # Calculate the relative bias.
-  relative_bias = (mean_measurements - true_values) / np.array(true_values)
+  # Calculate bias of each measurement.
+  bias = mean_measurements - true_values
+
+  tranposed_errors = abs((measurements_array - true_values).T)
+
+  ninety_percentile_error = [np.percentile(error, 90) for error in
+                             tranposed_errors]
+  ninety_five_percentile_error = [np.percentile(error, 95) for error in
+                                  tranposed_errors]
+  ninety_eight_percentile_error = [np.percentile(error, 98) for error in
+                                   tranposed_errors]
 
   # Calculate the relative variance for each true value
-  relative_variances = np.var(measurements_array, axis=0) / np.array(
-      true_values)
+  variances = np.var(measurements_array, axis=0)
 
-  # Calculate relative error for each measurement
+  # Calculate the error for each measurement
+  errors = np.abs(measurements_array - np.array(true_values))
+
   relative_errors = np.abs(
       measurements_array - np.array(true_values)) / np.array(true_values)
 
   # Calculate the % of measurements with relative error > 2% for each measurement.
   percent_high_rel_error = (np.sum(relative_errors > 0.02, axis=0) / float(
-    len(measurements))) * 100
+      len(measurements))) * 100
 
-  avg_rel_error = np.mean(relative_errors)
-  median_rel_error = np.median(relative_errors)
-  worst_rel_error = np.max(relative_errors)
-  quantile_75_rel_error = np.percentile(relative_errors, 75)
+  print("Bias*******************************************")
+  print_array(bias)
 
-  avg_rel_var = np.mean(relative_variances)
-  median_rel_var = np.median(relative_variances)
-  worst_rel_var = np.max(relative_variances)
-  quantile_75_rel_var = np.percentile(relative_variances, 75)
+  print("Variance***************************************")
+  print_array(variances)
 
-  print("Relative bias:")
-  print_array(relative_bias)
-
-  print("Relative var:")
-  print_array(relative_variances)
-
-  print("High error percentage:")
+  print("High error counts******************************")
   print_array(percent_high_rel_error)
 
-  print(f"Average relative error\t{avg_rel_error}")
-  print(f"Median relative error\t{median_rel_error}")
-  print(f"Worst relative error\t{worst_rel_error}")
-  print(f"Quantile 75 relative error\t{quantile_75_rel_error}")
+  print("90% error **************************************")
+  print_array(ninety_percentile_error)
 
-  print(f"Average relative var\t{avg_rel_var}")
-  print(f"Median relative var\t{median_rel_var}")
-  print(f"Worst relative var\t{worst_rel_var}")
-  print(f"Quantile 75 relative var\t{quantile_75_rel_var}")
+  print("95% error **************************************")
+  print_array(ninety_five_percentile_error)
 
-  return relative_bias, relative_variances, percent_high_rel_error
+  print("98% error **************************************")
+  print_array(ninety_eight_percentile_error)
 
 
 def get_measurement_name_to_index(measurement_names):
@@ -492,28 +490,25 @@ def compute_unique_reach_statistic(true_values, measurements, parent_index,
   mean_measurements = np.mean(estimated_diff, axis=0)
 
   # Calculate the relative bias.
-  relative_bias = (mean_measurements - true_diff) / true_diff
+  bias = (mean_measurements - true_diff)
 
   # Calculate the relative variance for each true value
-  relative_variances = np.var(estimated_diff, axis=0) / true_diff
+  variances = np.var(estimated_diff, axis=0)
 
   # Calculate relative error for each measurement
   relative_errors = np.abs(estimated_diff - true_diff) / true_diff
+
+  errors = [np.abs(val - true_diff) for val in estimated_diff]
 
   # Calculate the % of measurements with relative error > 2% for each measurement.
   percent_high_rel_error = np.sum(relative_errors > 0.02, axis=0) / len(
       estimated_diff) * 100.0
 
-  print("Relative bias:")
-  print(relative_bias)
+  ninety_five_percentile_error = np.percentile(errors, 95)
+  ninety_eight_percentile_error = np.percentile(errors, 98)
 
-  print("Relative variance:")
-  print(relative_variances)
-
-  print("High error percentage:")
-  print(percent_high_rel_error)
-
-  return relative_bias, relative_variances, percent_high_rel_error
+  print(
+    f"{bias}\t{variances}\t{percent_high_rel_error}\t{ninety_five_percentile_error}\t{ninety_eight_percentile_error}")
 
 
 def print_array(arr):
@@ -534,7 +529,7 @@ class TestOriginReport(unittest.TestCase):
     compute_statistic(sorted_true_measurements, corrected_measurements)
 
     measurement_name_to_index = get_measurement_name_to_index(
-      sorted_measurement_names)
+        sorted_measurement_names)
 
     print("unique reach edp2 \ edp1 statistics:")
     union_edp1_edp2_index = measurement_name_to_index["total_ami_edp12"]
