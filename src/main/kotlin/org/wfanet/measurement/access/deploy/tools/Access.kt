@@ -36,6 +36,7 @@ import org.wfanet.measurement.access.v1alpha.createPolicyRequest
 import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.createRoleRequest
 import org.wfanet.measurement.access.v1alpha.deletePrincipalRequest
+import org.wfanet.measurement.access.v1alpha.deleteRoleRequest
 import org.wfanet.measurement.access.v1alpha.getPermissionRequest
 import org.wfanet.measurement.access.v1alpha.getPolicyRequest
 import org.wfanet.measurement.access.v1alpha.getPrincipalRequest
@@ -168,7 +169,7 @@ private class Principals {
 class GetPrincipal : Runnable {
   @ParentCommand private lateinit var parentCommand: Principals
 
-  @Parameters(index = "0", description = ["API resource name of the Principal"])
+  @Parameters(index = "0", description = ["API resource name of the Principal"], arity = "1")
   private lateinit var principalName: String
 
   override fun run() {
@@ -222,7 +223,7 @@ class CreatePrincipal : Runnable {
 class DeletePrincipal : Runnable {
   @ParentCommand private lateinit var parentCommand: Principals
 
-  @Option(names = ["--name"], description = ["API resource name of the Principal"])
+  @Parameters(index = "0", description = ["API resource name of the Principal"], arity = "1")
   private lateinit var principalName: String
 
   override fun run() {
@@ -272,6 +273,7 @@ class LookupPrincipal : Runnable {
       ListRoles::class,
       CreateRole::class,
       UpdateRole::class,
+      DeleteRole::class,
     ],
 )
 private class Roles {
@@ -284,7 +286,7 @@ private class Roles {
 class GetRole : Runnable {
   @ParentCommand private lateinit var parentCommand: Roles
 
-  @Parameters(index = "0", description = ["API resource name of the Role"])
+  @Parameters(index = "0", description = ["API resource name of the Role"], arity = "1")
   private lateinit var roleName: String
 
   override fun run() {
@@ -349,9 +351,6 @@ class CreateRole : Runnable {
   )
   private lateinit var permissionList: List<String>
 
-  @Option(names = ["--etag"], description = ["Entity tag of the Role"])
-  private lateinit var roleEtag: String
-
   @Option(names = ["--role-id"], description = ["Resource ID of the Role"], required = true)
   private lateinit var id: String
 
@@ -362,7 +361,6 @@ class CreateRole : Runnable {
           role = role {
             resourceTypes += resourceTypeList
             permissions += permissionList
-            etag = roleEtag
           }
           roleId = id
         }
@@ -417,6 +415,18 @@ class UpdateRole : Runnable {
   }
 }
 
+@Command(name = "delete", description = ["Delete a Role"])
+class DeleteRole : Runnable {
+  @ParentCommand private lateinit var parentCommand: Roles
+
+  @Parameters(index = "0", description = ["API resource name of the Role"], arity = "1")
+  private lateinit var roleName: String
+
+  override fun run() {
+    runBlocking { parentCommand.rolesClient.deleteRole(deleteRoleRequest { name = roleName }) }
+  }
+}
+
 @Command(
   name = "permissions",
   subcommands =
@@ -439,7 +449,7 @@ private class Permissions {
 class GetPermission : Runnable {
   @ParentCommand private lateinit var parentCommand: Permissions
 
-  @Parameters(index = "0", description = ["API resource name of the Permission"])
+  @Parameters(index = "0", description = ["API resource name of the Permission"], arity = "1")
   private lateinit var permissionName: String
 
   override fun run() {
@@ -578,7 +588,7 @@ private class PolicyBinding {
 class GetPolicy : Runnable {
   @ParentCommand private lateinit var parentCommand: Policies
 
-  @Parameters(index = "0", description = ["Resource name of the Policy"])
+  @Parameters(index = "0", description = ["Resource name of the Policy"], arity = "1")
   private lateinit var policyName: String
 
   override fun run() {
@@ -613,8 +623,8 @@ class CreatePolicy : Runnable {
   )
   private lateinit var policyBindings: List<PolicyBinding>
 
-  @Option(names = ["--etag"], description = ["Entity tag of the Policy"])
-  private lateinit var policyEtag: String
+  @Option(names = ["--policy-id"], description = ["Resource ID of the Policy"], required = false)
+  private lateinit var id: String
 
   override fun run() {
     val createPolicyRequest = createPolicyRequest {
@@ -627,8 +637,8 @@ class CreatePolicy : Runnable {
               members += binding.members
             }
           }
-        etag = policyEtag
       }
+      policyId = id
     }
 
     val policy = runBlocking { parentCommand.policiesClient.createPolicy(createPolicyRequest) }
@@ -643,6 +653,7 @@ class LookupPolicy : Runnable {
   @Option(
     names = ["--protected-resource"],
     description = ["Name of the resource to which the policy applies"],
+    required = true,
   )
   private lateinit var resource: String
 
@@ -662,17 +673,8 @@ private class PolicyBindingChangeFlags {
   lateinit var policyName: String
     private set
 
-  @Option(names = ["--role"], description = ["Resource name of the Role"], required = true)
-  lateinit var roleName: String
-    private set
-
-  @Option(
-    names = ["--member"],
-    description = ["Resource name of the member to add/remove. Can be specified multiple times."],
-    required = true,
-  )
-  lateinit var memberList: List<String>
-    private set
+  @ArgGroup(exclusive = false, multiplicity = "1", heading = "Policy Bindings to add/remove")
+  lateinit var policyBindings: PolicyBinding
 
   @Option(names = ["--etag"], description = ["Current etag of the resource"], required = false)
   lateinit var currentEtag: String
@@ -691,8 +693,8 @@ class AddPolicyBindingMembers : Runnable {
       parentCommand.policiesClient.addPolicyBindingMembers(
         addPolicyBindingMembersRequest {
           name = policyBindingChangeFlags.policyName
-          role = policyBindingChangeFlags.roleName
-          members += policyBindingChangeFlags.memberList
+          role = policyBindingChangeFlags.policyBindings.role
+          members += policyBindingChangeFlags.policyBindings.members
           etag = policyBindingChangeFlags.currentEtag
         }
       )
@@ -714,8 +716,8 @@ class RemovePolicyBindingMembers : Runnable {
       parentCommand.policiesClient.removePolicyBindingMembers(
         removePolicyBindingMembersRequest {
           name = policyBindingChangeFlags.policyName
-          role = policyBindingChangeFlags.roleName
-          members += policyBindingChangeFlags.memberList
+          role = policyBindingChangeFlags.policyBindings.role
+          members += policyBindingChangeFlags.policyBindings.members
           etag = policyBindingChangeFlags.currentEtag
         }
       )
