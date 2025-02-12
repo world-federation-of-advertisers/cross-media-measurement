@@ -36,10 +36,17 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.testing.Authentication.withPrincipalAndScopes
+import org.wfanet.measurement.access.v1alpha.CheckPermissionsResponse
+import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
+import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
+import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
@@ -61,7 +68,6 @@ import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsRespo
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
-import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
@@ -72,6 +78,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
+import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
@@ -104,18 +111,30 @@ class EventGroupsServiceTest {
         )
     }
 
+  private val permissionsServiceMock: PermissionsGrpcKt.PermissionsCoroutineImplBase = mockService {
+    onBlocking { checkPermissions(any()) } doReturn
+      checkPermissionsResponse {
+        permissions += EventGroupsService.LIST_EVENT_GROUPS_PERMISSIONS.map { "permissions/$it" }
+      }
+  }
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(publicKingdomEventGroupsMock)
     addService(publicKingdomEventGroupMetadataDescriptorsMock)
+    addService(permissionsServiceMock)
   }
 
+  private lateinit var authorization: Authorization
   private lateinit var celEnvCacheProvider: CelEnvCacheProvider
   private lateinit var service: EventGroupsService
   private val fakeTicker = SettableSystemTicker()
 
   @Before
   fun initService() {
+    authorization =
+      Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel))
+
     celEnvCacheProvider =
       CelEnvCacheProvider(
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
@@ -127,8 +146,10 @@ class EventGroupsServiceTest {
     service =
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
-        ENCRYPTION_KEY_PAIR_STORE,
+        authorization,
         celEnvCacheProvider,
+        MEASUREMENT_CONSUMER_CONFIGS,
+        ENCRYPTION_KEY_PAIR_STORE,
         fakeTicker,
       )
   }
@@ -168,7 +189,7 @@ class EventGroupsServiceTest {
       )
 
     val response =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking {
           service.listEventGroups(
             listEventGroupsRequest {
@@ -210,7 +231,7 @@ class EventGroupsServiceTest {
         fakeTicker.setNanoTime(fakeTicker.nanoTime() + TimeUnit.SECONDS.toNanos(30))
       }
     val response =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking {
           service.listEventGroups(
             listEventGroupsRequest {
@@ -228,7 +249,7 @@ class EventGroupsServiceTest {
   @Test
   fun `listEventGroups returns all event groups as is when no filter`() = runBlocking {
     val response =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking {
           service.listEventGroups(listEventGroupsRequest { parent = MEASUREMENT_CONSUMER_NAME })
         }
@@ -270,7 +291,7 @@ class EventGroupsServiceTest {
     }
 
     val response =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking {
           service.listEventGroups(
             listEventGroupsRequest {
@@ -306,8 +327,10 @@ class EventGroupsServiceTest {
     service =
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
-        ENCRYPTION_KEY_PAIR_STORE,
+        authorization,
         celEnvCacheProvider,
+        MEASUREMENT_CONSUMER_CONFIGS,
+        ENCRYPTION_KEY_PAIR_STORE,
       )
     publicKingdomEventGroupMetadataDescriptorsMock.stub {
       onBlocking { listEventGroupMetadataDescriptors(any()) }
@@ -340,7 +363,7 @@ class EventGroupsServiceTest {
     }
 
     val response =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking {
           service.listEventGroups(
             listEventGroupsRequest {
@@ -376,7 +399,7 @@ class EventGroupsServiceTest {
     }
 
     val response =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking {
           service.listEventGroups(
             listEventGroupsRequest {
@@ -407,7 +430,7 @@ class EventGroupsServiceTest {
         .base64UrlEncode()
 
     val response =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking {
           service.listEventGroups(
             listEventGroupsRequest {
@@ -449,7 +472,7 @@ class EventGroupsServiceTest {
     }
 
     val response =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking {
           service.listEventGroups(
             listEventGroupsRequest {
@@ -476,7 +499,7 @@ class EventGroupsServiceTest {
   @Test
   fun `listEventGroups use default page_size when page_size is too small`() {
     val response =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking {
           service.listEventGroups(
             listEventGroupsRequest {
@@ -502,7 +525,7 @@ class EventGroupsServiceTest {
   @Test
   fun `listEventGroups use max page_size when page_size is too big`() {
     val response =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking {
           service.listEventGroups(
             listEventGroupsRequest {
@@ -526,21 +549,6 @@ class EventGroupsServiceTest {
   }
 
   @Test
-  fun `listEventGroups throws UNAUTHENTICATED when principal isn't reporting principal`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking {
-            service.listEventGroups(listEventGroupsRequest { parent = MEASUREMENT_CONSUMER_NAME })
-          }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.message).contains("No ReportingPrincipal")
-  }
-
-  @Test
   fun `listEventGroups throws UNAUTHENTICATED when principal is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -550,14 +558,18 @@ class EventGroupsServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.message).contains("No ReportingPrincipal")
+    assertThat(exception.message).ignoringCase().contains("principal")
   }
 
   @Test
-  fun `listEventGroups throws PERMISSION_DENIED when principal doesn't match parent`() {
+  fun `listEventGroups throws PERMISSION_DENIED when principal does not have required permissions`() {
+    permissionsServiceMock.stub {
+      onBlocking { checkPermissions(any()) } doReturn CheckPermissionsResponse.getDefaultInstance()
+    }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking {
             service.listEventGroups(
               listEventGroupsRequest { parent = MEASUREMENT_CONSUMER_NAME + 2 }
@@ -567,14 +579,14 @@ class EventGroupsServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.message).contains("MeasurementConsumer")
+    assertThat(exception.message).contains(EventGroupsService.LIST_EVENT_GROUPS_PERMISSIONS.first())
   }
 
   @Test
   fun `listEventGroups throws INVALID_ARGUMENT when page_size is negative`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking {
             service.listEventGroups(
               listEventGroupsRequest {
@@ -594,7 +606,7 @@ class EventGroupsServiceTest {
   fun `listEventGroups throws INVALID_ARGUMENT when parent is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.listEventGroups(listEventGroupsRequest {}) }
         }
       }
@@ -607,7 +619,7 @@ class EventGroupsServiceTest {
   fun `listEventGroups throws INVALID_ARGUMENT when parent is malformed`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking {
             service.listEventGroups(
               listEventGroupsRequest {
@@ -627,7 +639,7 @@ class EventGroupsServiceTest {
   fun `listEventGroups throws INVALID_ARGUMENT when operator overload in filter doesn't exist`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking {
             service.listEventGroups(
               listEventGroupsRequest {
@@ -647,7 +659,7 @@ class EventGroupsServiceTest {
   fun `listEventGroups throws INVALID_ARGUMENT when operator in filter doesn't exist`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking {
             service.listEventGroups(
               listEventGroupsRequest {
@@ -667,7 +679,7 @@ class EventGroupsServiceTest {
   fun `listEventGroups throws INVALID_ARGUMENT when filter eval doesn't result in boolean`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking {
             service.listEventGroups(
               listEventGroupsRequest {
@@ -688,13 +700,15 @@ class EventGroupsServiceTest {
     service =
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
-        InMemoryEncryptionKeyPairStore(mapOf()),
+        authorization,
         celEnvCacheProvider,
+        MEASUREMENT_CONSUMER_CONFIGS,
+        InMemoryEncryptionKeyPairStore(mapOf()),
       )
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking {
             service.listEventGroups(listEventGroupsRequest { parent = MEASUREMENT_CONSUMER_NAME })
           }
@@ -708,7 +722,7 @@ class EventGroupsServiceTest {
   @Test
   fun `listEventGroups throws RUNTIME_EXCEPTION when event group doesn't have filter field`() {
     assertFailsWith<RuntimeException> {
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking {
           service.listEventGroups(
             listEventGroupsRequest {
@@ -729,6 +743,11 @@ class EventGroupsServiceTest {
     private val CONFIG = measurementConsumerConfig { apiKey = API_AUTHENTICATION_KEY }
     private const val MEASUREMENT_CONSUMER_ID = "1234"
     private val MEASUREMENT_CONSUMER_NAME = MeasurementConsumerKey(MEASUREMENT_CONSUMER_ID).toName()
+    private val MEASUREMENT_CONSUMER_CONFIGS = measurementConsumerConfigs {
+      configs[MEASUREMENT_CONSUMER_NAME] = CONFIG
+    }
+    private val PRINCIPAL = principal { name = "principals/${MEASUREMENT_CONSUMER_ID}-user" }
+    private val SCOPES = EventGroupsService.LIST_EVENT_GROUPS_PERMISSIONS
 
     private val SECRET_FILES_PATH: Path =
       checkNotNull(
