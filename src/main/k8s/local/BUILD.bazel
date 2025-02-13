@@ -189,6 +189,33 @@ cue_dump(
 )
 
 cue_library(
+    name = "population_requisition_fulfillers_cue",
+    srcs = ["population_requisition_fulfillers.cue"],
+    deps = [
+        ":config_cue",
+        "//src/main/k8s:population_requisition_fulfiller",
+    ],
+)
+
+cue_dump(
+    name = "population_requisition_fulfillers",
+    cue_tags = {
+        "secret_name": SECRET_NAME,
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+        "mc_name": TEST_K8S_SETTINGS.mc_name,
+        "pdp1_name": TEST_K8S_SETTINGS.pdp1_name,
+        "pdp1_cert_name": TEST_K8S_SETTINGS.pdp1_cert_name,
+        "population_resource_name": TEST_K8S_SETTINGS.population_resource_name,
+    },
+    tags = ["manual"],
+    deps = [
+        ":population_requisition_fulfillers_cue",
+    ],
+)
+
+cue_library(
     name = "measurement_system_prober_cue",
     srcs = ["measurement_system_prober.cue"],
     deps = [
@@ -304,9 +331,11 @@ kustomization_dir(
         "config_files_kustomization.yaml",
         "empty_akid_mapping_config.textproto",
         "empty_encryption_key_pair_config.textproto",
+        "//src/main/k8s/testing/data:real_population_spec_small",
         "//src/main/k8s/testing/data:synthetic_generation_specs_small",
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
         "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
+        "//src/main/k8s/testing/secretfiles:test_event_message_descriptor_set",
     ],
     renames = {
         "config_files_kustomization.yaml": "kustomization.yaml",
@@ -320,9 +349,11 @@ kustomization_dir(
     srcs = [
         "config_files_kustomization.yaml",
         ":encryption_key_pair_config.textproto",
+        "//src/main/k8s/testing/data:real_population_spec_small",
         "//src/main/k8s/testing/data:synthetic_generation_specs_small",
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
         "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
+        "//src/main/k8s/testing/secretfiles:test_event_message_descriptor_set",
     ],
     renames = {
         "config_files_kustomization.yaml": "kustomization.yaml",
@@ -386,6 +417,7 @@ kustomization_dir(
         ":emulators",
         ":kingdom",
         ":measurement_system_prober",
+        ":population_requisition_fulfillers",
         ":postgres_database",
     ],
     generate_kustomization = True,
