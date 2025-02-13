@@ -51,7 +51,7 @@ import "list"
 	}
 
 	deployment: #Deployment & {
-		_name:       DisplayName + "-simulator"
+		_name:       DisplayName + "-requisition-fulfiller"
 		_secretName: _populationRequisitionFulfillerSecretName
 		_system:     "population"
 		_container: {
@@ -68,7 +68,7 @@ import "list"
 				"--throttler-minimum-interval=\(_config.throttlerMinimumInterval)",
 				"--tls-cert-file=/var/run/secrets/files/\(DisplayName)_root.pem",
 				"--tls-key-file=/var/run/secrets/files/\(DisplayName)_root.key",
-				"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
+				"--cert-collection-file=/var/run/secrets/files/kingdom_root.pem",
 				"--event-message-descriptor-set=\(_config.eventMessageDescriptor)",
 			] + _populationFlags
 		}
