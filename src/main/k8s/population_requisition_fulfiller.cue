@@ -93,10 +93,9 @@ import "list"
     networkPolicies: {
         "\(deployment._name)": {
             _app_label: deployment.spec.template.metadata.labels.app
-       		_egresses: {
-        	// Need to be able to access Kingdom.
-       			any: {}
-    		}
+       		_destinationMatchLabels: [
+                "v2alpha-public-api-server-app",
+            ]
         }
     }
 }
