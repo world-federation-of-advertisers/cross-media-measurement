@@ -16,6 +16,7 @@ package k8s
 
 import "list"
 
+// TODO: Update target reference to allow for deployment outside same cluster as Kingdom
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 
 #PopulationRequisitionFulfillerConfig: {
