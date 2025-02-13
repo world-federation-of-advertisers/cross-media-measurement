@@ -15,8 +15,8 @@
 #include "wfa/panelmatch/common/crypto/random_bytes_key_generator.h"
 
 #include "absl/status/statusor.h"
-#include "tink/util/secret_data.h"
 #include "tink/subtle/random.h"
+#include "tink/util/secret_data.h"
 
 namespace wfa::panelmatch::common::crypto {
 
