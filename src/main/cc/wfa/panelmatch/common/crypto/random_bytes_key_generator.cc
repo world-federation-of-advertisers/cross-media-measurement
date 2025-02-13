@@ -16,7 +16,7 @@
 
 #include "absl/status/statusor.h"
 #include "tink/util/secret_data.h"
-#include "third_party/tink/cc/subtle/random.h"
+#include "tink/subtle/random.h"
 
 namespace wfa::panelmatch::common::crypto {
 
