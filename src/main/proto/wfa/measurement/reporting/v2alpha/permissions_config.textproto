@@ -1,0 +1,153 @@
+# proto-file: wfa/measurement/config/access/permissions_config.proto
+# proto-message: wfa.measurement.config.access.PermissionsConfig
+
+# dataProviders
+permissions {
+  key: "reporting.dataProviders.get"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/Root"
+  }
+}
+
+# eventGroupMetadataDescriptors
+permissions {
+  key: "reporting.eventGroupMetadataDescriptors.get"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/Root"
+  }
+}
+
+# eventGroups
+permissions {
+  key: "reporting.eventGroups.get"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/EventGroup"
+  }
+}
+permissions {
+  key: "reporting.eventGroups.list"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+  }
+}
+
+# reportingSets
+permissions {
+  key: "reporting.reportingSets.get"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/ReportingSet"
+  }
+}
+permissions {
+  key: "reporting.reportingSets.list"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+  }
+}
+permissions {
+  # Allow creation of primitive ReportingSets.
+  key: "reporting.reportingSets.createPrimitive"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+  }
+}
+permissions {
+  # Allow creation of composite ReportingSets.
+  key: "reporting.reportingSets.createComposite"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+  }
+}
+
+# metrics
+permissions {
+  key: "reporting.metrics.get"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/Metric"
+  }
+}
+permissions {
+  key: "reporting.metrics.list"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "reporting.metrics.create"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+  }
+}
+
+# metricCalculationSpecs
+permissions {
+  key: "reporting.metricCalculationSpecs.get"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/MetricCalculationSpec"
+  }
+}
+permissions {
+  key: "reporting.metricCalculationSpecs.list"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "reporting.metricCalculationSpecs.create"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+  }
+}
+
+# reports
+permissions {
+  key: "reporting.reports.get"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/Report"
+  }
+}
+permissions {
+  key: "reporting.reports.list"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "reporting.reports.create"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+  }
+}
+
+# reportSchedules
+permissions {
+  key: "reporting.reportSchedules.get"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/ReportSchedule"
+  }
+}
+permissions {
+  key: "reporting.reportSchedules.list"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "reporting.reportSchedules.create"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "reporting.reportSchedules.stop"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/ReportSchedule"
+  }
+}

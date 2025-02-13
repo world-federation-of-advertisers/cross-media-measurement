@@ -79,6 +79,7 @@ jobs:
     - name: Write ~/.bazelrc
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
+        SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
         POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
         GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
@@ -89,6 +90,7 @@ jobs:
         common --config=ghcr
         build --define "image_tag=$IMAGE_TAG"
         build --define "google_cloud_project=$GCLOUD_PROJECT"
+        build --define "spanner_instance=$SPANNER_INSTANCE"
         build --define "postgres_instance=$POSTGRES_INSTANCE"
         build --define "postgres_region=$GCLOUD_REGION"
         build --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"

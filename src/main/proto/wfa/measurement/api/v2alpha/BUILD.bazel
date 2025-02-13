@@ -1,5 +1,6 @@
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_java//java:java_library.bzl", "java_library")
 load("@rules_jvm_external//:defs.bzl", "maven_export")
-load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@wfa_common_jvm//build/maven:defs.bzl", "artifact_version")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_grpc_proto_library", "kt_jvm_proto_library")
 

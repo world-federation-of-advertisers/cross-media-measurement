@@ -81,8 +81,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch",
-        "@any_sketch_java//src/main/java/org/wfanet/anysketch:sketch_proto_converter",
-        "@any_sketch_java//src/main/java/org/wfanet/sampling:vid_sampler",
+        "@any_sketch_java//src/main/java/org/wfanet/sampling",
     ],
 )
 
@@ -93,7 +92,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/any_sketch:sketch_kt_jvm_proto",
         "//src/main/proto/wfa/any_sketch/crypto:el_gamal_key_kt_jvm_proto",
         "//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_kt_jvm_proto",
-        "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
@@ -145,9 +144,9 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_kt_jvm_grpc_proto",
-        "@any_sketch_java//src/main/java/org/wfanet/anysketch:sketch_proto_converter",
-        "@any_sketch_java//src/main/java/org/wfanet/frequencycount:secret_share_generator_adapter",
-        "@any_sketch_java//src/main/java/org/wfanet/sampling:vid_sampler",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch",
+        "@any_sketch_java//src/main/java/org/wfanet/frequencycount",
+        "@any_sketch_java//src/main/java/org/wfanet/sampling",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
 )

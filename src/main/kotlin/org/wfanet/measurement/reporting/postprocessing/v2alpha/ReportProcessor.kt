@@ -28,15 +28,19 @@ import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.copy
 
+class ReportProcessorFailureException(message: String) : RuntimeException(message)
+
 /** Corrects the inconsistent measurements in a serialized [Report]. */
 interface ReportProcessor {
   /**
    * Processes a serialized [Report] and outputs a consistent one.
    *
    * @param report The serialized [Report] in JSON format.
+   * @param verbose If true, enables verbose logging from the underlying report processor library.
+   *   Default value is false.
    * @return The corrected serialized [Report] in JSON format.
    */
-  fun processReportJson(report: String): String
+  fun processReportJson(report: String, verbose: Boolean = false): String
 
   /** The default implementation of [ReportProcessor]. */
   companion object Default : ReportProcessor {
@@ -60,8 +64,8 @@ interface ReportProcessor {
      * @param report standard JSON serialization of a Report message.
      * @return a corrected report, serialized as a standard JSON string.
      */
-    override fun processReportJson(report: String): String {
-      return processReport(ReportConversion.getReportFromJsonString(report)).toJson()
+    override fun processReportJson(report: String, verbose: Boolean): String {
+      return processReport(ReportConversion.getReportFromJsonString(report), verbose).toJson()
     }
 
     /**
@@ -70,11 +74,11 @@ interface ReportProcessor {
      * @param report a Report message.
      * @return a corrected Report.
      */
-    private fun processReport(report: Report): Report {
+    private fun processReport(report: Report, verbose: Boolean = false): Report {
       val reportSummaries = report.toReportSummaries()
       val correctedMeasurementsMap = mutableMapOf<String, Long>()
       for (reportSummary in reportSummaries) {
-        correctedMeasurementsMap.putAll(processReportSummary(reportSummary))
+        correctedMeasurementsMap.putAll(processReportSummary(reportSummary, verbose))
       }
       val updatedReport = updateReport(report, correctedMeasurementsMap)
       return updatedReport
@@ -86,12 +90,19 @@ interface ReportProcessor {
      *
      * Each metric name is tied to a measurement.
      */
-    private fun processReportSummary(reportSummary: ReportSummary): Map<String, Long> {
+    private fun processReportSummary(
+      reportSummary: ReportSummary,
+      verbose: Boolean = false,
+    ): Map<String, Long> {
       logger.info { "Start processing report.." }
 
       // TODO(bazelbuild/bazel#17629): Execute the Python zip directly once this bug is fixed.
       val processBuilder = ProcessBuilder("python3", tempFile.toPath().toString())
 
+      // Sets verbosity for python program.
+      if (verbose) {
+        processBuilder.command().add("--debug")
+      }
       val process = processBuilder.start()
 
       // Write the process' argument to its stdin.
@@ -104,11 +115,22 @@ interface ReportProcessor {
       val processOutput =
         BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }
 
+      // Logs from python program, which are written to stderr, are read and re-logged. When
+      // encountering an error or a critical log, throws a RuntimeException.
+      val processError =
+        BufferedReader(InputStreamReader(process.errorStream)).use { it.readText() }
+
       val exitCode = process.waitFor()
-      require(exitCode == 0) { "Failed to process the report with exitCode $exitCode." }
+
+      if (exitCode == 0) {
+        logger.fine(processError)
+      } else {
+        throw ReportProcessorFailureException(processError)
+      }
 
       logger.info { "Finished processing report.." }
 
+      // TODO(@ple13): Use protocol buffers for passing messages.
       // Converts the process output to the correction map.
       val correctedMeasurementsMap = mutableMapOf<String, Long>()
       GsonBuilder().create().fromJson(processOutput, Map::class.java).forEach { (key, value) ->
@@ -136,20 +158,23 @@ interface ReportProcessor {
               entry.copy {
                 // The result attribute is updated only if its metric is in the correction map.
                 if (entry.metric in correctedMeasurementsMap) {
-                  val correctedReach = correctedMeasurementsMap.getValue(entry.metric)
                   when {
                     entry.metricResult.hasReach() -> {
                       metricResult =
-                        metricResult.copy { reach = reach.copy { value = correctedReach } }
+                        metricResult.copy {
+                          reach =
+                            reach.copy { value = correctedMeasurementsMap.getValue(entry.metric) }
+                        }
                     }
                     entry.metricResult.hasReachAndFrequency() -> {
-                      val scale: Double =
-                        correctedReach / entry.metricResult.reachAndFrequency.reach.value.toDouble()
                       metricResult =
                         metricResult.copy {
                           reachAndFrequency =
                             reachAndFrequency.copy {
-                              reach = reach.copy { value = correctedReach }
+                              reach =
+                                reach.copy {
+                                  value = correctedMeasurementsMap.getValue(entry.metric)
+                                }
                               frequencyHistogram =
                                 frequencyHistogram.copy {
                                   bins.clear()
@@ -158,10 +183,26 @@ interface ReportProcessor {
                                       .map { bin ->
                                         bin.copy {
                                           binResult =
-                                            binResult.copy { value = bin.binResult.value * scale }
+                                            binResult.copy {
+                                              value =
+                                                correctedMeasurementsMap
+                                                  .getValue(
+                                                    entry.metric + "-frequency-" + bin.label
+                                                  )
+                                                  .toDouble()
+                                            }
                                         }
                                       }
                                 }
+                            }
+                        }
+                    }
+                    entry.metricResult.hasImpressionCount() -> {
+                      metricResult =
+                        metricResult.copy {
+                          impressionCount =
+                            impressionCount.copy {
+                              value = correctedMeasurementsMap.getValue(entry.metric)
                             }
                         }
                     }

@@ -21,7 +21,8 @@ import org.wfanet.measurement.common.ResourceNameParser
 internal enum class IdVariable {
   PRINCIPAL,
   PERMISSION,
-  ROLE
+  ROLE,
+  POLICY,
 }
 
 internal fun ResourceNameParser.assembleName(idMap: Map<IdVariable, String>): String {

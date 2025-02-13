@@ -43,4 +43,3 @@ fun SyntheticPopulationSpec.toPopulationSpec(): PopulationSpec {
       }
   }
 }
-

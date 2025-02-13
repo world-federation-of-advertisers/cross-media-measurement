@@ -34,20 +34,23 @@ message MetricSpec {
   // foundations of differential privacy. Foundations and Trends in Theoretical
   // Computer Science, 9(3-4), pp.211-407."
   message DifferentialPrivacyParams {
-    optional double epsilon = 1;
-    optional double delta = 2;
+    // Epsilon value
+    optional double epsilon = 1 [(google.api.field_behavior) = REQUIRED];
+    // Delta value
+    optional double delta = 2 [(google.api.field_behavior) = REQUIRED];
   }
 
   // Specifies a range of VIDs to be sampled.
   message VidSamplingInterval {
     // The start of the sampling interval in [0, 1)
-    float start = 1;
+    float start = 1 [(google.api.field_behavior) = OPTIONAL];
     // The width of the sampling interval.
     //
     // start + width cannot be larger than 1.
     float width = 2 [(google.api.field_behavior) = REQUIRED];
   }
 
+  // Specifies a combination of sampling and privacy parameters.
   message SamplingAndPrivacyParams {
     // Differential privacy parameters.
     //
@@ -60,9 +63,12 @@ message MetricSpec {
     //
     // If not specified, the service implementation will choose values for all
     // the fields in the message.
-    VidSamplingInterval vid_sampling_interval = 2;
+    VidSamplingInterval vid_sampling_interval = 2
+        [(google.api.field_behavior) = OPTIONAL];
   }
 
+  // Specifies a combination of sampling and privacy parameters for reach
+  // and frequency.
   message ReachAndFrequencySamplingAndPrivacyParams {
     // Differential privacy parameters for reach.
     //
@@ -82,7 +88,8 @@ message MetricSpec {
     //
     // If not specified, the service implementation will choose values for all
     // the fields in the message.
-    VidSamplingInterval vid_sampling_interval = 3;
+    VidSamplingInterval vid_sampling_interval = 3
+        [(google.api.field_behavior) = OPTIONAL];
   }
 
   // Parameters that are used to generate `Reach` metrics. Applied on a
@@ -94,11 +101,13 @@ message MetricSpec {
     // Parameters for multiple DataProviders. Will be required in a future
     // release. If set, `single_data_provider_params` needs to be set. Takes
     // precedence over `privacy_params`.
-    SamplingAndPrivacyParams multiple_data_provider_params = 2;
+    SamplingAndPrivacyParams multiple_data_provider_params = 2
+        [(google.api.field_behavior) = OPTIONAL];
 
     // Parameters for a single DataProvider. Will be required in a future
     // release. If set, `multiple_data_provider_params` needs to be set.
-    SamplingAndPrivacyParams single_data_provider_params = 3;
+    SamplingAndPrivacyParams single_data_provider_params = 3
+        [(google.api.field_behavior) = OPTIONAL];
   }
 
   // Parameters that are used to generate `ReachAndFrequency` metrics. Applied
@@ -112,17 +121,19 @@ message MetricSpec {
     // Parameters for multiple DataProviders. Will be required in a future
     // release. If set, `single_data_provider_params` needs to be set. Takes
     // precedence over `reach_privacy_params` and `frequency_privacy_params`.
-    ReachAndFrequencySamplingAndPrivacyParams multiple_data_provider_params = 4;
+    ReachAndFrequencySamplingAndPrivacyParams multiple_data_provider_params = 4
+        [(google.api.field_behavior) = OPTIONAL];
 
     // Parameters for a single DataProvider. Will be required in a future
     // release. If set, `multiple_data_provider_params` needs to be set.
-    ReachAndFrequencySamplingAndPrivacyParams single_data_provider_params = 5;
+    ReachAndFrequencySamplingAndPrivacyParams single_data_provider_params = 5
+        [(google.api.field_behavior) = OPTIONAL];
 
     // Maximum frequency cut-off value in frequency histogram.
     //
     // Counts with frequency higher than `maximum_frequency` will be aggregated
     // together. If not set, the default value will be used and outputted here.
-    int32 maximum_frequency = 3;
+    int32 maximum_frequency = 3 [(google.api.field_behavior) = OPTIONAL];
   }
   // Parameters that are used to generate `Impression Count` metrics. Applied on
   // a per-Measurement basis.
@@ -132,7 +143,8 @@ message MetricSpec {
 
     // Parameters for impression. Will be required in a future release. Takes
     // precedence over `privacy_params`.
-    SamplingAndPrivacyParams params = 3;
+    SamplingAndPrivacyParams params = 3
+        [(google.api.field_behavior) = OPTIONAL];
 
     // Maximum frequency per user that will be included in this metric. Enforced
     // on a per EDP basis.
@@ -145,7 +157,8 @@ message MetricSpec {
     // recommended value for maximum_frequency_per_user = 60 for the case with
     // over 1M audience size.
     // If not set, the default value will be used and outputted here.
-    optional int32 maximum_frequency_per_user = 2;
+    optional int32 maximum_frequency_per_user = 2
+        [(google.api.field_behavior) = OPTIONAL];
   }
   // Parameters that are used to generate `Watch Duration` metrics. Applied on a
   // per-Measurement basis.
@@ -155,7 +168,8 @@ message MetricSpec {
 
     // Parameters for watch duration. Will be required in a future release.
     // Takes precedence over `privacy_params`.
-    SamplingAndPrivacyParams params = 3;
+    SamplingAndPrivacyParams params = 3
+        [(google.api.field_behavior) = OPTIONAL];
 
     // Maximum watch duration per user that will be included in this metric.
     //
@@ -163,7 +177,8 @@ message MetricSpec {
     // duration of all the impressions of a user = 4000 sec for the case with
     // over 1M audience size. Enforced on a per EDP basis.
     // If not set, the default value will be used and outputted here.
-    google.protobuf.Duration maximum_watch_duration_per_user = 2;
+    google.protobuf.Duration maximum_watch_duration_per_user = 2
+        [(google.api.field_behavior) = OPTIONAL];
   }
 
   // Parameters that are used to generate `Population` metrics.
@@ -198,11 +213,14 @@ message MetricSpec {
 }
 
 // Statistics of a scalar value
+// (-- api-linter: core::0140::abbreviations=disabled
+//     aip.dev/not-precedent: Statistics not stats is an established convention
+//     in this file. --)
 message UnivariateStatistics {
   // The standard deviation of the associated scalar variable value.
   //
   // Can be used to find different confidence intervals.
-  double standard_deviation = 1;
+  double standard_deviation = 1 [(google.api.field_behavior) = REQUIRED];
 }
 
 // The calculation result of a metric
@@ -210,104 +228,139 @@ message MetricResult {
   // Reach result format.
   message ReachResult {
     // Reach value.
-    int64 value = 1;
+    int64 value = 1 [(google.api.field_behavior) = REQUIRED];
     // Univariate statistics of the reach value above.
     //
     // Only set when all source Measurements contain sufficient information to
     // calculate univariate statistics.
-    UnivariateStatistics univariate_statistics = 2;
+    // (-- api-linter: core::0140::abbreviations=disabled
+    //     aip.dev/not-precedent: Statistics not stats is an established
+    //     convention in this file. --)
+    UnivariateStatistics univariate_statistics = 2
+        [(google.api.field_behavior) = REQUIRED];
   }
   // Histogram result format.
   message HistogramResult {
     // Bin result format.
     message BinResult {
       // The result value of a bin.
-      double value = 1;
+      double value = 1 [(google.api.field_behavior) = REQUIRED];
     }
     // The bin in a histogram.
     message Bin {
       // The label of the bin.
-      string label = 1;
+      string label = 1 [(google.api.field_behavior) = REQUIRED];
       // The result of the bin.
-      BinResult bin_result = 2;
+      BinResult bin_result = 2 [(google.api.field_behavior) = REQUIRED];
 
       // Univariate statistics of the result at this bin.
       //
       // Only set when all source Measurements contain sufficient information to
       // calculate univariate statistics.
-      UnivariateStatistics result_univariate_statistics = 3;
+      // (-- api-linter: core::0140::abbreviations=disabled
+      //     aip.dev/not-precedent: Statistics not stats is an established
+      //     convention in this file. --)
+      UnivariateStatistics result_univariate_statistics = 3
+          [(google.api.field_behavior) = REQUIRED];
       // Univariate statistics of the relative result at this bin.
       //
       // Only set when all source Measurements contain sufficient information to
       // calculate univariate statistics. Relative result = (bin value) / (sum
       // of all bin values)
-      UnivariateStatistics relative_univariate_statistics = 4;
+      // (-- api-linter: core::0140::abbreviations=disabled
+      //     aip.dev/not-precedent: Statistics not stats is an established
+      //     convention in this file. --)
+      UnivariateStatistics relative_univariate_statistics = 4
+          [(google.api.field_behavior) = REQUIRED];
       // Univariate statistics of the k+ count from the current bin (i.e. k-th
       // bin, inclusive) to the last bin (inclusive).
       //
       // Only set when all source Measurements contain sufficient information to
       // calculate univariate statistics. A K+ count is the sum of the values
       // from the k-th bin to the last bin.
-      UnivariateStatistics k_plus_univariate_statistics = 5;
+      // (-- api-linter: core::0140::abbreviations=disabled
+      //     aip.dev/not-precedent: Statistics not stats is an established
+      //     convention in this file. --)
+      UnivariateStatistics k_plus_univariate_statistics = 5
+          [(google.api.field_behavior) = REQUIRED];
       // Univariate statistics of the relative k+ count from the current bin
       // (i.e. k-th bin, inclusive) to the last bin (inclusive).
       //
       // Only set when all source Measurements contain sufficient information to
       // calculate univariate statistics. A relative K+ count = (K+ count) /
       // (sum of all bin values)
-      UnivariateStatistics relative_k_plus_univariate_statistics = 6;
+      // (-- api-linter: core::0140::abbreviations=disabled
+      //     aip.dev/not-precedent: Statistics not stats is an established
+      //     convention in this file. --)
+      UnivariateStatistics relative_k_plus_univariate_statistics = 6
+          [(google.api.field_behavior) = REQUIRED];
     }
     // The bins that form a histogram. Ordering is not guaranteed.
-    repeated Bin bins = 1;
+    repeated Bin bins = 1 [(google.api.field_behavior) = REQUIRED];
   }
 
   // Reach-and-frequency result format.
   message ReachAndFrequencyResult {
-    ReachResult reach = 1;
-    HistogramResult frequency_histogram = 2;
+    // The reach result
+    ReachResult reach = 1 [(google.api.field_behavior) = REQUIRED];
+    // The frequency histogram result
+    HistogramResult frequency_histogram = 2
+        [(google.api.field_behavior) = REQUIRED];
   }
 
   // Impression count result format.
   message ImpressionCountResult {
     // Impression value.
-    int64 value = 1;
+    int64 value = 1 [(google.api.field_behavior) = REQUIRED];
     // Univariate statistics of the impression value above.
     //
     // Only set when all of the set operations for the result are unions and all
     // source Measurements contain sufficient information to calculate
     // univariate statistics.
-    UnivariateStatistics univariate_statistics = 2;
+    // (-- api-linter: core::0140::abbreviations=disabled
+    //     aip.dev/not-precedent: Statistics not stats is an established
+    //     convention in this file. --)
+    UnivariateStatistics univariate_statistics = 2
+        [(google.api.field_behavior) = REQUIRED];
   }
   // Watch duration result format.
   message WatchDurationResult {
     // Watch duration value in second.
-    double value = 1;
+    double value = 1 [(google.api.field_behavior) = REQUIRED];
     // Univariate statistics of the watch duration value above.
     //
     // Only set when all of the set operations for the result are unions and all
     // source Measurements contain sufficient information to calculate
     // univariate statistics.
-    UnivariateStatistics univariate_statistics = 2;
+    // (-- api-linter: core::0140::abbreviations=disabled
+    //     aip.dev/not-precedent: Statistics not stats is an established
+    //     convention in this file. --)
+    UnivariateStatistics univariate_statistics = 2
+        [(google.api.field_behavior) = REQUIRED];
   }
 
   // Population count result format.
   message PopulationCountResult {
     // Population value.
-    int64 value = 1;
+    int64 value = 1 [(google.api.field_behavior) = REQUIRED];
   }
 
-  // The metric result
+  // Required. The metric result.
   oneof result {
     // Reach result.
-    ReachResult reach = 3;
+    ReachResult reach = 3 [(google.api.field_behavior) = OPTIONAL];
     // Reach-and-frequency result.
-    ReachAndFrequencyResult reach_and_frequency = 4;
+    ReachAndFrequencyResult reach_and_frequency = 4
+        [(google.api.field_behavior) = OPTIONAL];
     // Impression count result.
-    ImpressionCountResult impression_count = 5;
+    ImpressionCountResult impression_count = 5
+        [(google.api.field_behavior) = OPTIONAL];
     // Watch duration result.
-    WatchDurationResult watch_duration = 6;
+    WatchDurationResult watch_duration = 6
+        [(google.api.field_behavior) = OPTIONAL];
     // Population result.
-    PopulationCountResult population_count = 7;
+    PopulationCountResult population_count = 7
+        [(google.api.field_behavior) = OPTIONAL];
   }
 
   // List of resource names representing `Measurement`s from the CMMS public
@@ -326,10 +379,12 @@ message Metric {
   option (google.api.resource) = {
     type: "reporting.halo-cmm.org/Metric"
     pattern: "measurementConsumers/{measurement_consumer}/metrics/{metric}"
+    singular: "metric"
+    plural: "metrics"
   };
 
   // Resource name
-  string name = 1;
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 
   // The resource name of the reporting set to calculate the metric on.
   string reporting_set = 2 [
@@ -364,6 +419,16 @@ message Metric {
     // Completed with failure. Terminal state.
     FAILED = 3;
   }
+
+  // The Report that this Metric was first created for
+  //
+  // In the case this Metric is reused this field will
+  // reference the Report that originally created it.
+  string containing_report = 9 [
+    (google.api.resource_reference) = { type: "reporting.halo-cmm.org/Report" },
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 
   // Metric state.
   State state = 6 [(google.api.field_behavior) = OUTPUT_ONLY];

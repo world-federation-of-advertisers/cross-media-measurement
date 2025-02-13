@@ -16,9 +16,10 @@ syntax = "proto3";
 
 package wfa.measurement.reporting.v2alpha;
 
+import "google/api/annotations.proto";
 import "google/api/client.proto";
 import "google/api/field_behavior.proto";
-import "google/api/annotations.proto";
+import "google/api/field_info.proto";
 import "google/api/resource.proto";
 import "wfa/measurement/reporting/v2alpha/metric.proto";
 
@@ -59,7 +60,7 @@ service Metrics {
       post: "/v2alpha/{parent=measurementConsumers/*}/metrics"
       body: "metric"
     };
-    option (google.api.method_signature) = "parent,metric";
+    option (google.api.method_signature) = "parent,metric,metric_id";
   }
 
   // Creates a batch of `Metric`s. Fail for all resources or succeed for all
@@ -120,14 +121,14 @@ message ListMetricsRequest {
   // this value.
   // If unspecified, at most 50 metrics will be returned.
   // The maximum value is 1000; values above 1000 will be coerced to 1000.
-  int32 page_size = 2;
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
 
   // A page token, received from a previous `ListMetrics` call.
   // Provide this to retrieve the subsequent page.
   //
   // When paginating, all other parameters provided to `ListMetrics` must match
   // the call that provided the page token.
-  string page_token = 3;
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Response message for `ListMetrics` method.
@@ -164,7 +165,10 @@ message CreateMetricRequest {
   // A unique identifier for this request. Restricted to 36 ASCII characters.
   // A random UUID is recommended.
   // This request is only idempotent if a `request_id` is provided.
-  string request_id = 4;
+  string request_id = 4 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
 }
 
 // Request message for `BatchCreateMetric` method.

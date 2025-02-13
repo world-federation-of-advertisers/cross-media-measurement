@@ -1,3 +1,5 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
 package(default_visibility = ["//visibility:public"])
 
 cc_binary(
@@ -14,7 +16,7 @@ cc_binary(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@tink_cc//util:secret_data",
+        "@tink_cc//tink/util:secret_data",
         "@wfa_common_cpp//src/main/cc/common_cpp/macros",
     ],
 )

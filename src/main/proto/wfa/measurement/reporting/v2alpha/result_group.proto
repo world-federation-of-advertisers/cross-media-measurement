@@ -1,0 +1,401 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/type/interval.proto";
+import "wfa/measurement/reporting/v2alpha/event_filter.proto";
+import "wfa/measurement/reporting/v2alpha/event_template_field.proto";
+import "wfa/measurement/reporting/v2alpha/metric_frequency_spec.proto";
+import "wfa/measurement/reporting/v2alpha/reporting_impression_qualification_filter.proto";
+import "wfa/measurement/reporting/v2alpha/reporting_unit.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ResultProto";
+
+// Defines the windowing criteria for a set of Metrics including the time
+// period over which they are computed and whether they are cumulative or not.
+message WindowingSpec {
+  // The reporting frequency for this result group
+  MetricFrequencySpec metric_frequency = 1
+      [(google.api.field_behavior) = IMMUTABLE];
+
+  // Options for specifying cumulative or non-cumulative metrics.
+  enum AccumulationOptions {
+    // Default value. Unused.
+    ACCUMULATION_OPTIONS_UNSPECIFIED = 0;
+    // Cumulative metrics
+    CUMULATIVE = 1;
+    // Non-cumulative metrics
+    NON_CUMULATIVE = 2;
+  }
+  // How to accumulate results.
+  AccumulationOptions accumulation_options = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+}
+
+// Defines the dimesions over which metrics are grouped and filtered.
+message DimensionSpec {
+  // Specifies the dimensions on which to Group metrics
+  //
+  // Only those event template fields that are tagged as groupable
+  // and in the common template are supported.
+  message Grouping {
+    // Field paths that indicate the dimensions to group by.
+    //
+    // Each field path is with respect to the Event message with `.` as the
+    // traversal operator. Any field path may appear in the list at most once.
+    //
+    // For example, if the Event message had an Event Template `common` with
+    // a field `age_group` then the field path would be `common.age_group`.
+    repeated string event_template_field = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
+  }
+  // Metric grouping
+  Grouping grouping = 3 [(google.api.field_behavior) = IMMUTABLE];
+
+  // A conjunction of Event Filters
+  //
+  // Event Template fields that are used by any filter Terms must be
+  // tagged as filterable.
+  repeated EventFilter filters = 4 [(google.api.field_behavior) = IMMUTABLE];
+}
+
+// Specifies a set of metrics to be computed
+message ResultGroupMetricSpec {
+  // If specified the total population for the specified groupings and
+  // filters that are associated with calculation spec is reported.
+  bool population_size = 1 [(google.api.field_behavior) = IMMUTABLE];
+
+  // Specifies the set of basic metrics that can be computed for any aspect of
+  // the reporting_unit (e.g. the whole thing, a single component,
+  // intersections, etc.). Each element specifies that a particular metric
+  // should be included in the report output.
+  message BasicMetricSetSpec {
+    // The reach
+    bool reach = 1 [(google.api.field_behavior) = IMMUTABLE];
+
+    // The reach divided by the population
+    bool percent_reach = 2 [(google.api.field_behavior) = IMMUTABLE];
+
+    // The k plus reach up to the frequency specified. Value must be
+    // positive.
+    int32 k_plus_reach = 3 [(google.api.field_behavior) = IMMUTABLE];
+
+    // This option requires that a positive value be given for
+    // k_plus_reach, in which case if specified the percent k+
+    // reach values are also computed.
+    bool percent_k_plus_reach = 4 [(google.api.field_behavior) = IMMUTABLE];
+
+    // The average frequency
+    bool average_frequency = 5 [(google.api.field_behavior) = IMMUTABLE];
+
+    // The impression count
+    bool impressions = 6 [(google.api.field_behavior) = IMMUTABLE];
+
+    // Gross ratings points
+    bool grps = 7 [(google.api.field_behavior) = IMMUTABLE];
+  }
+
+  // Metrics to be computed over the ResultGroupSpec's entire reporting_unit
+  message ReportingUnitMetricSetSpec {
+    // Metrics for the union of the reporting_unit.components
+    BasicMetricSetSpec basic = 1 [(google.api.field_behavior) = IMMUTABLE];
+
+    // Compute a stacked incremental reach result for the reporting_unit
+    //
+    // For example if the order of the items in the reporting_unit.units
+    // field is "rs1, rs2, rs3" then the following are reported:
+    // 1. The reach of rs1
+    // 2. The incremental reach of (rs1+rs2) over rs1
+    //    (i.e. the unique contribution of rs2 with respect to rs1)
+    // 3. The incremental reach of (rs1+rs2+rs3) over (rs1+rs2)
+    //    (i.e. the unique contribution of rs3 with respect to rs1 and rs2.
+    //
+    // In the case an output for a category of components is desired, this
+    // can be achieved by first grouping the components by category. Then
+    // once the output is provided the reach values for the components in the
+    // category can be summed.
+    //
+    // For example, assume we have components EDP1, EDP2, EDP3 and EDP1
+    // is linear TV and EDP2 and EDP3 are digital, and suppose we want an
+    // incremental reach report of linear TV over digital. Then we can specify
+    // the reporting_unit components as [EDP2, EDP3, EDP1] and when the
+    // output is recieved sum the values for EDP2 and EDP3. This results
+    // in a vector where the first element is the combined reach of EDP2
+    // and EDP3 and the second element is the incremental reach of EDP1
+    // with respect to them. Note that it would also be okay to specify
+    // the components as [EDP3, EDP2, EDP1].
+    bool stacked_incremental_reach = 2
+        [(google.api.field_behavior) = IMMUTABLE];
+  }
+  // The set of metrics to compute for the ResultGroupSpec's entire
+  // reporting_unit
+  ReportingUnitMetricSetSpec reporting_unit = 2
+      [(google.api.field_behavior) = IMMUTABLE];
+
+  // Metrics for each component of the ResultGroupSpec's reporting_unit
+  message ComponentMetricSetSpec {
+    // Basic metrics for each item in reporting_unit.components
+    BasicMetricSetSpec basic = 1 [(google.api.field_behavior) = IMMUTABLE];
+
+    // The unique reach of each item in reporting_unit.components
+    // with respect to all other components
+    bool unique_reach = 2 [(google.api.field_behavior) = IMMUTABLE];
+  }
+  // If the ResultGroupSpec's reporting_unit.components is of size 1 the metrics
+  // computed for the component are identical to those computed for the entire
+  // reporting_unit. Specifying this value is not recommended in that case.
+  ComponentMetricSetSpec component = 3
+      [(google.api.field_behavior) = IMMUTABLE];
+
+  // Metrics for the intersections (aka overlaps) of the n-way combinations
+  // of ResultGroupSpec's reporting_unit.components
+  message ComponentIntersectionMetricSetSpec {
+    // The number of components that contribute to the intersection.
+    //
+    // For example, a value of 2 will provide all 2-way intersections of
+    // the reporting_unit.components A value of 2 and 3 will provide both the
+    // 2 and 3 way intersections.
+    //
+    // The minimum value is one and the the max value is the number of
+    // distinct reporting units in reporting_unit.components
+    repeated int32 contributor_count = 1 [
+      (google.api.field_behavior) = IMMUTABLE,
+      (google.api.field_behavior) = REQUIRED
+    ];
+
+    // Metrics for each intersection
+    BasicMetricSetSpec basic = 2 [
+      (google.api.field_behavior) = IMMUTABLE,
+      (google.api.field_behavior) = REQUIRED
+    ];
+  }
+  // Metrics for n-way intersections
+  ComponentIntersectionMetricSetSpec component_intersection = 4
+      [(google.api.field_behavior) = IMMUTABLE];
+}
+
+// Specification for a ResultGroup
+message ResultGroupSpec {
+  // The title of the result group
+  string title = 1 [(google.api.field_behavior) = IMMUTABLE];
+
+  // The unit to compute metrics for
+  ReportingUnit reporting_unit = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // Specifies the window over which metrics are computed
+  // and whether they are cumulative or not.
+  WindowingSpec windowing_spec = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // Specfies the dimensions over which the report is filtered and grouped.
+  DimensionSpec dimension_spec = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // Specifies the Metrics to compute.
+  ResultGroupMetricSpec result_group_metric_spec = 5 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+}
+
+// A group of results.
+message ResultGroup {
+  // The title of the result group.
+  string title = 1 [(google.api.field_behavior) = IMMUTABLE];
+
+  // The metric metadata
+  message MetricMetadata {
+    // A summary of a component of the reporting_unit being reported on
+    message ReportingUnitComponentSummary {
+      // The resource name of a component of the reporting_unit
+      //
+      // For BasicReport this is a DataProvider resource name
+      // For AdvancedReport this is a ReportingSet resource name
+      string component = 1 [
+        (google.api.field_behavior) = REQUIRED,
+        (google.api.field_behavior) = IMMUTABLE,
+        (google.api.resource_reference) = { type: "*" }
+      ];
+
+      // Display name of the component
+      string display_name = 2 [(google.api.field_behavior) = IMMUTABLE];
+
+      // Summary of an EventGroup entailed by the component
+      // TODO(@kungfucraig): Add EventGroup metadata once it has been
+      // formally encoded in the EventGroup.
+      message EventGroupSummary {
+        // The resource name of an EventGroup
+        string event_group = 1 [
+          (google.api.field_behavior) = REQUIRED,
+          (google.api.field_behavior) = IMMUTABLE,
+          (google.api.resource_reference) = {
+            type: "halo.wfanet.org/EventGroup"
+          }
+        ];
+      }
+      // A summary of each EventGroup entailed by the component.
+      repeated EventGroupSummary event_group_summaries = 3
+          [(google.api.field_behavior) = IMMUTABLE];
+    }
+
+    // A summary of each component of the reporting_unit reported on
+    message ReportingUnitSummary {
+      // Component summaries
+      repeated ReportingUnitComponentSummary reporting_unit_component_summary =
+          1 [(google.api.field_behavior) = IMMUTABLE];
+    }
+    // A summary of the ReportingUnit
+    ReportingUnitSummary reporting_unit_summary = 1
+        [(google.api.field_behavior) = IMMUTABLE];
+
+    // The time interval over which the metrics were computed
+    google.type.Interval time_interval = 2
+        [(google.api.field_behavior) = IMMUTABLE];
+
+    // The windowing spec that was applied
+    WindowingSpec windowing_spec = 3 [(google.api.field_behavior) = IMMUTABLE];
+
+    // A summary of the aspects of the DimensionSpec that were applied
+    message DimensionSpecSummary {
+      // The grouping dimensions and values for the reported metrics
+      EventTemplateField grouping = 1 [(google.api.field_behavior) = IMMUTABLE];
+      // The filters applied to the reported metrics
+      repeated EventFilter filters = 2
+          [(google.api.field_behavior) = IMMUTABLE];
+    }
+    // Summary of the grouping and filtering applied to the metrics
+    DimensionSpecSummary dimension_spec_summary = 4
+        [(google.api.field_behavior) = IMMUTABLE];
+
+    // The impression qualification filter that was applied
+    ReportingImpressionQualificationFilter filter = 5
+        [(google.api.field_behavior) = IMMUTABLE];
+  }
+
+  // The metric values
+  message MetricSet {
+    // The size of the population for the filters/grouping specified
+    int32 population_size = 1 [(google.api.field_behavior) = IMMUTABLE];
+
+    // Metrics that are applicable to any subunit of the ReportingUnit.
+    message BasicMetricSet {
+      // The reach
+      int32 reach = 1 [(google.api.field_behavior) = IMMUTABLE];
+      // The reach divided by the population_size
+      float percent_reach = 2 [(google.api.field_behavior) = IMMUTABLE];
+      // The k+ reach where the index is frequency - 1.
+      repeated int32 k_plus_reach = 3 [(google.api.field_behavior) = IMMUTABLE];
+      // The percent k+ reach
+      repeated float percent_k_plus_reach = 4
+          [(google.api.field_behavior) = IMMUTABLE];
+      // The average frequency
+      float average_frequency = 5 [(google.api.field_behavior) = IMMUTABLE];
+      // The impression count
+      int32 impressions = 6 [(google.api.field_behavior) = IMMUTABLE];
+      // The gross ratings points
+      float grps = 7 [(google.api.field_behavior) = IMMUTABLE];
+    }
+    // Metrics for the entire reporting_unit.
+    message ReportingUnitMetricSet {
+      // The metrics for the union of the reporting_unit components
+      BasicMetricSet basic = 1 [(google.api.field_behavior) = IMMUTABLE];
+
+      // The stacked incremental reach of the ReportingUnit.
+      //
+      // For example if the units in the ReportingUnit were "rs1", "rs2",
+      // "rs3" then the values in this array are as follows:
+      //  1. reach(rs1)
+      //  2. reach(rs1+rs2) - reach(rs1)
+      //  3. reach(rs1+rs2+rs3) - reach(rs1+rs2)
+      repeated int32 stacked_incremental_reach = 2
+          [(google.api.field_behavior) = IMMUTABLE];
+    }
+    // Metrics for the whole reporting_unit
+    ReportingUnitMetricSet reporting_unit = 2
+        [(google.api.field_behavior) = IMMUTABLE];
+
+    // Metrics for a single component of the reporting_unit.
+    message ComponentMetricSet {
+      // The basic metrics for this component
+      BasicMetricSet basic = 1 [(google.api.field_behavior) = IMMUTABLE];
+
+      // The component's unique reach
+      int32 unique_reach = 2 [(google.api.field_behavior) = IMMUTABLE];
+    }
+    // Entry for `components` map.
+    message ComponentMetricSetMapEntry {
+      // Map entry key.
+      //
+      // This is a DataProvider resource name when use with BasicReport and
+      // a ReportingSet resource name when used with an AdvancedReport.
+      string key = 1 [
+        (google.api.resource_reference) = { type: "reporting.halo-cmm.org/*" },
+        (google.api.field_behavior) = IMMUTABLE,
+        (google.api.field_behavior) = REQUIRED
+      ];
+
+      // Map entry value.
+      ComponentMetricSet value = 2 [
+        (google.api.field_behavior) = IMMUTABLE,
+        (google.api.field_behavior) = REQUIRED
+      ];
+    }
+    // Map of `component` to `ComponentMetricSet`.
+    repeated ComponentMetricSetMapEntry components = 3
+        [(google.api.field_behavior) = IMMUTABLE];
+
+    // Metrics for the intersection of the components of the reporting_unit
+    message ComponentIntersectionMetricSet {
+      // The reporting_unit components that this intersection corresponds to.
+      //
+      // These are DataProvider resource names when used with a BasicReport and
+      // ReportingSet resource names when used with an AdvancedReport.
+      repeated string components = 1 [(google.api.field_behavior) = IMMUTABLE];
+      // Basic metrics for the intersection of the components
+      BasicMetricSet basic = 2 [(google.api.field_behavior) = IMMUTABLE];
+    }
+    // The metrics for the requested intersections
+    repeated ComponentIntersectionMetricSet component_intersections = 4
+        [(google.api.field_behavior) = IMMUTABLE];
+  }
+
+  // The metadata and metrics for a impression aualification filter
+  message Result {
+    // Metadata that describes the metric
+    MetricMetadata metadata = 1 [(google.api.field_behavior) = IMMUTABLE];
+    // Metric values
+    MetricSet metric_set = 2 [(google.api.field_behavior) = IMMUTABLE];
+  }
+  // The set of results for the ResultGroup, one per impression qualification
+  // filter that was applicable to the result group.
+  repeated Result results = 2 [(google.api.field_behavior) = IMMUTABLE];
+}

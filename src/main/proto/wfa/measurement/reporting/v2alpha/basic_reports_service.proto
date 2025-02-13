@@ -1,0 +1,162 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "google/longrunning/operations.proto";
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/reporting/v2alpha/basic_report.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "BasicReportsServiceProto";
+
+// Service for managing `BasicReport` resources.
+service BasicReports {
+  // Creates a `BasicReport`
+  rpc CreateBasicReport(CreateBasicReportRequest)
+      returns (google.longrunning.Operation) {
+    option (google.api.http) = {
+      post: "/v2alpha/{parent=measurementConsumers/*}/basicReports"
+      body: "basic_report"
+    };
+    option (google.longrunning.operation_info) = {
+      response_type: "BasicReport"
+      metadata_type: "CreateBasicReportOperationMetadata"
+    };
+    option (google.api.method_signature) =
+        "parent,basic_report,basic_report_id";
+  }
+
+  // Returns the `BasicReport` with the given resource key.
+  rpc GetBasicReport(GetBasicReportRequest) returns (BasicReport) {
+    option (google.api.http) = {
+      get: "/v2alpha/{name=measurementConsumers/*/basicReports/*}"
+    };
+    option (google.api.method_signature) = "name";
+  }
+
+  // Lists `BasicReport` resources that match the filter criteria.
+  //
+  // Ordered by (`create_time` ascending, `name` ascending).
+  rpc ListBasicReports(ListBasicReportsRequest)
+      returns (ListBasicReportsResponse) {
+    option (google.api.http) = {
+      get: "/v2alpha/{parent=measurementConsumers/*}/basicReports"
+    };
+    option (google.api.method_signature) = "parent";
+  }
+}
+
+// Request message for `GetBasicReport` method
+message GetBasicReportRequest {
+  // The name of the basic report to retrieve.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/BasicReport"
+    }
+  ];
+}
+
+// Request message for `ListBasicReport` method
+message ListBasicReportsRequest {
+  // The parent Measurement Consumer
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "reporting.halo-cmm.org/BasicReport"
+    }
+  ];
+
+  // Filter criteria. Repeated fields are treated as logical ORs, and multiple
+  // fields are treated as logical ANDs.
+  message Filter {
+    // Filters criteria for BasicReports that were created after the given time.
+    // (-- api-linter: core::0140::prepositions=disabled
+    //  -- api-linter: core::0142::time-field-names=disabled
+    //     aip.dev/not-precedent: Structured filters are used instead of the
+    //     AIP-160 filtering language --)
+    google.protobuf.Timestamp create_time_after = 1
+        [(google.api.field_behavior) = REQUIRED];
+  }
+
+  // Filter criteria
+  // (-- api-linter: core::0132::request-field-types=disabled
+  //     aip.dev/not-precedent: Structured filters are used instead of the
+  //     AIP-160 filtering language --)
+  Filter filter = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // The maximum number of basic reports to return. The service may return fewer
+  // than this value. If unspecified, at most 10 basic reports will be returned.
+  // The maximum value is 25; values above 25 will be coerced to 25.
+  int32 page_size = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // A page token, received from a previous `ListBasicReports` call.
+  // Provide this to retrieve the subsequent page.
+  //
+  // When paginating, all other parameters provided to `ListBasicReports` must
+  // match the call that provided the page token.
+  string page_token = 4 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Response message for `ListBasicReports` method.
+message ListBasicReportsResponse {
+  // The BasicReports that met the filter criteria
+  repeated BasicReport basic_reports = 1
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // A token, which can be sent as `page_token` to retrieve the next page.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Request message for `CreateBasicReport` method
+message CreateBasicReportRequest {
+  // The parent Measurement Consumer
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "reporting.halo-cmm.org/BasicReport"
+    }
+  ];
+
+  // The ID to use for the BasicReport, which will become the final component
+  // of the BasicReport's resource name.
+  //
+  // This must conform to RFC 1034, with the additional restriction that all
+  // letters must be lower-case.
+  string basic_report_id = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // The BasicReport to create.
+  BasicReport basic_report = 3 [(google.api.field_behavior) = REQUIRED];
+
+  // A unique identifier for this request.
+  // This request is only idempotent if a `request_id` is provided.
+  string request_id = 4 [
+    (google.api.field_info).format = UUID4,
+    (google.api.field_behavior) = OPTIONAL
+  ];
+}
+
+// Operation metadata message for `CreateBasicReport`
+// TODO(@kungfucraig): Additional details to be provided as the design matures.
+message CreateBasicReportOperationMetadata {}
