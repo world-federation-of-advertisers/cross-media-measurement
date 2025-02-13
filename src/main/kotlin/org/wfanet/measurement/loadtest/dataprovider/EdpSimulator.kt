@@ -937,9 +937,6 @@ class EdpSimulator(
 
     logger.log(Level.INFO) { "SketchConfig:\n${sketch.config}" }
     logger.log(Level.INFO) { "Registers Size:\n${sketch.registersList.size}" }
-    if (logSketchDetails) {
-      logSketchDetails(sketch)
-    }
 
     return sketch
   }

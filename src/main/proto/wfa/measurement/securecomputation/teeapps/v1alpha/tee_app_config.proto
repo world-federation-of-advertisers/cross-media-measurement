@@ -38,7 +38,9 @@ message TeeAppConfig {
     }
   }
   message ReachAndFrequencyConfig {
-    // TODO
+    repeated string requisition_names = 1;
+    string private_encryption_key_file = 2;
+
   }
   oneof WorkType {
     VidLabelingConfig vid_labeling_config = 1;

@@ -1390,7 +1390,9 @@ class EdpSimulatorTest {
             EventQuery.EventGroupSpec(eventGroup { name = it.key }, it.value)
           }
         )
-    assertThat(Sketch.parseFrom(encryptedSketch)).isEqualTo(expectedSketch)
+    println("joji events: $events")
+    println("joji sketch: $expectedSketch")
+    assertThat(Sketch.parseFrom(encryptedSketch)).isEqualTo("expectedSketch")
   }
 
   @Test
@@ -3054,7 +3056,7 @@ class EdpSimulatorTest {
 
     private val LIQUID_LEGIONS_SKETCH_PARAMS = liquidLegionsSketchParams {
       decayRate = LLV2_DECAY_RATE
-      maxSize = LLV2_MAX_SIZE
+      maxSize = LLV2_MAX_SIZEexpectedSketch
       samplingIndicatorSize = 10_000_000
     }
 

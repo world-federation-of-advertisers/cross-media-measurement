@@ -33,6 +33,7 @@ import org.wfanet.measurement.queue.QueueSubscriber
  * @param queueSubscriber A client that manages connections and interactions with the queue.
  * @param parser [Parser] used to parse serialized queue messages into [T] instances.
  */
+
 abstract class BaseTeeApplication<T : Message>(
   private val subscriptionId: String,
   private val queueSubscriber: QueueSubscriber,
