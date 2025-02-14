@@ -15,6 +15,7 @@
 package org.wfanet.measurement.populationdataprovider
 
 import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.TypeRegistry
 import java.io.File
 import java.security.cert.X509Certificate
@@ -23,11 +24,13 @@ import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -53,18 +56,18 @@ import picocli.CommandLine.Option
 )
 class PopulationRequisitionFulfillerDaemon : Runnable {
   @Option(
-    names = ["--kingdom-system-api-target"],
-    description = ["gRPC target (authority) of the Kingdom system API server"],
+    names = ["--kingdom-public-api-target"],
+    description = ["gRPC target (authority) of the Kingdom public API server"],
     required = true,
   )
   private lateinit var target: String
 
   @Option(
-    names = ["--kingdom-system-api-cert-host"],
+    names = ["--kingdom-public-api-cert-host"],
     description =
       [
         "Expected hostname (DNS-ID) in the Kingdom system API server's TLS certificate.",
-        "This overrides derivation of the TLS DNS-ID from --kingdom-system-api-target.",
+        "This overrides derivation of the TLS DNS-ID from --kingdom-public-api-target.",
       ],
     required = false,
   )
@@ -213,16 +216,25 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
   }
 
   private fun buildTypeRegistry(): TypeRegistry {
-    val builder = TypeRegistry.newBuilder()
-    if (::eventMessageDescriptorSetFiles.isInitialized) {
-      val fileDescriptorSets: List<DescriptorProtos.FileDescriptorSet> =
-        eventMessageDescriptorSetFiles.map {
-          parseTextProto(it, DescriptorProtos.FileDescriptorSet.getDefaultInstance())
+    return TypeRegistry.newBuilder()
+      .apply {
+        if (::eventMessageDescriptorSetFiles.isInitialized) {
+          add(
+            ProtoReflection.buildDescriptors(loadFileDescriptorSets(eventMessageDescriptorSetFiles))
+          )
         }
-      val descriptors = fileDescriptorSets.map { it.descriptorForType }
-      builder.add(descriptors)
+      }
+      .build()
+  }
+
+  private fun loadFileDescriptorSets(
+    files: Iterable<File>
+  ): List<DescriptorProtos.FileDescriptorSet> {
+    return files.map { file ->
+      file.inputStream().use { input ->
+        DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
+      }
     }
-    return builder.build()
   }
 
   private fun buildPopulationInfoMap(
@@ -235,6 +247,13 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
           typeRegistry.getDescriptorForTypeUrl(it.populationInfo.eventMessageTypeUrl),
         )
     }
+  }
+
+  companion object {
+    private val EXTENSION_REGISTRY =
+      ExtensionRegistry.newInstance()
+        .also { EventAnnotationsProto.registerAllExtensions(it) }
+        .unmodifiable
   }
 }
 
