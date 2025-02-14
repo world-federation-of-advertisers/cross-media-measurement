@@ -91,13 +91,8 @@ object ReportConversion {
     val data = mutableMapOf<String, String>()
 
     for (pair in keyValuePairs) {
-      if (pair.startsWith("grouping=")) {
-        val key = "grouping"
-        data[key] = pair.substring(key.length + 1).trim(',')
-      } else {
-        val (key, value) = pair.split("=")
-        data[key] = value
-      }
+      val (key, value) = pair.split("=", limit = 2)
+      data[key] = value
     }
 
     return MetricCalculationSpec(
@@ -155,10 +150,10 @@ fun Report.toReportSummaries(): List<ReportSummary> {
   // the list contains the empty list, otherwise, it contains all the demographic groups.
   val demographicGroups =
     when {
-      !sexes.isEmpty() && !ages.isEmpty() ->
+      sexes.isNotEmpty() && ages.isNotEmpty() ->
         sexes.flatMap { sex -> ages.map { age -> listOf(sex, age) } }
-      sexes.isEmpty() && !ages.isEmpty() -> ages.map { listOf(it) }
-      !sexes.isEmpty() && ages.isEmpty() -> sexes.map { listOf(it) }
+      sexes.isEmpty() && ages.isNotEmpty() -> ages.map { listOf(it) }
+      sexes.isNotEmpty() && ages.isEmpty() -> sexes.map { listOf(it) }
       else -> listOf(emptyList())
     }
 
