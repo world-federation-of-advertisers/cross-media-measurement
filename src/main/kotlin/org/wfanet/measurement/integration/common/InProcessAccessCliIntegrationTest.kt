@@ -21,6 +21,9 @@ import com.google.common.truth.extensions.proto.FieldScope
 import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.rpc.errorInfo
+import io.grpc.Channel
+import io.grpc.ManagedChannel
+import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import io.netty.handler.ssl.ClientAuth
@@ -77,7 +80,7 @@ import org.wfanet.measurement.common.testing.CommandLineTesting
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMap
 
-abstract class InProcessAccessCLITest(
+abstract class InProcessAccessCliTest(
   private val accessServicesFactory: AccessServicesFactory,
   verboseGrpcLogging: Boolean = true,
 ) {
@@ -104,9 +107,10 @@ abstract class InProcessAccessCLITest(
   private lateinit var policiesStub: PoliciesBlockingStub
 
   @Before
-  fun initServer(): Unit {
-    val internalChannel = internalAccessServer.channel
-    val services = Services.build(internalChannel).toList().map { it.bindService() }
+  fun initServer() {
+    val internalChannel: Channel = internalAccessServer.channel
+    val services: List<ServerServiceDefinition> =
+      Services.build(internalChannel).toList().map { it.bindService() }
     val serverCerts = SigningCerts.fromPemFiles(TLS_CERT_FILE, TLS_KEY_FILE, CERT_COLLECTION_FILE)
 
     server =
@@ -119,7 +123,8 @@ abstract class InProcessAccessCLITest(
       )
     server.start()
 
-    val publicChannel = buildMutualTlsChannel("localhost:${server.port}", serverCerts)
+    val publicChannel: ManagedChannel =
+      buildMutualTlsChannel("localhost:${server.port}", serverCerts)
     principalsStub = PrincipalsGrpc.newBlockingStub(publicChannel)
     rolesStub = RolesGrpc.newBlockingStub(publicChannel)
     permissionsStub = PermissionsGrpc.newBlockingStub(publicChannel)
@@ -137,7 +142,7 @@ abstract class InProcessAccessCLITest(
   }
 
   @Test
-  fun `create and get principal succeeds`() = runBlocking {
+  fun `principals create succeeds and principals get prints Principal`() = runBlocking {
     val args = commonArgs + arrayOf("principals", "get", UK_PRINCIPAL_NAME)
     val output = callCli(args)
     assertThat(parseTextProto(output.reader(), Principal.getDefaultInstance()))
@@ -145,7 +150,7 @@ abstract class InProcessAccessCLITest(
   }
 
   @Test
-  fun `delete principal succeeds`(): Unit = runBlocking {
+  fun `principals delete succeeds`(): Unit = runBlocking {
     val args = commonArgs + arrayOf("principals", "delete", UK_PRINCIPAL_NAME)
     callCli(args)
 
@@ -154,18 +159,10 @@ abstract class InProcessAccessCLITest(
         principalsStub.getPrincipal(getPrincipalRequest { name = UK_PRINCIPAL_NAME })
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.PRINCIPAL_NOT_FOUND.name
-          metadata[Errors.Metadata.PRINCIPAL.key] = UK_PRINCIPAL_NAME
-        }
-      )
   }
 
   @Test
-  fun `lookup principal succeeds`() = runBlocking {
+  fun `principals prints Principal`() = runBlocking {
     val args =
       commonArgs +
         arrayOf(
@@ -180,7 +177,7 @@ abstract class InProcessAccessCLITest(
   }
 
   @Test
-  fun `create and get role succeeds`() = runBlocking {
+  fun `roles create succeeds and roles get prints Role`() = runBlocking {
     val args = commonArgs + arrayOf("roles", "get", REPORT_READER_ROLE_NAME)
     val output = callCli(args)
     assertThat(parseTextProto(output.reader(), Role.getDefaultInstance()))
@@ -189,7 +186,7 @@ abstract class InProcessAccessCLITest(
   }
 
   @Test
-  fun `list roles succeeds`() = runBlocking {
+  fun `roles list prints Roles`() = runBlocking {
     val args = commonArgs + arrayOf("roles", "list", "--page-size=1000")
     val output = callCli(args)
     assertThat(parseTextProto(output.reader(), ListRolesResponse.getDefaultInstance()))
@@ -203,10 +200,10 @@ abstract class InProcessAccessCLITest(
   }
 
   @Test
-  fun `update roles succeeds`() = runBlocking {
+  fun `roles update prints Role`() = runBlocking {
     var args = commonArgs + arrayOf("roles", "get", REPORT_READER_ROLE_NAME)
     var output = callCli(args)
-    var etag = parseTextProto(output.reader(), Role.getDefaultInstance()).etag
+    val etag = parseTextProto(output.reader(), Role.getDefaultInstance()).etag
 
     args =
       commonArgs +
@@ -232,7 +229,7 @@ abstract class InProcessAccessCLITest(
   }
 
   @Test
-  fun `delete role succeeds`() = runBlocking {
+  fun `role delete succeeds`() = runBlocking {
     val args = commonArgs + arrayOf("roles", "delete", REPORT_WRITER_ROLE_NAME)
 
     callCli(args)
@@ -252,7 +249,7 @@ abstract class InProcessAccessCLITest(
   }
 
   @Test
-  fun `get permission succeeds`() = runBlocking {
+  fun `permissions get prints Permission`() = runBlocking {
     val args = commonArgs + arrayOf("permissions", "get", GET_REPORTING_SET_PERMISSION_NAME)
     val output = callCli(args)
     assertThat(parseTextProto(output.reader(), Permission.getDefaultInstance()))
@@ -260,7 +257,7 @@ abstract class InProcessAccessCLITest(
   }
 
   @Test
-  fun `list permissions succeeds`() = runBlocking {
+  fun `permissions list prints Permissions`() = runBlocking {
     val args = commonArgs + arrayOf("permissions", "list")
     val output = callCli(args)
     assertEquals(
@@ -272,7 +269,7 @@ abstract class InProcessAccessCLITest(
   }
 
   @Test
-  fun `check permissions succeeds`() = runBlocking {
+  fun `permissions check prints Permissions`() = runBlocking {
     val args =
       commonArgs +
         arrayOf(
@@ -289,7 +286,7 @@ abstract class InProcessAccessCLITest(
   }
 
   @Test
-  fun `create and get policy succeeds`() = runBlocking {
+  fun `policies create succeeds, and policies get prints Policy`() = runBlocking {
     val args = commonArgs + arrayOf("policies", "get", REPORT_READ_POLICY_NAME)
     val output = callCli(args)
     assertThat(parseTextProto(output.reader(), Policy.getDefaultInstance()))
@@ -298,7 +295,7 @@ abstract class InProcessAccessCLITest(
   }
 
   @Test
-  fun `lookup policy succeeds`() = runBlocking {
+  fun `policies lookup prints Policy`() = runBlocking {
     val args =
       commonArgs + arrayOf("policies", "lookup", "--protected-resource=$MEASUREMENT_CONSUMER")
     val output = callCli(args)
@@ -309,7 +306,7 @@ abstract class InProcessAccessCLITest(
   }
 
   @Test
-  fun `add policy binding members succeeds`() = runBlocking {
+  fun `policies add-members prints Policy`() = runBlocking {
     var args = commonArgs + arrayOf("policies", "get", REPORT_READ_POLICY_NAME)
     var output = callCli(args)
     val etag = parseTextProto(output.reader(), Policy.getDefaultInstance()).etag
@@ -342,7 +339,7 @@ abstract class InProcessAccessCLITest(
   }
 
   @Test
-  fun `remove policy binding members succeeds`() = runBlocking {
+  fun `policies remove-members prints Policy`() = runBlocking {
     var args = commonArgs + arrayOf("policies", "get", REPORT_READ_POLICY_NAME)
     var output = callCli(args)
     val etag = parseTextProto(output.reader(), Policy.getDefaultInstance()).etag

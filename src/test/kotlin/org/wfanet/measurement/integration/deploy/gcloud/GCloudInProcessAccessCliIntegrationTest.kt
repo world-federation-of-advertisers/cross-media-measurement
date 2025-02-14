@@ -17,11 +17,11 @@ package org.wfanet.measurement.integration.deploy.gcloud
 
 import org.junit.ClassRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
-import org.wfanet.measurement.integration.common.InProcessAccessCLITest
+import org.wfanet.measurement.integration.common.InProcessAccessCliTest
 
 /** Implementation of [InProcessAccessCLIIntegrationTest] for Google Cloud. */
-class GCloudInProcessAccessCLIIntegrationTest :
-  InProcessAccessCLITest(SpannerAccessServicesFactory(spannerEmulator), verboseGrpcLogging = true) {
+class GCloudInProcessAccessCliIntegrationTest :
+  InProcessAccessCliTest(SpannerAccessServicesFactory(spannerEmulator), verboseGrpcLogging = true) {
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
