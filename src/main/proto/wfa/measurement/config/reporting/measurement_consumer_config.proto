@@ -16,15 +16,25 @@ syntax = "proto3";
 
 package wfa.measurement.config;
 
+import "google/api/resource.proto";
+
 option java_package = "org.wfanet.measurement.config.reporting";
 option java_multiple_files = true;
 
 message MeasurementConsumerConfig {
+  // API authentication key for calling the CMMS public API.
   string api_key = 1;
-  // Resource name of the `Certificate` from the CMMS public api.
-  string signing_certificate_name = 2;
+  // Resource name of the `Certificate` from the CMMS public API.
+  string signing_certificate_name = 2 [
+    (google.api.resource_reference) = { type: "halo.wfanet.org/Certificate" }
+  ];
   // Relative path to private key within the private key store.
   string signing_private_key_path = 3;
+  // Resource name of the `Principal` from the Access API used for offline
+  // operations such as scheduling.
+  string offline_principal = 4 [
+    (google.api.resource_reference) = { type: "access.halo-cmm.org/Principal" }
+  ];
   // Possibly other per-MC config fields here in the future, such as folding in
   // the key pair mapping.
 }
