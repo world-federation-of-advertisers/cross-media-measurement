@@ -143,3 +143,25 @@ java_test(
     test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudSpannerInProcessMeasurementSystemProberIntegrationTest",
     runtime_deps = [":gcloud_spanner_in_process_measurement_system_prober_integration_test"],
 )
+
+kt_jvm_library(
+    name = "gcloud_in_process_access_cli_integration_test",
+    srcs = ["GCloudInProcessAccessCLIIntegrationTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_access_cli_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "GCloudInProcessAccessCLIIntegrationTest",
+    size = "large",
+    # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudInProcessAccessCLIIntegrationTest",
+    runtime_deps = [":gcloud_in_process_access_cli_integration_test"],
+)
