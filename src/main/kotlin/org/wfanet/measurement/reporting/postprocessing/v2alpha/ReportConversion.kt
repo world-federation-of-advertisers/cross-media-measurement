@@ -91,8 +91,13 @@ object ReportConversion {
     val data = mutableMapOf<String, String>()
 
     for (pair in keyValuePairs) {
-      val (key, value) = pair.split("=")
-      data[key] = value
+      if (pair.startsWith("grouping=")) {
+        val key = "grouping"
+        data[key] = pair.substring(key.length + 1).trim(',')
+      } else {
+        val (key, value) = pair.split("=")
+        data[key] = value
+      }
     }
 
     return MetricCalculationSpec(
@@ -137,136 +142,156 @@ fun Report.toReportSummaries(): List<ReportSummary> {
       }
       .toMap()
 
-  val filterGroups = metricCalculationSpecById.values.map { it.commonFilter }.toSet()
+  val sexes =
+    metricCalculationSpecById.values
+      .flatMap { it.grouping.split(",").filter { it.startsWith("common.sex==") } }
+      .toSet()
+  val ages =
+    metricCalculationSpecById.values
+      .flatMap { it.grouping.split(",").filter { it.startsWith("common.age_group==") } }
+      .toSet()
+
+  // Generates a list of demographic groups. If the report doesn't support demographic slicing,
+  // the list contains the empty list, otherwise, it contains all the demographic groups.
+  val demographicGroups =
+    when {
+      !sexes.isEmpty() && !ages.isEmpty() ->
+        sexes.flatMap { sex -> ages.map { age -> listOf(sex, age) } }
+      sexes.isEmpty() && !ages.isEmpty() -> ages.map { listOf(it) }
+      !sexes.isEmpty() && ages.isEmpty() -> sexes.map { listOf(it) }
+      else -> listOf(emptyList())
+    }
 
   // Groups results by (reporting set x metric calculation spec).
   val measurementSets =
     metricCalculationResultsList.groupBy { Pair(it.reportingSet, it.metricCalculationSpec) }
 
   val reportSummaries = mutableListOf<ReportSummary>()
-  for (filter in filterGroups) {
+
+  // Groups the measurements by demographic groups. If the report doesn't support demographic
+  // slicing, all measurements belong to the same report summary.
+  demographicGroups.forEach { demographicGroup ->
     val reportSummary = reportSummary {
       measurementSets.forEach { (key, value) ->
-        val ReportingSetSummary = ReportingSetSummaryById.getValue(key.first)
+        val reportingSetSummary = ReportingSetSummaryById.getValue(key.first)
         val metricCalculationSpec = metricCalculationSpecById.getValue(key.second)
 
-        if (metricCalculationSpec.commonFilter == filter) {
-          measurementDetails += measurementDetail {
-            measurementPolicy = ReportingSetSummary.measurementPolicy.lowercase()
-            dataProviders += ReportingSetSummary.target
-            isCumulative = metricCalculationSpec.cumulative
-            setOperation = metricCalculationSpec.setOperation
-            uniqueReachTarget = ReportingSetSummary.uniqueReachTarget
-            rightHandSideTargets +=
-              ReportingSetSummary.rhsReportingSetIds
-                .flatMap { id -> targetByShortReportingSetId.getValue(id) }
-                .toSet()
-                .toList()
-                .sorted()
-            leftHandSideTargets +=
-              ReportingSetSummary.lhsReportingSetIds
-                .flatMap { id -> targetByShortReportingSetId.getValue(id) }
-                .toSet()
-                .toList()
-                .sorted()
-            var measurementList =
-              value
-                .flatMap { it.resultAttributesList }
-                .sortedBy { it.timeInterval.endTime.seconds }
-                .filter {
-                  it.metricResult.hasReach() ||
+        measurementDetails += measurementDetail {
+          measurementPolicy = reportingSetSummary.measurementPolicy.lowercase()
+          dataProviders += reportingSetSummary.target
+          isCumulative = metricCalculationSpec.cumulative
+          setOperation = metricCalculationSpec.setOperation
+          uniqueReachTarget = reportingSetSummary.uniqueReachTarget
+          rightHandSideTargets +=
+            reportingSetSummary.rhsReportingSetIds
+              .flatMap { id -> targetByShortReportingSetId.getValue(id) }
+              .toSet()
+              .toList()
+              .sorted()
+          leftHandSideTargets +=
+            reportingSetSummary.lhsReportingSetIds
+              .flatMap { id -> targetByShortReportingSetId.getValue(id) }
+              .toSet()
+              .toList()
+              .sorted()
+          var measurementList =
+            value
+              .flatMap { it.resultAttributesList }
+              .sortedBy { it.timeInterval.endTime.seconds }
+              .filter {
+                it.groupingPredicatesList.containsAll(demographicGroup) &&
+                  (it.metricResult.hasReach() ||
                     it.metricResult.hasReachAndFrequency() ||
-                    it.metricResult.hasImpressionCount()
+                    it.metricResult.hasImpressionCount())
+              }
+              .map { resultAttribute ->
+                require(resultAttribute.state == Metric.State.SUCCEEDED) {
+                  "Unsucceeded measurement result is not supported."
                 }
-                .map { resultAttribute ->
-                  require(resultAttribute.state == Metric.State.SUCCEEDED) {
-                    "Unsucceeded measurement result is not supported."
-                  }
-                  MeasurementDetailKt.measurementResult {
-                    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-                    when (resultAttribute.metricResult.resultCase) {
-                      MetricResult.ResultCase.REACH -> {
-                        reach =
-                          MeasurementDetailKt.reachResult {
-                            this.value = resultAttribute.metricResult.reach.value
-                            standardDeviation =
-                              resultAttribute.metricResult.reach.univariateStatistics
-                                .standardDeviation
-                          }
-                      }
-                      MetricResult.ResultCase.REACH_AND_FREQUENCY -> {
-                        reachAndFrequency =
-                          MeasurementDetailKt.reachAndFrequencyResult {
-                            reach =
-                              MeasurementDetailKt.reachResult {
-                                this.value =
-                                  resultAttribute.metricResult.reachAndFrequency.reach.value
-                                standardDeviation =
-                                  resultAttribute.metricResult.reachAndFrequency.reach
-                                    .univariateStatistics
-                                    .standardDeviation
-                              }
-                            frequency =
-                              MeasurementDetailKt.frequencyResult {
-                                bins +=
-                                  resultAttribute.metricResult.reachAndFrequency.frequencyHistogram
-                                    .binsList
-                                    .map { bin ->
-                                      MeasurementDetailKt.FrequencyResultKt.binResult {
-                                        label = bin.label
-                                        // If reach is 0, all frequencies are set to 0 as well.
-                                        this.value =
-                                          if (
-                                            resultAttribute.metricResult.reachAndFrequency.reach
-                                              .value > 0
-                                          ) {
-                                            bin.binResult.value.toLong()
-                                          } else {
-                                            0
-                                          }
-                                        // TODO(@ple13): Read the standard deviations directly from
-                                        // the frequency buckets when the report populates the
-                                        // standard deviations for frequency histogram when reach is
-                                        // 0.
-                                        standardDeviation =
-                                          if (
-                                            resultAttribute.metricResult.reachAndFrequency.reach
-                                              .value > 0 ||
-                                              bin.resultUnivariateStatistics.standardDeviation > 0
-                                          ) {
-                                            bin.resultUnivariateStatistics.standardDeviation
-                                          } else {
-                                            resultAttribute.metricResult.reachAndFrequency.reach
-                                              .univariateStatistics
-                                              .standardDeviation
-                                          }
-                                      }
-                                    }
-                              }
-                          }
-                      }
-                      MetricResult.ResultCase.IMPRESSION_COUNT -> {
-                        impressionCount =
-                          MeasurementDetailKt.impressionCountResult {
-                            this.value = resultAttribute.metricResult.impressionCount.value
-                            standardDeviation =
-                              resultAttribute.metricResult.impressionCount.univariateStatistics
-                                .standardDeviation
-                          }
-                      }
-                      MetricResult.ResultCase.WATCH_DURATION,
-                      MetricResult.ResultCase.POPULATION_COUNT -> {}
-                      MetricResult.ResultCase.RESULT_NOT_SET -> {
-                        throw IllegalArgumentException(
-                          "The result type in MetricResult is not specified."
-                        )
-                      }
+                MeasurementDetailKt.measurementResult {
+                  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+                  when (resultAttribute.metricResult.resultCase) {
+                    MetricResult.ResultCase.REACH -> {
+                      reach =
+                        MeasurementDetailKt.reachResult {
+                          this.value = resultAttribute.metricResult.reach.value
+                          standardDeviation =
+                            resultAttribute.metricResult.reach.univariateStatistics
+                              .standardDeviation
+                        }
                     }
-                    metric = resultAttribute.metric
+                    MetricResult.ResultCase.REACH_AND_FREQUENCY -> {
+                      reachAndFrequency =
+                        MeasurementDetailKt.reachAndFrequencyResult {
+                          reach =
+                            MeasurementDetailKt.reachResult {
+                              this.value =
+                                resultAttribute.metricResult.reachAndFrequency.reach.value
+                              standardDeviation =
+                                resultAttribute.metricResult.reachAndFrequency.reach
+                                  .univariateStatistics
+                                  .standardDeviation
+                            }
+                          frequency =
+                            MeasurementDetailKt.frequencyResult {
+                              bins +=
+                                resultAttribute.metricResult.reachAndFrequency.frequencyHistogram
+                                  .binsList
+                                  .map { bin ->
+                                    MeasurementDetailKt.FrequencyResultKt.binResult {
+                                      label = bin.label
+                                      // If reach is 0, all frequencies are set to 0 as well.
+                                      this.value =
+                                        if (
+                                          resultAttribute.metricResult.reachAndFrequency.reach
+                                            .value > 0
+                                        ) {
+                                          bin.binResult.value.toLong()
+                                        } else {
+                                          0
+                                        }
+                                      // TODO(@ple13): Read the standard deviations directly from
+                                      // the frequency buckets when the report populates the
+                                      // standard deviations for frequency histogram when reach is
+                                      // 0.
+                                      standardDeviation =
+                                        if (
+                                          resultAttribute.metricResult.reachAndFrequency.reach
+                                            .value > 0 ||
+                                            bin.resultUnivariateStatistics.standardDeviation > 0
+                                        ) {
+                                          bin.resultUnivariateStatistics.standardDeviation
+                                        } else {
+                                          resultAttribute.metricResult.reachAndFrequency.reach
+                                            .univariateStatistics
+                                            .standardDeviation
+                                        }
+                                    }
+                                  }
+                            }
+                        }
+                    }
+                    MetricResult.ResultCase.IMPRESSION_COUNT -> {
+                      impressionCount =
+                        MeasurementDetailKt.impressionCountResult {
+                          this.value = resultAttribute.metricResult.impressionCount.value
+                          standardDeviation =
+                            resultAttribute.metricResult.impressionCount.univariateStatistics
+                              .standardDeviation
+                        }
+                    }
+                    MetricResult.ResultCase.WATCH_DURATION,
+                    MetricResult.ResultCase.POPULATION_COUNT -> {}
+                    MetricResult.ResultCase.RESULT_NOT_SET -> {
+                      throw IllegalArgumentException(
+                        "The result type in MetricResult is not specified."
+                      )
+                    }
                   }
+                  metric = resultAttribute.metric
                 }
-            measurementResults.addAll(measurementList)
-          }
+              }
+          measurementResults.addAll(measurementList)
         }
       }
     }
