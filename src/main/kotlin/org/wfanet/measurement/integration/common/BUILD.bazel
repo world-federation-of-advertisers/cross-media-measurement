@@ -364,7 +364,7 @@ kt_jvm_library(
 kt_jvm_library(
     name = "in_process_access_cli_integration_test",
     srcs = [
-        "InProcessAccessCLIIntegrationTest.kt",
+        "InProcessAccessCliIntegrationTest.kt",
     ],
     data = [
         "//src/main/k8s/testing/secretfiles:reporting_root.pem",

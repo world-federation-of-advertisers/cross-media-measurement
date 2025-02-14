@@ -146,7 +146,7 @@ java_test(
 
 kt_jvm_library(
     name = "gcloud_in_process_access_cli_integration_test",
-    srcs = ["GCloudInProcessAccessCLIIntegrationTest.kt"],
+    srcs = ["GCloudInProcessAccessCliIntegrationTest.kt"],
     data = ["@cloud_spanner_emulator//:emulator"],
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
@@ -159,9 +159,9 @@ kt_jvm_library(
 
 # TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
-    name = "GCloudInProcessAccessCLIIntegrationTest",
+    name = "GCloudInProcessAccessCliIntegrationTest",
     size = "large",
     # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
-    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudInProcessAccessCLIIntegrationTest",
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudInProcessAccessCliIntegrationTest",
     runtime_deps = [":gcloud_in_process_access_cli_integration_test"],
 )
