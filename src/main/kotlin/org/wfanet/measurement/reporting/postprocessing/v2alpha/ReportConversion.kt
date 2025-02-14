@@ -137,25 +137,23 @@ fun Report.toReportSummaries(): List<ReportSummary> {
       }
       .toMap()
 
-  val sexes =
-    metricCalculationSpecById.values
-      .flatMap { it.grouping.split(",").filter { it.startsWith("common.sex==") } }
-      .toSet()
-  val ages =
-    metricCalculationSpecById.values
-      .flatMap { it.grouping.split(",").filter { it.startsWith("common.age_group==") } }
-      .toSet()
-
   // Generates a list of demographic groups. If the report doesn't support demographic slicing,
   // the list contains the empty list, otherwise, it contains all the demographic groups.
   val demographicGroups =
-    when {
-      sexes.isNotEmpty() && ages.isNotEmpty() ->
-        sexes.flatMap { sex -> ages.map { age -> listOf(sex, age) } }
-      sexes.isEmpty() && ages.isNotEmpty() -> ages.map { listOf(it) }
-      sexes.isNotEmpty() && ages.isEmpty() -> sexes.map { listOf(it) }
-      else -> listOf(emptyList())
-    }
+    metricCalculationSpecById.values
+      .flatMap {
+        val groups = it.grouping.split(",")
+        val sexes = groups.filter { it.startsWith("common.sex==") }
+        val ageGroups = groups.filter { it.startsWith("common.age_group==") }
+        when {
+          sexes.isNotEmpty() && ageGroups.isNotEmpty() ->
+            sexes.flatMap { sex -> ageGroups.map { ageGroup -> listOf(sex, ageGroup) } }
+          sexes.isEmpty() && ageGroups.isNotEmpty() -> ageGroups.map { listOf(it) }
+          sexes.isNotEmpty() && ageGroups.isEmpty() -> sexes.map { listOf(it) }
+          else -> listOf(emptyList())
+        }
+      }
+      .toSet()
 
   // Groups results by (reporting set x metric calculation spec).
   val measurementSets =
@@ -195,6 +193,7 @@ fun Report.toReportSummaries(): List<ReportSummary> {
               .sortedBy { it.timeInterval.endTime.seconds }
               .filter {
                 it.groupingPredicatesList.containsAll(demographicGroup) &&
+                  demographicGroup.containsAll(it.groupingPredicatesList) &&
                   (it.metricResult.hasReach() ||
                     it.metricResult.hasReachAndFrequency() ||
                     it.metricResult.hasImpressionCount())
