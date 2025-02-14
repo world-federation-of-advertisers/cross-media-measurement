@@ -151,6 +151,14 @@ First, prepare all the files we want to include in the Kubernetes secret. The
 
     The private key for the Reporting server's TLS certificate.
 
+1.  `access_tls.pem`
+
+    The Access server's TLS certificate.
+
+1.  `access_tls.key`
+
+    The private key for the Access server's TLS certificate.
+
 In addition, you'll need to include the encryption and signing private keys for
 the Measurement Consumers that this Reporting server instance needs to act on
 behalf of. The encryption keys are assumed to be in Tink's binary keyset format.
@@ -196,6 +204,8 @@ secretGenerator:
   - reporting_root.pem
   - reporting_tls.key
   - reporting_tls.pem
+  - access_tls.pem
+  - access_tls.key
   - mc_enc_public.tink
   - mc_enc_private.tink
   - mc_cs_private.der
