@@ -3,7 +3,10 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(
     default_testonly = True,
-    default_visibility = ["//src/test/kotlin/org/wfanet/measurement/access/deploy/tools:__subpackages__"],
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/access/deploy/tools:__subpackages__",
+    ],
 )
 
 kt_jvm_library(

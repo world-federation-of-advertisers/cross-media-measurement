@@ -360,3 +360,29 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )
+
+kt_jvm_library(
+    name = "in_process_access_cli_integration_test",
+    srcs = [
+        "InProcessAccessCLIIntegrationTest.kt",
+    ],
+    data = [
+        "//src/main/k8s/testing/secretfiles:reporting_root.pem",
+        "//src/main/k8s/testing/secretfiles:reporting_tls.key",
+        "//src/main/k8s/testing/secretfiles:reporting_tls.pem",
+    ],
+    deps = [
+        ":in_process_access",
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/tools:access",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/v1alpha:services",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
