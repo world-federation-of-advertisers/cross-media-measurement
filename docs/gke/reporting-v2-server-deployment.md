@@ -221,6 +221,8 @@ configuration uses one named `config-files`.
 
 *   `authority_key_identifier_to_principal_map.textproto`
     *   [`AuthorityKeyToPrincipalMap`](../../src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto)
+*   `open_id_providers_config.json`
+    *   [`OpenIdProvidersConfig`](../../src/main/proto/wfa/measurement/config/access/open_id_providers_config.proto)
 *   `encryption_key_pair_config.textproto`
     *   [`EncryptionKeyPairConfig`](../../src/main/proto/wfa/measurement/config/reporting/encryption_key_pair_config.proto)
 *   `metric_spec_config.textproto`
