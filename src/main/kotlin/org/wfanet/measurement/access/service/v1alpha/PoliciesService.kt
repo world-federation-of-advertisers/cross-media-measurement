@@ -230,6 +230,10 @@ class PoliciesService(private val internalPoliciesStub: InternalPoliciesCoroutin
       RoleKey.fromName(request.role)
         ?: throw InvalidFieldValueException("role")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    if (request.membersList.isEmpty()) {
+      throw RequiredFieldNotSetException("members")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val memberKeys =
       request.membersList.map { member ->
         PrincipalKey.fromName(member)
@@ -302,6 +306,10 @@ class PoliciesService(private val internalPoliciesStub: InternalPoliciesCoroutin
       RoleKey.fromName(request.role)
         ?: throw InvalidFieldValueException("role")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    if (request.membersList.isEmpty()) {
+      throw RequiredFieldNotSetException("members")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val memberKeys =
       request.membersList.map { member ->
         PrincipalKey.fromName(member)

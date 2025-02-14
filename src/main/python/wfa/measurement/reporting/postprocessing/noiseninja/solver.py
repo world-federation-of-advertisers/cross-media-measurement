@@ -12,11 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from threading import Semaphore
-from absl import logging
-from noiseninja.noised_measurements import SetMeasurementsSpec
 import numpy as np
-from qpsolvers import Problem, Solution, solve_problem
+from threading import Semaphore
+
+from absl import logging
+
+from qpsolvers import Problem
+from qpsolvers import Solution
+from qpsolvers import solve_problem
+
+from noiseninja.noised_measurements import SetMeasurementsSpec
 
 HIGHS_SOLVER = "highs"
 OSQP_SOLVER = "osqp"
@@ -44,6 +49,8 @@ class Solver:
     self.num_variables = len(variable_index_by_set_id)
     self._init_qp(self.num_variables)
     self._add_equals(set_measurement_spec, variable_index_by_set_id)
+    self._add_weighted_sum_upperbounds(set_measurement_spec,
+                                       variable_index_by_set_id)
     self._add_covers(set_measurement_spec, variable_index_by_set_id)
     self._add_subsets(set_measurement_spec, variable_index_by_set_id)
     self._add_measurement_targets(set_measurement_spec,
@@ -111,8 +118,19 @@ class Solver:
     for equal_set in set_measurement_spec.get_equal_sets():
       variables = np.zeros(self.num_variables)
       variables[variable_index_by_set_id[equal_set[0]]] = 1
-      variables[variable_index_by_set_id[equal_set[1]]] = -1
+      variables.put([variable_index_by_set_id[i] for i in equal_set[1]], -1)
       self._add_eq_term(variables, 0)
+
+  def _add_weighted_sum_upperbounds(self,
+      set_measurement_spec: SetMeasurementsSpec,
+      variable_index_by_set_id: dict[int, int]):
+    logging.info("Adding weighted sum upperbound constraints.")
+    for key, value in set_measurement_spec.get_weighted_sum_upperbound_sets().items():
+      variables = np.zeros(self.num_variables)
+      variables[variable_index_by_set_id[key]] = -1
+      for entry in value:
+        variables[variable_index_by_set_id[entry[0]]] = entry[1]
+      self._add_gt_term(variables)
 
   def _add_subsets(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
@@ -147,11 +165,6 @@ class Solver:
     variables[set_variable] = 1
     self._add_gt_term(variables)
 
-  def _is_feasible(self, vector: np.array) -> bool:
-    for i, g in enumerate(self.G):
-      if np.dot(vector, g) > self.h[i][0]:
-        return False
-    return True
 
   def _add_parent_gt_child_term(self, parent: int, child: int):
     variables = np.zeros(self.num_variables)
@@ -209,28 +222,19 @@ class Solver:
     return solution
 
   def solve(self) -> Solution:
-    if self._is_feasible(self.base_value):
-      logging.info(
-          "The set measurement spec is feasible."
-      )
-      solution = Solution(x=self.base_value,
-                          found=True,
-                          extras={'status': 'trivial'},
-                          problem=self._problem())
-    else:
-      logging.info(
-          "Solving the quadratic program with the HIGHS solver."
-      )
-      solution = self._solve(HIGHS_SOLVER)
+    logging.info(
+        "Solving the quadratic program with the HIGHS solver."
+    )
+    solution = self._solve(HIGHS_SOLVER)
 
-      # If the highs solver does not converge, switch to the osqp solver which
-      # is more robust. However, OSQP in general is less accurate than HIGHS
-      # (See https://web.stanford.edu/~boyd/papers/pdf/osqp.pdf).
-      if not solution.found:
-        logging.info(
-            "Switching to OSQP solver as HIGHS solver failed to converge."
-        )
-        solution = self._solve(OSQP_SOLVER)
+    # If the highs solver does not converge, switch to the osqp solver which
+    # is more robust. However, OSQP in general is less accurate than HIGHS
+    # (See https://web.stanford.edu/~boyd/papers/pdf/osqp.pdf).
+    if not solution.found:
+      logging.info(
+          "Switching to OSQP solver as HIGHS solver failed to converge."
+      )
+      solution = self._solve(OSQP_SOLVER)
 
     # Raise the exception when both solvers do not converge.
     if not solution.found:
