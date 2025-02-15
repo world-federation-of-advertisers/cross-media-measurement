@@ -111,7 +111,12 @@ abstract class InProcessAccessCliTest(
     val internalChannel: Channel = internalAccessServer.channel
     val services: List<ServerServiceDefinition> =
       Services.build(internalChannel).toList().map { it.bindService() }
-    val serverCerts = SigningCerts.fromPemFiles(TLS_CERT_FILE, TLS_KEY_FILE, CERT_COLLECTION_FILE)
+    val serverCerts =
+      SigningCerts.fromPemFiles(
+        REPORTING_TLS_CERT_FILE,
+        REPORTING_TLS_KEY_FILE,
+        REPORTING_CERT_COLLECTION_FILE,
+      )
 
     server =
       CommonServer.fromParameters(
@@ -142,11 +147,35 @@ abstract class InProcessAccessCliTest(
   }
 
   @Test
-  fun `principals create succeeds and principals get prints Principal`() = runBlocking {
+  fun `principals get prints Principal`() = runBlocking {
     val args = commonArgs + arrayOf("principals", "get", UK_PRINCIPAL_NAME)
     val output = callCli(args)
     assertThat(parseTextProto(output.reader(), Principal.getDefaultInstance()))
       .isEqualTo(UK_PRINCIPAL)
+  }
+
+  @Test
+  fun `principals create prints User Principal`() = runBlocking {
+    val args =
+      commonArgs +
+        arrayOf(
+          "principals",
+          "create",
+          "--issuer=au.com",
+          "--subject=user1@au.com",
+          "--principal-id=user-au",
+        )
+    val output = callCli(args)
+    assertThat(parseTextProto(output.reader(), Principal.getDefaultInstance()))
+      .isEqualTo(
+        principal {
+          name = "principals/user-au"
+          user = oAuthUser {
+            issuer = "au.com"
+            subject = "user1@au.com"
+          }
+        }
+      )
   }
 
   @Test
@@ -169,7 +198,7 @@ abstract class InProcessAccessCliTest(
           "principals",
           "lookup",
           "--issuer=$UK_OAUTH_USER_ISSUER",
-          "--subject=$UK_OATUH_USER_SUBJECT",
+          "--subject=$UK_OAUTH_USER_SUBJECT",
         )
     val output = callCli(args)
     assertThat(parseTextProto(output.reader(), Principal.getDefaultInstance()))
@@ -177,7 +206,7 @@ abstract class InProcessAccessCliTest(
   }
 
   @Test
-  fun `roles create succeeds and roles get prints Role`() = runBlocking {
+  fun `roles get prints Role`() = runBlocking {
     val args = commonArgs + arrayOf("roles", "get", REPORT_READER_ROLE_NAME)
     val output = callCli(args)
     assertThat(parseTextProto(output.reader(), Role.getDefaultInstance()))
@@ -195,6 +224,29 @@ abstract class InProcessAccessCliTest(
         listRolesResponse {
           roles += REPORT_READER_ROLE
           roles += REPORT_WRITER_ROLE
+        }
+      )
+  }
+
+  @Test
+  fun `roles create prints Role`() = runBlocking {
+    val args =
+      commonArgs +
+        arrayOf(
+          "roles",
+          "create",
+          "--resource-type=reporting.halo-cmm.org/EventGroup",
+          "--permission=permissions/reporting.eventGroups.get",
+          "--role-id=event-group-reader",
+        )
+    val output = callCli(args)
+    assertThat(parseTextProto(output.reader(), Role.getDefaultInstance()))
+      .ignoringFieldScope(ROLE_IGNORED_FIELDS)
+      .isEqualTo(
+        role {
+          name = "roles/event-group-reader"
+          resourceTypes += "reporting.halo-cmm.org/EventGroup"
+          permissions += "permissions/reporting.eventGroups.get"
         }
       )
   }
@@ -286,7 +338,7 @@ abstract class InProcessAccessCliTest(
   }
 
   @Test
-  fun `policies create succeeds, and policies get prints Policy`() = runBlocking {
+  fun `policies get prints Policy`() = runBlocking {
     val args = commonArgs + arrayOf("policies", "get", REPORT_READ_POLICY_NAME)
     val output = callCli(args)
     assertThat(parseTextProto(output.reader(), Policy.getDefaultInstance()))
@@ -303,6 +355,36 @@ abstract class InProcessAccessCliTest(
     assertThat(parseTextProto(output.reader(), Policy.getDefaultInstance()))
       .ignoringFieldScope(POLICY_IGNORED_FIELDS)
       .isEqualTo(REPORT_READ_POLICY)
+  }
+
+  @Test
+  fun `policies create prints Policy`() = runBlocking {
+    val args =
+      commonArgs +
+        arrayOf(
+          "policies",
+          "create",
+          "--protected-resource=measurementConsumers/mc-2",
+          "--binding-role=$REPORT_WRITER_ROLE_NAME",
+          "--binding-member=$US_PRINCIPAL_NAME",
+          "--binding-member=$UK_PRINCIPAL_NAME",
+          "--policy-id=report-writer-policy",
+        )
+    val output = callCli(args)
+
+    assertThat(parseTextProto(output.reader(), Policy.getDefaultInstance()))
+      .ignoringFieldScope(POLICY_IGNORED_FIELDS)
+      .isEqualTo(
+        policy {
+          name = "policies/report-writer-policy"
+          protectedResource = "measurementConsumers/mc-2"
+          bindings += binding {
+            role = REPORT_WRITER_ROLE_NAME
+            members += US_PRINCIPAL_NAME
+            members += UK_PRINCIPAL_NAME
+          }
+        }
+      )
   }
 
   @Test
@@ -366,7 +448,7 @@ abstract class InProcessAccessCliTest(
       )
   }
 
-  fun createPrincipals() {
+  private fun createPrincipals() {
     principalsStub.createPrincipal(
       createPrincipalRequest {
         principal = UK_PRINCIPAL
@@ -382,7 +464,7 @@ abstract class InProcessAccessCliTest(
     )
   }
 
-  fun createRoles() {
+  private fun createRoles() {
     rolesStub.createRole(
       createRoleRequest {
         role = REPORT_READER_ROLE
@@ -398,7 +480,7 @@ abstract class InProcessAccessCliTest(
     )
   }
 
-  fun createPolicy() {
+  private fun createPolicy() {
     policiesStub.createPolicy(
       createPolicyRequest {
         policy = policy {
@@ -416,9 +498,9 @@ abstract class InProcessAccessCliTest(
   private val commonArgs: Array<String>
     get() =
       arrayOf(
-        "--tls-cert-file=$TLS_CERT_FILE",
-        "--tls-key-file=$TLS_KEY_FILE",
-        "--cert-collection-file=$CERT_COLLECTION_FILE",
+        "--tls-cert-file=$REPORTING_TLS_CERT_FILE",
+        "--tls-key-file=$REPORTING_TLS_KEY_FILE",
+        "--cert-collection-file=$REPORTING_CERT_COLLECTION_FILE",
         "--access-public-api-target=$HOST:${server.port}",
       )
 
@@ -435,31 +517,31 @@ abstract class InProcessAccessCliTest(
           Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
         )!!
         .toFile()
-    private val TLS_CERT_FILE: File = SECRETS_DIR.resolve("reporting_tls.pem")
-    private val TLS_KEY_FILE: File = SECRETS_DIR.resolve("reporting_tls.key")
-    private val CERT_COLLECTION_FILE: File = SECRETS_DIR.resolve("reporting_root.pem")
+    private val REPORTING_TLS_CERT_FILE: File = SECRETS_DIR.resolve("reporting_tls.pem")
+    private val REPORTING_TLS_KEY_FILE: File = SECRETS_DIR.resolve("reporting_tls.key")
+    private val REPORTING_CERT_COLLECTION_FILE: File = SECRETS_DIR.resolve("reporting_root.pem")
 
     private const val UK_PRINCIPAL_ID = "uk-user"
     private const val UK_PRINCIPAL_NAME = "principals/uk-user"
     private const val UK_OAUTH_USER_ISSUER = "uk.com"
-    private const val UK_OATUH_USER_SUBJECT = "user@uk.com"
+    private const val UK_OAUTH_USER_SUBJECT = "user@uk.com"
     private val UK_PRINCIPAL = principal {
       name = UK_PRINCIPAL_NAME
       user = oAuthUser {
         issuer = UK_OAUTH_USER_ISSUER
-        subject = UK_OATUH_USER_SUBJECT
+        subject = UK_OAUTH_USER_SUBJECT
       }
     }
 
     private const val US_PRINCIPAL_ID = "us-user"
     private const val US_PRINCIPAL_NAME = "principals/us-user"
     private const val US_OAUTH_USER_ISSUER = "us.com"
-    private const val US_OATUH_USER_SUBJECT = "user@us.com"
+    private const val US_OAUTH_USER_SUBJECT = "user@us.com"
     private val US_PRINCIPAL = principal {
       name = US_PRINCIPAL_NAME
       user = oAuthUser {
         issuer = US_OAUTH_USER_ISSUER
-        subject = US_OATUH_USER_SUBJECT
+        subject = US_OAUTH_USER_SUBJECT
       }
     }
 
