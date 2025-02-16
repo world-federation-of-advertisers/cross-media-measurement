@@ -223,7 +223,6 @@ MESSAGE_LIBS = [
     "result_group",
     "reporting_impression_qualification_filter",
     "reporting_interval",
-    "windowing_spec",
 ]
 
 proto_library(
@@ -305,17 +304,10 @@ proto_library(
     deps = [
         ":event_filter_proto",
         ":event_template_field_proto",
+        ":metric_frequency_spec_proto",
         ":reporting_impression_qualification_filter_proto",
-        ":windowing_spec_proto",
         "@com_google_googleapis//google/type:interval_proto",
     ],
-)
-
-proto_library(
-    name = "windowing_spec_proto",
-    srcs = ["windowing_spec.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [":metric_frequency_spec_proto"],
 )
 
 SERVICE_LIBS = [
@@ -360,6 +352,5 @@ proto_descriptor_set(
         ":reporting_impression_qualification_filter_proto",
         ":reporting_interval_proto",
         ":result_group_proto",
-        ":windowing_spec_proto",
     ],
 )

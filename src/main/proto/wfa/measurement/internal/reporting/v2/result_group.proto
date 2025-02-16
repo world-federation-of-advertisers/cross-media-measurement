@@ -19,8 +19,8 @@ package wfa.measurement.internal.reporting.v2;
 import "google/type/interval.proto";
 import "wfa/measurement/internal/reporting/v2/event_filter.proto";
 import "wfa/measurement/internal/reporting/v2/event_template_field.proto";
+import "wfa/measurement/internal/reporting/v2/metric_frequency_spec.proto";
 import "wfa/measurement/internal/reporting/v2/reporting_impression_qualification_filter.proto";
-import "wfa/measurement/internal/reporting/v2/windowing_spec.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
@@ -65,10 +65,14 @@ message ResultGroup {
     // A summary of the ReportingUnit
     ReportingUnitSummary reporting_unit_summary = 1;
 
-    // The time interval over which the metrics were computed
-    google.type.Interval time_interval = 2;
+    // The time interval over which non-cumulative results are computed.
+    google.type.Interval non_cumulative_time_interval = 2;
 
-    WindowingSpec windowing_spec = 3;
+    // The time interval over which cumulative results are computed.
+    google.type.Interval cumulative_time_interval = 3;
+
+    // The frequency over which metrics were computed
+    MetricFrequencySpec metric_frequency_spec = 4;
 
     // A summary of the aspects of the DimensionSpec that were applied
     message DimensionSpecSummary {
@@ -77,10 +81,10 @@ message ResultGroup {
       // The filters applied to the reported metrics
       repeated EventFilter filters = 2;
     }
-    DimensionSpecSummary dimension_spec_summary = 4;
+    DimensionSpecSummary dimension_spec_summary = 5;
 
     // The impression qualification filter that was applied
-    ReportingImpressionQualificationFilter filter = 5;
+    ReportingImpressionQualificationFilter filter = 6;
   }
 
   // The metric values
@@ -107,8 +111,12 @@ message ResultGroup {
     }
     // Metrics for the entire reporting_unit.
     message ReportingUnitMetricSet {
-      // The metrics for the union of the reporting_unit components
-      BasicMetricSet basic = 1;
+      // The non-cumulative metrics for the union of the reporting_unit
+      // components
+      BasicMetricSet non_cumulative = 1;
+
+      // The cumulative metrics for the union of the reporting_unit components
+      BasicMetricSet cumulative = 2;
 
       // The stacked incremental reach of the ReportingUnit.
       //
@@ -117,18 +125,21 @@ message ResultGroup {
       //  1. reach(edp1)
       //  2. reach(edp1+edp2) - reach(edp1)
       //  3. reach(edp1+edp2+edp3) - reach(edp1+edp2)
-      repeated int32 stacked_incremental_reach = 2;
+      repeated int32 stacked_incremental_reach = 3;
     }
     // Metrics for the whole reporting_unit
     ReportingUnitMetricSet reporting_unit = 2;
 
     // Metrics for a single component of the reporting_unit.
     message ComponentMetricSet {
-      // The basic metrics for this component
-      BasicMetricSet basic = 1;
+      // The non-cumulative basic metrics for this component
+      BasicMetricSet non_cumulative = 1;
+
+      // The cumulative basic metrics for this component
+      BasicMetricSet cumulative = 2;
 
       // The component's unique reach
-      int32 unique_reach = 2;
+      int32 unique_reach = 3;
     }
     // Entry for `DataProvider` components map.
     message DataProviderComponentMetricSetMapEntry {
@@ -153,8 +164,10 @@ message ResultGroup {
       // Ex: If a `DataProvider` has the name "dataproviders/abc", then the
       // ID is "abc".
       repeated string cmms_data_provider_ids = 1;
-      // Basic metrics for the intersection of the components
-      BasicMetricSet basic = 2;
+      // Non-cumulative Basic metrics for the intersection of the components
+      BasicMetricSet non_cumulative = 2;
+      // Cumulative Basic metrics for the intersection of the components
+      BasicMetricSet cumulative = 3;
     }
     // The metrics for the requested intersections
     repeated DataProviderComponentIntersectionMetricSet
