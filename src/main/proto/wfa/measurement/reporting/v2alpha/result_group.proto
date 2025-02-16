@@ -18,7 +18,7 @@ package wfa.measurement.reporting.v2alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
-import "google/type/interval.proto";
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/reporting/v2alpha/event_filter.proto";
 import "wfa/measurement/reporting/v2alpha/event_template_field.proto";
 import "wfa/measurement/reporting/v2alpha/metric_frequency_spec.proto";
@@ -269,16 +269,20 @@ message ResultGroup {
     ReportingUnitSummary reporting_unit_summary = 1
         [(google.api.field_behavior) = IMMUTABLE];
 
-    // The time interval over which non-cumulative results are computed.
-    google.type.Interval non_cumulative_time_interval = 2
+    // The time at which non-cumulative metrics start.
+    google.protobuf.Timestamp non_cumulative_metric_start_time = 2
         [(google.api.field_behavior) = IMMUTABLE];
 
-    // The time interval over which cumulative results are computed.
-    google.type.Interval cumulative_time_interval = 3
+    // The time at which cumulative metrics start.
+    google.protobuf.Timestamp cumulative_metric_start_time = 3
+        [(google.api.field_behavior) = IMMUTABLE];
+
+    // The time at which both cumulative and non-cumulative metrics end.
+    google.protobuf.Timestamp metric_end_time = 4
         [(google.api.field_behavior) = IMMUTABLE];
 
     // The reporting frequency for a result group
-    MetricFrequencySpec metric_frequency = 4
+    MetricFrequencySpec metric_frequency = 5
         [(google.api.field_behavior) = IMMUTABLE];
 
     // A summary of the aspects of the DimensionSpec that were applied
@@ -290,11 +294,11 @@ message ResultGroup {
           [(google.api.field_behavior) = IMMUTABLE];
     }
     // Summary of the grouping and filtering applied to the metrics
-    DimensionSpecSummary dimension_spec_summary = 5
+    DimensionSpecSummary dimension_spec_summary = 6
         [(google.api.field_behavior) = IMMUTABLE];
 
     // The impression qualification filter that was applied
-    ReportingImpressionQualificationFilter filter = 6
+    ReportingImpressionQualificationFilter filter = 7
         [(google.api.field_behavior) = IMMUTABLE];
   }
 
