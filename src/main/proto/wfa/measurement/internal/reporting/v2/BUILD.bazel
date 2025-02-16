@@ -306,7 +306,7 @@ proto_library(
         ":event_template_field_proto",
         ":metric_frequency_spec_proto",
         ":reporting_impression_qualification_filter_proto",
-        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:timestamp_proto",
     ],
 )
 

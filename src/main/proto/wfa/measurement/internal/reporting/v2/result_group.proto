@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
-import "google/type/interval.proto";
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/reporting/v2/event_filter.proto";
 import "wfa/measurement/internal/reporting/v2/event_template_field.proto";
 import "wfa/measurement/internal/reporting/v2/metric_frequency_spec.proto";
@@ -65,14 +65,17 @@ message ResultGroup {
     // A summary of the ReportingUnit
     ReportingUnitSummary reporting_unit_summary = 1;
 
-    // The time interval over which non-cumulative results are computed.
-    google.type.Interval non_cumulative_time_interval = 2;
+    // The time at which non-cumulative metrics start.
+    google.protobuf.Timestamp non_cumulative_metric_start_time = 2;
 
-    // The time interval over which cumulative results are computed.
-    google.type.Interval cumulative_time_interval = 3;
+    // The time at which cumulative metrics start.
+    google.protobuf.Timestamp cumulative_metric_start_time = 3;
+
+    // The time at which both cumulative and non-cumulative metrics end.
+    google.protobuf.Timestamp metric_end_time = 4;
 
     // The frequency over which metrics were computed
-    MetricFrequencySpec metric_frequency_spec = 4;
+    MetricFrequencySpec metric_frequency_spec = 5;
 
     // A summary of the aspects of the DimensionSpec that were applied
     message DimensionSpecSummary {
@@ -81,10 +84,10 @@ message ResultGroup {
       // The filters applied to the reported metrics
       repeated EventFilter filters = 2;
     }
-    DimensionSpecSummary dimension_spec_summary = 5;
+    DimensionSpecSummary dimension_spec_summary = 6;
 
     // The impression qualification filter that was applied
-    ReportingImpressionQualificationFilter filter = 6;
+    ReportingImpressionQualificationFilter filter = 7;
   }
 
   // The metric values
@@ -164,9 +167,9 @@ message ResultGroup {
       // Ex: If a `DataProvider` has the name "dataproviders/abc", then the
       // ID is "abc".
       repeated string cmms_data_provider_ids = 1;
-      // Non-cumulative Basic metrics for the intersection of the components
+      // Non-cumulative basic metrics for the intersection of the components
       BasicMetricSet non_cumulative = 2;
-      // Cumulative Basic metrics for the intersection of the components
+      // Cumulative basic metrics for the intersection of the components
       BasicMetricSet cumulative = 3;
     }
     // The metrics for the requested intersections
