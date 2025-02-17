@@ -1,0 +1,18 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/v2:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "testing",
+    srcs = glob(["*.kt"]),
+    resources = ["//src/main/resources/reporting/spanner"],
+    deps = [
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)

@@ -240,7 +240,7 @@ proto_library(
     name = "basic_report_result_details_proto",
     srcs = ["basic_report_result_details.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = [":result_group_proto"],
+    deps = ["@com_google_protobuf//:any_proto"],
 )
 
 proto_library(
@@ -356,10 +356,7 @@ proto_descriptor_set(
         ":event_filter_proto",
         ":event_template_field_proto",
         ":impression_qualification_filter_spec_proto",
-        ":metric_frequency_spec_proto",
         ":reporting_impression_qualification_filter_proto",
         ":reporting_interval_proto",
-        ":result_group_proto",
-        ":windowing_spec_proto",
     ],
 )

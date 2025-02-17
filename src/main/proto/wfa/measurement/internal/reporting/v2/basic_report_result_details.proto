@@ -16,12 +16,15 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
-import "wfa/measurement/internal/reporting/v2/result_group.proto";
+import "google/protobuf/any.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
 message BasicReportResultDetails {
-  // The report results
-  repeated ResultGroup result_groups = 1;
+  // The report results.
+  //
+  // Packed `ResultGroup` message. This significantly reduces the size of the
+  // proto bundle.
+  repeated google.protobuf.Any result_groups = 1;
 }
