@@ -96,6 +96,6 @@ reporting: #Reporting & {
 
 	services: {
 		"reporting-v2alpha-public-api-server": _ipAddressName: _publicApiAddressName
-		"access-internal-api-server": _ipAddressName:          _accessPublicApiAddressName
+		"access-public-api-server": _ipAddressName:            _accessPublicApiAddressName
 	}
 }

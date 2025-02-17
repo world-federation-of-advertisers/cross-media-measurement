@@ -21,6 +21,6 @@ kt_jvm_library(
 
 java_binary(
     name = "Access",
-    main_class = "org.wfanet.measurement.access.deploy.tools.access",
+    main_class = "org.wfanet.measurement.access.deploy.tools.Access",
     runtime_deps = [":access"],
 )
