@@ -38,6 +38,8 @@ class SketchGenerator(
   private val vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
 ) {
 
+  fun generate()
+
   /** Generates a [Sketch] for the specified [eventGroupSpecs]. */
   fun generate(eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>): Sketch {
     return with(SketchProtos.toAnySketch(sketchConfig)) {

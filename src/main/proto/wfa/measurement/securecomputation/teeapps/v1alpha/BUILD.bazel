@@ -26,3 +26,19 @@ kt_jvm_proto_library(
     name = "tee_app_config_kt_jvm_proto",
     deps = [":tee_app_config_proto"],
 )
+
+proto_library(
+    name = "requisitions_list_proto",
+    srcs = ["requisitions_list.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:any_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "requisitions_list_kt_jvm_proto",
+    deps = [":requisitions_list_proto"],
+)
