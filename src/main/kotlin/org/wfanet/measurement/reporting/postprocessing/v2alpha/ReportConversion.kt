@@ -115,7 +115,7 @@ object ReportConversion {
 fun Report.toReportSummaries(): List<ReportSummary> {
   require(state == Report.State.SUCCEEDED) { "Unsucceeded report is not supported." }
 
-  val ReportingSetSummaryById =
+  val reportingSetSummaryById =
     reportingMetricEntriesList.associate { entry ->
       val reportingSetId = entry.key
       val tag = tags.getValue(reportingSetId)
@@ -132,14 +132,15 @@ fun Report.toReportSummaries(): List<ReportSummary> {
     }
 
   val targetByShortReportingSetId =
-    ReportingSetSummaryById.map { (reportingSetId, ReportingSetSummary) ->
-        reportingSetId.substringAfterLast("/") to ReportingSetSummary.target
+    reportingSetSummaryById
+      .map { (reportingSetId, reportingSetSummary) ->
+        reportingSetId.substringAfterLast("/") to reportingSetSummary.target
       }
       .toMap()
 
-  // Generates a list of demographic groups. If the report doesn't support demographic slicing,
-  // the list contains the empty list, otherwise, it contains all the demographic groups.
-  val demographicGroups =
+  // Generates a set of demographic groups. If the report doesn't support demographic slicing,
+  // the set contains an empty list, otherwise, it contains all the demographic groups.
+  val demographicGroups: Set<List<String>> =
     metricCalculationSpecById.values
       .flatMap {
         val groups = it.grouping.split(",")
@@ -166,7 +167,7 @@ fun Report.toReportSummaries(): List<ReportSummary> {
   demographicGroups.forEach { demographicGroup ->
     val reportSummary = reportSummary {
       measurementSets.forEach { (key, value) ->
-        val reportingSetSummary = ReportingSetSummaryById.getValue(key.first)
+        val reportingSetSummary = reportingSetSummaryById.getValue(key.first)
         val metricCalculationSpec = metricCalculationSpecById.getValue(key.second)
 
         measurementDetails += measurementDetail {
