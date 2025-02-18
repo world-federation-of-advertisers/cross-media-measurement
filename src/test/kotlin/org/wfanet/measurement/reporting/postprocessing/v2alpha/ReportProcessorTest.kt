@@ -74,6 +74,20 @@ class ReportProcessorTest {
     assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
   }
 
+  @Test
+  fun `run correct report with demographic slicing successfully`() {
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_demographic_slicing.json").toFile()
+    val reportAsJson = reportFile.readText()
+
+    val report = ReportConversion.getReportFromJsonString(reportAsJson)
+    assertThat(report.hasConsistentMeasurements()).isFalse()
+
+    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
+    val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+  }
+
   companion object {
     private val TOLERANCE: Double = 1.0
     private val POLICIES = listOf("ami", "mrc", "custom")
