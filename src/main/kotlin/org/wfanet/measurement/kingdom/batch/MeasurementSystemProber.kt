@@ -122,7 +122,9 @@ class MeasurementSystemProber(
         )
       }
     }
+    print("prober run lastUpdatedMeasurement: $lastUpdatedMeasurement")
     if (shouldCreateNewMeasurement(lastUpdatedMeasurement)) {
+      print("should create another one")
       createMeasurement()
     }
   }
@@ -240,6 +242,7 @@ class MeasurementSystemProber(
     }
 
     if (lastUpdatedMeasurement.state !in COMPLETED_MEASUREMENT_STATES) {
+      print(lastUpdatedMeasurement.state)
       return false
     }
 
