@@ -2,8 +2,7 @@ package org.wfanet.measurement.securecomputation.teeapps.resultsfulfillment
 
 import com.google.common.hash.HashFunction
 import com.google.common.hash.Hashing
-import com.google.crypto.tink.tinkkey.KeyHandle
-import com.google.protobuf.Message
+import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Parser
 import com.google.protobuf.TextFormat
 import com.google.protobuf.duration
@@ -12,7 +11,6 @@ import io.grpc.StatusException
 import java.security.GeneralSecurityException
 import java.util.logging.Level
 import java.util.logging.Logger
-import kotlin.math.log2
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.random.Random
@@ -20,12 +18,9 @@ import kotlin.random.asJavaRandom
 import kotlinx.coroutines.flow.reduce
 import kotlinx.coroutines.flow.toList
 import org.apache.commons.math3.distribution.ConstantRealDistribution
-import org.wfanet.anysketch.Sketch
-import org.wfanet.anysketch.SketchConfig
-import org.wfanet.anysketch.SketchProtos
-import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.projectnessie.cel.Program
+import org.projectnessie.cel.common.types.BoolT
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt.variance
-import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DeterministicCount
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
@@ -56,19 +51,18 @@ import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.encryptResult
 import org.wfanet.measurement.consent.client.dataprovider.signResult
-import org.wfanet.measurement.dataprovider.RequisitionFulfiller
-import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
+import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.eventdataprovider.noiser.AbstractNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
-import org.wfanet.measurement.loadtest.config.VidSampling
-import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.loadtest.dataprovider.EventQuery
-import org.wfanet.measurement.loadtest.dataprovider.SketchGenerator
-import org.wfanet.measurement.loadtest.dataprovider.toSketchConfig
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.EncryptedDEK
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
@@ -78,7 +72,6 @@ import org.wfanet.measurement.securecomputation.teeapps.v1alpha.RequisitionsList
 import org.wfanet.measurement.securecomputation.teeapps.v1alpha.TeeAppConfig
 import org.wfanet.sampling.VidSampler
 import org.wfanet.virtualpeople.common.LabelerOutput
-import org.wfanet.virtualpeople.common.MetaLabelerOutput
 import org.wfanet.virtualpeople.common.VirtualPersonActivity
 
 
@@ -89,43 +82,35 @@ data class EventGroupData(
   val ds: String,
   /** The prefix of labelled impressions in ShardedStorage. */
   val prefix: String,
+  /** The program used to filter VIDs based on a requisition spec. */
+  val program: Program
 )
 
-class ResultFulfiller(
+class ResultsFulfillerApp(
   private val storageClient: StorageClient,
   private val shardedStorageClient: StorageClient,
-  val privateEncryptionKey: PrivateKeyHandle,
-  val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
-  val dataProviderCertificateKey: DataProviderCertificateKey?,
-  val dataProviderSigningKeyHandle: SigningKeyHandle?,
+  private val privateEncryptionKey: PrivateKeyHandle,
+  private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
+  private val dataProviderCertificateKey: DataProviderCertificateKey?,
+  private val dataProviderSigningKeyHandle: SigningKeyHandle?,
+  private val privacyBudgetManager: PrivacyBudgetManager,
+  private val measurementConsumerName: String,
   subscriptionId: String,
   queueSubscriber: QueueSubscriber,
   parser: Parser<TriggeredApp>,
   private val random: Random = Random,
-  ): BaseTeeApplication<TriggeredApp>(subscriptionId,queueSubscriber,parser) {
+): BaseTeeApplication<TriggeredApp>(subscriptionId,queueSubscriber,parser) {
 
   override suspend fun runWork(message: TriggeredApp) {
     val teeAppConfig = message.config.unpack(TeeAppConfig::class.java)
     assert(teeAppConfig.workTypeCase == TeeAppConfig.WorkTypeCase.REACH_AND_FREQUENCY_CONFIG)
     val reachAndFrequencyConfig = teeAppConfig.reachAndFrequencyConfig
 
-    // Gets path to list of new stored requisitions in blob storage
-    val requisitionsBlob = storageClient.getBlob(message.path)!!
-    val requisitionsData =
-      requisitionsBlob.read().reduce { acc, byteString -> acc.concat(byteString) }.toStringUtf8()
-    val requisitions = RequisitionsList.getDefaultInstance()
-      .newBuilderForType()
-      .apply { TextFormat.Parser.newBuilder().build().merge(requisitionsData, this) }
-      .build() as RequisitionsList
+    // Gets list of new requisitions in blob storage from the path provided in the TriggeredApp event
+    val requisitions = getRequisitions(message.path)
 
-    for (requisitionData in requisitions.requisitionsList) {
-      val requisition = Requisition.getDefaultInstance()
-        .newBuilderForType()
-        .apply { TextFormat.Parser.newBuilder().build().merge(requisitionData, this) }
-        .build() as Requisition
-
+    for (requisition in requisitions) {
       val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-
       val signedRequisitionSpec: SignedMessage =
         try {
           decryptRequisitionSpec(
@@ -137,7 +122,7 @@ class ResultFulfiller(
         }
       val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
 
-      // Get EventGroups for this requisition from different EDPs
+      // Get EventGroupData for this requisition from different EDPs
       val eventGroupDataList = requisitionSpec.events.eventGroupsList.map {
         val eventGroupKey =
           EventGroupKey.fromName(it.key)
@@ -146,7 +131,9 @@ class ResultFulfiller(
               "Invalid EventGroup resource name ${it.key}",
             )
         val ds = it.value.collectionInterval.toRange().toString()
-        EventGroupData(eventGroupKey, ds, "")
+        val spec = it.value.filter
+        val program = compileProgram(spec, VirtualPersonActivity.getDescriptor())
+        EventGroupData(eventGroupKey, ds, "", program)
       }
 
       val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
@@ -166,6 +153,9 @@ class ResultFulfiller(
             measurementSpec,
             requisitionSpec.nonce,
             eventGroupDataList,
+            requisitionSpec.events.eventGroupsList.map {
+              it.value
+            },
             directProtocolConfig,
             selectReachAndFrequencyNoiseMechanism(directNoiseMechanismOptions),
           )
@@ -196,6 +186,24 @@ class ResultFulfiller(
     }
   }
 
+  private suspend fun getRequisitions(blobKey: String): List<Requisition> {
+    // Gets path to list of new requisitions in blob storage
+    val requisitionsBlob = storageClient.getBlob(blobKey)!!
+    val requisitionsData =
+      requisitionsBlob.read().reduce { acc, byteString -> acc.concat(byteString) }.toStringUtf8()
+    val requisitions = RequisitionsList.getDefaultInstance()
+      .newBuilderForType()
+      .apply { TextFormat.Parser.newBuilder().build().merge(requisitionsData, this) }
+      .build() as RequisitionsList
+
+    return requisitions.requisitionsList.map {
+      Requisition.getDefaultInstance()
+        .newBuilderForType()
+        .apply { TextFormat.Parser.newBuilder().build().merge(it, this) }
+        .build() as Requisition
+    }
+  }
+
   /**
    * Selects the most preferred [DirectNoiseMechanism] for reach and frequency measurements from the
    * overlap of a list of preferred [DirectNoiseMechanism] and a set of [DirectNoiseMechanism]
@@ -217,10 +225,16 @@ class ResultFulfiller(
     measurementSpec: MeasurementSpec,
     nonce: Long,
     eventGroupDataList: Iterable<EventGroupData>,
+    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
     directProtocolConfig: ProtocolConfig.Direct,
     directNoiseMechanism: DirectNoiseMechanism
   ) {
-    // TODO: charge privacy budget
+    chargeDirectPrivacyBudget(
+      requisition.name,
+      measurementSpec,
+      eventSpecs,
+      directNoiseMechanism,
+    )
 
     logger.info("Calculating direct reach and frequency...")
     val samples = sampleVids(eventGroupDataList, measurementSpec.vidSamplingInterval)
@@ -234,14 +248,67 @@ class ResultFulfiller(
     fulfillDirectMeasurement(requisition, measurementSpec, nonce, measurementResult)
   }
 
+  private suspend fun chargeDirectPrivacyBudget(
+    requisitionName: String,
+    measurementSpec: MeasurementSpec,
+    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
+    directNoiseMechanism: DirectNoiseMechanism,
+  ) {
+    logger.info("chargeDirectPrivacyBudget for requisition $requisitionName...")
+
+    try {
+      if (directNoiseMechanism != DirectNoiseMechanism.CONTINUOUS_GAUSSIAN) {
+        throw PrivacyBudgetManagerException(
+          PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM
+        )
+      }
+
+      privacyBudgetManager.chargePrivacyBudgetInAcdp(
+        PrivacyQueryMapper.getDirectAcdpQuery(
+          Reference(measurementConsumerName, requisitionName, false),
+          measurementSpec,
+          eventSpecs,
+        )
+      )
+    } catch (e: PrivacyBudgetManagerException) {
+      logger.log(Level.WARNING, "chargeDirectPrivacyBudget failed due to ${e.errorType}", e)
+      when (e.errorType) {
+        PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
+          throw RequisitionRefusalException(
+            Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
+            "Privacy budget exceeded",
+          )
+        }
+        PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER -> {
+          throw RequisitionRefusalException(
+            Requisition.Refusal.Justification.SPEC_INVALID,
+            "Invalid event filter",
+          )
+        }
+        PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM -> {
+          throw RequisitionRefusalException(
+            Requisition.Refusal.Justification.SPEC_INVALID,
+            "Incorrect noise mechanism. Should be GAUSSIAN for ACDP composition but is $directNoiseMechanism",
+          )
+        }
+        PrivacyBudgetManagerExceptionType.DATABASE_UPDATE_ERROR,
+        PrivacyBudgetManagerExceptionType.UPDATE_AFTER_COMMIT,
+        PrivacyBudgetManagerExceptionType.NESTED_TRANSACTION,
+        PrivacyBudgetManagerExceptionType.BACKING_STORE_CLOSED -> {
+          throw Exception("Unexpected PBM error", e)
+        }
+      }
+    }
+  }
+
   protected suspend fun fulfillDirectMeasurement(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
     nonce: Long,
     measurementResult: Measurement.Result,
   ) {
-    RequisitionFulfiller.logger.log(Level.INFO, "Direct MeasurementSpec:\n$measurementSpec")
-    RequisitionFulfiller.logger.log(Level.INFO, "Direct MeasurementResult:\n$measurementResult")
+    logger.log(Level.INFO, "Direct MeasurementSpec:\n$measurementSpec")
+    logger.log(Level.INFO, "Direct MeasurementResult:\n$measurementResult")
 
     DataProviderCertificateKey.fromName(requisition.dataProviderCertificate)
       ?: throw Exception(
@@ -298,6 +365,7 @@ class ResultFulfiller(
       val prefix = it.prefix
       val blobKey = "/$prefix/ds/$ds/event-group-id/$eventGroupId/metadata"
 
+      // Get EncryptedDek message from storage using the blobKey made up of the ds and eventGroupId
       val encryptedDekBlob = storageClient.getBlob(blobKey)!!
       val encryptedDekData =
         encryptedDekBlob.read().reduce { acc, byteString -> acc.concat(byteString) }.toStringUtf8()
@@ -306,11 +374,12 @@ class ResultFulfiller(
         .apply { TextFormat.Parser.newBuilder().build().merge(encryptedDekData, this) }
         .build() as EncryptedDEK
 
-      // Get blobKey used to retrieve merged sharded impressions
+      // Get blobKey used to retrieve merged sharded impressions from ShardedStorage
       // "/$prefix/ds/$ds/event-group-id/$eventGroupId/sharded-impressions
       val shardedStorageBlobKey = storageClient.getBlob(encryptedDek.blobKey)!!
         .read().reduce { acc, byteString -> acc.concat(byteString)}.toStringUtf8()
 
+      // Returns the LabelerOutput messages stored in ShardedStorage
       shardedStorageClient.getBlob(shardedStorageBlobKey)!!
         .read().toList().map {
           LabelerOutput.getDefaultInstance()
@@ -318,11 +387,21 @@ class ResultFulfiller(
             .apply { TextFormat.Parser.newBuilder().build().merge(it.toStringUtf8(), this) }
             .build() as LabelerOutput
         }
-    }.flatten()
+        // Gets all the VirtualPersonActivity for each of the LabelerOutput messages and flattens
+        .map { labellerOutput ->
+          labellerOutput.peopleList
+        }
+        .flatten()
+        // Filters out all the VirtualPersonActivity messages are not needed for the requisition
+        .filter {virtualPersonActivity ->
+          EventFilters.matches(virtualPersonActivity, it.program)
+        }
+    }.flatten().filterNotNull()
 
+
+    // Samples data
     return labelledImpressions
-      .map { it.peopleList.map { jt -> jt.virtualPersonId } }
-      .flatten()
+      .map { it.virtualPersonId }
       .filter { vid ->
         sampler.vidIsInSamplingBucket(
           vid,
@@ -330,6 +409,18 @@ class ResultFulfiller(
           vidSamplingIntervalWidth,
         )
       }
+  }
+
+  fun compileProgram(
+    eventFilter: RequisitionSpec.EventFilter,
+    eventMessageDescriptor: Descriptor,
+  ): Program {
+    // EventFilters should take care of this, but checking here is an optimization that can skip
+    // creation of a CEL Env.
+    if (eventFilter.expression.isEmpty()) {
+      return Program { TRUE_EVAL_RESULT }
+    }
+    return EventFilters.compileProgram(eventMessageDescriptor, eventFilter.expression)
   }
 
   /**
@@ -578,43 +669,6 @@ class ResultFulfiller(
     return max(0L, impressionValue + noise.roundToInt())
   }
 
-//  private suspend fun getLabelledImpressionsBlobKey(requisitionSpec: RequisitionSpec)
-//  private suspend fun getShardedLabelledImpressions(requisitionSpec: RequisitionSpec) {
-//
-//  }
-
-
-
-//  private suspend fun getRequisition(resourceName: String): Requisition {
-//    // TODO: Will we get the requisition from storage or kingdom? Because currently the list of requisition
-//    // paths is stored in storage. It doesnt make sense to store the list and the individual requisitions
-//    // in storage. So I need to either store the list of type Requisition in the path from TriggeredApp.path
-//    // and just use those, or
-//    val requisitionBlob = storageClient.getBlob(resourceName)!!
-//    val requisitionData = requisitionBlob
-//      .read()
-//      .reduce { acc, byteString -> acc.concat(byteString) }
-//      .toStringUtf8()
-//    return Requisition.getDefaultInstance()
-//      .newBuilderForType()
-//      .apply { TextFormat.Parser.newBuilder().build().merge(requisitionData, this) }
-//      .build() as Requisition
-//  }
-
-  fun generateSketch(
-    metaLaberOutputList: List<MetaLabelerOutput>,
-    sketchConfig: SketchConfig,
-  ): Sketch {
-    logger.info("Generating Sketch...")
-    val sketch = SketchProtos.toAnySketch(sketchConfig)
-    metaLaberOutputList.map {metaLaberOutput ->
-      metaLaberOutput.labelerOutput.peopleList.map {
-        sketch.insert(it.virtualPersonId, mapOf("frequency" to 1L))
-      }
-    }
-    return SketchProtos.fromAnySketch(sketch, sketchConfig)
-  }
-
   /**
    * Converts a [NoiseMechanism] to a nullable [DirectNoiseMechanism].
    *
@@ -637,6 +691,8 @@ class ResultFulfiller(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val VID_SAMPLER_HASH_FUNCTION: HashFunction = Hashing.farmHashFingerprint64()
+    private val TRUE_EVAL_RESULT = Program.newEvalResult(BoolT.True, null)
+
     val sampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
     /** [RequisitionRefusalException] for EventGroups. */
     protected open class RequisitionRefusalException(

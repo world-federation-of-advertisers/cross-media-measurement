@@ -16,8 +16,6 @@
 
 package org.wfanet.measurement.securecomputation.resultsfulfillment
 
-import com.google.protobuf.TypeRegistry
-import org.projectnessie.cel.Program
 
 /** Utilities for computing Measurement results. */
 object MeasurementResults {

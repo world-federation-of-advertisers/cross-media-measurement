@@ -3056,7 +3056,7 @@ class EdpSimulatorTest {
 
     private val LIQUID_LEGIONS_SKETCH_PARAMS = liquidLegionsSketchParams {
       decayRate = LLV2_DECAY_RATE
-      maxSize = LLV2_MAX_SIZEexpectedSketch
+      maxSize = LLV2_MAX_SIZE
       samplingIndicatorSize = 10_000_000
     }
 
