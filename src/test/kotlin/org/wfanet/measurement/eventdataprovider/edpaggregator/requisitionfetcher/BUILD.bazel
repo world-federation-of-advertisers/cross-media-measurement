@@ -15,10 +15,10 @@ kt_jvm_test(
         "//src/main/k8s/testing/secretfiles:all_tink_keysets",
         "//src/main/k8s/testing/secretfiles:edp_trusted_certs.pem",
     ],
-    test_class = "org.wfanet.measurement.securecomputation.requisitions.RequisitionFetcherTest",
+    test_class = "org.wfanet.measurement.eventdataprovider.edpaggregator.requisitionfetcher.RequisitionFetcherTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
-        "//src/main/kotlin/org/wfanet/measurement/securecomputation/requisitions:requisition_fetcher",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/edpaggregator/requisitionfetcher:requisition_fetcher",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/storage/contrib/nio",
@@ -33,6 +33,6 @@ kt_jvm_test(
 
 java_test(
     name = "RequisitionFetcherTest",
-    test_class = "org.wfanet.measurement.securecomputation.requisitions.RequisitionFetcherTest",
+    test_class = "org.wfanet.measurement.eventdataprovider.edpaggregator.requisitionfetcher.RequisitionFetcherTest",
     runtime_deps = [":requisition_fetcher_test"],
 )

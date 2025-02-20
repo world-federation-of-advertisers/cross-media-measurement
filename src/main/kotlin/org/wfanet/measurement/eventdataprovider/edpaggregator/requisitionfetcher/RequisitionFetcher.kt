@@ -14,19 +14,18 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.requisitions
+package org.wfanet.measurement.eventdataprovider.edpaggregator.requisitionfetcher
 
 import io.grpc.StatusException
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
-import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 
 /**
- * Kotlin class responsible for fetching requisitions from the Kingdom and persisting them into GCS.
+ * Class responsible for fetching requisitions from the Kingdom and persisting them into GCS.
  *
  * @param requisitionsStub used to pull [Requisition]s from the kingdom
  *
@@ -81,6 +80,6 @@ class RequisitionFetcher(
   }
 
   companion object {
-    val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.requisitions
+package org.wfanet.measurement.eventdataprovider.edpaggregator.requisitionfetcher
 
 import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
@@ -28,7 +28,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.toByteArray
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 
-class RequisitionFetcherRunner : HttpFunction {
+class RequisitionFetcherFunction: HttpFunction {
   override fun service(request: HttpRequest, response: HttpResponse) {
     runBlocking { requisitionFetcher.executeRequisitionFetchingWorkflow() }
   }

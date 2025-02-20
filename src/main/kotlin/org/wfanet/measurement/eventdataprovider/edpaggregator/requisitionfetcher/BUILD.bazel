@@ -1,7 +1,7 @@
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
-package(default_visibility = ["//visibility:public"])
+package(default_visibility = ["//src/test/kotlin/org/wfanet/measurement/eventdataprovider/edpaggregator/requisitionfetcher:__subpackages__"])
 
 kt_jvm_library(
     name = "requisition_fetcher",
@@ -16,20 +16,20 @@ kt_jvm_library(
 
 java_binary(
     name = "RequisitionFetcher",
-    main_class = "org.wfanet.measurement.securecomputation.requisitions.RequisitionFetcher",
+    main_class = "org.wfanet.measurement.eventdataprovider.edpaggregator.requisitionfetcher.RequisitionFetcher",
     runtime_deps = [":requisition_fetcher"],
 )
 
 kt_jvm_library(
-    name = "requisition_fetcher_runner",
-    srcs = ["RequisitionFetcherRunner.kt"],
+    name = "requisition_fetcher_function",
+    srcs = ["RequisitionFetcherFunction.kt"],
     deps = [
         ":requisition_fetcher",
     ],
 )
 
 java_binary(
-    name = "RequisitionFetcherRunner",
-    main_class = "org.wfanet.measurement.securecomputation.requisitions.RequisitionFetcherRunner",
-    runtime_deps = [":requisition_fetcher_runner"],
+    name = "RequisitionFetcherFunction",
+    main_class = "org.wfanet.measurement.eventdataprovider.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
+    runtime_deps = [":requisition_fetcher_function"],
 )

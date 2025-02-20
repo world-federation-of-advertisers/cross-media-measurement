@@ -11,11 +11,11 @@ package(
         "//src/main/kotlin/org/wfanet/measurement/testing:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/access:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/api:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/edpaggregator/requisitionfetcher:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/kingdom/batch:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/reporting:__subpackages__",
-        "//src/test/kotlin/org/wfanet/measurement/securecomputation/requisitions:__subpackages__",
         "//src/test/kotlin/org/wfanet/panelmatch/integration:__subpackages__",
     ],
 )
