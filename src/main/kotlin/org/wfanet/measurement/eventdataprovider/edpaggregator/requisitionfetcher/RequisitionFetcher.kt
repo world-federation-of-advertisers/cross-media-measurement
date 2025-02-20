@@ -28,9 +28,7 @@ import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
  * Class responsible for fetching requisitions from the Kingdom and persisting them into GCS.
  *
  * @param requisitionsStub used to pull [Requisition]s from the kingdom
- *
  * @param gcsStorageClient used to store new [Requisition]s
- *
  * @param dataProviderName of the EDP for which [Requisition]s will be retrieved
  */
 class RequisitionFetcher(
@@ -43,7 +41,7 @@ class RequisitionFetcher(
 
     val requisitions = fetchRequisitions()
 
-    logger.fine("${requisitions.size} unfulfilled requisitions retrieved for $dataProviderName")
+    logger.fine {"${requisitions.size} unfulfilled requisitions retrieved for $dataProviderName"}
 
     if (requisitions.isNotEmpty()) {
       storeRequisitions(requisitions)
@@ -53,10 +51,7 @@ class RequisitionFetcher(
   private suspend fun fetchRequisitions(): List<Requisition> {
     val request = listRequisitionsRequest {
       parent = dataProviderName
-      filter =
-        ListRequisitionsRequestKt.filter {
-          states += Requisition.State.UNFULFILLED
-        }
+      filter = ListRequisitionsRequestKt.filter { states += Requisition.State.UNFULFILLED }
     }
 
     try {
@@ -68,7 +63,7 @@ class RequisitionFetcher(
 
   private suspend fun storeRequisitions(requisitions: List<Requisition>) {
     for (requisition in requisitions) {
-      val blobKey= requisition.name
+      val blobKey = requisition.name
 
       // Only stores the requisition if it does not already exist in the GCS bucket by checking if
       // the blob key(created

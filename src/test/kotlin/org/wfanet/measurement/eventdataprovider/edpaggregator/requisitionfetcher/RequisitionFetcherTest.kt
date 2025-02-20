@@ -81,11 +81,7 @@ class RequisitionFetcherTest {
     val fetcher = RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME)
     val persistedRequisition = runBlocking {
       fetcher.executeRequisitionFetchingWorkflow()
-      storageClient
-        .getBlob(REQUISITION.name)
-        ?.read()
-        ?.toByteArray()
-        ?.toByteString()
+      storageClient.getBlob(REQUISITION.name)?.read()?.toByteArray()?.toByteString()
     }
 
     assertThat(REQUISITION.toByteString()).isEqualTo(persistedRequisition)

@@ -28,7 +28,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.toByteArray
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 
-class RequisitionFetcherFunction: HttpFunction {
+class RequisitionFetcherFunction : HttpFunction {
   override fun service(request: HttpRequest, response: HttpResponse) {
     runBlocking { requisitionFetcher.executeRequisitionFetchingWorkflow() }
   }
