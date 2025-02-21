@@ -10,7 +10,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
 )
 
@@ -25,11 +25,14 @@ kt_jvm_library(
     srcs = ["RequisitionFetcherFunction.kt"],
     deps = [
         ":requisition_fetcher",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
     ],
 )
 
 java_binary(
     name = "RequisitionFetcherFunction",
     main_class = "org.wfanet.measurement.eventdataprovider.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
-    runtime_deps = [":requisition_fetcher_function"],
+    runtime_deps = [
+        ":requisition_fetcher_function",
+    ],
 )
