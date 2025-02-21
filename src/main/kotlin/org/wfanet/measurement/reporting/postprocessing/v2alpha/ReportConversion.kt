@@ -73,7 +73,9 @@ object ReportConversion {
     }
 
     return ReportingSetSummary(
-      measurementPolicy = data.getValue("measurement_policy"),
+      measurementPolicy =
+        data.getValue("measurement_policy").takeUnless { it.isEmpty() }
+          ?: data.getValue("measurement_policy_incrementality"),
       target = data.getValue("target").split(","),
       uniqueReachTarget = data.getValue("unique_Reach_Target").takeUnless { it.isEmpty() } ?: "",
       lhsReportingSetIds =
