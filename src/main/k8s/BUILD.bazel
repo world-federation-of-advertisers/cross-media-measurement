@@ -121,3 +121,13 @@ cue_library(
         ":config",
     ],
 )
+
+cue_library(
+    name = "control_plane",
+    srcs = ["control_plane_v2.cue"],
+    deps = [
+        ":base",
+        ":config",
+        ":spanner",
+    ],
+)
