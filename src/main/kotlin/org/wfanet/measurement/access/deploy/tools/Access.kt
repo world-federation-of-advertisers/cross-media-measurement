@@ -94,8 +94,8 @@ class Access private constructor() : Runnable {
     names = ["--access-public-api-cert-host"],
     description =
       [
-        "Expected hostname (DNS-ID) in the Access API server's TLS certificate.",
-        "This overrides derivation of the TLS DNS-ID from --access-public-api-target.",
+        "Expected hostname (DNS-ID) in the Access API server's TLS certificate. " +
+          "This overrides derivation of the TLS DNS-ID from --access-public-api-target."
       ],
     required = false,
   )
@@ -476,7 +476,8 @@ class ListPermissions : Runnable {
     names = ["--page-token"],
     description =
       [
-        "A page token, received from a previous `ListPermissions` call. Provide this to retrieve the subsequent page."
+        "A page token, received from a previous `ListPermissions` call. " +
+          "Provide this to retrieve the subsequent page."
       ],
     defaultValue = "",
     required = false,
@@ -575,7 +576,7 @@ private class PolicyBinding {
     names = ["--binding-member"],
     description =
       [
-        "Resource name of the Principal, which is a member of the this Role on `resource`. " +
+        "Resource name of the Principal, which is a member of the Role on `resource`. " +
           "Can be specified multiple times."
       ],
     required = true,
