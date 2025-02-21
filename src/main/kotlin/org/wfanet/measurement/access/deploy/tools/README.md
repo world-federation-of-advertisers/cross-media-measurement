@@ -51,7 +51,7 @@ server's trusted certificate collection file.
 
   Arguments:
 
-  `<principalName>` API resource name of the Principal
+  `<principalName>`: API resource name of the Principal
 
 * `create`
 
@@ -126,7 +126,7 @@ server's trusted certificate collection file.
 
   Arguments:
 
-  `<roleName>` API resource name of the Role
+  `<roleName>`: API resource name of the Role
 
 * `list`
 
@@ -141,7 +141,7 @@ server's trusted certificate collection file.
 
   `--page-size`: The maximum number of Roles to return
 
-  `--page-token` A page token, received from a previous `ListRoles` call. Provide this
+  `--page-token`: A page token, received from a previous `ListRoles` call. Provide this
   to retrieve the subsequent page.
 
 
@@ -293,15 +293,15 @@ server's trusted certificate collection file.
 
   Arguments:
 
-  `--policy-id=`: Resource ID of the Policy
+  `--policy-id`: Resource ID of the Policy
 
-  `--protected-resource=`: Name of the resource protected by this Policy. If not
+  `--protected-resource`: Name of the resource protected by this Policy. If not
   specified, this means the root of the protected API.
 
-  `--binding-member=`: Resource name of the Principal which is a member of
+  `--binding-member`: Resource name of the Principal which is a member of
   the Role on `resource`
 
-  `--binding-role=`: Resource name of the Role
+  `--binding-role`: Resource name of the Role
 
 * `lookup`
 
@@ -316,7 +316,7 @@ server's trusted certificate collection file.
 
   Arguments:
 
-  `-protected-resource=`: Name of the resource to which the policy applies
+  `-protected-resource`: Name of the resource to which the policy applies
 
 * `add-members`
 
