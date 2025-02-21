@@ -296,6 +296,14 @@ REPORTING_V2_GKE_IMAGES = [
     ),
 ]
 
+CONTROL_PLANE_GKE_IMAGES = [
+    struct(
+        name = "gcloud_reporting_v2_internal_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/postgres/server:gcloud_postgres_internal_reporting_server_image",
+        repository = _PREFIX + "/reporting/v2/postgres-internal-server",
+    ),
+]
+
 ALL_GKE_IMAGES = COMMON_IMAGES + GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_GKE_IMAGES
 
 ALL_LOCAL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_LOCAL_IMAGES
