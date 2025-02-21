@@ -14,7 +14,7 @@
 
 package k8s
 
-#ControlPlane: {
+#ControlPlane: ControlPlane = {
 
     _verboseGrpcServerLogging: bool | *false
 	_verboseGrpcClientLogging: bool | *false
@@ -23,7 +23,7 @@ package k8s
 
     _imageSuffixes: [_=string]: string
 	_imageSuffixes: {
-		"control-plane-api-server": string | *"/secure-computation/control-plane-api-v1alpha"
+		"control-plane-v1alpha-api-server": string | *"control-plane/v1/v1alpha-api"
 	}
 	_imageConfigs: [_=string]: #ImageConfig
 	_imageConfigs: {
@@ -58,7 +58,7 @@ package k8s
     }
 
     deployments: {
-        "control-plane-api-server": {
+        "control-plane-v1alpha-api-server": {
             _container: args: [
                 "--port=8443",
                 "--health-port=8080",
