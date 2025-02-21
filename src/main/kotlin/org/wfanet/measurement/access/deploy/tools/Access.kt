@@ -346,7 +346,7 @@ class CreateRole : Runnable {
   @Option(
     names = ["--permission"],
     description =
-      ["Resource name of permission granted by this Role. Can be specified multiple times."],
+      ["Resource name of Permission granted by this Role. Can be specified multiple times."],
     required = true,
   )
   private lateinit var permissionList: List<String>
@@ -389,7 +389,7 @@ class UpdateRole : Runnable {
   @Option(
     names = ["--permission"],
     description =
-      ["Resource name of permission granted by this Role. Can be specified multiple times."],
+      ["Resource name of Permission granted by this Role. Can be specified multiple times."],
     required = true,
   )
   private lateinit var permissionList: List<String>
@@ -521,7 +521,7 @@ class CheckPermissions : Runnable {
 
   @Option(
     names = ["--permission"],
-    description = ["Resource name of permission to check. Can be specified multiple times."],
+    description = ["Resource name of Permission to check. Can be specified multiple times."],
     required = true,
   )
   private lateinit var permissionList: List<String>
@@ -575,7 +575,7 @@ private class PolicyBinding {
     names = ["--binding-member"],
     description =
       [
-        "Resource name of the principal which is a member of the this Role on `resource`" +
+        "Resource name of the Principal, which is a member of the this Role on `resource`. " +
           "Can be specified multiple times."
       ],
     required = true,
@@ -652,7 +652,7 @@ class LookupPolicy : Runnable {
 
   @Option(
     names = ["--protected-resource"],
-    description = ["Name of the resource to which the policy applies"],
+    description = ["Name of the resource to which the Policy applies"],
     required = true,
   )
   private lateinit var resource: String
