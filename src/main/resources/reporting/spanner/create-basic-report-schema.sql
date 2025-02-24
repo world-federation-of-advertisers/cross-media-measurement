@@ -55,7 +55,13 @@ CREATE PROTO BUNDLE (
   `wfa.measurement.internal.reporting.v2.BasicReportResultDetails`,
 );
 
+CREATE TABLE MeasurementConsumers (
+  MeasurementConsumerId INT64 NOT NULL,
+  CmmsMeasurementConsumerId STRING(MAX) NOT NULL
+) PRIMARY KEY (MeasurementConsumerId);
+
 CREATE TABLE BasicReports (
+  MeasurementConsumerId INT64 NOT NULL,
   BasicReportId INT64 NOT NULL,
   CmmsMeasurementConsumerId STRING(MAX) NOT NULL,
   ExternalBasicReportId STRING(MAX) NOT NULL,
@@ -67,8 +73,11 @@ CREATE TABLE BasicReports (
   BasicReportResultDetails `wfa.measurement.internal.reporting.v2.BasicReportResultDetails`,
   BasicReportsIndexShardId INT64 NOT NULL AS (
     ABS(MOD(FARM_FINGERPRINT(CAST(BasicReportId AS STRING)), 64))
-  ) STORED
-) PRIMARY KEY (BasicReportId);
+  ) STORED,
+
+  FOREIGN KEY (MeasurementConsumerId) REFERENCES MeasurementConsumers (MeasurementConsumerId)
+) PRIMARY KEY (MeasurementConsumerId, BasicReportId),
+INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
 
 CREATE UNIQUE INDEX BasicReportsByExternalBasicReportId
   ON BasicReports(CmmsMeasurementConsumerId, ExternalBasicReportId);
