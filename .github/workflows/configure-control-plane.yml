@@ -124,6 +124,20 @@ jobs:
         tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/archive.tar"
         -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/control_plane_secrets"
 
-    - name: Write encryption key-pair config
-      env:
-        ENCRYPTION
+    - name: Export KUSTOMIZE_PATH
+      run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/control_plane" >> $GITHUB_ENV
+
+    - name: kubectl diff
+      id: kubectl-diff
+      run: kubectl diff -k "$KUSTOMIZE_PATH" || (( $? == 1 ))
+
+    - name: kubectl apply
+      if: ${{ inputs.apply }}
+      run: kubectl apply -k "$KUSTOMIZE_PATH"
+
+    - name: Wait for rollout
+      if: ${{ inputs.apply }}
+      run: |
+        for deployment in $(kubectl get deployments -o name); do
+          kubectl rollout status "$deployment" --timeout=5m
+        done
