@@ -102,11 +102,6 @@ jobs:
         tar -xf "$BAZEL_BIN/src/main/k8s/dev/control_plane.tar"
         -C "$KUSTOMIZATION_PATH"
 
-    - name: Extract secret files archive
-      run: >
-        tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/archive.tar"
-        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/control_plane_secrets"
-
     - name: Export KUSTOMIZE_PATH
       run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/control_plane" >> $GITHUB_ENV
 
