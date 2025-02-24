@@ -60,6 +60,9 @@ CREATE TABLE MeasurementConsumers (
   CmmsMeasurementConsumerId STRING(MAX) NOT NULL
 ) PRIMARY KEY (MeasurementConsumerId);
 
+CREATE UNIQUE INDEX MeasurementConsumersByCmmsMeasurementConsumerId
+  ON MeasurementConsumers(CmmsMeasurementConsumerId);
+
 CREATE TABLE BasicReports (
   MeasurementConsumerId INT64 NOT NULL,
   BasicReportId INT64 NOT NULL,
