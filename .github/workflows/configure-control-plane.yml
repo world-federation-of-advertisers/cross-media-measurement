@@ -119,3 +119,11 @@ jobs:
         for deployment in $(kubectl get deployments -o name); do
           kubectl rollout status "$deployment" --timeout=5m
         done
+    - name: Extract secret files archive
+      run: >
+        tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/archive.tar"
+        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/control_plane_secrets"
+
+    - name: Write encryption key-pair config
+      env:
+        ENCRYPTION
