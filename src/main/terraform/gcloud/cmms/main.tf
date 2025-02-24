@@ -24,6 +24,7 @@ locals {
   reporting_cluster_name    = "reporting"
   reporting_v2_cluster_name = "reporting-v2"
   simulators_cluster_name   = "simulators"
+  control_plane_cluster_name = "control-plane"
 
   cluster_location        = var.cluster_location == null ? data.google_client_config.default.zone : var.cluster_location
   key_ring_location       = var.key_ring_location == null ? data.google_client_config.default.region : var.key_ring_location
