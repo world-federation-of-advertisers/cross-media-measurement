@@ -49,6 +49,8 @@ class RequisitionFetcher(
   }
 
   private suspend fun fetchRequisitions(): List<Requisition> {
+    // TODO: Update logic once we have a more efficient way to pull only the Requisitions that have
+    // not been stored in storage.
     val request = listRequisitionsRequest {
       parent = dataProviderName
       filter = ListRequisitionsRequestKt.filter { states += Requisition.State.UNFULFILLED }
