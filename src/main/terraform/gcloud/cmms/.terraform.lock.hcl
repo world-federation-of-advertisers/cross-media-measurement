@@ -25,9 +25,10 @@ provider "registry.terraform.io/cyrilgdn/postgresql" {
 }
 
 provider "registry.terraform.io/hashicorp/google" {
-  version     = "6.23.0"
-  constraints = ">= 4.63.0, >= 5.4.0, >= 5.37.0, >= 6.3.0, >= 6.23.0, ~> 6.23.0"
+  version     = "6.3.0"
+  constraints = ">= 4.63.0, >= 5.4.0, >= 5.37.0, >= 6.3.0, ~> 6.3.0"
   hashes = [
+    "h1:SpVI9aF/7wyalm5GhRUTGzwUA3Jv4d/lEnu/59X4U5k=",
     "h1:AQqvilOF4FnbXO/c84HsNkJ+TyZEs+N12iHYFnwvNOM=",
     "zh:032dd78eff887a673a1067008a8e47a69983bbcea9f41832320470247a76863a",
     "zh:1af89f75142cf9c54499a466c8dc7055e2bbf02771a6b8c8cd57eb13dce9a800",
