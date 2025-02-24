@@ -301,7 +301,7 @@ CONTROL_PLANE_GKE_IMAGES = [
     struct(
         name = "gcloud_control_plane_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:google_pub_sub_work_items_service_image",
-        repository = _PREFIX + "control-plane/v1/v1alpha-api",
+        repository = _PREFIX + "/control-plane/v1/v1alpha-api",
     ),
 ]
 
