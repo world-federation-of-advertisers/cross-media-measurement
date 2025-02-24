@@ -124,7 +124,7 @@ cue_library(
 
 cue_library(
     name = "control_plane",
-    srcs = ["control_plane_v2.cue"],
+    srcs = ["control_plane.cue"],
     deps = [
         ":base",
         ":config",
