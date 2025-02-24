@@ -58,7 +58,7 @@ package k8s
     }
 
     deployments: {
-        "control-plane-v1alpha-api-server": {
+        "control-plane-api-server": {
             _container: args: [
                 "--port=8443",
                 "--health-port=8080",
