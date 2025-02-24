@@ -14,7 +14,7 @@
 
 package k8s
 
-#ControlPlane: ControlPlane = {
+#ControlPlane: {
 
     _verboseGrpcServerLogging: bool | *false
 	_verboseGrpcClientLogging: bool | *false
