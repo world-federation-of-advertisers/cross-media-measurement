@@ -6,6 +6,7 @@ provider "registry.terraform.io/cyrilgdn/postgresql" {
   constraints = ">= 1.19.0, ~> 1.19.0"
   hashes = [
     "h1:TnyNonQsf+M7uOP9lxHGymiLP1VE5mPIMEsk8FspD8k=",
+    "h1:bjyu7Ry5HB+FosY5ZKWTNxWVTe0LwwDNbzpAYxPfdNU=",
     "zh:00f946e9e657556234b1ab6b11ff94c1f67d2dec20a0643f5f70fd4b612167e4",
     "zh:01cac73ff59c3ee3cc3716b006266a81d182f2622e944c08081551a2688ee5bb",
     "zh:0e688a1c326baff9fb3e70bed4911b13220338045bfc77796f2468699e9f715b",
@@ -24,9 +25,10 @@ provider "registry.terraform.io/cyrilgdn/postgresql" {
 }
 
 provider "registry.terraform.io/hashicorp/google" {
-  version     = "6.23.0"
-  constraints = ">= 4.63.0, >= 5.4.0, >= 5.37.0, >= 6.3.0, >= 6.23.0, ~> 6.23.0"
+  version     = "6.3.0"
+  constraints = ">= 4.63.0, >= 5.4.0, >= 5.37.0, >= 6.3.0, ~> 6.3.0"
   hashes = [
+    "h1:SpVI9aF/7wyalm5GhRUTGzwUA3Jv4d/lEnu/59X4U5k=",
     "h1:AQqvilOF4FnbXO/c84HsNkJ+TyZEs+N12iHYFnwvNOM=",
     "zh:032dd78eff887a673a1067008a8e47a69983bbcea9f41832320470247a76863a",
     "zh:1af89f75142cf9c54499a466c8dc7055e2bbf02771a6b8c8cd57eb13dce9a800",
