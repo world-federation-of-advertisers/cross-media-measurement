@@ -1,0 +1,112 @@
+name: "Configure Control Plane"
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      image-tag:
+        description: "Tag of container images"
+        type: string
+        required: true
+      apply:
+        description: "Apply the new configuration"
+        type: boolean
+        required: true
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "GitHub-managed environment"
+        required: true
+        type: choice
+        options:
+        - dev
+        - qa
+        - head
+      image-tag:
+        description: "Tag of container images"
+        type: string
+        required: true
+      apply:
+        description: "Apply the new configuration"
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+
+env:
+  KUSTOMIZATION_PATH: "k8s/control_plane"
+
+jobs:
+  update-control-plane:
+    runs-on: ubuntu-22.04
+    environment: ${{ inputs.environment }}
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
+
+    - name: Write auth.bazelrc
+      env:
+        BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+      run: |
+        cat << EOF > auth.bazelrc
+        build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+        EOF
+
+    - name: Write ~/.bazelrc
+      env:
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
+        GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
+      run: |
+        cat << EOF > ~/.bazelrc
+        common --config=ci
+        build --remote_download_outputs=toplevel
+        common --config=ghcr
+        build --define "image_tag=$IMAGE_TAG"
+        build --define "google_cloud_project=$GCLOUD_PROJECT"
+        build --define "spanner_instance=$SPANNER_INSTANCE"
+        build --define "postgres_region=$GCLOUD_REGION"
+        EOF
+
+    - name: Export BAZEL_BIN
+      run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
+
+    - name: Get GKE cluster credentials
+      uses: google-github-actions/get-gke-credentials@v2
+      with:
+        cluster_name: control-plane
+        location: ${{ vars.GCLOUD_ZONE }}
+
+    - name: Configure metrics
+      uses: ./.github/actions/configure-metrics
+      if: ${{ inputs.apply }}
+
+    - name: Generate archives
+      run: >
+        bazelisk build
+        //src/main/k8s/dev:control_plane.tar
+
+    - name: Make Kustomization dir
+      run: mkdir -p "$KUSTOMIZATION_PATH"
+
+    - name: Extract Kustomization archive
+      run: >
+        tar -xf "$BAZEL_BIN/src/main/k8s/dev/control_plane.tar"
+        -C "$KUSTOMIZATION_PATH"
+
+    - name: Extract secret files archive
+      run: >
+        tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/archive.tar"
+        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/control_plane_secrets"
+
+    - name: Write encryption key-pair config
+      env:
+        ENCRYPTION
