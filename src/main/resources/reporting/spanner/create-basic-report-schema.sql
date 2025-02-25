@@ -66,9 +66,7 @@ CREATE UNIQUE INDEX MeasurementConsumersByCmmsMeasurementConsumerId
 CREATE TABLE BasicReports (
   MeasurementConsumerId INT64 NOT NULL,
   BasicReportId INT64 NOT NULL,
-  CmmsMeasurementConsumerId STRING(MAX) NOT NULL,
   ExternalBasicReportId STRING(MAX) NOT NULL,
-  RequestId STRING(MAX),
   ExternalCampaignGroupId STRING(MAX) NOT NULL,
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   BasicReportDetails `wfa.measurement.internal.reporting.v2.BasicReportDetails`
@@ -85,10 +83,7 @@ INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
 CREATE UNIQUE INDEX BasicReportsByExternalBasicReportId
   ON BasicReports(CmmsMeasurementConsumerId, ExternalBasicReportId);
 
-CREATE UNIQUE NULL_FILTERED INDEX BasicReportsByRequestId
-  ON BasicReports(CmmsMeasurementConsumerId, RequestId);
-
 CREATE INDEX BasicReportsByCreateTime
-  ON BasicReports(BasicReportsIndexShardId, CmmsMeasurementConsumerId, CreateTime);
+  ON BasicReports(BasicReportsIndexShardId, MeasurementConsumerId, CreateTime);
 
 RUN BATCH;
