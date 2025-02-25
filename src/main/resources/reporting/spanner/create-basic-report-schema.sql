@@ -72,7 +72,8 @@ CREATE TABLE BasicReports (
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   BasicReportDetails `wfa.measurement.internal.reporting.v2.BasicReportDetails`
     NOT NULL,
-  BasicReportResultDetails `wfa.measurement.internal.reporting.v2.BasicReportResultDetails`,
+  BasicReportResultDetails `wfa.measurement.internal.reporting.v2.BasicReportResultDetails`
+    NOT NULL,
   BasicReportsIndexShardId INT64 NOT NULL AS (
     ABS(MOD(FARM_FINGERPRINT(CAST(BasicReportId AS STRING)), 64))
   ) STORED,
