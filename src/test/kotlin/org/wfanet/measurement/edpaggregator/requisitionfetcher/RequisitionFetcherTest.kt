@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.eventdataprovider.edpaggregator.requisitionfetcher
+package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
@@ -60,6 +60,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.requisitionsList
 
 @RunWith(JUnit4::class)
 class RequisitionFetcherTest {
@@ -79,12 +80,15 @@ class RequisitionFetcherTest {
     val storage = LocalStorageHelper.getOptions().service
     val storageClient = GcsStorageClient(storage, BUCKET)
     val fetcher = RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME)
+    val expectedResult = requisitionsList {
+      requisitions += listOf(REQUISITION)
+    }
     val persistedRequisition = runBlocking {
       fetcher.executeRequisitionFetchingWorkflow()
       storageClient.getBlob(REQUISITION.name)?.read()?.toByteArray()?.toByteString()
     }
 
-    assertThat(REQUISITION.toByteString()).isEqualTo(persistedRequisition)
+    assertThat(expectedResult.toByteString()).isEqualTo(persistedRequisition)
   }
 
   companion object {

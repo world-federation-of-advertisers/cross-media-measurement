@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.eventdataprovider.edpaggregator.requisitionfetcher
+package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest

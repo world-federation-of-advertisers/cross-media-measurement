@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.eventdataprovider.edpaggregator.requisitionfetcher
+package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import io.grpc.StatusException
 import java.util.logging.Logger
@@ -22,6 +22,7 @@ import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.requisitionsList
 import org.wfanet.measurement.storage.StorageClient
 
 /**
@@ -64,19 +65,26 @@ class RequisitionFetcher(
   }
 
   private suspend fun storeRequisitions(requisitions: List<Requisition>) {
+    val requisitionsList = mutableListOf<Requisition>()
     for (requisition in requisitions) {
       val blobKey = requisition.name
-
       // Only stores the requisition if it does not already exist in the GCS bucket by checking if
-      // the blob key(created
-      // using the requisition name, ensuring uniqueness) is populated.
+      // the blob key(created using the requisition name, ensuring uniqueness) is populated.
       if (storageClient.getBlob(blobKey) == null) {
-        storageClient.writeBlob(blobKey, requisition.toByteString())
+        requisitionsList.add(requisition)
+      }
+      if(requisitionsList.size == REQUISITION_CHUNK_SIZE) {
+        storageClient.writeBlob(blobKey, requisitionsList { requisitions += requisitionsList }.toByteString())
+        requisitionsList.clear()
       }
     }
   }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    // TODO: Increase chunk size once design is finalized
+    // The number of Requisitions that will be persisted to a blob in storage
+    private const val REQUISITION_CHUNK_SIZE = 1
   }
 }

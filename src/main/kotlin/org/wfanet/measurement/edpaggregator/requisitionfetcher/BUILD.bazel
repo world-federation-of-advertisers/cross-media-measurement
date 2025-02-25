@@ -1,13 +1,14 @@
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
-package(default_visibility = ["//src/test/kotlin/org/wfanet/measurement/eventdataprovider/edpaggregator/requisitionfetcher:__subpackages__"])
+package(default_visibility = ["//src/test/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:__subpackages__"])
 
 kt_jvm_library(
     name = "requisition_fetcher",
     srcs = ["RequisitionFetcher.kt"],
     deps = [
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/requisitionfetcher:requisitions_list_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
@@ -16,7 +17,7 @@ kt_jvm_library(
 
 java_binary(
     name = "RequisitionFetcher",
-    main_class = "org.wfanet.measurement.eventdataprovider.edpaggregator.requisitionfetcher.RequisitionFetcher",
+    main_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher",
     runtime_deps = [":requisition_fetcher"],
 )
 
@@ -31,7 +32,7 @@ kt_jvm_library(
 
 java_binary(
     name = "RequisitionFetcherFunction",
-    main_class = "org.wfanet.measurement.eventdataprovider.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
+    main_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
     runtime_deps = [
         ":requisition_fetcher_function",
     ],
