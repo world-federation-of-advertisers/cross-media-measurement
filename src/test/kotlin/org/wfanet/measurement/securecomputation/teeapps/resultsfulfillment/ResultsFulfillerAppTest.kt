@@ -75,8 +75,7 @@ class ResultsFulfillerAppTest {
   private val requisitionsStub: RequisitionsCoroutineStub by lazy {
     RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
-  private val storageClient: StorageClient = mockService()
-  private val shardedStorageClient: StorageClient = mockService()
+  private val shardedStorageClient: StorageClient = InMemoryStorageClient()
   private val backingStore = TestInMemoryBackingStore()
   private val privacyBudgetManager =
     PrivacyBudgetManager(PrivacyBucketFilter(TestPrivacyBucketMapper()), backingStore, 10.0f, 0.02f)
