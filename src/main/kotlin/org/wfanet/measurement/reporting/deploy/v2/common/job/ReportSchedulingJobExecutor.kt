@@ -25,6 +25,9 @@ import java.time.Duration
 import kotlin.random.asKotlinRandom
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.withTrustedPrincipalAuthentication
+import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as KingdomDataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as KingdomEventGroupsCoroutineStub
@@ -54,7 +57,6 @@ import org.wfanet.measurement.reporting.deploy.v2.common.ReportingApiServerFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.V2AlphaFlags
 import org.wfanet.measurement.reporting.job.ReportSchedulingJob
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
-import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withMetadataPrincipalIdentities
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.withReportScheduleInfoInterceptor
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
@@ -99,6 +101,15 @@ private fun run(
       .withShutdownTimeout(Duration.ofSeconds(5))
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
+  val accessChannel: Channel =
+    buildMutualTlsChannel(
+        reportingApiServerFlags.accessApiTarget,
+        clientCerts,
+        reportingApiServerFlags.accessApiCertHost,
+      )
+      .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
+  val authorization = Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(accessChannel))
+
   val measurementConsumerConfigs =
     parseTextProto(
       v2AlphaFlags.measurementConsumerConfigFile,
@@ -110,34 +121,33 @@ private fun run(
 
   val metricsService =
     MetricsService(
-      metricSpecConfig,
-      InternalReportingSetsCoroutineStub(channel),
-      InternalMetricsCoroutineStub(channel),
-      VariancesImpl,
-      InternalMeasurementsCoroutineStub(channel),
-      KingdomDataProvidersCoroutineStub(kingdomChannel),
-      KingdomMeasurementsCoroutineStub(kingdomChannel),
-      KingdomCertificatesCoroutineStub(kingdomChannel),
-      KingdomMeasurementConsumersCoroutineStub(kingdomChannel),
-      InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
-      SecureRandom().asKotlinRandom(),
-      v2AlphaFlags.signingPrivateKeyStoreDir,
-      commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
-      defaultVidModelLine = "",
-      measurementConsumerModelLines = mapOf(),
-      certificateCacheExpirationDuration = Duration.ofMinutes(60),
-      dataProviderCacheExpirationDuration = Duration.ofMinutes(60),
-      keyReaderContext = Dispatchers.IO,
-      cacheLoaderContext = Dispatchers.Default,
-    )
+        metricSpecConfig,
+        measurementConsumerConfigs,
+        InternalReportingSetsCoroutineStub(channel),
+        InternalMetricsCoroutineStub(channel),
+        VariancesImpl,
+        InternalMeasurementsCoroutineStub(channel),
+        KingdomDataProvidersCoroutineStub(kingdomChannel),
+        KingdomMeasurementsCoroutineStub(kingdomChannel),
+        KingdomCertificatesCoroutineStub(kingdomChannel),
+        KingdomMeasurementConsumersCoroutineStub(kingdomChannel),
+        authorization,
+        InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
+        SecureRandom().asKotlinRandom(),
+        v2AlphaFlags.signingPrivateKeyStoreDir,
+        commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
+        defaultVidModelLine = "",
+        measurementConsumerModelLines = emptyMap(),
+        certificateCacheExpirationDuration = Duration.ofMinutes(60),
+        dataProviderCacheExpirationDuration = Duration.ofMinutes(60),
+        keyReaderContext = Dispatchers.IO,
+        cacheLoaderContext = Dispatchers.Default,
+      )
+      .withTrustedPrincipalAuthentication()
 
   val inProcessMetricsServerName = InProcessServerBuilder.generateName()
   val inProcessMetricsServer: Server =
-    startInProcessServerWithService(
-      inProcessMetricsServerName,
-      commonServerFlags,
-      metricsService.withMetadataPrincipalIdentities(measurementConsumerConfigs),
-    )
+    startInProcessServerWithService(inProcessMetricsServerName, commonServerFlags, metricsService)
   val inProcessMetricsChannel =
     InProcessChannelBuilder.forName(inProcessMetricsServerName)
       .directExecutor()
@@ -146,22 +156,19 @@ private fun run(
 
   val reportsService =
     ReportsService(
-      InternalReportsCoroutineStub(channel),
-      InternalMetricCalculationSpecsCoroutineStub(channel),
-      MetricsCoroutineStub(inProcessMetricsChannel),
-      metricSpecConfig,
-      SecureRandom().asKotlinRandom(),
-    )
+        InternalReportsCoroutineStub(channel),
+        InternalMetricCalculationSpecsCoroutineStub(channel),
+        MetricsCoroutineStub(inProcessMetricsChannel),
+        metricSpecConfig,
+        authorization,
+        SecureRandom().asKotlinRandom(),
+      )
+      .withTrustedPrincipalAuthentication()
+      .withReportScheduleInfoInterceptor()
 
   val inProcessReportsServerName = InProcessServerBuilder.generateName()
   val inProcessReportsServer: Server =
-    startInProcessServerWithService(
-      inProcessReportsServerName,
-      commonServerFlags,
-      reportsService
-        .withMetadataPrincipalIdentities(measurementConsumerConfigs)
-        .withReportScheduleInfoInterceptor(),
-    )
+    startInProcessServerWithService(inProcessReportsServerName, commonServerFlags, reportsService)
   val inProcessReportsChannel =
     InProcessChannelBuilder.forName(inProcessReportsServerName)
       .directExecutor()
