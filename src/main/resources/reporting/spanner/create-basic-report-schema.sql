@@ -67,6 +67,7 @@ CREATE TABLE BasicReports (
   MeasurementConsumerId INT64 NOT NULL,
   BasicReportId INT64 NOT NULL,
   ExternalBasicReportId STRING(MAX) NOT NULL,
+  -- Is represented by an ExternalReportingSetId in the Postgres database.
   ExternalCampaignGroupId STRING(MAX) NOT NULL,
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   BasicReportDetails `wfa.measurement.internal.reporting.v2.BasicReportDetails`
