@@ -23,7 +23,7 @@ package k8s
 
     _imageSuffixes: [_=string]: string
 	_imageSuffixes: {
-		"control-plane-api-server": string | *"control-plane/v1/v1alpha-api"
+		"control-plane-api-server": string | *"/secure-computation/control-plane-api-v1alpha"
 	}
 	_imageConfigs: [_=string]: #ImageConfig
 	_imageConfigs: {
