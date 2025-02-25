@@ -82,7 +82,7 @@ CREATE TABLE BasicReports (
 INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
 
 CREATE UNIQUE INDEX BasicReportsByExternalBasicReportId
-  ON BasicReports(CmmsMeasurementConsumerId, ExternalBasicReportId);
+  ON BasicReports(MeasurementConsumerId, ExternalBasicReportId);
 
 CREATE INDEX BasicReportsByCreateTime
   ON BasicReports(BasicReportsIndexShardId, MeasurementConsumerId, CreateTime);
