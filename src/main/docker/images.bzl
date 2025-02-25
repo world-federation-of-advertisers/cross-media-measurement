@@ -121,7 +121,6 @@ COMMON_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:population_requisition_fulfiller_daemon_image",
         repository = _PREFIX + "/data-provider/population-requisition-fulfiller",
     ),
-
 ]
 
 # List of specs for all Docker containers to push to a container registry.
@@ -301,7 +300,7 @@ CONTROL_PLANE_GKE_IMAGES = [
     struct(
         name = "gcloud_control_plane_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:google_pub_sub_work_items_service_image",
-        repository = _PREFIX + "/control-plane/v1/v1alpha-api",
+        repository = _PREFIX + "/secure-computation/control-plane-api-v1alpha",
     ),
 ]
 
