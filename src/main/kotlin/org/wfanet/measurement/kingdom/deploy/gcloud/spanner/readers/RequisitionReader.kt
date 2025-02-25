@@ -31,8 +31,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
-class RequisitionReader(measurementsIndex: MeasurementsIndex = MeasurementsIndex.NONE) :
-  SpannerReader<RequisitionReader.Result>() {
+class RequisitionReader(primaryTable: PrimaryTable) : SpannerReader<RequisitionReader.Result>() {
   data class Result(
     val measurementConsumerId: InternalId,
     val measurementId: InternalId,
@@ -41,9 +40,52 @@ class RequisitionReader(measurementsIndex: MeasurementsIndex = MeasurementsIndex
     val measurementDetails: MeasurementDetails,
   )
 
-  enum class MeasurementsIndex(val sql: String) {
-    NONE(""),
-    EXTERNAL_COMPUTATION_ID("@{FORCE_INDEX=MeasurementsByExternalComputationId}"),
+  enum class PrimaryTable(val fromClause: String) {
+    REQUISITIONS(
+      """
+      FROM
+        Requisitions
+        JOIN DataProviders USING (DataProviderId)
+        JOIN Measurements USING (MeasurementConsumerId, MeasurementId)
+        JOIN MeasurementConsumers USING (MeasurementConsumerId)
+        JOIN MeasurementConsumerCertificates USING (MeasurementConsumerId, CertificateId)
+        JOIN DataProviderCertificates ON (
+          DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId
+        )
+        JOIN Certificates ON (Certificates.CertificateId = DataProviderCertificates.CertificateId)
+      """
+        .trimIndent()
+    ),
+    MEASUREMENT_CONSUMERS(
+      """
+      FROM
+        MeasurementConsumers
+        JOIN Measurements USING (MeasurementConsumerId)
+        JOIN Requisitions USING (MeasurementConsumerId, MeasurementId)
+        JOIN DataProviders USING (DataProviderId)
+        JOIN MeasurementConsumerCertificates USING (MeasurementConsumerId, CertificateId)
+        JOIN DataProviderCertificates ON (
+          DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId
+        )
+        JOIN Certificates ON (Certificates.CertificateId = DataProviderCertificates.CertificateId)
+      """
+        .trimIndent()
+    ),
+    MEASUREMENTS(
+      """
+      FROM
+        Measurements
+        JOIN Requisitions USING (MeasurementConsumerId, MeasurementId)
+        JOIN MeasurementConsumers USING (MeasurementConsumerId)
+        JOIN MeasurementConsumerCertificates USING (MeasurementConsumerId, CertificateId)
+        JOIN DataProviders USING (DataProviderId)
+        JOIN DataProviderCertificates ON (
+          DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId
+        )
+        JOIN Certificates ON (Certificates.CertificateId = DataProviderCertificates.CertificateId)
+      """
+        .trimIndent()
+    ),
   }
 
   override val baseSql: String =
@@ -93,16 +135,7 @@ class RequisitionReader(measurementsIndex: MeasurementsIndex = MeasurementsIndex
           ComputationParticipants.MeasurementConsumerId = Requisitions.MeasurementConsumerId
           AND ComputationParticipants.MeasurementId = Requisitions.MeasurementId
       ) AS ComputationParticipants
-    FROM
-      Requisitions
-      JOIN DataProviders USING (DataProviderId)
-      JOIN Measurements${measurementsIndex.sql} USING (MeasurementConsumerId, MeasurementId)
-      JOIN MeasurementConsumers USING (MeasurementConsumerId)
-      JOIN MeasurementConsumerCertificates USING (MeasurementConsumerId, CertificateId)
-      JOIN DataProviderCertificates ON (
-        DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId
-      )
-      JOIN Certificates ON (Certificates.CertificateId = DataProviderCertificates.CertificateId)
+    ${primaryTable.fromClause}
     """
       .trimIndent()
 
@@ -128,7 +161,7 @@ class RequisitionReader(measurementsIndex: MeasurementsIndex = MeasurementsIndex
       externalDataProviderId: ExternalId,
       externalRequisitionId: ExternalId,
     ): Result? {
-      return RequisitionReader()
+      return RequisitionReader(PrimaryTable.REQUISITIONS)
         .fillStatementBuilder {
           appendClause(
             """
@@ -150,7 +183,7 @@ class RequisitionReader(measurementsIndex: MeasurementsIndex = MeasurementsIndex
       externalComputationId: ExternalId,
       externalRequisitionId: ExternalId,
     ): Result? {
-      return RequisitionReader(MeasurementsIndex.EXTERNAL_COMPUTATION_ID)
+      return RequisitionReader(PrimaryTable.MEASUREMENTS)
         .fillStatementBuilder {
           appendClause(
             """
