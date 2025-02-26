@@ -41,9 +41,6 @@ service BasicReports {
 
 message InsertBasicReportRequest {
   BasicReport basic_report = 1;
-  // If set, it needs to be unique to create a new `BasicReport`. Recommended to
-  // use a UUID.
-  string request_id = 2;
 }
 
 message GetBasicReportRequest {

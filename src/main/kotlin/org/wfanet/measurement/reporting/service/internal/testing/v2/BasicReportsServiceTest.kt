@@ -83,7 +83,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `insertBasicReport without request id succeeds`(): Unit = runBlocking {
+  fun `insertBasicReport succeeds`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -111,87 +111,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
 
     val response =
       service.insertBasicReport(insertBasicReportRequest { this.basicReport = basicReport })
-
-    assertThat(response).ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER).isEqualTo(basicReport)
-
-    assertThat(response.hasCreateTime())
-  }
-
-  @Test
-  fun `insertBasicReport with request id succeeds`(): Unit = runBlocking {
-    measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
-    )
-    measurementConsumersService2.createMeasurementConsumer(
-      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
-    )
-
-    reportingSetsService.createReportingSet(
-      createReportingSetRequest {
-        reportingSet = REPORTING_SET
-        externalReportingSetId = REPORTING_SET.externalReportingSetId
-      }
-    )
-
-    val resultGroup = resultGroup { title = "title" }
-
-    val basicReport = basicReport {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalBasicReportId = "1237"
-      externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      campaignGroupDisplayName = REPORTING_SET.displayName
-      details = basicReportDetails { title = "title" }
-      resultDetails = basicReportResultDetails { resultGroups += resultGroup }
-    }
-
-    val response =
-      service.insertBasicReport(
-        insertBasicReportRequest {
-          this.basicReport = basicReport
-          requestId = "1234"
-        }
-      )
-
-    assertThat(response).ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER).isEqualTo(basicReport)
-
-    assertThat(response.hasCreateTime())
-  }
-
-  @Ignore
-  @Test
-  fun `insertBasicReport with request id succeeds when called twice`(): Unit = runBlocking {
-    measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
-    )
-    measurementConsumersService2.createMeasurementConsumer(
-      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
-    )
-
-    reportingSetsService.createReportingSet(
-      createReportingSetRequest {
-        reportingSet = REPORTING_SET
-        externalReportingSetId = REPORTING_SET.externalReportingSetId
-      }
-    )
-
-    val resultGroup = resultGroup { title = "title" }
-
-    val basicReport = basicReport {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalBasicReportId = "1237"
-      externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      campaignGroupDisplayName = REPORTING_SET.displayName
-      details = basicReportDetails { title = "title" }
-      resultDetails = basicReportResultDetails { resultGroups += resultGroup }
-    }
-
-    val request = insertBasicReportRequest {
-      this.basicReport = basicReport
-      requestId = "1234"
-    }
-
-    service.insertBasicReport(request)
-    val response = service.insertBasicReport(request)
 
     assertThat(response).ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER).isEqualTo(basicReport)
 
