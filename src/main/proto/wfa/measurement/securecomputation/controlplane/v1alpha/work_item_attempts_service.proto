@@ -108,4 +108,7 @@ message FailWorkItemAttemptRequest {
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference).type = "control-plane.secure-computation.halo-cmm.org/WorkItemAttempt"
   ];
+
+  // Human-readable error message. This should not include any sensitive info.
+  string error_message = 2;
 }
