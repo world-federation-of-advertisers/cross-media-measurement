@@ -21,6 +21,7 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer.Services
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.SpannerBasicReportsService
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.SpannerMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMetricCalculationSpecsService
@@ -34,6 +35,7 @@ object DataServices {
   @JvmStatic
   fun create(idGenerator: IdGenerator, postgresClient: DatabaseClient, spannerClient: AsyncDatabaseClient): Services {
     return Services(
+      SpannerMeasurementConsumersService(spannerClient),
       SpannerBasicReportsService(spannerClient, postgresClient),
       PostgresMeasurementConsumersService(idGenerator, postgresClient),
       PostgresMeasurementsService(idGenerator, postgresClient),

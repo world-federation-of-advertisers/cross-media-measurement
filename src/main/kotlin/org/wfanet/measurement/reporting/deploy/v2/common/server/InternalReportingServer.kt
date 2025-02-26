@@ -33,8 +33,9 @@ import picocli.CommandLine
 
 abstract class InternalReportingServer : Runnable {
   data class Services(
-    val basicReportsService: BasicReportsCoroutineImplBase,
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
+    val basicReportsService: BasicReportsCoroutineImplBase,
+    val measurementConsumersService2: MeasurementConsumersCoroutineImplBase,
     val measurementsService: MeasurementsCoroutineImplBase,
     val metricsService: MetricsCoroutineImplBase,
     val reportingSetsService: ReportingSetsCoroutineImplBase,
