@@ -26,7 +26,10 @@ import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 
-data class MeasurementConsumerResult(val measurementConsumerId: Long, val measurementConsumer: MeasurementConsumer)
+data class MeasurementConsumerResult(
+  val measurementConsumerId: Long,
+  val measurementConsumer: MeasurementConsumer,
+)
 
 /**
  * Reads a [MeasurementConsumer] by its cmms ID.
@@ -34,7 +37,7 @@ data class MeasurementConsumerResult(val measurementConsumerId: Long, val measur
  * @throws MeasurementConsumerNotFoundException
  */
 suspend fun AsyncDatabaseClient.ReadContext.getMeasurementConsumerByCmmsMeasurementConsumerId(
-  cmmsMeasurementConsumerId: String,
+  cmmsMeasurementConsumerId: String
 ): MeasurementConsumerResult {
   val sql =
     """
@@ -48,21 +51,22 @@ suspend fun AsyncDatabaseClient.ReadContext.getMeasurementConsumerByCmmsMeasurem
     """
       .trimIndent()
   val row: Struct =
-    executeQuery(statement(sql) {
-      bind("cmmsMeasurementConsumerId").to(cmmsMeasurementConsumerId)
-    }).singleOrNullIfEmpty()
-      ?: throw MeasurementConsumerNotFoundException()
+    executeQuery(statement(sql) { bind("cmmsMeasurementConsumerId").to(cmmsMeasurementConsumerId) })
+      .singleOrNullIfEmpty() ?: throw MeasurementConsumerNotFoundException()
 
   return MeasurementConsumerResult(
     row.getLong("MeasurementConsumerId"),
     measurementConsumer {
-                        this.cmmsMeasurementConsumerId = row.getString("CmmsMeasurementConsumerId")
+      this.cmmsMeasurementConsumerId = row.getString("CmmsMeasurementConsumerId")
     },
   )
 }
 
 /** Buffers an insert mutation for the MeasurementConsumers table. */
-fun AsyncDatabaseClient.TransactionContext.insertMeasurementConsumer(measurementConsumerId: Long, measurementConsumer: MeasurementConsumer) {
+fun AsyncDatabaseClient.TransactionContext.insertMeasurementConsumer(
+  measurementConsumerId: Long,
+  measurementConsumer: MeasurementConsumer,
+) {
   bufferInsertMutation("MeasurementConsumers") {
     set("MeasurementConsumerId").to(measurementConsumerId)
     set("CmmsMeasurementConsumerId").to(measurementConsumer.cmmsMeasurementConsumerId)
@@ -70,6 +74,12 @@ fun AsyncDatabaseClient.TransactionContext.insertMeasurementConsumer(measurement
 }
 
 /** Returns whether a [MeasurementConsumer] with the specified [measurementConsumerId] exists. */
-suspend fun AsyncDatabaseClient.ReadContext.measurementConsumerExists(measurementConsumerId: Long): Boolean {
-  return readRow("MeasurementConsumers", Key.of(measurementConsumerId), listOf("MeasurementConsumerId")) != null
+suspend fun AsyncDatabaseClient.ReadContext.measurementConsumerExists(
+  measurementConsumerId: Long
+): Boolean {
+  return readRow(
+    "MeasurementConsumers",
+    Key.of(measurementConsumerId),
+    listOf("MeasurementConsumerId"),
+  ) != null
 }

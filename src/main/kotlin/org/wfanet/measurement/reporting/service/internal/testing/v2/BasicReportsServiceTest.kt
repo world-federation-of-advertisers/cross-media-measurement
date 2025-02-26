@@ -84,85 +84,75 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
 
   @Test
   fun `insertBasicReport without request id succeeds`(): Unit = runBlocking {
-    measurementConsumersService.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
-    measurementConsumersService2.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+    measurementConsumersService2.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
 
-    reportingSetsService.createReportingSet(createReportingSetRequest {
-      reportingSet = REPORTING_SET
-      externalReportingSetId = REPORTING_SET.externalReportingSetId
-    })
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
 
-    val resultGroup = resultGroup {
-      title = "title"
-    }
+    val resultGroup = resultGroup { title = "title" }
 
     val basicReport = basicReport {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
       campaignGroupDisplayName = REPORTING_SET.displayName
-      details = basicReportDetails {
-        title = "title"
-      }
-      resultDetails = basicReportResultDetails {
-        resultGroups += resultGroup
-      }
+      details = basicReportDetails { title = "title" }
+      resultDetails = basicReportResultDetails { resultGroups += resultGroup }
     }
 
-    val response = service.insertBasicReport(insertBasicReportRequest {
-      this.basicReport = basicReport
-    })
+    val response =
+      service.insertBasicReport(insertBasicReportRequest { this.basicReport = basicReport })
 
-    assertThat(response)
-      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
-      .isEqualTo(basicReport)
+    assertThat(response).ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER).isEqualTo(basicReport)
 
     assertThat(response.hasCreateTime())
   }
 
   @Test
   fun `insertBasicReport with request id succeeds`(): Unit = runBlocking {
-    measurementConsumersService.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
-    measurementConsumersService2.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+    measurementConsumersService2.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
 
-    reportingSetsService.createReportingSet(createReportingSetRequest {
-      reportingSet = REPORTING_SET
-      externalReportingSetId = REPORTING_SET.externalReportingSetId
-    })
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
 
-    val resultGroup = resultGroup {
-      title = "title"
-    }
+    val resultGroup = resultGroup { title = "title" }
 
     val basicReport = basicReport {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
       campaignGroupDisplayName = REPORTING_SET.displayName
-      details = basicReportDetails {
-        title = "title"
-      }
-      resultDetails = basicReportResultDetails {
-        resultGroups += resultGroup
-      }
+      details = basicReportDetails { title = "title" }
+      resultDetails = basicReportResultDetails { resultGroups += resultGroup }
     }
 
-    val response = service.insertBasicReport(insertBasicReportRequest {
-      this.basicReport = basicReport
-      requestId = "1234"
-    })
+    val response =
+      service.insertBasicReport(
+        insertBasicReportRequest {
+          this.basicReport = basicReport
+          requestId = "1234"
+        }
+      )
 
-    assertThat(response)
-      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
-      .isEqualTo(basicReport)
+    assertThat(response).ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER).isEqualTo(basicReport)
 
     assertThat(response.hasCreateTime())
   }
@@ -170,33 +160,29 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   @Ignore
   @Test
   fun `insertBasicReport with request id succeeds when called twice`(): Unit = runBlocking {
-    measurementConsumersService.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
-    measurementConsumersService2.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+    measurementConsumersService2.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
 
-    reportingSetsService.createReportingSet(createReportingSetRequest {
-      reportingSet = REPORTING_SET
-      externalReportingSetId = REPORTING_SET.externalReportingSetId
-    })
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
 
-    val resultGroup = resultGroup {
-      title = "title"
-    }
+    val resultGroup = resultGroup { title = "title" }
 
     val basicReport = basicReport {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
       campaignGroupDisplayName = REPORTING_SET.displayName
-      details = basicReportDetails {
-        title = "title"
-      }
-      resultDetails = basicReportResultDetails {
-        resultGroups += resultGroup
-      }
+      details = basicReportDetails { title = "title" }
+      resultDetails = basicReportResultDetails { resultGroups += resultGroup }
     }
 
     val request = insertBasicReportRequest {
@@ -207,9 +193,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     service.insertBasicReport(request)
     val response = service.insertBasicReport(request)
 
-    assertThat(response)
-      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
-      .isEqualTo(basicReport)
+    assertThat(response).ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER).isEqualTo(basicReport)
 
     assertThat(response.hasCreateTime())
   }
@@ -217,109 +201,86 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   @Test
   fun `insertBasicReport throws FAILED_PRECONDITION when cmmsMeasurementConsumerId not found`():
     Unit = runBlocking {
-    val resultGroup = resultGroup {
-      title = "title"
-    }
+    val resultGroup = resultGroup { title = "title" }
 
     val basicReport = basicReport {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
       campaignGroupDisplayName = REPORTING_SET.displayName
-      details = basicReportDetails {
-        title = "title"
-      }
-      resultDetails = basicReportResultDetails {
-        resultGroups += resultGroup
-      }
+      details = basicReportDetails { title = "title" }
+      resultDetails = basicReportResultDetails { resultGroups += resultGroup }
     }
 
-    val exception = assertFailsWith<StatusRuntimeException> {
-      service.insertBasicReport(insertBasicReportRequest {
-        this.basicReport = basicReport
-      })
-    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.insertBasicReport(insertBasicReportRequest { this.basicReport = basicReport })
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
   }
 
   @Test
-  fun `insertBasicReport throws NOT_FOUND when externalCampaignId not found`():
-    Unit = runBlocking {
-    measurementConsumersService.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
-    measurementConsumersService2.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
+  fun `insertBasicReport throws NOT_FOUND when externalCampaignId not found`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+    measurementConsumersService2.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
 
-    val resultGroup = resultGroup {
-      title = "title"
-    }
+    val resultGroup = resultGroup { title = "title" }
 
     val basicReport = basicReport {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
       campaignGroupDisplayName = REPORTING_SET.displayName
-      details = basicReportDetails {
-        title = "title"
-      }
-      resultDetails = basicReportResultDetails {
-        resultGroups += resultGroup
-      }
+      details = basicReportDetails { title = "title" }
+      resultDetails = basicReportResultDetails { resultGroups += resultGroup }
     }
 
-    val exception = assertFailsWith<StatusRuntimeException> {
-      service.insertBasicReport(insertBasicReportRequest {
-        this.basicReport = basicReport
-      })
-    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.insertBasicReport(insertBasicReportRequest { this.basicReport = basicReport })
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
   @Test
-  fun `insertBasicReport throws ALREADY_EXISTS when external id found`():
-    Unit = runBlocking {
-    measurementConsumersService.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
-    measurementConsumersService2.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
+  fun `insertBasicReport throws ALREADY_EXISTS when external id found`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+    measurementConsumersService2.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
 
-    reportingSetsService.createReportingSet(createReportingSetRequest {
-      reportingSet = REPORTING_SET
-      externalReportingSetId = REPORTING_SET.externalReportingSetId
-    })
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
 
-    val resultGroup = resultGroup {
-      title = "title"
-    }
+    val resultGroup = resultGroup { title = "title" }
 
     val basicReport = basicReport {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
       campaignGroupDisplayName = REPORTING_SET.displayName
-      details = basicReportDetails {
-        title = "title"
-      }
-      resultDetails = basicReportResultDetails {
-        resultGroups += resultGroup
-      }
+      details = basicReportDetails { title = "title" }
+      resultDetails = basicReportResultDetails { resultGroups += resultGroup }
     }
 
-    service.insertBasicReport(insertBasicReportRequest {
-      this.basicReport = basicReport
-    })
+    service.insertBasicReport(insertBasicReportRequest { this.basicReport = basicReport })
 
-    val exception = assertFailsWith<StatusRuntimeException> {
-      service.insertBasicReport(insertBasicReportRequest {
-        this.basicReport = basicReport
-      })
-    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.insertBasicReport(insertBasicReportRequest { this.basicReport = basicReport })
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
     assertThat(exception.errorInfo)
@@ -334,56 +295,62 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
 
   @Test
   fun `getBasicReport succeeds`(): Unit = runBlocking {
-    measurementConsumersService.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
-    measurementConsumersService2.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+    measurementConsumersService2.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
 
-    reportingSetsService.createReportingSet(createReportingSetRequest {
-      reportingSet = REPORTING_SET
-      externalReportingSetId = REPORTING_SET.externalReportingSetId
-    })
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
 
-    val createdBasicReport = service.insertBasicReport(insertBasicReportRequest {
-      basicReport = BASIC_REPORT
-    })
+    val createdBasicReport =
+      service.insertBasicReport(insertBasicReportRequest { basicReport = BASIC_REPORT })
 
-    val retrievedBasicReport = service.getBasicReport(getBasicReportRequest {
-      cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
-      externalBasicReportId = createdBasicReport.externalBasicReportId
-    })
+    val retrievedBasicReport =
+      service.getBasicReport(
+        getBasicReportRequest {
+          cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
+          externalBasicReportId = createdBasicReport.externalBasicReportId
+        }
+      )
 
-    assertThat(retrievedBasicReport)
-      .isEqualTo(createdBasicReport)
+    assertThat(retrievedBasicReport).isEqualTo(createdBasicReport)
   }
 
   @Test
-  fun `getBasicReport throws NOT_FOUND when externalBasicReportId not found`():
-    Unit = runBlocking {
-    measurementConsumersService.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
-    measurementConsumersService2.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
+  fun `getBasicReport throws NOT_FOUND when externalBasicReportId not found`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+    measurementConsumersService2.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
 
-    reportingSetsService.createReportingSet(createReportingSetRequest {
-      reportingSet = REPORTING_SET
-      externalReportingSetId = REPORTING_SET.externalReportingSetId
-    })
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
 
-    val createdBasicReport = service.insertBasicReport(insertBasicReportRequest {
-      basicReport = BASIC_REPORT
-    })
+    val createdBasicReport =
+      service.insertBasicReport(insertBasicReportRequest { basicReport = BASIC_REPORT })
 
-    val exception = assertFailsWith<StatusRuntimeException> {
-      service.getBasicReport(getBasicReportRequest {
-        cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
-        externalBasicReportId = createdBasicReport.externalBasicReportId + "b"
-      })
-    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.getBasicReport(
+          getBasicReportRequest {
+            cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
+            externalBasicReportId = createdBasicReport.externalBasicReportId + "b"
+          }
+        )
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.errorInfo)
@@ -399,39 +366,54 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
 
   @Test
   fun `listBasicReport without limit succeeds`(): Unit = runBlocking {
-    measurementConsumersService.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
-    measurementConsumersService2.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+    measurementConsumersService2.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
 
-    reportingSetsService.createReportingSet(createReportingSetRequest {
-      reportingSet = REPORTING_SET
-      externalReportingSetId = REPORTING_SET.externalReportingSetId
-    })
-
-    val createdBasicReport = service.insertBasicReport(insertBasicReportRequest {
-      basicReport = BASIC_REPORT
-    })
-
-    val createdBasicReport2 = service.insertBasicReport(insertBasicReportRequest {
-      basicReport = BASIC_REPORT.copy {
-        externalBasicReportId = createdBasicReport.externalBasicReportId + "b"
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
       }
-    })
+    )
 
-    val createdBasicReport3 = service.insertBasicReport(insertBasicReportRequest {
-      basicReport = BASIC_REPORT.copy {
-        externalBasicReportId = createdBasicReport2.externalBasicReportId + "b"
-      }
-    })
+    val createdBasicReport =
+      service.insertBasicReport(insertBasicReportRequest { basicReport = BASIC_REPORT })
 
-    val retrievedBasicReports = service.listBasicReports(listBasicReportsRequest {
-      filter = ListBasicReportsRequestKt.filter {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      }
-    }).basicReportsList
+    val createdBasicReport2 =
+      service.insertBasicReport(
+        insertBasicReportRequest {
+          basicReport =
+            BASIC_REPORT.copy {
+              externalBasicReportId = createdBasicReport.externalBasicReportId + "b"
+            }
+        }
+      )
+
+    val createdBasicReport3 =
+      service.insertBasicReport(
+        insertBasicReportRequest {
+          basicReport =
+            BASIC_REPORT.copy {
+              externalBasicReportId = createdBasicReport2.externalBasicReportId + "b"
+            }
+        }
+      )
+
+    val retrievedBasicReports =
+      service
+        .listBasicReports(
+          listBasicReportsRequest {
+            filter =
+              ListBasicReportsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              }
+          }
+        )
+        .basicReportsList
 
     assertThat(retrievedBasicReports).hasSize(3)
     assertThat(retrievedBasicReports[0]).isEqualTo(createdBasicReport)
@@ -441,40 +423,54 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
 
   @Test
   fun `listBasicReport with limit succeeds`(): Unit = runBlocking {
-    measurementConsumersService.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
-    measurementConsumersService2.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+    measurementConsumersService2.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
 
-    reportingSetsService.createReportingSet(createReportingSetRequest {
-      reportingSet = REPORTING_SET
-      externalReportingSetId = REPORTING_SET.externalReportingSetId
-    })
-
-    val createdBasicReport = service.insertBasicReport(insertBasicReportRequest {
-      basicReport = BASIC_REPORT
-    })
-
-    val createdBasicReport2 = service.insertBasicReport(insertBasicReportRequest {
-      basicReport = BASIC_REPORT.copy {
-        externalBasicReportId = createdBasicReport.externalBasicReportId + "b"
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
       }
-    })
+    )
 
-    service.insertBasicReport(insertBasicReportRequest {
-      basicReport = BASIC_REPORT.copy {
-        externalBasicReportId = createdBasicReport2.externalBasicReportId + "b"
-      }
-    })
+    val createdBasicReport =
+      service.insertBasicReport(insertBasicReportRequest { basicReport = BASIC_REPORT })
 
-    val retrievedBasicReports = service.listBasicReports(listBasicReportsRequest {
-      filter = ListBasicReportsRequestKt.filter {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+    val createdBasicReport2 =
+      service.insertBasicReport(
+        insertBasicReportRequest {
+          basicReport =
+            BASIC_REPORT.copy {
+              externalBasicReportId = createdBasicReport.externalBasicReportId + "b"
+            }
+        }
+      )
+
+    service.insertBasicReport(
+      insertBasicReportRequest {
+        basicReport =
+          BASIC_REPORT.copy {
+            externalBasicReportId = createdBasicReport2.externalBasicReportId + "b"
+          }
       }
-      limit = 2
-    }).basicReportsList
+    )
+
+    val retrievedBasicReports =
+      service
+        .listBasicReports(
+          listBasicReportsRequest {
+            filter =
+              ListBasicReportsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              }
+            limit = 2
+          }
+        )
+        .basicReportsList
 
     assertThat(retrievedBasicReports).hasSize(2)
     assertThat(retrievedBasicReports[0]).isEqualTo(createdBasicReport)
@@ -483,43 +479,59 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
 
   @Test
   fun `listBasicReport with after succeeds`(): Unit = runBlocking {
-    measurementConsumersService.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
-    measurementConsumersService2.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+    measurementConsumersService2.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
 
-    reportingSetsService.createReportingSet(createReportingSetRequest {
-      reportingSet = REPORTING_SET
-      externalReportingSetId = REPORTING_SET.externalReportingSetId
-    })
-
-    val createdBasicReport = service.insertBasicReport(insertBasicReportRequest {
-      basicReport = BASIC_REPORT
-    })
-
-    val createdBasicReport2 = service.insertBasicReport(insertBasicReportRequest {
-      basicReport = createdBasicReport.copy {
-        externalBasicReportId = createdBasicReport.externalBasicReportId + "b"
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
       }
-    })
+    )
 
-    val createdBasicReport3 = service.insertBasicReport(insertBasicReportRequest {
-      basicReport = createdBasicReport.copy {
-        externalBasicReportId = createdBasicReport2.externalBasicReportId + "b"
-      }
-    })
+    val createdBasicReport =
+      service.insertBasicReport(insertBasicReportRequest { basicReport = BASIC_REPORT })
 
-    val retrievedBasicReports = service.listBasicReports(listBasicReportsRequest {
-      filter = ListBasicReportsRequestKt.filter {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        after = ListBasicReportsRequestKt.afterFilter {
-          createTime = createdBasicReport.createTime
-          externalBasicReportId = createdBasicReport.externalBasicReportId
+    val createdBasicReport2 =
+      service.insertBasicReport(
+        insertBasicReportRequest {
+          basicReport =
+            createdBasicReport.copy {
+              externalBasicReportId = createdBasicReport.externalBasicReportId + "b"
+            }
         }
-      }
-    }).basicReportsList
+      )
+
+    val createdBasicReport3 =
+      service.insertBasicReport(
+        insertBasicReportRequest {
+          basicReport =
+            createdBasicReport.copy {
+              externalBasicReportId = createdBasicReport2.externalBasicReportId + "b"
+            }
+        }
+      )
+
+    val retrievedBasicReports =
+      service
+        .listBasicReports(
+          listBasicReportsRequest {
+            filter =
+              ListBasicReportsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                after =
+                  ListBasicReportsRequestKt.afterFilter {
+                    createTime = createdBasicReport.createTime
+                    externalBasicReportId = createdBasicReport.externalBasicReportId
+                  }
+              }
+          }
+        )
+        .basicReportsList
 
     assertThat(retrievedBasicReports).hasSize(2)
     assertThat(retrievedBasicReports[0]).isEqualTo(createdBasicReport2)
@@ -528,43 +540,59 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
 
   @Test
   fun `listBasicReport looks at external id if createTime matches`(): Unit = runBlocking {
-    measurementConsumersService.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
-    measurementConsumersService2.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+    measurementConsumersService2.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
 
-    reportingSetsService.createReportingSet(createReportingSetRequest {
-      reportingSet = REPORTING_SET
-      externalReportingSetId = REPORTING_SET.externalReportingSetId
-    })
-
-    val createdBasicReport = service.insertBasicReport(insertBasicReportRequest {
-      basicReport = BASIC_REPORT
-    })
-
-    val createdBasicReport2 = service.insertBasicReport(insertBasicReportRequest {
-      basicReport = createdBasicReport.copy {
-        externalBasicReportId = createdBasicReport.externalBasicReportId + "b"
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
       }
-    })
+    )
 
-    val createdBasicReport3 = service.insertBasicReport(insertBasicReportRequest {
-      basicReport = createdBasicReport.copy {
-        externalBasicReportId = createdBasicReport2.externalBasicReportId + "b"
-      }
-    })
+    val createdBasicReport =
+      service.insertBasicReport(insertBasicReportRequest { basicReport = BASIC_REPORT })
 
-    val retrievedBasicReports = service.listBasicReports(listBasicReportsRequest {
-      filter = ListBasicReportsRequestKt.filter {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        after = ListBasicReportsRequestKt.afterFilter {
-          createTime = createdBasicReport.createTime
-          externalBasicReportId = createdBasicReport.externalBasicReportId[0].toString()
+    val createdBasicReport2 =
+      service.insertBasicReport(
+        insertBasicReportRequest {
+          basicReport =
+            createdBasicReport.copy {
+              externalBasicReportId = createdBasicReport.externalBasicReportId + "b"
+            }
         }
-      }
-    }).basicReportsList
+      )
+
+    val createdBasicReport3 =
+      service.insertBasicReport(
+        insertBasicReportRequest {
+          basicReport =
+            createdBasicReport.copy {
+              externalBasicReportId = createdBasicReport2.externalBasicReportId + "b"
+            }
+        }
+      )
+
+    val retrievedBasicReports =
+      service
+        .listBasicReports(
+          listBasicReportsRequest {
+            filter =
+              ListBasicReportsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                after =
+                  ListBasicReportsRequestKt.afterFilter {
+                    createTime = createdBasicReport.createTime
+                    externalBasicReportId = createdBasicReport.externalBasicReportId[0].toString()
+                  }
+              }
+          }
+        )
+        .basicReportsList
 
     assertThat(retrievedBasicReports).hasSize(3)
     assertThat(retrievedBasicReports[0]).isEqualTo(createdBasicReport)
@@ -574,32 +602,41 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
 
   @Test
   fun `listBasicReport returns 0 results if no matches`(): Unit = runBlocking {
-    measurementConsumersService.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
-    measurementConsumersService2.createMeasurementConsumer(measurementConsumer {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-    })
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+    measurementConsumersService2.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
 
-    reportingSetsService.createReportingSet(createReportingSetRequest {
-      reportingSet = REPORTING_SET
-      externalReportingSetId = REPORTING_SET.externalReportingSetId
-    })
-
-    val createdBasicReport = service.insertBasicReport(insertBasicReportRequest {
-      basicReport = BASIC_REPORT
-    })
-
-    val retrievedBasicReports = service.listBasicReports(listBasicReportsRequest {
-      filter = ListBasicReportsRequestKt.filter {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        after = ListBasicReportsRequestKt.afterFilter {
-          createTime = createdBasicReport.createTime.copy {
-            seconds = createdBasicReport.createTime.seconds + 1
-          }
-        }
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
       }
-    }).basicReportsList
+    )
+
+    val createdBasicReport =
+      service.insertBasicReport(insertBasicReportRequest { basicReport = BASIC_REPORT })
+
+    val retrievedBasicReports =
+      service
+        .listBasicReports(
+          listBasicReportsRequest {
+            filter =
+              ListBasicReportsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                after =
+                  ListBasicReportsRequestKt.afterFilter {
+                    createTime =
+                      createdBasicReport.createTime.copy {
+                        seconds = createdBasicReport.createTime.seconds + 1
+                      }
+                  }
+              }
+          }
+        )
+        .basicReportsList
 
     assertThat(retrievedBasicReports).hasSize(0)
   }
@@ -630,14 +667,8 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
       campaignGroupDisplayName = REPORTING_SET.displayName
-      details = basicReportDetails {
-        title = "title"
-      }
-      resultDetails = basicReportResultDetails {
-        resultGroups += resultGroup {
-          title = "title"
-        }
-      }
+      details = basicReportDetails { title = "title" }
+      resultDetails = basicReportResultDetails { resultGroups += resultGroup { title = "title" } }
     }
   }
 }

@@ -36,7 +36,7 @@ service BasicReports {
 
   // Ordered by `create_time` ascending, `external_basic_report_id` ascending.
   rpc ListBasicReports(ListBasicReportsRequest)
-     returns (ListBasicReportsResponse);
+      returns (ListBasicReportsResponse);
 }
 
 message InsertBasicReportRequest {

@@ -18,18 +18,18 @@ package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
 
 import org.junit.ClassRule
 import org.junit.Rule
+import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemata
-import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
-import org.junit.rules.TestRule
-import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
+import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
 import org.wfanet.measurement.reporting.service.internal.testing.v2.BasicReportsServiceTest
 
 @RunWith(JUnit4::class)
@@ -43,35 +43,21 @@ class SpannerBasicReportsServiceTest : BasicReportsServiceTest<SpannerBasicRepor
     val spannerDatabaseClient = spannerDatabase.databaseClient
     val postgresDatabaseClient = postgresDatabaseProvider.createDatabase()
     return Services(
-      SpannerBasicReportsService(
-        spannerDatabaseClient,
-        postgresDatabaseClient,
-      ),
-      SpannerMeasurementConsumersService(
-        spannerDatabaseClient,
-      ),
-      PostgresMeasurementConsumersService(
-        idGenerator,
-        postgresDatabaseClient,
-      ),
-      PostgresReportingSetsService(
-        idGenerator,
-        postgresDatabaseClient,
-      ),
+      SpannerBasicReportsService(spannerDatabaseClient, postgresDatabaseClient),
+      SpannerMeasurementConsumersService(spannerDatabaseClient),
+      PostgresMeasurementConsumersService(idGenerator, postgresDatabaseClient),
+      PostgresReportingSetsService(idGenerator, postgresDatabaseClient),
     )
   }
 
   companion object {
+    @JvmStatic val spannerEmulator = SpannerEmulatorRule()
     @JvmStatic
-    val spannerEmulator = SpannerEmulatorRule()
-    @JvmStatic
-    val postgresDatabaseProvider = PostgresDatabaseProviderRule(PostgresSchemata.REPORTING_CHANGELOG_PATH)
+    val postgresDatabaseProvider =
+      PostgresDatabaseProviderRule(PostgresSchemata.REPORTING_CHANGELOG_PATH)
 
-    @get:ClassRule @JvmStatic
-    val ruleChain: TestRule =
-      chainRulesSequentially(
-        spannerEmulator,
-        postgresDatabaseProvider,
-      )
+    @get:ClassRule
+    @JvmStatic
+    val ruleChain: TestRule = chainRulesSequentially(spannerEmulator, postgresDatabaseProvider)
   }
 }

@@ -27,7 +27,8 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemat
 import org.wfanet.measurement.reporting.service.internal.testing.v2.MeasurementConsumersServiceTest
 
 @RunWith(JUnit4::class)
-class SpannerMeasurementConsumersServiceTest : MeasurementConsumersServiceTest<SpannerMeasurementConsumersService>() {
+class SpannerMeasurementConsumersServiceTest :
+  MeasurementConsumersServiceTest<SpannerMeasurementConsumersService>() {
 
   @get:Rule
   val spannerDatabase =
@@ -39,7 +40,6 @@ class SpannerMeasurementConsumersServiceTest : MeasurementConsumersServiceTest<S
   }
 
   companion object {
-    @get:ClassRule @JvmStatic
-    val spannerEmulator = SpannerEmulatorRule()
+    @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
   }
 }

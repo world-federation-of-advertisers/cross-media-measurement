@@ -66,21 +66,18 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
     """
       .trimIndent()
   val row: Struct =
-    executeQuery(statement(sql) {
-      bind("cmmsMeasurementConsumerId").to(cmmsMeasurementConsumerId)
-      bind("externalBasicReportId").to(externalBasicReportId)
-    }).singleOrNullIfEmpty()
-      ?: throw BasicReportNotFoundException(externalBasicReportId)
+    executeQuery(
+        statement(sql) {
+          bind("cmmsMeasurementConsumerId").to(cmmsMeasurementConsumerId)
+          bind("externalBasicReportId").to(externalBasicReportId)
+        }
+      )
+      .singleOrNullIfEmpty() ?: throw BasicReportNotFoundException(externalBasicReportId)
 
-  return BasicReportResult(
-    row.getLong("BasicReportId"),
-    buildBasicReport(row),
-  )
+  return BasicReportResult(row.getLong("BasicReportId"), buildBasicReport(row))
 }
 
-/**
- * Reads [BasicReport]s ordered by create time ascending, external basic report id ascending.
- */
+/** Reads [BasicReport]s ordered by create time ascending, external basic report id ascending. */
 fun AsyncDatabaseClient.ReadContext.readBasicReports(
   limit: Int,
   filter: ListBasicReportsRequest.Filter,
@@ -125,7 +122,8 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
               AND ExternalBasicReportId > @externalBasicReportId THEN TRUE
             ELSE FALSE
           END
-          """.trimIndent()
+          """
+            .trimIndent()
         )
       }
     }
@@ -149,15 +147,16 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
     }
 
   return executeQuery(query).map { row ->
-    BasicReportResult(
-      row.getLong("BasicReportId"),
-      buildBasicReport(row),
-    )
+    BasicReportResult(row.getLong("BasicReportId"), buildBasicReport(row))
   }
 }
 
 /** Buffers an insert mutation for the BasicReports table. */
-fun AsyncDatabaseClient.TransactionContext.insertBasicReport(basicReportId: Long, measurementConsumerId: Long, basicReport: BasicReport) {
+fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
+  basicReportId: Long,
+  measurementConsumerId: Long,
+  basicReport: BasicReport,
+) {
   bufferInsertMutation("BasicReports") {
     set("MeasurementConsumerId").to(measurementConsumerId)
     set("BasicReportId").to(basicReportId)
@@ -170,19 +169,25 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(basicReportId: Long
 }
 
 /** Returns whether a [BasicReport] with the specified [basicReportId] exists. */
-suspend fun AsyncDatabaseClient.ReadContext.basicReportExists(measurementConsumerId: Long, basicReportId: Long): Boolean {
-  return readRow("BasicReports", Key.of(measurementConsumerId, basicReportId), listOf("MeasurementConsumerId", "BasicReportId")) != null
+suspend fun AsyncDatabaseClient.ReadContext.basicReportExists(
+  measurementConsumerId: Long,
+  basicReportId: Long,
+): Boolean {
+  return readRow(
+    "BasicReports",
+    Key.of(measurementConsumerId, basicReportId),
+    listOf("MeasurementConsumerId", "BasicReportId"),
+  ) != null
 }
 
-/**
- * Builds a [BasicReport] from a query row response.
- */
+/** Builds a [BasicReport] from a query row response. */
 private fun buildBasicReport(row: Struct): BasicReport {
   return basicReport {
     cmmsMeasurementConsumerId = row.getString("CmmsMeasurementConsumerId")
     externalBasicReportId = row.getString("ExternalBasicReportId")
     externalCampaignGroupId = row.getString("ExternalCampaignGroupId")
-    resultDetails = row.getProtoMessage("BasicReportResultDetails", BasicReportResultDetails.getDefaultInstance())
+    resultDetails =
+      row.getProtoMessage("BasicReportResultDetails", BasicReportResultDetails.getDefaultInstance())
     details = row.getProtoMessage("BasicReportDetails", BasicReportDetails.getDefaultInstance())
     createTime = row.getTimestamp("CreateTime").toProto()
   }

@@ -28,15 +28,18 @@ import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.M
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertMeasurementConsumer
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.measurementConsumerExists
 
-class SpannerMeasurementConsumersService (
+class SpannerMeasurementConsumersService(
   private val spannerClient: AsyncDatabaseClient,
   private val idGenerator: IdGenerator = IdGenerator.Default,
-  ) : MeasurementConsumersCoroutineImplBase() {
-  override suspend fun createMeasurementConsumer(request: MeasurementConsumer): MeasurementConsumer {
+) : MeasurementConsumersCoroutineImplBase() {
+  override suspend fun createMeasurementConsumer(
+    request: MeasurementConsumer
+  ): MeasurementConsumer {
     val transactionRunner = spannerClient.readWriteTransaction()
     try {
       transactionRunner.run { txn ->
-        val measurementConsumerId = idGenerator.generateNewId { id -> txn.measurementConsumerExists(id) }
+        val measurementConsumerId =
+          idGenerator.generateNewId { id -> txn.measurementConsumerExists(id) }
         txn.insertMeasurementConsumer(
           measurementConsumerId = measurementConsumerId,
           measurementConsumer = request,

@@ -57,7 +57,12 @@ sealed class ServiceException(
       reason = source.reason.name
       metadata.putAll(source.metadata.mapKeys { it.key.key })
     }
-    return org.wfanet.measurement.common.grpc.Errors.buildStatusRuntimeException(code, message, errorInfo, this)
+    return org.wfanet.measurement.common.grpc.Errors.buildStatusRuntimeException(
+      code,
+      message,
+      errorInfo,
+      this,
+    )
   }
 }
 
