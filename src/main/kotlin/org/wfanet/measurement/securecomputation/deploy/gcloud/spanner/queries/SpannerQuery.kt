@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2025 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.queries
 
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.BaseSpannerReader
 
 /** Abstraction around a common pattern for Spanner read-only queries. */
 interface SpannerQuery<T> {

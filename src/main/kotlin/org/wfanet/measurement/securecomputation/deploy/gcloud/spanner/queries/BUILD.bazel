@@ -1,0 +1,22 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "queries",
+    srcs = glob(["*.kt"]),
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/common",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/readers",
+        "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)

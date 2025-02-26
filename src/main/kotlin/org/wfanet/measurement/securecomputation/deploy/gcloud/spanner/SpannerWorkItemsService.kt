@@ -30,6 +30,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.St
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemNotFoundException
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.queries.StreamWorkItems
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemReader
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers.CreateWorkItem
 
@@ -59,15 +60,6 @@ class SpannerWorkItemsService(
 
   override fun streamWorkItems(request: StreamWorkItemsRequest): Flow<WorkItem> {
     grpcRequire(request.limit >= 0) { "Limit cannot be less than 0" }
-    if (
-      request.filter.hasAfter() &&
-      (!request.filter.after.hasCreateTime() ||
-        request.filter.after.externalModelLineId == 0L ||
-        request.filter.after.externalModelSuiteId == 0L ||
-        request.filter.after.externalModelProviderId == 0L)
-    ) {
-      failGrpc(Status.INVALID_ARGUMENT) { "Missing After filter fields" }
-    }
     return StreamWorkItems(request.filter, request.limit).execute(client.singleUse()).map {
       it.workItem
     }

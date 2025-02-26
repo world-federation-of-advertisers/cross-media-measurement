@@ -22,7 +22,6 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.SpannerReader
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.workItem
 

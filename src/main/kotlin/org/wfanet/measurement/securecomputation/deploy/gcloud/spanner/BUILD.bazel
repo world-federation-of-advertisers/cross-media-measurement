@@ -7,6 +7,9 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
     ],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/queries",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/readers",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/writers",
         "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//imports/java/io/grpc:api",
