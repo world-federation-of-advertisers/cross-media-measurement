@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.Timestamp
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Logger
@@ -80,9 +81,10 @@ abstract class SpannerWriter<T, R> {
    * @return the output of [buildResult]
    */
   suspend fun execute(databaseClient: AsyncDatabaseClient, idGenerator: IdGenerator): R {
-    logger.fine("Running ${this::class.simpleName} transaction")
+    val className: String = this::class.simpleName!!
+    logger.fine("Running $className transaction")
     check(executed.compareAndSet(false, true)) { "Cannot execute SpannerWriter multiple times" }
-    val runner = databaseClient.readWriteTransaction()
+    val runner = databaseClient.readWriteTransaction(Options.tag("writer=$className"))
     val transactionResult: T? = runTransaction(runner, idGenerator)
     val resultScope = ResultScope(transactionResult, runner.getCommitTimestamp())
     return resultScope.buildResult()
