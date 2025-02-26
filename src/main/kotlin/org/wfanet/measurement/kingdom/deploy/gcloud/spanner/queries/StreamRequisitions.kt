@@ -24,8 +24,17 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionR
 class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit: Int = 0) :
   SimpleSpannerQuery<RequisitionReader.Result>() {
 
+  private val primaryTable =
+    if (requestFilter.externalMeasurementConsumerId != 0L) {
+      // Since Requisitions is interleaved in Measurements which is interleaved in
+      // MeasurementConsumers, it's most efficient if the MC can be filtered first.
+      RequisitionReader.PrimaryTable.MEASUREMENT_CONSUMERS
+    } else {
+      RequisitionReader.PrimaryTable.REQUISITIONS
+    }
+
   override val reader =
-    RequisitionReader().apply {
+    RequisitionReader(primaryTable).apply {
       fillStatementBuilder {
         appendWhereClause(requestFilter)
         appendClause(ORDER_BY_CLAUSE)
