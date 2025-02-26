@@ -26,6 +26,8 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.securecomputation.storage.requisitionBatch
+import org.wfanet.measurement.securecomputation.storage.resourceBatch
 import org.wfanet.measurement.storage.StorageClient
 
 /**
@@ -40,6 +42,7 @@ class RequisitionFetcher(
   private val storageClient: StorageClient,
   private val dataProviderName: String,
   private val responsePageSize: Int,
+  private val storagePathPrefix: String,
 ) {
 
   /**
@@ -56,7 +59,6 @@ class RequisitionFetcher(
 
     // TODO: Update logic once we have a more efficient way to pull only the Requisitions that have
     // not been stored in storage.'
-
     var requisitionsCount = 0
     var storedRequisitions = 0
 
@@ -76,9 +78,11 @@ class RequisitionFetcher(
       ResourceList(response.requisitionsList, response.nextPageToken)
     }.flattenConcat()
 
+    logger.fine {"$requisitionsCount unfulfilled requisitions have been retrieved for $dataProviderName"}
+
     storedRequisitions += storeRequisitions(requisitions)
 
-    logger.fine {"${storedRequisitions} / ${requisitionsCount} retrieved unfulfilled requisitions have been persisted to storage for $dataProviderName"}
+    logger.fine {"$storedRequisitions unfulfilled requisitions have been persisted to storage for $dataProviderName"}
   }
 
   /**
@@ -95,14 +99,23 @@ class RequisitionFetcher(
   private suspend fun storeRequisitions(requisitions: Flow<Requisition>): Int {
     var storedRequisitions = 0
     requisitions.collect { requisition ->
-      val blobKey = requisition.name
+      val blobKey = "$storagePathPrefix/${requisition.name}"
+
       // Only stores the requisition if it does not already exist in storage by checking if
       // the blob key(created using the requisition name, ensuring uniqueness) is populated.
       if (storageClient.getBlob(blobKey) == null) {
-        storageClient.writeBlob(blobKey, RequisitionsList.newBuilder().addAllRequisitions(listOf(requisition.toString())).build().toByteString())
+        storageClient.writeBlob(
+          blobKey,
+          resourceBatch {
+            requisitionBatch = requisitionBatch {
+              requisitionGroup += listOf(requisition.toString())
+            }
+          }.toByteString()
+        )
         storedRequisitions += 1
       }
     }
+
 
     return storedRequisitions
   }

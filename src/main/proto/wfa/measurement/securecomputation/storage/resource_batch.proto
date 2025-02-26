@@ -1,4 +1,4 @@
-// Copyright 2025 The Cross-Media Measurement Authors
+// Copyright 2024 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,24 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 syntax = "proto3";
 
+package wfa.measurement.securecomputation.storage;
 
-package wfa.measurement.edpaggregator.requisitionfetcher;
-
-
+import "google/protobuf/any.proto";
+import "wfa/measurement/api/v2alpha/requisition.proto";
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 
-
-option java_package = "org.wfanet.measurement.edpaggregator.requisitionfetcher";
+option java_package = "org.wfanet.measurement.securecomputation.storage";
 option java_multiple_files = true;
-option java_outer_classname = "RequisitionsListProto";
+option java_outer_classname = "ResourceBatchProto";
 
+// Resource representing a group of resources that will be batched together for storage.
+message ResourceBatch {
+  oneof resources {
+    RequisitionBatch requisition_batch = 1;
+  }
+}
 
-message RequisitionsList {
-  repeated string requisitions = 1 [
+message RequisitionBatch {
+  repeated string requisition_group = 1 [
     (google.api.resource_reference).type = "halo.wfanet.org/Requisition",
     (google.api.field_behavior) = REQUIRED
   ];

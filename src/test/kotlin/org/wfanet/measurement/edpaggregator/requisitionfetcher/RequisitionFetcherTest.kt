@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.TextFormat
 import com.google.protobuf.kotlin.toByteString
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -28,6 +29,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -60,6 +62,8 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.securecomputation.storage.requisitionBatch
+import org.wfanet.measurement.securecomputation.storage.resourceBatch
 
 @RunWith(JUnit4::class)
 class RequisitionFetcherTest {
@@ -78,20 +82,58 @@ class RequisitionFetcherTest {
   fun `fetch new requisitions and store in GCS bucket`() {
     val storage = LocalStorageHelper.getOptions().service
     val storageClient = GcsStorageClient(storage, BUCKET)
-    val fetcher = RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME, 50)
+    val fetcher = RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME, 50, STORAGE_PATH_PREFIX)
 
-    val expectedResult = requisitionsList {
-      requisitions += listOf(REQUISITION.toString())
+    val expectedResult = resourceBatch {
+      requisitionBatch = requisitionBatch {
+        requisitionGroup += listOf(REQUISITION.toString())
+      }
     }
+
     val persistedRequisition = runBlocking {
       fetcher.fetchAndStoreRequisitions()
-      storageClient.getBlob(REQUISITION.name)?.read()?.toByteArray()?.toByteString()
+      storageClient.getBlob("$STORAGE_PATH_PREFIX/${REQUISITION.name}")?.read()?.toByteArray()?.toByteString()
     }
 
     assertThat(expectedResult.toByteString()).isEqualTo(persistedRequisition)
   }
 
+  @Test
+  fun `fetch multiple requisitions and store in GCS bucket`() {
+    val requisitionsList = List(100) { REQUISITION }
+
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisitionsList })
+    }
+    val storage = LocalStorageHelper.getOptions().service
+    val storageClient = GcsStorageClient(storage, BUCKET)
+    val fetcher = RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME, 50, STORAGE_PATH_PREFIX)
+
+    val expectedResult = requisitionsList.map {
+      resourceBatch {
+        requisitionBatch = requisitionBatch {
+          requisitionGroup += listOf(it.toString())
+        }
+      }
+    }
+
+    runBlocking {
+      fetcher.fetchAndStoreRequisitions()
+
+      expectedResult.map {
+        val requisition = Requisition.getDefaultInstance()
+          .newBuilderForType()
+          .apply { TextFormat.Parser.newBuilder().build().merge(it.requisitionBatch.requisitionGroupList[0], this) }
+          .build() as Requisition
+
+        assertThat(storageClient.getBlob("$STORAGE_PATH_PREFIX/${requisition.name}")).isNotNull()
+      }
+    }
+  }
+
   companion object {
+    private const val STORAGE_PATH_PREFIX = "test-requisitions/"
     private const val BUCKET = "requisition-storage-test-bucket"
     private const val MC_ID = "mc"
     private const val MC_NAME = "measurementConsumers/$MC_ID"

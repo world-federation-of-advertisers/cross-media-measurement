@@ -30,7 +30,7 @@ import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 
 class RequisitionFetcherFunction : HttpFunction {
   override fun service(request: HttpRequest, response: HttpResponse) {
-    runBlocking { requisitionFetcher.executeRequisitionFetchingWorkflow() }
+    runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
   }
 
   companion object {
@@ -52,6 +52,8 @@ class RequisitionFetcherFunction : HttpFunction {
         requisitionsStub,
         requisitionsStorageClient,
         System.getenv("DATAPROVIDER_NAME"),
+        System.getenv("PAGE_SIZE").toInt(),
+        System.getenv("STORAGE_PATH_PREFIX"),
       )
 
     private fun getClientCerts(): SigningCerts {
