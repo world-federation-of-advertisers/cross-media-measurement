@@ -42,6 +42,9 @@ CREATE TABLE WorkItems (
 
 ) PRIMARY KEY (WorkItemId);
 
+CREATE UNIQUE INDEX WorkItemsByExternalId
+    ON WorkItems(ExternalWorkItemId);
+
 CREATE TABLE WorkItemAttempts (
     WorkItemId INT64 NOT NULL,
     WorkItemAttemptId INT64 NOT NULL,
