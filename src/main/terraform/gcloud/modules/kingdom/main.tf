@@ -390,7 +390,10 @@ resource "google_project_iam_member" "bigquery_job_user" {
   member  = module.kingdom_operational_metrics.iam_service_account.member
 }
 
-resource "google_monitoring_dashboard" "ops_dashboard" {
-  project = data.google_project.project.project_id
-  dashboard_json = file("${path.module}/kingdom_dashboard.json")
+
+resource "google_monitoring_dashboard" "dashboards" {
+  for_each        = toset(var.dashboard_json_paths)
+
+  dashboard_json  = file(each.value)
+  project         = data.google_project.project.project_id
 }

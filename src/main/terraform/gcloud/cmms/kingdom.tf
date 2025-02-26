@@ -35,4 +35,9 @@ module "kingdom" {
   source = "../modules/kingdom"
 
   spanner_instance = google_spanner_instance.spanner_instance
+  dashboard_json_paths = [
+    "dashboard_configs/kingdom_dashboard_1.json",
+    "dashboard_configs/kingdom_dashboard_2.json",
+    "dashboard_configs/kingdom_dashboard_3.json",
+  ]
 }
