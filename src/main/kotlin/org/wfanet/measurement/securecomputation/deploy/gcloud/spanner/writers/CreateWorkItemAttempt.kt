@@ -33,24 +33,24 @@ class CreateWorkItemAttempt (private val workItemAttempt: WorkItemAttempt) :
 
   override suspend fun TransactionScope.runTransaction(): WorkItemAttempt {
 
-    val workItemId: InternalId =
+    val internalWorkItemId: InternalId =
       readWorkItemId(ExternalId(workItemAttempt.externalWorkItemId))
 
-    val internalWorkItemId = idGenerator.generateInternalId()
-    val externalWorkItemId = idGenerator.generateExternalId()
+    val internalWorkItemAttemptId = idGenerator.generateInternalId()
+    val externalWorkItemAttemptId = idGenerator.generateExternalId()
 
     transactionContext.bufferInsertMutation("WorkItems") {
       set("WorkItemId" to internalWorkItemId)
-      set("ExternalWorkItemId" to externalWorkItemId)
-      set("Queue" to workItem.queue)
-      set("State").toInt64(WorkItem.State.QUEUED)
+      set("WorkItemAttemptId" to internalWorkItemAttemptId)
+      set("ExternalWorkItemAttemptId" to externalWorkItemAttemptId)
+      set("State").toInt64(WorkItemAttempt.State.CLAIMED)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     }
 
-    return workItem.copy {
-      this.externalWorkItemId = externalWorkItemId.value
-      this.state = WorkItem.State.QUEUED
+    return workItemAttempt.copy {
+      this.externalWorkItemAttemptId = externalWorkItemAttemptId.value
+      this.state = WorkItemAttempt.State.CLAIMED
     }
 
   }

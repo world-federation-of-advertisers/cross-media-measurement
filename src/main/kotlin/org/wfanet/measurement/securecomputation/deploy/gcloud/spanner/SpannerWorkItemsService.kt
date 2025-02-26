@@ -44,6 +44,7 @@ class SpannerWorkItemsService(
 ) : WorkItemsCoroutineImplBase() {
 
   override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
+    grpcRequire(request.workItem.queue.isNotEmpty()) { "Queue field of WorkItem is missing." }
     return CreateWorkItem(request.workItem).execute(client, idGenerator)
   }
 

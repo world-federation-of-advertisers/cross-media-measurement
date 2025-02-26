@@ -57,3 +57,16 @@ class WorkItemNotFoundException(
     get() =
       mapOf("external_measurement_consumer_id" to externalWorkItemId.value.toString())
 }
+
+class WorkItemAttemptNotFoundException(
+  val externalWorkItemId: ExternalId,
+  val externalWorkItemAttemptId: ExternalId,
+  provideDescription: () -> String = { "WorkItemAttempt not found" },
+) : SecurecomputationInternalException(ErrorCode.WORK_ITEM_ATTEMPT_NOT_FOUND, provideDescription) {
+  override val context
+  get() =
+    mapOf(
+      "external_work_item_id" to externalWorkItemId.value.toString(),
+      "external_work_item_attempt_id" to externalWorkItemAttemptId.value.toString(),
+    )
+}

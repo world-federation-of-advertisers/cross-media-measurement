@@ -30,9 +30,14 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.Ge
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.StreamWorkItemAttemptsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItemAttempt
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelSuiteReader
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemAttemptNotFoundException
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemNotFoundException
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.queries.StreamWorkItems
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemAttemptReader
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemReader
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers.CreateWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers.FailWorkItem
 
 class SpannerWorkItemAttemptsService(
@@ -41,21 +46,17 @@ class SpannerWorkItemAttemptsService(
 ) : WorkItemAttemptsCoroutineImplBase() {
 
   override suspend fun createWorkItemAttempt(request: CreateWorkItemAttemptRequest): WorkItemAttempt {
-//    return CreateWorkItem(request.workItem).execute(client, idGenerator)
+    return CreateWorkItemAttempt(request.workItemAttempt).execute(client, idGenerator)
   }
 
   override suspend fun getWorkItemAttempt(request: GetWorkItemAttemptRequest): WorkItemAttempt {
     val externalWorkItemId = ExternalId(request.externalWorkItemId)
-    return WorkItemReader()
-      .readByExternalId(
-        client.singleUse(),
-        externalWorkItemId,
-      )
-      ?.workItem
-      ?: throw WorkItemNotFoundException(
-        externalWorkItemId,
-      )
-        .asStatusRuntimeException(Status.Code.NOT_FOUND, "WorkItem not found.")
+    val externalWorkItemAttemptId = ExternalId(request.externalWorkItemAttemptId)
+    return WorkItemAttemptReader()
+      .readByExternalIds(client.singleUse(), externalWorkItemId, externalWorkItemAttemptId)
+      ?.workItemAttempt
+      ?: throw WorkItemAttemptNotFoundException(externalWorkItemId, externalWorkItemAttemptId)
+        .asStatusRuntimeException(Status.Code.NOT_FOUND, "WorkItemAttempt not found.")
   }
 
   override fun streamWorkItemAttempts(request: StreamWorkItemAttemptsRequest): Flow<WorkItemAttempt> {

@@ -25,4 +25,7 @@ enum ErrorCode {
   /** WorkItem resource queried could not be found. */
   WORK_ITEM_NOT_FOUND = 1;
 
+  /** WorkItemAttempt resource queried could not be found. */
+  WORK_ITEM_ATTEMPT_NOT_FOUND = 2;
+
 }
