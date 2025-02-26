@@ -17,6 +17,7 @@
 package org.wfanet.measurement.access.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.ErrorCode
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.ByteString
 import com.google.protobuf.Empty
@@ -69,7 +70,8 @@ class SpannerPrincipalsService(
   }
 
   override suspend fun createUserPrincipal(request: CreateUserPrincipalRequest): Principal {
-    val runner: AsyncDatabaseClient.TransactionRunner = databaseClient.readWriteTransaction()
+    val runner: AsyncDatabaseClient.TransactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=createUserPrincipal"))
     try {
       runner.run { txn ->
         val principalId: Long = idGenerator.generateNewId { id -> txn.principalExists(id) }
@@ -107,7 +109,7 @@ class SpannerPrincipalsService(
     }
 
     try {
-      databaseClient.readWriteTransaction().run { txn ->
+      databaseClient.readWriteTransaction(Options.tag("action=deletePrincipal")).run { txn ->
         val principalId: Long = txn.getPrincipalIdByResourceId(request.principalResourceId)
         txn.deletePrincipal(principalId)
       }

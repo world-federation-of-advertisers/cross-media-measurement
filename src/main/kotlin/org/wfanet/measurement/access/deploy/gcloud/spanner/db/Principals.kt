@@ -19,6 +19,7 @@ package org.wfanet.measurement.access.deploy.gcloud.spanner.db
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.map
@@ -80,7 +81,10 @@ suspend fun AsyncDatabaseClient.ReadContext.getPrincipalByResourceId(
       """
       .trimIndent()
   val struct =
-    executeQuery(statement(sql) { bind("principalResourceId").to(principalResourceId) })
+    executeQuery(
+        statement(sql) { bind("principalResourceId").to(principalResourceId) },
+        Options.tag("action=getPrincipalByResourceId"),
+      )
       .singleOrNullIfEmpty() ?: throw PrincipalNotFoundException(principalResourceId)
 
   return PrincipalResult(
@@ -166,7 +170,8 @@ suspend fun AsyncDatabaseClient.ReadContext.getPrincipalByUserKey(
         statement(sql) {
           bind("issuer").to(issuer)
           bind("subject").to(subject)
-        }
+        },
+        Options.tag("action=getPrincipalByUserKey"),
       )
       .singleOrNullIfEmpty() ?: throw PrincipalNotFoundForUserException(issuer, subject)
   return PrincipalResult(
