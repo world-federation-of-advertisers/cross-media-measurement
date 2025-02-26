@@ -95,14 +95,10 @@ class PostgresReportingSetsService(
           .withSerializableErrorRetries()
           .toList()
       } catch (e: ReportingSetNotFoundException) {
-        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Reporting Set not found")
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       } finally {
         readContext.close()
       }
-
-    if (reportingSets.size < request.externalReportingSetIdsList.size) {
-      failGrpc(Status.NOT_FOUND) { "Reporting Set not found" }
-    }
 
     return batchGetReportingSetsResponse { this.reportingSets += reportingSets }
   }
