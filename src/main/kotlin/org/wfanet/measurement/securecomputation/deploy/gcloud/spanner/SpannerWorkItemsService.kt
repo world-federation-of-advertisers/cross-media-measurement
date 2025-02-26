@@ -16,11 +16,16 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
+import io.grpc.Status
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.GetWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemNotFoundException
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemReader
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers.CreateWorkItem
 
 
@@ -32,5 +37,20 @@ class SpannerWorkItemsService(
   override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
     return CreateWorkItem(request.workItem).execute(client, idGenerator)
   }
+
+  override suspend fun getWorkItem(request: GetWorkItemRequest): WorkItem {
+    val externalWorkItemId = ExternalId(request.externalWorkItemId)
+    return WorkItemReader()
+      .readByExternalId(
+        client.singleUse(),
+        externalWorkItemId,
+      )
+      ?.workItem
+      ?: throw WorkItemNotFoundException(
+        externalWorkItemId,
+      )
+        .asStatusRuntimeException(Status.Code.NOT_FOUND, "WorkItem not found.")
+  }
+
 
 }
