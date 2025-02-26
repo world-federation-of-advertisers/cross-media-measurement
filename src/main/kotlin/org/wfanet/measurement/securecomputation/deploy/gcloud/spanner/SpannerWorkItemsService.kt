@@ -17,11 +17,16 @@
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.GetWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.StreamWorkItemsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemNotFoundException
@@ -50,6 +55,22 @@ class SpannerWorkItemsService(
         externalWorkItemId,
       )
         .asStatusRuntimeException(Status.Code.NOT_FOUND, "WorkItem not found.")
+  }
+
+  override fun streamWorkItems(request: StreamWorkItemsRequest): Flow<WorkItem> {
+    grpcRequire(request.limit >= 0) { "Limit cannot be less than 0" }
+    if (
+      request.filter.hasAfter() &&
+      (!request.filter.after.hasCreateTime() ||
+        request.filter.after.externalModelLineId == 0L ||
+        request.filter.after.externalModelSuiteId == 0L ||
+        request.filter.after.externalModelProviderId == 0L)
+    ) {
+      failGrpc(Status.INVALID_ARGUMENT) { "Missing After filter fields" }
+    }
+    return StreamWorkItems(request.filter, request.limit).execute(client.singleUse()).map {
+      it.workItem
+    }
   }
 
 
