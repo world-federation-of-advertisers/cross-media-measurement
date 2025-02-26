@@ -33,7 +33,11 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportsServic
 
 object DataServices {
   @JvmStatic
-  fun create(idGenerator: IdGenerator, postgresClient: DatabaseClient, spannerClient: AsyncDatabaseClient): Services {
+  fun create(
+    idGenerator: IdGenerator,
+    postgresClient: DatabaseClient,
+    spannerClient: AsyncDatabaseClient,
+  ): Services {
     return Services(
       SpannerMeasurementConsumersService(spannerClient),
       SpannerBasicReportsService(spannerClient, postgresClient),
