@@ -20,7 +20,6 @@ import com.google.cloud.spanner.Statement
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.StreamWorkItemsRequest
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelSuites
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemReader
 
 class StreamWorkItems(private val requestFilter: StreamWorkItemsRequest.Filter, limit: Int = 0) :

@@ -30,17 +30,11 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.Ge
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.StreamWorkItemAttemptsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItemAttempt
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelSuiteReader
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemAttemptNotFoundException
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemNotFoundException
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.queries.StreamWorkItemAttempts
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.queries.StreamWorkItems
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemAttemptReader
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemReader
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers.CompleteWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers.CreateWorkItemAttempt
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers.FailWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers.FailWorkItemAttempt
 
 class SpannerWorkItemAttemptsService(

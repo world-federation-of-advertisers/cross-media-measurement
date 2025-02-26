@@ -25,7 +25,6 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.copy
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelProviderNotFoundException
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemNotFoundException
 
 class CreateWorkItemAttempt (private val workItemAttempt: WorkItemAttempt) :

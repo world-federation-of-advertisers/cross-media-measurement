@@ -13,6 +13,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/common",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/readers",
+        "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane/v1alpha:work_item_attempts_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
