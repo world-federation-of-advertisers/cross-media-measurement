@@ -57,11 +57,10 @@ class RequisitionFetcher(
   suspend fun fetchAndStoreRequisitions() {
     logger.info("Executing requisitionFetchingWorkflow for $dataProviderName...")
 
-    // TODO: Update logic once we have a more efficient way to pull only the Requisitions that have
-    // not been stored in storage.'
     var requisitionsCount = 0
     var storedRequisitions = 0
 
+    // TODO(b/2095): Update logic once we have a more efficient way to pull only the Requisitions that have not been stored in storage.
     val requisitions: Flow<Requisition> = requisitionsStub.listResources { pageToken ->
       val request = listRequisitionsRequest {
         parent = dataProviderName
