@@ -21,39 +21,49 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.toInt64
+import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.CompleteWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.copy
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.FailWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItem
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemNotFoundException
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemReader
+import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItemAttempt
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemAttemptNotFoundException
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemAttemptReader
 
 
-class FailWorkItem(private val request: FailWorkItemRequest) :
-  SpannerWriter<WorkItem, WorkItem>() {
+class CompleteWorkItemAttempt(private val request: CompleteWorkItemAttemptRequest) :
+  SpannerWriter<WorkItemAttempt, WorkItemAttempt>() {
 
-  override suspend fun TransactionScope.runTransaction(): WorkItem {
-    val workItemResult =
-      WorkItemReader()
-        .readByExternalId(
+  override suspend fun TransactionScope.runTransaction(): WorkItemAttempt {
+    val workItemAttemptResult =
+      WorkItemAttemptReader()
+        .readByExternalIds(
           transactionContext,
           ExternalId(request.externalWorkItemId),
+          ExternalId(request.externalWorkItemAttemptId),
         )
-        ?: throw WorkItemNotFoundException(
+        ?: throw WorkItemAttemptNotFoundException(
           ExternalId(request.externalWorkItemId),
+          ExternalId(request.externalWorkItemAttemptId),
         )
 
-    transactionContext.bufferUpdateMutation("WorkItems") {
-      set("WorkItemId" to workItemResult.workItemId.value)
-      set("State").toInt64(WorkItem.State.FAILED)
+    transactionContext.bufferUpdateMutation("WorkItemAttempts") {
+      set("WorkItemId" to workItemAttemptResult.workItemId.value)
+      set("WorkItemAttemptId" to workItemAttemptResult.workItemAttemptId.value)
+      set("State").toInt64(WorkItem.State.SUCCEEDED)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     }
 
-    return workItemResult.workItem.copy {
-      state = WorkItem.State.FAILED
+    transactionContext.bufferUpdateMutation("WorkItems") {
+      set("WorkItemId" to workItemAttemptResult.workItemId.value)
+      set("State").toInt64(WorkItem.State.SUCCEEDED)
+      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+    }
+
+    return workItemAttemptResult.workItemAttempt.copy {
+      state = WorkItemAttempt.State.SUCCEEDED
     }
   }
 
-  override fun ResultScope<WorkItem>.buildResult(): WorkItem {
+  override fun ResultScope<WorkItemAttempt>.buildResult(): WorkItemAttempt {
     return checkNotNull(transactionResult).copy { updateTime = commitTimestamp.toProto() }
   }
 }

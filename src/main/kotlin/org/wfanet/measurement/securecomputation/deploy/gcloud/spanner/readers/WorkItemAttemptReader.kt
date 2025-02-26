@@ -38,6 +38,7 @@ class WorkItemAttemptReader : SpannerReader<WorkItemAttemptReader.Result>() {
     SELECT
       WorkItemAttempts.WorkItemAttemptId,
       WorkItemAttempts.WorkItemId,
+      WorkItems.ExternalWorkItemId,
       WorkItemAttempts.ExternalWorkItemAttemptId,
       WorkItemAttempts.State,
       WorkItemAttempts.AttemptNumber,
@@ -74,9 +75,9 @@ class WorkItemAttemptReader : SpannerReader<WorkItemAttemptReader.Result>() {
     return fillStatementBuilder {
       appendClause(
         """
-          WHERE ExternalWorkItemId = @externalWorkItemId
+          WHERE WorkItems.ExternalWorkItemId = @externalWorkItemId
           AND
-          ExternalWorkItemAttemptId = @externalWorkItemAttemptId
+          WorkItemAttempts.ExternalWorkItemAttemptId = @externalWorkItemAttemptId
           """
           .trimIndent()
       )

@@ -39,7 +39,7 @@ class CreateWorkItemAttempt (private val workItemAttempt: WorkItemAttempt) :
     val internalWorkItemAttemptId = idGenerator.generateInternalId()
     val externalWorkItemAttemptId = idGenerator.generateExternalId()
 
-    transactionContext.bufferInsertMutation("WorkItems") {
+    transactionContext.bufferInsertMutation("WorkItemAttempts") {
       set("WorkItemId" to internalWorkItemId)
       set("WorkItemAttemptId" to internalWorkItemAttemptId)
       set("ExternalWorkItemAttemptId" to externalWorkItemAttemptId)

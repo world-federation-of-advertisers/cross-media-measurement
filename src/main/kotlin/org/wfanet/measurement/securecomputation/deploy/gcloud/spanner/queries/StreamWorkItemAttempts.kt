@@ -19,20 +19,23 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.queries
 import com.google.cloud.spanner.Statement
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
+import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.StreamWorkItemAttemptsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.StreamWorkItemsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelSuites
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemAttemptReader
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemReader
 
-class StreamWorkItems(private val requestFilter: StreamWorkItemsRequest.Filter, limit: Int = 0) :
-  SimpleSpannerQuery<WorkItemReader.Result>() {
+class StreamWorkItemAttempts(private val requestFilter: StreamWorkItemAttemptsRequest.Filter, limit: Int = 0) :
+  SimpleSpannerQuery<WorkItemAttemptReader.Result>() {
 
   override val reader =
-    WorkItemReader().fillStatementBuilder {
+    WorkItemAttemptReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
       appendClause(
         """
         ORDER BY CreateTime ASC,
-        ExternalWorkItemId ASC
+        ExternalWorkItemId ASC,
+        ExternalWorkItemAttemptId ASC
         """
           .trimIndent()
       )
@@ -42,12 +45,26 @@ class StreamWorkItems(private val requestFilter: StreamWorkItemsRequest.Filter, 
       }
     }
 
-  private fun Statement.Builder.appendWhereClause(filter: StreamWorkItemsRequest.Filter) {
+  private fun Statement.Builder.appendWhereClause(filter: StreamWorkItemAttemptsRequest.Filter) {
     val conjuncts = mutableListOf<String>()
 
-    if (filter.externalWorkItemIdAfter != 0L) {
-      conjuncts.add("ExternalWorkItemId > @${EXTERNAL_WORK_ITEM_ID}")
-      bind(EXTERNAL_WORK_ITEM_ID to filter.externalWorkItemIdAfter)
+    if (filter.externalWorkItemId != 0L && filter.externalWorkItemAttemptIdAfter != 0L) {
+
+      conjuncts.add(
+        """
+          (
+            (WorkItemAttempts.ExternalWorkItemId  > @${EXTERNAL_WORK_ITEM_ID})
+            OR (WorkItemAttempts.ExternalWorkItemId  = @${EXTERNAL_WORK_ITEM_ID}
+            AND WorkItemAttempts.ExternalWorkItemAttemptId > @${EXTERNAL_WORK_ITEM_ATTEMPT_ID})
+          )
+        """
+          .trimIndent()
+      )
+
+      conjuncts.add("ExternalWorkItemId = @${EXTERNAL_WORK_ITEM_ID}")
+      conjuncts.add("ExternalWorkItemAttemptId = @${EXTERNAL_WORK_ITEM_ATTEMPT_ID}")
+      bind(EXTERNAL_WORK_ITEM_ID to filter.externalWorkItemId)
+      bind(EXTERNAL_WORK_ITEM_ATTEMPT_ID to filter.externalWorkItemAttemptIdAfter)
     }
 
     if (conjuncts.isEmpty()) {
@@ -61,5 +78,6 @@ class StreamWorkItems(private val requestFilter: StreamWorkItemsRequest.Filter, 
   companion object {
     const val LIMIT = "limit"
     const val EXTERNAL_WORK_ITEM_ID = "externalWorkItemId"
+    const val EXTERNAL_WORK_ITEM_ATTEMPT_ID = "externalWorkItemAttemptId"
   }
 }

@@ -34,11 +34,14 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNot
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelSuiteReader
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemAttemptNotFoundException
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemNotFoundException
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.queries.StreamWorkItemAttempts
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.queries.StreamWorkItems
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemAttemptReader
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemReader
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers.CompleteWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers.CreateWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers.FailWorkItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers.FailWorkItemAttempt
 
 class SpannerWorkItemAttemptsService(
   private val idGenerator: IdGenerator,
@@ -61,8 +64,8 @@ class SpannerWorkItemAttemptsService(
 
   override fun streamWorkItemAttempts(request: StreamWorkItemAttemptsRequest): Flow<WorkItemAttempt> {
     grpcRequire(request.limit >= 0) { "Limit cannot be less than 0" }
-    return StreamWorkItems(request.filter, request.limit).execute(client.singleUse()).map {
-      it.workItem
+    return StreamWorkItemAttempts(request.filter, request.limit).execute(client.singleUse()).map {
+      it.workItemAttempt
     }
   }
 
@@ -70,21 +73,28 @@ class SpannerWorkItemAttemptsService(
     grpcRequire(request.externalWorkItemId != 0L) {
       "external_work_item_id not specified"
     }
+    grpcRequire(request.externalWorkItemAttemptId != 0L) {
+      "external_work_item_attempt_id not specified"
+    }
     try {
-      return FailWorkItem(request).execute(client, idGenerator)
-    } catch (e: ModelLineNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, e.message ?: "ModelLine not found.")
-    } catch (e: ModelLineTypeIllegalException) {
-      throw e.asStatusRuntimeException(
-        Status.Code.INVALID_ARGUMENT,
-        e.message
-          ?: "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'.",
-      )
+      return FailWorkItemAttempt(request).execute(client, idGenerator)
+    } catch (e: WorkItemAttemptNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, e.message ?: "WorkItemAttempt not found.")
     }
   }
 
   override suspend fun completeWorkItemAttempt(request: CompleteWorkItemAttemptRequest): WorkItemAttempt {
-
+    grpcRequire(request.externalWorkItemId != 0L) {
+      "external_work_item_id not specified"
+    }
+    grpcRequire(request.externalWorkItemAttemptId != 0L) {
+      "external_work_item_attempt_id not specified"
+    }
+    try {
+      return CompleteWorkItemAttempt(request).execute(client, idGenerator)
+    } catch (e: WorkItemAttemptNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, e.message ?: "WorkItemAttempt not found.")
+    }
   }
 
 }

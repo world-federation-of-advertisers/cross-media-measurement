@@ -29,8 +29,6 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.Ge
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.StreamWorkItemsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItem
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineTypeIllegalException
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemNotFoundException
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.queries.StreamWorkItems
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemReader
@@ -75,14 +73,8 @@ class SpannerWorkItemsService(
     }
     try {
       return FailWorkItem(request).execute(client, idGenerator)
-    } catch (e: ModelLineNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, e.message ?: "ModelLine not found.")
-    } catch (e: ModelLineTypeIllegalException) {
-      throw e.asStatusRuntimeException(
-        Status.Code.INVALID_ARGUMENT,
-        e.message
-          ?: "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'.",
-      )
+    } catch (e: WorkItemNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, e.message ?: "WorkItem not found.")
     }
   }
 
