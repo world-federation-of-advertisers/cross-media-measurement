@@ -38,6 +38,10 @@ module "reporting_v2" {
   postgres_instance        = google_sql_database_instance.postgres
   postgres_database_name   = "reporting-v2"
   spanner_instance         = google_spanner_instance.spanner_instance
+  dashboard_json_paths = [
+    "dashboard_configs/reporting_1.json",
+    "dashboard_configs/reporting_2.json",
+  ]
 }
 
 resource "google_compute_address" "reporting_v2alpha" {

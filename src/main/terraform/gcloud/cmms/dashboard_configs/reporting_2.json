@@ -1,5 +1,5 @@
 {
-  "displayName": "OCMM Ops - Kingdom [2] - Requisitions, DataProviders, Certificates",
+  "displayName": "OCMM Ops - Reporting Server [2] - EventGroups, Metrics",
   "dashboardFilters": [],
   "labels": {},
   "mosaicLayout": {
@@ -9,7 +9,7 @@
         "height": 4,
         "width": 48,
         "widget": {
-          "title": "Requisition Services",
+          "title": "EventGroup Services",
           "id": "",
           "sectionHeader": {
             "dividerBelow": false,
@@ -22,7 +22,7 @@
         "height": 16,
         "width": 24,
         "widget": {
-          "title": "ListRequisitions Duration [Median]",
+          "title": "ListEventGroups Latency [Median]",
           "id": "",
           "xyChart": {
             "chartOptions": {
@@ -48,7 +48,7 @@
                       "groupByFields": [],
                       "perSeriesAligner": "ALIGN_DELTA"
                     },
-                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"ListRequisitions\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"v2alpha-public-api-server-container\""
+                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"ListEventGroups\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"reporting-v2alpha-public-api-server-container\""
                   },
                   "unitOverride": ""
                 }
@@ -67,7 +67,7 @@
         "height": 48,
         "width": 48,
         "widget": {
-          "title": "ListRequisitions",
+          "title": "ListEventGroups",
           "collapsibleGroup": {
             "collapsed": false
           },
@@ -80,7 +80,7 @@
         "height": 16,
         "width": 24,
         "widget": {
-          "title": "ListRequisitions Duration [P95]",
+          "title": "ListEventGroups Latency [P95]",
           "id": "",
           "xyChart": {
             "chartOptions": {
@@ -106,7 +106,7 @@
                       "groupByFields": [],
                       "perSeriesAligner": "ALIGN_DELTA"
                     },
-                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"ListRequisitions\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"v2alpha-public-api-server-container\""
+                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"ListEventGroups\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"reporting-v2alpha-public-api-server-container\""
                   },
                   "unitOverride": ""
                 }
@@ -125,7 +125,7 @@
         "height": 16,
         "width": 24,
         "widget": {
-          "title": "ListRequisitions Occurrences",
+          "title": "ListEventGroups Occurrences",
           "id": "",
           "xyChart": {
             "chartOptions": {
@@ -143,7 +143,7 @@
                 "targetAxis": "Y1",
                 "timeSeriesQuery": {
                   "outputFullDuration": false,
-                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"ListRequisitions\", \ncontainer_name=\"v2alpha-public-api-server-container\"}[${__interval}]))  or vector(0)",
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"ListEventGroups\",\ncontainer_name=\"reporting-v2alpha-public-api-server-container\"}[${__interval}]))  or vector(0)",
                   "unitOverride": ""
                 }
               }
@@ -162,7 +162,7 @@
         "height": 16,
         "width": 24,
         "widget": {
-          "title": "ListRequisitions Occurrences - Failures by Error Code",
+          "title": "ListEventGroups Occurrences - Failures by Error Code",
           "id": "",
           "xyChart": {
             "chartOptions": {
@@ -180,7 +180,7 @@
                 "targetAxis": "Y1",
                 "timeSeriesQuery": {
                   "outputFullDuration": false,
-                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"ListRequisitions\", rpc_grpc_status_code!=\"0\",\ncontainer_name=\"v2alpha-public-api-server-container\"}[${__interval}]))by (rpc_grpc_status_code) or vector(0)",
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"ListEventGroups\", rpc_grpc_status_code!=\"0\",\ncontainer_name=\"reporting-v2alpha-public-api-server-container\"}[${__interval}]))by (rpc_grpc_status_code) or vector(0)",
                   "unitOverride": ""
                 }
               }
@@ -198,7 +198,7 @@
         "height": 16,
         "width": 12,
         "widget": {
-          "title": "ListRequisitions Error Rate %",
+          "title": "ListEventGroups Error Rate %",
           "id": "",
           "scorecard": {
             "breakdowns": [],
@@ -222,11 +222,25 @@
                 "label": "",
                 "targetAxis": "TARGET_AXIS_UNSPECIFIED",
                 "value": 10
+              },
+              {
+                "color": "RED",
+                "direction": "BELOW",
+                "label": "",
+                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
+                "value": -10
+              },
+              {
+                "color": "YELLOW",
+                "direction": "BELOW",
+                "label": "",
+                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
+                "value": -10
               }
             ],
             "timeSeriesQuery": {
               "outputFullDuration": false,
-              "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"ListRequisitions\", rpc_grpc_status_code!=\"0\",\n    container_name=\"v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"ListRequisitions\",\n    container_name=\"v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
+              "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"ListEventGroups\", rpc_grpc_status_code!=\"0\",\n    container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"ListEventGroups\",\n    container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
               "unitOverride": ""
             }
           }
@@ -238,7 +252,7 @@
         "height": 16,
         "width": 36,
         "widget": {
-          "title": "ListRequisitions Error Rate %",
+          "title": "ListEventGroups Error Rate %",
           "id": "",
           "xyChart": {
             "chartOptions": {
@@ -256,7 +270,7 @@
                 "targetAxis": "Y1",
                 "timeSeriesQuery": {
                   "outputFullDuration": false,
-                  "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"ListRequisitions\", rpc_grpc_status_code!=\"0\", container_name=\"v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"ListRequisitions\",\n    container_name=\"v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
+                  "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"ListEventGroups\", rpc_grpc_status_code!=\"0\", container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"ListEventGroups\",\n    container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
                   "unitOverride": ""
                 }
               }
@@ -271,766 +285,10 @@
       },
       {
         "yPos": 52,
-        "height": 16,
-        "width": 24,
-        "widget": {
-          "title": "FulfillDirectRequisition Duration [Median]",
-          "id": "",
-          "xyChart": {
-            "chartOptions": {
-              "displayHorizontal": false,
-              "mode": "COLOR",
-              "showLegend": false
-            },
-            "dataSets": [
-              {
-                "breakdowns": [],
-                "dimensions": [],
-                "legendTemplate": "",
-                "measures": [],
-                "minAlignmentPeriod": "60s",
-                "plotType": "LINE",
-                "targetAxis": "Y1",
-                "timeSeriesQuery": {
-                  "outputFullDuration": false,
-                  "timeSeriesFilter": {
-                    "aggregation": {
-                      "alignmentPeriod": "60s",
-                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
-                      "groupByFields": [],
-                      "perSeriesAligner": "ALIGN_DELTA"
-                    },
-                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"FulfillDirectRequisition\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"v2alpha-public-api-server-container\""
-                  },
-                  "unitOverride": ""
-                }
-              }
-            ],
-            "thresholds": [],
-            "yAxis": {
-              "label": "",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "yPos": 52,
-        "height": 48,
-        "width": 48,
-        "widget": {
-          "title": "FulfillDirectRequisition",
-          "collapsibleGroup": {
-            "collapsed": false
-          },
-          "id": ""
-        }
-      },
-      {
-        "yPos": 52,
-        "xPos": 24,
-        "height": 16,
-        "width": 24,
-        "widget": {
-          "title": "FulfillDirectRequisition Duration [P95]",
-          "id": "",
-          "xyChart": {
-            "chartOptions": {
-              "displayHorizontal": false,
-              "mode": "COLOR",
-              "showLegend": false
-            },
-            "dataSets": [
-              {
-                "breakdowns": [],
-                "dimensions": [],
-                "legendTemplate": "",
-                "measures": [],
-                "minAlignmentPeriod": "60s",
-                "plotType": "LINE",
-                "targetAxis": "Y1",
-                "timeSeriesQuery": {
-                  "outputFullDuration": false,
-                  "timeSeriesFilter": {
-                    "aggregation": {
-                      "alignmentPeriod": "60s",
-                      "crossSeriesReducer": "REDUCE_PERCENTILE_95",
-                      "groupByFields": [],
-                      "perSeriesAligner": "ALIGN_DELTA"
-                    },
-                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"FulfillDirectRequisition\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"v2alpha-public-api-server-container\""
-                  },
-                  "unitOverride": ""
-                }
-              }
-            ],
-            "thresholds": [],
-            "yAxis": {
-              "label": "",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "yPos": 68,
-        "height": 16,
-        "width": 24,
-        "widget": {
-          "title": "FulfillDirectRequisition Occurrences",
-          "id": "",
-          "xyChart": {
-            "chartOptions": {
-              "displayHorizontal": false,
-              "mode": "COLOR",
-              "showLegend": false
-            },
-            "dataSets": [
-              {
-                "breakdowns": [],
-                "dimensions": [],
-                "legendTemplate": "",
-                "measures": [],
-                "plotType": "STACKED_BAR",
-                "targetAxis": "Y1",
-                "timeSeriesQuery": {
-                  "outputFullDuration": false,
-                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"FulfillDirectRequisition\", \ncontainer_name=\"v2alpha-public-api-server-container\"}[${__interval}]))  or vector(0)",
-                  "unitOverride": ""
-                }
-              }
-            ],
-            "thresholds": [],
-            "yAxis": {
-              "label": "",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "yPos": 68,
-        "xPos": 24,
-        "height": 16,
-        "width": 24,
-        "widget": {
-          "title": "FulfillDirectRequisition Occurrences - Failures by Error Code",
-          "id": "",
-          "xyChart": {
-            "chartOptions": {
-              "displayHorizontal": false,
-              "mode": "COLOR",
-              "showLegend": false
-            },
-            "dataSets": [
-              {
-                "breakdowns": [],
-                "dimensions": [],
-                "legendTemplate": "",
-                "measures": [],
-                "plotType": "STACKED_BAR",
-                "targetAxis": "Y1",
-                "timeSeriesQuery": {
-                  "outputFullDuration": false,
-                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"FulfillDirectRequisition\", rpc_grpc_status_code!=\"0\",\ncontainer_name=\"v2alpha-public-api-server-container\"}[${__interval}]))by (rpc_grpc_status_code) or vector(0)",
-                  "unitOverride": ""
-                }
-              }
-            ],
-            "thresholds": [],
-            "yAxis": {
-              "label": "",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "yPos": 84,
-        "height": 16,
-        "width": 12,
-        "widget": {
-          "title": "ListRequisitions Error Rate %",
-          "id": "",
-          "scorecard": {
-            "breakdowns": [],
-            "dimensions": [],
-            "gaugeView": {
-              "lowerBound": 0,
-              "upperBound": 100
-            },
-            "measures": [],
-            "thresholds": [
-              {
-                "color": "YELLOW",
-                "direction": "ABOVE",
-                "label": "",
-                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
-                "value": 1
-              },
-              {
-                "color": "RED",
-                "direction": "ABOVE",
-                "label": "",
-                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
-                "value": 10
-              }
-            ],
-            "timeSeriesQuery": {
-              "outputFullDuration": false,
-              "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"FulfillDirectRequisition\", rpc_grpc_status_code!=\"0\",\n    container_name=\"v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"FulfillDirectRequisition\",\n    container_name=\"v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
-              "unitOverride": ""
-            }
-          }
-        }
-      },
-      {
-        "yPos": 84,
-        "xPos": 12,
-        "height": 16,
-        "width": 36,
-        "widget": {
-          "title": "FulfillDirectRequisition Error Rate %",
-          "id": "",
-          "xyChart": {
-            "chartOptions": {
-              "displayHorizontal": false,
-              "mode": "COLOR",
-              "showLegend": false
-            },
-            "dataSets": [
-              {
-                "breakdowns": [],
-                "dimensions": [],
-                "legendTemplate": "",
-                "measures": [],
-                "plotType": "LINE",
-                "targetAxis": "Y1",
-                "timeSeriesQuery": {
-                  "outputFullDuration": false,
-                  "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"FulfillDirectRequisition\", rpc_grpc_status_code!=\"0\", container_name=\"v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"FulfillDirectRequisition\",\n    container_name=\"v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
-                  "unitOverride": ""
-                }
-              }
-            ],
-            "thresholds": [],
-            "yAxis": {
-              "label": "",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "yPos": 100,
-        "height": 16,
-        "width": 24,
-        "widget": {
-          "title": "FulfillMpcRequisition Duration [Median]",
-          "id": "",
-          "xyChart": {
-            "chartOptions": {
-              "displayHorizontal": false,
-              "mode": "COLOR",
-              "showLegend": false
-            },
-            "dataSets": [
-              {
-                "breakdowns": [],
-                "dimensions": [],
-                "legendTemplate": "",
-                "measures": [],
-                "minAlignmentPeriod": "60s",
-                "plotType": "LINE",
-                "targetAxis": "Y1",
-                "timeSeriesQuery": {
-                  "outputFullDuration": false,
-                  "timeSeriesFilter": {
-                    "aggregation": {
-                      "alignmentPeriod": "60s",
-                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
-                      "groupByFields": [],
-                      "perSeriesAligner": "ALIGN_DELTA"
-                    },
-                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"FulfillRequisition\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"system-api-server-container\""
-                  },
-                  "unitOverride": ""
-                }
-              }
-            ],
-            "thresholds": [],
-            "yAxis": {
-              "label": "",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "yPos": 100,
-        "height": 48,
-        "width": 48,
-        "widget": {
-          "title": "FulfillMpcRequisition - System API",
-          "collapsibleGroup": {
-            "collapsed": false
-          },
-          "id": ""
-        }
-      },
-      {
-        "yPos": 100,
-        "xPos": 24,
-        "height": 16,
-        "width": 24,
-        "widget": {
-          "title": "FulfillMpcRequisition Duration [P95]",
-          "id": "",
-          "xyChart": {
-            "chartOptions": {
-              "displayHorizontal": false,
-              "mode": "COLOR",
-              "showLegend": false
-            },
-            "dataSets": [
-              {
-                "breakdowns": [],
-                "dimensions": [],
-                "legendTemplate": "",
-                "measures": [],
-                "minAlignmentPeriod": "60s",
-                "plotType": "LINE",
-                "targetAxis": "Y1",
-                "timeSeriesQuery": {
-                  "outputFullDuration": false,
-                  "timeSeriesFilter": {
-                    "aggregation": {
-                      "alignmentPeriod": "60s",
-                      "crossSeriesReducer": "REDUCE_PERCENTILE_95",
-                      "groupByFields": [],
-                      "perSeriesAligner": "ALIGN_DELTA"
-                    },
-                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"FulfillRequisition\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"system-api-server-container\""
-                  },
-                  "unitOverride": ""
-                }
-              }
-            ],
-            "thresholds": [],
-            "yAxis": {
-              "label": "",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "yPos": 116,
-        "height": 16,
-        "width": 24,
-        "widget": {
-          "title": "FulfillMpcRequisition Occurrences",
-          "id": "",
-          "xyChart": {
-            "chartOptions": {
-              "displayHorizontal": false,
-              "mode": "COLOR",
-              "showLegend": false
-            },
-            "dataSets": [
-              {
-                "breakdowns": [],
-                "dimensions": [],
-                "legendTemplate": "",
-                "measures": [],
-                "plotType": "STACKED_BAR",
-                "targetAxis": "Y1",
-                "timeSeriesQuery": {
-                  "outputFullDuration": false,
-                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"FulfillRequisition\", \ncontainer_name=\"system-api-server-container\"}[${__interval}]))  or vector(0)",
-                  "unitOverride": ""
-                }
-              }
-            ],
-            "thresholds": [],
-            "yAxis": {
-              "label": "",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "yPos": 116,
-        "xPos": 24,
-        "height": 16,
-        "width": 24,
-        "widget": {
-          "title": "FulfillMpcRequisition Occurrences - Failures by Error Code",
-          "id": "",
-          "xyChart": {
-            "chartOptions": {
-              "displayHorizontal": false,
-              "mode": "COLOR",
-              "showLegend": false
-            },
-            "dataSets": [
-              {
-                "breakdowns": [],
-                "dimensions": [],
-                "legendTemplate": "",
-                "measures": [],
-                "plotType": "STACKED_BAR",
-                "targetAxis": "Y1",
-                "timeSeriesQuery": {
-                  "outputFullDuration": false,
-                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"FulfillRequisition\", rpc_grpc_status_code!=\"0\",\ncontainer_name=\"system-api-server-container\"}[${__interval}]))by (rpc_grpc_status_code) or vector(0)",
-                  "unitOverride": ""
-                }
-              }
-            ],
-            "thresholds": [],
-            "yAxis": {
-              "label": "",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "yPos": 132,
-        "height": 16,
-        "width": 12,
-        "widget": {
-          "title": "FulfillMpcRequisition Error Rate %",
-          "id": "",
-          "scorecard": {
-            "breakdowns": [],
-            "dimensions": [],
-            "gaugeView": {
-              "lowerBound": 0,
-              "upperBound": 100
-            },
-            "measures": [],
-            "thresholds": [
-              {
-                "color": "YELLOW",
-                "direction": "ABOVE",
-                "label": "",
-                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
-                "value": 1
-              },
-              {
-                "color": "RED",
-                "direction": "ABOVE",
-                "label": "",
-                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
-                "value": 10
-              }
-            ],
-            "timeSeriesQuery": {
-              "outputFullDuration": false,
-              "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"FulfillRequisition\", rpc_grpc_status_code!=\"0\",\n    container_name=\"system-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"FulfillRequisition\",\n    container_name=\"system-api-server-container\"}[24h]) or vector(0))\n)\n*100",
-              "unitOverride": ""
-            }
-          }
-        }
-      },
-      {
-        "yPos": 132,
-        "xPos": 12,
-        "height": 16,
-        "width": 36,
-        "widget": {
-          "title": "FulfillMpcRequisition Error Rate %",
-          "id": "",
-          "xyChart": {
-            "chartOptions": {
-              "displayHorizontal": false,
-              "mode": "COLOR",
-              "showLegend": false
-            },
-            "dataSets": [
-              {
-                "breakdowns": [],
-                "dimensions": [],
-                "legendTemplate": "",
-                "measures": [],
-                "plotType": "LINE",
-                "targetAxis": "Y1",
-                "timeSeriesQuery": {
-                  "outputFullDuration": false,
-                  "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"FulfillRequisition\", rpc_grpc_status_code!=\"0\", container_name=\"system-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"FulfillRequisition\",\n    container_name=\"system-api-server-container\"}[24h]) or vector(0))\n)\n*100",
-                  "unitOverride": ""
-                }
-              }
-            ],
-            "thresholds": [],
-            "yAxis": {
-              "label": "",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "yPos": 148,
-        "height": 16,
-        "width": 24,
-        "widget": {
-          "title": "RefuseRequisition Duration [Median]",
-          "id": "",
-          "xyChart": {
-            "chartOptions": {
-              "displayHorizontal": false,
-              "mode": "COLOR",
-              "showLegend": false
-            },
-            "dataSets": [
-              {
-                "breakdowns": [],
-                "dimensions": [],
-                "legendTemplate": "",
-                "measures": [],
-                "minAlignmentPeriod": "60s",
-                "plotType": "LINE",
-                "targetAxis": "Y1",
-                "timeSeriesQuery": {
-                  "outputFullDuration": false,
-                  "timeSeriesFilter": {
-                    "aggregation": {
-                      "alignmentPeriod": "60s",
-                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
-                      "groupByFields": [],
-                      "perSeriesAligner": "ALIGN_DELTA"
-                    },
-                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"RefuseRequisition\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"v2alpha-public-api-server-container\""
-                  },
-                  "unitOverride": ""
-                }
-              }
-            ],
-            "thresholds": [],
-            "yAxis": {
-              "label": "",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "yPos": 148,
-        "height": 48,
-        "width": 48,
-        "widget": {
-          "title": "Refuse Requisition",
-          "collapsibleGroup": {
-            "collapsed": false
-          },
-          "id": ""
-        }
-      },
-      {
-        "yPos": 148,
-        "xPos": 24,
-        "height": 16,
-        "width": 24,
-        "widget": {
-          "title": "RefuseRequisition Duration [P95]",
-          "id": "",
-          "xyChart": {
-            "chartOptions": {
-              "displayHorizontal": false,
-              "mode": "COLOR",
-              "showLegend": false
-            },
-            "dataSets": [
-              {
-                "breakdowns": [],
-                "dimensions": [],
-                "legendTemplate": "",
-                "measures": [],
-                "minAlignmentPeriod": "60s",
-                "plotType": "LINE",
-                "targetAxis": "Y1",
-                "timeSeriesQuery": {
-                  "outputFullDuration": false,
-                  "timeSeriesFilter": {
-                    "aggregation": {
-                      "alignmentPeriod": "60s",
-                      "crossSeriesReducer": "REDUCE_PERCENTILE_95",
-                      "groupByFields": [],
-                      "perSeriesAligner": "ALIGN_DELTA"
-                    },
-                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"RefuseRequisition\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"v2alpha-public-api-server-container\""
-                  },
-                  "unitOverride": ""
-                }
-              }
-            ],
-            "thresholds": [],
-            "yAxis": {
-              "label": "",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "yPos": 164,
-        "height": 16,
-        "width": 24,
-        "widget": {
-          "title": "RefuseRequisition Occurrences",
-          "id": "",
-          "xyChart": {
-            "chartOptions": {
-              "displayHorizontal": false,
-              "mode": "COLOR",
-              "showLegend": false
-            },
-            "dataSets": [
-              {
-                "breakdowns": [],
-                "dimensions": [],
-                "legendTemplate": "",
-                "measures": [],
-                "plotType": "STACKED_BAR",
-                "targetAxis": "Y1",
-                "timeSeriesQuery": {
-                  "outputFullDuration": false,
-                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"RefuseRequisition\", \ncontainer_name=\"v2alpha-public-api-server-container\"}[${__interval}]))  or vector(0)",
-                  "unitOverride": ""
-                }
-              }
-            ],
-            "thresholds": [],
-            "yAxis": {
-              "label": "",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "yPos": 164,
-        "xPos": 24,
-        "height": 16,
-        "width": 24,
-        "widget": {
-          "title": "RefuseRequisition Occurrences - Failures by Error Code",
-          "id": "",
-          "xyChart": {
-            "chartOptions": {
-              "displayHorizontal": false,
-              "mode": "COLOR",
-              "showLegend": false
-            },
-            "dataSets": [
-              {
-                "breakdowns": [],
-                "dimensions": [],
-                "legendTemplate": "",
-                "measures": [],
-                "plotType": "STACKED_BAR",
-                "targetAxis": "Y1",
-                "timeSeriesQuery": {
-                  "outputFullDuration": false,
-                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"RefuseRequisition\", rpc_grpc_status_code!=\"0\",\ncontainer_name=\"v2alpha-public-api-server-container\"}[${__interval}]))by (rpc_grpc_status_code) or vector(0)",
-                  "unitOverride": ""
-                }
-              }
-            ],
-            "thresholds": [],
-            "yAxis": {
-              "label": "",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "yPos": 180,
-        "height": 16,
-        "width": 12,
-        "widget": {
-          "title": "RefuseRequisition Error Rate %",
-          "id": "",
-          "scorecard": {
-            "breakdowns": [],
-            "dimensions": [],
-            "gaugeView": {
-              "lowerBound": 0,
-              "upperBound": 100
-            },
-            "measures": [],
-            "thresholds": [
-              {
-                "color": "YELLOW",
-                "direction": "ABOVE",
-                "label": "",
-                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
-                "value": 1
-              },
-              {
-                "color": "RED",
-                "direction": "ABOVE",
-                "label": "",
-                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
-                "value": 10
-              }
-            ],
-            "timeSeriesQuery": {
-              "outputFullDuration": false,
-              "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"RefuseRequisition\", rpc_grpc_status_code!=\"0\",\n    container_name=\"system-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"RefuseRequisition\",\n    container_name=\"system-api-server-container\"}[24h]) or vector(0))\n)\n*100",
-              "unitOverride": ""
-            }
-          }
-        }
-      },
-      {
-        "yPos": 180,
-        "xPos": 12,
-        "height": 16,
-        "width": 36,
-        "widget": {
-          "title": "FulfillDirectRequisition Error Rate %",
-          "id": "",
-          "xyChart": {
-            "chartOptions": {
-              "displayHorizontal": false,
-              "mode": "COLOR",
-              "showLegend": false
-            },
-            "dataSets": [
-              {
-                "breakdowns": [],
-                "dimensions": [],
-                "legendTemplate": "",
-                "measures": [],
-                "plotType": "LINE",
-                "targetAxis": "Y1",
-                "timeSeriesQuery": {
-                  "outputFullDuration": false,
-                  "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"RefuseRequisition\", rpc_grpc_status_code!=\"0\", container_name=\"v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"RefuseRequisition\",\n    container_name=\"v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
-                  "unitOverride": ""
-                }
-              }
-            ],
-            "thresholds": [],
-            "yAxis": {
-              "label": "",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "yPos": 196,
         "height": 4,
         "width": 48,
         "widget": {
-          "title": "DataProvider Services",
+          "title": "Metric Services",
           "id": "",
           "sectionHeader": {
             "dividerBelow": false,
@@ -1039,11 +297,11 @@
         }
       },
       {
-        "yPos": 200,
+        "yPos": 56,
         "height": 16,
         "width": 24,
         "widget": {
-          "title": "GetDataProvider Duration [Median]",
+          "title": "CreateMetric Latency [Median]",
           "id": "",
           "xyChart": {
             "chartOptions": {
@@ -1069,7 +327,7 @@
                       "groupByFields": [],
                       "perSeriesAligner": "ALIGN_DELTA"
                     },
-                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"GetDataProvider\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"v2alpha-public-api-server-container\""
+                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"CreateMetric\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"reporting-v2alpha-public-api-server-container\""
                   },
                   "unitOverride": ""
                 }
@@ -1084,11 +342,11 @@
         }
       },
       {
-        "yPos": 200,
+        "yPos": 56,
         "height": 48,
         "width": 48,
         "widget": {
-          "title": "GetDataProvider",
+          "title": "CreateMetric",
           "collapsibleGroup": {
             "collapsed": false
           },
@@ -1096,12 +354,12 @@
         }
       },
       {
-        "yPos": 200,
+        "yPos": 56,
         "xPos": 24,
         "height": 16,
         "width": 24,
         "widget": {
-          "title": "GetDataProvider Duration [P95]",
+          "title": "CreateMetric Latency [P95]",
           "id": "",
           "xyChart": {
             "chartOptions": {
@@ -1127,7 +385,7 @@
                       "groupByFields": [],
                       "perSeriesAligner": "ALIGN_DELTA"
                     },
-                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"GetDataProvider\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"v2alpha-public-api-server-container\""
+                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"CreateMetric\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"reporting-v2alpha-public-api-server-container\""
                   },
                   "unitOverride": ""
                 }
@@ -1142,11 +400,11 @@
         }
       },
       {
-        "yPos": 216,
+        "yPos": 72,
         "height": 16,
         "width": 24,
         "widget": {
-          "title": "GetDataProvider Occurrences",
+          "title": "CreateMetric Occurrences",
           "id": "",
           "xyChart": {
             "chartOptions": {
@@ -1164,7 +422,7 @@
                 "targetAxis": "Y1",
                 "timeSeriesQuery": {
                   "outputFullDuration": false,
-                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"GetDataProvider\", \ncontainer_name=\"v2alpha-public-api-server-container\"}[${__interval}]))  or vector(0)",
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"CreateMetric\",\ncontainer_name=\"reporting-v2alpha-public-api-server-container\"}[${__interval}]))  or vector(0)",
                   "unitOverride": ""
                 }
               }
@@ -1178,12 +436,12 @@
         }
       },
       {
-        "yPos": 216,
+        "yPos": 72,
         "xPos": 24,
         "height": 16,
         "width": 24,
         "widget": {
-          "title": "GetDataProvider Occurrences - Failures by Error Code",
+          "title": "CreateMetric Occurrences - Failures by Error Code",
           "id": "",
           "xyChart": {
             "chartOptions": {
@@ -1201,7 +459,7 @@
                 "targetAxis": "Y1",
                 "timeSeriesQuery": {
                   "outputFullDuration": false,
-                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"GetDataProvider\", rpc_grpc_status_code!=\"0\",\ncontainer_name=\"v2alpha-public-api-server-container\"}[${__interval}]))by (rpc_grpc_status_code) or vector(0)",
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"CreateMetric\", rpc_grpc_status_code!=\"0\",\ncontainer_name=\"reporting-v2alpha-public-api-server-container\"}[${__interval}]))by (rpc_grpc_status_code) or vector(0)",
                   "unitOverride": ""
                 }
               }
@@ -1215,11 +473,11 @@
         }
       },
       {
-        "yPos": 232,
+        "yPos": 88,
         "height": 16,
         "width": 12,
         "widget": {
-          "title": "GetDataProvider Error Rate %",
+          "title": "CreateMetric Error Rate %",
           "id": "",
           "scorecard": {
             "breakdowns": [],
@@ -1243,23 +501,37 @@
                 "label": "",
                 "targetAxis": "TARGET_AXIS_UNSPECIFIED",
                 "value": 10
+              },
+              {
+                "color": "RED",
+                "direction": "BELOW",
+                "label": "",
+                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
+                "value": -10
+              },
+              {
+                "color": "YELLOW",
+                "direction": "BELOW",
+                "label": "",
+                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
+                "value": -10
               }
             ],
             "timeSeriesQuery": {
               "outputFullDuration": false,
-              "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"GetDataProvider\", rpc_grpc_status_code!=\"0\",\n    container_name=\"v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"GetDataProvider\",\n    container_name=\"v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
+              "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"CreateMetric\", rpc_grpc_status_code!=\"0\",\n    container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"CreateMetric\",\n    container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
               "unitOverride": ""
             }
           }
         }
       },
       {
-        "yPos": 232,
+        "yPos": 88,
         "xPos": 12,
         "height": 16,
         "width": 36,
         "widget": {
-          "title": "GetDataProvider Error Rate %",
+          "title": "CreateMetric Error Rate %",
           "id": "",
           "xyChart": {
             "chartOptions": {
@@ -1277,7 +549,805 @@
                 "targetAxis": "Y1",
                 "timeSeriesQuery": {
                   "outputFullDuration": false,
-                  "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"GetDataProvider\", rpc_grpc_status_code!=\"0\", container_name=\"v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"GetDataProvider\",\n    container_name=\"v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
+                  "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"CreateMetric\", rpc_grpc_status_code!=\"0\", container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"CreateMetric\",\n    container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 104,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "GetMetric Latency [Median]",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "",
+                "measures": [],
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"GetMetric\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"reporting-v2alpha-public-api-server-container\""
+                  },
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 104,
+        "height": 48,
+        "width": 48,
+        "widget": {
+          "title": "GetMetric",
+          "collapsibleGroup": {
+            "collapsed": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "yPos": 104,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "GetMetric Latency [P95]",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "",
+                "measures": [],
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_95",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"GetMetric\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"reporting-v2alpha-public-api-server-container\""
+                  },
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 120,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "GetMetric Occurrences",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "",
+                "measures": [],
+                "plotType": "STACKED_BAR",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"GetMetric\",\ncontainer_name=\"reporting-v2alpha-public-api-server-container\"}[${__interval}]))  or vector(0)",
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 120,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "GetMetric Occurrences - Failures by Error Code",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "",
+                "measures": [],
+                "plotType": "STACKED_BAR",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"GetMetric\", rpc_grpc_status_code!=\"0\",\ncontainer_name=\"reporting-v2alpha-public-api-server-container\"}[${__interval}]))by (rpc_grpc_status_code) or vector(0)",
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 136,
+        "height": 16,
+        "width": 12,
+        "widget": {
+          "title": "GetMetric Error Rate %",
+          "id": "",
+          "scorecard": {
+            "breakdowns": [],
+            "dimensions": [],
+            "gaugeView": {
+              "lowerBound": 0,
+              "upperBound": 100
+            },
+            "measures": [],
+            "thresholds": [
+              {
+                "color": "YELLOW",
+                "direction": "ABOVE",
+                "label": "",
+                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
+                "value": 1
+              },
+              {
+                "color": "RED",
+                "direction": "ABOVE",
+                "label": "",
+                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
+                "value": 10
+              },
+              {
+                "color": "RED",
+                "direction": "BELOW",
+                "label": "",
+                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
+                "value": -10
+              },
+              {
+                "color": "YELLOW",
+                "direction": "BELOW",
+                "label": "",
+                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
+                "value": -10
+              }
+            ],
+            "timeSeriesQuery": {
+              "outputFullDuration": false,
+              "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"GetMetric\", rpc_grpc_status_code!=\"0\",\n    container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"GetMetric\",\n    container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
+              "unitOverride": ""
+            }
+          }
+        }
+      },
+      {
+        "yPos": 136,
+        "xPos": 12,
+        "height": 16,
+        "width": 36,
+        "widget": {
+          "title": "GetMetric Error Rate %",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "",
+                "measures": [],
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"GetMetric\", rpc_grpc_status_code!=\"0\", container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"GetMetric\",\n    container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 152,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "ListMetrics Latency [Median]",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "",
+                "measures": [],
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"ListMetrics\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"reporting-v2alpha-public-api-server-container\""
+                  },
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 152,
+        "height": 48,
+        "width": 48,
+        "widget": {
+          "title": "ListMetrics",
+          "collapsibleGroup": {
+            "collapsed": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "yPos": 152,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "ListMetrics Latency [P95]",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "",
+                "measures": [],
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_95",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"ListMetrics\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"reporting-v2alpha-public-api-server-container\""
+                  },
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 168,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "ListMetrics Occurrences",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "",
+                "measures": [],
+                "plotType": "STACKED_BAR",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"ListMetrics\",\ncontainer_name=\"reporting-v2alpha-public-api-server-container\"}[${__interval}]))  or vector(0)",
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 168,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "ListMetrics Occurrences - Failures by Error Code",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "",
+                "measures": [],
+                "plotType": "STACKED_BAR",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"ListMetrics\", rpc_grpc_status_code!=\"0\",\ncontainer_name=\"reporting-v2alpha-public-api-server-container\"}[${__interval}]))by (rpc_grpc_status_code) or vector(0)",
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 184,
+        "height": 16,
+        "width": 12,
+        "widget": {
+          "title": "ListMetrics Error Rate %",
+          "id": "",
+          "scorecard": {
+            "breakdowns": [],
+            "dimensions": [],
+            "gaugeView": {
+              "lowerBound": 0,
+              "upperBound": 100
+            },
+            "measures": [],
+            "thresholds": [
+              {
+                "color": "YELLOW",
+                "direction": "ABOVE",
+                "label": "",
+                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
+                "value": 1
+              },
+              {
+                "color": "RED",
+                "direction": "ABOVE",
+                "label": "",
+                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
+                "value": 10
+              },
+              {
+                "color": "RED",
+                "direction": "BELOW",
+                "label": "",
+                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
+                "value": -10
+              },
+              {
+                "color": "YELLOW",
+                "direction": "BELOW",
+                "label": "",
+                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
+                "value": -10
+              }
+            ],
+            "timeSeriesQuery": {
+              "outputFullDuration": false,
+              "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"ListMetrics\", rpc_grpc_status_code!=\"0\",\n    container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"ListMetrics\",\n    container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
+              "unitOverride": ""
+            }
+          }
+        }
+      },
+      {
+        "yPos": 184,
+        "xPos": 12,
+        "height": 16,
+        "width": 36,
+        "widget": {
+          "title": "ListMetrics Error Rate %",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "",
+                "measures": [],
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"ListMetrics\", rpc_grpc_status_code!=\"0\", container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"ListMetrics\",\n    container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 200,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "BatchCreateMetrics Latency [Median]",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "",
+                "measures": [],
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"BatchCreateMetrics\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"reporting-v2alpha-public-api-server-container\""
+                  },
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 200,
+        "height": 48,
+        "width": 48,
+        "widget": {
+          "title": "BatchCreateMetrics",
+          "collapsibleGroup": {
+            "collapsed": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "yPos": 200,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "BatchCreateMetrics Latency [P95]",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "",
+                "measures": [],
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_95",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"BatchCreateMetrics\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"reporting-v2alpha-public-api-server-container\""
+                  },
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 216,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "BatchCreateMetrics Occurrences",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "",
+                "measures": [],
+                "plotType": "STACKED_BAR",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"BatchCreateMetrics\",\ncontainer_name=\"reporting-v2alpha-public-api-server-container\"}[${__interval}]))  or vector(0)",
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 216,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "BatchCreateMetrics Occurrences - Failures by Error Code",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "",
+                "measures": [],
+                "plotType": "STACKED_BAR",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"BatchCreateMetrics\", rpc_grpc_status_code!=\"0\",\ncontainer_name=\"reporting-v2alpha-public-api-server-container\"}[${__interval}]))by (rpc_grpc_status_code) or vector(0)",
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 232,
+        "height": 16,
+        "width": 12,
+        "widget": {
+          "title": "BatchCreateMetrics Error Rate %",
+          "id": "",
+          "scorecard": {
+            "breakdowns": [],
+            "dimensions": [],
+            "gaugeView": {
+              "lowerBound": 0,
+              "upperBound": 100
+            },
+            "measures": [],
+            "thresholds": [
+              {
+                "color": "YELLOW",
+                "direction": "ABOVE",
+                "label": "",
+                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
+                "value": 1
+              },
+              {
+                "color": "RED",
+                "direction": "ABOVE",
+                "label": "",
+                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
+                "value": 10
+              },
+              {
+                "color": "RED",
+                "direction": "BELOW",
+                "label": "",
+                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
+                "value": -10
+              },
+              {
+                "color": "YELLOW",
+                "direction": "BELOW",
+                "label": "",
+                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
+                "value": -10
+              }
+            ],
+            "timeSeriesQuery": {
+              "outputFullDuration": false,
+              "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"BatchCreateMetrics\", rpc_grpc_status_code!=\"0\",\n    container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"BatchCreateMetrics\",\n    container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
+              "unitOverride": ""
+            }
+          }
+        }
+      },
+      {
+        "yPos": 232,
+        "xPos": 12,
+        "height": 16,
+        "width": 36,
+        "widget": {
+          "title": "BatchCreateMetrics Error Rate %",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "",
+                "measures": [],
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"BatchCreateMetrics\", rpc_grpc_status_code!=\"0\", container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"BatchCreateMetrics\",\n    container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
                   "unitOverride": ""
                 }
               }
@@ -1292,23 +1362,10 @@
       },
       {
         "yPos": 248,
-        "height": 4,
-        "width": 48,
-        "widget": {
-          "title": "Certificate Services",
-          "id": "",
-          "sectionHeader": {
-            "dividerBelow": false,
-            "subtitle": ""
-          }
-        }
-      },
-      {
-        "yPos": 252,
         "height": 16,
         "width": 24,
         "widget": {
-          "title": "GetDataProvider Duration [Median]",
+          "title": "BatchGetMetrics Latency [Median]",
           "id": "",
           "xyChart": {
             "chartOptions": {
@@ -1334,7 +1391,7 @@
                       "groupByFields": [],
                       "perSeriesAligner": "ALIGN_DELTA"
                     },
-                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"GetCertificate\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"v2alpha-public-api-server-container\""
+                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"BatchGetMetrics\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"reporting-v2alpha-public-api-server-container\""
                   },
                   "unitOverride": ""
                 }
@@ -1349,11 +1406,11 @@
         }
       },
       {
-        "yPos": 252,
+        "yPos": 248,
         "height": 48,
         "width": 48,
         "widget": {
-          "title": "GetCertificate",
+          "title": "BatchGetMetrics",
           "collapsibleGroup": {
             "collapsed": false
           },
@@ -1361,12 +1418,12 @@
         }
       },
       {
-        "yPos": 252,
+        "yPos": 248,
         "xPos": 24,
         "height": 16,
         "width": 24,
         "widget": {
-          "title": "GetCertificate Duration [P95]",
+          "title": "BatchGetMetrics Latency [P95]",
           "id": "",
           "xyChart": {
             "chartOptions": {
@@ -1392,7 +1449,7 @@
                       "groupByFields": [],
                       "perSeriesAligner": "ALIGN_DELTA"
                     },
-                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"GetCertificate\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"v2alpha-public-api-server-container\""
+                    "filter": "metric.type=\"workload.googleapis.com/rpc.server.duration\" resource.type=\"k8s_container\" metric.label.\"rpc_method\"=\"BatchGetMetrics\" metric.label.\"rpc_grpc_status_code\"=\"0\" resource.label.\"container_name\"=\"reporting-v2alpha-public-api-server-container\""
                   },
                   "unitOverride": ""
                 }
@@ -1407,11 +1464,11 @@
         }
       },
       {
-        "yPos": 268,
+        "yPos": 264,
         "height": 16,
         "width": 24,
         "widget": {
-          "title": "GetCertificate Occurrences",
+          "title": "BatchGetMetrics Occurrences",
           "id": "",
           "xyChart": {
             "chartOptions": {
@@ -1429,7 +1486,7 @@
                 "targetAxis": "Y1",
                 "timeSeriesQuery": {
                   "outputFullDuration": false,
-                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"GetCertificate\", \ncontainer_name=\"v2alpha-public-api-server-container\"}[${__interval}]))  or vector(0)",
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"BatchGetMetrics\",\ncontainer_name=\"reporting-v2alpha-public-api-server-container\"}[${__interval}]))  or vector(0)",
                   "unitOverride": ""
                 }
               }
@@ -1443,12 +1500,12 @@
         }
       },
       {
-        "yPos": 268,
+        "yPos": 264,
         "xPos": 24,
         "height": 16,
         "width": 24,
         "widget": {
-          "title": "GetCertificate Occurrences - Failures by Error Code",
+          "title": "BatchGetMetrics Occurrences - Failures by Error Code",
           "id": "",
           "xyChart": {
             "chartOptions": {
@@ -1466,7 +1523,7 @@
                 "targetAxis": "Y1",
                 "timeSeriesQuery": {
                   "outputFullDuration": false,
-                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"GetCertificate\", rpc_grpc_status_code!=\"0\",\ncontainer_name=\"v2alpha-public-api-server-container\"}[${__interval}]))by (rpc_grpc_status_code) or vector(0)",
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"BatchGetMetrics\", rpc_grpc_status_code!=\"0\",\ncontainer_name=\"reporting-v2alpha-public-api-server-container\"}[${__interval}]))by (rpc_grpc_status_code) or vector(0)",
                   "unitOverride": ""
                 }
               }
@@ -1480,11 +1537,11 @@
         }
       },
       {
-        "yPos": 284,
+        "yPos": 280,
         "height": 16,
         "width": 12,
         "widget": {
-          "title": "GetCertificate Error Rate %",
+          "title": "BatchGetMetrics Error Rate %",
           "id": "",
           "scorecard": {
             "breakdowns": [],
@@ -1508,23 +1565,37 @@
                 "label": "",
                 "targetAxis": "TARGET_AXIS_UNSPECIFIED",
                 "value": 10
+              },
+              {
+                "color": "RED",
+                "direction": "BELOW",
+                "label": "",
+                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
+                "value": -10
+              },
+              {
+                "color": "YELLOW",
+                "direction": "BELOW",
+                "label": "",
+                "targetAxis": "TARGET_AXIS_UNSPECIFIED",
+                "value": -10
               }
             ],
             "timeSeriesQuery": {
               "outputFullDuration": false,
-              "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"GetCertificate\", rpc_grpc_status_code!=\"0\",\n    container_name=\"v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"GetCertificate\",\n    container_name=\"v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
+              "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"BatchGetMetrics\", rpc_grpc_status_code!=\"0\",\n    container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"BatchGetMetrics\",\n    container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
               "unitOverride": ""
             }
           }
         }
       },
       {
-        "yPos": 284,
+        "yPos": 280,
         "xPos": 12,
         "height": 16,
         "width": 36,
         "widget": {
-          "title": "GetCertificate Error Rate %",
+          "title": "BatchGetMetrics Error Rate %",
           "id": "",
           "xyChart": {
             "chartOptions": {
@@ -1542,7 +1613,7 @@
                 "targetAxis": "Y1",
                 "timeSeriesQuery": {
                   "outputFullDuration": false,
-                  "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"GetCertificate\", rpc_grpc_status_code!=\"0\", container_name=\"v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"GetCertificate\",\n    container_name=\"v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
+                  "prometheusQuery": "(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"BatchGetMetrics\", rpc_grpc_status_code!=\"0\", container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n/\n(\n    sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\", rpc_method=\"BatchGetMetrics\",\n    container_name=\"reporting-v2alpha-public-api-server-container\"}[24h]) or vector(0))\n)\n*100",
                   "unitOverride": ""
                 }
               }

@@ -51,3 +51,10 @@ variable "system_v1alpha_ip_address" {
   nullable    = true
   default     = null
 }
+
+variable "dashboard_json_paths" {
+  description = "List of paths to dashboard json files"
+  type        = list(string)
+  nullable    = true
+  default     = []
+}
