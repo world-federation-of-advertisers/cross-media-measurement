@@ -1,4 +1,4 @@
-// Copyright 2024 The Cross-Media Measurement Authors
+// Copyright 2025 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,41 +14,23 @@
 
 syntax = "proto3";
 
-package wfa.measurement.securecomputation.controlplane.v1alpha;
+package wfa.measurement.internal.securecomputation.controlplane.v1alpha;
 
 import "google/api/field_behavior.proto";
-import "google/api/resource.proto";
-import "google/protobuf/any.proto";
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/securecomputation/controlplane/v1alpha/work_item_attempt.proto";
+import "wfa/measurement/internal/securecomputation/controlplane/v1alpha/work_item_attempt.proto";
 
-option java_package = "org.wfanet.measurement.securecomputation.controlplane.v1alpha";
+option java_package = "org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "WorkItemProto";
 
-// Resource representing a work item.
+// Proto representation of the internal `WorkItem` entity type.
 message WorkItem {
-  option (google.api.resource) = {
-    type: "control-plane.secure-computation.halo-cmm.org/WorkItem"
-    pattern: "workItems/{work_item}"
-    singular: "workItem"
-    plural: "workItems"
-  };
 
-  // Resource name.
-  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+  fixed64 external_work_item_id = 1;
 
   // The queue into which this `WorkItem` must be enqueued.
-  // Available queues are specified in a configuration file.
-  string queue = 2 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {
-      type: "control-plane.secure-computation.halo-cmm.org/Queue"
-    }
-  ];
-  // The parameters to be delivered to the TEE application.
-  google.protobuf.Any work_item_params = 3
-      [(google.api.field_behavior) = IMMUTABLE];
+  string queue = 2;
 
   // State of a `WorkItem`.
   enum State {
@@ -58,13 +40,13 @@ message WorkItem {
     // The `WorkItem` has been queued.
     QUEUED = 1;
 
-    // The `WorkItem` has been delivered to the subscriber.
+    // The `WorkItem` has been claimed by the subscriber.
     CLAIMED = 2;
 
     // The `WorkItem` has been successfully processed.
     SUCCEEDED = 3;
 
-    // A `WorkItemAttempt` failed with a non-retriable error.
+    // The `WorkItemAttempt` failed.
     FAILED = 4;
   }
 
