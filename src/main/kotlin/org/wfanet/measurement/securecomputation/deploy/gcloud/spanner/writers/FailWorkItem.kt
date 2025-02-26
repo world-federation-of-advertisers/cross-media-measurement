@@ -16,42 +16,43 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers
 
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItem
-import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import com.google.cloud.spanner.Value
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.copy
+import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.FailWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemNotFoundException
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemReader
 
-class CreateWorkItem (private val workItem: WorkItem) :
+
+class FailWorkItem(private val request: FailWorkItemRequest) :
   SpannerWriter<WorkItem, WorkItem>() {
 
   override suspend fun TransactionScope.runTransaction(): WorkItem {
+    val workItemResult =
+      WorkItemReader()
+        .readByExternalId(
+          transactionContext,
+          ExternalId(request.externalWorkItemId),
+        )
+        ?: throw WorkItemNotFoundException(
+          ExternalId(request.externalWorkItemId),
+        )
 
-    val internalWorkItemId = idGenerator.generateInternalId()
-    val externalWorkItemId = idGenerator.generateExternalId()
-
-    transactionContext.bufferInsertMutation("WorkItems") {
-      set("WorkItemId" to internalWorkItemId)
-      set("ExternalWorkItemId" to externalWorkItemId)
-      set("Queue" to workItem.queue)
-      set("State").toInt64(WorkItem.State.QUEUED)
-      set("CreateTime" to Value.COMMIT_TIMESTAMP)
+    transactionContext.bufferUpdateMutation("ModelLines") {
+      set("State").toInt64(WorkItem.State.FAILED)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     }
 
-    return workItem.copy {
-      this.externalWorkItemId = externalWorkItemId.value
-      this.state = WorkItem.State.QUEUED
+    return workItemResult.workItem.copy {
+      state = WorkItem.State.FAILED
     }
-
   }
 
   override fun ResultScope<WorkItem>.buildResult(): WorkItem {
-    return checkNotNull(this.transactionResult).copy {
-      createTime = commitTimestamp.toProto()
-      updateTime = commitTimestamp.toProto()
-    }
+    return checkNotNull(transactionResult).copy { updateTime = commitTimestamp.toProto() }
   }
-
 }

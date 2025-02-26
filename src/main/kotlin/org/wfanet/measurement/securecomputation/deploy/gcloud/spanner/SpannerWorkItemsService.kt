@@ -19,20 +19,23 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.FailWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.GetWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.StreamWorkItemsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineTypeIllegalException
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemNotFoundException
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.queries.StreamWorkItems
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemReader
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers.CreateWorkItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers.FailWorkItem
 
 
 class SpannerWorkItemsService(
@@ -65,5 +68,21 @@ class SpannerWorkItemsService(
     }
   }
 
+  override suspend fun failWorkItem(request: FailWorkItemRequest): WorkItem {
+    grpcRequire(request.externalWorkItemId != 0L) {
+      "external_work_item_id not specified"
+    }
+    try {
+      return FailWorkItem(request).execute(client, idGenerator)
+    } catch (e: ModelLineNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, e.message ?: "ModelLine not found.")
+    } catch (e: ModelLineTypeIllegalException) {
+      throw e.asStatusRuntimeException(
+        Status.Code.INVALID_ARGUMENT,
+        e.message
+          ?: "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'.",
+      )
+    }
+  }
 
 }
