@@ -17,6 +17,7 @@
 package org.wfanet.measurement.access.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.ErrorCode
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Timestamp
 import io.grpc.Status
@@ -115,7 +116,7 @@ class SpannerPoliciesService(
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
 
-    val transactionRunner = databaseClient.readWriteTransaction()
+    val transactionRunner = databaseClient.readWriteTransaction(Options.tag("action=createPolicy"))
     return try {
       transactionRunner.run { txn ->
         val policyId = idGenerator.generateNewId { id -> txn.policyExists(id) }
@@ -178,7 +179,8 @@ class SpannerPoliciesService(
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
 
-    val transactionRunner = databaseClient.readWriteTransaction()
+    val transactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=addPolicyBindingMembers"))
     return try {
       val policy =
         transactionRunner.run { txn ->
@@ -249,7 +251,8 @@ class SpannerPoliciesService(
     }
     val memberPrincipalResourceIds: Set<String> = request.memberPrincipalResourceIdsList.toSet()
 
-    val transactionRunner = databaseClient.readWriteTransaction()
+    val transactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=removePolicyBindingMembers"))
     return try {
       val policy: Policy =
         transactionRunner.run { txn ->

@@ -17,6 +17,7 @@
 package org.wfanet.measurement.access.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.ErrorCode
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Empty
 import com.google.protobuf.Timestamp
@@ -146,7 +147,7 @@ class SpannerRolesService(
         }
       }
 
-    val transactionRunner = databaseClient.readWriteTransaction()
+    val transactionRunner = databaseClient.readWriteTransaction(Options.tag("action=createRole"))
     val commitTimestamp: Timestamp =
       try {
         transactionRunner.run { txn ->
@@ -190,7 +191,7 @@ class SpannerRolesService(
     }
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
-      databaseClient.readWriteTransaction()
+      databaseClient.readWriteTransaction(Options.tag("action=updateRole"))
     transactionRunner.run { txn ->
       val (roleId: Long, role: Role) =
         try {
@@ -260,7 +261,7 @@ class SpannerRolesService(
     }
 
     try {
-      databaseClient.readWriteTransaction().run { txn ->
+      databaseClient.readWriteTransaction(Options.tag("action=deleteRole")).run { txn ->
         val roleId = txn.getRoleIdByResourceId(request.roleResourceId)
         txn.deleteRole(roleId)
       }
