@@ -20,9 +20,9 @@ import org.junit.ClassRule
 import org.junit.Rule
 import org.wfanet.measurement.access.common.TlsClientPrincipalMapping
 import org.wfanet.measurement.access.deploy.gcloud.spanner.testing.Schemata
-import org.wfanet.measurement.access.service.internal.IdGenerator
 import org.wfanet.measurement.access.service.internal.PermissionMapping
 import org.wfanet.measurement.access.service.internal.testing.PermissionsServiceTest
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule

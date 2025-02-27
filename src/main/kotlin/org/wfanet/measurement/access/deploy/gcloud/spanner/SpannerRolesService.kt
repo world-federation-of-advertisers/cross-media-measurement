@@ -17,6 +17,7 @@
 package org.wfanet.measurement.access.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.ErrorCode
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Empty
 import com.google.protobuf.Timestamp
@@ -37,7 +38,6 @@ import org.wfanet.measurement.access.deploy.gcloud.spanner.db.readRoles
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.roleExists
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.updateRole
 import org.wfanet.measurement.access.service.internal.EtagMismatchException
-import org.wfanet.measurement.access.service.internal.IdGenerator
 import org.wfanet.measurement.access.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.access.service.internal.PermissionMapping
 import org.wfanet.measurement.access.service.internal.PermissionNotFoundException
@@ -46,8 +46,9 @@ import org.wfanet.measurement.access.service.internal.RequiredFieldNotSetExcepti
 import org.wfanet.measurement.access.service.internal.ResourceTypeNotFoundInPermissionException
 import org.wfanet.measurement.access.service.internal.RoleAlreadyExistsException
 import org.wfanet.measurement.access.service.internal.RoleNotFoundException
-import org.wfanet.measurement.access.service.internal.generateNewId
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.api.ETags
+import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.access.DeleteRoleRequest
@@ -146,7 +147,7 @@ class SpannerRolesService(
         }
       }
 
-    val transactionRunner = databaseClient.readWriteTransaction()
+    val transactionRunner = databaseClient.readWriteTransaction(Options.tag("action=createRole"))
     val commitTimestamp: Timestamp =
       try {
         transactionRunner.run { txn ->
@@ -190,7 +191,7 @@ class SpannerRolesService(
     }
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
-      databaseClient.readWriteTransaction()
+      databaseClient.readWriteTransaction(Options.tag("action=updateRole"))
     transactionRunner.run { txn ->
       val (roleId: Long, role: Role) =
         try {
@@ -260,7 +261,7 @@ class SpannerRolesService(
     }
 
     try {
-      databaseClient.readWriteTransaction().run { txn ->
+      databaseClient.readWriteTransaction(Options.tag("action=deleteRole")).run { txn ->
         val roleId = txn.getRoleIdByResourceId(request.roleResourceId)
         txn.deleteRole(roleId)
       }

@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.access.deploy.gcloud.spanner.db
 
+import com.google.cloud.spanner.Options
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -46,7 +47,8 @@ suspend fun AsyncDatabaseClient.ReadContext.checkPermissions(
         bind("principalId").to(principalId)
         bind("protectedResourceName").to(protectedResourceName)
         bind("permissionIds").toInt64Array(permissionIds)
-      }
+      },
+      Options.tag("action=checkPermissions"),
     )
     .map { it.getLong("PermissionId") }
     .toList()

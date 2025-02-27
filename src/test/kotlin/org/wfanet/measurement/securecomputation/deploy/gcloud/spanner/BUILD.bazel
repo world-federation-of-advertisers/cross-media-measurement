@@ -1,0 +1,15 @@
+load(
+    "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl",
+    "spanner_emulator_test",
+)
+
+spanner_emulator_test(
+    name = "SecurecomputationSchemaTest",
+    srcs = ["SecurecomputationSchemaTest.kt"],
+    test_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.SecurecomputationSchemaTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/testing:schemata",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)

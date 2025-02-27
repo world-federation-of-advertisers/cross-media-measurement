@@ -31,8 +31,8 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.access.service.internal.Errors
-import org.wfanet.measurement.access.service.internal.IdGenerator
 import org.wfanet.measurement.access.service.internal.PermissionMapping
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.internal.access.ListRolesPageTokenKt

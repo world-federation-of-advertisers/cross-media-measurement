@@ -1,0 +1,17 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "schemata",
+    srcs = ["Schemata.kt"],
+    resources = ["//src/main/resources/securecomputation/spanner"],
+    deps = [
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
