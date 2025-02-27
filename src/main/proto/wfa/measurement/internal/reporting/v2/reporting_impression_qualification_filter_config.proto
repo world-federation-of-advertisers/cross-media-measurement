@@ -23,5 +23,6 @@ option java_multiple_files = true;
 
 // The configuration that contains pre-defined impression qualification filters
 message ReportingImpressionQualificationFilterConfig {
-  repeated ReportingImpressionQualificationFilter reporting_impression_qualification_filters = 1;
+  repeated ReportingImpressionQualificationFilter
+      reporting_impression_qualification_filters = 1;
 }
