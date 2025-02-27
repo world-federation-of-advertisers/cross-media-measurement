@@ -21,9 +21,9 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.toInt64
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.copy
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.FailWorkItemRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.copy
+import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemNotFoundException
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemReader
 
@@ -34,12 +34,12 @@ class FailWorkItem(private val request: FailWorkItemRequest) :
   override suspend fun TransactionScope.runTransaction(): WorkItem {
     val workItemResult =
       WorkItemReader()
-        .readByExternalId(
+        .readByResourceId(
           transactionContext,
-          ExternalId(request.externalWorkItemId),
+          ExternalId(request.workItemResourceId),
         )
         ?: throw WorkItemNotFoundException(
-          ExternalId(request.externalWorkItemId),
+          ExternalId(request.workItemResourceId),
         )
 
     transactionContext.bufferUpdateMutation("WorkItems") {

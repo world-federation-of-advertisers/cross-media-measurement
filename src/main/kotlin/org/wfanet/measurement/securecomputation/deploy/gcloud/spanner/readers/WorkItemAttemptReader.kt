@@ -22,8 +22,8 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItemAttempt
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.workItemAttempt
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
+import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
 
 class WorkItemAttemptReader : SpannerReader<WorkItemAttemptReader.Result>() {
 
@@ -38,8 +38,8 @@ class WorkItemAttemptReader : SpannerReader<WorkItemAttemptReader.Result>() {
     SELECT
       WorkItemAttempts.WorkItemAttemptId,
       WorkItemAttempts.WorkItemId,
-      WorkItems.ExternalWorkItemId,
-      WorkItemAttempts.ExternalWorkItemAttemptId,
+      WorkItems.WorkItemResourceId,
+      WorkItemAttempts.WorkItemAttemptResourceId,
       WorkItemAttempts.State,
       WorkItemAttempts.AttemptNumber,
       WorkItemAttempts.Logs,
@@ -58,31 +58,30 @@ class WorkItemAttemptReader : SpannerReader<WorkItemAttemptReader.Result>() {
     )
 
   private fun buildWorkItemAttempt(struct: Struct): WorkItemAttempt = workItemAttempt {
-    externalWorkItemId = struct.getLong("ExternalWorkItemId")
-    externalWorkItemAttemptId = struct.getLong("ExternalWorkItemAttemptId")
+    workItemResourceId = struct.getLong("WorkItemResourceId")
+    workItemAttemptResourceId = struct.getLong("WorkItemAttemptResourceId")
     state = WorkItemAttempt.State.forNumber(struct.getLong("State").toInt())
-    attemptNumber = struct.getLong("AttemptNumber").toInt()
-    logs = struct.getString("Logs")
+    errorMessage = struct.getString("ErrorMessage")
     createTime = struct.getTimestamp("CreateTime").toProto()
     updateTime = struct.getTimestamp("UpdateTime").toProto()
   }
 
-  suspend fun readByExternalIds(
+  suspend fun readByResourceIds(
     readContext: AsyncDatabaseClient.ReadContext,
-    externalWorkItemId: ExternalId,
-    externalWorkItemAttemptId: ExternalId,
+    workItemResourceId: ExternalId,
+    workItemAttemptResourceId: ExternalId,
   ): Result? {
     return fillStatementBuilder {
       appendClause(
         """
-          WHERE WorkItems.ExternalWorkItemId = @externalWorkItemId
+          WHERE WorkItems.WorkItemResourceId = @workItemResourceId
           AND
-          WorkItemAttempts.ExternalWorkItemAttemptId = @externalWorkItemAttemptId
+          WorkItemAttempts.WorkItemAttemptResourceId = @workItemAttemptResourceId
           """
           .trimIndent()
       )
-      bind("externalWorkItemId").to(externalWorkItemId.value)
-      bind("externalWorkItemAttemptId").to(externalWorkItemAttemptId.value)
+      bind("workItemResourceId").to(workItemResourceId.value)
+      bind("workItemAttemptResourceId").to(workItemAttemptResourceId.value)
     }
       .execute(readContext)
       .singleOrNull()

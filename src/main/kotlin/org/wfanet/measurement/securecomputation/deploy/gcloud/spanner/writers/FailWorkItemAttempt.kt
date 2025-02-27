@@ -21,10 +21,10 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.toInt64
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.FailWorkItemAttemptRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.copy
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItem
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItemAttempt
+import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemAttemptRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.copy
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemAttemptNotFoundException
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemAttemptReader
 
@@ -35,14 +35,14 @@ class FailWorkItemAttempt(private val request: FailWorkItemAttemptRequest) :
   override suspend fun TransactionScope.runTransaction(): WorkItemAttempt {
     val workItemAttemptResult =
       WorkItemAttemptReader()
-        .readByExternalIds(
+        .readByResourceIds(
           transactionContext,
-          ExternalId(request.externalWorkItemId),
-          ExternalId(request.externalWorkItemAttemptId),
+          ExternalId(request.workItemResourceId),
+          ExternalId(request.workItemAttemptResourceId),
         )
         ?: throw WorkItemAttemptNotFoundException(
-          ExternalId(request.externalWorkItemId),
-          ExternalId(request.externalWorkItemAttemptId),
+          ExternalId(request.workItemResourceId),
+          ExternalId(request.workItemAttemptResourceId),
         )
 
     transactionContext.bufferUpdateMutation("WorkItemAttempts") {

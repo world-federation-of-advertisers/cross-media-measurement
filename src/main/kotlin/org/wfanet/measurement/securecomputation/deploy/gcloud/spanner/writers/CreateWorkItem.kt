@@ -16,12 +16,12 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers
 
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.toInt64
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.copy
+import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 
 class CreateWorkItem (private val workItem: WorkItem) :
   SpannerWriter<WorkItem, WorkItem>() {
@@ -33,15 +33,15 @@ class CreateWorkItem (private val workItem: WorkItem) :
 
     transactionContext.bufferInsertMutation("WorkItems") {
       set("WorkItemId" to internalWorkItemId)
-      set("ExternalWorkItemId" to externalWorkItemId)
-      set("Queue" to workItem.queue)
+      set("WorkItemResourceId" to externalWorkItemId)
+      set("Queue" to workItem.queueResourceId)
       set("State").toInt64(WorkItem.State.QUEUED)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     }
 
     return workItem.copy {
-      this.externalWorkItemId = externalWorkItemId.value
+      this.workItemResourceId = externalWorkItemId.value
       this.state = WorkItem.State.QUEUED
     }
 

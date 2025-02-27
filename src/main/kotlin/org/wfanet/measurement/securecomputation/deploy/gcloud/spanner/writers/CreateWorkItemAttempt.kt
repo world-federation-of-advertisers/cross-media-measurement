@@ -23,8 +23,8 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.toInt64
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItemAttempt
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.copy
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
+import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemNotFoundException
 
 class CreateWorkItemAttempt (private val workItemAttempt: WorkItemAttempt) :
@@ -33,7 +33,7 @@ class CreateWorkItemAttempt (private val workItemAttempt: WorkItemAttempt) :
   override suspend fun TransactionScope.runTransaction(): WorkItemAttempt {
 
     val internalWorkItemId: InternalId =
-      readWorkItemId(ExternalId(workItemAttempt.externalWorkItemId))
+      readWorkItemId(ExternalId(workItemAttempt.workItemResourceId))
 
     val internalWorkItemAttemptId = idGenerator.generateInternalId()
     val externalWorkItemAttemptId = idGenerator.generateExternalId()
@@ -41,14 +41,14 @@ class CreateWorkItemAttempt (private val workItemAttempt: WorkItemAttempt) :
     transactionContext.bufferInsertMutation("WorkItemAttempts") {
       set("WorkItemId" to internalWorkItemId)
       set("WorkItemAttemptId" to internalWorkItemAttemptId)
-      set("ExternalWorkItemAttemptId" to externalWorkItemAttemptId)
+      set("WorkItemAttemptResourceId" to externalWorkItemAttemptId)
       set("State").toInt64(WorkItemAttempt.State.CLAIMED)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     }
 
     return workItemAttempt.copy {
-      this.externalWorkItemAttemptId = externalWorkItemAttemptId.value
+      this.workItemAttemptResourceId = externalWorkItemAttemptId.value
       this.state = WorkItemAttempt.State.CLAIMED
     }
 

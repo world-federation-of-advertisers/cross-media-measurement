@@ -19,7 +19,7 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.queries
 import com.google.cloud.spanner.Statement
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.StreamWorkItemsRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.StreamWorkItemsRequest
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemReader
 
 class StreamWorkItems(private val requestFilter: StreamWorkItemsRequest.Filter, limit: Int = 0) :
@@ -31,7 +31,7 @@ class StreamWorkItems(private val requestFilter: StreamWorkItemsRequest.Filter, 
       appendClause(
         """
         ORDER BY CreateTime ASC,
-        ExternalWorkItemId ASC
+        WorkItemResourceId ASC
         """
           .trimIndent()
       )
@@ -44,9 +44,9 @@ class StreamWorkItems(private val requestFilter: StreamWorkItemsRequest.Filter, 
   private fun Statement.Builder.appendWhereClause(filter: StreamWorkItemsRequest.Filter) {
     val conjuncts = mutableListOf<String>()
 
-    if (filter.externalWorkItemIdAfter != 0L) {
-      conjuncts.add("ExternalWorkItemId > @${EXTERNAL_WORK_ITEM_ID}")
-      bind(EXTERNAL_WORK_ITEM_ID to filter.externalWorkItemIdAfter)
+    if (filter.workItemResourceIdAfter != 0L) {
+      conjuncts.add("WorkItemResourceId > @${WORK_ITEM_RESOURCE_ID}")
+      bind(WORK_ITEM_RESOURCE_ID to filter.workItemResourceIdAfter)
     }
 
     if (conjuncts.isEmpty()) {
@@ -59,6 +59,6 @@ class StreamWorkItems(private val requestFilter: StreamWorkItemsRequest.Filter, 
 
   companion object {
     const val LIMIT = "limit"
-    const val EXTERNAL_WORK_ITEM_ID = "externalWorkItemId"
+    const val WORK_ITEM_RESOURCE_ID = "workItemResourceId"
   }
 }

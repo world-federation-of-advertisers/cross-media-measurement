@@ -22,8 +22,8 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItem
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 
 class WorkItemReader : SpannerReader<WorkItemReader.Result>() {
 
@@ -33,7 +33,7 @@ class WorkItemReader : SpannerReader<WorkItemReader.Result>() {
     """
     SELECT
       WorkItemId,
-      ExternalWorkItemId,
+      WorkItemResourceId,
       Queue,
       State,
       CreateTime,
@@ -46,25 +46,25 @@ class WorkItemReader : SpannerReader<WorkItemReader.Result>() {
     Result(buildWorkItem(struct), InternalId(struct.getLong("ModelReleaseId")))
 
   private fun buildWorkItem(struct: Struct): WorkItem = workItem {
-    externalWorkItemId = struct.getLong("ExternalWorkItemId")
-    queue = struct.getString("Queue")
+    workItemResourceId = struct.getLong("WorkItemResourceId")
+    queueResourceId = struct.getString("Queue")
     state = WorkItem.State.forNumber(struct.getLong("State").toInt())
     createTime = struct.getTimestamp("CreateTime").toProto()
     updateTime = struct.getTimestamp("UpdateTime").toProto()
   }
 
-  suspend fun readByExternalId(
+  suspend fun readByResourceId(
     readContext: AsyncDatabaseClient.ReadContext,
-    externalWorkItemId: ExternalId,
+    workItemResourceId: ExternalId,
   ): Result? {
     return fillStatementBuilder {
       appendClause(
         """
-          WHERE ExternalWorkItemId = @externalWorkItemId
+          WHERE WorkItemResourceId = @workItemResourceId
           """
           .trimIndent()
       )
-      bind("externalWorkItemId").to(externalWorkItemId.value)
+      bind("workItemResourceId").to(workItemResourceId.value)
     }
       .execute(readContext)
       .singleOrNull()

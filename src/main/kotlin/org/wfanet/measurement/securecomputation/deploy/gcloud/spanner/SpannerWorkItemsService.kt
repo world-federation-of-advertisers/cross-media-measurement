@@ -23,12 +23,12 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.FailWorkItemRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.GetWorkItemRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.StreamWorkItemsRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.CreateWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.GetWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.StreamWorkItemsRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemNotFoundException
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.queries.StreamWorkItems
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemReader
@@ -42,20 +42,20 @@ class SpannerWorkItemsService(
 ) : WorkItemsCoroutineImplBase() {
 
   override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
-    grpcRequire(request.workItem.queue.isNotEmpty()) { "Queue field of WorkItem is missing." }
+    grpcRequire(request.workItem.queueResourceId.isNotEmpty()) { "Queue field of WorkItem is missing." }
     return CreateWorkItem(request.workItem).execute(client, idGenerator)
   }
 
   override suspend fun getWorkItem(request: GetWorkItemRequest): WorkItem {
-    val externalWorkItemId = ExternalId(request.externalWorkItemId)
+    val workItemResourceId = ExternalId(request.workItemResourceId)
     return WorkItemReader()
-      .readByExternalId(
+      .readByResourceId(
         client.singleUse(),
-        externalWorkItemId,
+        workItemResourceId,
       )
       ?.workItem
       ?: throw WorkItemNotFoundException(
-        externalWorkItemId,
+        workItemResourceId,
       )
         .asStatusRuntimeException(Status.Code.NOT_FOUND, "WorkItem not found.")
   }
@@ -68,8 +68,8 @@ class SpannerWorkItemsService(
   }
 
   override suspend fun failWorkItem(request: FailWorkItemRequest): WorkItem {
-    grpcRequire(request.externalWorkItemId != 0L) {
-      "external_work_item_id not specified"
+    grpcRequire(request.workItemResourceId != 0L) {
+      "work_item_resource_id not specified"
     }
     try {
       return FailWorkItem(request).execute(client, idGenerator)

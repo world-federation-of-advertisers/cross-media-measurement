@@ -23,13 +23,13 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.CompleteWorkItemAttemptRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.CreateWorkItemAttemptRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.FailWorkItemAttemptRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.GetWorkItemAttemptRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.StreamWorkItemAttemptsRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
-import org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItemAttempt
+import org.wfanet.measurement.internal.securecomputation.controlplane.CompleteWorkItemAttemptRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.CreateWorkItemAttemptRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemAttemptRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.GetWorkItemAttemptRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.StreamWorkItemAttemptsRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemAttemptNotFoundException
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.queries.StreamWorkItemAttempts
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemAttemptReader
@@ -47,12 +47,12 @@ class SpannerWorkItemAttemptsService(
   }
 
   override suspend fun getWorkItemAttempt(request: GetWorkItemAttemptRequest): WorkItemAttempt {
-    val externalWorkItemId = ExternalId(request.externalWorkItemId)
-    val externalWorkItemAttemptId = ExternalId(request.externalWorkItemAttemptId)
+    val workItemResourceId = ExternalId(request.workItemResourceId)
+    val workItemAttemptResourceId = ExternalId(request.workItemAttemptResourceId)
     return WorkItemAttemptReader()
-      .readByExternalIds(client.singleUse(), externalWorkItemId, externalWorkItemAttemptId)
+      .readByResourceIds(client.singleUse(), workItemResourceId, workItemAttemptResourceId)
       ?.workItemAttempt
-      ?: throw WorkItemAttemptNotFoundException(externalWorkItemId, externalWorkItemAttemptId)
+      ?: throw WorkItemAttemptNotFoundException(workItemResourceId, workItemAttemptResourceId)
         .asStatusRuntimeException(Status.Code.NOT_FOUND, "WorkItemAttempt not found.")
   }
 
@@ -64,11 +64,11 @@ class SpannerWorkItemAttemptsService(
   }
 
   override suspend fun failWorkItemAttempt(request: FailWorkItemAttemptRequest): WorkItemAttempt {
-    grpcRequire(request.externalWorkItemId != 0L) {
-      "external_work_item_id not specified"
+    grpcRequire(request.workItemResourceId != 0L) {
+      "work_item_resource_id not specified"
     }
-    grpcRequire(request.externalWorkItemAttemptId != 0L) {
-      "external_work_item_attempt_id not specified"
+    grpcRequire(request.workItemAttemptResourceId != 0L) {
+      "work_item_attempt_resource_id not specified"
     }
     try {
       return FailWorkItemAttempt(request).execute(client, idGenerator)
@@ -78,11 +78,11 @@ class SpannerWorkItemAttemptsService(
   }
 
   override suspend fun completeWorkItemAttempt(request: CompleteWorkItemAttemptRequest): WorkItemAttempt {
-    grpcRequire(request.externalWorkItemId != 0L) {
-      "external_work_item_id not specified"
+    grpcRequire(request.workItemResourceId != 0L) {
+      "work_item_resource_id not specified"
     }
-    grpcRequire(request.externalWorkItemAttemptId != 0L) {
-      "external_work_item_attempt_id not specified"
+    grpcRequire(request.workItemAttemptResourceId != 0L) {
+      "work_item_attempt_resource_id not specified"
     }
     try {
       return CompleteWorkItemAttempt(request).execute(client, idGenerator)
