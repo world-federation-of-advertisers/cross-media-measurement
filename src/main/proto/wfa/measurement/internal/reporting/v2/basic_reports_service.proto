@@ -34,15 +34,13 @@ service BasicReports {
   // * `BASIC_REPORT_NOT_FOUND`
   rpc GetBasicReport(GetBasicReportRequest) returns (BasicReport);
 
-  // Ordered by `create_time` descending, `external_basic_report_id` ascending.
-  rpc ListBasicReports(ListBasicReportsRequest) returns (stream BasicReport);
+  // Ordered by `create_time` ascending, `external_basic_report_id` ascending.
+  rpc ListBasicReports(ListBasicReportsRequest)
+      returns (ListBasicReportsResponse);
 }
 
 message InsertBasicReportRequest {
   BasicReport basic_report = 1;
-  // If set, it needs to be unique to create a new `BasicReport`. Recommended to
-  // use a UUID.
-  string request_id = 2;
 }
 
 message GetBasicReportRequest {
@@ -55,11 +53,10 @@ message GetBasicReportRequest {
 
 message ListBasicReportsRequest {
   message AfterFilter {
-    // Any `BasicReport` created before this time, exclusive, will be included.
+    // Any `BasicReport` created after this time, exclusive, will be included.
+    // A `BasicReport` with this time will only be included if its
+    // `external_basic_report_id` is greater than the one below.
     google.protobuf.Timestamp create_time = 1;
-    // If two or more `BasicReport`s have the same create_time, then the
-    // `BasicReport`s with `external_basic_report_id` greater than this,
-    // exclusive, will be included.
     string external_basic_report_id = 2;
   }
 
@@ -71,4 +68,8 @@ message ListBasicReportsRequest {
   Filter filter = 1;
 
   int32 limit = 2;
+}
+
+message ListBasicReportsResponse {
+  repeated BasicReport basic_reports = 1;
 }

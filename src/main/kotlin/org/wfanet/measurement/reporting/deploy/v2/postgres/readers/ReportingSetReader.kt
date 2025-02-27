@@ -30,6 +30,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSet.SetExpression
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
+import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 private typealias Translate = (row: ResultRow) -> Unit
 
@@ -133,6 +134,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
     """
       .trimIndent()
 
+  /** Throws [ReportingSetNotFoundException] if any ReportingSet not found. */
   fun batchGetReportingSets(request: BatchGetReportingSetsRequest): Flow<Result> {
     val sql =
       StringBuilder(
@@ -172,7 +174,8 @@ class ReportingSetReader(private val readContext: ReadContext) {
       val reportingSetInfoMap = buildResultMap(statement)
 
       for (reportingSetId in request.externalReportingSetIdsList) {
-        val reportingSetInfo = reportingSetInfoMap[reportingSetId] ?: continue
+        val reportingSetInfo =
+          reportingSetInfoMap[reportingSetId] ?: throw ReportingSetNotFoundException()
 
         val reportingSet = reportingSetInfo.buildReportingSet()
 

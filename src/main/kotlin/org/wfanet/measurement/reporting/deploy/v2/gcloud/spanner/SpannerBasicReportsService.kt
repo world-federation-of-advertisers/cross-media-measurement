@@ -1,0 +1,256 @@
+/*
+ * Copyright 2025 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
+
+import com.google.cloud.spanner.ErrorCode
+import com.google.cloud.spanner.SpannerException
+import com.google.protobuf.Timestamp
+import io.grpc.Status
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
+import org.wfanet.measurement.common.db.r2dbc.ReadContext
+import org.wfanet.measurement.common.db.r2dbc.postgres.SerializableErrors.withSerializableErrorRetries
+import org.wfanet.measurement.common.generateNewId
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.reporting.v2.BasicReport
+import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.GetBasicReportRequest
+import org.wfanet.measurement.internal.reporting.v2.InsertBasicReportRequest
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponse
+import org.wfanet.measurement.internal.reporting.v2.ReportingSet
+import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
+import org.wfanet.measurement.internal.reporting.v2.copy
+import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.basicReportExists
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getBasicReportByExternalId
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getMeasurementConsumerByCmmsMeasurementConsumerId
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertBasicReport
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicReports
+import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
+import org.wfanet.measurement.reporting.service.internal.BasicReportAlreadyExistsException
+import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
+import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
+import org.wfanet.measurement.reporting.service.internal.RequiredFieldNotSetException
+
+class SpannerBasicReportsService(
+  private val spannerClient: AsyncDatabaseClient,
+  private val postgresClient: DatabaseClient,
+  private val idGenerator: IdGenerator = IdGenerator.Default,
+) : BasicReportsCoroutineImplBase() {
+  override suspend fun getBasicReport(request: GetBasicReportRequest): BasicReport {
+    if (request.cmmsMeasurementConsumerId.isEmpty()) {
+      throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.externalBasicReportId.isEmpty()) {
+      throw RequiredFieldNotSetException("external_basic_report_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val basicReportResult: BasicReportResult =
+      try {
+        spannerClient.singleUse().use { txn ->
+          txn.getBasicReportByExternalId(
+            cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
+            externalBasicReportId = request.externalBasicReportId,
+          )
+        }
+      } catch (e: BasicReportNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      }
+
+    val reportingSetResult: ReportingSetReader.Result =
+      getReportingSets(
+          request.cmmsMeasurementConsumerId,
+          listOf(basicReportResult.basicReport.externalCampaignGroupId),
+        )
+        .first()
+
+    return basicReportResult.basicReport.copy {
+      campaignGroupDisplayName = reportingSetResult.reportingSet.displayName
+    }
+  }
+
+  override suspend fun listBasicReports(
+    request: ListBasicReportsRequest
+  ): ListBasicReportsResponse {
+    if (request.filter.cmmsMeasurementConsumerId.isEmpty()) {
+      throw RequiredFieldNotSetException("filter.cmms_measurement_consumer_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val basicReports =
+      spannerClient.singleUse().use { txn ->
+        txn.readBasicReports(request.limit, request.filter).map { it.basicReport }.toList()
+      }
+
+    val reportingSetResultMap: Map<String, ReportingSetReader.Result> = buildMap {
+      putAll(
+        getReportingSets(
+            request.filter.cmmsMeasurementConsumerId,
+            basicReports.map { it.externalCampaignGroupId }.distinct(),
+          )
+          .associateBy { it.reportingSet.externalReportingSetId }
+      )
+    }
+
+    return listBasicReportsResponse {
+      this.basicReports +=
+        basicReports.map {
+          it.copy {
+            campaignGroupDisplayName =
+              reportingSetResultMap[it.externalCampaignGroupId]!!.reportingSet.displayName
+          }
+        }
+    }
+  }
+
+  override suspend fun insertBasicReport(request: InsertBasicReportRequest): BasicReport {
+    try {
+      validateBasicReport(request.basicReport)
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val transactionRunner = spannerClient.readWriteTransaction()
+
+    try {
+      transactionRunner.run { txn ->
+        val measurementConsumer =
+          txn.getMeasurementConsumerByCmmsMeasurementConsumerId(
+            request.basicReport.cmmsMeasurementConsumerId
+          )
+
+        checkReportingSet(request.basicReport)
+
+        val basicReportId =
+          idGenerator.generateNewId { id ->
+            txn.basicReportExists(measurementConsumer.measurementConsumerId, id)
+          }
+
+        txn.insertBasicReport(
+          basicReportId = basicReportId,
+          measurementConsumerId = measurementConsumer.measurementConsumerId,
+          basicReport = request.basicReport,
+        )
+      }
+    } catch (e: SpannerException) {
+      if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
+        throw BasicReportAlreadyExistsException(request.basicReport.externalBasicReportId)
+          .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+      } else {
+        throw e
+      }
+    } catch (e: MeasurementConsumerNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: ReportingSetNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+
+    val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
+
+    return request.basicReport.copy { createTime = commitTimestamp }
+  }
+
+  /**
+   * Checks whether the basic report is valid.
+   *
+   * @throws RequiredFieldNotSetException
+   */
+  private fun validateBasicReport(basicReport: BasicReport) {
+    if (basicReport.cmmsMeasurementConsumerId.isEmpty()) {
+      throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
+    }
+
+    if (basicReport.externalBasicReportId.isEmpty()) {
+      throw RequiredFieldNotSetException("external_basic_report_id")
+    }
+
+    if (basicReport.externalCampaignGroupId.isEmpty()) {
+      throw RequiredFieldNotSetException("external_campaign_group_id")
+    }
+
+    if (!basicReport.hasDetails()) {
+      throw RequiredFieldNotSetException("details")
+    }
+
+    if (!basicReport.hasResultDetails()) {
+      throw RequiredFieldNotSetException("result_details")
+    }
+  }
+
+  /**
+   * Reads a [ReportingSet] using Postgres.
+   *
+   * @throws ReportingSetNotFoundException
+   */
+  private suspend fun checkReportingSet(basicReport: BasicReport): Unit {
+    var postgresReadContext: ReadContext? = null
+    try {
+      postgresReadContext = postgresClient.singleUse()
+      ReportingSetReader(postgresReadContext)
+        .batchGetReportingSets(
+          batchGetReportingSetsRequest {
+            cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+            externalReportingSetIds += basicReport.externalCampaignGroupId
+          }
+        )
+        .withSerializableErrorRetries()
+        .toList()
+        .first()
+    } finally {
+      postgresReadContext?.close()
+    }
+  }
+
+  /**
+   * Reads [ReportingSet]s using Postgres.
+   *
+   * @throws ReportingSetNotFoundException
+   */
+  private suspend fun getReportingSets(
+    cmmsMeasurementConsumerId: String,
+    externalReportingSetIds: List<String>,
+  ): List<ReportingSetReader.Result> {
+    var postgresReadContext: ReadContext? = null
+    return try {
+      if (externalReportingSetIds.isEmpty()) {
+        return emptyList()
+      }
+
+      postgresReadContext = postgresClient.singleUse()
+
+      ReportingSetReader(postgresReadContext)
+        .batchGetReportingSets(
+          batchGetReportingSetsRequest {
+            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+            this.externalReportingSetIds += externalReportingSetIds
+          }
+        )
+        .withSerializableErrorRetries()
+        .toList()
+    } finally {
+      postgresReadContext?.close()
+    }
+  }
+}
