@@ -97,7 +97,7 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
         )!!
         .toFile()
     val privateKeyDerFile = secretsDir.resolve("${MC_DISPLAY_NAME}_cs_private.der")
-    val durationBetweenMeasurement: Duration = Duration.ofSeconds(10)
+    val durationBetweenMeasurement: Duration = Duration.ofSeconds(5)
     val measurementLookBackDuration = Duration.ofDays(1)
     val clock = Clock.systemUTC()
     prober =
@@ -132,6 +132,30 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
     prober.run()
     val measurements = listMeasurements()
     assertThat(measurements.size).isEqualTo(1)
+  }
+
+  @Test
+  fun `prober does not create the second measurement because it is too soon`(): Unit = runBlocking {
+    prober.run()
+    var measurements = listMeasurements()
+    assertThat(measurements.size).isEqualTo(1)
+
+    prober.run()
+    measurements = listMeasurements()
+    assertThat(measurements.size).isEqualTo(1)
+  }
+
+  @Test
+  fun `prober creates the first two measurements `(): Unit = runBlocking {
+    prober.run()
+    var measurements = listMeasurements()
+    assertThat(measurements.size).isEqualTo(1)
+
+    Thread.sleep(10000)
+
+    prober.run()
+    measurements = listMeasurements()
+    assertThat(measurements.size).isEqualTo(2)
   }
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
