@@ -14,9 +14,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset sanjayvas:1 dbms:cloudspanner
+-- changeset marcopremier:1 dbms:cloudspanner
 -- preconditions onFail:MARK_RAN onError:HALT
--- precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Measurements'
 
 START BATCH DDL;
 
@@ -29,38 +28,37 @@ START BATCH DDL;
 
 CREATE TABLE WorkItems (
     WorkItemId INT64 NOT NULL,
-    ExternalWorkItemId INT64 NOT NULL,
+    WorkItemResourceId INT64 NOT NULL,
 
-    Queue STRING(MAX) NOT NULL,
+    QueueId INT64 NOT NULL,
 
     -- org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItem.State
     -- Proto enum encoded as int
     State INT64 NOT NULL,
 
     CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
-    UpdateTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
+    UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 
 ) PRIMARY KEY (WorkItemId);
 
-CREATE UNIQUE INDEX WorkItemsByExternalId
-    ON WorkItems(ExternalWorkItemId);
+CREATE UNIQUE INDEX WorkItemsByResourceId
+    ON WorkItems(WorkItemResourceId);
 
 CREATE TABLE WorkItemAttempts (
     WorkItemId INT64 NOT NULL,
     WorkItemAttemptId INT64 NOT NULL,
-    ExternalWorkItemAttemptId INT64 NOT NULL,
+    WorkItemAttemptResourceId INT64 NOT NULL,
 
-    -- org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha.WorkItemAttempt.State
+    -- org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt.State
     -- Proto enum encoded as int
     State INT64 NOT NULL,
 
-    AttemptNumber INT64 NOT NULL,
     Logs STRING(MAX) NOT NULL,
 
     CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
-    UpdateTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
+    UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 
-) PRIMARY KEY (WorkItemAttemptId, WorkItemId),
+) PRIMARY KEY (WorkItemId, WorkItemAttemptId),
     INTERLEAVE IN PARENT WorkItems ON DELETE CASCADE;
 
 RUN BATCH;
