@@ -4,27 +4,33 @@ load(
     "kt_jvm_grpc_proto_library",
     "kt_jvm_proto_library",
 )
-load(
-    "//src/main/proto/wfa/measurement/internal/common:macros.bzl",
-    "IMPORT_PREFIX",
-    "proto_and_kt_jvm_proto_library",
-)
+load("//build:defs.bzl", "proto_lib_prefix")
 
 package(default_visibility = ["//:__subpackages__"])
 
-#Resources and shared message types.
+IMPORT_PREFIX = "/src/main/proto"
 
-proto_and_kt_jvm_proto_library(
-    name = "work_item",
+# Resources and shared message types.
+
+MESSAGE_LIBS = [
+    ":work_item_proto",
+    ":work_item_attempt_proto",
+]
+
+proto_library(
+    name = "work_item_proto",
+    srcs = ["work_item.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":work_item_attempt_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
 
-proto_and_kt_jvm_proto_library(
-    name = "work_item_attempt",
+proto_library(
+    name = "work_item_attempt_proto",
+    srcs = ["work_item_attempt.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
     deps = [
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_protobuf//:timestamp_proto",
@@ -33,6 +39,11 @@ proto_and_kt_jvm_proto_library(
 
 #Services.
 
+SERVICE_LIBS = [
+    ":work_items_service_proto",
+    ":work_item_attempts_service_proto",
+]
+
 proto_library(
     name = "work_items_service_proto",
     srcs = ["work_items_service.proto"],
@@ -40,11 +51,6 @@ proto_library(
     deps = [
         ":work_item_proto",
     ],
-)
-
-kt_jvm_grpc_proto_library(
-    name = "work_items_service_kt_jvm_grpc_proto",
-    deps = [":work_items_service_proto"],
 )
 
 proto_library(
@@ -56,7 +62,20 @@ proto_library(
     ],
 )
 
-kt_jvm_grpc_proto_library(
-    name = "work_item_attempts_service_kt_jvm_grpc_proto",
-    deps = [":work_item_attempts_service_proto"],
-)
+# Language-specific libraries.
+
+[
+    kt_jvm_proto_library(
+        name = "{prefix}_kt_jvm_proto".format(prefix = proto_lib_prefix(label_str)),
+        deps = [label_str],
+    )
+    for label_str in MESSAGE_LIBS
+]
+
+[
+    kt_jvm_grpc_proto_library(
+        name = "{prefix}_kt_jvm_grpc_proto".format(prefix = proto_lib_prefix(label_str)),
+        deps = [label_str],
+    )
+    for label_str in SERVICE_LIBS
+]
