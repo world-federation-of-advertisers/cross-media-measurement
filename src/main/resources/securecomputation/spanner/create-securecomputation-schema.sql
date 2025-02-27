@@ -15,7 +15,6 @@
 -- limitations under the License.
 
 -- changeset marcopremier:1 dbms:cloudspanner
--- preconditions onFail:MARK_RAN onError:HALT
 
 START BATCH DDL;
 
