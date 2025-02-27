@@ -29,14 +29,15 @@ import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.lastOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.single
-import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
+import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -208,7 +209,7 @@ class MeasurementSystemProber(
       val eventGroup: EventGroup =
         eventGroupsStub
           .withAuthenticationKey(apiAuthenticationKey)
-          .listResources(1) { pageToken: String, remaining: Int ->
+          .listResources(1) { pageToken: String, remaining ->
             val request = listEventGroupsRequest {
               parent = measurementConsumerName
               filter = ListEventGroupsRequestKt.filter { dataProviders += dataProviderName }
@@ -250,30 +251,32 @@ class MeasurementSystemProber(
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun getLastUpdatedMeasurement(): Measurement? {
-    val measurements: Flow<Measurement> =
-      measurementsStub
-        .withAuthenticationKey(apiAuthenticationKey)
-        .listResources(1) { pageToken: String, remaining: Int ->
-          val response: ListMeasurementsResponse =
-            try {
-              listMeasurements(
-                listMeasurementsRequest {
-                  parent = measurementConsumerName
-                  this.pageToken = pageToken
-                  this.pageSize = remaining
+    val measurements: Flow<ResourceList<Measurement, String>> =
+      measurementsStub.withAuthenticationKey(apiAuthenticationKey).listResources(Int.MAX_VALUE) {
+        pageToken: String,
+        remaining ->
+        val response: ListMeasurementsResponse =
+          try {
+            listMeasurements(
+              listMeasurementsRequest {
+                parent = measurementConsumerName
+                this.pageToken = pageToken
+                this.pageSize = remaining
+                filter = filter {
+                  updatedAfter = clock.instant().minus(durationBetweenMeasurement).toProtoTime()
                 }
-              )
-            } catch (e: StatusException) {
-              throw Exception(
-                "Unable to list measurements for measurement consumer $measurementConsumerName",
-                e,
-              )
-            }
-          ResourceList(response.measurementsList, response.nextPageToken)
-        }
-        .flattenConcat()
+              }
+            )
+          } catch (e: StatusException) {
+            throw Exception(
+              "Unable to list measurements for measurement consumer $measurementConsumerName",
+              e,
+            )
+          }
+        ResourceList(response.measurementsList, response.nextPageToken)
+      }
 
-    return measurements.singleOrNull()
+    return measurements.flattenConcat().lastOrNull()
   }
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
@@ -283,7 +286,12 @@ class MeasurementSystemProber(
       .listResources { pageToken: String ->
         val response: ListRequisitionsResponse =
           try {
-            listRequisitions(listRequisitionsRequest { this.pageToken = pageToken })
+            listRequisitions(
+              listRequisitionsRequest {
+                parent = measurementName
+                this.pageToken = pageToken
+              }
+            )
           } catch (e: StatusException) {
             throw Exception("Unable to list requisitions for measurement $measurementName", e)
           }
