@@ -63,4 +63,6 @@ message CompleteWorkItemAttemptRequest {
 message FailWorkItemAttemptRequest {
   fixed64 work_item_resource_id = 1;
   fixed64 work_item_attempt_resource_id = 2;
+  // Human-readable error message. This should not include any sensitive info.
+  string error_message = 3;
 }
