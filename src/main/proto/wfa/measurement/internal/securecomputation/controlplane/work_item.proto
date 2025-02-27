@@ -18,7 +18,6 @@ package wfa.measurement.internal.securecomputation.controlplane;
 
 import "google/api/field_behavior.proto";
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/internal/securecomputation/controlplane/work_item_attempt.proto";
 
 option java_package = "org.wfanet.measurement.internal.securecomputation.controlplane";
 option java_multiple_files = true;
