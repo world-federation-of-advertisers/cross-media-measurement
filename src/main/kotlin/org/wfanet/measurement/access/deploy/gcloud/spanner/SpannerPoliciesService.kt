@@ -33,7 +33,6 @@ import org.wfanet.measurement.access.deploy.gcloud.spanner.db.insertPolicyBindin
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.policyExists
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.updatePolicy
 import org.wfanet.measurement.access.service.internal.EtagMismatchException
-import org.wfanet.measurement.access.service.internal.IdGenerator
 import org.wfanet.measurement.access.service.internal.PolicyAlreadyExistsException
 import org.wfanet.measurement.access.service.internal.PolicyBindingMembershipAlreadyExistsException
 import org.wfanet.measurement.access.service.internal.PolicyBindingMembershipNotFoundException
@@ -43,7 +42,8 @@ import org.wfanet.measurement.access.service.internal.PrincipalNotFoundException
 import org.wfanet.measurement.access.service.internal.PrincipalTypeNotSupportedException
 import org.wfanet.measurement.access.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.access.service.internal.RoleNotFoundException
-import org.wfanet.measurement.access.service.internal.generateNewId
+import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient

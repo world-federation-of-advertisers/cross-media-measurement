@@ -31,14 +31,14 @@ import org.wfanet.measurement.access.deploy.gcloud.spanner.db.getPrincipalIdByRe
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.insertPrincipal
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.insertUserPrincipal
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.principalExists
-import org.wfanet.measurement.access.service.internal.IdGenerator
 import org.wfanet.measurement.access.service.internal.PrincipalAlreadyExistsException
 import org.wfanet.measurement.access.service.internal.PrincipalNotFoundException
 import org.wfanet.measurement.access.service.internal.PrincipalNotFoundForTlsClientException
 import org.wfanet.measurement.access.service.internal.PrincipalNotFoundForUserException
 import org.wfanet.measurement.access.service.internal.PrincipalTypeNotSupportedException
 import org.wfanet.measurement.access.service.internal.RequiredFieldNotSetException
-import org.wfanet.measurement.access.service.internal.generateNewId
+import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.access.CreateUserPrincipalRequest
 import org.wfanet.measurement.internal.access.DeletePrincipalRequest
