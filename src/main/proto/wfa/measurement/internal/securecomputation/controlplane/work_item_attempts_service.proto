@@ -14,11 +14,11 @@
 
 syntax = "proto3";
 
-package wfa.measurement.internal.securecomputation.controlplane.v1alpha;
+package wfa.measurement.internal.securecomputation.controlplane;
 
-import "wfa/measurement/internal/securecomputation/controlplane/v1alpha/work_item_attempt.proto";
+import "wfa/measurement/internal/securecomputation/controlplane/work_item_attempt.proto";
 
-option java_package = "org.wfanet.measurement.internal.securecomputation.controlplane.v1alpha";
+option java_package = "org.wfanet.measurement.internal.securecomputation.controlplane";
 option java_multiple_files = true;
 option java_outer_classname = "WorkItemAttemptsServiceProto";
 
@@ -41,14 +41,14 @@ message CreateWorkItemAttemptRequest {
 }
 
 message GetWorkItemAttemptRequest {
-  fixed64 external_work_item_id = 1;
-  fixed64 external_work_item_attempt_id = 2;
+  fixed64 work_item_resource_id = 1;
+  fixed64 work_item_attempt_resource_id = 2;
 }
 
 message StreamWorkItemAttemptsRequest {
   message Filter {
-    fixed64 external_work_item_id = 1;
-    fixed64 external_work_item_attempt_id_after = 2;
+    fixed64 work_item_resource_id = 1;
+    fixed64 work_item_attempt_resource_id_after = 2;
   }
   Filter filter = 1;
 
@@ -56,11 +56,11 @@ message StreamWorkItemAttemptsRequest {
 }
 
 message CompleteWorkItemAttemptRequest {
-  fixed64 external_work_item_id = 1;
-  fixed64 external_work_item_attempt_id = 2;
+  fixed64 work_item_resource_id = 1;
+  fixed64 work_item_attempt_resource_id = 2;
 }
 
 message FailWorkItemAttemptRequest {
-  fixed64 external_work_item_id = 1;
-  fixed64 external_work_item_attempt_id = 2;
+  fixed64 work_item_resource_id = 1;
+  fixed64 work_item_attempt_resource_id = 2;
 }
