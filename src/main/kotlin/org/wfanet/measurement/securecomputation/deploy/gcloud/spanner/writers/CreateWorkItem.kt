@@ -19,6 +19,8 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import com.google.cloud.spanner.Value
+import org.wfanet.measurement.access.service.internal.PermissionMapping
+import org.wfanet.measurement.access.service.internal.PermissionNotFoundForRoleException
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.securecomputation.controlplane.copy
@@ -30,6 +32,14 @@ class CreateWorkItem (private val workItem: WorkItem) :
 
     val internalWorkItemId = idGenerator.generateInternalId()
     val workItemResourceId = idGenerator.generateExternalId()
+
+    val queueResourceIds =
+      row.getLongList("PermissionIds").map {
+        val mappingPermission: PermissionMapping.Permission =
+          permissionMapping.getPermissionById(it)
+            ?: throw PermissionNotFoundForRoleException(roleResourceId)
+        mappingPermission.permissionResourceId
+      }
 
     transactionContext.bufferInsertMutation("WorkItems") {
       set("WorkItemId" to internalWorkItemId)

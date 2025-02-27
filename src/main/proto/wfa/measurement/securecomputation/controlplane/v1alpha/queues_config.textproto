@@ -1,0 +1,8 @@
+# proto-file: wfa/measurement/config/securecomputation/queues_config.proto
+# proto-message: wfa.measurement.config.securecomputation.QueuesConfig
+
+# test queue
+queues {
+  key: "test_queue"
+  value: "queues/test_queue"
+}
