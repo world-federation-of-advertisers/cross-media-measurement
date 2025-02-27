@@ -21,10 +21,13 @@ import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.toInt64
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.copy
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemInvalidStateException
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemNotFoundException
 
 class CreateWorkItemAttempt (private val workItemAttempt: WorkItemAttempt) :
@@ -35,41 +38,72 @@ class CreateWorkItemAttempt (private val workItemAttempt: WorkItemAttempt) :
     val internalWorkItemId: InternalId =
       readWorkItemId(ExternalId(workItemAttempt.workItemResourceId))
 
+    val workItemState = readWorkItemState(ExternalId(workItemAttempt.workItemResourceId))
+
+    if(WorkItem.State.forNumber(workItemState.value.toInt()) == WorkItem.State.FAILED ||
+      WorkItem.State.forNumber(workItemState.value.toInt()) == WorkItem.State.SUCCEEDED) {
+      throw WorkItemInvalidStateException(ExternalId(workItemAttempt.workItemResourceId))
+    }
+
     val internalWorkItemAttemptId = idGenerator.generateInternalId()
-    val externalWorkItemAttemptId = idGenerator.generateExternalId()
+    val workItemAttemptResourceId = idGenerator.generateExternalId()
 
     transactionContext.bufferInsertMutation("WorkItemAttempts") {
       set("WorkItemId" to internalWorkItemId)
       set("WorkItemAttemptId" to internalWorkItemAttemptId)
-      set("WorkItemAttemptResourceId" to externalWorkItemAttemptId)
+      set("WorkItemAttemptResourceId" to workItemAttemptResourceId)
       set("State").toInt64(WorkItemAttempt.State.CLAIMED)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     }
 
+    transactionContext.bufferUpdateMutation("WorkItems") {
+      set("WorkItemId" to internalWorkItemId)
+      set("State").toInt64(WorkItem.State.CLAIMED)
+      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+    }
+
     return workItemAttempt.copy {
-      this.workItemAttemptResourceId = externalWorkItemAttemptId.value
+      this.workItemAttemptResourceId = workItemAttemptResourceId.value
       this.state = WorkItemAttempt.State.CLAIMED
     }
 
   }
 
   private suspend fun TransactionScope.readWorkItemId(
-    externalWorkItemId: ExternalId
+    workItemResourceId: ExternalId
   ): InternalId {
     val column = "WorkItemId"
     return transactionContext
       .readRowUsingIndex(
         "WorkItems",
-        "WorkItemsByExternalId",
-        Key.of(externalWorkItemId.value),
+        "WorkItemsByResourceId",
+        Key.of(workItemResourceId.value),
         column,
       )
       ?.let { struct -> InternalId(struct.getLong(column)) }
-      ?: throw WorkItemNotFoundException(externalWorkItemId) {
-        "WorkItem with external ID $externalWorkItemId not found"
+      ?: throw WorkItemNotFoundException(workItemResourceId) {
+        "WorkItem with external ID $workItemResourceId not found"
       }
   }
+
+  private suspend fun TransactionScope.readWorkItemState(
+    workItemResourceId: ExternalId
+  ): InternalId {
+    val column = "State"
+    return transactionContext
+      .readRowUsingIndex(
+        "WorkItems",
+        "WorkItemsByResourceId",
+        Key.of(workItemResourceId.value),
+        column,
+      )
+      ?.let { struct -> InternalId(struct.getLong(column)) }
+      ?: throw WorkItemNotFoundException(workItemResourceId) {
+        "WorkItem with external ID $workItemResourceId not found"
+      }
+  }
+
   override fun ResultScope<WorkItemAttempt>.buildResult(): WorkItemAttempt {
     return checkNotNull(this.transactionResult).copy {
       createTime = commitTimestamp.toProto()

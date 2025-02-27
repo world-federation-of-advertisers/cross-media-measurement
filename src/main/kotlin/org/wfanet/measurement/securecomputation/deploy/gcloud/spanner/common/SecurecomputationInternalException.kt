@@ -70,3 +70,14 @@ class WorkItemAttemptNotFoundException(
       "work_item_attempt_resource_id" to workItemAttemptResourceId.value.toString(),
     )
 }
+
+class WorkItemInvalidStateException(
+  val workItemResourceId: ExternalId,
+  provideDescription: () -> String = { "WorkItemAttempt cannot be created when WorkItem.State is either `FAILD` or `SUCCEEDED`" },
+) : SecurecomputationInternalException(ErrorCode.WORK_ITEM_INVALID_STATE, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "work_item_resource_id" to workItemResourceId.value.toString(),
+      )
+}

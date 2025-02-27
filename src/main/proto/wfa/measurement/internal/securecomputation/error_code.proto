@@ -28,4 +28,7 @@ enum ErrorCode {
   /** WorkItemAttempt resource queried could not be found. */
   WORK_ITEM_ATTEMPT_NOT_FOUND = 2;
 
+  /** WorkItem state is invalid for creating a new WorkItemAttempt. */
+  WORK_ITEM_INVALID_STATE = 3;
+
 }

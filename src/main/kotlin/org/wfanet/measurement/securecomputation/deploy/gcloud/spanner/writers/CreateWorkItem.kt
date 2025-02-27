@@ -29,11 +29,11 @@ class CreateWorkItem (private val workItem: WorkItem) :
   override suspend fun TransactionScope.runTransaction(): WorkItem {
 
     val internalWorkItemId = idGenerator.generateInternalId()
-    val externalWorkItemId = idGenerator.generateExternalId()
+    val workItemResourceId = idGenerator.generateExternalId()
 
     transactionContext.bufferInsertMutation("WorkItems") {
       set("WorkItemId" to internalWorkItemId)
-      set("WorkItemResourceId" to externalWorkItemId)
+      set("WorkItemResourceId" to workItemResourceId)
       set("Queue" to workItem.queueResourceId)
       set("State").toInt64(WorkItem.State.QUEUED)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
@@ -41,7 +41,7 @@ class CreateWorkItem (private val workItem: WorkItem) :
     }
 
     return workItem.copy {
-      this.workItemResourceId = externalWorkItemId.value
+      this.workItemResourceId = workItemResourceId.value
       this.state = WorkItem.State.QUEUED
     }
 
