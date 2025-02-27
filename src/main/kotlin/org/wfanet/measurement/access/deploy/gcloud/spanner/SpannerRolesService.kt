@@ -38,7 +38,6 @@ import org.wfanet.measurement.access.deploy.gcloud.spanner.db.readRoles
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.roleExists
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.updateRole
 import org.wfanet.measurement.access.service.internal.EtagMismatchException
-import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.access.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.access.service.internal.PermissionMapping
 import org.wfanet.measurement.access.service.internal.PermissionNotFoundException
@@ -47,8 +46,9 @@ import org.wfanet.measurement.access.service.internal.RequiredFieldNotSetExcepti
 import org.wfanet.measurement.access.service.internal.ResourceTypeNotFoundInPermissionException
 import org.wfanet.measurement.access.service.internal.RoleAlreadyExistsException
 import org.wfanet.measurement.access.service.internal.RoleNotFoundException
-import org.wfanet.measurement.common.generateNewId
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.api.ETags
+import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.access.DeleteRoleRequest

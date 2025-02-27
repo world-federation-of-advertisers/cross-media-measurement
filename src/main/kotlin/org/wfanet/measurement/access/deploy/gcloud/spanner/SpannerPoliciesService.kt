@@ -43,8 +43,8 @@ import org.wfanet.measurement.access.service.internal.PrincipalTypeNotSupportedE
 import org.wfanet.measurement.access.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.access.service.internal.RoleNotFoundException
 import org.wfanet.measurement.common.IdGenerator
-import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.api.ETags
+import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.access.AddPolicyBindingMembersRequest
