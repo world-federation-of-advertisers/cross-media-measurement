@@ -1,0 +1,46 @@
+# proto-file: wfa/measurement/internal/reporting/v2/reporting_impression_qualification_filter_config.proto
+# proto-message: wfa.measurement.internal.reporting.v2.ReportingImpressionQualificationFilterConfig
+
+# AMI
+reporting_impression_qualification_filters {
+  external_impression_qualification_filter_id: "impressionQualificationFilters/ami"
+  filter_specs {
+    media_type: VIDEO
+    filters: []
+  }
+  filter_specs {
+    media_type: DISPLAY
+    filters: []
+  }
+  filter_specs {
+    media_type: OTHER
+    filters: []
+  }
+}
+
+# MRC
+reporting_impression_qualification_filters {
+  external_impression_qualification_filter_id: "impressionQualificationFilters/mrc"
+  filter_specs {
+    media_type: DISPLAY
+    filters: {
+      terms: {
+        path: "banner_ad.viewable_50_percent_plus"
+        value {
+          bool_value: true
+        }
+      }
+    }
+  }
+  filter_specs {
+    media_type: VIDEO
+    filters: {
+      terms: {
+        path: "video.viewable_100_percent"
+        value: {
+          bool_value: true
+        }
+      }
+    }
+  }
+}

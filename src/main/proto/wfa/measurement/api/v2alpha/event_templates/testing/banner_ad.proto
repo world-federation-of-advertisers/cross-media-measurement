@@ -34,4 +34,12 @@ message Banner {
                  "least 50% of the pixels on the screen. If not specified, "
                  "viewability was not determined."
   }];
+
+  // More than 50% of the ad was displayed in the browser for at least
+  // 1 continuous second.
+  // AKA MRC Viewability standard
+  bool viewable_50_percent_plus = 2
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Viewable 50%+"
+      }];
 }
