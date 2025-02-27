@@ -15,6 +15,8 @@
 module "control_plane_cluster" {
   source = "../modules/cluster"
 
+  deletion_protection = false
+
   name            = local.control_plane_cluster_name
   location        = local.cluster_location
   release_channel = var.cluster_release_channel
