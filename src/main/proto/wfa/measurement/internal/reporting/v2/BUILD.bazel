@@ -218,7 +218,6 @@ MESSAGE_LIBS = [
     "basic_report",
     "event_filter",
     "event_template_field",
-    "impression_qualification_filter_config",
     "impression_qualification_filter_spec",
     "metric_frequency_spec",
     "result_group",
