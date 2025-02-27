@@ -23,8 +23,10 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.gcloud.postgres.PostgresConnectionFactories
 import org.wfanet.measurement.gcloud.postgres.PostgresFlags as GCloudPostgresFlags
+import org.wfanet.measurement.gcloud.spanner.SpannerFlags
+import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer
-import org.wfanet.measurement.reporting.deploy.v2.common.server.postgres.PostgresServices
+import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
 import picocli.CommandLine
 
 /** Implementation of [InternalReportingServer] using Google Cloud Postgres. */
@@ -36,15 +38,20 @@ import picocli.CommandLine
 )
 class GCloudPostgresInternalReportingServer : InternalReportingServer() {
   @CommandLine.Mixin private lateinit var gCloudPostgresFlags: GCloudPostgresFlags
+  @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
     val idGenerator = RandomIdGenerator(clock)
 
     val factory = PostgresConnectionFactories.buildConnectionFactory(gCloudPostgresFlags)
-    val client = PostgresDatabaseClient.fromConnectionFactory(factory)
+    val postgresClient = PostgresDatabaseClient.fromConnectionFactory(factory)
 
-    run(PostgresServices.create(idGenerator, client))
+    spannerFlags.usingSpanner { spanner ->
+      val spannerClient = spanner.databaseClient
+
+      run(DataServices.create(idGenerator, postgresClient, spannerClient))
+    }
   }
 }
 

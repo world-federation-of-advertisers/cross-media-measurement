@@ -20,6 +20,7 @@ import io.grpc.BindableService
 import kotlin.reflect.full.declaredMemberProperties
 import kotlinx.coroutines.runInterruptible
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
@@ -33,6 +34,8 @@ import picocli.CommandLine
 abstract class InternalReportingServer : Runnable {
   data class Services(
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
+    val basicReportsService: BasicReportsCoroutineImplBase,
+    val measurementConsumersService2: MeasurementConsumersCoroutineImplBase,
     val measurementsService: MeasurementsCoroutineImplBase,
     val metricsService: MetricsCoroutineImplBase,
     val reportingSetsService: ReportingSetsCoroutineImplBase,
