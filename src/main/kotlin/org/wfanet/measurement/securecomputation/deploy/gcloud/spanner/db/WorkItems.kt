@@ -32,6 +32,7 @@ import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForInternalIdException
@@ -51,12 +52,20 @@ suspend fun AsyncDatabaseClient.ReadContext.workItemResourceIdExists(workItemRes
   return readUsingIndex("WorkItems", "WorkItemsByResourceId", keySet, listOf("WorkItemResourceId")).firstOrNull() != null
 }
 
-/** Buffers an update mutation for the WorkItems table. */
+/**
+ * Buffers an update mutation for the WorkItems table.
+ * Set as FAILED all the child WorkItemAttempts
+ * */
 fun AsyncDatabaseClient.TransactionContext.failWorkItem(workItemId: Long): WorkItem.State {
   val state = WorkItem.State.FAILED
   bufferUpdateMutation("WorkItems") {
     set("WorkItemId").to(workItemId)
     set("State").toInt64(state)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+  bufferUpdateMutation("WorkItemAttempts") {
+    set("WorkItemId").to(workItemId)
+    set("State").toInt64(WorkItemAttempt.State.FAILED)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
   return state

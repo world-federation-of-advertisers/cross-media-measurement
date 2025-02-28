@@ -52,6 +52,8 @@ CREATE TABLE WorkItemAttempts (
     -- Proto enum encoded as int
     State INT64 NOT NULL,
 
+    AttemptNumber INT64 NOT NULL,
+
     ErrorMessage STRING(MAX) NOT NULL,
 
     CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),

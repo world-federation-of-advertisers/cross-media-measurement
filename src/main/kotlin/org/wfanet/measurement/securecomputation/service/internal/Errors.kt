@@ -23,9 +23,6 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.errorInfo
-import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.internal.securecomputation.ErrorCode
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.SecurecomputationInternalException
 
 object Errors {
   const val DOMAIN = "internal.securecomputation.halo-cmm.org"
@@ -36,6 +33,7 @@ object Errors {
     QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
     INVALID_WORK_ITEM_PRECONDITION_STATE,
     WORK_ITEM_NOT_FOUND,
+    WORK_ITEM_ATTEMPT_NOT_FOUND,
     WORK_ITEM_ALREADY_EXISTS,
     WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
     INVALID_FIELD_VALUE,
@@ -45,6 +43,7 @@ object Errors {
     QUEUE_RESOURCE_ID("queueResourceId"),
     QUEUE_ID("queueId"),
     WORK_ITEM_RESOURCE_ID("workItemResourceId"),
+    WORK_ITEM_ATTEMPT_RESOURCE_ID("workItemAttemptResourceId"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -130,6 +129,21 @@ class WorkItemNotFoundException(workItemResourceId: Long, cause: Throwable? = nu
     Errors.Reason.WORK_ITEM_NOT_FOUND,
     "WorkItem with resource ID $workItemResourceId not found",
     mapOf(Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId.toString()),
+    cause,
+  )
+
+class WorkItemAttemptNotFoundException(
+  workItemResourceId: Long,
+  workItemAttemptResourceId: Long,
+  cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
+    "WorkItemAttempt with workItemResource ID $workItemResourceId and workItemAttemptResource ID $workItemAttemptResourceId not found",
+    mapOf(
+      Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId.toString(),
+      Errors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID to workItemAttemptResourceId.toString()
+
+    ),
     cause,
   )
 

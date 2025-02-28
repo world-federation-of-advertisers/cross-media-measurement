@@ -37,6 +37,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkIt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
@@ -75,13 +76,20 @@ class SpannerWorkItemsService(
 
     val transactionRunner = databaseClient.readWriteTransaction(Options.tag("action=createWorkItem"))
 
-    val (workItemResourceId, state, commitTimestamp) = try {
+    val workItem = try {
       transactionRunner.run { txn ->
         val workItemId = idGenerator.generateNewId { id -> txn.workItemIdExists(id) }
         val workItemResourceId = idGenerator.generateNewId { id -> txn.workItemResourceIdExists(id) }
 
         val state = txn.insertWorkItem(workItemId, workItemResourceId, queue.queueId)
-        Triple(workItemResourceId, state, transactionRunner.getCommitTimestamp().toProto())
+        val commitTimestamp = transactionRunner.getCommitTimestamp().toProto()
+        workItem {
+          this.workItemResourceId = workItemResourceId
+          this.queueResourceId = request.workItem.queueResourceId
+          this.state = state
+          createTime = commitTimestamp
+          updateTime = commitTimestamp
+        }
       }
     } catch (e: SpannerException) {
       if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
@@ -91,13 +99,7 @@ class SpannerWorkItemsService(
       }
     }
 
-    return workItem {
-      this.workItemResourceId = workItemResourceId
-      this.queueResourceId = request.workItem.queueResourceId
-      this.state = state
-      createTime = commitTimestamp
-      updateTime = commitTimestamp
-    }
+    return workItem
   }
 
   override suspend fun getWorkItem(request: GetWorkItemRequest): WorkItem {
@@ -165,29 +167,21 @@ class SpannerWorkItemsService(
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=failWorkItem"))
 
-    val (workItem, state) = transactionRunner.run { txn ->
-      val (workItemId: Long, workItem: WorkItem) =
-        try {
-          txn.getWorkItemByResourceId(queueMapping, request.workItemResourceId)
-        } catch (e: WorkItemNotFoundException) {
-          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
-        } catch (e: QueueNotFoundForInternalIdException) {
-          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    val workItem = transactionRunner.run { txn ->
+      try {
+        val workItemResult = txn.getWorkItemByResourceId(queueMapping, request.workItemResourceId)
+        val state = txn.failWorkItem(workItemResult.workItemId)
+        workItemResult.workItem.copy {
+          this.state = state
+          this.updateTime = transactionRunner.getCommitTimestamp().toProto()
         }
-
-      val state = txn.failWorkItem(workItemId)
-      Pair(workItem, state)
+      } catch (e: WorkItemNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      } catch (e: QueueNotFoundForInternalIdException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      }
     }
-    val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-
-    return workItem {
-      workItemResourceId = workItem.workItemResourceId
-      queueResourceId = workItem.queueResourceId
-      this.state = state
-      updateTime = commitTimestamp
-      createTime = workItem.createTime
-    }
-
+    return workItem
   }
 
   /**
