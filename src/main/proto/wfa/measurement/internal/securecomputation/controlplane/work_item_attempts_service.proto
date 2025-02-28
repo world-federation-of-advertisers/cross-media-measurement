@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.securecomputation.controlplane;
 
 import "google/api/field_behavior.proto";
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/securecomputation/controlplane/work_item_attempt.proto";
 
 option java_package = "org.wfanet.measurement.internal.securecomputation.controlplane";
@@ -30,6 +31,7 @@ service WorkItemAttempts {
 
   rpc GetWorkItemAttempt(GetWorkItemAttemptRequest) returns (WorkItemAttempt);
 
+  // Response ordered by `create_time`, ascending.
   rpc ListWorkItemAttempts(ListWorkItemAttemptsRequest) returns (ListWorkItemAttemptsResponse);
 
   rpc CompleteWorkItemAttempt(CompleteWorkItemAttemptRequest) returns (WorkItemAttempt);
@@ -66,8 +68,7 @@ message ListWorkItemAttemptsResponse {
 
 message ListWorkItemAttemptsPageToken {
   message After {
-    fixed64 work_item_resource_id = 1;
-    fixed64 work_item_attempt_resource_id = 2;
+    google.protobuf.Timestamp create_after = 1;
   }
   After after = 1;
 }
