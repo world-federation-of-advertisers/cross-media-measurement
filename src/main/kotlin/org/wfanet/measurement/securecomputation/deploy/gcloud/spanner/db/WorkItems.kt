@@ -21,19 +21,25 @@ import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
+import org.wfanet.measurement.access.deploy.gcloud.spanner.db.RoleResult
+import org.wfanet.measurement.access.service.internal.PermissionMapping
+import org.wfanet.measurement.access.service.internal.PermissionNotFoundForRoleException
+import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
-import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.toInt64
-import org.wfanet.measurement.internal.access.PolicyKt
+import org.wfanet.measurement.internal.access.role
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
-import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundException
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForInternalIdException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
 
@@ -100,6 +106,40 @@ suspend fun AsyncDatabaseClient.ReadContext.getWorkItemByResourceId(
   val queue = queueMapping.getQueueById(queueId) ?: throw QueueNotFoundForInternalIdException(queueId)
 
   return WorkItems.buildWorkItemResult(row, queue)
+}
+
+/**
+ * Reads [WorkItem]s ordered by resource ID.
+ *
+ * @throws PermissionNotFoundForRoleException
+ */
+fun AsyncDatabaseClient.ReadContext.readWorkItems(
+  queueMapping: QueueMapping,
+  limit: Int,
+  after: ListWorkItemsPageToken.After? = null,
+): Flow<WorkItemResult> {
+  val sql = buildString {
+    appendLine(WorkItems.BASE_SQL)
+    if (after != null) {
+      appendLine("WHERE WorkItemResourceId > @afterWorkItemResourceId")
+    }
+    appendLine("ORDER BY WorkItemResourceId")
+    appendLine("LIMIT @limit")
+  }
+  val query =
+    statement(sql) {
+      if (after != null) {
+        bind("afterWorkItemResourceId").to(after.workItemResourceId)
+      }
+      bind("limit").to(limit.toLong())
+    }
+
+  return executeQuery(query, Options.tag("action=readWorkItems")).map { row ->
+    val queueId = row.getLong("QueueId")
+    val queue = queueMapping.getQueueById(queueId) ?: throw QueueNotFoundForInternalIdException(queueId)
+
+    WorkItems.buildWorkItemResult(row, queue)
+  }
 }
 
 private object WorkItems {

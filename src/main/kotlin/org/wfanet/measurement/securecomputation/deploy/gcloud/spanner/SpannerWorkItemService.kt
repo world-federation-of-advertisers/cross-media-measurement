@@ -24,41 +24,32 @@ import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.access.deploy.gcloud.spanner.SpannerRolesService
-import org.wfanet.measurement.access.deploy.gcloud.spanner.db.RoleResult
-import org.wfanet.measurement.access.deploy.gcloud.spanner.db.getRoleByResourceId
-import org.wfanet.measurement.access.deploy.gcloud.spanner.db.readRoles
 import org.wfanet.measurement.access.service.internal.InvalidFieldValueException
-import org.wfanet.measurement.access.service.internal.PermissionNotFoundForRoleException
 import org.wfanet.measurement.access.service.internal.RoleAlreadyExistsException
-import org.wfanet.measurement.access.service.internal.RoleNotFoundException
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundException
 import org.wfanet.measurement.securecomputation.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.common.IdGenerator
-import org.wfanet.measurement.common.grpc.grpcRequire
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.internal.access.ListRolesPageTokenKt
-import org.wfanet.measurement.internal.access.Role
-import org.wfanet.measurement.internal.access.listRolesPageToken
-import org.wfanet.measurement.internal.access.listRolesResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.CreateWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.GetWorkItemRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.StreamWorkItemsRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageTokenKt
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsPageToken
+import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemNotFoundException
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItems
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemIdExists
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemResourceIdExists
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.queries.StreamWorkItems
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemReader
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForInternalIdException
 
@@ -130,43 +121,37 @@ class SpannerWorkItemsService(
     return workItemResult.workItem
   }
 
-  override fun streamWorkItems(request: StreamWorkItemsRequest): Flow<WorkItem> {
+  override suspend fun listWorkItems(request: ListWorkItemsRequest): ListWorkItemsResponse {
 
-    if (request.limit < 0) {
-      throw InvalidFieldValueException("limit") { fieldName ->
-        "$fieldName cannot e less that 0"
+    if (request.pageSize < 0) {
+      throw InvalidFieldValueException("max_page_size") { fieldName ->
+        "$fieldName must be non-negative"
       }
     }
-
     val pageSize =
       if (request.pageSize == 0) {
-        SpannerRolesService.DEFAULT_PAGE_SIZE
+        DEFAULT_PAGE_SIZE
       } else {
-        request.pageSize.coerceAtMost(SpannerRolesService.MAX_PAGE_SIZE)
+        request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
       }
     val after = if (request.hasPageToken()) request.pageToken.after else null
-
-    return try {
-      databaseClient.singleUse().use { txn ->
-        val roles: Flow<Role> =
-          txn.readRoles(permissionMapping, pageSize + 1, after).map { it.role }
-        listRolesResponse {
-          roles.collectIndexed { index, role ->
-            if (index == pageSize) {
-              nextPageToken = listRolesPageToken {
-                this.after =
-                  ListRolesPageTokenKt.after {
-                    roleResourceId = this@listRolesResponse.roles.last().roleResourceId
-                  }
-              }
-            } else {
-              this.roles += role
+    databaseClient.singleUse().use { txn ->
+      val workItems: Flow<WorkItem> =
+        txn.readWorkItems(queueMapping, pageSize + 1, after).map { it.workItem }
+      listWorkItemsResponse {
+        workItems.collectIndexed { index, workItem ->
+          if (index == pageSize) {
+            nextPageToken = listWorkItemsPageToken {
+              this.after =
+                ListWorkItemsPageTokenKt.after {
+                  workItemResourceId = this@listWorkItemsResponse.workItems.last().workItemResourceId
+                }
             }
+          } else {
+            this.workItems += workItem
           }
         }
       }
-    } catch (e: PermissionNotFoundForRoleException) {
-      throw e.asStatusRuntimeException(Status.Code.INTERNAL)
     }
   }
 
@@ -215,6 +200,11 @@ class SpannerWorkItemsService(
   ): QueueMapping.Queue {
     return queueMapping.getQueueByResourceId(queueResourceId)
       ?: throw QueueNotFoundException(queueResourceId)
+  }
+
+  companion object {
+    private const val MAX_PAGE_SIZE = 100
+    private const val DEFAULT_PAGE_SIZE = 50
   }
 
 }
