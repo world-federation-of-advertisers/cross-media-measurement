@@ -29,7 +29,8 @@ service WorkItems {
 
   rpc GetWorkItem(GetWorkItemRequest) returns (WorkItem);
 
-  rpc StreamWorkItems(StreamWorkItemsRequest) returns (stream WorkItem);
+  // List WorkItems ordered by `work_item_resource_id`.
+  rpc ListWorkItems(ListWorkItemsRequest) returns (ListWorkItemsResponse);
 
   rpc FailWorkItem(FailWorkItemRequest) returns (WorkItem);
 }
@@ -42,13 +43,29 @@ message GetWorkItemRequest {
   fixed64 work_item_resource_id = 1;
 }
 
-message StreamWorkItemsRequest {
-  message Filter {
-    fixed64 work_item_resource_id_after = 1;
-  }
-  Filter filter = 1;
+message ListWorkItemsRequest {
+  // The maximum number of results to return.
+  //
+  // If unspecified, at most 50 results will be returned. The maximum value is
+  // 100; values above this will be coerced to the maximum value.
+  int32 page_size = 1;
+  ListWorkItemsPageToken page_token = 2;
+}
 
-  int32 limit = 2;
+message ListWorkItemsResponse {
+  repeated WorkItem work_items = 1;
+
+  // Token for requesting subsequent pages.
+  //
+  // If not specified, there are no more results.
+  ListWorkItemsPageToken next_page_token = 2;
+}
+
+message ListWorkItemsPageToken {
+  message After {
+    string work_item_resource_id = 1;
+  }
+  After after = 1;
 }
 
 message FailWorkItemRequest {
