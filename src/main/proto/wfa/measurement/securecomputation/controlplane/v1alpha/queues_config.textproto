@@ -2,7 +2,4 @@
 # proto-message: wfa.measurement.config.securecomputation.QueuesConfig
 
 # test queue
-queues {
-  key: "test_queue"
-  value: "queues/test_queue"
-}
+queue_resource_id: "queues/test_queue"

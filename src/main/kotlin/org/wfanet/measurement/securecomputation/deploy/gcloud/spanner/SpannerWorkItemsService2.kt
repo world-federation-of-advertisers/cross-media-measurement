@@ -32,11 +32,9 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemNotFoundException
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.queries.StreamWorkItems
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemReader
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers.CreateWorkItem
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers.FailWorkItem
 
 
-class SpannerWorkItemsService(
+class SpannerWorkItemsService2(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient,
 ) : WorkItemsCoroutineImplBase() {

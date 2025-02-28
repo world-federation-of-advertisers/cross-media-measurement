@@ -28,7 +28,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.kingdom.service.internal.testing.ModelLinesServiceTest
 
 @RunWith(JUnit4::class)
-class SpannerWorkItemsServiceTest : ModelLinesServiceTest<SpannerModelLinesService>() {
+class SpannerWorkItemsService2Test : ModelLinesServiceTest<SpannerModelLinesService>() {
 
   @get:Rule
   val spannerDatabase =

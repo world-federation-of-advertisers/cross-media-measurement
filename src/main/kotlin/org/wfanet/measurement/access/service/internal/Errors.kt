@@ -119,13 +119,13 @@ sealed class ServiceException(
   }
 }
 
-class PrincipalNotFoundException(principalResourceId: String, cause: Throwable? = null) :
-  ServiceException(
-    Errors.Reason.PRINCIPAL_NOT_FOUND,
-    "Principal with resource ID $principalResourceId not found",
-    mapOf(Errors.Metadata.PRINCIPAL_RESOURCE_ID to principalResourceId),
-    cause,
-  )
+//class PrincipalNotFoundException(principalResourceId: String, cause: Throwable? = null) :
+//  ServiceException(
+//    Errors.Reason.PRINCIPAL_NOT_FOUND,
+//    "Principal with resource ID $principalResourceId not found",
+//    mapOf(Errors.Metadata.PRINCIPAL_RESOURCE_ID to principalResourceId),
+//    cause,
+//  )
 
 class PrincipalNotFoundForTlsClientException
 private constructor(akidString: String, cause: Throwable? = null) :
