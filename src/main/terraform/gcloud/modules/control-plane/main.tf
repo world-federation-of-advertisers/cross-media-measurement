@@ -22,9 +22,10 @@ module "control_plane_internal" {
 }
 
 resource "google_spanner_database" "control_plane_db" {
-  instance         = var.spanner_instance.name
-  name             = var.spanner_database_name
-  database_dialect = "GOOGLE_STANDARD_SQL"
+  instance            = var.spanner_instance.name
+  name                = var.spanner_database_name
+  database_dialect    = "GOOGLE_STANDARD_SQL"
+  deletion_protection = false
 }
 
 resource "google_spanner_database_iam_member" "internal_server" {
