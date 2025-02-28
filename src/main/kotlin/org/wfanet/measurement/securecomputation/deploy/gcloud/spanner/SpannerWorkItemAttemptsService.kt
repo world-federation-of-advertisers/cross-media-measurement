@@ -16,79 +16,91 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
+import com.google.cloud.spanner.ErrorCode
+import com.google.cloud.spanner.Options
+import com.google.cloud.spanner.SpannerException
 import io.grpc.Status
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.common.grpc.grpcRequire
-import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.internal.securecomputation.controlplane.CompleteWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.CreateWorkItemAttemptRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemAttemptRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.GetWorkItemAttemptRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.StreamWorkItemAttemptsRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemAttemptNotFoundException
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.queries.StreamWorkItemAttempts
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.readers.WorkItemAttemptReader
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers.CompleteWorkItemAttempt
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt
+import org.wfanet.measurement.internal.securecomputation.controlplane.copy
+import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemAttemptResult
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.countWorkItemAttempts
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItemAttempt
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemAttemptExists
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemAttemptResourceIdExists
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemIdExists
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemResourceIdExists
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers.CreateWorkItemAttempt
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.writers.FailWorkItemAttempt
+import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
+import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundException
+import org.wfanet.measurement.securecomputation.service.internal.RequiredFieldNotSetException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemAlreadyExistsException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptAlreadyExistsException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemInvalidPreconditionStateException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
 
 class SpannerWorkItemAttemptsService(
-  private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient,
-) : WorkItemAttemptsCoroutineImplBase() {
+  private val databaseClient: AsyncDatabaseClient,
+  private val queueMapping: QueueMapping,
+  private val idGenerator: org.wfanet.measurement.common.IdGenerator,
+) : WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase() {
 
   override suspend fun createWorkItemAttempt(request: CreateWorkItemAttemptRequest): WorkItemAttempt {
-    return CreateWorkItemAttempt(request.workItemAttempt).execute(client, idGenerator)
-  }
 
-  override suspend fun getWorkItemAttempt(request: GetWorkItemAttemptRequest): WorkItemAttempt {
-    val workItemResourceId = ExternalId(request.workItemResourceId)
-    val workItemAttemptResourceId = ExternalId(request.workItemAttemptResourceId)
-    return WorkItemAttemptReader()
-      .readByResourceIds(client.singleUse(), workItemResourceId, workItemAttemptResourceId)
-      ?.workItemAttempt
-      ?: throw WorkItemAttemptNotFoundException(workItemResourceId, workItemAttemptResourceId)
-        .asStatusRuntimeException(Status.Code.NOT_FOUND, "WorkItemAttempt not found.")
-  }
+    if (request.workItemAttempt.workItemResourceId == 0L) {
+      throw RequiredFieldNotSetException("work_item_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
-  override fun streamWorkItemAttempts(request: StreamWorkItemAttemptsRequest): Flow<WorkItemAttempt> {
-    grpcRequire(request.limit >= 0) { "Limit cannot be less than 0" }
-    return StreamWorkItemAttempts(request.filter, request.limit).execute(client.singleUse()).map {
-      it.workItemAttempt
-    }
-  }
+    val transactionRunner = databaseClient.readWriteTransaction(Options.tag("action=createWorkItemAttempt"))
 
-  override suspend fun failWorkItemAttempt(request: FailWorkItemAttemptRequest): WorkItemAttempt {
-    grpcRequire(request.workItemResourceId != 0L) {
-      "work_item_resource_id not specified"
-    }
-    grpcRequire(request.workItemAttemptResourceId != 0L) {
-      "work_item_attempt_resource_id not specified"
-    }
-    try {
-      return FailWorkItemAttempt(request).execute(client, idGenerator)
-    } catch (e: WorkItemAttemptNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, e.message ?: "WorkItemAttempt not found.")
-    }
-  }
+    val (workItemAttemptResourceId, workItemAttemptNumber, state) = try {
+      transactionRunner.run { txn ->
 
-  override suspend fun completeWorkItemAttempt(request: CompleteWorkItemAttemptRequest): WorkItemAttempt {
-    grpcRequire(request.workItemResourceId != 0L) {
-      "work_item_resource_id not specified"
+        val result = txn.getWorkItemByResourceId(queueMapping, request.workItemAttempt.workItemResourceId)
+        val workItemAttemptNumber = txn.countWorkItemAttempts(result.workItemId) + 1
+        val workItemState = result.workItem.state
+        if(workItemState == WorkItem.State.FAILED ||
+          workItemState == WorkItem.State.SUCCEEDED) {
+          throw WorkItemInvalidPreconditionStateException(result.workItem.workItemResourceId)
+        }
+
+        val workItemAttemptId = idGenerator.generateNewId { id -> txn.workItemAttemptExists(result.workItemId, id) }
+        val workItemAttemptResourceId = idGenerator.generateNewId { id -> txn.workItemAttemptResourceIdExists(result.workItemId, workItemAttemptId, id) }
+
+        val state = txn.insertWorkItemAttempt(result.workItemId, workItemAttemptId, workItemAttemptResourceId)
+        Triple(
+          workItemAttemptResourceId,
+          workItemAttemptNumber,
+          state
+        )
+      }
+    } catch (e: SpannerException) {
+      if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
+        throw WorkItemAttemptAlreadyExistsException(e).asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+      } else {
+        throw e
+      }
+    } catch (e: WorkItemNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
-    grpcRequire(request.workItemAttemptResourceId != 0L) {
-      "work_item_attempt_resource_id not specified"
+    val commitTimestamp = transactionRunner.getCommitTimestamp().toProto()
+
+    return request.workItemAttempt.copy {
+      this.workItemAttemptResourceId = workItemAttemptResourceId
+      this.attemptNumber = workItemAttemptNumber
+      this.state = state
     }
-    try {
-      return CompleteWorkItemAttempt(request).execute(client, idGenerator)
-    } catch (e: WorkItemAttemptNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, e.message ?: "WorkItemAttempt not found.")
-    }
+
   }
 
 }

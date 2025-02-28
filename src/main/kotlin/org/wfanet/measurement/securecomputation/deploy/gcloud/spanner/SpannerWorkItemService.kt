@@ -24,8 +24,6 @@ import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.access.service.internal.InvalidFieldValueException
-import org.wfanet.measurement.access.service.internal.RoleAlreadyExistsException
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundException
 import org.wfanet.measurement.securecomputation.service.internal.RequiredFieldNotSetException
@@ -42,7 +40,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.WorkItemNotFoundException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
@@ -50,8 +48,10 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertW
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItems
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemIdExists
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemResourceIdExists
+import org.wfanet.measurement.securecomputation.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForInternalIdException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemAlreadyExistsException
 
 
 class SpannerWorkItemsService(
@@ -85,7 +85,7 @@ class SpannerWorkItemsService(
       }
     } catch (e: SpannerException) {
       if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
-        throw RoleAlreadyExistsException(e).asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+        throw WorkItemAlreadyExistsException(e).asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
       } else {
         throw e
       }
@@ -135,7 +135,7 @@ class SpannerWorkItemsService(
         request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
       }
     val after = if (request.hasPageToken()) request.pageToken.after else null
-    databaseClient.singleUse().use { txn ->
+    return databaseClient.singleUse().use { txn ->
       val workItems: Flow<WorkItem> =
         txn.readWorkItems(queueMapping, pageSize + 1, after).map { it.workItem }
       listWorkItemsResponse {

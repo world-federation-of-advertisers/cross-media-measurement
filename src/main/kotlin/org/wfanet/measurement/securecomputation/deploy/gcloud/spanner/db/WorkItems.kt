@@ -24,18 +24,12 @@ import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.access.deploy.gcloud.spanner.db.RoleResult
-import org.wfanet.measurement.access.service.internal.PermissionMapping
-import org.wfanet.measurement.access.service.internal.PermissionNotFoundForRoleException
-import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
-import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.toInt64
-import org.wfanet.measurement.internal.access.role
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
@@ -111,7 +105,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getWorkItemByResourceId(
 /**
  * Reads [WorkItem]s ordered by resource ID.
  *
- * @throws PermissionNotFoundForRoleException
+ * @throws QueueNotFoundForInternalIdException
  */
 fun AsyncDatabaseClient.ReadContext.readWorkItems(
   queueMapping: QueueMapping,

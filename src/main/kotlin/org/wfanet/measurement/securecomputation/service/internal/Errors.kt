@@ -23,6 +23,9 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.internal.securecomputation.ErrorCode
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.common.SecurecomputationInternalException
 
 object Errors {
   const val DOMAIN = "internal.securecomputation.halo-cmm.org"
@@ -31,7 +34,11 @@ object Errors {
     REQUIRED_FIELD_NOT_SET,
     QUEUE_NOT_FOUND,
     QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
+    INVALID_WORK_ITEM_PRECONDITION_STATE,
     WORK_ITEM_NOT_FOUND,
+    WORK_ITEM_ALREADY_EXISTS,
+    WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+    INVALID_FIELD_VALUE,
   }
 
   enum class Metadata(val key: String) {
@@ -114,7 +121,7 @@ class QueueNotFoundForInternalIdException(queueId: Long, cause: Throwable? = nul
   ServiceException(
     Errors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
     "Queue with ID $queueId not found",
-    mapOf(Errors.Metadata.QUEUE_ID to queueId),
+    mapOf(Errors.Metadata.QUEUE_ID to queueId.toString()),
     cause,
   )
 
@@ -123,5 +130,31 @@ class WorkItemNotFoundException(workItemResourceId: Long, cause: Throwable? = nu
     Errors.Reason.WORK_ITEM_NOT_FOUND,
     "WorkItem with resource ID $workItemResourceId not found",
     mapOf(Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId.toString()),
+    cause,
+  )
+
+class WorkItemAlreadyExistsException(cause: Throwable? = null) :
+  ServiceException(Errors.Reason.WORK_ITEM_ALREADY_EXISTS, "WorkItem already exists", emptyMap(), cause)
+
+class WorkItemAttemptAlreadyExistsException(cause: Throwable? = null) :
+  ServiceException(Errors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS, "WorkItemAttempt already exists", emptyMap(), cause)
+
+class WorkItemInvalidPreconditionStateException(workItemResourceId: Long, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
+    "WorkItemAttempt cannot be created when parent WorkItem has state either SUCCEEDED or FAILED",
+    mapOf(Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId.toString()),
+    cause,
+  )
+
+class InvalidFieldValueException(
+  fieldName: String,
+  cause: Throwable? = null,
+  buildMessage: (fieldName: String) -> String = { "Invalid value for field $fieldName" },
+) :
+  ServiceException(
+    Errors.Reason.INVALID_FIELD_VALUE,
+    buildMessage(fieldName),
+    mapOf(Errors.Metadata.FIELD_NAME to fieldName),
     cause,
   )
