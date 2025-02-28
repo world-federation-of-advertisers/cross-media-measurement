@@ -63,7 +63,7 @@ message ListWorkItemsResponse {
 
 message ListWorkItemsPageToken {
   message After {
-    string work_item_resource_id = 1;
+    fixed64 work_item_resource_id = 1;
   }
   After after = 1;
 }
