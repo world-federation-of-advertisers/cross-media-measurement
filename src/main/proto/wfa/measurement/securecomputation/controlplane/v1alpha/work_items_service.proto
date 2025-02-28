@@ -45,6 +45,8 @@ service WorkItems {
   rpc ListWorkItems(ListWorkItemsRequest) returns (ListWorkItemsResponse) {}
 
   // Set the `WorkItem` status to FAILED, in case of a non-retriable error.
+  //
+  // Set `WorkItemAttempt`s as FAILED.
   rpc FailWorkItem(FailWorkItemRequest) returns (WorkItem) {
     option (google.api.method_signature) = "work_item,work_item_id";
   }

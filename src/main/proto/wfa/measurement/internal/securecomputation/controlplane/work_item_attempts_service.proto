@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.securecomputation.controlplane;
 
+import "google/api/field_behavior.proto";
 import "wfa/measurement/internal/securecomputation/controlplane/work_item_attempt.proto";
 
 option java_package = "org.wfanet.measurement.internal.securecomputation.controlplane";
@@ -64,5 +65,5 @@ message FailWorkItemAttemptRequest {
   fixed64 work_item_resource_id = 1;
   fixed64 work_item_attempt_resource_id = 2;
   // Human-readable error message. This should not include any sensitive info.
-  string error_message = 3;
+  string error_message = 3 [(google.api.field_behavior) = OPTIONAL];
 }

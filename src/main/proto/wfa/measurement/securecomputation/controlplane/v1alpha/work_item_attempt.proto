@@ -50,8 +50,8 @@ message WorkItemAttempt {
     // Default value if state is omitted.
     STATE_UNSPECIFIED = 0;
 
-    // The `WorkItem` has been delivered to the subscriber.
-    CLAIMED = 1;
+    // A `WorkItemAttempt` is in progress for this `WorkItem`.
+    ACTIVE = 1;
 
     // The `WorkItem` has been successfully processed.
     SUCCEEDED = 2;

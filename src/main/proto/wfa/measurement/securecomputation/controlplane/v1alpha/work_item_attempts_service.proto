@@ -29,8 +29,9 @@ option java_outer_classname = "WorkItemAttemptsServiceProto";
 service WorkItemAttempts {
   // Creates a `WorkItemAttempt`.
   //
-  // Creates a new `WorkItemAttempt` with state `CLAIMED`.
+  // Creates a new `WorkItemAttempt` with state `ACTIVE`.
   // Set the state in the parent `WorkItem` as `CLAIMED`.
+  // Any existing `WorkItemAttempt` for the same `WorkItem` will fail.
   rpc CreateWorkItemAttempt(CreateWorkItemAttemptRequest) returns (WorkItemAttempt) {
     option (google.api.method_signature) = "parent,work_item_attempt";
   }
@@ -65,6 +66,7 @@ message CreateWorkItemAttemptRequest {
   // Required. The parent resource where this `WorkItemAttempt` will be created.
   // Format: "workItems/{work_item}"
   string parent = 1 [(google.api.field_behavior) = REQUIRED];
+  WorkItemAttempt work_item_attempt = 2 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Request message for `GetWorkItemAttempt` method.
@@ -110,5 +112,5 @@ message FailWorkItemAttemptRequest {
   ];
 
   // Human-readable error message. This should not include any sensitive info.
-  string error_message = 2;
+  string error_message = 2 [(google.api.field_behavior) = OPTIONAL];
 }

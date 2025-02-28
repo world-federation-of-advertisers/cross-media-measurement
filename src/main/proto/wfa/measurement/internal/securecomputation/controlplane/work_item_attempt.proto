@@ -34,8 +34,8 @@ message WorkItemAttempt {
     // Default value if state is omitted.
     STATE_UNSPECIFIED = 0;
 
-    // The `WorkItem` has been delivered to the subscriber.
-    CLAIMED = 1;
+    // A `WorkItemAttempt` is in progress for this `WorkItem`.
+    ACTIVE = 1;
 
     // The `WorkItem` has been successfully processed.
     SUCCEEDED = 2;
@@ -55,7 +55,7 @@ message WorkItemAttempt {
   string error_message = 5 [
     (google.api.field_behavior) = OUTPUT_ONLY,
     (google.api.field_behavior) = OPTIONAL
-  ];;
+  ];
 
   google.protobuf.Timestamp create_time = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
   google.protobuf.Timestamp update_time = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
