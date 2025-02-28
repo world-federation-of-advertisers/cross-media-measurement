@@ -64,7 +64,8 @@ class QueueMapping(config: QueuesConfig) {
     private fun fingerprint(input: String): Long =
       Hashing.farmHashFingerprint64().hashString(input, Charsets.UTF_8).asLong()
 
-    private val QUEUE_RESOURCE_ID_REGEX = Regex("^[a-zA-Z]([a-zA-Z0-9.-]{0,61}[a-zA-Z0-9])?$")
+    private val QUEUE_RESOURCE_ID_REGEX = Regex("^[a-zA-Z]([a-zA-Z0-9.-]{0,61}[a-zA-Z0-9])?(/[a-zA-Z0-9_-]+)*$")
+
   }
 }
 

@@ -16,37 +16,24 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
-import java.time.Clock
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata
-import org.wfanet.measurement.kingdom.service.internal.testing.ModelLinesServiceTest
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.testing.Schemata
+import org.wfanet.measurement.securecomputation.service.internal.testing.WorkItemsServiceTest
 
 @RunWith(JUnit4::class)
-class SpannerWorkItemsService2Test : ModelLinesServiceTest<SpannerModelLinesService>() {
+class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
 
   @get:Rule
-  val spannerDatabase =
-    SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.KINGDOM_CHANGELOG_PATH)
+  val spannerDatabase = SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.SECURECOMPUTATION_CHANGELOG_PATH)
 
-  override fun newServices(
-    clock: Clock,
-    idGenerator: IdGenerator,
-  ): Services<SpannerModelLinesService> {
-    val spannerServices =
-      SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient).buildDataServices()
-
-    return Services(
-      spannerServices.modelLinesService as SpannerModelLinesService,
-      spannerServices.modelSuitesService,
-      spannerServices.modelProvidersService,
-    )
-  }
+  override fun initService(queueMapping: QueueMapping, idGenerator: org.wfanet.measurement.common.IdGenerator) =
+    SpannerWorkItemsService(spannerDatabase.databaseClient, queueMapping, idGenerator)
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()

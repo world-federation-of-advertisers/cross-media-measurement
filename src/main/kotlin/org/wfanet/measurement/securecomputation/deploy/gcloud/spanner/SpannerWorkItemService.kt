@@ -82,13 +82,11 @@ class SpannerWorkItemsService(
         val workItemResourceId = idGenerator.generateNewId { id -> txn.workItemResourceIdExists(id) }
 
         val state = txn.insertWorkItem(workItemId, workItemResourceId, queue.queueId)
-        val commitTimestamp = transactionRunner.getCommitTimestamp().toProto()
+
         workItem {
           this.workItemResourceId = workItemResourceId
           this.queueResourceId = request.workItem.queueResourceId
           this.state = state
-          createTime = commitTimestamp
-          updateTime = commitTimestamp
         }
       }
     } catch (e: SpannerException) {
@@ -99,7 +97,13 @@ class SpannerWorkItemsService(
       }
     }
 
-    return workItem
+    val commitTimestamp = transactionRunner.getCommitTimestamp().toProto()
+    val result = workItem.copy {
+      createTime = commitTimestamp
+      updateTime = commitTimestamp
+    }
+
+    return result
   }
 
   override suspend fun getWorkItem(request: GetWorkItemRequest): WorkItem {

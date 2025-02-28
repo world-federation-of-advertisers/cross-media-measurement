@@ -77,7 +77,7 @@ fun AsyncDatabaseClient.TransactionContext.insertWorkItem(workItemId: Long, work
   bufferInsertMutation("WorkItems") {
     set("WorkItemId").to(workItemId)
     set("WorkItemResourceId").to(workItemResourceId)
-    set("Queue").to(queueId)
+    set("QueueId").to(queueId)
     set("State").toInt64(state)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
@@ -151,7 +151,7 @@ private object WorkItems {
     SELECT
       WorkItemId,
       WorkItemResourceId,
-      Queue,
+      QueueId,
       State,
       CreateTime,
       UpdateTime,

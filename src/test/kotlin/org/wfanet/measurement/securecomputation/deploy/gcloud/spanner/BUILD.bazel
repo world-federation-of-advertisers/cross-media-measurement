@@ -13,3 +13,15 @@ spanner_emulator_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )
+
+spanner_emulator_test(
+    name = "SpannerWorkItemsServiceTest",
+    srcs = ["SpannerWorkItemsServiceTest.kt"],
+    test_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.SpannerWorkItemsServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:services",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/testing:schemata",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal/testing:work_items_service_test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)

@@ -1,5 +1,3 @@
 # proto-file: wfa/measurement/config/securecomputation/queues_config.proto
 # proto-message: wfa.measurement.config.securecomputation.QueuesConfig
 
-# test queue
-queue_resource_id: "queues/test_queue"

@@ -1,0 +1,39 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "test_config",
+    srcs = ["TestConfig.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:queue_mapping",
+        "//src/main/proto/wfa/measurement/config/securecomputation:queues_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "work_items_service_test",
+    srcs = ["WorkItemsServiceTest.kt"],
+    deps = [
+        ":test_config",
+        "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:queue_mapping",
+        "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_items_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+    ],
+)

@@ -5,6 +5,7 @@ kt_jvm_library(
     srcs = glob(["*Service.kt"]),
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
