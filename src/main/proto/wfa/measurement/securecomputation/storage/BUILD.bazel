@@ -13,10 +13,7 @@ proto_library(
     srcs = ["resource_batch.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        "@com_google_googleapis//google/api:field_behavior_proto",
-        "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:any_proto",
-        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisition_proto",
     ],
 )
 

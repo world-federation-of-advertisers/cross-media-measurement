@@ -17,9 +17,6 @@ syntax = "proto3";
 package wfa.measurement.securecomputation.storage;
 
 import "google/protobuf/any.proto";
-import "wfa/measurement/api/v2alpha/requisition.proto";
-import "google/api/field_behavior.proto";
-import "google/api/resource.proto";
 
 option java_package = "org.wfanet.measurement.securecomputation.storage";
 option java_multiple_files = true;
@@ -27,14 +24,5 @@ option java_outer_classname = "ResourceBatchProto";
 
 // Resource representing a group of resources that will be batched together for storage.
 message ResourceBatch {
-  oneof resources {
-    RequisitionBatch requisition_batch = 1;
-  }
-}
-
-message RequisitionBatch {
-  repeated string requisition_group = 1 [
-    (google.api.resource_reference).type = "halo.wfanet.org/Requisition",
-    (google.api.field_behavior) = REQUIRED
-  ];
+  repeated google.protobuf.Any resource_group = 1;
 }

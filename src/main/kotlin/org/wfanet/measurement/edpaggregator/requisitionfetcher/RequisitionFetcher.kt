@@ -16,17 +16,18 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
+import com.google.protobuf.Any
 import io.grpc.StatusException
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
+import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
-import org.wfanet.measurement.securecomputation.storage.requisitionBatch
 import org.wfanet.measurement.securecomputation.storage.resourceBatch
 import org.wfanet.measurement.storage.StorageClient
 
@@ -68,12 +69,11 @@ class RequisitionFetcher(
         pageSize = responsePageSize
         pageToken
       }
-      val response = try {
+      val response: ListRequisitionsResponse = try {
         requisitionsStub.listRequisitions(request)
       } catch (e: StatusException) {
         throw Exception("Error listing requisitions", e)
       }
-
       ResourceList(response.requisitionsList, response.nextPageToken)
     }.flattenConcat()
 
@@ -92,7 +92,7 @@ class RequisitionFetcher(
    * the requisition's name (used as a unique key) is already present in the storage. If the blob
    * does not exist, the requisition is serialized and written to the storage.
    *
-   * aram requisitions A flow of requisitions to be stored.
+   * @param requisitions A flow of requisitions to be stored.
    * @return The number of requisitions successfully stored.
    */
   private suspend fun storeRequisitions(requisitions: Flow<Requisition>): Int {
@@ -106,9 +106,7 @@ class RequisitionFetcher(
         storageClient.writeBlob(
           blobKey,
           resourceBatch {
-            requisitionBatch = requisitionBatch {
-              requisitionGroup += listOf(requisition.toString())
-            }
+            resourceGroup += listOf(Any.pack(requisition))
           }.toByteString()
         )
         storedRequisitions += 1

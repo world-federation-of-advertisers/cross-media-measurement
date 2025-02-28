@@ -18,7 +18,7 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.TextFormat
+import com.google.protobuf.Any
 import com.google.protobuf.kotlin.toByteString
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -62,7 +62,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.securecomputation.storage.requisitionBatch
 import org.wfanet.measurement.securecomputation.storage.resourceBatch
 
 @RunWith(JUnit4::class)
@@ -85,9 +84,7 @@ class RequisitionFetcherTest {
     val fetcher = RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME, 50, STORAGE_PATH_PREFIX)
 
     val expectedResult = resourceBatch {
-      requisitionBatch = requisitionBatch {
-        requisitionGroup += listOf(REQUISITION.toString())
-      }
+      resourceGroup += listOf(Any.pack(REQUISITION))
     }
 
     val persistedRequisition = runBlocking {
@@ -101,32 +98,25 @@ class RequisitionFetcherTest {
   @Test
   fun `fetch multiple requisitions and store in GCS bucket`() {
     val requisitionsList = List(100) { REQUISITION }
-
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisitionsList })
     }
+
     val storage = LocalStorageHelper.getOptions().service
     val storageClient = GcsStorageClient(storage, BUCKET)
     val fetcher = RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME, 50, STORAGE_PATH_PREFIX)
 
     val expectedResult = requisitionsList.map {
       resourceBatch {
-        requisitionBatch = requisitionBatch {
-          requisitionGroup += listOf(it.toString())
-        }
+        resourceGroup += listOf(Any.pack(it))
       }
     }
 
     runBlocking {
       fetcher.fetchAndStoreRequisitions()
-
       expectedResult.map {
-        val requisition = Requisition.getDefaultInstance()
-          .newBuilderForType()
-          .apply { TextFormat.Parser.newBuilder().build().merge(it.requisitionBatch.requisitionGroupList[0], this) }
-          .build() as Requisition
-
+        val requisition = it.resourceGroupList[0].unpack(Requisition::class.java)
         assertThat(storageClient.getBlob("$STORAGE_PATH_PREFIX/${requisition.name}")).isNotNull()
       }
     }

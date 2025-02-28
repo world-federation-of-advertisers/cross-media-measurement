@@ -3,11 +3,10 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 package(
     default_testonly = True,
-    default_visibility = ["//visibility:public"],
 )
 
 kt_jvm_test(
-    name = "requisition_fetcher_test",
+    name = "RequisitionFetcherTest",
     srcs = ["RequisitionFetcherTest.kt"],
     data = [
         "//src/main/k8s/testing/secretfiles:all_configs",
