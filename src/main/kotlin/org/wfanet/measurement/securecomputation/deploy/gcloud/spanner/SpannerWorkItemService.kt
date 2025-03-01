@@ -76,24 +76,16 @@ class SpannerWorkItemsService(
 
     val transactionRunner = databaseClient.readWriteTransaction(Options.tag("action=createWorkItem"))
 
-    val workItem = try {
-      transactionRunner.run { txn ->
-        val workItemId = idGenerator.generateNewId { id -> txn.workItemIdExists(id) }
-        val workItemResourceId = idGenerator.generateNewId { id -> txn.workItemResourceIdExists(id) }
+    val workItem = transactionRunner.run { txn ->
+      val workItemId = idGenerator.generateNewId { id -> txn.workItemIdExists(id) }
+      val workItemResourceId = idGenerator.generateNewId { id -> txn.workItemResourceIdExists(id) }
 
-        val state = txn.insertWorkItem(workItemId, workItemResourceId, queue.queueId)
+      val state = txn.insertWorkItem(workItemId, workItemResourceId, queue.queueId)
 
-        workItem {
-          this.workItemResourceId = workItemResourceId
-          this.queueResourceId = request.workItem.queueResourceId
-          this.state = state
-        }
-      }
-    } catch (e: SpannerException) {
-      if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
-        throw WorkItemAlreadyExistsException(e).asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-      } else {
-        throw e
+      workItem {
+        this.workItemResourceId = workItemResourceId
+        this.queueResourceId = request.workItem.queueResourceId
+        this.state = state
       }
     }
 
@@ -177,7 +169,6 @@ class SpannerWorkItemsService(
         val state = txn.failWorkItem(workItemResult.workItemId)
         workItemResult.workItem.copy {
           this.state = state
-          this.updateTime = transactionRunner.getCommitTimestamp().toProto()
         }
       } catch (e: WorkItemNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
@@ -185,7 +176,10 @@ class SpannerWorkItemsService(
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       }
     }
-    return workItem
+    val result = workItem.copy {
+      updateTime = transactionRunner.getCommitTimestamp().toProto()
+    }
+    return result
   }
 
   /**
