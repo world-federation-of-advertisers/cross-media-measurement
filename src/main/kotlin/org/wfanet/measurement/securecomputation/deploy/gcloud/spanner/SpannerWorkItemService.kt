@@ -52,7 +52,6 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workIte
 import org.wfanet.measurement.securecomputation.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForInternalIdException
-import org.wfanet.measurement.securecomputation.service.internal.WorkItemAlreadyExistsException
 
 
 class SpannerWorkItemsService(
@@ -143,6 +142,7 @@ class SpannerWorkItemsService(
               this.after =
                 ListWorkItemsPageTokenKt.after {
                   workItemResourceId = this@listWorkItemsResponse.workItems.last().workItemResourceId
+                  createAfter = this@listWorkItemsResponse.workItems.last().createTime
                 }
             }
           } else {

@@ -169,18 +169,21 @@ fun AsyncDatabaseClient.ReadContext.readWorkItemAttempts(
     if (after != null) {
       appendLine(
         """
-        WHERE (WorkItemId, WorkItemAttemptResourceId) > (@afterWorkItemId, @afterWorkItemAttemptResourceId)
+        WHERE (WorkItemAttempts.CreateTime > @createTime) OR
+        (WorkItemAttempts.CreateTime = @createTime AND WorkItems.WorkItemResourceId > @workItemResourceId) OR
+        (WorkItemAttempts.CreateTime = @createTime AND WorkItems.WorkItemResourceId = @workItemResourceId AND WorkItemAttempts.WorkItemAttemptResourceId = @workItemAttemptResourceId)
         """.trimIndent()
       )
     }
-    appendLine("ORDER BY WorkItemId, WorkItemAttemptResourceId")
+    appendLine("ORDER BY CreateTime ASC, WorkItemId ASC, WorkItemAttemptResourceId ASC")
     appendLine("LIMIT @limit")
   }
   val query =
     statement(sql) {
       if (after != null) {
-        bind("afterWorkItemId").to(after.workItemResourceId)
-        bind("afterWorkItemAttemptResourceId").to(after.workItemAttemptResourceId)
+        bind("createTime").to(after.createAfter)
+        bind("workItemResourceId").to(after.workItemResourceId)
+        bind("workItemAttemptResourceId").to(after.workItemAttemptResourceId)
       }
       bind("limit").to(limit.toLong())
     }

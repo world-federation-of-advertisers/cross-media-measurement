@@ -219,6 +219,7 @@ class SpannerWorkItemAttemptsService(
                 ListWorkItemAttemptsPageTokenKt.after {
                   workItemResourceId = this@listWorkItemAttemptsResponse.workItemAttempts.last().workItemResourceId
                   workItemAttemptResourceId = this@listWorkItemAttemptsResponse.workItemAttempts.last().workItemAttemptResourceId
+                  createAfter = this@listWorkItemAttemptsResponse.workItemAttempts.last().createTime
                 }
             }
           } else {
