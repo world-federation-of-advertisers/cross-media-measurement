@@ -27,7 +27,6 @@ import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -118,8 +117,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `insertBasicReport throws FAILED_PRECONDITION when mc not found`():
-    Unit = runBlocking {
+  fun `insertBasicReport throws FAILED_PRECONDITION when mc not found`(): Unit = runBlocking {
     val resultGroup = resultGroup { title = "title" }
 
     val basicReport = basicReport {
