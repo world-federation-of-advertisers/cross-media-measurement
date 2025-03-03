@@ -43,7 +43,8 @@ class ReportingSchemaTest : UsingSpannerEmulator(Schemata.REPORTING_CHANGELOG_PA
             information_schema.tables
           WHERE
             table_name IN ("MeasurementConsumers", "BasicReports")
-          """.trimIndent()
+          """
+            .trimIndent()
 
         val row: Struct = txn.executeQuery(statement(sql)).first()
 
