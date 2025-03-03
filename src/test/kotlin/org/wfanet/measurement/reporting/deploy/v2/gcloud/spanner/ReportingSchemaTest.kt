@@ -16,9 +16,14 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
 
+import com.google.cloud.spanner.Struct
+import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemata
 
@@ -26,6 +31,25 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemat
 class ReportingSchemaTest : UsingSpannerEmulator(Schemata.REPORTING_CHANGELOG_PATH) {
   @Test
   fun `database is created`() {
-    // No-op. Just ensure that DB is created by test infra.
+    val spannerDatabaseClient = spannerDatabase.databaseClient
+    val transactionRunner = spannerDatabaseClient.readWriteTransaction()
+    runBlocking {
+      transactionRunner.run { txn ->
+        val sql =
+          """
+          SELECT
+            COUNT(*) as tableCount
+          FROM
+            information_schema.tables
+          WHERE
+            table_name IN ("MeasurementConsumers", "BasicReports")
+          """
+            .trimIndent()
+
+        val row: Struct = txn.executeQuery(statement(sql)).first()
+
+        assertThat(row.getLong("tableCount")).isEqualTo(2)
+      }
+    }
   }
 }
