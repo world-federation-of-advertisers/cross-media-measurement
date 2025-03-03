@@ -167,6 +167,7 @@ class SpannerWorkItemsService(
       try {
         val workItemResult = txn.getWorkItemByResourceId(queueMapping, request.workItemResourceId)
         val state = txn.failWorkItem(workItemResult.workItemId)
+        val workItemAttempts = txn.
         workItemResult.workItem.copy {
           this.state = state
         }

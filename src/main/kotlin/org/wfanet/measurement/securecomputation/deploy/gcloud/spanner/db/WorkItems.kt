@@ -63,11 +63,6 @@ fun AsyncDatabaseClient.TransactionContext.failWorkItem(workItemId: Long): WorkI
     set("State").toInt64(state)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
-  bufferUpdateMutation("WorkItemAttempts") {
-    set("WorkItemId").to(workItemId)
-    set("State").toInt64(WorkItemAttempt.State.FAILED)
-    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
-  }
   return state
 }
 
