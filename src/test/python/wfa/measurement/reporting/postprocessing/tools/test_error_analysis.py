@@ -61,8 +61,9 @@ EDP_MAP = {
     "union": frozenset({"edp1", "edp2", "edp3", "edp4"}),
 }
 
+probabilities = {"edp1": 0.05, "edp2": 0.06, "edp3": 0.2, "edp4": 0.25}
 # probabilities = {"edp1": 0.0000005, "edp2": 0.0000006, "edp3": 0.2, "edp4": 0.25}
-probabilities = {"edp1": 0.0005, "edp2": 0.0006, "edp3": 0.001, "edp4": 0.002}
+# probabilities = {"edp1": 0.0005, "edp2": 0.0006, "edp3": 0.001, "edp4": 0.002}
 # probabilities = {"edp1": 0.0000001, "edp2": 0.0000002, "edp3": 0.0005, "edp4": 0.0006}
 # probabilities = {"edp1": 0.0000001, "edp2": 0.0000002, "edp3": 0.0000005, "edp4": 0.0000006}
 scales = {"edp1": 0.9, "edp2": 0.9, "edp3": 0.5, "edp4": 0.5}
@@ -71,8 +72,8 @@ mrc_to_ami_rate = 0.9
 
 MEASUREMENT_POLICIES = ["ami", "mrc"]
 POPULATION_SIZE = 335000000
-CUMULATIVE_LENGTH = 18
-ITERATIONS = 100
+CUMULATIVE_LENGTH = 4
+ITERATIONS = 1000
 
 # DP params:
 # a) Direct measurement: (eps, delta) = (0.00643, 1e-15) --> sigma = 1051
@@ -364,13 +365,13 @@ def calculate_means_and_variances(true_measurements, noisy_measurements,
     corrected_means.append(statistics.mean(corrected_diff[k]))
     corrected_variances.append(statistics.variance(corrected_diff[k]))
 
-  print(f"noisy_means: {noisy_means}")
-  print(f"noisy_variances: {noisy_variances}")
-  print(f"corrected_means: {corrected_means}")
-  print(f"corrected_variances: {corrected_variances}")
-  for num in [x / y for x, y in zip(noisy_variances, corrected_variances)]:
-    if num < 0.8:
-      print(f"{num:.2f}")
+  # print(f"noisy_means: {noisy_means}")
+  # print(f"noisy_variances: {noisy_variances}")
+  # print(f"corrected_means: {corrected_means}")
+  # print(f"corrected_variances: {corrected_variances}")
+  # for num in [x / y for x, y in zip(noisy_variances, corrected_variances)]:
+  #   if num < 0.8:
+  #     print(f"{num:.2f}")
 
 
 def get_measurement_name_and_ground_truth():
@@ -378,9 +379,9 @@ def get_measurement_name_and_ground_truth():
   true_report_summary, true_measurement_map, noisy_measurement_map = \
     get_report_summary_from_data(metric_reports)
 
-  print("Measurement name:")
-  for key, value in sorted(true_measurement_map.items()):
-    print(f"{key} \t {value}")
+  # print("Measurement name:")
+  # for key, value in sorted(true_measurement_map.items()):
+  #   print(f"{key} \t {value}")
 
   sorted_measurement_names = [
       key for key, value in sorted(true_measurement_map.items())
@@ -396,6 +397,7 @@ def get_test_results():
   corrected_results = {}
 
   for i in range(0, ITERATIONS):
+    print(f'Iteration {i}')
     metric_reports = generate_test_report(probabilities)
     report_summary, true_measurement_map, noisy_measurement_map = \
       get_report_summary_from_data(metric_reports)
@@ -522,86 +524,86 @@ class TestOriginReport(unittest.TestCase):
       get_measurement_name_and_ground_truth()
     noisy_measurements, corrected_measurements = get_test_results()
 
-    print("Noisy measurement statistics:")
-    compute_statistic(sorted_true_measurements, noisy_measurements)
-
-    print("Corrected measurement statistics:")
-    compute_statistic(sorted_true_measurements, corrected_measurements)
-
-    measurement_name_to_index = get_measurement_name_to_index(
-        sorted_measurement_names)
-
-    print("unique reach edp2 \ edp1 statistics:")
-    union_edp1_edp2_index = measurement_name_to_index["total_ami_edp12"]
-    union_edp1_index = measurement_name_to_index["total_ami_edp1"]
-
-    print("Noisy measurement:")
-    compute_unique_reach_statistic(sorted_true_measurements,
-                                   noisy_measurements,
-                                   union_edp1_edp2_index,
-                                   union_edp1_index
-                                   )
-
-    print("Corrected measurement:")
-    compute_unique_reach_statistic(sorted_true_measurements,
-                                   corrected_measurements,
-                                   union_edp1_edp2_index,
-                                   union_edp1_index
-                                   )
-
-    print("unique reach edp3 \ edp1 statistics:")
-    union_edp1_edp2_index = measurement_name_to_index["total_ami_edp13"]
-    union_edp1_index = measurement_name_to_index["total_ami_edp1"]
-
-    print("Noisy measurement:")
-    compute_unique_reach_statistic(sorted_true_measurements,
-                                   noisy_measurements,
-                                   union_edp1_edp2_index,
-                                   union_edp1_index
-                                   )
-
-    print("Corrected measurement:")
-    compute_unique_reach_statistic(sorted_true_measurements,
-                                   corrected_measurements,
-                                   union_edp1_edp2_index,
-                                   union_edp1_index
-                                   )
-
-    print("unique reach edp1 \ edp3 statistics:")
-    union_edp1_edp2_index = measurement_name_to_index["total_ami_edp13"]
-    union_edp1_index = measurement_name_to_index["total_ami_edp3"]
-
-    print("Noisy measurement:")
-    compute_unique_reach_statistic(sorted_true_measurements,
-                                   noisy_measurements,
-                                   union_edp1_edp2_index,
-                                   union_edp1_index
-                                   )
-
-    print("Corrected measurement:")
-    compute_unique_reach_statistic(sorted_true_measurements,
-                                   corrected_measurements,
-                                   union_edp1_edp2_index,
-                                   union_edp1_index
-                                   )
-
-    print("unique reach edp4 \ edp3 statistics:")
-    union_edp1_edp2_index = measurement_name_to_index["total_ami_edp34"]
-    union_edp1_index = measurement_name_to_index["total_ami_edp3"]
-
-    print("Noisy measurement:")
-    compute_unique_reach_statistic(sorted_true_measurements,
-                                   noisy_measurements,
-                                   union_edp1_edp2_index,
-                                   union_edp1_index
-                                   )
-
-    print("Corrected measurement:")
-    compute_unique_reach_statistic(sorted_true_measurements,
-                                   corrected_measurements,
-                                   union_edp1_edp2_index,
-                                   union_edp1_index
-                                   )
+    # print("Noisy measurement statistics:")
+    # compute_statistic(sorted_true_measurements, noisy_measurements)
+    #
+    # print("Corrected measurement statistics:")
+    # compute_statistic(sorted_true_measurements, corrected_measurements)
+    #
+    # measurement_name_to_index = get_measurement_name_to_index(
+    #     sorted_measurement_names)
+    #
+    # print("unique reach edp2 \ edp1 statistics:")
+    # union_edp1_edp2_index = measurement_name_to_index["total_ami_edp12"]
+    # union_edp1_index = measurement_name_to_index["total_ami_edp1"]
+    #
+    # print("Noisy measurement:")
+    # compute_unique_reach_statistic(sorted_true_measurements,
+    #                                noisy_measurements,
+    #                                union_edp1_edp2_index,
+    #                                union_edp1_index
+    #                                )
+    #
+    # print("Corrected measurement:")
+    # compute_unique_reach_statistic(sorted_true_measurements,
+    #                                corrected_measurements,
+    #                                union_edp1_edp2_index,
+    #                                union_edp1_index
+    #                                )
+    #
+    # print("unique reach edp3 \ edp1 statistics:")
+    # union_edp1_edp2_index = measurement_name_to_index["total_ami_edp13"]
+    # union_edp1_index = measurement_name_to_index["total_ami_edp1"]
+    #
+    # print("Noisy measurement:")
+    # compute_unique_reach_statistic(sorted_true_measurements,
+    #                                noisy_measurements,
+    #                                union_edp1_edp2_index,
+    #                                union_edp1_index
+    #                                )
+    #
+    # print("Corrected measurement:")
+    # compute_unique_reach_statistic(sorted_true_measurements,
+    #                                corrected_measurements,
+    #                                union_edp1_edp2_index,
+    #                                union_edp1_index
+    #                                )
+    #
+    # print("unique reach edp1 \ edp3 statistics:")
+    # union_edp1_edp2_index = measurement_name_to_index["total_ami_edp13"]
+    # union_edp1_index = measurement_name_to_index["total_ami_edp3"]
+    #
+    # print("Noisy measurement:")
+    # compute_unique_reach_statistic(sorted_true_measurements,
+    #                                noisy_measurements,
+    #                                union_edp1_edp2_index,
+    #                                union_edp1_index
+    #                                )
+    #
+    # print("Corrected measurement:")
+    # compute_unique_reach_statistic(sorted_true_measurements,
+    #                                corrected_measurements,
+    #                                union_edp1_edp2_index,
+    #                                union_edp1_index
+    #                                )
+    #
+    # print("unique reach edp4 \ edp3 statistics:")
+    # union_edp1_edp2_index = measurement_name_to_index["total_ami_edp34"]
+    # union_edp1_index = measurement_name_to_index["total_ami_edp3"]
+    #
+    # print("Noisy measurement:")
+    # compute_unique_reach_statistic(sorted_true_measurements,
+    #                                noisy_measurements,
+    #                                union_edp1_edp2_index,
+    #                                union_edp1_index
+    #                                )
+    #
+    # print("Corrected measurement:")
+    # compute_unique_reach_statistic(sorted_true_measurements,
+    #                                corrected_measurements,
+    #                                union_edp1_edp2_index,
+    #                                union_edp1_index
+    #                                )
 
   def _assertFuzzyEqual(self, x: int, y: int, tolerance: int):
     self.assertLessEqual(abs(x - y), tolerance)

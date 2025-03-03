@@ -13,9 +13,12 @@
 # limitations under the License.
 
 import numpy as np
-
+import random
 from noiseninja.noised_measurements import SetMeasurementsSpec
-from qpsolvers import solve_problem, Problem, Solution
+from qpsolvers import Problem
+from qpsolvers import Solution
+from qpsolvers import solve_problem
+from qpsolvers import solve_qp
 from scipy.sparse import csc_matrix
 from threading import Semaphore
 
@@ -144,7 +147,7 @@ class Solver:
 
   def _add_eq_term(self, variables: np.array, k: float):
     self.A.append(variables)
-    self.b.append(k)
+    self.b.append([k])
 
   def _add_gt_term(self, variables: np.array):
     self.G.append(variables)
@@ -152,24 +155,34 @@ class Solver:
 
   def _solve_with_initial_value(self, solver_name, x0) -> Solution:
     problem = self._problem()
-    solution = solve_problem(problem, solver=solver_name, initvals=x0, verbose=False)
-    return solution
+
+    if solver_name != OSQP_SOLVER:
+      return solve_problem(problem, solver=solver_name,
+                               random_seed=random.random(),
+                               initvals=x0, verbose=False)
+    else:
+      return solve_problem(problem, solver=solver_name,
+                           initvals=x0, verbose=False)
 
   def _problem(self):
     problem: Problem
     if len(self.A) > 0:
       problem = Problem(
-          csc_matrix(self.P), self.q, csc_matrix(np.array(self.G)), np.array(self.h),
+          csc_matrix(self.P), self.q, csc_matrix(np.array(self.G)),
+          np.array(self.h),
           np.array(self.A), np.array(self.b))
     else:
       problem = Problem(
-          self.P, self.q, np.array(self.G), np.array(self.h))
+          csc_matrix(self.P), self.q, csc_matrix(np.array(self.G)),
+          np.array(self.h)
+      )
     return problem
 
   def solve(self) -> Solution:
     attempt_count = 0
 
     while attempt_count < MAX_ATTEMPTS:
+      print(f'Attemp HIGHS {attempt_count}')
       # TODO: check if qpsolvers is thread safe,
       #  and remove this semaphore.
       SEMAPHORE.acquire()
@@ -186,6 +199,7 @@ class Solver:
     if not solution.found:
       attempt_count = 0
       while attempt_count < MAX_ATTEMPTS:
+        print(f'Attemp OSQP {attempt_count}')
         SEMAPHORE.acquire()
         solution = self._solve_with_initial_value(OSQP_SOLVER, self.base_value)
         SEMAPHORE.release()
@@ -197,6 +211,16 @@ class Solver:
 
     # Raise the exception when both solvers do not converge.
     if not solution.found:
+      fast_solution = solve_qp(P=csc_matrix(self.P), q=self.q, G=csc_matrix(self.G),
+                               h=np.array(self.h),
+                               # A=np.array(self.A), b=np.array(self.b),
+                               random_seed=random.random(),
+                               solver=HIGHS_SOLVER, initvals=self.base_value)
+      if fast_solution is not None:
+        print("Fast solution found")
+      else:
+        print("Fast solution not found")
+        print(self.base_value)
       raise SolutionNotFoundError(solution)
 
     return solution
