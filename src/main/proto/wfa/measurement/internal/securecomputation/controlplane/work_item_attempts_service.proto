@@ -70,9 +70,8 @@ message ListWorkItemAttemptsResponse {
 
 message ListWorkItemAttemptsPageToken {
   message After {
-    fixed64 work_item_resource_id = 1;
-    fixed64 work_item_attempt_resource_id = 2;
-    google.protobuf.Timestamp create_after = 3;
+    fixed64 work_item_attempt_resource_id = 1;
+    google.protobuf.Timestamp create_after = 2;
   }
   After after = 1;
 }
