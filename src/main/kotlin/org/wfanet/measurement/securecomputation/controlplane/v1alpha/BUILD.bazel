@@ -6,6 +6,8 @@ kt_jvm_library(
     name = "work_items_service",
     srcs = ["WorkItemsService.kt"],
     deps = [
+        "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_item_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_items_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
@@ -21,5 +23,14 @@ kt_jvm_library(
     deps = [
         ":work_items_service",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:publisher",
+    ],
+)
+
+kt_jvm_library(
+    name = "resource_conversion",
+    srcs = ["ResourceConversion.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_item_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
     ],
 )

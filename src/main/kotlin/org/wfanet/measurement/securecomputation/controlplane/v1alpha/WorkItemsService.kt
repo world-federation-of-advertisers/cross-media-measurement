@@ -18,13 +18,41 @@ package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
 import com.google.protobuf.Message
 import io.grpc.Status
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineImplBase as InternalWorkItemsCoroutineImplBase
+import io.grpc.StatusException
+import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.workItem as internalWorkItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest as internalCreateWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemRequest as internalGetWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest as internalFailWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsRequest as internalListWorkItemsRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse as InternalListWorkItemsResponse
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
+import org.wfanet.measurement.securecomputation.service.internal.Errors as InternalErrors
+import java.io.IOException
+import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageToken
+import org.wfanet.measurement.securecomputation.service.InvalidFieldValueException
+import org.wfanet.measurement.securecomputation.service.RequiredFieldNotSetException
+import org.wfanet.measurement.securecomputation.service.WorkItemKey
 
-abstract class WorkItemsService : WorkItemsCoroutineImplBase() {
+abstract class WorkItemsService(private val internalWorkItemsStub: InternalWorkItemsCoroutineImplBase) :
+  WorkItemsCoroutineImplBase() {
 
   abstract suspend fun publishMessage(queueName: String, message: Message)
 
   override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
+
+    if (!request.hasWorkItem()) {
+      throw RequiredFieldNotSetException("work_item")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.workItem.queue.isEmpty()) {
+      throw RequiredFieldNotSetException("queue")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     val workItem = request.workItem
     val topicId = workItem.queue
@@ -43,6 +71,141 @@ abstract class WorkItemsService : WorkItemsCoroutineImplBase() {
         }
       }
     }
-    return workItem
+
+    val internalResponse: InternalWorkItem =
+      try {
+        internalWorkItemsStub.createWorkItem(
+          internalCreateWorkItemRequest {
+            internalWorkItem {
+              queueResourceId = request.workItem.queue
+            }
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.QUEUE_NOT_FOUND,
+          InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
+          InternalErrors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
+          InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return internalResponse.toWorkItem()
+  }
+
+  override suspend fun getWorkItem(request: GetWorkItemRequest): WorkItem {
+    if (request.name.isEmpty()) {
+      throw RequiredFieldNotSetException("name")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val key =
+      WorkItemKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("name")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    val internalResponse: InternalWorkItem =
+      try {
+        internalWorkItemsStub.getWorkItem(
+          internalGetWorkItemRequest {
+            workItemResourceId = apiIdToExternalId(key.workItemId)
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.QUEUE_NOT_FOUND,
+          InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
+          InternalErrors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
+          InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return internalResponse.toWorkItem()
+
+  }
+
+  override suspend fun listWorkItems(request: ListWorkItemsRequest): ListWorkItemsResponse {
+    if (request.pageSize < 0) {
+      throw InvalidFieldValueException("page_size") { fieldName -> "$fieldName cannot be negative" }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val internalPageToken: ListWorkItemsPageToken? =
+      if (request.pageToken.isEmpty()) {
+        null
+      } else {
+        try {
+          ListWorkItemsPageToken.parseFrom(request.pageToken.base64UrlDecode())
+        } catch (e: IOException) {
+          throw InvalidFieldValueException("page_token", e)
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+      }
+
+    val internalResponse: InternalListWorkItemsResponse =
+      internalWorkItemsStub.listWorkItems(
+        internalListWorkItemsRequest {
+          pageSize = request.pageSize
+          if (internalPageToken != null) {
+            pageToken = internalPageToken
+          }
+        }
+      )
+
+    return listWorkItemsResponse {
+      workItem += internalResponse.workItemsList.map { it.toWorkItem() }
+      if (internalResponse.hasNextPageToken()) {
+        nextPageToken = internalResponse.nextPageToken.after.toByteString().base64UrlEncode()
+      }
+    }
+
+  }
+
+  override suspend fun failWorkItem(request: FailWorkItemRequest): WorkItem {
+    if (request.name.isEmpty()) {
+      throw RequiredFieldNotSetException("name")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val key =
+      WorkItemKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("name")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    val internalResponse: InternalWorkItem =
+      try {
+        internalWorkItemsStub.failWorkItem(
+          internalFailWorkItemRequest {
+            workItemResourceId = apiIdToExternalId(key.workItemId)
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.QUEUE_NOT_FOUND,
+          InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
+          InternalErrors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
+          InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return internalResponse.toWorkItem()
   }
 }
