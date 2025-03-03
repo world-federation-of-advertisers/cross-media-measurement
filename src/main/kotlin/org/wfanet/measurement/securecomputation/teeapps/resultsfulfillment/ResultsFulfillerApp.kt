@@ -6,6 +6,7 @@ import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Parser
 import com.google.protobuf.TextFormat
 import com.google.protobuf.duration
+import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.protobuf.kotlin.unpack
 import io.grpc.StatusException
 import java.security.GeneralSecurityException
@@ -15,6 +16,8 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.reduce
 import kotlinx.coroutines.flow.toList
 import org.apache.commons.math3.distribution.ConstantRealDistribution
@@ -47,6 +50,7 @@ import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.encryptResult
@@ -95,6 +99,7 @@ class ResultsFulfillerApp(
   private val dataProviderSigningKeyHandle: SigningKeyHandle?,
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val measurementConsumerName: String,
+  private val eventGroupPrefix: String,
   subscriptionId: String,
   queueSubscriber: QueueSubscriber,
   parser: Parser<TriggeredApp>,
@@ -102,9 +107,9 @@ class ResultsFulfillerApp(
 ): BaseTeeApplication<TriggeredApp>(subscriptionId,queueSubscriber,parser) {
 
   override suspend fun runWork(message: TriggeredApp) {
-    val teeAppConfig = message.config.unpack(TeeAppConfig::class.java)
-    assert(teeAppConfig.workTypeCase == TeeAppConfig.WorkTypeCase.REACH_AND_FREQUENCY_CONFIG)
-    val reachAndFrequencyConfig = teeAppConfig.reachAndFrequencyConfig
+//    val teeAppConfig = message.config.unpack(TeeAppConfig::class.java)
+//    assert(teeAppConfig.workTypeCase == TeeAppConfig.WorkTypeCase.REACH_AND_FREQUENCY_CONFIG)
+//    val reachAndFrequencyConfig = teeAppConfig.reachAndFrequencyConfig
 
     // Gets list of new requisitions in blob storage from the path provided in the TriggeredApp event
     val requisitions = getRequisitions(message.path)
@@ -121,7 +126,6 @@ class ResultsFulfillerApp(
           throw Exception("RequisitionSpec decryption failed", e)
         }
       val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
-
       // Get EventGroupData for this requisition from different EDPs
       val eventGroupDataList = requisitionSpec.events.eventGroupsList.map {
         val eventGroupKey =
@@ -135,7 +139,6 @@ class ResultsFulfillerApp(
         val program = compileProgram(spec, VirtualPersonActivity.getDescriptor())
         EventGroupData(eventGroupKey, ds, "", program)
       }
-
       val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
 
       if (protocols.any { it.hasDirect() }) {
@@ -181,7 +184,8 @@ class ResultsFulfillerApp(
       } else {
         throw Exception("Protocol not supported")
       }
-
+      // Delete the Requsisition once it is fulfilled
+      storageClient.getBlob(message.path)!!.delete()
       // TODO: Save result to kingdom for backward compatibility
     }
   }
@@ -189,19 +193,18 @@ class ResultsFulfillerApp(
   private suspend fun getRequisitions(blobKey: String): List<Requisition> {
     // Gets path to list of new requisitions in blob storage
     val requisitionsBlob = storageClient.getBlob(blobKey)!!
-    val requisitionsData =
-      requisitionsBlob.read().reduce { acc, byteString -> acc.concat(byteString) }.toStringUtf8()
-    val requisitions = RequisitionsList.getDefaultInstance()
-      .newBuilderForType()
-      .apply { TextFormat.Parser.newBuilder().build().merge(requisitionsData, this) }
-      .build() as RequisitionsList
 
-    return requisitions.requisitionsList.map {
-      Requisition.getDefaultInstance()
+    return requisitionsBlob.read().map {
+      val requisitionList = RequisitionsList.getDefaultInstance()
         .newBuilderForType()
-        .apply { TextFormat.Parser.newBuilder().build().merge(it, this) }
-        .build() as Requisition
-    }
+        .apply {
+          TextFormat.Parser.newBuilder()
+            .build()
+            .merge(it.toStringUtf8(), this)
+        }
+        .build() as RequisitionsList
+      requisitionList.requisitionsList[0].unpack(Requisition::class.java)!!
+    }.toList()
   }
 
   /**
@@ -213,7 +216,6 @@ class ResultsFulfillerApp(
     options: Set<DirectNoiseMechanism>
   ): DirectNoiseMechanism {
     val preferences = listOf(DirectNoiseMechanism.CONTINUOUS_GAUSSIAN)
-
     return preferences.firstOrNull { preference -> options.contains(preference) }
       ?: throw Exception(
         "No valid noise mechanism option for reach or frequency measurements.",
@@ -358,7 +360,6 @@ class ResultsFulfillerApp(
       "Invalid vidSamplingInterval: start = $vidSamplingIntervalStart, width = " +
         "$vidSamplingIntervalWidth"
     }
-
     val labelledImpressions = eventGroupDataList.map {
       val eventGroupId = it.eventGroupKey.eventGroupId
       val ds = it.ds
@@ -369,6 +370,7 @@ class ResultsFulfillerApp(
       val encryptedDekBlob = storageClient.getBlob(blobKey)!!
       val encryptedDekData =
         encryptedDekBlob.read().reduce { acc, byteString -> acc.concat(byteString) }.toStringUtf8()
+
       val encryptedDek = EncryptedDEK.getDefaultInstance()
         .newBuilderForType()
         .apply { TextFormat.Parser.newBuilder().build().merge(encryptedDekData, this) }

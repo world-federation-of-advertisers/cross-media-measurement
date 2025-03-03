@@ -16,17 +16,12 @@ syntax = "proto3";
 
 package wfa.measurement.securecomputation.teeapps.v1alpha;
 
-import "google/api/field_behavior.proto";
-import "google/api/resource.proto";
+import "google/protobuf/any.proto";
 
 option java_package = "org.wfanet.measurement.securecomputation.teeapps.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "RequisitionsListProto";
 
 message RequisitionsList {
-  repeated string requisitions = 1 [
-    (google.api.resource_reference).type = "halo.wfanet.org/Requisition",
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE
-  ];
+  repeated google.protobuf.Any requisitions = 1;
 }

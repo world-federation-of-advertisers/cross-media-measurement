@@ -1,13 +1,17 @@
 package org.wfanet.measurement.securecomputation.teeapps.resultsfulfillment
 
 
+import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.type.interval
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.LocalDate
 import kotlin.random.Random
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -17,8 +21,13 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import com.google.protobuf.Any
 import org.mockito.kotlin.any
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -29,11 +38,15 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.events
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.certificate
+import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
+import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
@@ -43,9 +56,12 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
@@ -57,8 +73,10 @@ import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GooglePubSubWorkItemsService
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.encryptedDEK
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfig
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfigKt.triggeredApp
+import org.wfanet.measurement.securecomputation.teeapps.v1alpha.requisitionsList
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
@@ -116,6 +134,18 @@ class ResultsFulfillerAppTest {
     val queueSubscriber = Subscriber(projectId, googlePubSubClient)
     val publisher = Publisher<DataWatcherConfig.TriggeredApp>(projectId, googlePubSubClient)
     val inMemoryStorageClient = InMemoryStorageClient()
+    val requisitionsPath = "$STORAGE_PATH/${REQUISITION.name}"
+    inMemoryStorageClient.writeBlob(
+      requisitionsPath,
+      requisitionsList {
+        requisitions += listOf(Any.pack(REQUISITION))
+      }.toString().toByteStringUtf8(),
+    )
+
+    val encryptedDek = encryptedDEK {
+      blobKey = ""
+    }
+
 
     val resultsFulfillerApp = ResultsFulfillerApp(
       inMemoryStorageClient,
@@ -126,27 +156,37 @@ class ResultsFulfillerAppTest {
       EDP_RESULT_SIGNING_KEY,
       privacyBudgetManager,
       MC_NAME,
+      EVENT_GROUP_STORAGE_PREFIX,
       subscriptionId,
       queueSubscriber,
       DataWatcherConfig.TriggeredApp.parser()
     )
     val job = launch { resultsFulfillerApp.run() }
 
-    val mesosRecordIoStorageClient = MesosRecordIoStorageClient(inMemoryStorageClient)
-
     val work = triggeredApp {
-      path = "requisitions"
+      path = requisitionsPath
     }
 
     publisher.publishMessage(topicId, work)
-
-    withTimeout(10000) {
-      // TODO ADD CHECK
-    }
+    delay(5000)
+//    withTimeout(20000) {
+////      while (true) {
+//        val request: FulfillDirectRequisitionRequest =
+//          verifyAndCapture(
+//            requisitionsServiceMock,
+//            RequisitionsCoroutineImplBase::fulfillDirectRequisition,
+//          )
+//        val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+////        assertThat(result.population.value).isEqualTo("VID_RANGE_1.size()")
+////      }
+//    }
+    assert(1 == 2)
     job.cancelAndJoin()
   }
 
   companion object {
+    private val EVENT_GROUP_STORAGE_PREFIX = "test/test-event-groups"
+    private val STORAGE_PATH = "test/test-requisitions"
     private val LAST_EVENT_DATE = LocalDate.now()
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
     private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
@@ -205,18 +245,55 @@ class ResultsFulfillerAppTest {
       measurement = "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs"
       state = Requisition.State.UNFULFILLED
       measurementConsumerCertificate = "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
+      measurementSpec = signMeasurementSpec(
+        measurementSpec {
+          measurementPublicKey = MC_PUBLIC_KEY.pack()
+          reachAndFrequency = reachAndFrequency {
+            reachPrivacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 1E-12
+            }
+            frequencyPrivacyParams = differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 1E-12
+            }
+            maximumFrequency = 10
+          }
+          vidSamplingInterval = vidSamplingInterval {
+            start = 0.0f
+            width = 1.0f
+          }
+          nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
+        }
+        , MC_SIGNING_KEY)
       encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
       protocolConfig = protocolConfig {
         protocols += ProtocolConfigKt.protocol {
           direct = ProtocolConfigKt.direct {
-            deterministicCountDistinct = ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
-            deterministicDistribution = ProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
+            noiseMechanisms += ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
           }
         }
       }
       dataProviderCertificate = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"
       dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
     }
+//    private val MEASUREMENT_SPEC = measurementSpec {
+//      measurementPublicKey = MC_PUBLIC_KEY.pack()
+//      reachAndFrequency = reachAndFrequency {
+//        reachPrivacyParams = OUTPUT_DP_PARAMS
+//        frequencyPrivacyParams = OUTPUT_DP_PARAMS
+//        maximumFrequency = 10
+//      }
+//      vidSamplingInterval = vidSamplingInterval {
+//        start = 0.0f
+//        width = 1.0f
+//      }
+//      nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
+//    }
+//    private val OUTPUT_DP_PARAMS = differentialPrivacyParams {
+//      epsilon = 1.0
+//      delta = 1E-12
+//    }
     private val EDP_SIGNING_KEY =
       loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
     private val EDP_RESULT_SIGNING_KEY =
