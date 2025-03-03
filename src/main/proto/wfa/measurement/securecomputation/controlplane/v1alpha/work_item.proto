@@ -57,10 +57,10 @@ message WorkItem {
 
     // The `WorkItem` has been queued but has not yet been attempted.
     // At this stage, there are no `WorkItemAttempt`s associated with it.
-    RUNNING = 1;
+    QUEUED = 1;
 
     // There is at least one `WorkItemAttempt` associated with the `WorkItem`.
-    CLAIMED = 2;
+    RUNNING = 2;
 
     // The `WorkItem` has been successfully processed.
     SUCCEEDED = 3;

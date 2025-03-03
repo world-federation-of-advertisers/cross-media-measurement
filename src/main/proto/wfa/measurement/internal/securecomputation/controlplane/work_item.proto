@@ -40,7 +40,7 @@ message WorkItem {
     QUEUED = 1;
 
     // There is at least one `WorkItemAttempt` associated with the `WorkItem`.
-    CLAIMED = 2;
+    RUNNING = 2;
 
     // The `WorkItem` has been successfully processed.
     SUCCEEDED = 3;
