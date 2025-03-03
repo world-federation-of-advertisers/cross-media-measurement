@@ -41,7 +41,7 @@ message CreateWorkItemRequest {
 }
 
 message GetWorkItemRequest {
-  fixed64 work_item_resource_id = 1;
+  string work_item_resource_id = 1;
 }
 
 message ListWorkItemsRequest {
@@ -64,12 +64,12 @@ message ListWorkItemsResponse {
 
 message ListWorkItemsPageToken {
   message After {
-    fixed64 work_item_resource_id = 1;
+    string work_item_resource_id = 1;
     google.protobuf.Timestamp create_after = 2;
   }
   After after = 1;
 }
 
 message FailWorkItemRequest {
-  fixed64 work_item_resource_id = 1;
+  string work_item_resource_id = 1;
 }

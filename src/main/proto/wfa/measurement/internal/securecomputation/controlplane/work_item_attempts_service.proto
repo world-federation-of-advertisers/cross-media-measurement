@@ -44,12 +44,12 @@ message CreateWorkItemAttemptRequest {
 }
 
 message GetWorkItemAttemptRequest {
-  fixed64 work_item_resource_id = 1;
-  fixed64 work_item_attempt_resource_id = 2;
+  string work_item_resource_id = 1;
+  string work_item_attempt_resource_id = 2;
 }
 
 message ListWorkItemAttemptsRequest {
-  fixed64 work_item_resource_id = 1;
+  string work_item_resource_id = 1;
 
   // The maximum number of results to return.
   //
@@ -70,20 +70,21 @@ message ListWorkItemAttemptsResponse {
 
 message ListWorkItemAttemptsPageToken {
   message After {
-    fixed64 work_item_attempt_resource_id = 1;
-    google.protobuf.Timestamp create_after = 2;
+    google.protobuf.Timestamp created_after = 1;
+    string work_item_resource_id = 2;
+    string work_item_attempt_resource_id = 3;
   }
   After after = 1;
 }
 
 message CompleteWorkItemAttemptRequest {
-  fixed64 work_item_resource_id = 1;
-  fixed64 work_item_attempt_resource_id = 2;
+  string work_item_resource_id = 1;
+  string work_item_attempt_resource_id = 2;
 }
 
 message FailWorkItemAttemptRequest {
-  fixed64 work_item_resource_id = 1;
-  fixed64 work_item_attempt_resource_id = 2;
+  string work_item_resource_id = 1;
+  string work_item_attempt_resource_id = 2;
   // Human-readable error message. This should not include any sensitive info.
   string error_message = 3 [(google.api.field_behavior) = OPTIONAL];
 }
