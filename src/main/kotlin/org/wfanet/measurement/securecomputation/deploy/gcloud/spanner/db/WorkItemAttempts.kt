@@ -102,7 +102,7 @@ suspend fun AsyncDatabaseClient.ReadContext.countWorkItemAttempts(
     }
 
   return executeQuery(query, Options.tag("action=countWorkItemAttempts"))
-    .map { row -> row.getLong("attemptCount").toInt() }
+    .map { row -> row.getLong("attemptNumber").toInt() }
     .firstOrNull() ?: 0
 }
 
@@ -117,8 +117,8 @@ suspend fun AsyncDatabaseClient.ReadContext.getWorkItemByResourceId(
 ): WorkItemAttemptResult {
   val sql = buildString {
     appendLine(WorkItemAttempts.BASE_SQL)
-    appendLine("WHERE WorkItemResourceId = @workItemResourceId")
-    appendLine("WHERE WorkItemAttemptResourceId = @workItemAttemptResourceId")
+    appendLine("WHERE WorkItem.WorkItemResourceId = @workItemResourceId")
+    appendLine("WHERE WorkItemAttempts.WorkItemAttemptResourceId = @workItemAttemptResourceId")
   }
   val row: Struct =
     executeQuery(
@@ -163,19 +163,22 @@ fun AsyncDatabaseClient.TransactionContext.failWorkItemAttempt(workItemId: Long,
 fun AsyncDatabaseClient.ReadContext.readWorkItemAttempts(
   limit: Int,
   after: ListWorkItemAttemptsPageToken.After? = null,
+  workItemResourceId: Long
 ): Flow<WorkItemAttemptResult> {
   val sql = buildString {
     appendLine(WorkItemAttempts.BASE_SQL)
+    append("WHERE WorkItems.WorkItemResourceId = @workItemResourceId")
     if (after != null) {
       appendLine(
         """
-        WHERE (WorkItemAttempts.CreateTime > @createTime) OR
-        (WorkItemAttempts.CreateTime = @createTime AND WorkItems.WorkItemResourceId > @workItemResourceId) OR
-        (WorkItemAttempts.CreateTime = @createTime AND WorkItems.WorkItemResourceId = @workItemResourceId AND WorkItemAttempts.WorkItemAttemptResourceId = @workItemAttemptResourceId)
+        AND (
+          (WorkItemAttempts.CreateTime > @createTime) OR
+          (WorkItemAttempts.CreateTime = @createTime AND WorkItems.WorkItemResourceId > @workItemResourceId)
+        )
         """.trimIndent()
       )
     }
-    appendLine("ORDER BY CreateTime ASC, WorkItemId ASC, WorkItemAttemptResourceId ASC")
+    appendLine("ORDER BY WorkItemAttempts.CreateTime ASC, WorkItemAttempts.WorkItemId ASC, WorkItemAttempts.WorkItemAttemptResourceId ASC")
     appendLine("LIMIT @limit")
   }
   val query =
