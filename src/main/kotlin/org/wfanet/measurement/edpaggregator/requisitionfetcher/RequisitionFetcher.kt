@@ -28,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.securecomputation.storage.requisitionBatch
 import org.wfanet.measurement.securecomputation.storage.resourceBatch
 import org.wfanet.measurement.storage.StorageClient
 
@@ -59,27 +60,27 @@ class RequisitionFetcher(
     logger.info("Executing requisitionFetchingWorkflow for $dataProviderName...")
 
     var requisitionsCount = 0
-    var storedRequisitions = 0
 
-    // TODO(b/2095): Update logic once we have a more efficient way to pull only the Requisitions that have not been stored in storage.
+    // TODO(world-federation-of-advertisers/cross-media-measurement#2095): Update logic once we have a more efficient way to pull only the Requisitions that have not been stored in storage.
     val requisitions: Flow<Requisition> = requisitionsStub.listResources { pageToken ->
       val request = listRequisitionsRequest {
         parent = dataProviderName
         filter = ListRequisitionsRequestKt.filter { states += Requisition.State.UNFULFILLED }
         pageSize = responsePageSize
-        pageToken
+        this.pageToken = pageToken
       }
       val response: ListRequisitionsResponse = try {
         requisitionsStub.listRequisitions(request)
       } catch (e: StatusException) {
         throw Exception("Error listing requisitions", e)
       }
+      requisitionsCount += response.requisitionsList.size
       ResourceList(response.requisitionsList, response.nextPageToken)
     }.flattenConcat()
 
     logger.fine {"$requisitionsCount unfulfilled requisitions have been retrieved for $dataProviderName"}
 
-    storedRequisitions += storeRequisitions(requisitions)
+    val storedRequisitions: Int = storeRequisitions(requisitions)
 
     logger.fine {"$storedRequisitions unfulfilled requisitions have been persisted to storage for $dataProviderName"}
   }
@@ -106,13 +107,14 @@ class RequisitionFetcher(
         storageClient.writeBlob(
           blobKey,
           resourceBatch {
-            resourceGroup += listOf(Any.pack(requisition))
+            requisitionBatch = requisitionBatch {
+              requisitionGroup += listOf(Any.pack(requisition))
+            }
           }.toByteString()
         )
         storedRequisitions += 1
       }
     }
-
 
     return storedRequisitions
   }

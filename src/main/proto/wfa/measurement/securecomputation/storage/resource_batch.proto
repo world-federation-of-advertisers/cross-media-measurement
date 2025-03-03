@@ -24,5 +24,11 @@ option java_outer_classname = "ResourceBatchProto";
 
 // Resource representing a group of resources that will be batched together for storage.
 message ResourceBatch {
-  repeated google.protobuf.Any resource_group = 1;
+  oneof resources {
+    RequisitionBatch requisition_batch = 1;
+  }
+}
+
+message RequisitionBatch {
+  repeated google.protobuf.Any requisition_group = 1;
 }
