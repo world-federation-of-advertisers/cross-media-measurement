@@ -33,7 +33,6 @@ import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
-import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForInternalIdException

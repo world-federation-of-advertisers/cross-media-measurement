@@ -31,42 +31,52 @@ import org.wfanet.measurement.securecomputation.service.internal.Errors
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageTokenKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
+import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 
 @RunWith(JUnit4::class)
 abstract class WorkItemsServiceTest {
-  /** Initializes the service under test. */
-  abstract fun initService(
-    queueMapping: QueueMapping,
-    idGenerator: IdGenerator,
-  ): WorkItemsCoroutineImplBase
+  protected data class Services(
+    /** Service under test. */
+    val service: WorkItemsCoroutineImplBase,
+    val workItemAttemptsService: WorkItemAttemptsCoroutineImplBase
+  )
 
-  private fun initService(idGenerator: IdGenerator = IdGenerator.Default) =
-    initService(TestConfig.QUEUE_MAPPING, idGenerator)
+  /** Initializes the service under test. */
+  protected abstract fun initServices(
+    queueMapping: QueueMapping,
+    idGenerator: IdGenerator
+  ): Services
+
+  private fun initServices(idGenerator: IdGenerator = IdGenerator.Default) =
+    initServices(TestConfig.QUEUE_MAPPING, idGenerator)
 
   @Test
   fun `createWorkItem succeeds`() = runBlocking {
-    val service = initService()
+    val services = initServices()
     val request = createWorkItemRequest {
       workItem = workItem {
         queueResourceId = "queues/test_queue"
       }
     }
 
-    val response: WorkItem = service.createWorkItem(request)
+    val response: WorkItem = services.service.createWorkItem(request)
 
     assertThat(response)
       .ignoringFields(
@@ -83,13 +93,13 @@ abstract class WorkItemsServiceTest {
 
   @Test
   fun `createWorkItem throws INVALID_ARGUMENT if queueResourceId is missing`() = runBlocking {
-    val service = initService()
+    val services = initServices()
     val request = createWorkItemRequest {
       workItem = workItem {
       }
     }
 
-    val exception = assertFailsWith<StatusRuntimeException> { service.createWorkItem(request) }
+    val exception = assertFailsWith<StatusRuntimeException> { services.service.createWorkItem(request) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -104,14 +114,14 @@ abstract class WorkItemsServiceTest {
 
   @Test
   fun `createWorkItem throws FAILED_PRECONDITION if queue_resource_id not found`() = runBlocking {
-    val service = initService()
+    val services = initServices()
     val request = createWorkItemRequest {
       workItem = workItem {
         queueResourceId = "queues/non_existing_queue"
       }
     }
 
-    val exception = assertFailsWith<StatusRuntimeException> { service.createWorkItem(request) }
+    val exception = assertFailsWith<StatusRuntimeException> { services.service.createWorkItem(request) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.errorInfo)
@@ -126,29 +136,29 @@ abstract class WorkItemsServiceTest {
 
   @Test
   fun `getWorkItem succeeds`() = runBlocking {
-    val service = initService()
+    val services = initServices()
     val request = createWorkItemRequest {
       workItem = workItem {
         queueResourceId = "queues/test_queue"
       }
     }
 
-    val createResponse: WorkItem = service.createWorkItem(request)
+    val createResponse: WorkItem = services.service.createWorkItem(request)
     val getRequest = getWorkItemRequest {
       workItemResourceId = createResponse.workItemResourceId
     }
-    val workItem: WorkItem = service.getWorkItem(getRequest)
+    val workItem = services.service.getWorkItem(getRequest)
 
     assertThat(createResponse).isEqualTo(workItem)
   }
 
   @Test
   fun `getWorkItem throws INVALID_ARGUMENT if workItemResourceId is missing`() = runBlocking {
-    val service = initService()
+    val services = initServices()
     val request = getWorkItemRequest {
     }
 
-    val exception = assertFailsWith<StatusRuntimeException> { service.getWorkItem(request) }
+    val exception = assertFailsWith<StatusRuntimeException> { services.service.getWorkItem(request) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -163,12 +173,12 @@ abstract class WorkItemsServiceTest {
 
   @Test
   fun `getWorkItem throws NOT_FOUND when WorkItem not found`() = runBlocking {
-    val service = initService()
+    val services = initServices()
     val request = getWorkItemRequest {
-      workItemResourceId = 123
+      workItemResourceId = 123L
     }
 
-    val exception = assertFailsWith<StatusRuntimeException> { service.getWorkItem(request) }
+    val exception = assertFailsWith<StatusRuntimeException> { services.service.getWorkItem(request) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.errorInfo)
@@ -183,19 +193,26 @@ abstract class WorkItemsServiceTest {
 
   @Test
   fun `failWorkItem succeeds`() = runBlocking {
-    val service = initService()
+    val services = initServices()
     val request = createWorkItemRequest {
       workItem = workItem {
         queueResourceId = "queues/test_queue"
       }
     }
 
-    val createResponse: WorkItem = service.createWorkItem(request)
+    val createResponse: WorkItem = services.service.createWorkItem(request)
+    val workItemAttemptRequest = createWorkItemAttemptRequest {
+      workItemAttempt = workItemAttempt {
+        workItemResourceId = createResponse.workItemResourceId
+      }
+    }
+
+    services.workItemAttemptsService.createWorkItemAttempt(workItemAttemptRequest)
 
     val failRequest = failWorkItemRequest {
       workItemResourceId = createResponse.workItemResourceId
     }
-    val workItem: WorkItem = service.failWorkItem(failRequest)
+    val workItem = services.service.failWorkItem(failRequest)
 
     assertThat(workItem)
       .ignoringFields(
@@ -204,15 +221,23 @@ abstract class WorkItemsServiceTest {
       )
       .isEqualTo(createResponse)
     assertThat(workItem.state).isEqualTo(WorkItem.State.FAILED)
+
+    val listWorkItemAttemptsRequest = listWorkItemAttemptsRequest {
+      workItemResourceId = workItem.workItemResourceId
+    }
+    val listWorkItemAttemptsResponse = services.workItemAttemptsService.listWorkItemAttempts(listWorkItemAttemptsRequest)
+
+    assertThat(listWorkItemAttemptsResponse.workItemAttemptsList.all { it.state == WorkItemAttempt.State.FAILED })
+      .isTrue()
   }
 
   @Test
   fun `failWorkItem throws INVALID_ARGUMENT if workItemResourceId is missing`() = runBlocking {
-    val service = initService()
+    val services = initServices()
     val failRequest = failWorkItemRequest {
     }
 
-    val exception = assertFailsWith<StatusRuntimeException> { service.failWorkItem(failRequest) }
+    val exception = assertFailsWith<StatusRuntimeException> { services.service.failWorkItem(failRequest) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -227,20 +252,20 @@ abstract class WorkItemsServiceTest {
 
   @Test
   fun `listWorkItems returns workItems ordered by create time`() = runBlocking {
-    val service = initService()
-    val workItems: List<WorkItem> = createWorkItems(service, 10)
+    val services = initServices()
+    val workItems: List<WorkItem> = createWorkItems(services.service, 10)
 
-    val response: ListWorkItemsResponse = service.listWorkItems(ListWorkItemsRequest.getDefaultInstance())
+    val response: ListWorkItemsResponse = services.service.listWorkItems(ListWorkItemsRequest.getDefaultInstance())
 
     assertThat(response).isEqualTo(listWorkItemsResponse { this.workItems += workItems })
   }
 
   @Test
   fun `listWorkItems returns workItems when page size is specified`() = runBlocking {
-    val service = initService()
-    val workItems: List<WorkItem> = createWorkItems(service, 10)
+    val services = initServices()
+    val workItems: List<WorkItem> = createWorkItems(services.service, 10)
 
-    val response: ListWorkItemsResponse = service.listWorkItems(listWorkItemsRequest { pageSize = 10 })
+    val response: ListWorkItemsResponse = services.service.listWorkItems(listWorkItemsRequest { pageSize = 10 })
 
     assertThat(response).isEqualTo(listWorkItemsResponse { this.workItems += workItems })
   }
@@ -248,11 +273,11 @@ abstract class WorkItemsServiceTest {
   @Test
   fun `listWorkItems returns next page token when there are more results`() = runBlocking {
 
-    val service = initService()
-    val workItems: List<WorkItem> = createWorkItems(service, 10)
+    val services = initServices()
+    val workItems: List<WorkItem> = createWorkItems(services.service, 10)
 
     val request = listWorkItemsRequest { pageSize = 5 }
-    val response: ListWorkItemsResponse = service.listWorkItems(request)
+    val response: ListWorkItemsResponse = services.service.listWorkItems(request)
     assertThat(response)
       .isEqualTo(
         listWorkItemsResponse {
@@ -269,8 +294,8 @@ abstract class WorkItemsServiceTest {
 
   @Test
   fun `listWorkItems returns results after page token`() = runBlocking {
-    val service = initService()
-    val workItems: List<WorkItem> = createWorkItems(service, 10)
+    val services = initServices()
+    val workItems: List<WorkItem> = createWorkItems(services.service, 10)
 
     val request = listWorkItemsRequest {
       pageSize = 2
@@ -281,7 +306,7 @@ abstract class WorkItemsServiceTest {
         }
       }
     }
-    val response: ListWorkItemsResponse = service.listWorkItems(request)
+    val response: ListWorkItemsResponse = services.service.listWorkItems(request)
     assertThat(response)
       .isEqualTo(
         listWorkItemsResponse {
@@ -295,6 +320,7 @@ abstract class WorkItemsServiceTest {
         }
       )
   }
+
   private suspend fun createWorkItems(
     service: WorkItemsCoroutineImplBase,
     count: Int,

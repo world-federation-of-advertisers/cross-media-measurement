@@ -32,20 +32,17 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.GetWorkIte
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsPageTokenKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsResponse
-import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageTokenKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsResponse
-import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsPageToken
-import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
-import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemAttemptResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.completeWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.countWorkItemAttempts
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemAttemptByResourceId
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItemAttempts
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemAttemptExists
@@ -56,6 +53,7 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForInternalIdException
 import org.wfanet.measurement.securecomputation.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptAlreadyExistsException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptNotFoundException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemInvalidPreconditionStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
 
@@ -76,7 +74,6 @@ class SpannerWorkItemAttemptsService(
 
     val workItemAttempt = try {
       transactionRunner.run { txn ->
-
         val result = txn.getWorkItemByResourceId(queueMapping, request.workItemAttempt.workItemResourceId)
         val workItemAttemptNumber = txn.countWorkItemAttempts(result.workItemId) + 1
         val workItemState = result.workItem.state
@@ -84,18 +81,14 @@ class SpannerWorkItemAttemptsService(
           workItemState == WorkItem.State.SUCCEEDED) {
           throw WorkItemInvalidPreconditionStateException(result.workItem.workItemResourceId)
         }
-
         val workItemAttemptId = idGenerator.generateNewId { id -> txn.workItemAttemptExists(result.workItemId, id) }
         val workItemAttemptResourceId = idGenerator.generateNewId { id -> txn.workItemAttemptResourceIdExists(result.workItemId, workItemAttemptId, id) }
-
         val state = txn.insertWorkItemAttempt(result.workItemId, workItemAttemptId, workItemAttemptResourceId, workItemAttemptNumber)
-        val commitTimestamp = transactionRunner.getCommitTimestamp().toProto()
+
         request.workItemAttempt.copy {
           this.workItemAttemptResourceId = workItemAttemptResourceId
           this.attemptNumber = workItemAttemptNumber
           this.state = state
-          this.createTime = commitTimestamp
-          this.updateTime = commitTimestamp
         }
       }
     } catch (e: SpannerException) {
@@ -107,7 +100,12 @@ class SpannerWorkItemAttemptsService(
     } catch (e: WorkItemNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
-    return workItemAttempt
+    val commitTimestamp = transactionRunner.getCommitTimestamp().toProto()
+    val result = workItemAttempt.copy{
+      this.createTime = commitTimestamp
+      this.updateTime = commitTimestamp
+    }
+    return result
 
   }
 
@@ -124,9 +122,9 @@ class SpannerWorkItemAttemptsService(
     val workItemAttemptResult: WorkItemAttemptResult =
       try {
         databaseClient.singleUse().use { txn ->
-          txn.getWorkItemByResourceId(request.workItemResourceId, request.workItemAttemptResourceId)
+          txn.getWorkItemAttemptByResourceId(request.workItemResourceId, request.workItemAttemptResourceId)
         }
-      } catch (e: WorkItemNotFoundException) {
+      } catch (e: WorkItemAttemptNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       } catch (e: QueueNotFoundForInternalIdException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
@@ -149,20 +147,20 @@ class SpannerWorkItemAttemptsService(
 
     val workItemAttempt = transactionRunner.run { txn ->
       try {
-        val workItemAttemptResult = txn.getWorkItemByResourceId(request.workItemResourceId, request.workItemAttemptResourceId)
+        val workItemAttemptResult = txn.getWorkItemAttemptByResourceId(request.workItemResourceId, request.workItemAttemptResourceId)
         val state = txn.failWorkItemAttempt(workItemAttemptResult.workItemId, workItemAttemptResult.workItemAttemptId)
         workItemAttemptResult.workItemAttempt.copy {
           this.state = state
-          this.updateTime = transactionRunner.getCommitTimestamp().toProto()
         }
-        workItemAttemptResult.workItemAttempt
-      } catch (e: WorkItemNotFoundException) {
+      } catch (e: WorkItemAttemptNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       } catch (e: QueueNotFoundForInternalIdException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       }
     }
-    return workItemAttempt
+    return workItemAttempt.copy {
+      this.updateTime = transactionRunner.getCommitTimestamp().toProto()
+    }
   }
 
   override suspend fun completeWorkItemAttempt(request: CompleteWorkItemAttemptRequest): WorkItemAttempt {
@@ -179,20 +177,20 @@ class SpannerWorkItemAttemptsService(
 
     val workItemAttempt = transactionRunner.run { txn ->
       try {
-        val workItemAttemptResult = txn.getWorkItemByResourceId(request.workItemResourceId, request.workItemAttemptResourceId)
+        val workItemAttemptResult = txn.getWorkItemAttemptByResourceId(request.workItemResourceId, request.workItemAttemptResourceId)
         val state = txn.completeWorkItemAttempt(workItemAttemptResult.workItemId, workItemAttemptResult.workItemAttemptId)
         workItemAttemptResult.workItemAttempt.copy {
           this.state = state
-          this.updateTime = transactionRunner.getCommitTimestamp().toProto()
         }
-        workItemAttemptResult.workItemAttempt
-      } catch (e: WorkItemNotFoundException) {
+      } catch (e: WorkItemAttemptNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       } catch (e: QueueNotFoundForInternalIdException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       }
     }
-    return workItemAttempt
+    return workItemAttempt.copy {
+      this.updateTime = transactionRunner.getCommitTimestamp().toProto()
+    }
   }
 
   override suspend fun listWorkItemAttempts(request: ListWorkItemAttemptsRequest): ListWorkItemAttemptsResponse {

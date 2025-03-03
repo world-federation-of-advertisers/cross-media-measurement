@@ -33,9 +33,12 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
   @get:Rule
   val spannerDatabase = SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.SECURECOMPUTATION_CHANGELOG_PATH)
 
-  override fun initService(queueMapping: QueueMapping, idGenerator: IdGenerator) =
-    SpannerWorkItemsService(spannerDatabase.databaseClient, queueMapping, idGenerator)
-
+  override fun initServices(queueMapping: QueueMapping, idGenerator: IdGenerator): Services {
+    return Services(
+      SpannerWorkItemsService(spannerDatabase.databaseClient, queueMapping, idGenerator),
+      SpannerWorkItemAttemptsService(spannerDatabase.databaseClient, queueMapping, idGenerator)
+    )
+  }
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
   }

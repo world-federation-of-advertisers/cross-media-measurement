@@ -22,9 +22,11 @@ import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.any
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.singleOrNullIfEmpty
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
@@ -44,8 +46,18 @@ suspend fun AsyncDatabaseClient.ReadContext.workItemAttemptResourceIdExists(
   workItemAttemptId: Long,
   workItemAttemptResourceId: Long
 ): Boolean {
-  val keySet = KeySet.singleKey(Key.of(workItemAttemptResourceId))
-  return readRow("WorkItemAttempts", Key.of(workItemId, workItemAttemptId, workItemAttemptResourceId), listOf("WorkItemId", "WorkItemAttemptId", "WorkItemAttemptResourceId")) != null
+  val keySet = KeySet.newBuilder()
+    .addKey(Key.of(workItemId, workItemAttemptId))
+    .build()
+
+  val rows = read(
+    "WorkItemAttempts",
+    keySet,
+    listOf("WorkItemAttemptResourceId")
+  )
+
+  return rows.any { it.getLong("WorkItemAttemptResourceId") == workItemAttemptResourceId }
+
 }
 
 suspend fun AsyncDatabaseClient.ReadContext.workItemAttemptExists(
@@ -68,13 +80,13 @@ fun AsyncDatabaseClient.TransactionContext.insertWorkItemAttempt(
     set("WorkItemAttemptId").to(workItemAttemptId)
     set("WorkItemAttemptResourceId").to(workItemAttemptResourceId)
     set("State").toInt64(workItemAttemptstate)
-    set("AttemptNumber").to(attemptNumber)
+    set("AttemptNumber").to(attemptNumber.toLong())
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
   bufferUpdateMutation("WorkItems") {
     set("WorkItemId").to(workItemId)
-    set("State").toInt64(WorkItem.State.CLAIMED)
+    set("State").toInt64(WorkItem.State.RUNNING)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
   return workItemAttemptstate
@@ -102,7 +114,7 @@ suspend fun AsyncDatabaseClient.ReadContext.countWorkItemAttempts(
     }
 
   return executeQuery(query, Options.tag("action=countWorkItemAttempts"))
-    .map { row -> row.getLong("attemptNumber").toInt() }
+    .map { row -> row.getLong(0).toInt() }
     .firstOrNull() ?: 0
 }
 
@@ -111,14 +123,13 @@ suspend fun AsyncDatabaseClient.ReadContext.countWorkItemAttempts(
  *
  * @throws WorkItemAttemptNotFoundException
  */
-suspend fun AsyncDatabaseClient.ReadContext.getWorkItemByResourceId(
+suspend fun AsyncDatabaseClient.ReadContext.getWorkItemAttemptByResourceId(
   workItemResourceId: Long,
   workItemAttemptResourceId: Long
 ): WorkItemAttemptResult {
   val sql = buildString {
     appendLine(WorkItemAttempts.BASE_SQL)
-    appendLine("WHERE WorkItem.WorkItemResourceId = @workItemResourceId")
-    appendLine("WHERE WorkItemAttempts.WorkItemAttemptResourceId = @workItemAttemptResourceId")
+    appendLine("WHERE WorkItems.WorkItemResourceId = @workItemResourceId AND WorkItemAttempts.WorkItemAttemptResourceId = @workItemAttemptResourceId")
   }
   val row: Struct =
     executeQuery(
@@ -140,6 +151,11 @@ fun AsyncDatabaseClient.TransactionContext.completeWorkItemAttempt(workItemId: L
     set("WorkItemId").to(workItemId)
     set("WorkItemAttemptId").to(workItemAttemptId)
     set("State").toInt64(state)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+  bufferUpdateMutation("WorkItems") {
+    set("WorkItemId").to(workItemId)
+    set("State").toInt64(WorkItem.State.SUCCEEDED)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
   return state
@@ -175,7 +191,7 @@ fun AsyncDatabaseClient.ReadContext.readWorkItemAttempts(
         """
         AND (
           (WorkItemAttempts.CreateTime > @createTime) OR
-          (WorkItemAttempts.CreateTime = @createTime AND WorkItems.WorkItemResourceId > @workItemResourceId)
+          (WorkItemAttempts.CreateTime = @createTime AND WorkItemAttempts.WorkItemAttemptResourceId > @workItemAttemptResourceId)
         )
         """.trimIndent()
       )
@@ -189,12 +205,11 @@ fun AsyncDatabaseClient.ReadContext.readWorkItemAttempts(
     statement(sql) {
       bind("workItemResourceId").to(workItemResourceId)
       if (after != null) {
-        bind("createTime").to(after.createAfter)
+        bind("createTime").to(after.createAfter.toGcloudTimestamp())
         bind("workItemAttemptResourceId").to(after.workItemAttemptResourceId)
       }
       bind("limit").to(limit.toLong())
     }
-
   return executeQuery(query, Options.tag("action=readWorkItemAttempts")).map { row ->
     WorkItemAttempts.buildWorkItemAttemptResult(row)
   }
@@ -220,14 +235,14 @@ private object WorkItemAttempts {
 
   fun buildWorkItemAttemptResult(row: Struct): WorkItemAttemptResult {
     return WorkItemAttemptResult(
-      row.getLong("WorkItemAttempts.WorkItemId"),
-      row.getLong("WorkItemAttemptId.WorkItemAttemptId"),
+      row.getLong("WorkItemId"),
+      row.getLong("WorkItemAttemptId"),
       workItemAttempt {
         workItemResourceId = row.getLong("WorkItemResourceId")
         workItemAttemptResourceId = row.getLong("WorkItemAttemptResourceId")
         state = WorkItemAttempt.State.forNumber(row.getLong("State").toInt())
         attemptNumber = row.getLong("AttemptNumber").toInt()
-        errorMessage = row.getString("ErrorMessage")
+        errorMessage = if (row.isNull("ErrorMessage")) "" else row.getString("ErrorMessage")
         createTime = row.getTimestamp("CreateTime").toProto()
         updateTime = row.getTimestamp("UpdateTime").toProto()
       },

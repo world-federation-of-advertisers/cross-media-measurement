@@ -54,7 +54,7 @@ CREATE TABLE WorkItemAttempts (
 
     AttemptNumber INT64 NOT NULL,
 
-    ErrorMessage STRING(MAX) NOT NULL,
+    ErrorMessage STRING(MAX),
 
     CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
     UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),

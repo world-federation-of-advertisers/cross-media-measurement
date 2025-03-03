@@ -26,7 +26,6 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.securecomputation.service.internal.testing.WorkItemAttemptsServiceTest
-import org.wfanet.measurement.securecomputation.service.internal.testing.WorkItemsServiceTest
 
 @RunWith(JUnit4::class)
 class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
@@ -34,8 +33,12 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
   @get:Rule
   val spannerDatabase = SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.SECURECOMPUTATION_CHANGELOG_PATH)
 
-  override fun initService(queueMapping: QueueMapping, idGenerator: IdGenerator) =
-    SpannerWorkItemAttemptsService(spannerDatabase.databaseClient, queueMapping, idGenerator)
+  override fun initServices(queueMapping: QueueMapping, idGenerator: IdGenerator): Services {
+    return Services(
+      SpannerWorkItemAttemptsService(spannerDatabase.databaseClient, queueMapping, idGenerator),
+      SpannerWorkItemsService(spannerDatabase.databaseClient, queueMapping, idGenerator)
+    )
+  }
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
