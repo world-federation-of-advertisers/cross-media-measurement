@@ -210,14 +210,13 @@ class SpannerWorkItemAttemptsService(
     val after = if (request.hasPageToken()) request.pageToken.after else null
     return databaseClient.singleUse().use { txn ->
       val workItemAttempts: Flow<WorkItemAttempt> =
-        txn.readWorkItemAttempts(pageSize + 1, after).map { it.workItemAttempt }
+        txn.readWorkItemAttempts(pageSize + 1, request.workItemResourceId, after).map { it.workItemAttempt }
       listWorkItemAttemptsResponse {
         workItemAttempts.collectIndexed { index, workItemAttempt ->
           if (index == pageSize) {
             nextPageToken = listWorkItemAttemptsPageToken {
               this.after =
                 ListWorkItemAttemptsPageTokenKt.after {
-                  workItemResourceId = this@listWorkItemAttemptsResponse.workItemAttempts.last().workItemResourceId
                   workItemAttemptResourceId = this@listWorkItemAttemptsResponse.workItemAttempts.last().workItemAttemptResourceId
                   createAfter = this@listWorkItemAttemptsResponse.workItemAttempts.last().createTime
                 }

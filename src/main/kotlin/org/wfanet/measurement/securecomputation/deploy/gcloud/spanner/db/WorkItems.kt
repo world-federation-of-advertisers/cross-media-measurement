@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.singleOrNullIfEmpty
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
@@ -128,7 +129,7 @@ fun AsyncDatabaseClient.ReadContext.readWorkItems(
     statement(sql) {
       if (after != null) {
         bind("afterWorkItemResourceId").to(after.workItemResourceId)
-        bind("createTime").to(after.createAfter)
+        bind("createTime").to(after.createAfter.toGcloudTimestamp())
       }
       bind("limit").to(limit.toLong())
     }

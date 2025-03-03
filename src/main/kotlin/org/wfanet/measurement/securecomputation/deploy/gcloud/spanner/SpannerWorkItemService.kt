@@ -23,6 +23,7 @@ import com.google.protobuf.Timestamp
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundException
@@ -44,8 +45,10 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItemAttempts
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItems
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemIdExists
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemResourceIdExists
@@ -167,7 +170,10 @@ class SpannerWorkItemsService(
       try {
         val workItemResult = txn.getWorkItemByResourceId(queueMapping, request.workItemResourceId)
         val state = txn.failWorkItem(workItemResult.workItemId)
-        val workItemAttempts = txn.
+        txn.readWorkItemAttempts(MAX_PAGE_SIZE, request.workItemResourceId)
+          .collect { workItemAttempt ->
+            txn.failWorkItemAttempt(workItemResult.workItemId, workItemAttempt.workItemAttemptId)
+          }
         workItemResult.workItem.copy {
           this.state = state
         }

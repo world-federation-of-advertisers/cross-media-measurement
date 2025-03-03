@@ -162,12 +162,14 @@ fun AsyncDatabaseClient.TransactionContext.failWorkItemAttempt(workItemId: Long,
  */
 fun AsyncDatabaseClient.ReadContext.readWorkItemAttempts(
   limit: Int,
+  workItemResourceId: Long,
   after: ListWorkItemAttemptsPageToken.After? = null,
-  workItemResourceId: Long
 ): Flow<WorkItemAttemptResult> {
   val sql = buildString {
     appendLine(WorkItemAttempts.BASE_SQL)
-    append("WHERE WorkItems.WorkItemResourceId = @workItemResourceId")
+    append("""
+      WHERE WorkItems.WorkItemResourceId = @workItemResourceId
+    """)
     if (after != null) {
       appendLine(
         """
@@ -178,14 +180,16 @@ fun AsyncDatabaseClient.ReadContext.readWorkItemAttempts(
         """.trimIndent()
       )
     }
-    appendLine("ORDER BY WorkItemAttempts.CreateTime ASC, WorkItemAttempts.WorkItemId ASC, WorkItemAttempts.WorkItemAttemptResourceId ASC")
+    appendLine("""
+      ORDER BY WorkItemAttempts.CreateTime ASC, WorkItemAttempts.WorkItemId ASC, WorkItemAttempts.WorkItemAttemptResourceId ASC
+    """)
     appendLine("LIMIT @limit")
   }
   val query =
     statement(sql) {
+      bind("workItemResourceId").to(workItemResourceId)
       if (after != null) {
         bind("createTime").to(after.createAfter)
-        bind("workItemResourceId").to(after.workItemResourceId)
         bind("workItemAttemptResourceId").to(after.workItemAttemptResourceId)
       }
       bind("limit").to(limit.toLong())
@@ -206,7 +210,7 @@ private object WorkItemAttempts {
       WorkItemAttempts.WorkItemAttemptResourceId,
       WorkItemAttempts.State,
       WorkItemAttempts.AttemptNumber,
-      WorkItemAttempts.Logs,
+      WorkItemAttempts.ErrorMessage,
       WorkItemAttempts.CreateTime,
       WorkItemAttempts.UpdateTime
       FROM WorkItems
@@ -223,6 +227,7 @@ private object WorkItemAttempts {
         workItemAttemptResourceId = row.getLong("WorkItemAttemptResourceId")
         state = WorkItemAttempt.State.forNumber(row.getLong("State").toInt())
         attemptNumber = row.getLong("AttemptNumber").toInt()
+        errorMessage = row.getString("ErrorMessage")
         createTime = row.getTimestamp("CreateTime").toProto()
         updateTime = row.getTimestamp("UpdateTime").toProto()
       },

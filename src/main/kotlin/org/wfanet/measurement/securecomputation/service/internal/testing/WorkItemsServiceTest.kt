@@ -31,11 +31,18 @@ import org.wfanet.measurement.securecomputation.service.internal.Errors
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageToken
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageTokenKt
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsPageToken
+import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 
@@ -184,6 +191,7 @@ abstract class WorkItemsServiceTest {
     }
 
     val createResponse: WorkItem = service.createWorkItem(request)
+
     val failRequest = failWorkItemRequest {
       workItemResourceId = createResponse.workItemResourceId
     }
@@ -196,6 +204,110 @@ abstract class WorkItemsServiceTest {
       )
       .isEqualTo(createResponse)
     assertThat(workItem.state).isEqualTo(WorkItem.State.FAILED)
+  }
+
+  @Test
+  fun `failWorkItem throws INVALID_ARGUMENT if workItemResourceId is missing`() = runBlocking {
+    val service = initService()
+    val failRequest = failWorkItemRequest {
+    }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.failWorkItem(failRequest) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "work_item_resource_id"
+        }
+      )
+  }
+
+  @Test
+  fun `listWorkItems returns workItems ordered by create time`() = runBlocking {
+    val service = initService()
+    val workItems: List<WorkItem> = createWorkItems(service, 10)
+
+    val response: ListWorkItemsResponse = service.listWorkItems(ListWorkItemsRequest.getDefaultInstance())
+
+    assertThat(response).isEqualTo(listWorkItemsResponse { this.workItems += workItems })
+  }
+
+  @Test
+  fun `listWorkItems returns workItems when page size is specified`() = runBlocking {
+    val service = initService()
+    val workItems: List<WorkItem> = createWorkItems(service, 10)
+
+    val response: ListWorkItemsResponse = service.listWorkItems(listWorkItemsRequest { pageSize = 10 })
+
+    assertThat(response).isEqualTo(listWorkItemsResponse { this.workItems += workItems })
+  }
+
+  @Test
+  fun `listWorkItems returns next page token when there are more results`() = runBlocking {
+
+    val service = initService()
+    val workItems: List<WorkItem> = createWorkItems(service, 10)
+
+    val request = listWorkItemsRequest { pageSize = 5 }
+    val response: ListWorkItemsResponse = service.listWorkItems(request)
+    assertThat(response)
+      .isEqualTo(
+        listWorkItemsResponse {
+          this.workItems += workItems.take(request.pageSize)
+          nextPageToken = listWorkItemsPageToken {
+            after = ListWorkItemsPageTokenKt.after {
+              workItemResourceId = workItems.get(4).workItemResourceId
+              createAfter = workItems.get(4).createTime
+            }
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `listWorkItems returns results after page token`() = runBlocking {
+    val service = initService()
+    val workItems: List<WorkItem> = createWorkItems(service, 10)
+
+    val request = listWorkItemsRequest {
+      pageSize = 2
+      pageToken = listWorkItemsPageToken {
+        after = ListWorkItemsPageTokenKt.after {
+          workItemResourceId = workItems.get(4).workItemResourceId
+          createAfter = workItems.get(4).createTime
+        }
+      }
+    }
+    val response: ListWorkItemsResponse = service.listWorkItems(request)
+    assertThat(response)
+      .isEqualTo(
+        listWorkItemsResponse {
+          this.workItems += workItems.subList(5, 7)
+          nextPageToken = listWorkItemsPageToken {
+            after = ListWorkItemsPageTokenKt.after {
+              workItemResourceId = workItems.get(6).workItemResourceId
+              createAfter = workItems.get(6).createTime
+            }
+          }
+        }
+      )
+  }
+  private suspend fun createWorkItems(
+    service: WorkItemsCoroutineImplBase,
+    count: Int,
+  ): List<WorkItem> {
+    return (1..count).map {
+      service.createWorkItem(
+        createWorkItemRequest {
+          workItem = workItem {
+            queueResourceId = "queues/test_queue"
+          }
+        }
+      )
+    }
   }
 
 }
