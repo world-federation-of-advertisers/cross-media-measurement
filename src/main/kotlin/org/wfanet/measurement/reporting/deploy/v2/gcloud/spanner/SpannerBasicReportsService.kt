@@ -80,11 +80,15 @@ class SpannerBasicReportsService(
       }
 
     val reportingSetResult: ReportingSetReader.Result =
-      getReportingSets(
+      try {
+        getReportingSets(
           request.cmmsMeasurementConsumerId,
           listOf(basicReportResult.basicReport.externalCampaignGroupId),
         )
-        .first()
+          .first()
+      } catch (e: ReportingSetNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.INTERNAL)
+      }
 
     return basicReportResult.basicReport.copy {
       campaignGroupDisplayName = reportingSetResult.reportingSet.displayName
@@ -204,23 +208,8 @@ class SpannerBasicReportsService(
    *
    * @throws ReportingSetNotFoundException
    */
-  private suspend fun checkReportingSet(basicReport: BasicReport): Unit {
-    var postgresReadContext: ReadContext? = null
-    try {
-      postgresReadContext = postgresClient.singleUse()
-      ReportingSetReader(postgresReadContext)
-        .batchGetReportingSets(
-          batchGetReportingSetsRequest {
-            cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
-            externalReportingSetIds += basicReport.externalCampaignGroupId
-          }
-        )
-        .withSerializableErrorRetries()
-        .toList()
-        .first()
-    } finally {
-      postgresReadContext?.close()
-    }
+  private suspend fun checkReportingSet(basicReport: BasicReport) {
+    getReportingSets(basicReport.cmmsMeasurementConsumerId, listOf(basicReport.externalCampaignGroupId))
   }
 
   /**

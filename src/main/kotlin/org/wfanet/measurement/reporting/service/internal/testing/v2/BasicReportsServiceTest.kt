@@ -118,7 +118,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `insertBasicReport throws FAILED_PRECONDITION when cmmsMeasurementConsumerId not found`():
+  fun `insertBasicReport throws FAILED_PRECONDITION when mc not found`():
     Unit = runBlocking {
     val resultGroup = resultGroup { title = "title" }
 
@@ -140,7 +140,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `insertBasicReport throws FAILED_PRECONDITION when externalCampaignId not found`(): Unit =
+  fun `insertBasicReport throws FAILED_PRECONDITION when reporting set not found`(): Unit =
     runBlocking {
       measurementConsumersService.createMeasurementConsumer(
         measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }

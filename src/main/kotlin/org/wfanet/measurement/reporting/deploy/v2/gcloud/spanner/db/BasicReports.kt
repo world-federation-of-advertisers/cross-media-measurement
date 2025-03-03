@@ -55,14 +55,11 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
       BasicReportDetails,
       BasicReportResultDetails
     FROM
-      (
-        SELECT *
-        FROM MeasurementConsumers
-        WHERE CmmsMeasurementConsumerId = @cmmsMeasurementConsumerId
-      ) AS MeasurementConsumers
-      JOIN BasicReports@{FORCE_INDEX=BasicReportsByExternalBasicReportId} USING (MeasurementConsumerId)
+      MeasurementConsumers
+      JOIN BasicReports USING (MeasurementConsumerId)
     WHERE
-      ExternalBasicReportId = @externalBasicReportId
+      CmmsMeasurementConsumerId = @cmmsMeasurementConsumerId
+      AND ExternalBasicReportId = @externalBasicReportId
     """
       .trimIndent()
   val row: Struct =
@@ -82,13 +79,6 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
   limit: Int,
   filter: ListBasicReportsRequest.Filter,
 ): Flow<BasicReportResult> {
-  val index =
-    if (filter.after.hasCreateTime()) {
-      "@{FORCE_INDEX=BasicReportsByCreateTime}"
-    } else {
-      ""
-    }
-
   val sql = buildString {
     appendLine(
       """
@@ -101,31 +91,28 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
         BasicReportDetails,
         BasicReportResultDetails
       FROM
-        (
-          SELECT *
-          FROM MeasurementConsumers
-          WHERE CmmsMeasurementConsumerId = @cmmsMeasurementConsumerId
-        ) AS MeasurementConsumers
-        JOIN BasicReports${index} USING (MeasurementConsumerId)
+        MeasurementConsumers
+        JOIN BasicReports USING (MeasurementConsumerId)
+        WHERE
+          BasicReportsIndexShardId >= 0
+          AND CmmsMeasurementConsumerId = @cmmsMeasurementConsumerId
       """
         .trimIndent()
     )
     if (filter.hasAfter()) {
-      if (filter.after.externalBasicReportId.isEmpty()) {
-        appendLine("WHERE BasicReports.CreateTime > @createTime")
-      } else {
-        appendLine(
-          """
-          WHERE CASE
-            WHEN BasicReports.CreateTime > @createTime THEN TRUE
-            WHEN BasicReports.CreateTime = @createTime
-              AND ExternalBasicReportId > @externalBasicReportId THEN TRUE
-            ELSE FALSE
-          END
-          """
-            .trimIndent()
-        )
-      }
+      appendLine(
+        """
+        AND (BasicReports.CreateTime > @createTime
+          OR (BasicReports.CreateTime = @createTime
+            AND ExternalBasicReportId > @externalBasicReportId))
+        """
+          .trimIndent()
+      )
+    } else if (filter.hasCreateTimeAfter()) {
+      """
+      AND BasicReports.CreateTime > @createTime
+      """
+        .trimIndent()
     }
     appendLine("ORDER BY CreateTime, ExternalBasicReportId")
     if (limit > 0) {
@@ -137,9 +124,9 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
       bind("cmmsMeasurementConsumerId").to(filter.cmmsMeasurementConsumerId)
       if (filter.hasAfter()) {
         bind("createTime").to(filter.after.createTime.toGcloudTimestamp())
-        if (filter.after.externalBasicReportId.isNotEmpty()) {
-          bind("externalBasicReportId").to(filter.after.externalBasicReportId)
-        }
+        bind("externalBasicReportId").to(filter.after.externalBasicReportId)
+      } else if (filter.hasCreateTimeAfter()) {
+        bind("createTime").to(filter.createTimeAfter.toGcloudTimestamp())
       }
       if (limit > 0) {
         bind("limit").to(limit.toLong())
