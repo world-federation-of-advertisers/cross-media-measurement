@@ -30,7 +30,7 @@ service WorkItems {
 
   rpc GetWorkItem(GetWorkItemRequest) returns (WorkItem);
 
-  // List WorkItems ordered by `work_item_resource_id`.
+  // Response ordered by `create_time`, ascending.
   rpc ListWorkItems(ListWorkItemsRequest) returns (ListWorkItemsResponse);
 
   rpc FailWorkItem(FailWorkItemRequest) returns (WorkItem);
