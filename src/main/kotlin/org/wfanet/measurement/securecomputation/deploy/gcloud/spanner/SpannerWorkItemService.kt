@@ -23,7 +23,6 @@ import com.google.protobuf.Timestamp
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundException
@@ -51,7 +50,6 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertW
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItemAttempts
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItems
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemIdExists
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemResourceIdExists
 import org.wfanet.measurement.securecomputation.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForInternalIdException
@@ -70,6 +68,11 @@ class SpannerWorkItemsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    if (request.workItem.workItemResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("work_item_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     val queue = try {
       getQueueByResourceId(request.workItem.queueResourceId)
     } catch (e: QueueNotFoundException) {
@@ -80,12 +83,11 @@ class SpannerWorkItemsService(
 
     val workItem = transactionRunner.run { txn ->
       val workItemId = idGenerator.generateNewId { id -> txn.workItemIdExists(id) }
-      val workItemResourceId = idGenerator.generateNewId { id -> txn.workItemResourceIdExists(id) }
 
-      val state = txn.insertWorkItem(workItemId, workItemResourceId, queue.queueId)
+      val state = txn.insertWorkItem(workItemId, request.workItem.workItemResourceId, queue.queueId)
 
       workItem {
-        this.workItemResourceId = workItemResourceId
+        this.workItemResourceId = request.workItem.workItemResourceId
         this.queueResourceId = request.workItem.queueResourceId
         this.state = state
       }
@@ -102,7 +104,7 @@ class SpannerWorkItemsService(
 
   override suspend fun getWorkItem(request: GetWorkItemRequest): WorkItem {
 
-    if (request.workItemResourceId == 0L) {
+    if (request.workItemResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("work_item_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
@@ -158,7 +160,7 @@ class SpannerWorkItemsService(
 
   override suspend fun failWorkItem(request: FailWorkItemRequest): WorkItem {
 
-    if (request.workItemResourceId == 0L) {
+    if (request.workItemResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("work_item_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }

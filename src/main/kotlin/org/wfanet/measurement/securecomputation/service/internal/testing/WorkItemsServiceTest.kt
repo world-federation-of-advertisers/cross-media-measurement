@@ -72,6 +72,7 @@ abstract class WorkItemsServiceTest {
     val services = initServices()
     val request = createWorkItemRequest {
       workItem = workItem {
+        workItemResourceId = "work_item_resource_id"
         queueResourceId = "queues/test_queue"
       }
     }
@@ -96,6 +97,7 @@ abstract class WorkItemsServiceTest {
     val services = initServices()
     val request = createWorkItemRequest {
       workItem = workItem {
+        workItemResourceId = "work_item_resource_id"
       }
     }
 
@@ -113,10 +115,33 @@ abstract class WorkItemsServiceTest {
   }
 
   @Test
+  fun `createWorkItem throws INVALID_ARGUMENT if workItemResourceId is missing`() = runBlocking {
+    val services = initServices()
+    val request = createWorkItemRequest {
+      workItem = workItem {
+        queueResourceId = "queues/non_existing_queue"
+      }
+    }
+
+    val exception = assertFailsWith<StatusRuntimeException> { services.service.createWorkItem(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "work_item_resource_id"
+        }
+      )
+  }
+
+  @Test
   fun `createWorkItem throws FAILED_PRECONDITION if queue_resource_id not found`() = runBlocking {
     val services = initServices()
     val request = createWorkItemRequest {
       workItem = workItem {
+        workItemResourceId = "work_item_resource_id"
         queueResourceId = "queues/non_existing_queue"
       }
     }
@@ -139,6 +164,7 @@ abstract class WorkItemsServiceTest {
     val services = initServices()
     val request = createWorkItemRequest {
       workItem = workItem {
+        workItemResourceId = "work_item_resource_id"
         queueResourceId = "queues/test_queue"
       }
     }
@@ -175,7 +201,7 @@ abstract class WorkItemsServiceTest {
   fun `getWorkItem throws NOT_FOUND when WorkItem not found`() = runBlocking {
     val services = initServices()
     val request = getWorkItemRequest {
-      workItemResourceId = 123L
+      workItemResourceId = "123"
     }
 
     val exception = assertFailsWith<StatusRuntimeException> { services.service.getWorkItem(request) }
@@ -196,6 +222,7 @@ abstract class WorkItemsServiceTest {
     val services = initServices()
     val request = createWorkItemRequest {
       workItem = workItem {
+        workItemResourceId = "work_item_resource_id"
         queueResourceId = "queues/test_queue"
       }
     }
@@ -204,6 +231,7 @@ abstract class WorkItemsServiceTest {
     val workItemAttemptRequest = createWorkItemAttemptRequest {
       workItemAttempt = workItemAttempt {
         workItemResourceId = createResponse.workItemResourceId
+        workItemAttemptResourceId = "work_item_attempt_resource_id"
       }
     }
 
@@ -326,9 +354,11 @@ abstract class WorkItemsServiceTest {
     count: Int,
   ): List<WorkItem> {
     return (1..count).map {
+      val workItemResourceId = "work_item_id_$it"
       service.createWorkItem(
         createWorkItemRequest {
           workItem = workItem {
+            this.workItemResourceId = workItemResourceId
             queueResourceId = "queues/test_queue"
           }
         }

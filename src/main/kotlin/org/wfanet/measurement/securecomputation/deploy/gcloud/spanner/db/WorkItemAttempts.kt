@@ -41,25 +41,6 @@ import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttempt
 
 data class WorkItemAttemptResult(val workItemId: Long, val workItemAttemptId: Long, val workItemAttempt: WorkItemAttempt)
 
-suspend fun AsyncDatabaseClient.ReadContext.workItemAttemptResourceIdExists(
-  workItemId: Long,
-  workItemAttemptId: Long,
-  workItemAttemptResourceId: Long
-): Boolean {
-  val keySet = KeySet.newBuilder()
-    .addKey(Key.of(workItemId, workItemAttemptId))
-    .build()
-
-  val rows = read(
-    "WorkItemAttempts",
-    keySet,
-    listOf("WorkItemAttemptResourceId")
-  )
-
-  return rows.any { it.getLong("WorkItemAttemptResourceId") == workItemAttemptResourceId }
-
-}
-
 suspend fun AsyncDatabaseClient.ReadContext.workItemAttemptExists(
   workItemId: Long,
   workItemAttemptId: Long
@@ -71,7 +52,7 @@ suspend fun AsyncDatabaseClient.ReadContext.workItemAttemptExists(
 fun AsyncDatabaseClient.TransactionContext.insertWorkItemAttempt(
   workItemId: Long,
   workItemAttemptId: Long,
-  workItemAttemptResourceId: Long,
+  workItemAttemptResourceId: String,
   attemptNumber: Int
 ): WorkItemAttempt.State {
   val workItemAttemptstate = WorkItemAttempt.State.ACTIVE
@@ -124,8 +105,8 @@ suspend fun AsyncDatabaseClient.ReadContext.countWorkItemAttempts(
  * @throws WorkItemAttemptNotFoundException
  */
 suspend fun AsyncDatabaseClient.ReadContext.getWorkItemAttemptByResourceId(
-  workItemResourceId: Long,
-  workItemAttemptResourceId: Long
+  workItemResourceId: String,
+  workItemAttemptResourceId: String
 ): WorkItemAttemptResult {
   val sql = buildString {
     appendLine(WorkItemAttempts.BASE_SQL)
@@ -178,7 +159,7 @@ fun AsyncDatabaseClient.TransactionContext.failWorkItemAttempt(workItemId: Long,
  */
 fun AsyncDatabaseClient.ReadContext.readWorkItemAttempts(
   limit: Int,
-  workItemResourceId: Long,
+  workItemResourceId: String,
   after: ListWorkItemAttemptsPageToken.After? = null,
 ): Flow<WorkItemAttemptResult> {
   val sql = buildString {
@@ -205,7 +186,7 @@ fun AsyncDatabaseClient.ReadContext.readWorkItemAttempts(
     statement(sql) {
       bind("workItemResourceId").to(workItemResourceId)
       if (after != null) {
-        bind("createTime").to(after.createAfter.toGcloudTimestamp())
+        bind("createTime").to(after.createdAfter.toGcloudTimestamp())
         bind("workItemAttemptResourceId").to(after.workItemAttemptResourceId)
       }
       bind("limit").to(limit.toLong())

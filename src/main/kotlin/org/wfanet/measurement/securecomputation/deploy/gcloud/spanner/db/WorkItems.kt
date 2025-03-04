@@ -45,13 +45,6 @@ suspend fun AsyncDatabaseClient.ReadContext.workItemIdExists(workItemId: Long): 
   return readRow("WorkItems", Key.of(workItemId), listOf("WorkItemId")) != null
 }
 
-/** Returns whether a [WorkItem] with the specified [workItemResourceId] exists. */
-
-suspend fun AsyncDatabaseClient.ReadContext.workItemResourceIdExists(workItemResourceId: Long): Boolean {
-  val keySet = KeySet.singleKey(Key.of(workItemResourceId))
-  return readUsingIndex("WorkItems", "WorkItemsByResourceId", keySet, listOf("WorkItemResourceId")).firstOrNull() != null
-}
-
 /**
  * Buffers an update mutation for the WorkItems table.
  * Set as FAILED all the child WorkItemAttempts
@@ -67,7 +60,7 @@ fun AsyncDatabaseClient.TransactionContext.failWorkItem(workItemId: Long): WorkI
 }
 
 /** Buffers an insert mutation for the WorkItems table. */
-fun AsyncDatabaseClient.TransactionContext.insertWorkItem(workItemId: Long, workItemResourceId: Long, queueId: Long): WorkItem.State {
+fun AsyncDatabaseClient.TransactionContext.insertWorkItem(workItemId: Long, workItemResourceId: String, queueId: Long): WorkItem.State {
   val state = WorkItem.State.QUEUED
   bufferInsertMutation("WorkItems") {
     set("WorkItemId").to(workItemId)
@@ -87,7 +80,7 @@ fun AsyncDatabaseClient.TransactionContext.insertWorkItem(workItemId: Long, work
  */
 suspend fun AsyncDatabaseClient.ReadContext.getWorkItemByResourceId(
   queueMapping: QueueMapping,
-  workItemResourceId: Long
+  workItemResourceId: String
 ): WorkItemResult {
   val sql = buildString {
     appendLine(WorkItems.BASE_SQL)

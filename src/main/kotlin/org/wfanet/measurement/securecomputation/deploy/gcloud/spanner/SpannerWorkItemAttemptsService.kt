@@ -46,7 +46,6 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWork
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItemAttempts
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemAttemptExists
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemAttemptResourceIdExists
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItemAttempt
 import org.wfanet.measurement.securecomputation.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
@@ -65,7 +64,12 @@ class SpannerWorkItemAttemptsService(
 
   override suspend fun createWorkItemAttempt(request: CreateWorkItemAttemptRequest): WorkItemAttempt {
 
-    if (request.workItemAttempt.workItemResourceId == 0L) {
+    if (request.workItemAttempt.workItemResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("work_item_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.workItemAttempt.workItemAttemptResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("work_item_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
@@ -82,8 +86,7 @@ class SpannerWorkItemAttemptsService(
           throw WorkItemInvalidPreconditionStateException(result.workItem.workItemResourceId)
         }
         val workItemAttemptId = idGenerator.generateNewId { id -> txn.workItemAttemptExists(result.workItemId, id) }
-        val workItemAttemptResourceId = idGenerator.generateNewId { id -> txn.workItemAttemptResourceIdExists(result.workItemId, workItemAttemptId, id) }
-        val state = txn.insertWorkItemAttempt(result.workItemId, workItemAttemptId, workItemAttemptResourceId, workItemAttemptNumber)
+        val state = txn.insertWorkItemAttempt(result.workItemId, workItemAttemptId, request.workItemAttempt.workItemAttemptResourceId, workItemAttemptNumber)
 
         request.workItemAttempt.copy {
           this.workItemAttemptResourceId = workItemAttemptResourceId
@@ -110,11 +113,11 @@ class SpannerWorkItemAttemptsService(
   }
 
   override suspend fun getWorkItemAttempt(request: GetWorkItemAttemptRequest): WorkItemAttempt {
-    if (request.workItemResourceId == 0L) {
+    if (request.workItemResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("work_item_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (request.workItemAttemptResourceId == 0L) {
+    if (request.workItemAttemptResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("work_item_attempt_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
@@ -134,11 +137,11 @@ class SpannerWorkItemAttemptsService(
   }
 
   override suspend fun failWorkItemAttempt(request: FailWorkItemAttemptRequest): WorkItemAttempt {
-    if (request.workItemResourceId == 0L) {
+    if (request.workItemResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("work_item_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (request.workItemAttemptResourceId == 0L) {
+    if (request.workItemAttemptResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("work_item_attempt_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
@@ -164,11 +167,11 @@ class SpannerWorkItemAttemptsService(
   }
 
   override suspend fun completeWorkItemAttempt(request: CompleteWorkItemAttemptRequest): WorkItemAttempt {
-    if (request.workItemResourceId == 0L) {
+    if (request.workItemResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("work_item_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (request.workItemAttemptResourceId == 0L) {
+    if (request.workItemAttemptResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("work_item_attempt_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
@@ -215,8 +218,9 @@ class SpannerWorkItemAttemptsService(
             nextPageToken = listWorkItemAttemptsPageToken {
               this.after =
                 ListWorkItemAttemptsPageTokenKt.after {
+                  createdAfter = this@listWorkItemAttemptsResponse.workItemAttempts.last().createTime
+                  workItemResourceId = this@listWorkItemAttemptsResponse.workItemAttempts.last().workItemResourceId
                   workItemAttemptResourceId = this@listWorkItemAttemptsResponse.workItemAttempts.last().workItemAttemptResourceId
-                  createAfter = this@listWorkItemAttemptsResponse.workItemAttempts.last().createTime
                 }
             }
           } else {
