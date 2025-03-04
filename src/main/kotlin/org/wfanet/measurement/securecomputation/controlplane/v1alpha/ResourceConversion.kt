@@ -17,9 +17,7 @@
 package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
-import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.internal.kingdom.ModelOutage
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
 
 /** Converts an internal [InternalWorkItem.State] to a public [WorkItem.State]. */
