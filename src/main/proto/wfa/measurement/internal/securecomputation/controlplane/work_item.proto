@@ -26,7 +26,7 @@ option java_outer_classname = "WorkItemProto";
 // Proto representation of the internal `WorkItem` entity type.
 message WorkItem {
 
-  fixed64 work_item_resource_id = 1;
+  string work_item_resource_id = 1;
 
   // The id representing a `Queue` into which this `WorkItem` must be enqueued.
   string queue_resource_id = 2;

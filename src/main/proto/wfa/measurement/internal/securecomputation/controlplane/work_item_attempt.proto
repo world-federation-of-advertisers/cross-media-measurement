@@ -26,8 +26,8 @@ option java_outer_classname = "WorkItemAttemptProto";
 // Proto representation of the internal `WorkItemAttempt` entity type.
 message WorkItemAttempt {
 
-  fixed64 work_item_resource_id = 1;
-  fixed64 work_item_attempt_resource_id = 2;
+  string work_item_resource_id = 1;
+  string work_item_attempt_resource_id = 2;
 
   // State of a `WorkItemAttempt`.
   enum State {
