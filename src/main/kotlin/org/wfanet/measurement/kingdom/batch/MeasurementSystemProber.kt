@@ -86,6 +86,7 @@ class MeasurementSystemProber(
   private val privateKeyDerFile: File,
   private val measurementLookbackDuration: Duration,
   private val durationBetweenMeasurement: Duration,
+  private val recentUpdatedMeasurementWindow: Duration,
   private val measurementConsumersStub:
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub,
   private val measurementsStub:
@@ -263,7 +264,7 @@ class MeasurementSystemProber(
                 this.pageToken = pageToken
                 this.pageSize = remaining
                 filter = filter {
-                  updatedAfter = clock.instant().minus(durationBetweenMeasurement).toProtoTime()
+                  updatedAfter = clock.instant().minus(recentUpdatedMeasurementWindow).toProtoTime()
                 }
               }
             )
