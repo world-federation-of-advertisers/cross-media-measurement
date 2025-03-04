@@ -19,9 +19,14 @@ package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 import com.google.protobuf.Message
 import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Publisher
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineImplBase as InternalWorkItemsCoroutineImplBase
 
-class GooglePubSubWorkItemsService(projectId: String, googlePubSubClient: GooglePubSubClient) :
-  WorkItemsService() {
+class GooglePubSubWorkItemsService(
+  projectId: String,
+  googlePubSubClient: GooglePubSubClient,
+  internalWorkItemsStub: InternalWorkItemsCoroutineImplBase
+) :
+  WorkItemsService(internalWorkItemsStub) {
 
   private val publisher: Publisher<Message> = Publisher(projectId, googlePubSubClient)
 

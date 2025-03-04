@@ -20,8 +20,6 @@ import com.google.protobuf.Message
 import io.grpc.Status
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineImplBase as InternalWorkItemsCoroutineImplBase
 import io.grpc.StatusException
-import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.securecomputation.controlplane.CreateWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem as internalWorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest as internalCreateWorkItemRequest
@@ -115,7 +113,7 @@ abstract class WorkItemsService(private val internalWorkItemsStub: InternalWorkI
       try {
         internalWorkItemsStub.getWorkItem(
           internalGetWorkItemRequest {
-            workItemResourceId = apiIdToExternalId(key.workItemId)
+            workItemResourceId = key.workItemId
           }
         )
       } catch (e: StatusException) {
@@ -189,7 +187,7 @@ abstract class WorkItemsService(private val internalWorkItemsStub: InternalWorkI
       try {
         internalWorkItemsStub.failWorkItem(
           internalFailWorkItemRequest {
-            workItemResourceId = apiIdToExternalId(key.workItemId)
+            workItemResourceId = key.workItemId
           }
         )
       } catch (e: StatusException) {

@@ -17,7 +17,6 @@
 package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
-import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
 
 /** Converts an internal [InternalWorkItem.State] to a public [WorkItem.State]. */
@@ -36,7 +35,7 @@ fun InternalWorkItem.toWorkItem(): WorkItem {
   return workItem {
     name =
       WorkItemKey(
-        externalIdToApiId(source.workItemResourceId),
+        source.workItemResourceId,
       )
         .toName()
     queue = source.queueResourceId

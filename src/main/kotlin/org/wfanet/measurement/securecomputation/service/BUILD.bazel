@@ -11,6 +11,15 @@ package(
 )
 
 kt_jvm_library(
+    name = "resource_key",
+    srcs = ["IdVariable.kt"] + glob(["*Key.kt"]),
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
     name = "errors",
     srcs = ["Errors.kt"],
     deps = [
