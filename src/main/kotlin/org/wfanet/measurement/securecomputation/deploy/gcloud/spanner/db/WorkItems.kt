@@ -160,7 +160,7 @@ private object WorkItems {
     return WorkItemResult(
       row.getLong("WorkItemId"),
       workItem {
-        workItemResourceId = row.getLong("WorkItemResourceId")
+        workItemResourceId = row.getString("WorkItemResourceId")
         queueResourceId = queue.queueResourceId
         state = WorkItem.State.forNumber(row.getLong("State").toInt())
         createTime = row.getTimestamp("CreateTime").toProto()

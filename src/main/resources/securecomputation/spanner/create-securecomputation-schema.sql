@@ -27,7 +27,7 @@ START BATCH DDL;
 
 CREATE TABLE WorkItems (
     WorkItemId INT64 NOT NULL,
-    WorkItemResourceId INT64 NOT NULL,
+    WorkItemResourceId STRING(63) NOT NULL,
 
     QueueId INT64 NOT NULL,
 
@@ -46,7 +46,7 @@ CREATE UNIQUE INDEX WorkItemsByResourceId
 CREATE TABLE WorkItemAttempts (
     WorkItemId INT64 NOT NULL,
     WorkItemAttemptId INT64 NOT NULL,
-    WorkItemAttemptResourceId INT64 NOT NULL,
+    WorkItemAttemptResourceId STRING(63) NOT NULL,
 
     -- org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt.State
     -- Proto enum encoded as int

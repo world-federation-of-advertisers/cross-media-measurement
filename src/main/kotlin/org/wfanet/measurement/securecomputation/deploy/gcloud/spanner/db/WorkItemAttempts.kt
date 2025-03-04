@@ -238,8 +238,8 @@ private object WorkItemAttempts {
       row.getLong("WorkItemId"),
       row.getLong("WorkItemAttemptId"),
       workItemAttempt {
-        workItemResourceId = row.getLong("WorkItemResourceId")
-        workItemAttemptResourceId = row.getLong("WorkItemAttemptResourceId")
+        workItemResourceId = row.getString("WorkItemResourceId")
+        workItemAttemptResourceId = row.getString("WorkItemAttemptResourceId")
         state = WorkItemAttempt.State.forNumber(row.getLong("State").toInt())
         attemptNumber = row.getLong("AttemptNumber").toInt()
         errorMessage = if (row.isNull("ErrorMessage")) "" else row.getString("ErrorMessage")
