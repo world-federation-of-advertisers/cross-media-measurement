@@ -1,0 +1,24 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:__pkg__",
+    ],
+)
+
+kt_jvm_library(
+    name = "db",
+    srcs = glob(["*.kt"]),
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:flows",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:etags",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:queue_mapping",
+        "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_item_attempt_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_item_attempts_service_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_item_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_items_service_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)
