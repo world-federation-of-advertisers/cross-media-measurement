@@ -38,4 +38,10 @@ message Video {
     display_name: "Viewed Fraction"
     description: "Fraction of the video that was viewed in the range [0, 1]"
   }];
+
+  // Fraction of the video shown for at least 1 second
+  float viewable_fraction_1_second = 3
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Fraction of the video shown for at least 1 second"
+      }];
 }
