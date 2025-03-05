@@ -18,7 +18,7 @@ package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
 import com.google.protobuf.Message
 import io.grpc.Status
-import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineImplBase as InternalWorkItemsCoroutineImplBase
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineStub as InternalWorkItemsCoroutineStub
 import io.grpc.StatusException
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem as internalWorkItem
@@ -30,14 +30,17 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkIt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.service.internal.Errors as InternalErrors
 import java.io.IOException
+import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageToken
 import org.wfanet.measurement.securecomputation.service.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.RequiredFieldNotSetException
+import org.wfanet.measurement.securecomputation.service.WorkItemAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
+import org.wfanet.measurement.securecomputation.service.WorkItemNotFoundException
 
-abstract class WorkItemsService(private val internalWorkItemsStub: InternalWorkItemsCoroutineImplBase) :
+abstract class WorkItemsService(private val internalWorkItemsStub: InternalWorkItemsCoroutineStub) :
   WorkItemsCoroutineImplBase() {
 
   abstract suspend fun publishMessage(queueName: String, message: Message)
@@ -50,6 +53,14 @@ abstract class WorkItemsService(private val internalWorkItemsStub: InternalWorkI
     }
     if (request.workItem.queue.isEmpty()) {
       throw RequiredFieldNotSetException("queue")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.workItemId.isEmpty()) {
+      throw RequiredFieldNotSetException("work_item_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (!ResourceIds.RFC_1034_REGEX.matches(request.workItemId)) {
+      throw InvalidFieldValueException("work_item_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
@@ -77,6 +88,7 @@ abstract class WorkItemsService(private val internalWorkItemsStub: InternalWorkI
           internalCreateWorkItemRequest {
             internalWorkItem {
               queueResourceId = request.workItem.queue
+              workItemResourceId = request.workItemId
             }
           }
         )
@@ -89,7 +101,8 @@ abstract class WorkItemsService(private val internalWorkItemsStub: InternalWorkI
           InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
-          InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS ->
+            WorkItemAlreadyExistsException(request.workItem.name, e).asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
@@ -122,7 +135,8 @@ abstract class WorkItemsService(private val internalWorkItemsStub: InternalWorkI
           InternalErrors.Reason.QUEUE_NOT_FOUND,
           InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
           InternalErrors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
-          InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
+          InternalErrors.Reason.WORK_ITEM_NOT_FOUND ->
+            WorkItemNotFoundException(request.name, e).asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
@@ -196,7 +210,8 @@ abstract class WorkItemsService(private val internalWorkItemsStub: InternalWorkI
           InternalErrors.Reason.QUEUE_NOT_FOUND,
           InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
           InternalErrors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
-          InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
+          InternalErrors.Reason.WORK_ITEM_NOT_FOUND ->
+            WorkItemNotFoundException(request.name, e).asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
