@@ -28,11 +28,22 @@ object Errors {
 
   enum class Reason {
     REQUIRED_FIELD_NOT_SET,
-    INVALID_FIELD_VALUE
+    QUEUE_NOT_FOUND,
+    QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
+    INVALID_WORK_ITEM_PRECONDITION_STATE,
+    WORK_ITEM_NOT_FOUND,
+    WORK_ITEM_ATTEMPT_NOT_FOUND,
+    WORK_ITEM_ALREADY_EXISTS,
+    WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+    INVALID_FIELD_VALUE,
   }
 
   enum class Metadata(val key: String) {
-    FIELD_NAME("fieldName"),
+    QUEUE_RESOURCE_ID("queueResourceId"),
+    QUEUE_ID("queueId"),
+    WORK_ITEM("workItem"),
+    WORK_ITEM_ATTEMPT("workItem"),
+    FIELD_NAME("fieldName");
   }
 }
 
@@ -91,3 +102,100 @@ class InvalidFieldValueException(
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
     cause,
   )
+
+//class QueueNotFoundException(queueResourceId: String, cause: Throwable? = null) :
+//  ServiceException(
+//    Errors.Reason.QUEUE_NOT_FOUND,
+//    "Queue with resource ID $queueResourceId not found",
+//    mapOf(Errors.Metadata.QUEUE_RESOURCE_ID to queueResourceId),
+//    cause,
+//  )
+//
+//class QueueNotFoundForInternalIdException(queueId: Long, cause: Throwable? = null) :
+//  ServiceException(
+//    Errors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
+//    "Queue with ID $queueId not found",
+//    mapOf(Errors.Metadata.QUEUE_ID to queueId.toString()),
+//    cause,
+//  )
+
+class WorkItemNotFoundException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.WORK_ITEM_NOT_FOUND,
+    "WorkItem $name not found",
+    mapOf(Errors.Metadata.WORK_ITEM to name),
+    cause,
+  ) {
+    companion object : Factory<WorkItemNotFoundException>() {
+      override val reason: Errors.Reason
+        get() = Errors.Reason.WORK_ITEM_NOT_FOUND
+
+      override fun fromInternal(
+        internalMetadata: Map<InternalErrors.Metadata, String>,
+        cause: Throwable,
+      ):WorkItemNotFoundException {
+        return WorkItemNotFoundException(
+          internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_RESOURCE_ID)
+        )
+      }
+    }
+  }
+
+//class EtagMismatchException(requestEtag: String, etag: String, cause: Throwable? = null) :
+//  ServiceException(
+//    reason,
+//    "Request etag $requestEtag does not match actual etag $etag",
+//    mapOf(Errors.Metadata.REQUEST_ETAG to requestEtag, Errors.Metadata.ETAG to etag),
+//    cause,
+//  ) {
+//  companion object : Factory<EtagMismatchException>() {
+//    override val reason: Errors.Reason
+//      get() = Errors.Reason.ETAG_MISMATCH
+//
+//    override fun fromInternal(
+//      internalMetadata: Map<InternalErrors.Metadata, String>,
+//      cause: Throwable,
+//    ): EtagMismatchException {
+//      return EtagMismatchException(
+//        internalMetadata.getValue(InternalErrors.Metadata.REQUEST_ETAG),
+//        internalMetadata.getValue(InternalErrors.Metadata.ETAG),
+//        cause,
+//      )
+//    }
+//  }
+//}
+
+//class WorkItemAttemptNotFoundException(
+//  workItemResourceId: String,
+//  workItemAttemptResourceId: String,
+//  cause: Throwable? = null) :
+//  org.wfanet.measurement.securecomputation.service.internal.ServiceException(
+//    org.wfanet.measurement.securecomputation.service.internal.Errors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
+//    "WorkItemAttempt with workItemResource ID $workItemResourceId and workItemAttemptResource ID $workItemAttemptResourceId not found",
+//    mapOf(
+//      org.wfanet.measurement.securecomputation.service.internal.Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId.toString(),
+//      org.wfanet.measurement.securecomputation.service.internal.Errors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID to workItemAttemptResourceId.toString()
+//
+//    ),
+//    cause,
+//  )
+//
+
+class WorkItemAlreadyExistsException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.WORK_ITEM_ALREADY_EXISTS,
+    "WorkItem $name already exists",
+    mapOf(Errors.Metadata.WORK_ITEM to name),
+    cause,
+  )
+
+//class WorkItemAttemptAlreadyExistsException(cause: Throwable? = null) :
+//  org.wfanet.measurement.securecomputation.service.internal.ServiceException(org.wfanet.measurement.securecomputation.service.internal.Errors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS, "WorkItemAttempt already exists", emptyMap(), cause)
+//
+//class WorkItemInvalidPreconditionStateException(workItemResourceId: String, cause: Throwable? = null) :
+//  org.wfanet.measurement.securecomputation.service.internal.ServiceException(
+//    org.wfanet.measurement.securecomputation.service.internal.Errors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
+//    "WorkItemAttempt cannot be created when parent WorkItem has state either SUCCEEDED or FAILED",
+//    mapOf(org.wfanet.measurement.securecomputation.service.internal.Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId.toString()),
+//    cause,
+//  )
