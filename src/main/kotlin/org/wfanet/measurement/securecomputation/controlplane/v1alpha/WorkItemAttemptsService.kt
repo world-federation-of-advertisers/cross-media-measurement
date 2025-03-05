@@ -18,79 +18,214 @@ package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
-import org.wfanet.measurement.internal.securecomputation.controlplane.CompleteWorkItemAttemptRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemAttemptRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.GetWorkItemAttemptRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt as InternalWorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt as internalWorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemAttemptRequest as internalCreateWorkItemAttemptRequest
-import org.wfanet.measurement.securecomputation.controlplane.CreateWorkItemAttemptRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt as InternalWorkItemAttempt
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
+import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemAttemptRequest as internalFailWorkItemAttemptRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.completeWorkItemAttemptRequest as internalCompleteWorkItemAttemptRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemAttemptRequest as internalGetWorkItemAttemptRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsRequest as internalListWorkItemAttemptsRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase as InternalWorkItemAttemptsCoroutineImplBase
-import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
+import org.wfanet.measurement.securecomputation.service.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.RequiredFieldNotSetException
-import org.wfanet.measurement.securecomputation.service.internal.Errors
+import org.wfanet.measurement.securecomputation.service.WorkItemAttemptKey
+import org.wfanet.measurement.securecomputation.service.WorkItemKey
+import org.wfanet.measurement.securecomputation.service.internal.Errors as InternalErrors
+import java.io.IOException
+import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsPageToken
 
 class WorkItemAttemptsService(private val internalWorkItemAttemptsStub: InternalWorkItemAttemptsCoroutineImplBase) :
   WorkItemAttemptsCoroutineImplBase() {
   override suspend fun createWorkItemAttempt(request: CreateWorkItemAttemptRequest): WorkItemAttempt {
-    if (!request.hasWorkItemAttempt()) {
-      throw RequiredFieldNotSetException("work_item_attempt")
+    if (request.parent.isEmpty()) {
+      throw RequiredFieldNotSetException("parent")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (request.workItemAttempt.workItemAttemptId.isEmpty()) {
+    if (request.workItemAttemptId.isEmpty()) {
       throw RequiredFieldNotSetException("work_item_attempt_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val workItemAttempt = request.workItemAttempt
+    val parentKey = WorkItemKey.fromName(request.parent)
 
     val internalResponse: InternalWorkItemAttempt =
       try {
         internalWorkItemAttemptsStub.createWorkItemAttempt(
           internalCreateWorkItemAttemptRequest {
             internalWorkItemAttempt {
-              workItemResourceId = request.workItem.queue
-              workItemAttemptResourceId =
+              workItemResourceId = parentKey!!.workItemId
+              workItemAttemptResourceId = request.workItemAttemptId
             }
           }
         )
       } catch (e: StatusException) {
-        throw when (Errors.getReason(e)) {
-          Errors.Reason.REQUIRED_FIELD_NOT_SET,
-          Errors.Reason.QUEUE_NOT_FOUND,
-          Errors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
-          Errors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
-          Errors.Reason.WORK_ITEM_NOT_FOUND,
-          Errors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
-          Errors.Reason.INVALID_FIELD_VALUE,
-          Errors.Reason.WORK_ITEM_ALREADY_EXISTS,
-          Errors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.QUEUE_NOT_FOUND,
+          InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
+          InternalErrors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
+          InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
 
-    return internalResponse.toWorkItem()
+    return internalResponse.toWorkItemAttempt()
   }
 
   override suspend fun getWorkItemAttempt(request: GetWorkItemAttemptRequest): WorkItemAttempt {
-    return super.getWorkItemAttempt(request)
+    if (request.name.isEmpty()) {
+      throw RequiredFieldNotSetException("name")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val key =
+      WorkItemAttemptKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("name")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    val internalResponse: InternalWorkItemAttempt =
+      try {
+        internalWorkItemAttemptsStub.getWorkItemAttempt(
+          internalGetWorkItemAttemptRequest {
+            workItemResourceId = key.workItemId
+            workItemAttemptResourceId = key.workItemAttemptId
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.QUEUE_NOT_FOUND,
+          InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
+          InternalErrors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
+          InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return internalResponse.toWorkItemAttempt()
   }
 
   override suspend fun failWorkItemAttempt(request: FailWorkItemAttemptRequest): WorkItemAttempt {
-    return super.failWorkItemAttempt(request)
+    if (request.name.isEmpty()) {
+      throw RequiredFieldNotSetException("name")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val key =
+      WorkItemAttemptKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("name")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    val internalResponse: InternalWorkItemAttempt =
+      try {
+        internalWorkItemAttemptsStub.failWorkItemAttempt(
+          internalFailWorkItemAttemptRequest {
+            workItemResourceId = key.workItemId
+            workItemAttemptResourceId = key.workItemAttemptId
+            errorMessage = request.errorMessage
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.QUEUE_NOT_FOUND,
+          InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
+          InternalErrors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
+          InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return internalResponse.toWorkItemAttempt()
   }
 
   override suspend fun completeWorkItemAttempt(request: CompleteWorkItemAttemptRequest): WorkItemAttempt {
-    return super.completeWorkItemAttempt(request)
+    if (request.name.isEmpty()) {
+      throw RequiredFieldNotSetException("name")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val key =
+      WorkItemAttemptKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("name")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    val internalResponse: InternalWorkItemAttempt =
+      try {
+        internalWorkItemAttemptsStub.completeWorkItemAttempt(
+          internalCompleteWorkItemAttemptRequest {
+            workItemResourceId = key.workItemId
+            workItemAttemptResourceId = key.workItemAttemptId
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.QUEUE_NOT_FOUND,
+          InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
+          InternalErrors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
+          InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return internalResponse.toWorkItemAttempt()
   }
 
-  override suspend fun listWorkItemAttempts(request: ListWorkItemAttemptsRequest): ListWorkItemAttemptsResponse {
-    return super.listWorkItemAttempts(request)
+  override suspend fun listWorkItemAttempts(request: ListWorkItemAttemptsRequest): org.wfanet.measurement.securecomputation.controlplane.v1alpha.ListWorkItemAttemptsResponse {
+    if (request.pageSize < 0) {
+      throw InvalidFieldValueException("page_size") { fieldName -> "$fieldName cannot be negative" }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val internalPageToken: ListWorkItemAttemptsPageToken? =
+      if (request.pageToken.isEmpty()) {
+        null
+      } else {
+        try {
+          ListWorkItemAttemptsPageToken.parseFrom(request.pageToken.base64UrlDecode())
+        } catch (e: IOException) {
+          throw InvalidFieldValueException("page_token", e)
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+      }
+
+    val internalResponse: ListWorkItemAttemptsResponse =
+      internalWorkItemAttemptsStub.listWorkItemAttempts(
+        internalListWorkItemAttemptsRequest {
+          pageSize = request.pageSize
+          if (internalPageToken != null) {
+            pageToken = internalPageToken
+          }
+        }
+      )
+
+    return listWorkItemAttemptsResponse {
+      workItemAttempts += internalResponse.workItemAttemptsList.map { it.toWorkItemAttempt() }
+      if (internalResponse.hasNextPageToken()) {
+        nextPageToken = internalResponse.nextPageToken.after.toByteString().base64UrlEncode()
+      }
+    }
   }
 
 }

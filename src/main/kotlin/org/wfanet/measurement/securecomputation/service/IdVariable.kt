@@ -19,7 +19,8 @@ package org.wfanet.measurement.securecomputation.service
 import org.wfanet.measurement.common.ResourceNameParser
 
 internal enum class IdVariable {
-  WORK_ITEM
+  WORK_ITEM,
+  WORK_ITEM_ATTEMPT
 }
 
 internal fun ResourceNameParser.assembleName(idMap: Map<IdVariable, String>): String {
