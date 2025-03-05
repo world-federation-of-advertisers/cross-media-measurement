@@ -97,9 +97,28 @@ jobs:
           //...
           //src/main/k8s/dev:synthetic_generator_edp_simulators
 
-      - name: Run tests
-        id: run-tests
-        run: bazel test //...
+      # Run all tests except for the Kotlin ones (which are currently the only ones that include a coverage report and are run later). 
+      # This separation is temporary and is due to running coverage for all languages causing the build to fail. 
+      # In particular, it fails with "_lcov_merger attribute is missing and coverage was requested" when trying to run the coverage for /experimental/reporting-ui/...
+      - name: Run non-kotlin tests
+        id: run-non-kotlin-tests
+        run: bazel test -- //... -//src/test/kotlin/...
+
+      # TODO(@laureanobrs): add python and cc coverage
+      # If the coverage fails due to a Jacoco issue, adjust the exclusion filter (see https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/kotlin-code-coverage.md#developer-guidelines-for-handling-jacoco-issues).
+      - name: Run kotlin tests with coverage
+        id: run-kotlin-tests-with-coverage
+        run: bazel coverage --combined_report=lcov --instrumentation_filter="//src/main/kotlin/.*,-@.*,-src/main/kotlin/org/wfanet/measurement/api/v2alpha:,-src/main/kotlin/org/wfanet/measurement/common/grpc:,-src/main/kotlin/org/wfanet/panelmatch/client/logger:,-src/main/kotlin/org/wfanet/panelmatch/common/beam/testing:,-src/main/kotlin/org/wfanet/measurement/access/client/v1alpha/testing:,-src/main/kotlin/org/wfanet/measurement/access/service/internal:,-src/main/kotlin/org/wfanet/panelmatch/common/beam:,-src/main/kotlin/org/wfanet/panelmatch/common:" //src/test/kotlin/...
+
+      - name: Export bazel output path
+        run: echo "BAZEL_OUTPUT_PATH=$(bazel info output_path)" >> $GITHUB_ENV
+
+      # TODO(@laureanobrs): integrate the coverage report with Codecov
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: kotlin-coverage-report
+          path: ${{ env.BAZEL_OUTPUT_PATH }}/_coverage/_coverage_report.dat
 
       - name: Create cluster
         id: create-cluster
