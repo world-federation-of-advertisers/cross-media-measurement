@@ -14,25 +14,30 @@ free to use whichever you prefer.
 
 -   1 Cloud SQL managed PostgreSQL database
 -   1 GKE cluster
-    -   1 Kubernetes secret
+    -   3 Kubernetes secret
         -   `certs-and-configs`
+        -   `signing`
+        -   `mc-config`
     -   1 Kubernetes configmap
         -   `config-files`
-    -   2 Kubernetes services
+    -   5 Kubernetes services
         -   `postgres-internal-reporting-server` (Cluster IP)
         -   `reporting-v2alpha-public-api-server` (External load balancer)
+        -   `reporting-grpc-gateway` (External load balancer)
         -   `access-internal-api-server` (Cluster IP)
         -   `access-public-api-server` (External load balancer)
-    -   4 Kubernetes deployments
+    -   5 Kubernetes deployments
         -   `postgres-internal-reporting-server-deployment`
         -   `reporting-v2alpha-public-api-server-deployment`
+        -   `reporting-grpc-gateway`
         -   `access-internal-api-server`
         -   `access-public-api-server`
     -   1 Kubernetes cron job
         -   `report-scheduling`
-    -   6 Kubernetes network policies
+    -   7 Kubernetes network policies
         -   `postgres-internal-reporting-server-network-policy`
         -   `reporting-v2alpha-public-api-server-network-policy`
+        -   `reporting-grpc-gateway-network-policy`
         -   `report-scheduling-network-policy`
         -   `access-internal-api-server-network-policy`
         -   `access-public-api-server-network-policy`
@@ -336,7 +341,8 @@ API.
 ### HTTP/REST
 
 The public API is a set of gRPC services following the
-[API Improvement Proposals](https://google.aip.dev/). These can be exposed as an
-HTTP REST API using the
-[gRPC Gateway](https://github.com/grpc-ecosystem/grpc-gateway). The service
-definitions include the appropriate protobuf annotations for this purpose.
+[API Improvement Proposals](https://google.aip.dev/). The
+`reporting-grpc-gateway` Service exposes a
+[gRPC-Gateway](https://grpc-ecosystem.github.io/grpc-gateway/) instance
+providing a RESTful HTTP interface. You can call this using any HTTP client
+using an access token for authentication.
