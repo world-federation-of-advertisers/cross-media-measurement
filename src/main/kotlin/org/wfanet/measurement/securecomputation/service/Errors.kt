@@ -189,9 +189,14 @@ class WorkItemAlreadyExistsException(name: String, cause: Throwable? = null) :
     cause,
   )
 
-//class WorkItemAttemptAlreadyExistsException(cause: Throwable? = null) :
-//  org.wfanet.measurement.securecomputation.service.internal.ServiceException(org.wfanet.measurement.securecomputation.service.internal.Errors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS, "WorkItemAttempt already exists", emptyMap(), cause)
-//
+class WorkItemAttemptAlreadyExistsException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+    "WorkItemAttempt $name already exists",
+    mapOf(Errors.Metadata.WORK_ITEM_ATTEMPT to name),
+    cause,
+  )
+
 //class WorkItemInvalidPreconditionStateException(workItemResourceId: String, cause: Throwable? = null) :
 //  org.wfanet.measurement.securecomputation.service.internal.ServiceException(
 //    org.wfanet.measurement.securecomputation.service.internal.Errors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,

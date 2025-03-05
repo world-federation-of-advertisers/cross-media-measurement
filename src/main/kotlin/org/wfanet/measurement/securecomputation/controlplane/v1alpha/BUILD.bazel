@@ -27,6 +27,7 @@ kt_jvm_library(
     srcs = ["WorkItemAttemptsService.kt"],
     deps = [
         ":resource_conversion",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_ids",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:errors",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:errors",
