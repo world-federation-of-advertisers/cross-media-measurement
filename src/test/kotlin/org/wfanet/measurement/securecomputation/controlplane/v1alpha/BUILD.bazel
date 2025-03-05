@@ -28,6 +28,30 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub/testing:google_pub_sub_emulator_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub/testing:google_pub_sub_emulator_provider",
         "@wfa_common_jvm//src/main/proto/wfa/measurement/queue/testing:test_work_kt_jvm_proto",
-        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+    ],
+)
+
+kt_jvm_test(
+    name = "WorkItemsServiceTest",
+    srcs = ["WorkItemServiceTest.kt"],
+    associates = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_items_service",
+    ],
+    test_class = "org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha/testing:fake_work_items_service",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:errors",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )

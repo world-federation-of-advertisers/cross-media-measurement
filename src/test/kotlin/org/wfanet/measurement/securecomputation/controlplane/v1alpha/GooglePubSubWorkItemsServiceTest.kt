@@ -30,13 +30,21 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.threeten.bp.Duration
 import org.wfa.measurement.queue.testing.TestWork
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineImplBase as InternalWorkItemsCoroutineImplBase
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineStub as InternalWorkItemsCoroutineStub
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 
 @RunWith(JUnit4::class)
 class GooglePubSubWorkItemsServiceTest {
 
   @Rule @JvmField val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
+
+  private val internalServiceMock = mockService<InternalWorkItemsCoroutineImplBase>()
+
+  @get:Rule val grpcTestServer = GrpcTestServerRule { addService(internalServiceMock) }
 
   private val projectId = "test-project-id"
   private val topicId = "test-topid-id"
@@ -52,7 +60,12 @@ class GooglePubSubWorkItemsServiceTest {
         host = pubSubEmulatorProvider.host,
         port = pubSubEmulatorProvider.port,
       )
-    workItemsService = GooglePubSubWorkItemsService(projectId, googlePubSubClient)
+
+    workItemsService = GooglePubSubWorkItemsService(
+      projectId,
+      googlePubSubClient,
+      InternalWorkItemsCoroutineStub(grpcTestServer.channel)
+    )
   }
 
   @Test(timeout = 1_000)
