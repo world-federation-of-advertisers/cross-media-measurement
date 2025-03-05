@@ -175,7 +175,7 @@ class WorkItemServiceTest {
   }
 
   @Test
-  fun `createWorkItem throws INVALID_FIELD_VALUE when workItem id is malformed`() = runBlocking {
+  fun `createWorkItem throws INVALID_FIELD_VALUE when workItemId is malformed`() = runBlocking {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -210,7 +210,7 @@ class WorkItemServiceTest {
 
       val request = createWorkItemRequest {
         workItem = workItem {
-          name = "workItems/workItemResourceId"
+          name = "workItems/workItem"
           queue = "queueId"
         }
         workItemId = "workItem"
@@ -224,7 +224,7 @@ class WorkItemServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.WORK_ITEM_ALREADY_EXISTS.name
-            metadata[Errors.Metadata.WORK_ITEM.key] = "workItems/workItemResourceId"
+            metadata[Errors.Metadata.WORK_ITEM.key] = "workItems/workItem"
           }
         )
   }
