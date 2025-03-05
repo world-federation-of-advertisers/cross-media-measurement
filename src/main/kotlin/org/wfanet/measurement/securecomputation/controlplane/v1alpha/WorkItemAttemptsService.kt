@@ -27,18 +27,21 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.completeWo
 import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemAttemptRequest as internalGetWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsRequest as internalListWorkItemAttemptsRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
-import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase as InternalWorkItemAttemptsCoroutineImplBase
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub as InternalWorkItemAttemptsCoroutineStub
 import org.wfanet.measurement.securecomputation.service.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.WorkItemAttemptKey
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
 import org.wfanet.measurement.securecomputation.service.internal.Errors as InternalErrors
 import java.io.IOException
+import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsPageToken
+import org.wfanet.measurement.securecomputation.service.WorkItemAlreadyExistsException
+import org.wfanet.measurement.securecomputation.service.WorkItemAttemptAlreadyExistsException
 
-class WorkItemAttemptsService(private val internalWorkItemAttemptsStub: InternalWorkItemAttemptsCoroutineImplBase) :
+class WorkItemAttemptsService(private val internalWorkItemAttemptsStub: InternalWorkItemAttemptsCoroutineStub) :
   WorkItemAttemptsCoroutineImplBase() {
   override suspend fun createWorkItemAttempt(request: CreateWorkItemAttemptRequest): WorkItemAttempt {
     if (request.parent.isEmpty()) {
@@ -47,6 +50,10 @@ class WorkItemAttemptsService(private val internalWorkItemAttemptsStub: Internal
     }
     if (request.workItemAttemptId.isEmpty()) {
       throw RequiredFieldNotSetException("work_item_attempt_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (!ResourceIds.RFC_1034_REGEX.matches(request.workItemAttemptId)) {
+      throw InvalidFieldValueException("work_item_attempt_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
@@ -72,11 +79,11 @@ class WorkItemAttemptsService(private val internalWorkItemAttemptsStub: Internal
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
-          InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS ->
+            WorkItemAttemptAlreadyExistsException(request.workItemAttempt.name, e).asStatusRuntimeException(e.status.code)
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
-
     return internalResponse.toWorkItemAttempt()
   }
 
