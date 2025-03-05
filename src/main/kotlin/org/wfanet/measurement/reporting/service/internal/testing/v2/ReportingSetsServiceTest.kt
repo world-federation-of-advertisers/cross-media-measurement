@@ -839,133 +839,135 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
   }
 
   @Test
-  fun `createReportingSet throws NOT_FOUND when ReportingSet in basis not found`() = runBlocking {
-    measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
-    )
-
-    val primitiveReportingSet = reportingSet {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      displayName = "displayName"
-      filter = "filter"
-
-      primitive =
-        ReportingSetKt.primitive {
-          eventGroupKeys +=
-            ReportingSetKt.PrimitiveKt.eventGroupKey {
-              cmmsDataProviderId = "1235"
-              cmmsEventGroupId = "1236"
-            }
-        }
-    }
-
-    val createdPrimitiveReportingSet =
-      service.createReportingSet(
-        createReportingSetRequest {
-          this.reportingSet = primitiveReportingSet
-          externalReportingSetId = "primitive-reporting-set-id"
-        }
+  fun `createReportingSet throws FAILED_PRECONDITION when ReportingSet in basis not found`() =
+    runBlocking {
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
       )
 
-    val compositeReportingSet = reportingSet {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      displayName = "displayName2"
-      filter = "filter2"
+      val primitiveReportingSet = reportingSet {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        displayName = "displayName"
+        filter = "filter"
 
-      composite =
-        ReportingSetKt.setExpression {
-          operation = ReportingSet.SetExpression.Operation.UNION
-          lhs =
-            ReportingSetKt.SetExpressionKt.operand {
-              expression =
-                ReportingSetKt.setExpression {
-                  operation = ReportingSet.SetExpression.Operation.DIFFERENCE
-                  lhs =
-                    ReportingSetKt.SetExpressionKt.operand {
-                      externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
-                    }
-                }
-            }
-        }
-
-      weightedSubsetUnions +=
-        ReportingSetKt.weightedSubsetUnion {
-          primitiveReportingSetBases +=
-            ReportingSetKt.primitiveReportingSetBasis {
-              externalReportingSetId = "123"
-              filters += "filter1"
-              filters += "filter2"
-            }
-          weight = 5
-        }
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.createReportingSet(
-          createReportingSetRequest {
-            this.reportingSet = compositeReportingSet
-            externalReportingSetId = "composite-reporting-set-id"
+        primitive =
+          ReportingSetKt.primitive {
+            eventGroupKeys +=
+              ReportingSetKt.PrimitiveKt.eventGroupKey {
+                cmmsDataProviderId = "1235"
+                cmmsEventGroupId = "1236"
+              }
           }
-        )
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.message).contains("Reporting Set")
-  }
-
-  @Test
-  fun `createReportingSet throws NOT_FOUND when ReportingSet in operand not found`() = runBlocking {
-    measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
-    )
-
-    val compositeReportingSet = reportingSet {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      displayName = "displayName"
-      filter = "filter"
-
-      composite =
-        ReportingSetKt.setExpression {
-          operation = ReportingSet.SetExpression.Operation.UNION
-          lhs =
-            ReportingSetKt.SetExpressionKt.operand {
-              expression =
-                ReportingSetKt.setExpression {
-                  operation = ReportingSet.SetExpression.Operation.DIFFERENCE
-                  lhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "123" }
-                }
-            }
-        }
-
-      weightedSubsetUnions +=
-        ReportingSetKt.weightedSubsetUnion {
-          primitiveReportingSetBases +=
-            ReportingSetKt.primitiveReportingSetBasis {
-              externalReportingSetId = "123"
-              filters += "filter1"
-              filters += "filter2"
-            }
-          weight = 5
-        }
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
+      val createdPrimitiveReportingSet =
         service.createReportingSet(
           createReportingSetRequest {
-            this.reportingSet = compositeReportingSet
-            externalReportingSetId = "composite-reporting-set-id"
+            this.reportingSet = primitiveReportingSet
+            externalReportingSetId = "primitive-reporting-set-id"
           }
         )
+
+      val compositeReportingSet = reportingSet {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        displayName = "displayName2"
+        filter = "filter2"
+
+        composite =
+          ReportingSetKt.setExpression {
+            operation = ReportingSet.SetExpression.Operation.UNION
+            lhs =
+              ReportingSetKt.SetExpressionKt.operand {
+                expression =
+                  ReportingSetKt.setExpression {
+                    operation = ReportingSet.SetExpression.Operation.DIFFERENCE
+                    lhs =
+                      ReportingSetKt.SetExpressionKt.operand {
+                        externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
+                      }
+                  }
+              }
+          }
+
+        weightedSubsetUnions +=
+          ReportingSetKt.weightedSubsetUnion {
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = "123"
+                filters += "filter1"
+                filters += "filter2"
+              }
+            weight = 5
+          }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.message).contains("Reporting Set")
-  }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createReportingSet(
+            createReportingSetRequest {
+              this.reportingSet = compositeReportingSet
+              externalReportingSetId = "composite-reporting-set-id"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception.message).contains("Reporting Set")
+    }
 
   @Test
-  fun `createReportingSet throws FAILED_PRECONDITION when MC not found`() = runBlocking {
+  fun `createReportingSet throws FAILED_PRECONDITION when ReportingSet in operand not found`() =
+    runBlocking {
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+      )
+
+      val compositeReportingSet = reportingSet {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        displayName = "displayName"
+        filter = "filter"
+
+        composite =
+          ReportingSetKt.setExpression {
+            operation = ReportingSet.SetExpression.Operation.UNION
+            lhs =
+              ReportingSetKt.SetExpressionKt.operand {
+                expression =
+                  ReportingSetKt.setExpression {
+                    operation = ReportingSet.SetExpression.Operation.DIFFERENCE
+                    lhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "123" }
+                  }
+              }
+          }
+
+        weightedSubsetUnions +=
+          ReportingSetKt.weightedSubsetUnion {
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = "123"
+                filters += "filter1"
+                filters += "filter2"
+              }
+            weight = 5
+          }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createReportingSet(
+            createReportingSetRequest {
+              this.reportingSet = compositeReportingSet
+              externalReportingSetId = "composite-reporting-set-id"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception.message).contains("Reporting Set")
+    }
+
+  @Test
+  fun `createReportingSet throws NOT_FOUND when MC not found`() = runBlocking {
     val compositeReportingSet = reportingSet {
       cmmsMeasurementConsumerId = "123"
       displayName = "displayName"
@@ -1006,7 +1008,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         )
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.message).contains("Measurement Consumer")
   }
 

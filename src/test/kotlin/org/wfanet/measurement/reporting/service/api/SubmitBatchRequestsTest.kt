@@ -24,7 +24,6 @@ import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -44,7 +43,6 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
 
 private const val MEASUREMENT_CONSUMER_ID = "mc_id"
 private const val BATCH_GET_REPORTING_SETS_LIMIT = 23
@@ -71,16 +69,6 @@ class SubmitBatchRequestsTest {
     }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalReportingSetsMock) }
-
-  private lateinit var service: ReportingSetsService
-
-  @Before
-  fun initService() {
-    service =
-      ReportingSetsService(
-        ReportingSetsGrpcKt.ReportingSetsCoroutineStub(grpcTestServerRule.channel)
-      )
-  }
 
   @Test
   fun `submitBatchRequests returns reporting sets when the number of requests is more than limits`() =

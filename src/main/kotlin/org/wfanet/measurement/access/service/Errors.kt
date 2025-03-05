@@ -298,9 +298,7 @@ class ResourceTypeNotFoundInPermissionException(
       cause: Throwable,
     ): ResourceTypeNotFoundInPermissionException {
       val permissionKey =
-        requireNotNull(
-          PermissionKey(internalMetadata.getValue(InternalErrors.Metadata.PERMISSION_RESOURCE_ID))
-        )
+        PermissionKey(internalMetadata.getValue(InternalErrors.Metadata.PERMISSION_RESOURCE_ID))
       return ResourceTypeNotFoundInPermissionException(
         internalMetadata.getValue(InternalErrors.Metadata.RESOURCE_TYPE),
         permissionKey.toName(),

@@ -23,7 +23,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:synthetic_generation_specs",
-        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2/identity:reporting_principal_identity",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/common:sample_vids",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:synthetic_generator_event_query",
@@ -51,6 +50,7 @@ kt_jvm_library(
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:trusted_principal_auth_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:access_services_factory",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_access",
@@ -60,7 +60,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:data_providers_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:event_group_metadata_descriptors_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:event_groups_service",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metadata_principal_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metric_calculation_specs_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metrics_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reporting_sets_service",

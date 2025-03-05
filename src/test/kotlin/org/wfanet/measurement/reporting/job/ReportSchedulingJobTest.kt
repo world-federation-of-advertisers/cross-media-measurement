@@ -673,8 +673,14 @@ class ReportSchedulingJobTest {
   fun `execute creates reports for multiple schedules across 2 mcs for new iterations`(): Unit =
     runBlocking {
       val measurementConsumerConfigs = measurementConsumerConfigs {
-        configs[MEASUREMENT_CONSUMER_NAME] = measurementConsumerConfig { apiKey = "123" }
-        configs[MEASUREMENT_CONSUMER_NAME_2] = measurementConsumerConfig { apiKey = "123" }
+        configs[MEASUREMENT_CONSUMER_NAME] = measurementConsumerConfig {
+          apiKey = "123"
+          offlinePrincipal = "principals/mc-user"
+        }
+        configs[MEASUREMENT_CONSUMER_NAME_2] = measurementConsumerConfig {
+          apiKey = "123"
+          offlinePrincipal = "principals/mc2-user"
+        }
       }
 
       job =
@@ -1451,7 +1457,10 @@ class ReportSchedulingJobTest {
     private const val REPORT_NAME = "${MEASUREMENT_CONSUMER_NAME}/reports/${REPORT_ID}"
 
     private val MEASUREMENT_CONSUMER_CONFIGS = measurementConsumerConfigs {
-      configs[MEASUREMENT_CONSUMER_NAME] = measurementConsumerConfig { apiKey = "123" }
+      configs[MEASUREMENT_CONSUMER_NAME] = measurementConsumerConfig {
+        apiKey = "123"
+        offlinePrincipal = "principals/mc-user"
+      }
     }
 
     private val DATA_PROVIDER = dataProvider {

@@ -68,14 +68,11 @@ class PostgresReportingSetsService(
     return try {
       CreateReportingSet(request).execute(client, idGenerator)
     } catch (e: ReportingSetNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Reporting Set not found")
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: ReportingSetAlreadyExistsException) {
-      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Reporting Set already exists")
+      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
     } catch (e: MeasurementConsumerNotFoundException) {
-      throw e.asStatusRuntimeException(
-        Status.Code.FAILED_PRECONDITION,
-        "Measurement Consumer not found",
-      )
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
   }
 

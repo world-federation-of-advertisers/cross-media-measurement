@@ -30,23 +30,35 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.and
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.reset
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.whenever
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
+import org.mockito.kotlin.wheneverBlocking
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.testing.Authentication.withPrincipalAndScopes
+import org.wfanet.measurement.access.client.v1alpha.testing.PermissionMatcher.Companion.hasPermissionId
+import org.wfanet.measurement.access.client.v1alpha.testing.PrincipalMatcher.Companion.hasPrincipal
+import org.wfanet.measurement.access.client.v1alpha.testing.ProtectedResourceMatcher.Companion.hasProtectedResource
+import org.wfanet.measurement.access.service.PermissionKey
+import org.wfanet.measurement.access.v1alpha.CheckPermissionsRequest
+import org.wfanet.measurement.access.v1alpha.CheckPermissionsResponse
+import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
+import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
+import org.wfanet.measurement.access.v1alpha.copy
+import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
-import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt as InternalMetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
@@ -103,10 +115,24 @@ class MetricCalculationSpecsServiceTest {
         )
     }
 
+  private val permissionsServiceMock: PermissionsGrpcKt.PermissionsCoroutineImplBase = mockService {
+    onBlocking { checkPermissions(any()) } doReturn CheckPermissionsResponse.getDefaultInstance()
+
+    // Grant all permissions to PRINCIPAL.
+    onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doAnswer
+      { invocation ->
+        val request: CheckPermissionsRequest = invocation.getArgument(0)
+        checkPermissionsResponse { permissions += request.permissionsList }
+      }
+  }
+
   private val randomMock: Random = mock()
 
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { addService(internalMetricCalculationSpecsMock) }
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(internalMetricCalculationSpecsMock)
+    addService(permissionsServiceMock)
+  }
 
   private lateinit var service: MetricCalculationSpecsService
 
@@ -121,6 +147,7 @@ class MetricCalculationSpecsServiceTest {
       MetricCalculationSpecsService(
         MetricCalculationSpecsCoroutineStub(grpcTestServerRule.channel),
         METRIC_SPEC_CONFIG,
+        Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel)),
         randomMock,
       )
   }
@@ -198,7 +225,7 @@ class MetricCalculationSpecsServiceTest {
     }
 
     val createdMetricCalculationSpec =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.createMetricCalculationSpec(request) }
       }
 
@@ -305,7 +332,7 @@ class MetricCalculationSpecsServiceTest {
       }
 
       val createdMetricCalculationSpec =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createMetricCalculationSpec(request) }
         }
 
@@ -359,7 +386,7 @@ class MetricCalculationSpecsServiceTest {
       }
 
       val createdMetricCalculationSpec =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createMetricCalculationSpec(request) }
         }
 
@@ -413,7 +440,7 @@ class MetricCalculationSpecsServiceTest {
       }
 
       val createdMetricCalculationSpec =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createMetricCalculationSpec(request) }
         }
 
@@ -465,7 +492,7 @@ class MetricCalculationSpecsServiceTest {
       }
 
       val createdMetricCalculationSpec =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createMetricCalculationSpec(request) }
         }
 
@@ -501,7 +528,7 @@ class MetricCalculationSpecsServiceTest {
       }
 
       val createdMetricCalculationSpec =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createMetricCalculationSpec(request) }
         }
 
@@ -530,7 +557,7 @@ class MetricCalculationSpecsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createMetricCalculationSpec(request) }
         }
       }
@@ -549,31 +576,13 @@ class MetricCalculationSpecsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME + 1, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL.copy { name = "principals/mc-2-user" }, SCOPES) {
           runBlocking { service.createMetricCalculationSpec(request) }
         }
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.message).contains("another MeasurementConsumer")
-  }
-
-  @Test
-  fun `createMetricCalculationSpec throws UNAUTHENTICATED when the caller is not a MC`() {
-    val request = createMetricCalculationSpecRequest {
-      parent = MEASUREMENT_CONSUMER_NAME
-      metricCalculationSpec = METRIC_CALCULATION_SPEC
-      metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DataProviderKey(ExternalId(550L).apiId.value).toName()) {
-          runBlocking { service.createMetricCalculationSpec(request) }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.message).contains(MetricCalculationSpecsService.Permission.CREATE)
   }
 
   @Test
@@ -586,7 +595,7 @@ class MetricCalculationSpecsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createMetricCalculationSpec(request) }
         }
       }
@@ -605,7 +614,7 @@ class MetricCalculationSpecsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createMetricCalculationSpec(request) }
         }
       }
@@ -628,7 +637,7 @@ class MetricCalculationSpecsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createMetricCalculationSpec(request) }
         }
       }
@@ -652,7 +661,7 @@ class MetricCalculationSpecsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createMetricCalculationSpec(request) }
         }
       }
@@ -671,7 +680,7 @@ class MetricCalculationSpecsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createMetricCalculationSpec(request) }
         }
       }
@@ -703,7 +712,7 @@ class MetricCalculationSpecsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createMetricCalculationSpec(request) }
         }
       }
@@ -724,7 +733,7 @@ class MetricCalculationSpecsServiceTest {
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) {
             runBlocking { service.createMetricCalculationSpec(request) }
           }
         }
@@ -750,7 +759,7 @@ class MetricCalculationSpecsServiceTest {
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) {
             runBlocking { service.createMetricCalculationSpec(request) }
           }
         }
@@ -777,7 +786,7 @@ class MetricCalculationSpecsServiceTest {
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) {
             runBlocking { service.createMetricCalculationSpec(request) }
           }
         }
@@ -804,7 +813,7 @@ class MetricCalculationSpecsServiceTest {
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) {
             runBlocking { service.createMetricCalculationSpec(request) }
           }
         }
@@ -832,7 +841,7 @@ class MetricCalculationSpecsServiceTest {
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) {
             runBlocking { service.createMetricCalculationSpec(request) }
           }
         }
@@ -856,7 +865,7 @@ class MetricCalculationSpecsServiceTest {
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) {
             runBlocking { service.createMetricCalculationSpec(request) }
           }
         }
@@ -866,11 +875,48 @@ class MetricCalculationSpecsServiceTest {
     }
 
   @Test
-  fun `getMetricCalculationSpec returns metric calculation spec`() = runBlocking {
+  fun `getMetricCalculationSpec returns MetricCalculationSpec`() = runBlocking {
     val request = getMetricCalculationSpecRequest { name = METRIC_CALCULATION_SPEC_NAME }
 
     val metricCalculationSpec =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        runBlocking { service.getMetricCalculationSpec(request) }
+      }
+
+    val expected = METRIC_CALCULATION_SPEC
+
+    assertThat(metricCalculationSpec).isEqualTo(expected)
+
+    verifyProtoArgument(
+        internalMetricCalculationSpecsMock,
+        MetricCalculationSpecsCoroutineImplBase::getMetricCalculationSpec,
+      )
+      .isEqualTo(
+        internalGetMetricCalculationSpecRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+        }
+      )
+  }
+
+  @Test
+  fun `getMetricCalculationSpec returns MetricCalculationSpec when principal has permission on resource`() {
+    val request = getMetricCalculationSpecRequest { name = METRIC_CALCULATION_SPEC_NAME }
+    reset(permissionsServiceMock)
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(
+        and(
+          and(hasPrincipal(PRINCIPAL.name), hasProtectedResource(request.name)),
+          hasPermissionId(MetricCalculationSpecsService.Permission.GET),
+        )
+      )
+    } doReturn
+      checkPermissionsResponse {
+        permissions += PermissionKey(MetricCalculationSpecsService.Permission.GET).toName()
+      }
+
+    val metricCalculationSpec =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.getMetricCalculationSpec(request) }
       }
 
@@ -908,13 +954,13 @@ class MetricCalculationSpecsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.getMetricCalculationSpec(request) }
         }
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.message).contains("Unable to get")
+    assertThat(exception.message).contains(request.name)
   }
 
   @Test
@@ -924,7 +970,7 @@ class MetricCalculationSpecsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.getMetricCalculationSpec(request) }
         }
       }
@@ -939,27 +985,13 @@ class MetricCalculationSpecsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME + 1, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL.copy { name = "principals/mc-2-user" }, SCOPES) {
           runBlocking { service.getMetricCalculationSpec(request) }
         }
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.message).contains("other MeasurementConsumers")
-  }
-
-  @Test
-  fun `getMetricCalculationSpec throws UNAUTHENTICATED when the caller is not a MC`() {
-    val request = getMetricCalculationSpecRequest { name = METRIC_CALCULATION_SPEC_NAME }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DataProviderKey(ExternalId(550L).apiId.value).toName()) {
-          runBlocking { service.getMetricCalculationSpec(request) }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.message).contains(MetricCalculationSpecsService.Permission.GET)
   }
 
   @Test
@@ -981,7 +1013,7 @@ class MetricCalculationSpecsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listMetricCalculationSpecs(request) }
       }
 
@@ -1024,7 +1056,7 @@ class MetricCalculationSpecsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listMetricCalculationSpecs(request) }
       }
 
@@ -1068,7 +1100,7 @@ class MetricCalculationSpecsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listMetricCalculationSpecs(request) }
       }
 
@@ -1101,7 +1133,7 @@ class MetricCalculationSpecsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listMetricCalculationSpecs(request) }
       }
 
@@ -1146,7 +1178,7 @@ class MetricCalculationSpecsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listMetricCalculationSpecs(request) }
       }
 
@@ -1175,7 +1207,7 @@ class MetricCalculationSpecsServiceTest {
     val request = listMetricCalculationSpecsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listMetricCalculationSpecs(request) }
       }
 
@@ -1220,7 +1252,7 @@ class MetricCalculationSpecsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listMetricCalculationSpecs(request) }
       }
 
@@ -1254,7 +1286,7 @@ class MetricCalculationSpecsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listMetricCalculationSpecs(request) }
       }
 
@@ -1277,7 +1309,7 @@ class MetricCalculationSpecsServiceTest {
   }
 
   @Test
-  fun `listMetricCalculationSpecs throws CANCELLED when cancelled`() = runBlocking {
+  fun `listMetricCalculationSpecs throws INTERNAL when backend errors`() = runBlocking {
     whenever(internalMetricCalculationSpecsMock.listMetricCalculationSpecs(any()))
       .thenThrow(StatusRuntimeException(Status.CANCELLED))
 
@@ -1285,13 +1317,12 @@ class MetricCalculationSpecsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.listMetricCalculationSpecs(request) }
         }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.CANCELLED)
-    assertThat(exception.message).contains("Unable to list")
+    assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
   }
 
   @Test
@@ -1308,31 +1339,17 @@ class MetricCalculationSpecsServiceTest {
 
   @Test
   fun `listMetricCalculationSpecs throws PERMISSION_DENIED when MC caller doesn't match`() {
-    val request = listMetricCalculationSpecsRequest { parent = MEASUREMENT_CONSUMER_NAME + 1 }
+    val request = listMetricCalculationSpecsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL.copy { name = "principals/mc-2-user" }, SCOPES) {
           runBlocking { service.listMetricCalculationSpecs(request) }
         }
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.message).contains("other MeasurementConsumers")
-  }
-
-  @Test
-  fun `listMetricCalculationSpecs throws UNAUTHENTICATED when the caller is not MC`() {
-    val request = listMetricCalculationSpecsRequest { parent = MEASUREMENT_CONSUMER_NAME }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DataProviderKey(ExternalId(550L).apiId.value).toName()) {
-          runBlocking { service.listMetricCalculationSpecs(request) }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.message).contains(MetricCalculationSpecsService.Permission.LIST)
   }
 
   @Test
@@ -1344,7 +1361,7 @@ class MetricCalculationSpecsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.listMetricCalculationSpecs(request) }
         }
       }
@@ -1359,7 +1376,7 @@ class MetricCalculationSpecsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.listMetricCalculationSpecs(request) }
         }
       }
@@ -1391,7 +1408,7 @@ class MetricCalculationSpecsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.listMetricCalculationSpecs(request) }
         }
       }
@@ -1410,7 +1427,7 @@ class MetricCalculationSpecsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.listMetricCalculationSpecs(request) }
         }
       }
@@ -1423,12 +1440,12 @@ class MetricCalculationSpecsServiceTest {
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 1000
 
+    private val PRINCIPAL = principal { name = "principals/mc-user" }
+    private val SCOPES = setOf("*")
+
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "A123"
     private const val MEASUREMENT_CONSUMER_NAME =
       "measurementConsumers/$CMMS_MEASUREMENT_CONSUMER_ID"
-
-    private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
-    private val CONFIG = measurementConsumerConfig { apiKey = API_AUTHENTICATION_KEY }
 
     private const val METRIC_CALCULATION_SPEC_ID = "b123"
     private const val METRIC_CALCULATION_SPEC_NAME =
