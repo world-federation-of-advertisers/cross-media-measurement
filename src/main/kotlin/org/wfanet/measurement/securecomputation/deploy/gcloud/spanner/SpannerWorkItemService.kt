@@ -147,7 +147,7 @@ class SpannerWorkItemsService(
               this.after =
                 ListWorkItemsPageTokenKt.after {
                   workItemResourceId = this@listWorkItemsResponse.workItems.last().workItemResourceId
-                  createAfter = this@listWorkItemsResponse.workItems.last().createTime
+                  createdAfter = this@listWorkItemsResponse.workItems.last().createTime
                 }
             }
           } else {
