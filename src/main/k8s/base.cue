@@ -46,10 +46,11 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 // K8s ServicePort.
 #ServicePort: {
-	port:        #PortNumber
-	targetPort?: #PortNumber | string
-	protocol?:   #IpProtocol
-	name?:       string
+	port:         #PortNumber
+	targetPort?:  #PortNumber | string
+	protocol?:    #IpProtocol
+	name?:        string
+	appProtocol?: string
 }
 
 #GrpcPort:          8443
