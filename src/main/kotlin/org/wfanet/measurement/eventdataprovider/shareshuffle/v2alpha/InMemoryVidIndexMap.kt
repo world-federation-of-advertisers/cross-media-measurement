@@ -119,6 +119,7 @@ private constructor(
      * @param[populationSpec] The [PopulationSpec] represented by this map
      * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
      */
+    @JvmStatic
     fun build(populationSpec: PopulationSpec): InMemoryVidIndexMap {
       return buildInternal(populationSpec, ::hashVidToLongWithFarmHash)
     }
