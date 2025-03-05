@@ -21,5 +21,9 @@ option java_multiple_files = true;
 option java_outer_classname = "QueuesConfigProto";
 
 message QueuesConfig {
-  repeated string queue_resource_id = 1;
+  message QueueInfo {
+    string queue_resource_id = 1;
+  }
+
+  repeated QueueInfo queueInfos = 1;
 }

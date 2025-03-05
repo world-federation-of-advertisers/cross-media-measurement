@@ -31,26 +31,20 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsPageTokenKt
-import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageTokenKt
-import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.internal.securecomputation.controlplane.completeWorkItemAttemptRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemAttemptRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsResponse
-import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsPageToken
-import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
 import org.wfanet.measurement.securecomputation.service.internal.Errors
@@ -75,7 +69,7 @@ abstract class WorkItemAttemptsServiceTest {
     initServices(TestConfig.QUEUE_MAPPING, idGenerator)
 
   @Test
-  fun `createWorkAttemptItem succeeds`() = runBlocking {
+  fun `createWorkAttemptItem returns created WorkItemAttempt`() = runBlocking {
     val services = initServices()
     val workItem = createWorkItem(services.workItemsService)
     val request = createWorkItemAttemptRequest {
@@ -90,15 +84,15 @@ abstract class WorkItemAttemptsServiceTest {
       .ignoringFields(
         WorkItemAttempt.CREATE_TIME_FIELD_NUMBER,
         WorkItemAttempt.UPDATE_TIME_FIELD_NUMBER,
-        WorkItemAttempt.STATE_FIELD_NUMBER,
-        WorkItemAttempt.ATTEMPT_NUMBER_FIELD_NUMBER,
-        WorkItemAttempt.WORK_ITEM_ATTEMPT_RESOURCE_ID_FIELD_NUMBER
       )
-      .isEqualTo(request.workItemAttempt)
+      .isEqualTo(request.workItemAttempt.copy{
+        workItemResourceId = workItem.workItemResourceId
+        workItemAttemptResourceId = "work_item_attempt_resource_id"
+        state = WorkItemAttempt.State.ACTIVE
+        attemptNumber = 1
+      })
     assertThat(response.createTime.toInstant()).isGreaterThan(Instant.now().minusSeconds(10))
     assertThat(response.updateTime).isEqualTo(response.createTime)
-    assertThat(response.state).isEqualTo(WorkItemAttempt.State.ACTIVE)
-    assertThat(response.attemptNumber).isEqualTo(1)
   }
 
   @Test
@@ -145,7 +139,7 @@ abstract class WorkItemAttemptsServiceTest {
   }
 
   @Test
-  fun `getWorkItemAttempt succeeds`() = runBlocking {
+  fun `getWorkItemAttempt returns WorkItemAttempt`() = runBlocking {
     val services = initServices()
     val workItem: WorkItem = createWorkItem(services.workItemsService)
     val workItemAttempt = createWorkItemAttempts(services.service, workItem.workItemResourceId, 1).get(0)
@@ -216,7 +210,7 @@ abstract class WorkItemAttemptsServiceTest {
   }
 
   @Test
-  fun `failWorkItemAttempt succeeds`() = runBlocking {
+  fun `failWorkItemAttempt returns WorkItemAttempt with updated state`() = runBlocking {
     val services = initServices()
     val workItem: WorkItem = createWorkItem(services.workItemsService)
     val workItemAttempt = createWorkItemAttempts(services.service, workItem.workItemResourceId, 1).get(0)
@@ -232,7 +226,7 @@ abstract class WorkItemAttemptsServiceTest {
     assertThat(workItemAttempt)
       .ignoringFields(
         WorkItemAttempt.UPDATE_TIME_FIELD_NUMBER,
-        WorkItemAttempt.STATE_FIELD_NUMBER,
+        WorkItemAttempt.STATE_FIELD_NUMBER
       )
       .isEqualTo(updatedWorkItemAttempt)
     assertThat(updatedWorkItemAttempt.state).isEqualTo(WorkItemAttempt.State.FAILED)
@@ -297,7 +291,7 @@ abstract class WorkItemAttemptsServiceTest {
   }
 
   @Test
-  fun `completeWorkItemAttempt succeeds`() = runBlocking {
+  fun `completeWorkItemAttempt returns WorkItemAttempt with updated state`() = runBlocking {
     val services = initServices()
     val workItem: WorkItem = createWorkItem(services.workItemsService)
     val workItemAttempt = createWorkItemAttempts(services.service, workItem.workItemResourceId, 1).get(0)
@@ -308,14 +302,12 @@ abstract class WorkItemAttemptsServiceTest {
     }
 
     val updatedWorkItemAttempt = services.service.completeWorkItemAttempt(completeWorkItemAttemptRequest)
-
     assertThat(workItemAttempt)
       .ignoringFields(
         WorkItemAttempt.UPDATE_TIME_FIELD_NUMBER,
-        WorkItemAttempt.STATE_FIELD_NUMBER,
+        WorkItemAttempt.STATE_FIELD_NUMBER
       )
       .isEqualTo(updatedWorkItemAttempt)
-    assertThat(updatedWorkItemAttempt.state).isEqualTo(WorkItemAttempt.State.SUCCEEDED)
 
     val getWorkItemRequest = getWorkItemRequest {
       workItemResourceId = workItem.workItemResourceId

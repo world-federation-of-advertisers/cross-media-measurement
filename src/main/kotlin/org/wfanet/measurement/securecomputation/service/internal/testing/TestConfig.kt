@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.securecomputation.service.internal.testing
 
+import org.wfanet.measurement.config.securecomputation.QueuesConfigKt.queueInfo
 import org.wfanet.measurement.config.securecomputation.queuesConfig
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 
@@ -23,7 +24,12 @@ object TestConfig {
   val QUEUE_MAPPING =
     QueueMapping(
       queuesConfig {
-        queueResourceId.add("queues/test_queue")
+        queueInfos.add(
+          queueInfo {
+            queueResourceId = "queues/test_queue"
+          }
+        )
       }
     )
 }
+

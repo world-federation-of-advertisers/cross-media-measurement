@@ -29,13 +29,14 @@ class QueueMapping(config: QueuesConfig) {
   /** Queues sorted by resource ID. */
   val queues: List<Queue> =
     buildList {
-      for (queueResourceId in config.queueResourceIdList) {
-        check(QUEUE_RESOURCE_ID_REGEX.matches(queueResourceId)) {
-          "Invalid queue resource ID $queueResourceId"
+      for (queue in config.queueInfosList) {
+        check(QUEUE_RESOURCE_ID_REGEX.matches(queue.queueResourceId)) {
+          "Invalid queue resource ID ${queue.queueResourceId}"
         }
-        val queueId = fingerprint(queueResourceId)
-        add(Queue(queueId, queueResourceId))
+        val queueId = fingerprint(queue.queueResourceId)
+        add(Queue(queueId, queue.queueResourceId))
       }
+
     }.sortedBy { it.queueResourceId }
 
   private val queuesById: Map<Long, Queue> =
@@ -66,11 +67,5 @@ class QueueMapping(config: QueuesConfig) {
 
     private val QUEUE_RESOURCE_ID_REGEX = Regex("^[a-zA-Z]([a-zA-Z0-9.-]{0,61}[a-zA-Z0-9])?(/[a-zA-Z0-9_-]+)*$")
 
-  }
-}
-
-fun List<QueueMapping.Queue>.toQueuesProto(): QueuesConfig {
-  return queuesConfig {
-    queueResourceId.addAll(this@toQueuesProto.map { it.queueResourceId })
   }
 }

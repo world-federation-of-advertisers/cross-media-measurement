@@ -31,6 +31,7 @@ import org.wfanet.measurement.securecomputation.service.internal.Errors
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageTokenKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse
@@ -68,7 +69,7 @@ abstract class WorkItemsServiceTest {
     initServices(TestConfig.QUEUE_MAPPING, idGenerator)
 
   @Test
-  fun `createWorkItem succeeds`() = runBlocking {
+  fun `createWorkItem returns created WorkItem`() = runBlocking {
     val services = initServices()
     val request = createWorkItemRequest {
       workItem = workItem {
@@ -83,13 +84,14 @@ abstract class WorkItemsServiceTest {
       .ignoringFields(
         WorkItem.CREATE_TIME_FIELD_NUMBER,
         WorkItem.UPDATE_TIME_FIELD_NUMBER,
-        WorkItem.STATE_FIELD_NUMBER,
         WorkItem.WORK_ITEM_RESOURCE_ID_FIELD_NUMBER
       )
-      .isEqualTo(request.workItem)
+      .isEqualTo(request.workItem.copy {
+        state = WorkItem.State.QUEUED
+        workItemResourceId = "work_item_resource_id"
+      })
     assertThat(response.createTime.toInstant()).isGreaterThan(Instant.now().minusSeconds(10))
     assertThat(response.updateTime).isEqualTo(response.createTime)
-    assertThat(response.state).isEqualTo(WorkItem.State.QUEUED)
   }
 
   @Test
@@ -160,7 +162,7 @@ abstract class WorkItemsServiceTest {
   }
 
   @Test
-  fun `getWorkItem succeeds`() = runBlocking {
+  fun `getWorkItem returns WorkItem`() = runBlocking {
     val services = initServices()
     val request = createWorkItemRequest {
       workItem = workItem {
@@ -218,7 +220,7 @@ abstract class WorkItemsServiceTest {
   }
 
   @Test
-  fun `failWorkItem succeeds`() = runBlocking {
+  fun `failWorkItem returns WorkItem with updated state`() = runBlocking {
     val services = initServices()
     val request = createWorkItemRequest {
       workItem = workItem {
@@ -245,10 +247,10 @@ abstract class WorkItemsServiceTest {
     assertThat(workItem)
       .ignoringFields(
         WorkItem.UPDATE_TIME_FIELD_NUMBER,
-        WorkItem.STATE_FIELD_NUMBER,
       )
-      .isEqualTo(createResponse)
-    assertThat(workItem.state).isEqualTo(WorkItem.State.FAILED)
+      .isEqualTo(createResponse.copy {
+        state = WorkItem.State.FAILED
+      })
 
     val listWorkItemAttemptsRequest = listWorkItemAttemptsRequest {
       workItemResourceId = workItem.workItemResourceId
