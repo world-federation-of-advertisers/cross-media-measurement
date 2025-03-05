@@ -58,4 +58,5 @@ module "kingdom" {
   source = "../../modules/kingdom"
 
   spanner_instance = google_spanner_instance.spanner_instance
+  dashboard_path =
 }

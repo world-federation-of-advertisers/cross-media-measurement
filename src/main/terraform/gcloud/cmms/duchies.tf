@@ -63,6 +63,9 @@ module "aggregator_duchy" {
   database_name    = "aggregator_duchy_computations"
   spanner_instance = google_spanner_instance.spanner_instance
   storage_bucket   = module.storage.storage_bucket
+  dashboard_json_paths = [
+    "dashboard_configs/aggregator.json",
+  ]
 }
 
 module "worker1_duchy" {
@@ -72,6 +75,9 @@ module "worker1_duchy" {
   database_name    = "worker1_duchy_computations"
   spanner_instance = google_spanner_instance.spanner_instance
   storage_bucket   = module.storage.storage_bucket
+  dashboard_json_paths = [
+    "dashboard_configs/worker1.json",
+  ]
 }
 
 module "worker2_duchy" {
@@ -81,4 +87,7 @@ module "worker2_duchy" {
   database_name    = "worker2_duchy_computations"
   spanner_instance = google_spanner_instance.spanner_instance
   storage_bucket   = module.storage.storage_bucket
+  dashboard_json_paths = [
+    "dashboard_configs/worker2.json",
+  ]
 }

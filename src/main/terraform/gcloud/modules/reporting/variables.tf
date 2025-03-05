@@ -50,4 +50,9 @@ variable "access_spanner_database_name" {
   nullable    = false
 }
 
-
+variable "dashboard_json_paths" {
+  description = "List of paths to dashboard json files"
+  type        = list(string)
+  nullable    = true
+  default     = []
+}
