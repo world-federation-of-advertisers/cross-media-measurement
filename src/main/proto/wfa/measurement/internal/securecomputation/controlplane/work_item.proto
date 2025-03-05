@@ -1,4 +1,4 @@
-// Copyright 2024 The Cross-Media Measurement Authors
+// Copyright 2025 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,49 +14,28 @@
 
 syntax = "proto3";
 
-package wfa.measurement.securecomputation.controlplane.v1alpha;
+package wfa.measurement.internal.securecomputation.controlplane;
 
 import "google/api/field_behavior.proto";
-import "google/api/resource.proto";
-import "google/protobuf/any.proto";
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/securecomputation/controlplane/v1alpha/work_item_attempt.proto";
 
-option java_package = "org.wfanet.measurement.securecomputation.controlplane.v1alpha";
+option java_package = "org.wfanet.measurement.internal.securecomputation.controlplane";
 option java_multiple_files = true;
 option java_outer_classname = "WorkItemProto";
 
-// Resource representing a work item.
+// Proto representation of the internal `WorkItem` entity type.
 message WorkItem {
-  option (google.api.resource) = {
-    type: "control-plane.secure-computation.halo-cmm.org/WorkItem"
-    pattern: "workItems/{work_item}"
-    singular: "workItem"
-    plural: "workItems"
-  };
+  string work_item_resource_id = 1;
 
-  // Resource name.
-  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
-
-  // The queue into which this `WorkItem` must be enqueued.
-  // Available queues are specified in a configuration file.
-  string queue = 2 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {
-      type: "control-plane.secure-computation.halo-cmm.org/Queue"
-    }
-  ];
-  // The parameters to be delivered to the TEE application.
-  google.protobuf.Any work_item_params = 3
-      [(google.api.field_behavior) = IMMUTABLE];
+  // The id representing a `Queue` into which this `WorkItem` must be enqueued.
+  string queue_resource_id = 2;
 
   // State of a `WorkItem`.
   enum State {
     // Default value if state is omitted.
     STATE_UNSPECIFIED = 0;
 
-    // The `WorkItem` has been queued but has not yet been attempted.
-    // At this stage, there are no `WorkItemAttempt`s associated with it.
+    // The `WorkItem` has been queued.
     QUEUED = 1;
 
     // There is at least one `WorkItemAttempt` associated with the `WorkItem`.
@@ -65,18 +44,15 @@ message WorkItem {
     // The `WorkItem` has been successfully processed.
     SUCCEEDED = 3;
 
-    // A `WorkItemAttempt` failed with a non-retriable error.
+    // The `WorkItemAttempt` failed.
     FAILED = 4;
   }
 
   // State of this `WorkItem`.
   State state = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // Create time.
   google.protobuf.Timestamp create_time = 5
       [(google.api.field_behavior) = OUTPUT_ONLY];
-
-  // Update time.
   google.protobuf.Timestamp update_time = 6
       [(google.api.field_behavior) = OUTPUT_ONLY];
 }
