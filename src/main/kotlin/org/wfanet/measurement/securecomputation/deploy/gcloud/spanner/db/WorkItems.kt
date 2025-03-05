@@ -17,12 +17,10 @@
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db
 
 import com.google.cloud.spanner.Key
-import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
@@ -35,7 +33,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkIt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
-import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForInternalIdException
+import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForWorkItem
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
 
 data class WorkItemResult(val workItemId: Long, val workItem: WorkItem)
@@ -77,6 +75,7 @@ fun AsyncDatabaseClient.TransactionContext.insertWorkItem(workItemId: Long, work
  * Reads a [WorkItem] by its [workItemResourceId].
  *
  * @throws WorkItemNotFoundException
+ * @throws QueueNotFoundForWorkItem
  */
 suspend fun AsyncDatabaseClient.ReadContext.getWorkItemByResourceId(
   queueMapping: QueueMapping,
@@ -94,7 +93,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getWorkItemByResourceId(
     .singleOrNullIfEmpty() ?: throw WorkItemNotFoundException(workItemResourceId)
 
   val queueId = row.getLong("QueueId")
-  val queue = queueMapping.getQueueById(queueId) ?: throw QueueNotFoundForInternalIdException(queueId)
+  val queue = queueMapping.getQueueById(queueId) ?: throw QueueNotFoundForWorkItem(workItemResourceId)
 
   return WorkItems.buildWorkItemResult(row, queue)
 }
@@ -102,7 +101,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getWorkItemByResourceId(
 /**
  * Reads [WorkItem]s ordered by resource ID.
  *
- * @throws QueueNotFoundForInternalIdException
+ * @throws QueueNotFoundForWorkItem
  */
 fun AsyncDatabaseClient.ReadContext.readWorkItems(
   queueMapping: QueueMapping,
@@ -121,14 +120,14 @@ fun AsyncDatabaseClient.ReadContext.readWorkItems(
     statement(sql) {
       if (after != null) {
         bind("afterWorkItemResourceId").to(after.workItemResourceId)
-        bind("createTime").to(after.createAfter.toGcloudTimestamp())
+        bind("createTime").to(after.createdAfter.toGcloudTimestamp())
       }
       bind("limit").to(limit.toLong())
     }
 
   return executeQuery(query, Options.tag("action=readWorkItems")).map { row ->
     val queueId = row.getLong("QueueId")
-    val queue = queueMapping.getQueueById(queueId) ?: throw QueueNotFoundForInternalIdException(queueId)
+    val queue = queueMapping.getQueueById(queueId) ?: throw QueueNotFoundForWorkItem(row.getString("WorkItemResourceId"))
 
     WorkItems.buildWorkItemResult(row, queue)
   }

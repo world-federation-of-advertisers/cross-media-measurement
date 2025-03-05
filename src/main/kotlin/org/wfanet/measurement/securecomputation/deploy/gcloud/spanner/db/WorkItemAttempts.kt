@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.any
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -36,7 +37,6 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkIt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
-import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForInternalIdException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptNotFoundException
 
 data class WorkItemAttemptResult(val workItemId: Long, val workItemAttemptId: Long, val workItemAttempt: WorkItemAttempt)
@@ -49,19 +49,23 @@ suspend fun AsyncDatabaseClient.ReadContext.workItemAttemptExists(
 }
 
 /** Buffers an insert mutation for the WorkItemAttempts table. */
-fun AsyncDatabaseClient.TransactionContext.insertWorkItemAttempt(
+suspend fun AsyncDatabaseClient.TransactionContext.insertWorkItemAttempt(
   workItemId: Long,
   workItemAttemptId: Long,
-  workItemAttemptResourceId: String,
-  attemptNumber: Int
-): WorkItemAttempt.State {
+  workItemAttemptResourceId: String
+): Pair<Int, WorkItemAttempt.State> {
+
+  val attemptNumber = read(
+    "WorkItemAttempts",
+    KeySet.prefixRange(Key.of(workItemId)),
+    listOf("WorkItemId")
+  ).toList().count() + 1
   val workItemAttemptstate = WorkItemAttempt.State.ACTIVE
   bufferInsertMutation("WorkItemAttempts") {
     set("WorkItemId").to(workItemId)
     set("WorkItemAttemptId").to(workItemAttemptId)
     set("WorkItemAttemptResourceId").to(workItemAttemptResourceId)
     set("State").toInt64(workItemAttemptstate)
-    set("AttemptNumber").to(attemptNumber.toLong())
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
@@ -70,33 +74,7 @@ fun AsyncDatabaseClient.TransactionContext.insertWorkItemAttempt(
     set("State").toInt64(WorkItem.State.RUNNING)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
-  return workItemAttemptstate
-}
-
-/**
- * Count [WorkItemAttempt]s for a given [WorkItem].
- *
- * @throws QueueNotFoundForInternalIdException
- */
-suspend fun AsyncDatabaseClient.ReadContext.countWorkItemAttempts(
-  workItemId: Long,
-): Int {
-  val sql = buildString {
-    appendLine(
-      """
-        SELECT COUNT(*) FROM WorkItemAttempts
-        WHERE WorkItemId = @workItemId
-      """.trimIndent()
-    )
-  }
-  val query =
-    statement(sql) {
-      bind("workItemId").to(workItemId)
-    }
-
-  return executeQuery(query, Options.tag("action=countWorkItemAttempts"))
-    .map { row -> row.getLong(0).toInt() }
-    .firstOrNull() ?: 0
+  return Pair(attemptNumber, workItemAttemptstate)
 }
 
 /**
@@ -205,7 +183,12 @@ private object WorkItemAttempts {
       WorkItems.WorkItemResourceId,
       WorkItemAttempts.WorkItemAttemptResourceId,
       WorkItemAttempts.State,
-      WorkItemAttempts.AttemptNumber,
+      (
+        SELECT COUNT(*)
+        FROM WorkItemAttempts AS WIA
+        WHERE WIA.WorkItemId = WorkItemAttempts.WorkItemId
+          AND WIA.CreateTime <= WorkItemAttempts.CreateTime
+      ) AS AttemptNumber,
       WorkItemAttempts.ErrorMessage,
       WorkItemAttempts.CreateTime,
       WorkItemAttempts.UpdateTime

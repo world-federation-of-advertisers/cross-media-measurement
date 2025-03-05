@@ -116,11 +116,11 @@ class QueueNotFoundException(queueResourceId: String, cause: Throwable? = null) 
     cause,
   )
 
-class QueueNotFoundForInternalIdException(queueId: Long, cause: Throwable? = null) :
+class QueueNotFoundForWorkItem(workItemResourceId: String, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
-    "Queue with ID $queueId not found",
-    mapOf(Errors.Metadata.QUEUE_ID to queueId.toString()),
+    "Queue for WorkItem with ID $workItemResourceId not found",
+    mapOf(Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId),
     cause,
   )
 
@@ -128,7 +128,7 @@ class WorkItemNotFoundException(workItemResourceId: String, cause: Throwable? = 
   ServiceException(
     Errors.Reason.WORK_ITEM_NOT_FOUND,
     "WorkItem with resource ID $workItemResourceId not found",
-    mapOf(Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId.toString()),
+    mapOf(Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId),
     cause,
   )
 
@@ -140,8 +140,8 @@ class WorkItemAttemptNotFoundException(
     Errors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
     "WorkItemAttempt with workItemResource ID $workItemResourceId and workItemAttemptResource ID $workItemAttemptResourceId not found",
     mapOf(
-      Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId.toString(),
-      Errors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID to workItemAttemptResourceId.toString()
+      Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId,
+      Errors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID to workItemAttemptResourceId
 
     ),
     cause,
@@ -157,7 +157,7 @@ class WorkItemInvalidPreconditionStateException(workItemResourceId: String, caus
   ServiceException(
     Errors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
     "WorkItemAttempt cannot be created when parent WorkItem has state either SUCCEEDED or FAILED",
-    mapOf(Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId.toString()),
+    mapOf(Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId),
     cause,
   )
 

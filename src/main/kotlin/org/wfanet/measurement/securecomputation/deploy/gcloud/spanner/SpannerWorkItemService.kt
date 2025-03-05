@@ -16,10 +16,7 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
-import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Options
-import com.google.cloud.spanner.SpannerException
-import com.google.protobuf.Timestamp
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
@@ -40,7 +37,6 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
-import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItem
@@ -52,7 +48,7 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWor
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemIdExists
 import org.wfanet.measurement.securecomputation.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
-import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForInternalIdException
+import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForWorkItem
 
 
 class SpannerWorkItemsService(
@@ -86,9 +82,7 @@ class SpannerWorkItemsService(
 
       val state = txn.insertWorkItem(workItemId, request.workItem.workItemResourceId, queue.queueId)
 
-      workItem {
-        this.workItemResourceId = request.workItem.workItemResourceId
-        this.queueResourceId = request.workItem.queueResourceId
+      request.workItem.copy {
         this.state = state
       }
     }
@@ -116,7 +110,7 @@ class SpannerWorkItemsService(
         }
       } catch (e: WorkItemNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
-      } catch (e: QueueNotFoundForInternalIdException) {
+      } catch (e: QueueNotFoundForWorkItem) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       }
 
@@ -181,7 +175,7 @@ class SpannerWorkItemsService(
         }
       } catch (e: WorkItemNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
-      } catch (e: QueueNotFoundForInternalIdException) {
+      } catch (e: QueueNotFoundForWorkItem) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       }
     }

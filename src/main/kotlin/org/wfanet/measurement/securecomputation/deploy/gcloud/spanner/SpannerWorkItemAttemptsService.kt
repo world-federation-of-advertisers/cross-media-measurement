@@ -23,6 +23,7 @@ import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.securecomputation.controlplane.CompleteWorkItemAttemptRequest
@@ -40,7 +41,6 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkIt
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsResponse
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemAttemptResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.completeWorkItemAttempt
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.countWorkItemAttempts
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemAttemptByResourceId
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItemAttempt
@@ -49,7 +49,7 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workIte
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItemAttempt
 import org.wfanet.measurement.securecomputation.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
-import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForInternalIdException
+import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForWorkItem
 import org.wfanet.measurement.securecomputation.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptNotFoundException
@@ -59,7 +59,7 @@ import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoun
 class SpannerWorkItemAttemptsService(
   private val databaseClient: AsyncDatabaseClient,
   private val queueMapping: QueueMapping,
-  private val idGenerator: org.wfanet.measurement.common.IdGenerator,
+  private val idGenerator: IdGenerator,
 ) : WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase() {
 
   override suspend fun createWorkItemAttempt(request: CreateWorkItemAttemptRequest): WorkItemAttempt {
@@ -74,24 +74,29 @@ class SpannerWorkItemAttemptsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val transactionRunner = databaseClient.readWriteTransaction(Options.tag("action=createWorkItemAttempt"))
+    val transactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=createWorkItemAttempt"))
 
     val workItemAttempt = try {
       transactionRunner.run { txn ->
-        val result = txn.getWorkItemByResourceId(queueMapping, request.workItemAttempt.workItemResourceId)
-        val workItemAttemptNumber = txn.countWorkItemAttempts(result.workItemId) + 1
+        val result =
+          txn.getWorkItemByResourceId(queueMapping, request.workItemAttempt.workItemResourceId)
         val workItemState = result.workItem.state
-        if(workItemState == WorkItem.State.FAILED ||
-          workItemState == WorkItem.State.SUCCEEDED) {
+        if (workItemState == WorkItem.State.FAILED ||
+          workItemState == WorkItem.State.SUCCEEDED
+        ) {
           throw WorkItemInvalidPreconditionStateException(result.workItem.workItemResourceId)
         }
-        val workItemAttemptId = idGenerator.generateNewId { id -> txn.workItemAttemptExists(result.workItemId, id) }
-        val state = txn.insertWorkItemAttempt(result.workItemId, workItemAttemptId, request.workItemAttempt.workItemAttemptResourceId, workItemAttemptNumber)
-
+        val workItemAttemptId =
+          idGenerator.generateNewId { id -> txn.workItemAttemptExists(result.workItemId, id) }
+        val (attemptNumber, state) = txn.insertWorkItemAttempt(
+          result.workItemId,
+          workItemAttemptId,
+          request.workItemAttempt.workItemAttemptResourceId
+        )
         request.workItemAttempt.copy {
-          this.workItemAttemptResourceId = workItemAttemptResourceId
-          this.attemptNumber = workItemAttemptNumber
           this.state = state
+          this.attemptNumber = attemptNumber
         }
       }
     } catch (e: SpannerException) {
@@ -103,12 +108,12 @@ class SpannerWorkItemAttemptsService(
     } catch (e: WorkItemNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
+
     val commitTimestamp = transactionRunner.getCommitTimestamp().toProto()
-    val result = workItemAttempt.copy{
+    return workItemAttempt.copy{
       this.createTime = commitTimestamp
       this.updateTime = commitTimestamp
     }
-    return result
 
   }
 
@@ -129,8 +134,8 @@ class SpannerWorkItemAttemptsService(
         }
       } catch (e: WorkItemAttemptNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
-      } catch (e: QueueNotFoundForInternalIdException) {
-        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      } catch (e: QueueNotFoundForWorkItem) {
+        throw e.asStatusRuntimeException(Status.Code.INTERNAL)
       }
 
     return workItemAttemptResult.workItemAttempt
@@ -157,7 +162,7 @@ class SpannerWorkItemAttemptsService(
         }
       } catch (e: WorkItemAttemptNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
-      } catch (e: QueueNotFoundForInternalIdException) {
+      } catch (e: QueueNotFoundForWorkItem) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       }
     }
@@ -187,7 +192,7 @@ class SpannerWorkItemAttemptsService(
         }
       } catch (e: WorkItemAttemptNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
-      } catch (e: QueueNotFoundForInternalIdException) {
+      } catch (e: QueueNotFoundForWorkItem) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       }
     }
