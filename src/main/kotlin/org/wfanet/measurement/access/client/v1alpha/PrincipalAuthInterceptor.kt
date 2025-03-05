@@ -30,9 +30,11 @@ import org.wfanet.measurement.access.v1alpha.PrincipalKt.tlsClient
 import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
 import org.wfanet.measurement.access.v1alpha.lookupPrincipalRequest
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
+import org.wfanet.measurement.common.grpc.BearerTokenCallCredentials
 import org.wfanet.measurement.common.grpc.ClientCertificateAuthentication
 import org.wfanet.measurement.common.grpc.OAuthTokenAuthentication
 import org.wfanet.measurement.common.grpc.SuspendableServerInterceptor
+import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 
 /** [io.grpc.ServerInterceptor] for Principal-based authentication. */
@@ -46,7 +48,7 @@ class PrincipalAuthInterceptor(
     OAuthTokenAuthentication(
       openIdProvidersConfig.audience,
       openIdProvidersConfig.providerConfigByIssuerMap.map { (issuer, config) ->
-        OAuthTokenAuthentication.OpenIdProviderConfig(issuer, config.jwks)
+        OAuthTokenAuthentication.OpenIdProviderConfig(issuer, config.jwks.toJson())
       },
       clock,
     )
@@ -56,19 +58,16 @@ class PrincipalAuthInterceptor(
     headers: Metadata,
     next: ServerCallHandler<ReqT, RespT>,
   ): ServerCall.Listener<ReqT> {
-    val verifiedToken =
-      try {
-        authentication.verifyAndDecodeBearerToken(headers)
-      } catch (e: StatusException) {
-        if (tlsClientSupported) {
-          null
-        } else {
-          return closeCall(call, e.status, e.trailers)
+    val tokenCredentials = BearerTokenCallCredentials.fromHeaders(headers)
+    val (lookupRequest, scopes) =
+      if (tokenCredentials == null) {
+        if (!tlsClientSupported) {
+          return closeCall(
+            call,
+            Status.UNAUTHENTICATED.withDescription("No bearer token found in headers"),
+          )
         }
-      }
 
-    val lookupRequest =
-      if (verifiedToken == null) {
         val tlsClient =
           try {
             buildTlsClientIdentity(call)
@@ -76,14 +75,21 @@ class PrincipalAuthInterceptor(
             return closeCall(call, e.status, e.trailers)
           }
 
-        lookupPrincipalRequest { this.tlsClient = tlsClient }
+        lookupPrincipalRequest { this.tlsClient = tlsClient } to setOf("*")
       } else {
+        val verifiedToken =
+          try {
+            authentication.verifyAndDecodeBearerToken(tokenCredentials)
+          } catch (e: StatusException) {
+            return closeCall(call, e.status, e.trailers)
+          }
+
         lookupPrincipalRequest {
           user = oAuthUser {
             issuer = verifiedToken.issuer
             subject = verifiedToken.subject
           }
-        }
+        } to verifiedToken.scopes
       }
 
     val principal: Principal =
@@ -97,7 +103,6 @@ class PrincipalAuthInterceptor(
           }.withCause(e)
         return closeCall(call, status)
       }
-    val scopes = verifiedToken?.scopes ?: setOf("*")
 
     return Contexts.interceptCall(
       Context.current().withPrincipalAndScopes(principal, scopes),
