@@ -26,72 +26,71 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkIt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt as InternalWorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt as internalWorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemAttemptRequest as internalCreateWorkItemAttemptRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.CreateWorkItemAttemptRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
+import org.wfanet.measurement.securecomputation.controlplane.CreateWorkItemAttemptRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt as InternalWorkItemAttempt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase as InternalWorkItemAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.securecomputation.service.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.internal.Errors
 
-class WorkItemAttemptsService(/*private val internalWorkItemAttemptsStub: InternalWorkItemAttemptsCoroutineImplBase*/) :
+class WorkItemAttemptsService(private val internalWorkItemAttemptsStub: InternalWorkItemAttemptsCoroutineImplBase) :
   WorkItemAttemptsCoroutineImplBase() {
+  override suspend fun createWorkItemAttempt(request: CreateWorkItemAttemptRequest): WorkItemAttempt {
+    if (!request.hasWorkItemAttempt()) {
+      throw RequiredFieldNotSetException("work_item_attempt")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.workItemAttempt.workItemAttemptId.isEmpty()) {
+      throw RequiredFieldNotSetException("work_item_attempt_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
-//  suspend fun createWorkItemAttempt(request: CreateWorkItemAttemptRequest): WorkItemAttempt
-//
-//  override suspend fun createWorkItemAttempt(request: CreateWorkItemAttemptRequest): WorkItemAttempt {
-//    if (!request.hasWorkItemAttempt()) {
-//      throw RequiredFieldNotSetException("work_item_attempt")
-//        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-//    }
-//    if (request.workItemAttempt.workItemAttemptId.isEmpty()) {
-//      throw RequiredFieldNotSetException("work_item_attempt_id")
-//        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-//    }
-//
-//    val workItemAttempt = request.workItemAttempt
-//
-//    val internalResponse: InternalWorkItemAttempt =
-//      try {
-//        internalWorkItemAttemptsStub.createWorkItemAttempt(
-//          internalCreateWorkItemAttemptRequest {
-//            internalWorkItemAttempt {
-//              workItemResourceId = request.workItem.queue
-//              workItemAttemptResourceId =
-//            }
-//          }
-//        )
-//      } catch (e: StatusException) {
-//        throw when (Errors.getReason(e)) {
-//          Errors.Reason.REQUIRED_FIELD_NOT_SET,
-//          Errors.Reason.QUEUE_NOT_FOUND,
-//          Errors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
-//          Errors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
-//          Errors.Reason.WORK_ITEM_NOT_FOUND,
-//          Errors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
-//          Errors.Reason.INVALID_FIELD_VALUE,
-//          Errors.Reason.WORK_ITEM_ALREADY_EXISTS,
-//          Errors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
-//          null -> Status.INTERNAL.withCause(e).asRuntimeException()
-//        }
-//      }
-//
-//    return internalResponse.toWorkItem()
-//  }
+    val workItemAttempt = request.workItemAttempt
 
-//  override suspend fun getWorkItemAttempt(request: GetWorkItemAttemptRequest): WorkItemAttempt {
-//    return super.getWorkItemAttempt(request)
-//  }
-//
-//  override suspend fun failWorkItemAttempt(request: FailWorkItemAttemptRequest): WorkItemAttempt {
-//    return super.failWorkItemAttempt(request)
-//  }
-//
-//  override suspend fun completeWorkItemAttempt(request: CompleteWorkItemAttemptRequest): WorkItemAttempt {
-//    return super.completeWorkItemAttempt(request)
-//  }
-//
-//  override suspend fun listWorkItemAttempts(request: ListWorkItemAttemptsRequest): ListWorkItemAttemptsResponse {
-//    return super.listWorkItemAttempts(request)
-//  }
+    val internalResponse: InternalWorkItemAttempt =
+      try {
+        internalWorkItemAttemptsStub.createWorkItemAttempt(
+          internalCreateWorkItemAttemptRequest {
+            internalWorkItemAttempt {
+              workItemResourceId = request.workItem.queue
+              workItemAttemptResourceId =
+            }
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (Errors.getReason(e)) {
+          Errors.Reason.REQUIRED_FIELD_NOT_SET,
+          Errors.Reason.QUEUE_NOT_FOUND,
+          Errors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
+          Errors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
+          Errors.Reason.WORK_ITEM_NOT_FOUND,
+          Errors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
+          Errors.Reason.INVALID_FIELD_VALUE,
+          Errors.Reason.WORK_ITEM_ALREADY_EXISTS,
+          Errors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return internalResponse.toWorkItem()
+  }
+
+  override suspend fun getWorkItemAttempt(request: GetWorkItemAttemptRequest): WorkItemAttempt {
+    return super.getWorkItemAttempt(request)
+  }
+
+  override suspend fun failWorkItemAttempt(request: FailWorkItemAttemptRequest): WorkItemAttempt {
+    return super.failWorkItemAttempt(request)
+  }
+
+  override suspend fun completeWorkItemAttempt(request: CompleteWorkItemAttemptRequest): WorkItemAttempt {
+    return super.completeWorkItemAttempt(request)
+  }
+
+  override suspend fun listWorkItemAttempts(request: ListWorkItemAttemptsRequest): ListWorkItemAttemptsResponse {
+    return super.listWorkItemAttempts(request)
+  }
 
 }
