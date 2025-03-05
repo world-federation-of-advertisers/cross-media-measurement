@@ -27,6 +27,15 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "api_key_credentials",
+    srcs = ["ApiKeyCredentials.kt"],
+    deps = [
+        ":api_key_constants",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+    ],
+)
+
+kt_jvm_library(
     name = "public_api_version",
     srcs = ["Version.kt"],
     deps = [],
