@@ -25,9 +25,9 @@ reporting_impression_qualification_filters {
     media_type: DISPLAY
     filters: {
       terms: {
-        path: "banner_ad.viewable_50_percent_plus"
+        path: "banner_ad.viewable_fraction_1_second"
         value {
-          bool_value: true
+          float_value: 0.5
         }
       }
     }
@@ -36,9 +36,9 @@ reporting_impression_qualification_filters {
     media_type: VIDEO
     filters: {
       terms: {
-        path: "video.viewable_100_percent"
+        path: "video.viewable_fraction_1_second"
         value: {
-          bool_value: true
+          float_value: 1.0
         }
       }
     }
