@@ -39,11 +39,9 @@ message Video {
     description: "Fraction of the video that was viewed in the range [0, 1]"
   }];
 
-  // 100% of the ad was displayed in the browser for at least
-  // 2 continuous seconds.
-  // AKA New MRC Viewability standard
-  bool viewable_100_percent = 8
+  // Fraction of the video shown for at least 1 second
+  float viewable_fraction_1_second = 3
       [(.wfa.measurement.api.v2alpha.template_field) = {
-        display_name: "Viewable 100%"
+        display_name: "Fraction of the video shown for at least 1 second"
       }];
 }
