@@ -25,7 +25,6 @@ option java_outer_classname = "WorkItemsServiceProto";
 
 // Internal service for persistence of `WorkItem` entities.
 service WorkItems {
-
   rpc CreateWorkItem(CreateWorkItemRequest) returns (WorkItem);
 
   rpc GetWorkItem(GetWorkItemRequest) returns (WorkItem);

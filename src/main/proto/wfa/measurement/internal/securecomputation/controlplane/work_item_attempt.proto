@@ -25,7 +25,6 @@ option java_outer_classname = "WorkItemAttemptProto";
 
 // Proto representation of the internal `WorkItemAttempt` entity type.
 message WorkItemAttempt {
-
   string work_item_resource_id = 1;
   string work_item_attempt_resource_id = 2;
 
@@ -42,7 +41,6 @@ message WorkItemAttempt {
 
     // The subscriber failed to process the `WorkItem`.
     FAILED = 3;
-
   }
 
   // State of this `WorkItemAttempt`.
@@ -51,13 +49,15 @@ message WorkItemAttempt {
   // The attempt number for processing this `WorkItem`.
   int32 attempt_number = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // Error messages recorded by the worker in case of failure for this `WorkItemAttempt`.
+  // Error messages recorded by the worker in case of failure for this
+  // `WorkItemAttempt`.
   string error_message = 5 [
     (google.api.field_behavior) = OUTPUT_ONLY,
     (google.api.field_behavior) = OPTIONAL
   ];
 
-  google.protobuf.Timestamp create_time = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
-  google.protobuf.Timestamp update_time = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
-
+  google.protobuf.Timestamp create_time = 6
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+  google.protobuf.Timestamp update_time = 7
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }

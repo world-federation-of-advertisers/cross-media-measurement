@@ -26,15 +26,17 @@ option java_outer_classname = "WorkItemAttemptsServiceProto";
 
 // Internal service for persistence of `WorkItem` entities.
 service WorkItemAttempts {
-
-  rpc CreateWorkItemAttempt(CreateWorkItemAttemptRequest) returns (WorkItemAttempt);
+  rpc CreateWorkItemAttempt(CreateWorkItemAttemptRequest)
+      returns (WorkItemAttempt);
 
   rpc GetWorkItemAttempt(GetWorkItemAttemptRequest) returns (WorkItemAttempt);
 
   // Response ordered by `create_time`, ascending.
-  rpc ListWorkItemAttempts(ListWorkItemAttemptsRequest) returns (ListWorkItemAttemptsResponse);
+  rpc ListWorkItemAttempts(ListWorkItemAttemptsRequest)
+      returns (ListWorkItemAttemptsResponse);
 
-  rpc CompleteWorkItemAttempt(CompleteWorkItemAttemptRequest) returns (WorkItemAttempt);
+  rpc CompleteWorkItemAttempt(CompleteWorkItemAttemptRequest)
+      returns (WorkItemAttempt);
 
   rpc FailWorkItemAttempt(FailWorkItemAttemptRequest) returns (WorkItemAttempt);
 }

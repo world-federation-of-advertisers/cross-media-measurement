@@ -72,7 +72,11 @@ message WorkItem {
   // State of this `WorkItem`.
   State state = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  google.protobuf.Timestamp create_time = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
-  google.protobuf.Timestamp update_time = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Create time.
+  google.protobuf.Timestamp create_time = 5
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 
+  // Update time.
+  google.protobuf.Timestamp update_time = 6
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }

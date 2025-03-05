@@ -27,13 +27,19 @@ option java_outer_classname = "WorkItemAttemptProto";
 // Resource representing a work item attempt.
 //
 // Each `WorkItem` resource can have multiple `WorkItemAttempt`s.
-// An attempt is created whenever a worker receives a message and claims a new attempt to execute the work.
+// An attempt is created whenever a worker receives a message and claims a new
+// attempt to execute the work.
 //
-// - When an attempt is created, both `WorkItemAttempt.State` and `WorkItem.State` are set to `CLAIMED`.
-// - Attempt creation will fail if the parent `WorkItem` has either `FAILED` or `SUCCEEDED` as its state.
-// - On successful execution, both `WorkItemAttempt.State` and `WorkItem.State` are set to `SUCCEED`.
-// - If an exception occurs during execution, only `WorkItemAttempt.State` is set to `FAILED`, and a new attempt is made.
-// - If a non-retriable error occurs, both `WorkItemAttempt.State` and `WorkItem.State` are marked as `FAILED`, preventing further attempts.
+// - When an attempt is created, both `WorkItemAttempt.State` and
+// `WorkItem.State` are set to `CLAIMED`.
+// - Attempt creation will fail if the parent `WorkItem` has either `FAILED` or
+// `SUCCEEDED` as its state.
+// - On successful execution, both `WorkItemAttempt.State` and `WorkItem.State`
+// are set to `SUCCEED`.
+// - If an exception occurs during execution, only `WorkItemAttempt.State` is
+// set to `FAILED`, and a new attempt is made.
+// - If a non-retriable error occurs, both `WorkItemAttempt.State` and
+// `WorkItem.State` are marked as `FAILED`, preventing further attempts.
 message WorkItemAttempt {
   option (google.api.resource) = {
     type: "control-plane.secure-computation.halo-cmm.org/WorkItemAttempt"
@@ -58,7 +64,6 @@ message WorkItemAttempt {
 
     // The subscriber failed to process the `WorkItem`.
     FAILED = 3;
-
   }
 
   // State of this `WorkItemAttempt`.
@@ -67,13 +72,18 @@ message WorkItemAttempt {
   // The attempt number for processing this `WorkItem`.
   int32 attempt_number = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // Error messages recorded by the worker in case of failure for this `WorkItemAttempt`.
+  // Error messages recorded by the worker in case of failure for this
+  // `WorkItemAttempt`.
   string error_message = 4 [
     (google.api.field_behavior) = OUTPUT_ONLY,
     (google.api.field_behavior) = OPTIONAL
   ];
 
-  google.protobuf.Timestamp create_time = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
-  google.protobuf.Timestamp update_time = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Create time.
+  google.protobuf.Timestamp create_time = 5
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 
+  // Update time.
+  google.protobuf.Timestamp update_time = 6
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }
