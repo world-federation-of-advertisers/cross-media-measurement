@@ -313,7 +313,7 @@ abstract class WorkItemsServiceTest {
           nextPageToken = listWorkItemsPageToken {
             after = ListWorkItemsPageTokenKt.after {
               workItemResourceId = workItems.get(4).workItemResourceId
-              createAfter = workItems.get(4).createTime
+              createdAfter = workItems.get(4).createTime
             }
           }
         }
@@ -330,7 +330,7 @@ abstract class WorkItemsServiceTest {
       pageToken = listWorkItemsPageToken {
         after = ListWorkItemsPageTokenKt.after {
           workItemResourceId = workItems.get(4).workItemResourceId
-          createAfter = workItems.get(4).createTime
+          createdAfter = workItems.get(4).createTime
         }
       }
     }
@@ -342,7 +342,7 @@ abstract class WorkItemsServiceTest {
           nextPageToken = listWorkItemsPageToken {
             after = ListWorkItemsPageTokenKt.after {
               workItemResourceId = workItems.get(6).workItemResourceId
-              createAfter = workItems.get(6).createTime
+              createdAfter = workItems.get(6).createTime
             }
           }
         }

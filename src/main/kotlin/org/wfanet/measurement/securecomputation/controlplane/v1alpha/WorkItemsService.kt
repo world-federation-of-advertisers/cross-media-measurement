@@ -164,7 +164,7 @@ abstract class WorkItemsService(private val internalWorkItemsStub: InternalWorkI
       )
 
     return listWorkItemsResponse {
-      workItem += internalResponse.workItemsList.map { it.toWorkItem() }
+      workItems += internalResponse.workItemsList.map { it.toWorkItem() }
       if (internalResponse.hasNextPageToken()) {
         nextPageToken = internalResponse.nextPageToken.after.toByteString().base64UrlEncode()
       }
