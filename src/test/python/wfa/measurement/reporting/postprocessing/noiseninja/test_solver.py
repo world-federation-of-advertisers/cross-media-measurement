@@ -13,13 +13,13 @@
 # limitations under the License.
 
 import unittest
-from unittest.mock import MagicMock
-
-from qpsolvers import Solution
-
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from noiseninja.solver import Solver
+from qpsolvers import Solution
+from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
+  post_processing_result_pb2
+from unittest.mock import MagicMock
 
 HIGHS_SOLVER = "highs"
 
@@ -43,7 +43,8 @@ class SolverTest(unittest.TestCase):
 
     def side_effect(solver_name):
       if solver_name == HIGHS_SOLVER:
-        return Solution(x=None, found=False, problem=solver._problem())
+        return Solution(x=None, found=False, problem=solver._problem()),\
+          post_processing_result_pb2.ReportProcessorStatus.SOLUTION_NOT_FOUND
       else:
         # Call the original function for other solvers.
         return original_solve(solver_name)
@@ -54,8 +55,12 @@ class SolverTest(unittest.TestCase):
     solver._solve = mock_solve
 
     # Verifies that the HIGHS solver returns a non-solution.
-    highs_solution = solver._solve(HIGHS_SOLVER)
+    highs_solution, status = solver._solve(HIGHS_SOLVER)
     self.assertFalse(highs_solution.found)
+    self.assertEqual(
+        status,
+        post_processing_result_pb2.ReportProcessorStatus.SOLUTION_NOT_FOUND
+    )
 
     # Due to the fact that HIGHS solver returns a non-solution, the back-up
     # solver (OSQP) will be called.

@@ -5,6 +5,7 @@ py_test(
     size = "small",
     srcs = ["test_solver.py"],
     deps = [
+        "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:post_processing_result_py_pb2",
         "//src/main/python/wfa/measurement/reporting/postprocessing/noiseninja",
     ],
 )

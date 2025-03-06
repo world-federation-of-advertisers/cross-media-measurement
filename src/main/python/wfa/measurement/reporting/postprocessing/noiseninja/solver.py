@@ -22,7 +22,10 @@ from qpsolvers import Solution
 from qpsolvers import solve_problem
 
 from noiseninja.noised_measurements import SetMeasurementsSpec
+from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
+  post_processing_result_pb2
 
+TOLERANCE = 1e-1
 HIGHS_SOLVER = "highs"
 OSQP_SOLVER = "osqp"
 MAX_ATTEMPTS = 10
@@ -165,7 +168,6 @@ class Solver:
     variables[set_variable] = 1
     self._add_gt_term(variables)
 
-
   def _add_parent_gt_child_term(self, parent: int, child: int):
     variables = np.zeros(self.num_variables)
     variables.put(parent, -1)
@@ -200,13 +202,15 @@ class Solver:
           self.P, self.q, np.array(self.G), np.array(self.h),
           np.array(self.A), np.array(self.b))
     else:
-      problem = Problem(
-          self.P, self.q, np.array(self.G), np.array(self.h))
+      problem = Problem(self.P, self.q, np.array(self.G), np.array(self.h))
     return problem
 
   def _solve(self, solver_name: str) -> Solution:
     logging.info("Solving the quadratic program.")
     attempt_count = 0
+    best_solution = Solution(False)
+    smallest_residual = float('inf')
+
     while attempt_count < MAX_ATTEMPTS:
       # The solver is not thread-safe in general. Synchronization mechanism is
       # needed when it is called concurrently (e.g. in a report processing
@@ -216,16 +220,36 @@ class Solver:
       SEMAPHORE.release()
 
       if solution.found:
-        break
+        primal_residual = solution.primal_residual()
+        if primal_residual < smallest_residual:
+          smallest_primal_residual = primal_residual
+          best_solution = solution
+
+        if smallest_primal_residual < TOLERANCE:
+          break
+      attempt_count += 1
+
+    if best_solution.found:
+      if best_solution.primal_residual() <= TOLERANCE and solver_name == HIGHS_SOLVER:
+        status = post_processing_result_pb2.ReportProcessorStatus.SOLUTION_FOUND_WITH_HIGHS
+      elif best_solution.primal_residual() <= TOLERANCE and solver_name == OSQP_SOLVER:
+        status = post_processing_result_pb2.ReportProcessorStatus.SOLUTION_FOUND_WITH_OSQP
+      elif best_solution.primal_residual() > TOLERANCE and solver_name == HIGHS_SOLVER:
+        status = post_processing_result_pb2.ReportProcessorStatus.PARTIAL_SOLUTION_FOUND_WITH_HIGHS
+      elif best_solution.primal_residual() > TOLERANCE and solver_name == OSQP_SOLVER:
+        status = post_processing_result_pb2.ReportProcessorStatus.PARTIAL_SOLUTION_FOUND_WITH_OSQP
       else:
-        attempt_count += 1
-    return solution
+        raise ValueError(f"Unknown solver: {solver_name}")
+    else:
+      status = post_processing_result_pb2.ReportProcessorStatus.SOLUTION_NOT_FOUND
+
+    return best_solution, status
 
   def solve(self) -> Solution:
     logging.info(
         "Solving the quadratic program with the HIGHS solver."
     )
-    solution = self._solve(HIGHS_SOLVER)
+    solution, status = self._solve(HIGHS_SOLVER)
 
     # If the highs solver does not converge, switch to the osqp solver which
     # is more robust. However, OSQP in general is less accurate than HIGHS
@@ -234,7 +258,7 @@ class Solver:
       logging.info(
           "Switching to OSQP solver as HIGHS solver failed to converge."
       )
-      solution = self._solve(OSQP_SOLVER)
+      solution, status = self._solve(OSQP_SOLVER)
 
     # Raise the exception when both solvers do not converge.
     if not solution.found:
