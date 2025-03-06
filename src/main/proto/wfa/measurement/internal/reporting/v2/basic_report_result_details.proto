@@ -22,6 +22,6 @@ option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
 message BasicReportResultDetails {
-  // The report results
+  // The report results.
   repeated ResultGroup result_groups = 1;
 }

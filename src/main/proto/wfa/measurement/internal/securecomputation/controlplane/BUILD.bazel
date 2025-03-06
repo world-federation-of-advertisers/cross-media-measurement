@@ -1,0 +1,84 @@
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load(
+    "@wfa_rules_kotlin_jvm//kotlin:defs.bzl",
+    "kt_jvm_grpc_proto_library",
+    "kt_jvm_proto_library",
+)
+load("//build:defs.bzl", "proto_lib_prefix")
+
+package(default_visibility = ["//:__subpackages__"])
+
+IMPORT_PREFIX = "/src/main/proto"
+
+# Resources and shared message types.
+
+MESSAGE_LIBS = [
+    ":work_item_proto",
+    ":work_item_attempt_proto",
+]
+
+proto_library(
+    name = "work_item_proto",
+    srcs = ["work_item.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "work_item_attempt_proto",
+    srcs = ["work_item_attempt.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+#Services.
+
+SERVICE_LIBS = [
+    ":work_items_service_proto",
+    ":work_item_attempts_service_proto",
+]
+
+proto_library(
+    name = "work_items_service_proto",
+    srcs = ["work_items_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":work_item_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "work_item_attempts_service_proto",
+    srcs = ["work_item_attempts_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":work_item_attempt_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+# Language-specific libraries.
+
+[
+    kt_jvm_proto_library(
+        name = "{prefix}_kt_jvm_proto".format(prefix = proto_lib_prefix(label_str)),
+        deps = [label_str],
+    )
+    for label_str in MESSAGE_LIBS
+]
+
+[
+    kt_jvm_grpc_proto_library(
+        name = "{prefix}_kt_jvm_grpc_proto".format(prefix = proto_lib_prefix(label_str)),
+        deps = [label_str],
+    )
+    for label_str in SERVICE_LIBS
+]
