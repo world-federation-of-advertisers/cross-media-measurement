@@ -71,9 +71,7 @@ java_test(
     size = "enormous",
     timeout = "long",
     data = [
-        "//src/main/docker:push_all_local_images",
-        #        "//src/main/k8s/local:kingdom_setup.tar",
-        #        "//src/main/k8s/local/testing:cmms.tar",
+        "//src/main/docker:push_all_edp_aggregator_images",
     ],
     env_inherit = [
         "DOCKER_HOST",

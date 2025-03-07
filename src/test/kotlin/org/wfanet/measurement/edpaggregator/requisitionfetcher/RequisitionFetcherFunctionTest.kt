@@ -94,13 +94,11 @@ class RequisitionFetcherFunctionTest {
     }
   }
   companion object {
-    private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_local_images.bash")
+    private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_edp_aggregator_images.bash")
     val imageName = "localhost:5000/halo/requisitions/requisition-fetcher:latest"
     val container = GenericContainer(DockerImageName.parse(imageName)).apply {
       withExposedPorts(8085)
-      withCommand("java",
-        "-Dcom.google.cloud.functions.invoker.runner.function=org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
-        "com.google.cloud.functions.invoker.runner.Invoker")
+      withEnv("FUNCTION_TARGET", "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction")
       withEnv("TARGET", "test-target")
       withEnv("CERT_HOST", "localhost")
       withEnv("REQUISITIONS_GCS_PROJECT_ID", "test-gcs-project-id")
