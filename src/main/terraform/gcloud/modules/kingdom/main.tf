@@ -392,8 +392,8 @@ resource "google_project_iam_member" "bigquery_job_user" {
 
 
 resource "google_monitoring_dashboard" "dashboards" {
-  for_each        = toset(var.dashboard_json_paths)
+  for_each        = toset(var.dashboard_json_files)
 
-  dashboard_json  = file(each.value)
+  dashboard_json  = file("${path.module}/${each.value}")
   project         = data.google_project.project.project_id
 }

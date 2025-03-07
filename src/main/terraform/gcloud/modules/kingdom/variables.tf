@@ -41,9 +41,13 @@ variable "system_v1alpha_ip_address" {
   default     = null
 }
 
-variable "dashboard_json_paths" {
-  description = "List of paths to dashboard json files"
+variable "dashboard_json_files" {
+  description = "List of filenames of dashboard json or templates"
   type        = list(string)
   nullable    = true
-  default     = []
+  default     = [
+    "kingdom_dashboard_1.json",
+    "kingdom_dashboard_2.json",
+    "kingdom_dashboard_3.json",
+  ]
 }
