@@ -27,7 +27,7 @@ IMAGE_REPOSITORY_SETTINGS = struct(
     container_registry = "$(container_registry)",
 
     # Common prefix of container image repositories.
-    repository_prefix = "$(image_repo_prefix)",
+    repository_prefix = "halo",
 
     # Common tag for container images.
     image_tag = "$(image_tag)",

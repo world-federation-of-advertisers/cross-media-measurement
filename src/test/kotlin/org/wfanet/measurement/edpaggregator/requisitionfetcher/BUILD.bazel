@@ -1,5 +1,10 @@
 load("@rules_java//java:defs.bzl", "java_test")
+load(
+    "@wfa_common_jvm//build/rules_oci:defs.bzl",
+    "container_push",
+)
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 
 package(
     default_testonly = True,
@@ -29,4 +34,57 @@ kt_jvm_test(
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
+)
+
+kt_jvm_test(
+    name = "requisition_fetcher_function_test",
+    srcs = ["RequisitionFetcherFunctionTest.kt"],
+    data = [
+        "//src/main/k8s/testing/data:service_config",
+        "//src/main/k8s/testing/secretfiles:all_configs",
+        "//src/main/k8s/testing/secretfiles:all_der_files",
+        "//src/main/k8s/testing/secretfiles:all_root_certs.pem",
+        "//src/main/k8s/testing/secretfiles:all_tink_keysets",
+        "//src/main/k8s/testing/secretfiles:secret_files",
+    ],
+    test_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunctionTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
+        "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:processes",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_fetcher_function",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage/contrib/nio",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/java/org/testcontainers/containers:pubsub",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+    ],
+)
+
+java_test(
+    name = "RequisitionFetcherFunctionTest",
+    size = "enormous",
+    timeout = "long",
+    data = [
+        "//src/main/docker:push_all_local_images",
+        #        "//src/main/k8s/local:kingdom_setup.tar",
+        #        "//src/main/k8s/local/testing:cmms.tar",
+    ],
+    env_inherit = [
+        "DOCKER_HOST",
+        "KUBECONFIG",
+    ],
+    tags = [
+        "cpu:8",
+        "latest",
+        "manual",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunctionTest",
+    runtime_deps = [":requisition_fetcher_function_test"],
 )

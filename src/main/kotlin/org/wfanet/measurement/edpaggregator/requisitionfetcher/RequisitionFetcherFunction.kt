@@ -25,6 +25,7 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 
 
@@ -46,7 +47,6 @@ class RequisitionFetcherFunction : HttpFunction {
           .service,
         System.getenv("REQUISITIONS_GCS_BUCKET"),
       )
-
     val requisitionFetcher =
       RequisitionFetcher(
         requisitionsStub,
@@ -57,6 +57,11 @@ class RequisitionFetcherFunction : HttpFunction {
       )
 
     private fun getClientCerts(): SigningCerts {
+      println("JOJI : ${System.getenv("CERT_FILE_PATH")}")
+      println("JOJI2 : ${Path(System.getenv("CERT_FILE_PATH")).toFile().totalSpace}")
+      println("JOJI3 : ${Path(System.getenv("CERT_FILE_PATH")).toFile().readText()}")
+      println("JOJI4 : ${Path(System.getenv("CERT_FILE_PATH")).toFile().readByteString()}")
+
       return SigningCerts.fromPemFiles(
         certificateFile = Path(System.getenv("CERT_FILE_PATH")).toFile(),
         privateKeyFile = Path(System.getenv("PRIVATE_KEY_FILE_PATH")).toFile(),

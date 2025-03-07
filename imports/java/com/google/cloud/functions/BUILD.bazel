@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "java_function_invoker",
+    actual = "@maven//:com_google_cloud_functions_invoker_java_function_invoker",
+)
