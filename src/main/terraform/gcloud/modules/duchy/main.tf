@@ -72,8 +72,10 @@ resource "google_compute_address" "system_v1alpha" {
 }
 
 resource "google_monitoring_dashboard" "dashboards" {
-  for_each        = toset(var.dashboard_json_paths)
+  for_each        = toset(var.dashboard_json_files)
 
-  dashboard_json  = file(each.value)
+  dashboard_json  = templatefile("${path.module}/${each.value}", {
+    duchy_name = var.name
+  })
 }
 
