@@ -5,6 +5,7 @@ load("//src/main/proto/wfa/measurement/internal/kingdom:all_protos.bzl", "KINGDO
 package(
     default_testonly = True,
     default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
@@ -101,6 +102,7 @@ kt_jvm_library(
         "//src/main/k8s/testing/secretfiles:all_der_files",
         "//src/main/k8s/testing/secretfiles:all_root_certs.pem",
         "//src/main/k8s/testing/secretfiles:all_tink_keysets",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:permissions_config.textproto",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
@@ -108,6 +110,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
         "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:population_requisition_fulfiller",
         "//src/main/proto/wfa/measurement/config:duchy_cert_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/access:permissions_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:duchy_id_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_config_kt_jvm_proto",
@@ -256,6 +259,35 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "access_services_factory",
+    srcs = ["AccessServicesFactory.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/common:tls_client_principal_mapping",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:permission_mapping",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:services",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_library(
+    name = "in_process_access",
+    srcs = ["InProcessAccess.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:services",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/v1alpha:services",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_library(
     name = "in_process_life_of_a_measurement_integration_test",
     srcs = [
         "InProcessLifeOfAMeasurementIntegrationTest.kt",
@@ -325,6 +357,32 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_library(
+    name = "in_process_access_cli_integration_test",
+    srcs = [
+        "InProcessAccessCliIntegrationTest.kt",
+    ],
+    data = [
+        "//src/main/k8s/testing/secretfiles:reporting_root.pem",
+        "//src/main/k8s/testing/secretfiles:reporting_tls.key",
+        "//src/main/k8s/testing/secretfiles:reporting_tls.pem",
+    ],
+    deps = [
+        ":in_process_access",
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/tools:access",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/v1alpha:services",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )

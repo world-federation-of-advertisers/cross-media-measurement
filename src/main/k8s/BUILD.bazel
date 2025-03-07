@@ -112,3 +112,12 @@ cue_library(
         ":spanner",
     ],
 )
+
+cue_library(
+    name = "population_requisition_fulfiller",
+    srcs = ["population_requisition_fulfiller.cue"],
+    deps = [
+        ":base",
+        ":config",
+    ],
+)

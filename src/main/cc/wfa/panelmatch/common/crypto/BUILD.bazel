@@ -101,9 +101,9 @@ cc_library(
     hdrs = ["random_bytes_key_generator.h"],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
-        "@boringssl//:crypto",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@tink_cc//tink/subtle:random",
         "@tink_cc//tink/util:secret_data",
     ],
 )

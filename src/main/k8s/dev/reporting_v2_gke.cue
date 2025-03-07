@@ -87,10 +87,15 @@ reporting: #Reporting & {
 		"reporting-v2alpha-public-api-server": {
 			_container: resources: #PublicServerResourceRequirements
 		}
+		"access-internal-api-server": {
+			spec: template: spec: #ServiceAccountPodSpec & {
+				serviceAccountName: #InternalAccessServerServiceAccount
+			}
+		}
 	}
 
 	services: {
 		"reporting-v2alpha-public-api-server": _ipAddressName: _publicApiAddressName
-		"access-internal-api-server": _ipAddressName:          _accessPublicApiAddressName
+		"access-public-api-server": _ipAddressName:            _accessPublicApiAddressName
 	}
 }

@@ -1,0 +1,29 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/access/deploy/tools:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "access",
+    srcs = ["Access.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/access/v1alpha:permissions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/access/v1alpha:policies_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/access/v1alpha:principals_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/access/v1alpha:roles_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_binary(
+    name = "Access",
+    main_class = "org.wfanet.measurement.access.deploy.tools.Access",
+    runtime_deps = [":access"],
+)

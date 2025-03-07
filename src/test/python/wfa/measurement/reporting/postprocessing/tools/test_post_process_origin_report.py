@@ -1,13 +1,13 @@
 # Copyright 2024 The Cross-Media Measurement Authors
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
+# Licensed under the Apache License, Version 2.0 (the 'License');
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
+# distributed under the License is distributed on an 'AS IS' BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
@@ -16,498 +16,630 @@ import sys
 import unittest
 
 from google.protobuf.json_format import Parse
+
+from noiseninja.noised_measurements import Measurement
+
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_summary_pb2
+
 from tools.post_process_origin_report import ReportSummaryProcessor
-
-EDP_MAP = {
-    "edp1": {"edp1"},
-    "edp2": {"edp2"},
-    "union": {"edp1", "edp2"},
-}
-
-AMI_MEASUREMENTS = {
-    'edp1': [6333, 3585, 7511, 1037, 0, 10040, 0, 2503, 7907, 0, 0, 0, 0, 1729,
-             0, 1322, 0],
-    'edp2': [24062000, 29281000, 31569000, 31569000, 31569000, 31569000,
-             31569000, 31569000, 31569000, 31569000, 31569000, 31569000,
-             31569000, 31569000, 31569000, 31569000, 31569000],
-    'union': [24129432, 29152165, 31474050, 31352346, 31685183, 31425302,
-              31655739, 31643458, 31438532, 31600739, 31386917, 31785206,
-              31627169, 31453865, 31582783, 31806702, 31477620],
-}
-MRC_MEASUREMENTS = {
-    'edp1': [0, 2196, 2014, 0, 129, 0, 2018, 81, 0, 0, 288, 0, 0, 0, 0, 0, 0],
-    'edp2': [24062000, 29281000, 31569000, 31569000, 31569000, 31569000,
-             31569000, 31569000, 31569000, 31569000, 31569000, 31569000,
-             31569000, 31569000, 31569000, 31569000, 31569000],
-    'union': [24299684, 29107595, 31680517, 31513613, 32127776, 31517198,
-              31786057, 31225783, 31237872, 31901620, 31720183, 31263524,
-              31775635, 31917650, 31478465, 31784354, 31542065],
-}
-
-SIGMAS = {
-    'edp1': 13000.0,
-    'edp2': 13000.0,
-    'union': 1300.0,
-}
 
 TOLERANCE = 1
 
 
 class TestOriginReport(unittest.TestCase):
-  def test_report_summary_is_corrected_successfully(self):
-    report_summary = report_summary_pb2.ReportSummary()
-    # Generates report summary from the measurements. For each edp combination,
-    # all measurements except the last one are cumulative measurements, and the
-    # last one is the whole campaign measurement.
-    num_periods = len(AMI_MEASUREMENTS['edp1']) - 1
-    for edp in EDP_MAP:
-      ami_measurement_detail = report_summary.measurement_details.add()
-      ami_measurement_detail.measurement_policy = "ami"
-      ami_measurement_detail.set_operation = "cumulative"
-      ami_measurement_detail.is_cumulative = True
-      ami_measurement_detail.data_providers.extend(EDP_MAP[edp])
-      for i in range(len(AMI_MEASUREMENTS[edp]) - 1):
-        ami_result = ami_measurement_detail.measurement_results.add()
-        ami_result.reach = AMI_MEASUREMENTS[edp][i]
-        ami_result.standard_deviation = SIGMAS[edp]
-        ami_result.metric = "cumulative_metric_" + edp + "_ami_" + str(i).zfill(
-            5)
-
-      mrc_measurement_detail = report_summary.measurement_details.add()
-      mrc_measurement_detail.measurement_policy = "mrc"
-      mrc_measurement_detail.set_operation = "cumulative"
-      mrc_measurement_detail.is_cumulative = True
-      mrc_measurement_detail.data_providers.extend(EDP_MAP[edp])
-      for i in range(num_periods):
-        mrc_result = mrc_measurement_detail.measurement_results.add()
-        mrc_result.reach = MRC_MEASUREMENTS[edp][i]
-        mrc_result.standard_deviation = SIGMAS[edp]
-        mrc_result.metric = "cumulative_metric_" + edp + "_mrc_" + str(i).zfill(
-            5)
-
-    for edp in EDP_MAP:
-      ami_measurement_detail = report_summary.measurement_details.add()
-      ami_measurement_detail.measurement_policy = "ami"
-      ami_measurement_detail.set_operation = "union"
-      ami_measurement_detail.is_cumulative = False
-      ami_measurement_detail.data_providers.extend(EDP_MAP[edp])
-      ami_result = ami_measurement_detail.measurement_results.add()
-      ami_result.reach = AMI_MEASUREMENTS[edp][len(AMI_MEASUREMENTS[edp]) - 1]
-      ami_result.standard_deviation = SIGMAS[edp]
-      ami_result.metric = "total_metric_" + edp + "_ami_"
-
-      mrc_measurement_detail = report_summary.measurement_details.add()
-      mrc_measurement_detail.measurement_policy = "mrc"
-      mrc_measurement_detail.set_operation = "union"
-      mrc_measurement_detail.is_cumulative = False
-      mrc_measurement_detail.data_providers.extend(EDP_MAP[edp])
-      mrc_result = mrc_measurement_detail.measurement_results.add()
-      mrc_result.reach = MRC_MEASUREMENTS[edp][len(MRC_MEASUREMENTS[edp]) - 1]
-      mrc_result.standard_deviation = SIGMAS[edp]
-      mrc_result.metric = "total_metric_" + edp + "_mrc_"
-
-    corrected_measurements_map = ReportSummaryProcessor(
-        report_summary).process()
-
-    # Verifies that the updated reach values are consistent.
-    for edp in EDP_MAP:
-      cumulative_ami_metric_prefix = "cumulative_metric_" + edp + "_ami_"
-      cumulative_mrc_metric_prefix = "cumulative_metric_" + edp + "_mrc_"
-      total_ami_metric = "total_metric_" + edp + "_ami_"
-      total_mrc_metric = "total_metric_" + edp + "_mrc_"
-      # Verifies that cumulative measurements are consistent.
-      for i in range(num_periods - 1):
-        self.assertLessEqual(
-            corrected_measurements_map[
-              cumulative_ami_metric_prefix + str(i).zfill(5)],
-            corrected_measurements_map[
-              cumulative_ami_metric_prefix + str(i + 1).zfill(5)])
-        self.assertLessEqual(
-            corrected_measurements_map[
-              cumulative_mrc_metric_prefix + str(i).zfill(5)],
-            corrected_measurements_map[
-              cumulative_mrc_metric_prefix + str(i + 1).zfill(5)])
-      # Verifies that the mrc measurements is less than or equal to the ami ones.
-      for i in range(num_periods):
-        self.assertLessEqual(
-            corrected_measurements_map[
-              cumulative_mrc_metric_prefix + str(i).zfill(5)],
-            corrected_measurements_map[
-              cumulative_ami_metric_prefix + str(i).zfill(5)]
-        )
-      # Verifies that the total reach is greater than or equal to the last
-      # cumulative reach.
-      self.assertLessEqual(
-          corrected_measurements_map[
-            cumulative_ami_metric_prefix + str(num_periods - 1).zfill(5)],
-          corrected_measurements_map[total_ami_metric]
-      )
-      self.assertLessEqual(
-          corrected_measurements_map[
-            cumulative_mrc_metric_prefix + str(num_periods - 1).zfill(5)],
-          corrected_measurements_map[total_mrc_metric]
-      )
-
-    # Verifies that the union reach is less than or equal to the sum of
-    # individual reaches.
-    for i in range(num_periods - 1):
-      self._assertFuzzyLessEqual(
-          corrected_measurements_map[
-            "cumulative_metric_union_ami_" + str(i).zfill(5)],
-          corrected_measurements_map[
-            "cumulative_metric_edp1_ami_" + str(i).zfill(5)] +
-          corrected_measurements_map[
-            "cumulative_metric_edp2_ami_" + str(i).zfill(5)],
-          TOLERANCE
-      )
-      self._assertFuzzyLessEqual(
-          corrected_measurements_map[
-            "cumulative_metric_union_mrc_" + str(i).zfill(5)],
-          corrected_measurements_map[
-            "cumulative_metric_edp1_mrc_" + str(i).zfill(5)] +
-          corrected_measurements_map[
-            "cumulative_metric_edp2_mrc_" + str(i).zfill(5)],
-          TOLERANCE
-      )
-    self._assertFuzzyLessEqual(
-        corrected_measurements_map["total_metric_union_ami_"],
-        corrected_measurements_map["total_metric_edp1_ami_"] +
-        corrected_measurements_map["total_metric_edp2_ami_"],
-        TOLERANCE
-    )
-    self._assertFuzzyLessEqual(
-        corrected_measurements_map["total_metric_union_mrc_"],
-        corrected_measurements_map["total_metric_edp1_mrc_"] +
-        corrected_measurements_map["total_metric_edp2_mrc_"],
-        TOLERANCE
-    )
-
-  def test_report_with_unique_reach_is_parsed_correctly(self):
+  def test_report_summary_is_parsed_correctly(self):
     report_summary = get_report_summary(
-        "src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_with_unique_reach.json")
+        'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary.json')
     reportSummaryProcessor = ReportSummaryProcessor(report_summary)
 
     reportSummaryProcessor._process_primitive_measurements()
     reportSummaryProcessor._process_difference_measurements()
 
+    expected_cumulative_measurements = {
+        'custom': {
+            frozenset({'edp1', 'edp2'}): [
+                Measurement(100, 184302.26,
+                            'cumulative/custom/edp1_edp2_00'),
+                Measurement(100, 184302.26, 'cumulative/custom/edp1_edp2_01')
+            ],
+            frozenset({'edp2'}): [
+                Measurement(0, 137708.80, 'cumulative/custom/edp2_00'),
+                Measurement(0, 137708.80, 'cumulative/custom/edp2_01')
+            ],
+            frozenset({'edp1'}): [
+                Measurement(0, 137708.80, 'cumulative/custom/edp1_00'),
+                Measurement(0, 137708.80, 'cumulative/custom/edp1_01')
+            ]
+        },
+        'ami': {
+            frozenset({'edp1', 'edp2'}): [
+                Measurement(100, 184302.26, 'cumulative/ami/edp1_edp2_00'),
+                Measurement(182300, 197680.10, 'cumulative/ami/edp1_edp2_01')
+            ],
+            frozenset({'edp1'}): [
+                Measurement(0, 137708.80, 'cumulative/ami/edp1_00'),
+                Measurement(0, 137708.80, 'cumulative/ami/edp1_01')
+            ],
+            frozenset({'edp2'}): [
+                Measurement(168600, 137769.39, 'cumulative/ami/edp2_00'),
+                Measurement(101700, 137745.35, 'cumulative/ami/edp2_01')
+            ]
+        },
+        'mrc': {
+            frozenset({'edp1', 'edp2'}): [
+                Measurement(100, 184302.26, 'cumulative/mrc/edp1_edp2_00'),
+                Measurement(100, 184302.26, 'cumulative/mrc/edp1_edp2_01')
+            ],
+            frozenset({'edp2'}): [
+                Measurement(29500, 137719.40, 'cumulative/mrc/edp2_00'),
+                Measurement(113200, 137749.48, 'cumulative/mrc/edp2_01')
+            ],
+            frozenset({'edp1'}): [
+                Measurement(234600, 137793.10, 'cumulative/mrc/edp1_00'),
+                Measurement(11900, 137713.08, 'cumulative/mrc/edp1_01')
+            ]
+        }
+    }
+
+    expected_whole_campaign_measurements = {
+        'custom': {
+            frozenset({'edp1', 'edp2'}): Measurement(92459, 145777.47,
+                                                     'reach_and_frequency/custom/edp1_edp2'),
+            frozenset({'edp2'}): Measurement(0, 102011.28,
+                                             'reach_and_frequency/custom/edp2'),
+            frozenset({'edp1'}): Measurement(0, 102011.28,
+                                             'reach_and_frequency/custom/edp1'),
+        },
+        'ami': {
+            frozenset({'edp1'}): Measurement(0, 102011.28,
+                                             'reach_and_frequency/ami/edp1'),
+            frozenset({'edp1', 'edp2'}): Measurement(243539, 160194.11,
+                                                     'reach_and_frequency/ami/edp1_edp2'),
+            frozenset({'edp2'}): Measurement(0, 102011.28,
+                                             'reach_and_frequency/ami/edp2')
+        },
+        'mrc': {
+            frozenset({'edp1', 'edp2'}): Measurement(59, 137388.94,
+                                                     'reach_and_frequency/mrc/edp1_edp2'),
+            frozenset({'edp2'}): Measurement(182759, 102064.11,
+                                             'reach_and_frequency/mrc/edp2'),
+            frozenset({'edp1'}): Measurement(58679, 102028.24,
+                                             'reach_and_frequency/mrc/edp1')
+        }
+    }
+
+    expected_k_reach_measurements = {
+        'custom': {
+            frozenset({'edp1', 'edp2'}): {
+                1: Measurement(0, 49832.83,
+                               'reach_and_frequency/custom/edp1_edp2-frequency-1'),
+                2: Measurement(52259, 96293.33,
+                               'reach_and_frequency/custom/edp1_edp2-frequency-2'),
+                3: Measurement(0, 49832.83,
+                               'reach_and_frequency/custom/edp1_edp2-frequency-3'),
+                4: Measurement(0, 49832.83,
+                               'reach_and_frequency/custom/edp1_edp2-frequency-4'),
+                5: Measurement(40199, 80625.84,
+                               'reach_and_frequency/custom/edp1_edp2-frequency-5'),
+            }, frozenset({'edp2'}): {
+                1: Measurement(0, 29448.12,
+                               'reach_and_frequency/custom/edp2-frequency-1'),
+                2: Measurement(0, 29448.12,
+                               'reach_and_frequency/custom/edp2-frequency-2'),
+                3: Measurement(0, 29448.12,
+                               'reach_and_frequency/custom/edp2-frequency-3'),
+                4: Measurement(0, 29448.12,
+                               'reach_and_frequency/custom/edp2-frequency-4'),
+                5: Measurement(0, 29448.12,
+                               'reach_and_frequency/custom/edp2-frequency-5'),
+            },
+            frozenset({'edp1'}): {
+                1: Measurement(0, 29448.12,
+                               'reach_and_frequency/custom/edp1-frequency-1'),
+                2: Measurement(0, 29448.12,
+                               'reach_and_frequency/custom/edp1-frequency-2'),
+                3: Measurement(0, 29448.12,
+                               'reach_and_frequency/custom/edp1-frequency-3'),
+                4: Measurement(0, 29448.12,
+                               'reach_and_frequency/custom/edp1-frequency-4'),
+                5: Measurement(0, 29448.12,
+                               'reach_and_frequency/custom/edp1-frequency-5'),
+            }
+        },
+        'ami': {
+            frozenset({'edp1'}): {
+                1: Measurement(0, 29448.12,
+                               'reach_and_frequency/ami/edp1-frequency-1'),
+                2: Measurement(0, 29448.12,
+                               'reach_and_frequency/ami/edp1-frequency-2'),
+                3: Measurement(0, 29448.12,
+                               'reach_and_frequency/ami/edp1-frequency-3'),
+                4: Measurement(0, 29448.12,
+                               'reach_and_frequency/ami/edp1-frequency-4'),
+                5: Measurement(0, 29448.12,
+                               'reach_and_frequency/ami/edp1-frequency-5'),
+            },
+            frozenset({'edp1', 'edp2'}): {
+                1: Measurement(0, 84149.37,
+                               'reach_and_frequency/ami/edp1_edp2-frequency-1'),
+                2: Measurement(0, 84149.37,
+                               'reach_and_frequency/ami/edp1_edp2-frequency-2'),
+                3: Measurement(82755, 100221.13,
+                               'reach_and_frequency/ami/edp1_edp2-frequency-3'),
+                4: Measurement(111129, 111465.13,
+                               'reach_and_frequency/ami/edp1_edp2-frequency-4'),
+                5: Measurement(49653, 90265.46,
+                               'reach_and_frequency/ami/edp1_edp2-frequency-5'),
+            },
+            frozenset({'edp2'}): {
+                1: Measurement(0, 29448.12,
+                               'reach_and_frequency/ami/edp2-frequency-1'),
+                2: Measurement(0, 29448.12,
+                               'reach_and_frequency/ami/edp2-frequency-2'),
+                3: Measurement(0, 29448.12,
+                               'reach_and_frequency/ami/edp2-frequency-3'),
+                4: Measurement(0, 29448.12,
+                               'reach_and_frequency/ami/edp2-frequency-4'),
+                5: Measurement(0, 29448.12,
+                               'reach_and_frequency/ami/edp2-frequency-5'),
+            }},
+        'mrc': {
+            frozenset({'edp1', 'edp2'}): {
+                1: Measurement(18, 58449.20,
+                               'reach_and_frequency/mrc/edp1_edp2-frequency-1'),
+                2: Measurement(0, 39660.77,
+                               'reach_and_frequency/mrc/edp1_edp2-frequency-2'),
+                3: Measurement(0, 39660.77,
+                               'reach_and_frequency/mrc/edp1_edp2-frequency-3'),
+                4: Measurement(40, 102443.67,
+                               'reach_and_frequency/mrc/edp1_edp2-frequency-4'),
+                5: Measurement(0, 39660.77,
+                               'reach_and_frequency/mrc/edp1_edp2-frequency-5'),
+            },
+            frozenset({'edp2'}): {
+                1: Measurement(0, 60427.60,
+                               'reach_and_frequency/mrc/edp2-frequency-1'),
+                2: Measurement(0, 60427.60,
+                               'reach_and_frequency/mrc/edp2-frequency-2'),
+                3: Measurement(0, 60427.60,
+                               'reach_and_frequency/mrc/edp2-frequency-3'),
+                4: Measurement(182759, 118611.04,
+                               'reach_and_frequency/mrc/edp2-frequency-4'),
+                5: Measurement(0, 60427.60,
+                               'reach_and_frequency/mrc/edp2-frequency-5'),
+            },
+            frozenset({'edp1'}): {
+                1: Measurement(37968, 74248.42,
+                               'reach_and_frequency/mrc/edp1-frequency-1'),
+                2: Measurement(0, 33976.69,
+                               'reach_and_frequency/mrc/edp1-frequency-2'),
+                3: Measurement(0, 33976.69,
+                               'reach_and_frequency/mrc/edp1-frequency-3'),
+                4: Measurement(0, 33976.69,
+                               'reach_and_frequency/mrc/edp1-frequency-4'),
+                5: Measurement(20710, 49508.92,
+                               'reach_and_frequency/mrc/edp1-frequency-5'),
+            }
+        }
+    }
+    expected_impression_measurements = {
+        'custom': {
+            frozenset({'edp1', 'edp2'}): Measurement(239912, 506550.03,
+                                                     'impression_count/custom/edp1_edp2'),
+            frozenset({'edp2'}): Measurement(70833, 358181.01,
+                                             'impression_count/custom/edp2'),
+            frozenset({'edp1'}): Measurement(0, 358175.32,
+                                             'impression_count/custom/edp1')
+        },
+        'ami': {frozenset({'edp1'}): Measurement(0, 358175.32,
+                                                 'impression_count/ami/edp1'),
+                frozenset({'edp1', 'edp2'}): Measurement(0, 506536.39,
+                                                         'impression_count/ami/edp1_edp2'),
+                frozenset({'edp2'}): Measurement(0, 358175.32,
+                                                 'impression_count/ami/edp2')
+                },
+        'mrc': {
+            frozenset({'edp1', 'edp2'}): Measurement(593825, 506570.14,
+                                                     'impression_count/mrc/edp1_edp2'),
+            frozenset({'edp2'}): Measurement(0, 358175.32,
+                                             'impression_count/mrc/edp2'),
+            frozenset({'edp1'}): Measurement(0, 358175.32,
+                                             'impression_count/mrc/edp1')
+        }}
+
     expected_unique_reach_map = {
-        'difference/ami/unique_reach_edp2': ['union/ami/edp1_edp2_edp3',
-                                             'union/ami/edp1_edp3'],
-        'difference/ami/unique_reach_edp1': ['union/ami/edp1_edp2_edp3',
-                                             'union/ami/edp2_edp3'],
-        'difference/ami/difference_reach_edp1': ['union/ami/edp1_edp2',
-                                                 'union/ami/edp2'],
-        'difference/ami/unique_reach_edp3': ['union/ami/edp1_edp2_edp3',
-                                             'union/ami/edp1_edp2'],
+        'difference/custom/edp1_minus_edp2': [
+            'reach_and_frequency/custom/edp1_edp2',
+            'reach_and_frequency/custom/edp2'
+        ],
+        'difference/custom/edp2_minus_edp1': [
+            'reach_and_frequency/custom/edp1_edp2',
+            'reach_and_frequency/custom/edp1'
+        ],
+        'difference/mrc/edp1_minus_edp2': [
+            'reach_and_frequency/mrc/edp1_edp2',
+            'reach_and_frequency/mrc/edp2'
+        ],
+        'difference/mrc/edp2_minus_edp1': [
+            'reach_and_frequency/mrc/edp1_edp2',
+            'reach_and_frequency/mrc/edp1'
+        ],
+        'difference/ami/edp1_minus_edp2': [
+            'reach_and_frequency/ami/edp1_edp2',
+            'reach_and_frequency/ami/edp2'
+        ],
+        'difference/ami/edp2_minus_edp1': [
+            'reach_and_frequency/ami/edp1_edp2',
+            'reach_and_frequency/ami/edp1'
+        ]
     }
 
     self.assertDictEqual(reportSummaryProcessor._set_difference_map,
                          expected_unique_reach_map)
+    for measurement_policy in ['ami', 'mrc', 'custom']:
+      self.assertCountEqual(
+          reportSummaryProcessor._cumulative_measurements[
+            measurement_policy].keys(),
+          expected_cumulative_measurements[measurement_policy].keys()
+      )
 
-  def test_report_with_custom_policy_is_corrected_successfully(self):
+      self.assertCountEqual(
+          reportSummaryProcessor._whole_campaign_measurements[
+            measurement_policy].keys(),
+          expected_whole_campaign_measurements[measurement_policy].keys()
+      )
+
+      self.assertCountEqual(
+          reportSummaryProcessor._k_reach[measurement_policy].keys(),
+          expected_k_reach_measurements[measurement_policy].keys()
+      )
+
+      self.assertCountEqual(
+          reportSummaryProcessor._impression[measurement_policy].keys(),
+          expected_impression_measurements[measurement_policy].keys()
+      )
+
+      for edp_combination in expected_cumulative_measurements[
+        measurement_policy].keys():
+        self._assertMeasurementListsEqual(
+            reportSummaryProcessor._cumulative_measurements[measurement_policy][
+              edp_combination],
+            expected_cumulative_measurements[measurement_policy][
+              edp_combination],
+            TOLERANCE
+        )
+
+      for edp_combination in expected_whole_campaign_measurements[
+        measurement_policy].keys():
+        self._assertMeasurementsEqual(
+            reportSummaryProcessor._whole_campaign_measurements[
+              measurement_policy][
+              edp_combination],
+            expected_whole_campaign_measurements[measurement_policy][
+              edp_combination],
+            TOLERANCE
+        )
+
+      for edp_combination in expected_k_reach_measurements[
+        measurement_policy].keys():
+        for frequency in expected_k_reach_measurements[measurement_policy][
+          edp_combination].keys():
+          self._assertMeasurementsEqual(
+              reportSummaryProcessor._k_reach[measurement_policy][
+                edp_combination][frequency],
+              expected_k_reach_measurements[
+                measurement_policy][edp_combination][frequency],
+              TOLERANCE
+          )
+
+      for edp_combination in expected_impression_measurements[
+        measurement_policy].keys():
+        self._assertMeasurementsEqual(
+            reportSummaryProcessor._impression[measurement_policy][
+              edp_combination],
+            expected_impression_measurements[measurement_policy][
+              edp_combination],
+            TOLERANCE
+        )
+
+  def test_report_summary_is_corrected_successfully(self):
     report_summary = get_report_summary(
-        "src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_with_custom_policy.json")
+        'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary.json')
     corrected_measurements_map = ReportSummaryProcessor(
         report_summary).process()
 
-    primitive_edp_combinations = ["edp1", "edp2", "edp1_edp2"]
-    composite_edp_combinations = ["edp1_minus_edp2", "edp2_minus_edp1"]
+    primitive_edp_combinations = ['edp1', 'edp2', 'edp1_edp2']
+    composite_edp_combinations = ['edp1_minus_edp2', 'edp2_minus_edp1']
 
+    num_periods = 2
+    num_frequencies = 5
+
+    # Verifies that the updated reach values are non-negative.
+    for value in corrected_measurements_map.values():
+      self._assertFuzzyLessEqual(0, value, TOLERANCE)
     # Verifies that cumulative measurements are non-decreasing.
-    for i in range(9):
+    for i in range(num_periods - 1):
       for edp_combination in primitive_edp_combinations:
-        self.assertLessEqual(
+        self._assertFuzzyLessEqual(
             corrected_measurements_map[
               'cumulative/ami/' + edp_combination + '_' + str(i).zfill(2)],
             corrected_measurements_map[
               'cumulative/ami/' + edp_combination + '_' + str(i + 1).zfill(2)],
+            TOLERANCE
         )
-        self.assertLessEqual(
+        self._assertFuzzyLessEqual(
             corrected_measurements_map[
               'cumulative/mrc/' + edp_combination + '_' + str(i).zfill(2)],
             corrected_measurements_map[
               'cumulative/mrc/' + edp_combination + '_' + str(i + 1).zfill(2)],
+            TOLERANCE
         )
-        self.assertLessEqual(
+        self._assertFuzzyLessEqual(
             corrected_measurements_map[
               'cumulative/custom/' + edp_combination + '_' + str(i).zfill(2)],
             corrected_measurements_map[
               'cumulative/custom/' + edp_combination + '_' + str(i + 1).zfill(
-                2)],
+                  2)],
+            TOLERANCE
         )
-
-    # Verifies that cumulative measurements are less than or equal to total
+    # Verifies that the last cumulative measurements are equal to total
     # measurements.
     for edp_combination in primitive_edp_combinations:
-      self.assertLessEqual(
+      self._assertFuzzyEqual(
           corrected_measurements_map[
-            'cumulative/ami/' + edp_combination + '_' + str(9).zfill(2)],
-          corrected_measurements_map['union/ami/' + edp_combination]
+            'cumulative/ami/' + edp_combination + '_' + str(
+                num_periods - 1).zfill(2)],
+          corrected_measurements_map[
+            'reach_and_frequency/ami/' + edp_combination],
+          TOLERANCE
       )
-      self.assertLessEqual(
+      self._assertFuzzyEqual(
           corrected_measurements_map[
-            'cumulative/mrc/' + edp_combination + '_' + str(9).zfill(2)],
-          corrected_measurements_map['union/mrc/' + edp_combination]
+            'cumulative/mrc/' + edp_combination + '_' + str(
+                num_periods - 1).zfill(2)],
+          corrected_measurements_map[
+            'reach_and_frequency/mrc/' + edp_combination],
+          TOLERANCE
       )
-      self.assertLessEqual(
+      self._assertFuzzyEqual(
           corrected_measurements_map[
-            'cumulative/custom/' + edp_combination + '_' + str(9).zfill(2)],
-          corrected_measurements_map['union/custom/' + edp_combination]
+            'cumulative/custom/' + edp_combination + '_' + str(
+                num_periods - 1).zfill(2)],
+          corrected_measurements_map[
+            'reach_and_frequency/custom/' + edp_combination],
+          TOLERANCE
       )
 
     # Verifies that subset measurements are less than superset measurements
-    for i in range(10):
-      self.assertLessEqual(
+    for i in range(num_periods):
+      self._assertFuzzyLessEqual(
           corrected_measurements_map['cumulative/ami/edp1_' + str(i).zfill(2)],
           corrected_measurements_map[
             'cumulative/ami/edp1_edp2_' + str(i).zfill(2)],
+          TOLERANCE
       )
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map['cumulative/ami/edp2_' + str(i).zfill(2)],
           corrected_measurements_map[
             'cumulative/ami/edp1_edp2_' + str(i).zfill(2)],
+          TOLERANCE
       )
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map['cumulative/mrc/edp1_' + str(i).zfill(2)],
           corrected_measurements_map[
             'cumulative/mrc/edp1_edp2_' + str(i).zfill(2)],
+          TOLERANCE
       )
       self.assertLessEqual(
           corrected_measurements_map['cumulative/mrc/edp2_' + str(i).zfill(2)],
           corrected_measurements_map[
             'cumulative/mrc/edp1_edp2_' + str(i).zfill(2)],
       )
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map[
             'cumulative/custom/edp1_' + str(i).zfill(2)],
           corrected_measurements_map[
             'cumulative/custom/edp1_edp2_' + str(i).zfill(2)],
+          TOLERANCE
       )
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map[
             'cumulative/custom/edp2_' + str(i).zfill(2)],
           corrected_measurements_map[
             'cumulative/custom/edp1_edp2_' + str(i).zfill(2)],
+          TOLERANCE
       )
-    self.assertLessEqual(
-        corrected_measurements_map['union/ami/edp1'],
-        corrected_measurements_map['union/ami/edp1_edp2'],
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['reach_and_frequency/ami/edp1'],
+        corrected_measurements_map['reach_and_frequency/ami/edp1_edp2'],
+        TOLERANCE
     )
-    self.assertLessEqual(
-        corrected_measurements_map['union/ami/edp2'],
-        corrected_measurements_map['union/ami/edp1_edp2'],
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['reach_and_frequency/ami/edp2'],
+        corrected_measurements_map['reach_and_frequency/ami/edp1_edp2'],
+        TOLERANCE
     )
-    self.assertLessEqual(
-        corrected_measurements_map['union/mrc/edp1'],
-        corrected_measurements_map['union/mrc/edp1_edp2'],
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['reach_and_frequency/mrc/edp1'],
+        corrected_measurements_map['reach_and_frequency/mrc/edp1_edp2'],
+        TOLERANCE
     )
-    self.assertLessEqual(
-        corrected_measurements_map['union/mrc/edp2'],
-        corrected_measurements_map['union/mrc/edp1_edp2'],
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['reach_and_frequency/mrc/edp2'],
+        corrected_measurements_map['reach_and_frequency/mrc/edp1_edp2'],
+        TOLERANCE
     )
-    self.assertLessEqual(
-        corrected_measurements_map['union/custom/edp1'],
-        corrected_measurements_map['union/custom/edp1_edp2'],
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['reach_and_frequency/custom/edp1'],
+        corrected_measurements_map['reach_and_frequency/custom/edp1_edp2'],
+        TOLERANCE
     )
-    self.assertLessEqual(
-        corrected_measurements_map['union/custom/edp2'],
-        corrected_measurements_map['union/custom/edp1_edp2'],
+    self._assertFuzzyLessEqual(
+        corrected_measurements_map['reach_and_frequency/custom/edp2'],
+        corrected_measurements_map['reach_and_frequency/custom/edp1_edp2'],
+        TOLERANCE
     )
 
     # Verifies that cover set measurements are less than the sum of child set
     # measurements.
     self._assertFuzzyLessEqual(
-        corrected_measurements_map['union/ami/edp1_edp2'],
-        corrected_measurements_map['union/ami/edp1'] +
-        corrected_measurements_map['union/ami/edp2'],
+        corrected_measurements_map['reach_and_frequency/ami/edp1_edp2'],
+        corrected_measurements_map['reach_and_frequency/ami/edp1'] +
+        corrected_measurements_map['reach_and_frequency/ami/edp2'],
         TOLERANCE
     )
     self._assertFuzzyLessEqual(
-        corrected_measurements_map['union/mrc/edp1_edp2'],
-        corrected_measurements_map['union/mrc/edp1'] +
-        corrected_measurements_map['union/mrc/edp2'],
+        corrected_measurements_map['reach_and_frequency/mrc/edp1_edp2'],
+        corrected_measurements_map['reach_and_frequency/mrc/edp1'] +
+        corrected_measurements_map['reach_and_frequency/mrc/edp2'],
         TOLERANCE
     )
     self._assertFuzzyLessEqual(
-        corrected_measurements_map['union/custom/edp1_edp2'],
-        corrected_measurements_map['union/custom/edp1'] +
-        corrected_measurements_map['union/custom/edp2'],
+        corrected_measurements_map['reach_and_frequency/custom/edp1_edp2'],
+        corrected_measurements_map['reach_and_frequency/custom/edp1'] +
+        corrected_measurements_map['reach_and_frequency/custom/edp2'],
         TOLERANCE
     )
+
+    # Verifies that total reach is equal to the sum of k_reach.
+    for measurement_policy in ['ami', 'mrc', 'custom']:
+      for edp_combination in primitive_edp_combinations:
+        k_reach_sum = 0.0
+        for frequency in range(1, num_frequencies + 1):
+          k_reach_sum += corrected_measurements_map[
+            'reach_and_frequency/' + measurement_policy + '/' + edp_combination
+            + '-frequency-' + str(frequency)]
+        self._assertFuzzyEqual(
+            corrected_measurements_map[
+              'reach_and_frequency/' + measurement_policy + '/' + edp_combination],
+            k_reach_sum,
+            num_frequencies * TOLERANCE
+        )
+
+    # Verifies that the relationship between k_reach and impression holds.
+    for measurement_policy in ['ami', 'mrc', 'custom']:
+      for edp_combination in primitive_edp_combinations:
+        k_reach_sum = 0.0
+        for frequency in range(1, num_frequencies + 1):
+          k_reach_sum += frequency * corrected_measurements_map[
+            'reach_and_frequency/' + measurement_policy + '/' + edp_combination
+            + '-frequency-' + str(frequency)]
+        self._assertFuzzyLessEqual(
+            k_reach_sum,
+            corrected_measurements_map[
+              'impression_count/' + measurement_policy + '/' + edp_combination],
+            TOLERANCE
+        )
+
+    # Verifies that the relationship between impression counts holds.
+    for measurement_policy in ['ami', 'mrc', 'custom']:
+      self._assertFuzzyEqual(
+          corrected_measurements_map[
+            'impression_count/' + measurement_policy + '/edp1_edp2'],
+          corrected_measurements_map[
+            'impression_count/' + measurement_policy + '/edp1'] +
+          corrected_measurements_map[
+            'impression_count/' + measurement_policy + '/edp2'],
+          TOLERANCE
+      )
 
     # Verifies that difference measurements are mapped correctly to primitive
     # measurements.
     self._assertFuzzyEqual(
         corrected_measurements_map['difference/ami/edp2_minus_edp1'],
-        corrected_measurements_map['union/ami/edp1_edp2'] -
-        corrected_measurements_map['union/ami/edp1'],
+        corrected_measurements_map['reach_and_frequency/ami/edp1_edp2'] -
+        corrected_measurements_map['reach_and_frequency/ami/edp1'],
         TOLERANCE
     )
     self._assertFuzzyEqual(
         corrected_measurements_map['difference/ami/edp1_minus_edp2'],
-        corrected_measurements_map['union/ami/edp1_edp2'] -
-        corrected_measurements_map['union/ami/edp2'],
+        corrected_measurements_map['reach_and_frequency/ami/edp1_edp2'] -
+        corrected_measurements_map['reach_and_frequency/ami/edp2'],
         TOLERANCE
     )
     self._assertFuzzyEqual(
         corrected_measurements_map['difference/mrc/edp2_minus_edp1'],
-        corrected_measurements_map['union/mrc/edp1_edp2'] -
-        corrected_measurements_map['union/mrc/edp1'],
+        corrected_measurements_map['reach_and_frequency/mrc/edp1_edp2'] -
+        corrected_measurements_map['reach_and_frequency/mrc/edp1'],
         TOLERANCE
     )
     self._assertFuzzyEqual(
         corrected_measurements_map['difference/mrc/edp1_minus_edp2'],
-        corrected_measurements_map['union/mrc/edp1_edp2'] -
-        corrected_measurements_map['union/mrc/edp2'],
+        corrected_measurements_map['reach_and_frequency/mrc/edp1_edp2'] -
+        corrected_measurements_map['reach_and_frequency/mrc/edp2'],
         TOLERANCE
     )
     self._assertFuzzyEqual(
         corrected_measurements_map['difference/custom/edp2_minus_edp1'],
-        corrected_measurements_map['union/custom/edp1_edp2'] -
-        corrected_measurements_map['union/custom/edp1'],
+        corrected_measurements_map['reach_and_frequency/custom/edp1_edp2'] -
+        corrected_measurements_map['reach_and_frequency/custom/edp1'],
         TOLERANCE
     )
     self._assertFuzzyEqual(
         corrected_measurements_map['difference/custom/edp1_minus_edp2'],
-        corrected_measurements_map['union/custom/edp1_edp2'] -
-        corrected_measurements_map['union/custom/edp2'],
+        corrected_measurements_map['reach_and_frequency/custom/edp1_edp2'] -
+        corrected_measurements_map['reach_and_frequency/custom/edp2'],
         TOLERANCE
     )
 
     # Verifies that mrc/custom measurements are less than or equal to ami ones.
-    for i in range(10):
+    for i in range(num_periods):
       for edp_combination in primitive_edp_combinations:
-        self.assertLessEqual(
+        self._assertFuzzyLessEqual(
             corrected_measurements_map[
               'cumulative/mrc/' + edp_combination + '_' + str(i).zfill(2)],
             corrected_measurements_map[
-              'cumulative/ami/' + edp_combination + '_' + str(i).zfill(2)]
+              'cumulative/ami/' + edp_combination + '_' + str(i).zfill(2)],
+            TOLERANCE
         )
-        self.assertLessEqual(
+        self._assertFuzzyLessEqual(
             corrected_measurements_map[
               'cumulative/custom/' + edp_combination + '_' + str(i).zfill(2)],
             corrected_measurements_map[
-              'cumulative/ami/' + edp_combination + '_' + str(i).zfill(2)]
+              'cumulative/ami/' + edp_combination + '_' + str(i).zfill(2)],
+            TOLERANCE
         )
     for edp_combination in primitive_edp_combinations:
-      self.assertLessEqual(
-          corrected_measurements_map['union/mrc/' + edp_combination],
-          corrected_measurements_map['union/ami/' + edp_combination]
+      self._assertFuzzyLessEqual(
+          corrected_measurements_map[
+            'reach_and_frequency/mrc/' + edp_combination],
+          corrected_measurements_map[
+            'reach_and_frequency/ami/' + edp_combination],
+          TOLERANCE
       )
-      self.assertLessEqual(
-          corrected_measurements_map['union/custom/' + edp_combination],
-          corrected_measurements_map['union/ami/' + edp_combination]
+      self._assertFuzzyLessEqual(
+          corrected_measurements_map[
+            'reach_and_frequency/custom/' + edp_combination],
+          corrected_measurements_map[
+            'reach_and_frequency/ami/' + edp_combination],
+          TOLERANCE
+      )
+      self._assertFuzzyLessEqual(
+          corrected_measurements_map[
+            'impression_count/mrc/' + edp_combination],
+          corrected_measurements_map[
+            'impression_count/ami/' + edp_combination],
+          TOLERANCE
+      )
+      self._assertFuzzyLessEqual(
+          corrected_measurements_map[
+            'impression_count/custom/' + edp_combination],
+          corrected_measurements_map[
+            'impression_count/ami/' + edp_combination],
+          TOLERANCE
       )
     for edp_combination in composite_edp_combinations:
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map['difference/mrc/' + edp_combination],
-          corrected_measurements_map['difference/ami/' + edp_combination]
+          corrected_measurements_map['difference/ami/' + edp_combination],
+          TOLERANCE
       )
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map['difference/custom/' + edp_combination],
-          corrected_measurements_map['difference/ami/' + edp_combination]
+          corrected_measurements_map['difference/ami/' + edp_combination],
+          TOLERANCE
       )
-
-  def test_report_with_unique_reach_is_corrected_successfully(self):
-    report_summary = get_report_summary(
-        "src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_with_unique_reach.json")
-    corrected_measurements_map = ReportSummaryProcessor(
-        report_summary).process()
-
-    # Cumulative measurements are less than or equal to total measurements.
-    self.assertLessEqual(corrected_measurements_map['cumulative/ami/edp1'],
-                         corrected_measurements_map['union/ami/edp1'])
-    self.assertLessEqual(corrected_measurements_map['cumulative/ami/edp2'],
-                         corrected_measurements_map['union/ami/edp2'])
-    self.assertLessEqual(corrected_measurements_map['cumulative/ami/edp3'],
-                         corrected_measurements_map['union/ami/edp3'])
-
-    # Subset measurements are less than or equal to superset measurements.
-    self.assertLessEqual(corrected_measurements_map['union/ami/edp1'],
-                         corrected_measurements_map['union/ami/edp1_edp2'])
-    self.assertLessEqual(corrected_measurements_map['union/ami/edp1'],
-                         corrected_measurements_map['union/ami/edp1_edp3'])
-    self.assertLessEqual(corrected_measurements_map['union/ami/edp1'],
-                         corrected_measurements_map['union/ami/edp1_edp2_edp3'])
-    self.assertLessEqual(corrected_measurements_map['union/ami/edp2'],
-                         corrected_measurements_map['union/ami/edp1_edp2'])
-    self.assertLessEqual(corrected_measurements_map['union/ami/edp2'],
-                         corrected_measurements_map['union/ami/edp2_edp3'])
-    self.assertLessEqual(corrected_measurements_map['union/ami/edp2'],
-                         corrected_measurements_map['union/ami/edp1_edp2_edp3'])
-    self.assertLessEqual(corrected_measurements_map['union/ami/edp3'],
-                         corrected_measurements_map['union/ami/edp1_edp3'])
-    self.assertLessEqual(corrected_measurements_map['union/ami/edp3'],
-                         corrected_measurements_map['union/ami/edp2_edp3'])
-    self.assertLessEqual(corrected_measurements_map['union/ami/edp3'],
-                         corrected_measurements_map['union/ami/edp1_edp2_edp3'])
-    self.assertLessEqual(corrected_measurements_map['union/ami/edp1_edp2'],
-                         corrected_measurements_map['union/ami/edp1_edp2_edp3'])
-    self.assertLessEqual(corrected_measurements_map['union/ami/edp1_edp3'],
-                         corrected_measurements_map['union/ami/edp1_edp2_edp3'])
-    self.assertLessEqual(corrected_measurements_map['union/ami/edp2_edp3'],
-                         corrected_measurements_map['union/ami/edp1_edp2_edp3'])
-
-    # Checks cover relationships.
-    self._assertFuzzyLessEqual(
-        corrected_measurements_map['union/ami/edp1_edp2_edp3'],
-        corrected_measurements_map['union/ami/edp1'] +
-        corrected_measurements_map['union/ami/edp2'] +
-        corrected_measurements_map['union/ami/edp3'], TOLERANCE)
-    self._assertFuzzyLessEqual(
-        corrected_measurements_map['union/ami/edp1_edp2_edp3'],
-        corrected_measurements_map['union/ami/edp1'] +
-        corrected_measurements_map['union/ami/edp2_edp3'], TOLERANCE)
-    self._assertFuzzyLessEqual(
-        corrected_measurements_map['union/ami/edp1_edp2_edp3'],
-        corrected_measurements_map['union/ami/edp2'] +
-        corrected_measurements_map['union/ami/edp1_edp3'], TOLERANCE)
-    self._assertFuzzyLessEqual(
-        corrected_measurements_map['union/ami/edp1_edp2_edp3'],
-        corrected_measurements_map['union/ami/edp3'] +
-        corrected_measurements_map['union/ami/edp1_edp2'], TOLERANCE)
-    self._assertFuzzyLessEqual(
-        corrected_measurements_map['union/ami/edp1_edp2'],
-        corrected_measurements_map['union/ami/edp1'] +
-        corrected_measurements_map['union/ami/edp2'], TOLERANCE)
-    self._assertFuzzyLessEqual(
-        corrected_measurements_map['union/ami/edp1_edp3'],
-        corrected_measurements_map['union/ami/edp1'] +
-        corrected_measurements_map['union/ami/edp3'], TOLERANCE)
-    self._assertFuzzyLessEqual(
-        corrected_measurements_map['union/ami/edp2_edp3'],
-        corrected_measurements_map['union/ami/edp2'] +
-        corrected_measurements_map['union/ami/edp3'], TOLERANCE)
-
-    # Checks unique reach measurements.
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/ami/unique_reach_edp1'],
-        corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
-        corrected_measurements_map['union/ami/edp2_edp3'],
-        TOLERANCE
-    )
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/ami/unique_reach_edp2'],
-        corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
-        corrected_measurements_map['union/ami/edp1_edp3'],
-        TOLERANCE
-    )
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/ami/unique_reach_edp3'],
-        corrected_measurements_map['union/ami/edp1_edp2_edp3'] -
-        corrected_measurements_map['union/ami/edp1_edp2'],
-        TOLERANCE
-    )
-
-    # Checks incremental reach measurements.
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/ami/difference_reach_edp1'],
-        corrected_measurements_map['union/ami/edp1_edp2'] -
-        corrected_measurements_map['union/ami/edp2'],
-        TOLERANCE
-    )
 
   def _assertFuzzyEqual(self, x: int, y: int, tolerance: int):
     self.assertLessEqual(abs(x - y), tolerance)
@@ -515,13 +647,26 @@ class TestOriginReport(unittest.TestCase):
   def _assertFuzzyLessEqual(self, x: int, y: int, tolerance: int):
     self.assertLessEqual(x, y + tolerance)
 
+  def _assertMeasurementsEqual(self, measurement1: Measurement,
+      measurement2: Measurement, tolerance: float):
+    self.assertEqual(measurement1.name, measurement2.name)
+    self._assertFuzzyEqual(measurement1.value, measurement2.value, tolerance)
+    self._assertFuzzyEqual(measurement1.sigma, measurement2.sigma, tolerance)
+
+  def _assertMeasurementListsEqual(self, list1: list[Measurement],
+      list2: list[Measurement], tolerance: float):
+    sorted_list1 = sorted(list1, key=lambda measurement: measurement.name)
+    sorted_list2 = sorted(list2, key=lambda measurement: measurement.name)
+    for i in range(len(sorted_list1)):
+      self._assertMeasurementsEqual(sorted_list1[i], sorted_list2[i], tolerance)
+
 
 def read_file_to_string(filename: str) -> str:
   try:
     with open(filename, 'r') as file:
       return file.read()
   except FileNotFoundError:
-    sys.exit(1)
+    sys.exit(num_periods - 1)
 
 
 def get_report_summary(filename: str):
@@ -531,5 +676,5 @@ def get_report_summary(filename: str):
   return report_summary
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
   unittest.main()

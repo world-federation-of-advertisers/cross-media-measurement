@@ -1,0 +1,74 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.v2;
+
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/reporting/v2/basic_report.proto";
+
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
+option java_multiple_files = true;
+
+// Internal service for persistence of Basic Report entities.
+service BasicReports {
+  // Error reasons:
+  // * `REPORTING_SET_NOT_FOUND`
+  // * `IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND`
+  // * `BASIC_REPORT_ALREADY_EXISTS`
+  rpc InsertBasicReport(InsertBasicReportRequest) returns (BasicReport);
+
+  // Error reasons:
+  // * `BASIC_REPORT_NOT_FOUND`
+  rpc GetBasicReport(GetBasicReportRequest) returns (BasicReport);
+
+  // Ordered by `create_time` descending, `external_basic_report_id` ascending.
+  rpc ListBasicReports(ListBasicReportsRequest) returns (stream BasicReport);
+}
+
+message InsertBasicReportRequest {
+  BasicReport basic_report = 1;
+  // If set, it needs to be unique to create a new `BasicReport`. Recommended to
+  // use a UUID.
+  string request_id = 2;
+}
+
+message GetBasicReportRequest {
+  // Ex: If a `BasicReport` has the name
+  // "measurementconsumers/abc/basicreports/abcd", then the
+  // `MeasurementConsumer` ID is "abc" and the `BasicReport` ID is "abcd".
+  string cmms_measurement_consumer_id = 1;
+  string external_basic_report_id = 2;
+}
+
+message ListBasicReportsRequest {
+  message AfterFilter {
+    // Any `BasicReport` created before this time, exclusive, will be included.
+    google.protobuf.Timestamp create_time = 1;
+    // If two or more `BasicReport`s have the same create_time, then the
+    // `BasicReport`s with `external_basic_report_id` greater than this,
+    // exclusive, will be included.
+    string external_basic_report_id = 2;
+  }
+
+  message Filter {
+    // `MeasurementConsumer` ID from the CMMS public API. Required.
+    string cmms_measurement_consumer_id = 1;
+    AfterFilter after = 2;
+  }
+  Filter filter = 1;
+
+  int32 limit = 2;
+}

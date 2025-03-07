@@ -24,15 +24,20 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionR
 class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit: Int = 0) :
   SimpleSpannerQuery<RequisitionReader.Result>() {
 
-  override val reader =
-    RequisitionReader().apply {
-      val orderByClause =
-        "ORDER BY UpdateTime ASC, ExternalDataProviderId ASC, ExternalRequisitionId ASC"
-      this.orderByClause = orderByClause
+  private val primaryTable =
+    if (requestFilter.externalMeasurementConsumerId != 0L) {
+      // Since Requisitions is interleaved in Measurements which is interleaved in
+      // MeasurementConsumers, it's most efficient if the MC can be filtered first.
+      RequisitionReader.PrimaryTable.MEASUREMENT_CONSUMERS
+    } else {
+      RequisitionReader.PrimaryTable.REQUISITIONS
+    }
 
+  override val reader =
+    RequisitionReader(primaryTable).apply {
       fillStatementBuilder {
         appendWhereClause(requestFilter)
-        appendClause(orderByClause)
+        appendClause(ORDER_BY_CLAUSE)
         if (limit > 0) {
           appendClause("LIMIT @$LIMIT")
           bind(LIMIT to limit.toLong())
@@ -97,6 +102,9 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
   }
 
   companion object {
+    private const val ORDER_BY_CLAUSE =
+      "ORDER BY UpdateTime ASC, ExternalDataProviderId ASC, ExternalRequisitionId ASC"
+
     const val LIMIT = "limit"
     const val EXTERNAL_MEASUREMENT_CONSUMER_ID = "externalMeasurementConsumerId"
     const val EXTERNAL_MEASUREMENT_ID = "externalMeasurementId"

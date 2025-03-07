@@ -32,15 +32,33 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":queue_proto",
+        ":work_item_attempt_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:any_proto",
+        "@com_google_protobuf//:timestamp_proto",
     ],
 )
 
 kt_jvm_proto_library(
     name = "work_item_kt_jvm_proto",
     deps = [":work_item_proto"],
+)
+
+proto_library(
+    name = "work_item_attempt_proto",
+    srcs = ["work_item_attempt.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "work_item_attempt_kt_jvm_proto",
+    deps = [":work_item_attempt_proto"],
 )
 
 #Services.
@@ -53,10 +71,43 @@ proto_library(
         ":work_item_proto",
         "@com_google_googleapis//google/api:client_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
 kt_jvm_grpc_proto_library(
     name = "work_items_service_kt_jvm_grpc_proto",
     deps = [":work_items_service_proto"],
+)
+
+proto_library(
+    name = "work_item_attempts_service_proto",
+    srcs = ["work_item_attempts_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":work_item_attempt_proto",
+        "@com_google_googleapis//google/api:client_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "work_item_attempts_service_kt_jvm_grpc_proto",
+    deps = [":work_item_attempts_service_proto"],
+)
+
+proto_library(
+    name = "work_item_config_proto",
+    srcs = ["work_item_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:any_proto",
+        "@com_google_protobuf//:struct_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "work_item_config_kt_jvm_proto",
+    deps = [":work_item_config_proto"],
 )

@@ -1,0 +1,92 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/reporting/v2alpha/reporting_impression_qualification_filter.proto";
+import "wfa/measurement/reporting/v2alpha/reporting_interval.proto";
+import "wfa/measurement/reporting/v2alpha/result_group.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "BasicReportProto";
+
+// Resource representing a Basic Report.
+message BasicReport {
+  option (google.api.resource) = {
+    type: "reporting.halo-cmm.org/BasicReport"
+    pattern: "measurementConsumers/{measurement_consumer}/basicReports/{basic_report}"
+    singular: "basicReport"
+    plural: "basicReports"
+  };
+
+  // Resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // Human readable title of the report.
+  string title = 2 [(google.api.field_behavior) = IMMUTABLE];
+
+  // This is the resource name of a primitive ReportingSet that includes all
+  // of the EventGroups that may be reported on.
+  //
+  // EventGroups may span DataProviders and MediaTypes.
+  string campaign_group = 3 [
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/ReportingSet"
+    },
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // Denormalized. The display_name of the campaign_group
+  string campaign_group_display_name = 4
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The interval of time that the BasicReport spans
+  //
+  // Both the start and the end of the interval are immutable.
+  ReportingInterval reporting_interval = 5 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // The impression qualification filters for the BasicReport.
+  //
+  // The custom criteria and any specific impression_qualification_filter may
+  // each be used at most once.
+  // TODO(@kungfucraig): Denormalize the impression qualification filters.
+  repeated ReportingImpressionQualificationFilter
+      impression_qualification_filters = 6 [
+        (google.api.field_behavior) = REQUIRED,
+        (google.api.field_behavior) = IMMUTABLE
+      ];
+
+  // Specifies the ResultGroups to create
+  repeated ResultGroupSpec result_group_specs = 9 [
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.field_behavior) = REQUIRED
+  ];
+
+  // The report results
+  repeated ResultGroup result_groups = 7
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The time when the BasicReport was created.
+  google.protobuf.Timestamp create_time = 8
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+}

@@ -83,6 +83,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultOutput
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
@@ -536,6 +537,14 @@ private const val METRIC_FILTER = "media_type==video"
 private const val PRIMITIVE_REPORTING_SET_FILTER = "gender==male"
 private val ALL_FILTERS =
   listOf(INCREMENTAL_REPORTING_SET_FILTER, METRIC_FILTER, PRIMITIVE_REPORTING_SET_FILTER)
+
+// Containing Report
+private const val CONTAINING_REPORT = "report X"
+
+// Metric ID and Name
+private const val METRIC_ID = "metric-id"
+private val METRIC_NAME =
+  MetricKey(MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId, METRIC_ID).toName()
 
 // Internal reporting sets
 
@@ -1005,6 +1014,10 @@ private val BASE_MEASUREMENT_SPEC = measurementSpec {
   // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this field.
   serializedMeasurementPublicKey = measurementPublicKey.value
   modelLine = MEASUREMENT_CONSUMER_MODEL_LINES[MEASUREMENT_CONSUMERS.values.first().name]!!
+  reportingMetadata = reportingMetadata {
+    report = CONTAINING_REPORT
+    metric = METRIC_NAME
+  }
 }
 
 // CMMS incremental reach measurements
@@ -1536,7 +1549,11 @@ private val INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC = internalMetric {
         clearState()
       }
   }
-  details = InternalMetricKt.details { filters += listOf(METRIC_FILTER) }
+  details =
+    InternalMetricKt.details {
+      filters += listOf(METRIC_FILTER)
+      containingReport = CONTAINING_REPORT
+    }
 }
 
 private val INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC =
@@ -1630,7 +1647,11 @@ private val INTERNAL_REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC = intern
         clearState()
       }
   }
-  details = InternalMetricKt.details { filters += listOf(METRIC_FILTER) }
+  details =
+    InternalMetricKt.details {
+      filters += listOf(METRIC_FILTER)
+      containingReport = CONTAINING_REPORT
+    }
 }
 
 private val INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC =
@@ -1704,7 +1725,11 @@ private val INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC = internalMet
         clearState()
       }
   }
-  details = InternalMetricKt.details { filters += listOf(METRIC_FILTER) }
+  details =
+    InternalMetricKt.details {
+      filters += listOf(METRIC_FILTER)
+      containingReport = CONTAINING_REPORT
+    }
 }
 
 private val INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC =
@@ -1794,7 +1819,11 @@ private val INTERNAL_REQUESTING_CROSS_PUBLISHER_WATCH_DURATION_METRIC = internal
     binaryRepresentation = 1
     measurement = INTERNAL_REQUESTING_UNION_ALL_WATCH_DURATION_MEASUREMENT
   }
-  details = InternalMetricKt.details { filters += listOf(METRIC_FILTER) }
+  details =
+    InternalMetricKt.details {
+      filters += listOf(METRIC_FILTER)
+      containingReport = CONTAINING_REPORT
+    }
 }
 
 private val INTERNAL_PENDING_INITIAL_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
@@ -1850,7 +1879,11 @@ val INTERNAL_REQUESTING_POPULATION_METRIC = internalMetric {
         clearState()
       }
   }
-  details = InternalMetricKt.details { filters += listOf(INCREMENTAL_REPORTING_SET_FILTER) }
+  details =
+    InternalMetricKt.details {
+      filters += listOf(INCREMENTAL_REPORTING_SET_FILTER)
+      containingReport = CONTAINING_REPORT
+    }
 }
 
 private val INTERNAL_PENDING_INITIAL_POPULATION_METRIC =
@@ -1896,6 +1929,7 @@ private val REQUESTING_INCREMENTAL_REACH_METRIC = metric {
   timeInterval = TIME_INTERVAL
   metricSpec = REACH_METRIC_SPEC
   filters += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.details.filtersList
+  containingReport = CONTAINING_REPORT
 }
 
 private val PENDING_INCREMENTAL_REACH_METRIC =
@@ -1962,6 +1996,7 @@ private val REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC = metric {
   timeInterval = TIME_INTERVAL
   metricSpec = REACH_FREQUENCY_METRIC_SPEC
   filters += INTERNAL_REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.details.filtersList
+  containingReport = CONTAINING_REPORT
 }
 
 private val PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC =
@@ -2051,6 +2086,7 @@ private val REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC = metric {
   timeInterval = TIME_INTERVAL
   metricSpec = IMPRESSION_COUNT_METRIC_SPEC
   filters += INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.details.filtersList
+  containingReport = CONTAINING_REPORT
 }
 
 private val PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC =
@@ -2115,6 +2151,7 @@ private val REQUESTING_CROSS_PUBLISHER_WATCH_DURATION_METRIC = metric {
   timeInterval = TIME_INTERVAL
   metricSpec = WATCH_DURATION_METRIC_SPEC
   filters += INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.details.filtersList
+  containingReport = CONTAINING_REPORT
 }
 
 private val PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
@@ -2178,6 +2215,7 @@ val REQUESTING_POPULATION_METRIC = metric {
   timeInterval = TIME_INTERVAL
   metricSpec = POPULATION_METRIC_SPEC
   filters += INTERNAL_PENDING_POPULATION_METRIC.details.filtersList
+  containingReport = CONTAINING_REPORT
 }
 
 val PENDING_POPULATION_METRIC =
@@ -2464,7 +2502,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val result =
@@ -2480,7 +2518,7 @@ class MetricsServiceTest {
       .isEqualTo(
         internalCreateMetricRequest {
           metric = INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC
-          externalMetricId = "metric-id"
+          externalMetricId = METRIC_ID
         }
       )
 
@@ -2528,6 +2566,15 @@ class MetricsServiceTest {
           UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
             nonceHashes.clear()
             nonceHashes += List(dataProvidersList.size) { Hashing.hashSha256(RANDOM_OUTPUT_LONG) }
+            reportingMetadata = reportingMetadata {
+              report = CONTAINING_REPORT
+              metric =
+                MetricKey(
+                    INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.cmmsMeasurementConsumerId,
+                    INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId,
+                  )
+                  .toName()
+            }
           }
         )
 
@@ -2599,7 +2646,7 @@ class MetricsServiceTest {
         DEFAULT_VID_MODEL_LINE,
         measurementConsumerModelLines = mapOf(),
       )
-
+    val metricId = METRIC_ID
     val cmmsMeasurementSpec =
       BASE_MEASUREMENT_SPEC.copy {
         measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.pack()
@@ -2619,6 +2666,11 @@ class MetricsServiceTest {
             width = SINGLE_DATA_PROVIDER_REACH_ONLY_VID_SAMPLING_WIDTH
           }
         modelLine = DEFAULT_VID_MODEL_LINE
+        reportingMetadata = reportingMetadata {
+          report = CONTAINING_REPORT
+          metric =
+            MetricKey(MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId, metricId).toName()
+        }
       }
 
     val internalMeasurement = internalMeasurement {
@@ -2655,7 +2707,7 @@ class MetricsServiceTest {
 
     val internalPendingReachMetricWithSingleDataProviderParams = internalMetric {
       cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-      externalMetricId = "metric-id"
+      externalMetricId = metricId
       externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
       timeInterval = TIME_INTERVAL
       metricSpec = internalMetricSpec {
@@ -2694,7 +2746,11 @@ class MetricsServiceTest {
         binaryRepresentation = 1
         measurement = internalMeasurement.copy { clearCmmsMeasurementId() }
       }
-      details = InternalMetricKt.details { filters += METRIC_FILTER }
+      details =
+        InternalMetricKt.details {
+          filters += METRIC_FILTER
+          containingReport = CONTAINING_REPORT
+        }
       createTime = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.createTime
       state = InternalMetric.State.RUNNING
     }
@@ -2744,12 +2800,13 @@ class MetricsServiceTest {
         }
       }
       filters += METRIC_FILTER
+      containingReport = CONTAINING_REPORT
     }
 
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = requestingReachMetricWithSingleDataProviderParams
-      metricId = "metric-id"
+      this.metricId = metricId
     }
 
     val result =
@@ -2924,7 +2981,7 @@ class MetricsServiceTest {
 
     val internalPendingReachMetric = internalMetric {
       cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-      externalMetricId = "metric-id"
+      externalMetricId = METRIC_ID
       externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
       timeInterval = TIME_INTERVAL
       metricSpec = internalMetricSpec {
@@ -2950,7 +3007,11 @@ class MetricsServiceTest {
         binaryRepresentation = 1
         measurement = internalMeasurement.copy { clearCmmsMeasurementId() }
       }
-      details = InternalMetricKt.details { filters += METRIC_FILTER }
+      details =
+        InternalMetricKt.details {
+          filters += METRIC_FILTER
+          containingReport = CONTAINING_REPORT
+        }
       createTime = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.createTime
       state = InternalMetric.State.RUNNING
     }
@@ -2983,12 +3044,13 @@ class MetricsServiceTest {
           }
       }
       filters += METRIC_FILTER
+      containingReport = CONTAINING_REPORT
     }
 
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = requestingReachMetric
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val result =
@@ -3166,7 +3228,7 @@ class MetricsServiceTest {
 
     val internalPendingReachAndFrequencyMetricWithSingleDataProviderParams = internalMetric {
       cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-      externalMetricId = "metric-id"
+      externalMetricId = METRIC_ID
       externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
       timeInterval = TIME_INTERVAL
       metricSpec = internalMetricSpec {
@@ -3216,7 +3278,11 @@ class MetricsServiceTest {
         binaryRepresentation = 1
         measurement = internalMeasurement.copy { clearCmmsMeasurementId() }
       }
-      details = InternalMetricKt.details { filters += METRIC_FILTER }
+      details =
+        InternalMetricKt.details {
+          filters += METRIC_FILTER
+          containingReport = CONTAINING_REPORT
+        }
       createTime = INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.createTime
       state = InternalMetric.State.RUNNING
     }
@@ -3278,12 +3344,13 @@ class MetricsServiceTest {
         }
       }
       filters += METRIC_FILTER
+      containingReport = CONTAINING_REPORT
     }
 
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = requestingReachAndFrequencyMetricWithSingleDataProviderParams
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val result =
@@ -3419,7 +3486,7 @@ class MetricsServiceTest {
       val request = createMetricRequest {
         parent = MEASUREMENT_CONSUMERS.values.first().name
         metric = REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
-        metricId = "metric-id"
+        metricId = METRIC_ID
       }
 
       val result =
@@ -3435,7 +3502,7 @@ class MetricsServiceTest {
         .isEqualTo(
           internalCreateMetricRequest {
             metric = INTERNAL_REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
-            externalMetricId = "metric-id"
+            externalMetricId = METRIC_ID
           }
         )
 
@@ -3473,7 +3540,21 @@ class MetricsServiceTest {
 
         val measurementSpec: MeasurementSpec =
           createMeasurementRequest.measurement.measurementSpec.unpack()
-        assertThat(measurementSpec).isEqualTo(SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT_SPEC)
+        assertThat(measurementSpec)
+          .isEqualTo(
+            SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT_SPEC.copy {
+              reportingMetadata = reportingMetadata {
+                report = CONTAINING_REPORT
+                metric =
+                  MetricKey(
+                      INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
+                        .cmmsMeasurementConsumerId,
+                      INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.externalMetricId,
+                    )
+                    .toName()
+              }
+            }
+          )
 
         dataProvidersList.map { dataProviderEntry ->
           val signedRequisitionSpec =
@@ -3528,7 +3609,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val result =
@@ -3544,7 +3625,7 @@ class MetricsServiceTest {
       .isEqualTo(
         internalCreateMetricRequest {
           metric = INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC
-          externalMetricId = "metric-id"
+          externalMetricId = METRIC_ID
         }
       )
 
@@ -3582,7 +3663,21 @@ class MetricsServiceTest {
 
       val measurementSpec: MeasurementSpec =
         createMeasurementRequest.measurement.measurementSpec.unpack()
-      assertThat(measurementSpec).isEqualTo(SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC)
+      assertThat(measurementSpec)
+        .isEqualTo(
+          SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC.copy {
+            reportingMetadata = reportingMetadata {
+              report = CONTAINING_REPORT
+              metric =
+                MetricKey(
+                    INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC
+                      .cmmsMeasurementConsumerId,
+                    INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId,
+                  )
+                  .toName()
+            }
+          }
+        )
 
       dataProvidersList.map { dataProviderEntry ->
         val signedRequisitionSpec =
@@ -3675,6 +3770,15 @@ class MetricsServiceTest {
             start = vidSamplingIntervalStart
             width = vidSamplingIntervalWidth
           }
+        reportingMetadata = reportingMetadata {
+          report = CONTAINING_REPORT
+          metric =
+            MetricKey(
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+                INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId,
+              )
+              .toName()
+        }
       }
 
     val requestingSinglePublisherImpressionMeasurement =
@@ -3717,7 +3821,7 @@ class MetricsServiceTest {
               }
           }
         }
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val result =
@@ -3763,7 +3867,7 @@ class MetricsServiceTest {
       .isEqualTo(
         internalCreateMetricRequest {
           metric = internalRequestingSinglePublisherImpressionMetric
-          externalMetricId = "metric-id"
+          externalMetricId = METRIC_ID
         }
       )
 
@@ -3848,7 +3952,7 @@ class MetricsServiceTest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
       requestId = INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val result =
@@ -3865,7 +3969,7 @@ class MetricsServiceTest {
         internalCreateMetricRequest {
           metric = INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC
           requestId = INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY
-          externalMetricId = "metric-id"
+          externalMetricId = METRIC_ID
         }
       )
 
@@ -3913,6 +4017,15 @@ class MetricsServiceTest {
           UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
             nonceHashes.clear()
             nonceHashes += List(dataProvidersList.size) { Hashing.hashSha256(RANDOM_OUTPUT_LONG) }
+            reportingMetadata = reportingMetadata {
+              report = CONTAINING_REPORT
+              metric =
+                MetricKey(
+                    INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.cmmsMeasurementConsumerId,
+                    INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId,
+                  )
+                  .toName()
+            }
           }
         )
 
@@ -3974,6 +4087,7 @@ class MetricsServiceTest {
           binaryRepresentation = 1
         }
       }
+
     val internalCreateMetricRequest = internalCreateMetricRequest {
       metric =
         INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
@@ -3990,9 +4104,9 @@ class MetricsServiceTest {
               details = InternalMeasurementKt.details { dataProviderCount = 1 }
             }
           }
-          details = InternalMetricKt.details {}
+          details = InternalMetricKt.details { containingReport = CONTAINING_REPORT }
         }
-      externalMetricId = "metric-id"
+      externalMetricId = METRIC_ID
     }
 
     val internalPendingInitialSinglePublisherImpressionMetric =
@@ -4010,7 +4124,7 @@ class MetricsServiceTest {
               }
             }
         }
-        details = InternalMetricKt.details {}
+        details = InternalMetricKt.details { containingReport = CONTAINING_REPORT }
       }
 
     whenever(
@@ -4034,7 +4148,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { filters.clear() }
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
@@ -4132,7 +4246,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
     withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
       runBlocking { service.createMetric(request) }
@@ -4196,7 +4310,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
     withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
       runBlocking { service.createMetric(request) }
@@ -4233,7 +4347,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val result =
@@ -4249,7 +4363,7 @@ class MetricsServiceTest {
       .isEqualTo(
         internalCreateMetricRequest {
           metric = INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC
-          externalMetricId = "metric-id"
+          externalMetricId = METRIC_ID
         }
       )
 
@@ -4282,7 +4396,7 @@ class MetricsServiceTest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
       requestId = INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val result =
@@ -4299,7 +4413,7 @@ class MetricsServiceTest {
         internalCreateMetricRequest {
           metric = INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC
           requestId = INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY
-          externalMetricId = "metric-id"
+          externalMetricId = METRIC_ID
         }
       )
 
@@ -4332,7 +4446,7 @@ class MetricsServiceTest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
       requestId = INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val result =
@@ -4356,7 +4470,7 @@ class MetricsServiceTest {
         internalCreateMetricRequest {
           metric = INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC
           requestId = INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY
-          externalMetricId = "metric-id"
+          externalMetricId = METRIC_ID
         }
       )
 
@@ -4392,7 +4506,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.createMetric(request) } }
@@ -4404,7 +4518,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -4422,7 +4536,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.last().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -4440,7 +4554,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -4456,7 +4570,7 @@ class MetricsServiceTest {
   fun `createMetric throws INVALID_ARGUMENT when parent is unspecified`() {
     val request = createMetricRequest {
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -4540,7 +4654,7 @@ class MetricsServiceTest {
   fun `createMetric throws INVALID_ARGUMENT when metric is unspecified`() {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -4558,7 +4672,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { clearTimeInterval() }
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -4580,7 +4694,7 @@ class MetricsServiceTest {
           clearTimeInterval()
           timeInterval = interval { endTime = timestamp { seconds = 5 } }
         }
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -4601,7 +4715,7 @@ class MetricsServiceTest {
           clearTimeInterval()
           timeInterval = interval { startTime = timestamp { seconds = 5 } }
         }
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -4631,7 +4745,7 @@ class MetricsServiceTest {
             }
           }
         }
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -4648,7 +4762,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { clearMetricSpec() }
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -4669,7 +4783,7 @@ class MetricsServiceTest {
         REQUESTING_INCREMENTAL_REACH_METRIC.copy {
           metricSpec = metricSpec.copy { reach = reach.copy { clearPrivacyParams() } }
         }
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -4690,7 +4804,7 @@ class MetricsServiceTest {
           metricSpec =
             metricSpec.copy { vidSamplingInterval = vidSamplingInterval.copy { start = -1.0f } }
         }
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -4711,7 +4825,7 @@ class MetricsServiceTest {
           metricSpec =
             metricSpec.copy { vidSamplingInterval = vidSamplingInterval.copy { start = 1.0f } }
         }
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -4732,7 +4846,7 @@ class MetricsServiceTest {
           metricSpec =
             metricSpec.copy { vidSamplingInterval = vidSamplingInterval.copy { width = 0f } }
         }
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -4759,7 +4873,7 @@ class MetricsServiceTest {
                 }
             }
         }
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -4776,7 +4890,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { clearReportingSet() }
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -4795,7 +4909,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = metricWithInvalidReportingSet
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -4822,7 +4936,7 @@ class MetricsServiceTest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric =
         REQUESTING_INCREMENTAL_REACH_METRIC.copy { reportingSet = inaccessibleReportingSetName }
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -4844,7 +4958,7 @@ class MetricsServiceTest {
         REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
           reportingSet = INTERNAL_INCREMENTAL_REPORTING_SET.resourceName
         }
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -4874,7 +4988,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -4902,7 +5016,7 @@ class MetricsServiceTest {
       val request = createMetricRequest {
         parent = MEASUREMENT_CONSUMERS.values.first().name
         metric = REQUESTING_INCREMENTAL_REACH_METRIC
-        metricId = "metric-id"
+        metricId = METRIC_ID
       }
 
       val exception =
@@ -4924,7 +5038,7 @@ class MetricsServiceTest {
       val request = createMetricRequest {
         parent = MEASUREMENT_CONSUMERS.values.first().name
         metric = REQUESTING_INCREMENTAL_REACH_METRIC
-        metricId = "metric-id"
+        metricId = METRIC_ID
       }
 
       assertFailsWith(Exception::class) {
@@ -4943,7 +5057,7 @@ class MetricsServiceTest {
       val request = createMetricRequest {
         parent = MEASUREMENT_CONSUMERS.values.first().name
         metric = REQUESTING_INCREMENTAL_REACH_METRIC
-        metricId = "metric-id"
+        metricId = METRIC_ID
       }
 
       val exception =
@@ -4964,7 +5078,7 @@ class MetricsServiceTest {
       val request = createMetricRequest {
         parent = MEASUREMENT_CONSUMERS.values.first().name
         metric = REQUESTING_INCREMENTAL_REACH_METRIC
-        metricId = "metric-id"
+        metricId = METRIC_ID
       }
 
       assertFailsWith(Exception::class) {
@@ -4982,7 +5096,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -5004,7 +5118,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     assertFails {
@@ -5022,7 +5136,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -5042,7 +5156,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
 
     val exception =
@@ -5064,7 +5178,7 @@ class MetricsServiceTest {
       val request = createMetricRequest {
         parent = MEASUREMENT_CONSUMERS.values.first().name
         metric = REQUESTING_INCREMENTAL_REACH_METRIC
-        metricId = "metric-id"
+        metricId = METRIC_ID
       }
 
       val exception =
@@ -5168,11 +5282,31 @@ class MetricsServiceTest {
         createMeasurementRequest.measurement.measurementSpec.unpack()
       assertThat(measurementSpec)
         .isEqualTo(
-          if (dataProvidersList.size == 1) SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC
+          if (dataProvidersList.size == 1)
+            SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC.copy {
+              reportingMetadata = reportingMetadata {
+                report = CONTAINING_REPORT
+                metric =
+                  MetricKey(
+                      INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId,
+                      INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId,
+                    )
+                    .toName()
+              }
+            }
           else
             UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
               nonceHashes.clear()
               nonceHashes += List(dataProvidersList.size) { Hashing.hashSha256(RANDOM_OUTPUT_LONG) }
+              reportingMetadata = reportingMetadata {
+                report = CONTAINING_REPORT
+                metric =
+                  MetricKey(
+                      INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.cmmsMeasurementConsumerId,
+                      INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId,
+                    )
+                    .toName()
+              }
             }
         )
 
@@ -5343,7 +5477,7 @@ class MetricsServiceTest {
           createMetricRequest {
             parent = MEASUREMENT_CONSUMERS.values.first().name
             metric = REQUESTING_INCREMENTAL_REACH_METRIC
-            metricId = "metric-id"
+            metricId = METRIC_ID
           }
         }
     }
@@ -6392,7 +6526,7 @@ class MetricsServiceTest {
 
       val internalSucceededReachMetricWithSingleDataProviderParams = internalMetric {
         cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-        externalMetricId = "metric-id"
+        externalMetricId = METRIC_ID
         externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
         timeInterval = TIME_INTERVAL
         metricSpec = internalMetricSpec {
@@ -6431,7 +6565,11 @@ class MetricsServiceTest {
           binaryRepresentation = 1
           measurement = internalMeasurement
         }
-        details = InternalMetricKt.details { filters += METRIC_FILTER }
+        details =
+          InternalMetricKt.details {
+            filters += METRIC_FILTER
+            containingReport = CONTAINING_REPORT
+          }
         createTime = INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.createTime
         state = InternalMetric.State.SUCCEEDED
       }
@@ -6524,6 +6662,7 @@ class MetricsServiceTest {
           }
         }
         filters += METRIC_FILTER
+        containingReport = CONTAINING_REPORT
         state = Metric.State.SUCCEEDED
         createTime = INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.createTime
         this.result = metricResult {
@@ -6578,7 +6717,7 @@ class MetricsServiceTest {
 
       val internalSucceededReachMetric = internalMetric {
         cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-        externalMetricId = "metric-id"
+        externalMetricId = METRIC_ID
         externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
         timeInterval = TIME_INTERVAL
         metricSpec = internalMetricSpec {
@@ -6604,7 +6743,11 @@ class MetricsServiceTest {
           binaryRepresentation = 1
           measurement = internalMeasurement
         }
-        details = InternalMetricKt.details { filters += METRIC_FILTER }
+        details =
+          InternalMetricKt.details {
+            filters += METRIC_FILTER
+            containingReport = CONTAINING_REPORT
+          }
         createTime = INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.createTime
         state = InternalMetric.State.SUCCEEDED
       }
@@ -6675,6 +6818,7 @@ class MetricsServiceTest {
             }
         }
         filters += METRIC_FILTER
+        containingReport = CONTAINING_REPORT
         state = Metric.State.SUCCEEDED
         createTime = INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.createTime
         this.result = metricResult {
@@ -7663,7 +7807,7 @@ class MetricsServiceTest {
     runBlocking {
       val internalSucceededReachAndFrequencyMetricWithSingleDataProviderParams = internalMetric {
         cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-        externalMetricId = "metric-id"
+        externalMetricId = METRIC_ID
         externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
         timeInterval = TIME_INTERVAL
         metricSpec = internalMetricSpec {
@@ -7713,7 +7857,11 @@ class MetricsServiceTest {
           binaryRepresentation = 1
           measurement = INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT
         }
-        details = InternalMetricKt.details { filters += METRIC_FILTER }
+        details =
+          InternalMetricKt.details {
+            filters += METRIC_FILTER
+            containingReport = CONTAINING_REPORT
+          }
         createTime = INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.createTime
         state = InternalMetric.State.SUCCEEDED
       }
@@ -7819,6 +7967,7 @@ class MetricsServiceTest {
           }
         }
         filters += METRIC_FILTER
+        containingReport = CONTAINING_REPORT
         state = Metric.State.SUCCEEDED
         createTime = INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.createTime
         this.result = metricResult {
@@ -9881,7 +10030,7 @@ class MetricsServiceTest {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_POPULATION_METRIC
-      metricId = "metric-id"
+      metricId = METRIC_ID
     }
     val result =
       withMeasurementConsumerPrincipal(request.parent, CONFIG) {
@@ -9896,7 +10045,7 @@ class MetricsServiceTest {
       .isEqualTo(
         internalCreateMetricRequest {
           metric = INTERNAL_REQUESTING_POPULATION_METRIC
-          externalMetricId = "metric-id"
+          externalMetricId = METRIC_ID
         }
       )
 
@@ -9938,6 +10087,15 @@ class MetricsServiceTest {
         POPULATION_MEASUREMENT_SPEC.copy {
           nonceHashes.clear()
           nonceHashes += List(dataProvidersList.size) { Hashing.hashSha256(RANDOM_OUTPUT_LONG) }
+          reportingMetadata = reportingMetadata {
+            report = CONTAINING_REPORT
+            metric =
+              MetricKey(
+                  INTERNAL_PENDING_INITIAL_POPULATION_METRIC.cmmsMeasurementConsumerId,
+                  INTERNAL_PENDING_INITIAL_POPULATION_METRIC.externalMetricId,
+                )
+                .toName()
+          }
         }
       )
 

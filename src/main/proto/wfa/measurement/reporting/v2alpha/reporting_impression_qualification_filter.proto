@@ -1,0 +1,52 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "wfa/measurement/reporting/v2alpha/impression_qualification_filter_spec.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ReportingImpressionQualificationFilterProto";
+
+// An impression qualification filter for reporting that allows either a named
+// filter or a custom filter.
+message ReportingImpressionQualificationFilter {
+  // The custom filter criteria for one or more MediaTypes
+  message CustomImpressionQualificationFilterSpec {
+    // The impression filter criteria, no more than on per MediaType
+    repeated ImpressionQualificationFilterSpec filter_spec = 1 [
+      (google.api.field_behavior) = IMMUTABLE,
+      (google.api.field_behavior) = REQUIRED
+    ];
+  }
+  // Filter type selection. Required.
+  oneof selector {
+    // The resource name of an ImpressionQualificationFilter.
+    string impression_qualification_filter = 1 [
+      (google.api.field_behavior) = IMMUTABLE,
+      (google.api.resource_reference) = {
+        type: "reporting.halo-cmm.org/ImpressionQualificationFilter"
+      }
+    ];
+
+    // Custom filter criteria.
+    CustomImpressionQualificationFilterSpec custom = 2
+        [(google.api.field_behavior) = IMMUTABLE];
+  }
+}

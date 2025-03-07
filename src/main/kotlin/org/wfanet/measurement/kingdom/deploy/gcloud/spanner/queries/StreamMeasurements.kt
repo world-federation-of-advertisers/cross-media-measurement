@@ -59,7 +59,15 @@ class StreamMeasurements(
       limit: Int,
     ): MeasurementReader {
       val orderByClause = getOrderByClause(view)
-      return MeasurementReader(view).apply {
+      val index: MeasurementReader.Index =
+        if (requiresExternalComputationId(view, requestFilter)) {
+          // This is a NULL_FILTERED sharded index, so it can only be used when
+          // ExternalComputationId is not null.
+          MeasurementReader.Index.CONTINUATION_TOKEN
+        } else {
+          MeasurementReader.Index.NONE
+        }
+      return MeasurementReader(view, index).apply {
         this.orderByClause = orderByClause
         fillStatementBuilder {
           appendWhereClause(view, requestFilter)
@@ -70,6 +78,15 @@ class StreamMeasurements(
           }
         }
       }
+    }
+
+    private fun requiresExternalComputationId(
+      view: Measurement.View,
+      requestFilter: StreamMeasurementsRequest.Filter,
+    ): Boolean {
+      return requestFilter.hasExternalComputationId ||
+        view == Measurement.View.COMPUTATION ||
+        view == Measurement.View.COMPUTATION_STATS
     }
 
     private fun getOrderByClause(view: Measurement.View): String {
@@ -90,12 +107,9 @@ class StreamMeasurements(
     ) {
       val conjuncts = mutableListOf<String>()
 
-      if (
-        filter.hasExternalComputationId ||
-          view == Measurement.View.COMPUTATION ||
-          view == Measurement.View.COMPUTATION_STATS
-      ) {
+      if (requiresExternalComputationId(view, filter)) {
         conjuncts.add("ExternalComputationId IS NOT NULL")
+        conjuncts.add("MeasurementIndexShardId >= 0")
       }
 
       if (filter.externalMeasurementConsumerId != 0L) {
@@ -216,9 +230,6 @@ class StreamMeasurements(
             throw IllegalArgumentException("key not set")
         }
       }
-
-      // Include shard ID to use sharded index on UpdateTime appropriately.
-      conjuncts.add("MeasurementIndexShardId != -1")
 
       if (conjuncts.isEmpty()) {
         return

@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package wfa.measurement.securecomputation.datawatcher.v1alpha;
+
+import "google/protobuf/any.proto";
+
+option java_package = "org.wfanet.measurement.securecomputation.controlplane.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "WorkItemConfigProto";
+
+// The config sent along with the WorkItem to the receiving application.
+message WorkItemConfig {
+  // The packed message for the work. Must be a known type for the receiver app type.
+  google.protobuf.Any config = 1;
+  // The data path to process
+  string data_path = 2;
+}

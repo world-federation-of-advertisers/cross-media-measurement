@@ -33,6 +33,7 @@ class GCloudInProcessLifeOfAReportV2IntegrationTest :
   InProcessLifeOfAReportIntegrationTest(
     KingdomDataServicesProviderRule(spannerEmulator),
     PostgresDuchyDependencyProviderRule(duchyDatabaseProvider, ALL_DUCHY_NAMES),
+    SpannerAccessServicesFactory(spannerEmulator),
   ) {
   override val internalReportingServerServices by lazy {
     PostgresServices.create(

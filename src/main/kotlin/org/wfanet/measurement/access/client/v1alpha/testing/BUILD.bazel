@@ -1,0 +1,45 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:public"],
+)
+
+kt_jvm_library(
+    name = "authentication",
+    srcs = ["Authentication.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:context_keys",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:context",
+        "//src/main/proto/wfa/measurement/access/v1alpha:principal_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:context",
+    ],
+)
+
+kt_jvm_library(
+    name = "protected_resource_matcher",
+    srcs = ["ProtectedResourceMatcher.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/access/v1alpha:permissions_service_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+    ],
+)
+
+kt_jvm_library(
+    name = "principal_matcher",
+    srcs = ["PrincipalMatcher.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/access/v1alpha:permissions_service_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+    ],
+)
+
+kt_jvm_library(
+    name = "permission_matcher",
+    srcs = ["PermissionMatcher.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/service:resource_key",
+        "//src/main/proto/wfa/measurement/access/v1alpha:permissions_service_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+    ],
+)

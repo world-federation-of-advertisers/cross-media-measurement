@@ -6,6 +6,9 @@ kt_jvm_test(
     associates = [
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_items_service",
     ],
+    tags = [
+        "no-remote-exec",
+    ],
     test_class = "org.wfanet.measurement.securecomputation.controlplane.v1alpha.GooglePubSubWorkItemsServiceTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:google_pub_sub_work_items_service",

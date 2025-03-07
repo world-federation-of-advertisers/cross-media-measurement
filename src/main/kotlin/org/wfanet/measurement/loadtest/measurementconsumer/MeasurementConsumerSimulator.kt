@@ -114,7 +114,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signRequisition
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
-import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
@@ -196,7 +195,7 @@ class MeasurementConsumerSimulator(
     val noiseMechanism: NoiseMechanism,
   )
 
-  private val MeasurementInfo.sampledVids: Sequence<Long>
+  private val MeasurementInfo.filteredVids: Sequence<Long>
     get() {
       val eventGroupSpecs =
         requisitions
@@ -207,11 +206,12 @@ class MeasurementConsumerSimulator(
               EventQuery.EventGroupSpec(eventGroup, eventGroupsMap.getValue(eventGroup.name))
             }
           }
-          .asIterable()
-      return sampleVids(eventGroupSpecs, measurementSpec.vidSamplingInterval)
+          .asSequence()
+
+      return eventGroupSpecs.flatMap { eventQuery.getUserVirtualIds(it) }
     }
 
-  private fun MeasurementInfo.sampleVidsByDataProvider(
+  private fun MeasurementInfo.filterVidsByDataProvider(
     targetDataProviderId: String
   ): Sequence<Long> {
     val eventGroupSpecs =
@@ -228,21 +228,8 @@ class MeasurementConsumerSimulator(
               EventQuery.EventGroupSpec(eventGroup, eventGroupsMap.getValue(eventGroup.name))
             }
         }
-        .asIterable()
-    return sampleVids(eventGroupSpecs, measurementSpec.vidSamplingInterval)
-  }
-
-  private fun sampleVids(
-    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
-    vidSamplingInterval: VidSamplingInterval,
-  ): Sequence<Long> {
-    return sampleVids(
-        eventQuery,
-        eventGroupSpecs,
-        vidSamplingInterval.start,
-        vidSamplingInterval.width,
-      )
-      .asSequence()
+        .asSequence()
+    return eventGroupSpecs.flatMap { eventQuery.getUserVirtualIds(it) }
   }
 
   data class ExecutionResult(
@@ -1072,7 +1059,7 @@ class MeasurementConsumerSimulator(
         MeasurementKt.ResultKt.impression {
           value =
             MeasurementResults.computeImpression(
-              measurementInfo.sampleVidsByDataProvider(targetDataProviderId).asIterable(),
+              measurementInfo.filterVidsByDataProvider(targetDataProviderId).asIterable(),
               measurementInfo.measurementSpec.impression.maximumFrequencyPerUser,
             )
         }
@@ -1123,14 +1110,14 @@ class MeasurementConsumerSimulator(
   }
 
   private fun getExpectedReachResult(measurementInfo: MeasurementInfo): Result {
-    val reach = MeasurementResults.computeReach(measurementInfo.sampledVids.asIterable())
+    val reach = MeasurementResults.computeReach(measurementInfo.filteredVids.asIterable())
     return result { this.reach = reach { value = reach.toLong() } }
   }
 
   private fun getExpectedReachAndFrequencyResult(measurementInfo: MeasurementInfo): Result {
     val (reach, relativeFrequencyDistribution) =
       MeasurementResults.computeReachAndFrequency(
-        measurementInfo.sampledVids.asIterable(),
+        measurementInfo.filteredVids.asIterable(),
         measurementInfo.measurementSpec.reachAndFrequency.maximumFrequency,
       )
     return result {
@@ -1163,7 +1150,7 @@ class MeasurementConsumerSimulator(
       reach = MeasurementSpecKt.reach { privacyParams = outputDpParams }
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
-        width = 1.0f
+        width = 0.27f
       }
       this.nonceHashes += nonceHashes
     }
@@ -1182,7 +1169,7 @@ class MeasurementConsumerSimulator(
       }
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
-        width = 1.0f
+        width = 0.27f
       }
       this.nonceHashes += nonceHashes
     }
@@ -1197,7 +1184,7 @@ class MeasurementConsumerSimulator(
       reach = MeasurementSpecKt.reach { privacyParams = outputDpParams }
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
-        width = 1.0f
+        width = 0.27f
       }
       this.nonceHashes += nonceHashes
     }
@@ -1232,7 +1219,7 @@ class MeasurementConsumerSimulator(
       }
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
-        width = 1.0f
+        width = 0.27f
       }
       this.nonceHashes += nonceHashes
     }

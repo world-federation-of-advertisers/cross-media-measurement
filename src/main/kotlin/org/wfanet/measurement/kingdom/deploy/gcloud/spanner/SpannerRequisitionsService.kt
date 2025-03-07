@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
@@ -31,6 +32,7 @@ import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundByDataProviderException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRequisitions
@@ -44,13 +46,20 @@ class SpannerRequisitionsService(
 ) : RequisitionsCoroutineImplBase() {
 
   override suspend fun getRequisition(request: GetRequisitionRequest): Requisition {
-    return RequisitionReader()
-      .readByExternalDataProviderId(
+    val externalDataProviderId = ExternalId(request.externalDataProviderId)
+    val externalRequisitionId = ExternalId(request.externalRequisitionId)
+    val result: RequisitionReader.Result =
+      RequisitionReader.readByExternalDataProviderId(
         client.singleUse(),
-        externalDataProviderId = request.externalDataProviderId,
-        externalRequisitionId = request.externalRequisitionId,
+        externalDataProviderId = externalDataProviderId,
+        externalRequisitionId = externalRequisitionId,
       )
-      ?.requisition ?: failGrpc(Status.NOT_FOUND) { "Requisition not found" }
+        ?: throw RequisitionNotFoundByDataProviderException(
+            externalDataProviderId,
+            externalRequisitionId,
+          )
+          .asStatusRuntimeException(Status.Code.NOT_FOUND)
+    return result.requisition
   }
 
   override fun streamRequisitions(request: StreamRequisitionsRequest): Flow<Requisition> {
