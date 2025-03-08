@@ -27,43 +27,22 @@ kt_jvm_library(
     ],
 )
 
-java_library(
-    name = "requisition_fetcher_function_lib",
-    visibility = ["//visibility:public"],
-    exports = [":requisition_fetcher_function"],
-    runtime_deps = [
-        ":requisition_fetcher_function",
-        "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
-    ],
+java_binary(
+    name = "requisition_fetcher_function_jar",
+    main_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
+    runtime_deps = [":requisition_fetcher_function"],
 )
 
-#java_binary(
-#    name = "run_requisition_fetcher_function",
-#    args = [
-#        "--target=org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
-#        "--port=8085",
-#    ],
-#    jvm_flags = [
-#        "-Dcom.google.cloud.functions.invoker.runner.function=org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
-#    ],
-#    main_class = "com.google.cloud.functions.invoker.runner.Invoker",
-#    runtime_deps = [
-#        ":requisition_fetcher_function_lib",
-#        "//imports/java/com/google/cloud/functions:java_function_invoker",
-#    ],
-#)
 java_binary(
     name = "run_requisition_fetcher_function",
     args = [
-        "--target=org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
-        "--port=8085",
-    ],
-    jvm_flags = [
-        "-Dcom.google.cloud.functions.invoker.runner.target=org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
+        "--port 8085",
+        "--classpath /home/jojijacob/XMM/cross-media-measurement/bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher/requisition_fetcher_function_jar_deploy.jar",
+        "--target org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
     ],
     main_class = "com.google.cloud.functions.invoker.runner.Invoker",
     runtime_deps = [
-        ":requisition_fetcher_function_lib",
+        ":requisition_fetcher_function_jar_deploy.jar",
         "//imports/java/com/google/cloud/functions:java_function_invoker",
     ],
 )

@@ -25,15 +25,40 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 
 
 class RequisitionFetcherFunction : HttpFunction {
   override fun service(request: HttpRequest, response: HttpResponse) {
     runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
-  }
+    println("JOJI IN CLOUD FUNCTION :)")
+    try {
+      // Set appropriate headers
+      response.setContentType("application/json")
 
+      // Set status code
+      response.setStatusCode(200)
+
+      // Write an empty response body
+      response.writer.write("{}")
+
+      // Make sure to flush the writer
+      response.writer.flush()
+    } catch (e: Exception) {
+      // Log the exception - this will at least show in your container logs
+      System.err.println("Error processing request: $e")
+      e.printStackTrace()
+
+      // Try to send an error response if we haven't sent headers yet
+      try {
+        response.setStatusCode(500)
+        response.writer.write("{\"error\":\"Internal server error\"}")
+        response.writer.flush()
+      } catch (ignored: Exception) {
+        // At this point we can't do much more
+      }
+    }
+  }
   companion object {
     val publicChannel =
       buildMutualTlsChannel(System.getenv("TARGET"), getClientCerts(), System.getenv("CERT_HOST"))
@@ -57,11 +82,6 @@ class RequisitionFetcherFunction : HttpFunction {
       )
 
     private fun getClientCerts(): SigningCerts {
-      println("JOJI : ${System.getenv("CERT_FILE_PATH")}")
-      println("JOJI2 : ${Path(System.getenv("CERT_FILE_PATH")).toFile().totalSpace}")
-      println("JOJI3 : ${Path(System.getenv("CERT_FILE_PATH")).toFile().readText()}")
-      println("JOJI4 : ${Path(System.getenv("CERT_FILE_PATH")).toFile().readByteString()}")
-
       return SigningCerts.fromPemFiles(
         certificateFile = Path(System.getenv("CERT_FILE_PATH")).toFile(),
         privateKeyFile = Path(System.getenv("PRIVATE_KEY_FILE_PATH")).toFile(),

@@ -43,7 +43,7 @@ class RequisitionFetcherFunctionTest {
   val host: String
     get() = container.host
   val port: Int
-    get() = container.getMappedPort(8085)
+    get() = container.getMappedPort(8080)
   @Before
   fun setUp() {
     container.start()
@@ -57,20 +57,33 @@ class RequisitionFetcherFunctionTest {
   fun `use RequisitionFetcherFunction in Docker container`() {
     val logs = container.logs
     println("Container logs: $logs")
+    // First, check if the container started properly
+    println("Container is running ${container.isRunning}")
 
-    val execResult = container.execInContainer("ls", "-la", "/")
-    println("Container file structure: ${execResult.stdout}")
+    // Print container logs to see what's happening
+    println("Container logs: ${container.logs}")
+
+    // Check if the process inside the container is running
+    println("joji Processes running in container: ${container.execInContainer("ps", "-ef").stdout}")
+    println("joji Container file structure: ${container.execInContainer("ls", "-la", "/").stdout}")
 
     // Check if your class exists in the image
     val classCheck = container.execInContainer("find", "/", "-name", "*.class")
     println("Class files in container: ${classCheck.stdout}")
 
     val url = "http://$host:$port"
-//    val client = HttpClient.newHttpClient()
-//    val getRequest = HttpRequest.newBuilder().uri(URI.create(url)).GET().build()
-//
-//    // Send the sendHttpRequest using the client
-//    val getResponse = client.send(getRequest, BodyHandlers.ofString())
+
+    println("joji ${url}")
+
+    val client = HttpClient.newHttpClient()
+    val getRequest = HttpRequest.newBuilder().uri(URI.create(url)).GET().build()
+    runBlocking {
+      delay(1000000)
+    }
+    // Send the sendHttpRequest using the client
+    val getResponse = client.send(getRequest, BodyHandlers.ofString())
+
+    println("joji ${getResponse}")
 
 
     println("JOJI URL: ${url}")
@@ -97,9 +110,10 @@ class RequisitionFetcherFunctionTest {
     private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_edp_aggregator_images.bash")
     val imageName = "localhost:5000/halo/requisitions/requisition-fetcher:latest"
     val container = GenericContainer(DockerImageName.parse(imageName)).apply {
-      withExposedPorts(8085)
+      //cloud function will listen on port 8080 by default
+      withExposedPorts(8080)
       withEnv("FUNCTION_TARGET", "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction")
-      withEnv("TARGET", "test-target")
+      withEnv("TARGET", "kingdom.example.com:8443")
       withEnv("CERT_HOST", "localhost")
       withEnv("REQUISITIONS_GCS_PROJECT_ID", "test-gcs-project-id")
       withEnv("REQUISITIONS_GCS_BUCKET", "test-gcs-bucket")
