@@ -1,0 +1,62 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.v2;
+
+import "google/protobuf/duration.proto";
+import "wfa/measurement/internal/reporting/v2/planning_model.proto";
+
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
+option java_multiple_files = true;
+
+service PlanningModels {
+  rpc CreatePlanningModel(CreatePlanningModelRequest) returns (PlanningModel);
+  rpc GetPlanningModel(GetPlanningModelRequest) returns (PlanningModel);
+  rpc StreamPlanningModels(StreamPlanningModelsRequest)
+      returns (stream PlanningModel);
+  rpc ClaimWork(ClaimWorkRequest) returns (ClaimWorkResponse);
+  rpc SetPlanningModelTrainingMetrics(SetPlanningModelTrainingMetricsRequest)
+      returns (PlanningModel);
+  rpc SetPlanningModelState(SetPlanningoModelStateRequest)
+      returns (PlanningModel);
+  rpc SetPlanningModelParams(SetPlanningModelParamsRequest)
+      returns (PlanningModel);
+  rpc SetPlanningModelFailure(SetPlanningoModelFailureRequest)
+      returns (PlanningModel);
+}
+
+message CreatePlanningModelRequest {
+  PlanningModel planning_model = 1;
+  string external_planning_model_id = 2;
+  string request_id = 3;
+}
+
+// Claims a piece of work for a trainer.
+message ClaimWorkRequest {
+  // Name of the owner of the task. This information is recorded on a planning
+  // model when claimed.
+  string owner = 1;
+
+  // How long the work lock is held for as a result of this claim. If not
+  // specified, a default value may be chosen by the server.
+  google.protobuf.Duration lock_duration = 2;
+}
+
+message ClaimWorkResponse {
+  // The planning model being claimed. The response would be empty if no
+  // planning model is available.
+  PlanningModel planning_model = 1;
+}
