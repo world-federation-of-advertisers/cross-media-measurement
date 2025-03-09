@@ -36,7 +36,7 @@ java_binary(
 java_binary(
     name = "run_requisition_fetcher_function",
     args = [
-        "--port 8085",
+        "--port 8080",
         "--classpath /home/jojijacob/XMM/cross-media-measurement/bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher/requisition_fetcher_function_jar_deploy.jar",
         "--target org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
     ],
