@@ -38,11 +38,15 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
+import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.MeasurementConsumerResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.basicReportExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getBasicReportByExternalId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getMeasurementConsumerByCmmsMeasurementConsumerId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertBasicReport
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertMeasurementConsumer
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.measurementConsumerExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicReports
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.service.internal.BasicReportAlreadyExistsException
@@ -140,21 +144,42 @@ class SpannerBasicReportsService(
 
     try {
       transactionRunner.run { txn ->
-        val measurementConsumer =
-          txn.getMeasurementConsumerByCmmsMeasurementConsumerId(
-            request.basicReport.cmmsMeasurementConsumerId
-          )
-
         checkReportingSet(request.basicReport)
+
+        val measurementConsumerResult =
+          try {
+            txn.getMeasurementConsumerByCmmsMeasurementConsumerId(
+              request.basicReport.cmmsMeasurementConsumerId
+            )
+          } catch (e: MeasurementConsumerNotFoundException) {
+            val measurementConsumerId =
+              idGenerator.generateNewId { id -> txn.measurementConsumerExists(id) }
+
+            val measurementConsumer = measurementConsumer {
+              cmmsMeasurementConsumerId = request.basicReport.cmmsMeasurementConsumerId
+            }
+
+            // If the Reporting Set exists, then the Measurement Consumer exists so it should be
+            // in the Spanner database as well.
+            txn.insertMeasurementConsumer(
+              measurementConsumerId = measurementConsumerId,
+              measurementConsumer = measurementConsumer,
+            )
+
+            MeasurementConsumerResult(
+              measurementConsumerId = measurementConsumerId,
+              measurementConsumer = measurementConsumer,
+            )
+          }
 
         val basicReportId =
           idGenerator.generateNewId { id ->
-            txn.basicReportExists(measurementConsumer.measurementConsumerId, id)
+            txn.basicReportExists(measurementConsumerResult.measurementConsumerId, id)
           }
 
         txn.insertBasicReport(
           basicReportId = basicReportId,
-          measurementConsumerId = measurementConsumer.measurementConsumerId,
+          measurementConsumerId = measurementConsumerResult.measurementConsumerId,
           basicReport = request.basicReport,
         )
       }

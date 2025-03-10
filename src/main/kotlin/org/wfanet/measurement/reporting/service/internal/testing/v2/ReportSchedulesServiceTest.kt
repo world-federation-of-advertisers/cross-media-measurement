@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Timestamps
+import com.google.rpc.errorInfo
 import com.google.type.date
 import com.google.type.dateTime
 import com.google.type.timeZone
@@ -33,6 +34,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequestKt
@@ -54,6 +56,7 @@ import org.wfanet.measurement.internal.reporting.v2.report
 import org.wfanet.measurement.internal.reporting.v2.reportSchedule
 import org.wfanet.measurement.internal.reporting.v2.reportScheduleIteration
 import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
+import org.wfanet.measurement.reporting.service.internal.Errors
 
 @RunWith(JUnit4::class)
 abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> {
@@ -461,8 +464,14 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception.message).contains("Measurement Consumer")
-  }
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND.name
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] = reportSchedule.cmmsMeasurementConsumerId
+        }
+      )  }
 
   @Test
   fun `getReportSchedule succeeds`() = runBlocking {

@@ -44,7 +44,7 @@ class CreateMetricCalculationSpec(private val request: CreateMetricCalculationSp
     val measurementConsumerId: InternalId =
       (MeasurementConsumerReader(transactionContext)
           .getByCmmsId(metricCalculationSpec.cmmsMeasurementConsumerId)
-          ?: throw MeasurementConsumerNotFoundException())
+          ?: throw MeasurementConsumerNotFoundException(metricCalculationSpec.cmmsMeasurementConsumerId))
         .measurementConsumerId
 
     if (

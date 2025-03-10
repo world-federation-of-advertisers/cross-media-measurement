@@ -24,12 +24,14 @@ object Errors {
   const val DOMAIN = "internal.reporting.halo-cmm.org"
 
   enum class Reason {
+    MEASUREMENT_CONSUMER_NOT_FOUND,
     BASIC_REPORT_NOT_FOUND,
     BASIC_REPORT_ALREADY_EXISTS,
     REQUIRED_FIELD_NOT_SET,
   }
 
   enum class Metadata(val key: String) {
+    CMMS_MEASUREMENT_CONSUMER_ID("cmmsMeasurementConsumerId"),
     EXTERNAL_BASIC_REPORT_ID("externalBasicReportId"),
     FIELD_NAME("fieldName");
 
@@ -65,6 +67,14 @@ sealed class ServiceException(
     )
   }
 }
+
+class MeasurementConsumerNotFoundException(cmmsMeasurementConsumerId: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
+    "Measurement Consumer with cmms ID $cmmsMeasurementConsumerId not found",
+    mapOf(Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId),
+    cause,
+  )
 
 class BasicReportNotFoundException(externalBasicReportId: String, cause: Throwable? = null) :
   ServiceException(

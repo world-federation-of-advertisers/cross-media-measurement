@@ -63,6 +63,8 @@ message ListBasicReportsRequest {
   message Filter {
     // `MeasurementConsumer` ID from the CMMS public API. Required.
     string cmms_measurement_consumer_id = 1;
+    // Any `BasicReport` created after this time, exclusive, will be included.
+    //
     // Ignored if `after` is set.
     google.protobuf.Timestamp create_time_after = 2;
     AfterFilter after = 3;

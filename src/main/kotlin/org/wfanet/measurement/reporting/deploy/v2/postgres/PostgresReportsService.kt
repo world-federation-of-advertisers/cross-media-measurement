@@ -66,8 +66,7 @@ class PostgresReportsService(
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Report Schedule not found.")
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(
-        Status.Code.FAILED_PRECONDITION,
-        "Measurement Consumer not found.",
+        Status.Code.FAILED_PRECONDITION
       )
     } catch (e: ReportAlreadyExistsException) {
       throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Report already exists")

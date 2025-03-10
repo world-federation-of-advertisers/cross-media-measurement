@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.service.internal.testing.v2
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
+import com.google.rpc.errorInfo
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -31,6 +32,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt
@@ -61,6 +63,7 @@ import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metric
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
+import org.wfanet.measurement.reporting.service.internal.Errors
 
 private const val CMMS_MEASUREMENT_CONSUMER_ID = "1234"
 private const val MAX_BATCH_SIZE = 1000
@@ -363,7 +366,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
     }
 
   @Test
-  fun `batchSetCmmsMeasurementIds throws NOT_FOUND when measurement consumer not found`(): Unit =
+  fun `batchSetCmmsMeasurementIds throws FAILED_PRECONDITION when mc not found`(): Unit =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
@@ -379,8 +382,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           )
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-      assertThat(exception.message).contains("MeasurementConsumer not")
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND.name
+            metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] = CMMS_MEASUREMENT_CONSUMER_ID
+          }
+        )
     }
 
   @Test
@@ -880,7 +890,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
     }
 
   @Test
-  fun `batchSetMeasurementResults throws NOT_FOUND when measurement consumer not found`(): Unit =
+  fun `batchSetMeasurementResults throws FAILED_PRECONDITION when mc not found`(): Unit =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
@@ -896,8 +906,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           )
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-      assertThat(exception.message).contains("MeasurementConsumer")
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND.name
+            metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] = "1234"
+          }
+        )
     }
 
   @Test
@@ -1274,7 +1291,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
     }
 
   @Test
-  fun `batchSetMeasurementFailures throws NOT_FOUND when measurement consumer not found`(): Unit =
+  fun `batchSetMeasurementFailures throws FAILED_PRECONDITION when mc not found`(): Unit =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
@@ -1290,8 +1307,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           )
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-      assertThat(exception.message).contains("MeasurementConsumer")
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND.name
+            metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] = "1234"
+          }
+        )
     }
 
   @Test

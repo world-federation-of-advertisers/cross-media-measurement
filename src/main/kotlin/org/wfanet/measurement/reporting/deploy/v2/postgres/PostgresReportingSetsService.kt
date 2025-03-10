@@ -73,8 +73,7 @@ class PostgresReportingSetsService(
       throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Reporting Set already exists")
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(
-        Status.Code.FAILED_PRECONDITION,
-        "Measurement Consumer not found",
+        Status.Code.FAILED_PRECONDITION
       )
     }
   }

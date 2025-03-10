@@ -44,7 +44,6 @@ class SpannerBasicReportsServiceTest : BasicReportsServiceTest<SpannerBasicRepor
     val postgresDatabaseClient = postgresDatabaseProvider.createDatabase()
     return Services(
       SpannerBasicReportsService(spannerDatabaseClient, postgresDatabaseClient),
-      SpannerMeasurementConsumersService(spannerDatabaseClient),
       PostgresMeasurementConsumersService(idGenerator, postgresDatabaseClient),
       PostgresReportingSetsService(idGenerator, postgresDatabaseClient),
     )

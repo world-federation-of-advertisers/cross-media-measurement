@@ -70,8 +70,7 @@ class PostgresMetricsService(
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Reporting Set not found.")
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(
-        Status.Code.FAILED_PRECONDITION,
-        "Measurement Consumer not found.",
+        Status.Code.FAILED_PRECONDITION
       )
     } catch (e: MetricAlreadyExistsException) {
       throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Metric already exists")
@@ -112,10 +111,7 @@ class PostgresMetricsService(
     } catch (e: ReportingSetNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Reporting Set not found.")
     } catch (e: MeasurementConsumerNotFoundException) {
-      throw e.asStatusRuntimeException(
-        Status.Code.FAILED_PRECONDITION,
-        "Measurement Consumer not found.",
-      )
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: MetricAlreadyExistsException) {
       throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Metric already exists")
     }

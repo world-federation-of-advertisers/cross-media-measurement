@@ -17,23 +17,6 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "SpannerMeasurementConsumersServiceTest",
-    srcs = ["SpannerMeasurementConsumersServiceTest.kt"],
-    tags = [
-        "cpu:2",
-        "no-remote-exec",
-    ],
-    test_class = "org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.SpannerMeasurementConsumersServiceTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner:measurement_consumers_service",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/testing",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing/v2:measurement_consumers_service_test",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
-    ],
-)
-
-spanner_emulator_test(
     name = "SpannerBasicReportsServiceTest",
     srcs = ["SpannerBasicReportsServiceTest.kt"],
     tags = [
@@ -46,7 +29,6 @@ spanner_emulator_test(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner:basic_reports_service",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner:measurement_consumers_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/testing",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres:services",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",

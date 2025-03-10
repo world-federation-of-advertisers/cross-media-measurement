@@ -134,7 +134,11 @@ class ReportingSetReader(private val readContext: ReadContext) {
     """
       .trimIndent()
 
-  /** Throws [ReportingSetNotFoundException] if any ReportingSet not found. */
+  /**
+   * Reads multiple ReportingSets using a single query.
+   *
+   * Throws [ReportingSetNotFoundException] if any ReportingSet not found.
+   */
   fun batchGetReportingSets(request: BatchGetReportingSetsRequest): Flow<Result> {
     val sql =
       StringBuilder(

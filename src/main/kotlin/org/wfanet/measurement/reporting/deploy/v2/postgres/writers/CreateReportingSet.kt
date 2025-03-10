@@ -93,7 +93,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
     val measurementConsumerId =
       (MeasurementConsumerReader(transactionContext)
           .getByCmmsId(request.reportingSet.cmmsMeasurementConsumerId)
-          ?: throw MeasurementConsumerNotFoundException())
+          ?: throw MeasurementConsumerNotFoundException(request.reportingSet.cmmsMeasurementConsumerId))
         .measurementConsumerId
 
     val reportingSetId = idGenerator.generateInternalId()

@@ -59,14 +59,12 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   protected data class Services<T>(
     val basicReportsService: T,
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
-    val measurementConsumersService2: MeasurementConsumersCoroutineImplBase,
     val reportingSetsService: ReportingSetsCoroutineImplBase,
   )
 
   /** Instance of the service under test. */
   private lateinit var service: T
   private lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
-  private lateinit var measurementConsumersService2: MeasurementConsumersCoroutineImplBase
   private lateinit var reportingSetsService: ReportingSetsCoroutineImplBase
 
   /** Constructs the services being tested. */
@@ -77,16 +75,12 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     val services = newServices(idGenerator)
     service = services.basicReportsService
     measurementConsumersService = services.measurementConsumersService
-    measurementConsumersService2 = services.measurementConsumersService2
     reportingSetsService = services.reportingSetsService
   }
 
   @Test
   fun `insertBasicReport succeeds`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
-    )
-    measurementConsumersService2.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
 
@@ -117,33 +111,9 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `insertBasicReport throws FAILED_PRECONDITION when mc not found`(): Unit = runBlocking {
-    val resultGroup = resultGroup { title = "title" }
-
-    val basicReport = basicReport {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalBasicReportId = "1237"
-      externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      campaignGroupDisplayName = REPORTING_SET.displayName
-      details = basicReportDetails { title = "title" }
-      resultDetails = basicReportResultDetails { resultGroups += resultGroup }
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.insertBasicReport(insertBasicReportRequest { this.basicReport = basicReport })
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-  }
-
-  @Test
   fun `insertBasicReport throws FAILED_PRECONDITION when reporting set not found`(): Unit =
     runBlocking {
       measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
-      )
-      measurementConsumersService2.createMeasurementConsumer(
         measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
       )
 
@@ -169,9 +139,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   @Test
   fun `insertBasicReport throws ALREADY_EXISTS when external id found`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
-    )
-    measurementConsumersService2.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
 
@@ -216,9 +183,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
-    measurementConsumersService2.createMeasurementConsumer(
-      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
-    )
 
     reportingSetsService.createReportingSet(
       createReportingSetRequest {
@@ -244,9 +208,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   @Test
   fun `getBasicReport throws NOT_FOUND when externalBasicReportId not found`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
-    )
-    measurementConsumersService2.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
 
@@ -285,9 +246,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   @Test
   fun `listBasicReport without limit succeeds`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
-    )
-    measurementConsumersService2.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
 
@@ -344,9 +302,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
-    measurementConsumersService2.createMeasurementConsumer(
-      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
-    )
 
     reportingSetsService.createReportingSet(
       createReportingSetRequest {
@@ -398,9 +353,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   @Test
   fun `listBasicReport with after succeeds`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
-    )
-    measurementConsumersService2.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
 
@@ -461,9 +413,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
-    measurementConsumersService2.createMeasurementConsumer(
-      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
-    )
 
     reportingSetsService.createReportingSet(
       createReportingSetRequest {
@@ -521,9 +470,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   @Test
   fun `listBasicReport returns 0 results if no matches`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
-    )
-    measurementConsumersService2.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
 
