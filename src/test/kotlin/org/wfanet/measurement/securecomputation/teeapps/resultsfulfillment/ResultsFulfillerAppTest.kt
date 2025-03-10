@@ -21,6 +21,7 @@ import org.junit.runners.JUnit4
 import com.google.protobuf.Any
 import org.mockito.kotlin.any
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
@@ -43,6 +44,7 @@ import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
+import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
@@ -184,9 +186,6 @@ class ResultsFulfillerAppTest {
   }
 
   companion object {
-    private val requisitionList = requisitionsList {
-      requisitions += listOf(Any.pack(REQUISITION))
-    }
     private val PEOPLE = listOf(
       virtualPersonActivity {
         virtualPersonId = 1
@@ -226,13 +225,13 @@ class ResultsFulfillerAppTest {
     private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
     private const val REQUISITION_NAME = "$DATA_PROVIDER_NAME/requisitions/foo"
     private val MC_SIGNING_KEY = loadSigningKey("${MC_ID}_cs_cert.der", "${MC_ID}_cs_private.der")
-    private val DATA_PROVIDER_PUBLIC_KEY =
+    private val DATA_PROVIDER_PUBLIC_KEY: EncryptionPublicKey =
       loadPublicKey(SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_enc_public.tink").toFile())
         .toEncryptionPublicKey()
-    private val MC_PUBLIC_KEY =
+    private val MC_PUBLIC_KEY: EncryptionPublicKey =
       loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
         .toEncryptionPublicKey()
-    private val MC_PRIVATE_KEY =
+    private val MC_PRIVATE_KEY: TinkPrivateKeyHandle =
       loadPrivateKey(SECRET_FILES_PATH.resolve("mc_enc_private.tink").toFile())
     private val REQUISITION_SPEC = requisitionSpec {
       events =
@@ -259,7 +258,7 @@ class ResultsFulfillerAppTest {
         signRequisitionSpec(REQUISITION_SPEC, MC_SIGNING_KEY),
         DATA_PROVIDER_PUBLIC_KEY,
       )
-    private val REQUISITION = requisition {
+    private val REQUISITION: Requisition = requisition {
       name = REQUISITION_NAME
       measurement = "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs"
       state = Requisition.State.UNFULFILLED
@@ -315,6 +314,10 @@ class ResultsFulfillerAppTest {
         SECRET_FILES_PATH.resolve(certDerFileName).toFile(),
         SECRET_FILES_PATH.resolve(privateKeyDerFileName).toFile(),
       )
+    }
+
+    private val requisitionList = requisitionsList {
+      requisitions += listOf(Any.pack(REQUISITION))
     }
   }
 }

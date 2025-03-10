@@ -9,6 +9,10 @@ kt_jvm_test(
     name = "ResultsFulfillerAppTest",
     srcs = ["ResultsFulfillerAppTest.kt"],
     data = [
+        "//src/main/k8s/testing/secretfiles:all_configs",
+        "//src/main/k8s/testing/secretfiles:all_der_files",
+        "//src/main/k8s/testing/secretfiles:all_tink_keysets",
+        "//src/main/k8s/testing/secretfiles:edp_trusted_certs.pem",
         "@wfa_virtual_people_core_serving//src/main/resources/labeler:labeler_integration_test_data",
     ],
     test_class = "org.wfanet.measurement.securecomputation.teeapps.resultsfulfillment.ResultsFulfillerAppTest",
