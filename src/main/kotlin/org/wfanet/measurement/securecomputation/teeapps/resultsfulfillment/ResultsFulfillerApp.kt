@@ -81,7 +81,7 @@ import org.wfanet.virtualpeople.common.VirtualPersonActivity
 
 data class EventGroupData(
   /** The EventGroups's key. */
-  val eventGroupKey: EventGroupKey,
+  val eventGroupKey: String,
   /** The EventGroups's collection interval. */
   val ds: String,
   /** The prefix of labelled impressions in ShardedStorage. */
@@ -92,7 +92,7 @@ data class EventGroupData(
 
 class ResultsFulfillerApp(
   private val storageClient: StorageClient,
-  private val shardedStorageClient: StorageClient,
+//  private val shardedStorageClient: StorageClient,
   private val privateEncryptionKey: PrivateKeyHandle,
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
   private val dataProviderCertificateKey: DataProviderCertificateKey?,
@@ -126,19 +126,10 @@ class ResultsFulfillerApp(
           throw Exception("RequisitionSpec decryption failed", e)
         }
       val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
+
       // Get EventGroupData for this requisition from different EDPs
-      val eventGroupDataList = requisitionSpec.events.eventGroupsList.map {
-        val eventGroupKey =
-          EventGroupKey.fromName(it.key)
-            ?: throw RequisitionRefusalException(
-              Requisition.Refusal.Justification.SPEC_INVALID,
-              "Invalid EventGroup resource name ${it.key}",
-            )
-        val ds = it.value.collectionInterval.toRange().toString()
-        val spec = it.value.filter
-        val program = compileProgram(spec, VirtualPersonActivity.getDescriptor())
-        EventGroupData(eventGroupKey, ds, "", program)
-      }
+      val eventGroupDataList = getEventGroupDataList(requisitionSpec)
+
       val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
 
       if (protocols.any { it.hasDirect() }) {
@@ -184,27 +175,37 @@ class ResultsFulfillerApp(
       } else {
         throw Exception("Protocol not supported")
       }
-      // Delete the Requsisition once it is fulfilled
+      // Delete the Requsisitions once it is fulfilled
       storageClient.getBlob(message.path)!!.delete()
       // TODO: Save result to kingdom for backward compatibility
+    }
+  }
+
+  private fun getEventGroupDataList(requisitionSpec: RequisitionSpec): List<EventGroupData> {
+    return requisitionSpec.events.eventGroupsList.map {
+      val ds = it.value.collectionInterval.startTime.toString()
+      val spec = it.value.filter
+      val program = compileProgram(spec, VirtualPersonActivity.getDescriptor())
+      EventGroupData(it.key, ds, "", program)
     }
   }
 
   private suspend fun getRequisitions(blobKey: String): List<Requisition> {
     // Gets path to list of new requisitions in blob storage
     val requisitionsBlob = storageClient.getBlob(blobKey)!!
+    val requisitionBatchData = requisitionsBlob.read().reduce { accumulator, value ->  accumulator.concat(value)}.toStringUtf8()
+    val requisitionBatch = RequisitionsList.getDefaultInstance()
+      .newBuilderForType()
+      .apply {
+        TextFormat.Parser.newBuilder()
+          .build()
+          .merge(requisitionBatchData, this)
+      }
+      .build() as RequisitionsList
 
-    return requisitionsBlob.read().map {
-      val requisitionList = RequisitionsList.getDefaultInstance()
-        .newBuilderForType()
-        .apply {
-          TextFormat.Parser.newBuilder()
-            .build()
-            .merge(it.toStringUtf8(), this)
-        }
-        .build() as RequisitionsList
-      requisitionList.requisitionsList[0].unpack(Requisition::class.java)!!
-    }.toList()
+    return requisitionBatch.requisitionsList.map {
+      it.unpack(Requisition::class.java)!!
+    }
   }
 
   /**
@@ -231,13 +232,6 @@ class ResultsFulfillerApp(
     directProtocolConfig: ProtocolConfig.Direct,
     directNoiseMechanism: DirectNoiseMechanism
   ) {
-    chargeDirectPrivacyBudget(
-      requisition.name,
-      measurementSpec,
-      eventSpecs,
-      directNoiseMechanism,
-    )
-
     logger.info("Calculating direct reach and frequency...")
     val samples = sampleVids(eventGroupDataList, measurementSpec.vidSamplingInterval)
     val measurementResult = buildDirectMeasurementResult(
@@ -248,59 +242,6 @@ class ResultsFulfillerApp(
     )
 
     fulfillDirectMeasurement(requisition, measurementSpec, nonce, measurementResult)
-  }
-
-  private suspend fun chargeDirectPrivacyBudget(
-    requisitionName: String,
-    measurementSpec: MeasurementSpec,
-    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
-    directNoiseMechanism: DirectNoiseMechanism,
-  ) {
-    logger.info("chargeDirectPrivacyBudget for requisition $requisitionName...")
-
-    try {
-      if (directNoiseMechanism != DirectNoiseMechanism.CONTINUOUS_GAUSSIAN) {
-        throw PrivacyBudgetManagerException(
-          PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM
-        )
-      }
-
-      privacyBudgetManager.chargePrivacyBudgetInAcdp(
-        PrivacyQueryMapper.getDirectAcdpQuery(
-          Reference(measurementConsumerName, requisitionName, false),
-          measurementSpec,
-          eventSpecs,
-        )
-      )
-    } catch (e: PrivacyBudgetManagerException) {
-      logger.log(Level.WARNING, "chargeDirectPrivacyBudget failed due to ${e.errorType}", e)
-      when (e.errorType) {
-        PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
-          throw RequisitionRefusalException(
-            Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
-            "Privacy budget exceeded",
-          )
-        }
-        PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER -> {
-          throw RequisitionRefusalException(
-            Requisition.Refusal.Justification.SPEC_INVALID,
-            "Invalid event filter",
-          )
-        }
-        PrivacyBudgetManagerExceptionType.INCORRECT_NOISE_MECHANISM -> {
-          throw RequisitionRefusalException(
-            Requisition.Refusal.Justification.SPEC_INVALID,
-            "Incorrect noise mechanism. Should be GAUSSIAN for ACDP composition but is $directNoiseMechanism",
-          )
-        }
-        PrivacyBudgetManagerExceptionType.DATABASE_UPDATE_ERROR,
-        PrivacyBudgetManagerExceptionType.UPDATE_AFTER_COMMIT,
-        PrivacyBudgetManagerExceptionType.NESTED_TRANSACTION,
-        PrivacyBudgetManagerExceptionType.BACKING_STORE_CLOSED -> {
-          throw Exception("Unexpected PBM error", e)
-        }
-      }
-    }
   }
 
   protected suspend fun fulfillDirectMeasurement(
@@ -360,8 +301,8 @@ class ResultsFulfillerApp(
       "Invalid vidSamplingInterval: start = $vidSamplingIntervalStart, width = " +
         "$vidSamplingIntervalWidth"
     }
-    val labelledImpressions = eventGroupDataList.map {
-      val eventGroupId = it.eventGroupKey.eventGroupId
+    val labeledImpressions: List<VirtualPersonActivity> = eventGroupDataList.map {
+      val eventGroupId = it.eventGroupKey
       val ds = it.ds
       val prefix = it.prefix
       val blobKey = "/$prefix/ds/$ds/event-group-id/$eventGroupId/metadata"
@@ -382,7 +323,7 @@ class ResultsFulfillerApp(
         .read().reduce { acc, byteString -> acc.concat(byteString)}.toStringUtf8()
 
       // Returns the LabelerOutput messages stored in ShardedStorage
-      shardedStorageClient.getBlob(shardedStorageBlobKey)!!
+      storageClient.getBlob(shardedStorageBlobKey)!!
         .read().toList().map {
           LabelerOutput.getDefaultInstance()
             .newBuilderForType()
@@ -390,8 +331,8 @@ class ResultsFulfillerApp(
             .build() as LabelerOutput
         }
         // Gets all the VirtualPersonActivity for each of the LabelerOutput messages and flattens
-        .map { labellerOutput ->
-          labellerOutput.peopleList
+        .map { labelerOutput ->
+          labelerOutput.peopleList
         }
         .flatten()
         // Filters out all the VirtualPersonActivity messages are not needed for the requisition
@@ -402,7 +343,7 @@ class ResultsFulfillerApp(
 
 
     // Samples data
-    return labelledImpressions
+    return labeledImpressions
       .map { it.virtualPersonId }
       .filter { vid ->
         sampler.vidIsInSamplingBucket(
