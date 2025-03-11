@@ -53,7 +53,9 @@ class CreateReportSchedule(private val request: CreateReportScheduleRequest) :
     val measurementConsumerId =
       (MeasurementConsumerReader(transactionContext)
           .getByCmmsId(request.reportSchedule.cmmsMeasurementConsumerId)
-          ?: throw MeasurementConsumerNotFoundException(request.reportSchedule.cmmsMeasurementConsumerId))
+          ?: throw MeasurementConsumerNotFoundException(
+            request.reportSchedule.cmmsMeasurementConsumerId
+          ))
         .measurementConsumerId
 
     val createReportScheduleRequestId = request.requestId

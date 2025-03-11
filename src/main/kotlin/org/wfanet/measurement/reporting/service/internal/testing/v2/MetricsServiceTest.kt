@@ -1297,7 +1297,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
             CMMS_MEASUREMENT_CONSUMER_ID + "2"
         }
-      )  }
+      )
+  }
 
   @Test
   fun `batchCreateMetrics succeeds for one create metric request`() = runBlocking {

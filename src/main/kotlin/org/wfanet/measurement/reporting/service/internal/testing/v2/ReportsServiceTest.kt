@@ -1354,7 +1354,8 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
           metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
             baseReport.cmmsMeasurementConsumerId + "2"
         }
-      )  }
+      )
+  }
 
   @Test
   fun `createReport throws NOT_FOUND when report schedule not found`() = runBlocking {

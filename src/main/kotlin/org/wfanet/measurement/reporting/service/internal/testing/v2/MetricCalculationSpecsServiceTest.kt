@@ -167,7 +167,8 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
           metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
             metricCalculationSpec.cmmsMeasurementConsumerId
         }
-      )  }
+      )
+  }
 
   @Test
   fun `getMetricCalculationSpec returns metric calculation spec`() = runBlocking {

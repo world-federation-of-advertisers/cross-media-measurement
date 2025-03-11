@@ -472,7 +472,8 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
           metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
             reportSchedule.cmmsMeasurementConsumerId
         }
-      )  }
+      )
+  }
 
   @Test
   fun `getReportSchedule succeeds`() = runBlocking {
