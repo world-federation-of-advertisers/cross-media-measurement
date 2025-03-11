@@ -29,7 +29,6 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.securecomputation.storage.requisitionBatch
-import org.wfanet.measurement.securecomputation.storage.resourceBatch
 import org.wfanet.measurement.storage.StorageClient
 
 /**
@@ -106,11 +105,9 @@ class RequisitionFetcher(
       if (storageClient.getBlob(blobKey) == null) {
         storageClient.writeBlob(
           blobKey,
-          resourceBatch {
-            requisitionBatch = requisitionBatch {
-              requisitionGroup += listOf(Any.pack(requisition))
-            }
-          }.toByteString()
+            requisitionBatch {
+              this.requisitions += listOf(Any.pack(requisition))
+            }.toByteString()
         )
         storedRequisitions += 1
       }

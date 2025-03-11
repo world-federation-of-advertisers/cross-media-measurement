@@ -13,7 +13,6 @@ import org.junit.After
 import org.junit.Before
 import org.junit.ClassRule
 import org.junit.Test
-import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
@@ -63,6 +62,9 @@ class RequisitionFetcherFunctionTest {
 
   @Before
   fun setUp() {
+    // Push GCF image to docker registry
+    Images()
+
     grpcServer = NettyServerBuilder
       .forAddress(InetSocketAddress("0.0.0.0", GRPC_SERVER_PORT))  // Bind to all interfaces
       .addService(ServerInterceptors.intercept(requisitionsServiceMock.bindService(), HeaderCapturingInterceptor()))
@@ -89,10 +91,15 @@ class RequisitionFetcherFunctionTest {
       withEnv("TARGET", "host.testcontainers.internal:${grpcServer.port}")
       withEnv("CERT_HOST", "localhost")
 
+
+      // Configure GCS
+      withEnv("REQUISITIONS_GCS_PROJECT_ID", "test-project-id")
+      withEnv("REQUISITIONS_GCS_BUCKET", "test-bucket")
+
         // Other configuration parameters
-        withEnv("DATAPROVIDER_NAME", "your-dataprovider-name")
+        withEnv("DATAPROVIDER_NAME", EDP_NAME)
         withEnv("PAGE_SIZE", "10")
-        withEnv("STORAGE_PATH_PREFIX", "your-storage-path-prefix")
+        withEnv("STORAGE_PATH_PREFIX", "storage-path-prefix")
 
         // Certificate files
         withEnv("CERT_FILE_PATH", "/path/to/cert.pem")
@@ -163,8 +170,6 @@ class RequisitionFetcherFunctionTest {
     private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_edp_aggregator_images.bash")
     private const val IMAGE_NAME = "localhost:5000/halo/requisitions/requisition-fetcher:latest"
 
-    private val tempDir = TemporaryFolder()
-
     // Late initialize container so we can use grpcPort and hostIpAddress from the test instance
     lateinit var gcfContainer: GenericContainer<*>
     lateinit var grpcServer: Server
@@ -192,10 +197,5 @@ class RequisitionFetcherFunctionTest {
         privateKeyFile = SECRETS_DIR.resolve("kingdom_tls.key").toFile(),
         trustedCertCollectionFile = SECRETS_DIR.resolve("edp1_root.pem").toFile(),
       )
-
-
-    @ClassRule
-    @JvmField
-    val chainedRule = chainRulesSequentially(tempDir, Images())
   }
 }

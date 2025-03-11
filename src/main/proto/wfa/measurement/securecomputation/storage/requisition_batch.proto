@@ -20,15 +20,9 @@ import "google/protobuf/any.proto";
 
 option java_package = "org.wfanet.measurement.securecomputation.storage";
 option java_multiple_files = true;
-option java_outer_classname = "ResourceBatchProto";
+option java_outer_classname = "RequisitionBatchProto";
 
-// Resource representing a group of resources that will be batched together for storage.
-message ResourceBatch {
-  oneof resources {
-    RequisitionBatch requisition_batch = 1;
-  }
-}
-
+// Resource representing a group of requisitions that will be batched together for storage.
 message RequisitionBatch {
-  repeated google.protobuf.Any requisition_group = 1;
+  repeated google.protobuf.Any requisitions = 1;
 }

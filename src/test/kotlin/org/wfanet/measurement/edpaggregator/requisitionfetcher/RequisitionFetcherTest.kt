@@ -63,7 +63,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurement
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.securecomputation.storage.requisitionBatch
-import org.wfanet.measurement.securecomputation.storage.resourceBatch
 
 @RunWith(JUnit4::class)
 class RequisitionFetcherTest {
@@ -84,10 +83,8 @@ class RequisitionFetcherTest {
     val storageClient = GcsStorageClient(storage, BUCKET)
     val fetcher = RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME, 50, STORAGE_PATH_PREFIX)
 
-    val expectedResult = resourceBatch {
-      requisitionBatch = requisitionBatch {
-        requisitionGroup += listOf(Any.pack(REQUISITION))
-      }
+    val expectedResult = requisitionBatch {
+      requisitions += listOf(Any.pack(REQUISITION))
     }
 
     val persistedRequisition = runBlocking {
@@ -111,17 +108,15 @@ class RequisitionFetcherTest {
     val fetcher = RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME, 50, STORAGE_PATH_PREFIX)
 
     val expectedResult = requisitionsList.map {
-      resourceBatch {
-        requisitionBatch = requisitionBatch {
-          requisitionGroup += listOf(Any.pack(it))
-        }
+      requisitionBatch {
+        requisitions += listOf(Any.pack(it))
       }
     }
 
     runBlocking {
       fetcher.fetchAndStoreRequisitions()
       expectedResult.map {
-        val requisition = it.requisitionBatch.requisitionGroupList[0].unpack(Requisition::class.java)
+        val requisition = it.requisitionsList[0].unpack(Requisition::class.java)
         assertThat(storageClient.getBlob("$STORAGE_PATH_PREFIX/${requisition.name}")).isNotNull()
       }
     }
