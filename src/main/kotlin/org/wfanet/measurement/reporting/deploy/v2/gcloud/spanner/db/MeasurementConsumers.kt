@@ -52,7 +52,8 @@ suspend fun AsyncDatabaseClient.ReadContext.getMeasurementConsumerByCmmsMeasurem
       .trimIndent()
   val row: Struct =
     executeQuery(statement(sql) { bind("cmmsMeasurementConsumerId").to(cmmsMeasurementConsumerId) })
-      .singleOrNullIfEmpty() ?: throw MeasurementConsumerNotFoundException(cmmsMeasurementConsumerId)
+      .singleOrNullIfEmpty()
+      ?: throw MeasurementConsumerNotFoundException(cmmsMeasurementConsumerId)
 
   return MeasurementConsumerResult(
     row.getLong("MeasurementConsumerId"),

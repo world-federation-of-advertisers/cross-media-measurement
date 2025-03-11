@@ -68,7 +68,10 @@ sealed class ServiceException(
   }
 }
 
-class MeasurementConsumerNotFoundException(cmmsMeasurementConsumerId: String, cause: Throwable? = null) :
+class MeasurementConsumerNotFoundException(
+  cmmsMeasurementConsumerId: String,
+  cause: Throwable? = null,
+) :
   ServiceException(
     Errors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
     "Measurement Consumer with cmms ID $cmmsMeasurementConsumerId not found",

@@ -1351,7 +1351,8 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND.name
-          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] = baseReport.cmmsMeasurementConsumerId + "2"
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+            baseReport.cmmsMeasurementConsumerId + "2"
         }
       )  }
 

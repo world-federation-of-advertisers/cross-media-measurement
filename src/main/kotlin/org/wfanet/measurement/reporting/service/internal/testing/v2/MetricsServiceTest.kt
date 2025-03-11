@@ -1294,7 +1294,8 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND.name
-          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] = CMMS_MEASUREMENT_CONSUMER_ID + "2"
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+            CMMS_MEASUREMENT_CONSUMER_ID + "2"
         }
       )  }
 

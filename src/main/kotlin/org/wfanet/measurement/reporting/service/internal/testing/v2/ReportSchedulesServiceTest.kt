@@ -469,7 +469,8 @@ abstract class ReportSchedulesServiceTest<T : ReportSchedulesCoroutineImplBase> 
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND.name
-          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] = reportSchedule.cmmsMeasurementConsumerId
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+            reportSchedule.cmmsMeasurementConsumerId
         }
       )  }
 

@@ -388,7 +388,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsGrpcKt.MeasurementsCorout
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND.name
-            metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] = CMMS_MEASUREMENT_CONSUMER_ID
+            metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+              CMMS_MEASUREMENT_CONSUMER_ID
           }
         )
     }
