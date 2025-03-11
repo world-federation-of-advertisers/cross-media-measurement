@@ -23,29 +23,30 @@ kt_jvm_library(
     srcs = ["RequisitionFetcherFunction.kt"],
     deps = [
         ":requisition_fetcher",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage/contrib/nio",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
     ],
 )
 
-java_library(
-    name = "requisition_fetcher_function_lib",
-    visibility = ["//visibility:public"],
-    exports = [":requisition_fetcher_function"],
-    runtime_deps = [
-        ":requisition_fetcher_function",
-        "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
-    ],
+java_binary(
+    name = "requisition_fetcher_function_jar",
+    main_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
+    runtime_deps = [":requisition_fetcher_function"],
 )
 
 java_binary(
     name = "run_requisition_fetcher_function",
     args = [
-        "--target=org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
-        "--port=8085",
+        "--port 8080",
+        "--classpath $(location :requisition_fetcher_function_jar_deploy.jar)",
+        "--target org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
+    ],
+    data = [
+        ":requisition_fetcher_function_jar_deploy.jar",
     ],
     main_class = "com.google.cloud.functions.invoker.runner.Invoker",
     runtime_deps = [
-        ":requisition_fetcher_function_lib",
+        ":requisition_fetcher_function_jar_deploy.jar",
         "//imports/java/com/google/cloud/functions:java_function_invoker",
     ],
 )
@@ -56,19 +57,3 @@ java_image(
     main_class = "com.google.cloud.functions.invoker.runner.Invoker",
     visibility = ["//visibility:public"],
 )
-
-# old ======================
-#java_binary(
-#    name = "RequisitionFetcherFunction",
-#    main_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
-#    runtime_deps = [
-#        ":requisition_fetcher_function",
-#    ],
-#)
-#
-#java_image(
-#    name = "requisition_fetcher_function_image",
-#    binary = ":RequisitionFetcherFunction",
-#    main_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunctionKt",
-#    visibility = ["//visibility:public"],
-#)

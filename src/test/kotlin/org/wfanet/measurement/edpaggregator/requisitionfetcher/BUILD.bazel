@@ -40,12 +40,7 @@ kt_jvm_test(
     name = "requisition_fetcher_function_test",
     srcs = ["RequisitionFetcherFunctionTest.kt"],
     data = [
-        "//src/main/k8s/testing/data:service_config",
-        "//src/main/k8s/testing/secretfiles:all_configs",
-        "//src/main/k8s/testing/secretfiles:all_der_files",
-        "//src/main/k8s/testing/secretfiles:all_root_certs.pem",
-        "//src/main/k8s/testing/secretfiles:all_tink_keysets",
-        "//src/main/k8s/testing/secretfiles:secret_files",
+        "//src/main/k8s/testing/secretfiles:edp_aggregator_certs",
     ],
     test_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunctionTest",
     deps = [
@@ -71,9 +66,7 @@ java_test(
     size = "enormous",
     timeout = "long",
     data = [
-        "//src/main/docker:push_all_local_images",
-        #        "//src/main/k8s/local:kingdom_setup.tar",
-        #        "//src/main/k8s/local/testing:cmms.tar",
+        "//src/main/docker:push_all_edp_aggregator_images",
     ],
     env_inherit = [
         "DOCKER_HOST",

@@ -20,12 +20,12 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
+import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 
 
@@ -39,7 +39,11 @@ class RequisitionFetcherFunction : HttpFunction {
       buildMutualTlsChannel(System.getenv("TARGET"), getClientCerts(), System.getenv("CERT_HOST"))
 
     val requisitionsStub = RequisitionsCoroutineStub(publicChannel)
-    val requisitionsStorageClient =
+
+
+    val requisitionsStorageClient = if(System.getenv("IS_TEST_CALL").isNotEmpty()) {
+      GcsStorageClient(LocalStorageHelper.getOptions().service, System.getenv("REQUISITIONS_GCS_BUCKET"))
+    } else {
       GcsStorageClient(
         StorageOptions.newBuilder()
           .setProjectId(System.getenv("REQUISITIONS_GCS_PROJECT_ID"))
@@ -47,6 +51,7 @@ class RequisitionFetcherFunction : HttpFunction {
           .service,
         System.getenv("REQUISITIONS_GCS_BUCKET"),
       )
+    }
     val requisitionFetcher =
       RequisitionFetcher(
         requisitionsStub,
@@ -57,11 +62,6 @@ class RequisitionFetcherFunction : HttpFunction {
       )
 
     private fun getClientCerts(): SigningCerts {
-      println("JOJI : ${System.getenv("CERT_FILE_PATH")}")
-      println("JOJI2 : ${Path(System.getenv("CERT_FILE_PATH")).toFile().totalSpace}")
-      println("JOJI3 : ${Path(System.getenv("CERT_FILE_PATH")).toFile().readText()}")
-      println("JOJI4 : ${Path(System.getenv("CERT_FILE_PATH")).toFile().readByteString()}")
-
       return SigningCerts.fromPemFiles(
         certificateFile = Path(System.getenv("CERT_FILE_PATH")).toFile(),
         privateKeyFile = Path(System.getenv("PRIVATE_KEY_FILE_PATH")).toFile(),

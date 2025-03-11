@@ -1,7 +1,8 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
-import java.net.HttpURLConnection
+
+import io.grpc.Server
+import io.grpc.ServerInterceptors
 import java.net.URI
-import java.net.URL
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
@@ -21,7 +22,21 @@ import org.testcontainers.utility.DockerImageName
 import org.testcontainers.utility.MountableFile
 import org.wfanet.measurement.common.k8s.testing.Processes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
+import org.wfanet.measurement.common.grpc.testing.mockService
+import org.mockito.kotlin.any
+import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.requisition
+import io.grpc.netty.NettyServerBuilder
+import java.net.InetSocketAddress
+import java.nio.file.Path
+import java.util.concurrent.TimeUnit
+import org.testcontainers.Testcontainers
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.testing.HeaderCapturingInterceptor
+import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.grpc.toServerTlsContext
 
 class RequisitionFetcherFunctionTest {
   private class Images : TestRule {
@@ -40,84 +55,145 @@ class RequisitionFetcherFunctionTest {
       Processes.runCommand(pusherRuntimePath.toString())
     }
   }
-  val host: String
-    get() = container.host
-  val port: Int
-    get() = container.getMappedPort(8085)
+
+  private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
+    onBlocking { listRequisitions(any()) }
+      .thenReturn(listRequisitionsResponse { requisitions += REQUISITION })
+  }
+
   @Before
   fun setUp() {
-    container.start()
-    container.isHostAccessible = true
+    grpcServer = NettyServerBuilder
+      .forAddress(InetSocketAddress("0.0.0.0", GRPC_SERVER_PORT))  // Bind to all interfaces
+      .addService(ServerInterceptors.intercept(requisitionsServiceMock.bindService(), HeaderCapturingInterceptor()))
+      .sslContext(serverCerts.toServerTlsContext())
+      .build()
+      .start()
+
+    println("Started mock gRPC server on port ${grpcServer.port}")
+    println("gRPC server bound to addresses: ${grpcServer.listenSockets.joinToString { it.toString() }}")
+
+    // Expose the gRPC server port to containers
+    Testcontainers.exposeHostPorts(grpcServer.port)
+
+    // Configure the function container
+    gcfContainer = GenericContainer(DockerImageName.parse(IMAGE_NAME)).apply {
+      //TODO(): Figure out better way to emulate GCS
+      withEnv("IS_TEST_CALL", "true")
+
+      withExposedPorts(GCF_CONTAINER_PORT)
+      withAccessToHost(true)
+      withEnv("FUNCTION_TARGET", "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction")
+
+      // Configure gRPC connection to the mock server
+      withEnv("TARGET", "host.testcontainers.internal:${grpcServer.port}")
+      withEnv("CERT_HOST", "localhost")
+
+        // Other configuration parameters
+        withEnv("DATAPROVIDER_NAME", "your-dataprovider-name")
+        withEnv("PAGE_SIZE", "10")
+        withEnv("STORAGE_PATH_PREFIX", "your-storage-path-prefix")
+
+        // Certificate files
+        withEnv("CERT_FILE_PATH", "/path/to/cert.pem")
+        withEnv("PRIVATE_KEY_FILE_PATH", "/path/to/private-key.pem")
+        withEnv("CERT_COLLECTION_FILE_PATH", "/path/to/cert-collection.pem")
+
+        // Copy certificate files into the container
+        withCopyFileToContainer(
+          MountableFile.forHostPath(SECRETS_DIR.resolve("edp1_tls.pem")),
+          "/path/to/cert.pem"
+        )
+        withCopyFileToContainer(
+          MountableFile.forHostPath(SECRETS_DIR.resolve("edp1_tls.key")),
+          "/path/to/private-key.pem"
+        )
+        withCopyFileToContainer(
+          MountableFile.forHostPath(SECRETS_DIR.resolve("kingdom_root.pem")),
+          "/path/to/cert-collection.pem"
+        )
+      }
+
+    gcfContainer.start()
+    println("Started function container at ${gcfContainer.host}:${gcfContainer.getMappedPort(GCF_CONTAINER_PORT)}")
   }
+
   @After
   fun cleanUp() {
-    container.stop()
+    grpcServer.shutdown()
+    grpcServer.awaitTermination(5, TimeUnit.SECONDS)
+    gcfContainer.stop()
   }
+
   @Test
   fun `use RequisitionFetcherFunction in Docker container`() {
-    val logs = container.logs
-    println("Container logs: $logs")
+    // Give the container a bit of time to start up
+    runBlocking {
+      delay(60000)
+    }
 
-    val execResult = container.execInContainer("ls", "-la", "/")
-    println("Container file structure: ${execResult.stdout}")
+    val url = "http://${gcfContainer.host}:${gcfContainer.getMappedPort(GCF_CONTAINER_PORT)}"
+    println("Testing Cloud Function at: $url")
 
-    // Check if your class exists in the image
-    val classCheck = container.execInContainer("find", "/", "-name", "*.class")
-    println("Class files in container: ${classCheck.stdout}")
+    val client = HttpClient.newHttpClient()
+    val getRequest = HttpRequest.newBuilder()
+      .uri(URI.create(url))
+      .GET()
+      .build()
 
-    val url = "http://$host:$port"
-//    val client = HttpClient.newHttpClient()
-//    val getRequest = HttpRequest.newBuilder().uri(URI.create(url)).GET().build()
-//
-//    // Send the sendHttpRequest using the client
-//    val getResponse = client.send(getRequest, BodyHandlers.ofString())
-
-
-    println("JOJI URL: ${url}")
-    val connection = URL(url).openConnection() as HttpURLConnection
-    // how do i call the google cloud function using http?
     try {
-      connection.requestMethod = "GET" // or "POST", "PUT", etc.
-      connection.connect()
-      runBlocking {
-        delay(1000000)
-      }
-      connection.connectTimeout = 30000 // 30 seconds
-      connection.readTimeout = 30000 // 30 seconds
-      val responseCode = connection.responseCode
-      println("Response Code: $responseCode")
+      val getResponse = client.send(getRequest, BodyHandlers.ofString())
+      println("Response status: ${getResponse.statusCode()}")
+      println("Response body: ${getResponse.body()}")
 
-      val response = connection.inputStream.bufferedReader().use { it.readText() }
-      println("Response: $response")
-    } finally {
-      connection.disconnect()
+      // Verify the function worked
+      assert(getResponse.statusCode() == 200)
+
+    } catch (e: Exception) {
+      println("Error calling cloud function: ${e.message}")
+      e.printStackTrace()
+      throw e
     }
+
+    // Print container logs for debugging
+    println("Container logs:\n${gcfContainer.logs}")
   }
-  companion object {
-    private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_local_images.bash")
-    val imageName = "localhost:5000/halo/requisitions/requisition-fetcher:latest"
-    val container = GenericContainer(DockerImageName.parse(imageName)).apply {
-      withExposedPorts(8085)
-      withCommand("java",
-        "-Dcom.google.cloud.functions.invoker.runner.function=org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
-        "com.google.cloud.functions.invoker.runner.Invoker")
-      withEnv("TARGET", "test-target")
-      withEnv("CERT_HOST", "localhost")
-      withEnv("REQUISITIONS_GCS_PROJECT_ID", "test-gcs-project-id")
-      withEnv("REQUISITIONS_GCS_BUCKET", "test-gcs-bucket")
-      withEnv("DATAPROVIDER_NAME", "your-dataprovider-name")
-      withEnv("PAGE_SIZE", "10") // Example value
-      withEnv("STORAGE_PATH_PREFIX", "your-storage-path-prefix")
-      withEnv("CERT_FILE_PATH", "/path/to/cert.pem")
-      withEnv("PRIVATE_KEY_FILE_PATH", "/path/to/private-key.pem")
-      withEnv("CERT_COLLECTION_FILE_PATH", "/path/to/cert-collection.pem")
-      // how do i get the absolute path of these files dynamically?
-      withCopyFileToContainer(MountableFile.forHostPath("/home/jojijacob/XMM/cross-media-measurement/src/main/k8s/testing/secretfiles/edp1_root.pem"), "/path/to/cert.pem")
-      withCopyFileToContainer(MountableFile.forHostPath("/home/jojijacob/XMM/cross-media-measurement/src/main/k8s/testing/secretfiles/edp1_root.key"), "/path/to/private-key.pem")
-      withCopyFileToContainer(MountableFile.forHostPath("/home/jojijacob/XMM/cross-media-measurement/src/main/k8s/testing/secretfiles/kingdom_root.pem"), "/path/to/cert-collection.pem")
 
-    }
+  companion object {
+    private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_edp_aggregator_images.bash")
+    private const val IMAGE_NAME = "localhost:5000/halo/requisitions/requisition-fetcher:latest"
+
     private val tempDir = TemporaryFolder()
+
+    // Late initialize container so we can use grpcPort and hostIpAddress from the test instance
+    lateinit var gcfContainer: GenericContainer<*>
+    lateinit var grpcServer: Server
+    private const val GRPC_SERVER_PORT = 8090
+    // Google Cloud Function will listen on port 8080 by default
+    private const val GCF_CONTAINER_PORT = 8080
+
+
+    private const val EDP_ID = "someDataProvider"
+    private const val EDP_NAME = "dataProviders/$EDP_ID"
+    private val REQUISITION = requisition {
+      name = "${EDP_NAME}/requisitions/foo"
+      measurement = "MEASUREMENT_NAME"
+      state = Requisition.State.UNFULFILLED
+    }
+
+    private val SECRETS_DIR: Path =
+      getRuntimePath(
+        Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+      )!!
+
+    private val serverCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
+        privateKeyFile = SECRETS_DIR.resolve("kingdom_tls.key").toFile(),
+        trustedCertCollectionFile = SECRETS_DIR.resolve("edp1_root.pem").toFile(),
+      )
+
+
     @ClassRule
     @JvmField
     val chainedRule = chainRulesSequentially(tempDir, Images())
