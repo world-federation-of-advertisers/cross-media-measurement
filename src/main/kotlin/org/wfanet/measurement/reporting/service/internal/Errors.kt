@@ -108,7 +108,11 @@ class MeasurementConsumerNotFoundException(
     cause,
   )
 
-class BasicReportNotFoundException(cmmsMeasurementConsumerId: String, externalBasicReportId: String, cause: Throwable? = null) :
+class BasicReportNotFoundException(
+  cmmsMeasurementConsumerId: String,
+  externalBasicReportId: String,
+  cause: Throwable? = null,
+) :
   ServiceException(
     Errors.Reason.BASIC_REPORT_NOT_FOUND,
     "Basic Report with cmms measurement consumer ID $cmmsMeasurementConsumerId and external ID $externalBasicReportId not found",
@@ -119,7 +123,11 @@ class BasicReportNotFoundException(cmmsMeasurementConsumerId: String, externalBa
     cause,
   )
 
-class BasicReportAlreadyExistsException(cmmsMeasurementConsumerId: String, externalBasicReportId: String, cause: Throwable? = null) :
+class BasicReportAlreadyExistsException(
+  cmmsMeasurementConsumerId: String,
+  externalBasicReportId: String,
+  cause: Throwable? = null,
+) :
   ServiceException(
     Errors.Reason.BASIC_REPORT_ALREADY_EXISTS,
     "Basic Report with cmms measurement consumer ID $cmmsMeasurementConsumerId and external ID $externalBasicReportId already exists",

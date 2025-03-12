@@ -185,7 +185,10 @@ class SpannerBasicReportsService(
       }
     } catch (e: SpannerException) {
       if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
-        throw BasicReportAlreadyExistsException(request.basicReport.cmmsMeasurementConsumerId, request.basicReport.externalBasicReportId)
+        throw BasicReportAlreadyExistsException(
+            request.basicReport.cmmsMeasurementConsumerId,
+            request.basicReport.externalBasicReportId,
+          )
           .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
       } else {
         throw e

@@ -20,13 +20,10 @@ import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.api.ResourceKey
 
 /** [ResourceKey] of an ImpressionQualificationFilter. */
-class ImpressionQualificationFilterKey(val impressionQualificationFilterId: String) :
-  ResourceKey {
+class ImpressionQualificationFilterKey(val impressionQualificationFilterId: String) : ResourceKey {
   override fun toName(): String {
     return parser.assembleName(
-      mapOf(
-        IdVariable.IMPRESSION_QUALIFICATION_FILTER to impressionQualificationFilterId,
-      )
+      mapOf(IdVariable.IMPRESSION_QUALIFICATION_FILTER to impressionQualificationFilterId)
     )
   }
 
@@ -37,7 +34,7 @@ class ImpressionQualificationFilterKey(val impressionQualificationFilterId: Stri
     override fun fromName(resourceName: String): ImpressionQualificationFilterKey? {
       val idVars: Map<IdVariable, String> = parser.parseIdVars(resourceName) ?: return null
       return ImpressionQualificationFilterKey(
-        idVars.getValue(IdVariable.IMPRESSION_QUALIFICATION_FILTER),
+        idVars.getValue(IdVariable.IMPRESSION_QUALIFICATION_FILTER)
       )
     }
   }

@@ -22,8 +22,10 @@ import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 
 /** [ResourceKey] of a BasicReport. */
-data class BasicReportKey(override val parentKey: MeasurementConsumerKey, val basicReportId: String) :
-  ChildResourceKey {
+data class BasicReportKey(
+  override val parentKey: MeasurementConsumerKey,
+  val basicReportId: String,
+) : ChildResourceKey {
   constructor(
     cmmsMeasurementConsumerId: String,
     basicReportId: String,

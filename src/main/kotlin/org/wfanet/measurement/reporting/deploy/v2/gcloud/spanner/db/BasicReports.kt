@@ -69,7 +69,8 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
           bind("externalBasicReportId").to(externalBasicReportId)
         }
       )
-      .singleOrNullIfEmpty() ?: throw BasicReportNotFoundException(cmmsMeasurementConsumerId, externalBasicReportId)
+      .singleOrNullIfEmpty()
+      ?: throw BasicReportNotFoundException(cmmsMeasurementConsumerId, externalBasicReportId)
 
   return BasicReportResult(row.getLong("BasicReportId"), buildBasicReport(row))
 }

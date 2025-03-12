@@ -21,8 +21,8 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.errorInfo
-import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
+import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
 
 object Errors {
   const val DOMAIN = "reporting.halo-cmm.org"
@@ -104,8 +104,10 @@ class BasicReportNotFoundException(name: String, cause: Throwable? = null) :
     ): BasicReportNotFoundException {
       val basicReportKey =
         BasicReportKey(
-          cmmsMeasurementConsumerId = internalMetadata.getValue(InternalErrors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID),
-          basicReportId = internalMetadata.getValue(InternalErrors.Metadata.EXTERNAL_BASIC_REPORT_ID),
+          cmmsMeasurementConsumerId =
+            internalMetadata.getValue(InternalErrors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID),
+          basicReportId =
+            internalMetadata.getValue(InternalErrors.Metadata.EXTERNAL_BASIC_REPORT_ID),
         )
       return BasicReportNotFoundException(basicReportKey.toName(), cause)
     }
@@ -135,7 +137,9 @@ class InvalidFieldValueException(
 class FieldValueDoesNotMatchPageTokenException(
   fieldName: String,
   cause: Throwable? = null,
-  buildMessage: (fieldName: String) -> String = { "Value for field $fieldName does not match page token." },
+  buildMessage: (fieldName: String) -> String = {
+    "Value for field $fieldName does not match page token."
+  },
 ) :
   ServiceException(
     Errors.Reason.FIELD_VALUE_DOES_NOT_MATCH_PAGE_TOKEN,
