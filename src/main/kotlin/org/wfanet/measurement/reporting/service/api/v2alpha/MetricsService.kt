@@ -1731,7 +1731,11 @@ class MetricsService(
               result = metricResult {
                 cmmsMeasurements +=
                   source.weightedMeasurementsList.map {
-                    MeasurementKey(source.cmmsMeasurementConsumerId, it.measurement.cmmsMeasurementId).toName()
+                    MeasurementKey(
+                        source.cmmsMeasurementConsumerId,
+                        it.measurement.cmmsMeasurementId,
+                      )
+                      .toName()
                   }
               }
               logger.log(

@@ -214,7 +214,6 @@ import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairSto
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
-import org.wfanet.measurement.reporting.v2alpha.MetricResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
@@ -7372,9 +7371,8 @@ class MetricsServiceTest {
         }
 
       assertThat(response.state).isEqualTo(Metric.State.FAILED)
-      assertThat(response.result).isEqualTo(metricResult {
-        cmmsMeasurements += SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.name
-      })
+      assertThat(response.result)
+        .isEqualTo(metricResult { cmmsMeasurements += SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.name })
     }
 
   @Test
@@ -7406,9 +7404,8 @@ class MetricsServiceTest {
         }
 
       assertThat(response.state).isEqualTo(Metric.State.FAILED)
-      assertThat(response.result).isEqualTo(metricResult {
-        cmmsMeasurements += SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.name
-      })
+      assertThat(response.result)
+        .isEqualTo(metricResult { cmmsMeasurements += SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.name })
     }
 
   @Test
@@ -8454,10 +8451,13 @@ class MetricsServiceTest {
         runBlocking { service.getMetric(request) }
       }
     assertThat(response.state).isEqualTo(Metric.State.FAILED)
-    assertThat(response.result).isEqualTo(metricResult {
-      cmmsMeasurements += SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.name
-    })
-    }
+    assertThat(response.result)
+      .isEqualTo(
+        metricResult {
+          cmmsMeasurements += SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.name
+        }
+      )
+  }
 
   @Test
   fun `getMetric returns succeeded metric for rf when custom direct methodology has scalar`():
