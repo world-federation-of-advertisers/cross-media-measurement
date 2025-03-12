@@ -281,6 +281,13 @@ proto_library(
 )
 
 proto_library(
+    name = "reporting_impression_qualification_filter_config_proto",
+    srcs = ["reporting_impression_qualification_filter_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [":reporting_impression_qualification_filter_proto"],
+)
+
+proto_library(
     name = "reporting_impression_qualification_filter_proto",
     srcs = ["reporting_impression_qualification_filter.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -349,6 +356,7 @@ proto_descriptor_set(
         ":event_template_field_proto",
         ":impression_qualification_filter_spec_proto",
         ":metric_frequency_spec_proto",
+        ":reporting_impression_qualification_filter_config_proto",
         ":reporting_impression_qualification_filter_proto",
         ":reporting_interval_proto",
         ":result_group_proto",
