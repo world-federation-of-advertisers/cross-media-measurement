@@ -296,7 +296,15 @@ REPORTING_V2_GKE_IMAGES = [
     ),
 ]
 
-ALL_GKE_IMAGES = COMMON_IMAGES + GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_GKE_IMAGES
+CONTROL_PLANE_GKE_IMAGES = [
+    struct(
+        name = "gcloud_control_plane_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:google_pub_sub_work_items_service_image",
+        repository = _PREFIX + "/secure-computation/control-plane-api-v1alpha",
+    ),
+]
+
+ALL_GKE_IMAGES = COMMON_IMAGES + GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_GKE_IMAGES + CONTROL_PLANE_GKE_IMAGES
 
 ALL_LOCAL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_LOCAL_IMAGES
 
