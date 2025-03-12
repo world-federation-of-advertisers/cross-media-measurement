@@ -1728,6 +1728,12 @@ class MetricsService(
             }
             is MetricResultNotComputableException -> {
               state = Metric.State.FAILED
+              result = metricResult {
+                cmmsMeasurements +=
+                  source.weightedMeasurementsList.map {
+                    MeasurementKey(source.cmmsMeasurementConsumerId, it.measurement.cmmsMeasurementId).toName()
+                  }
+              }
               logger.log(
                 Level.WARNING,
                 "Failed to calculate metric result for metric with ID ${source.externalMetricId}",

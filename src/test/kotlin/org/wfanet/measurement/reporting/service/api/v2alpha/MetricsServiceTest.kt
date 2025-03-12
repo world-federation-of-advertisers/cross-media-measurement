@@ -7333,6 +7333,7 @@ class MetricsServiceTest {
           internalBatchGetMetricsResponse {
             metrics +=
               INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+                weightedMeasurements.clear()
                 weightedMeasurements += weightedMeasurement {
                   weight = 1
                   binaryRepresentation = 3
@@ -7371,17 +7372,20 @@ class MetricsServiceTest {
         }
 
       assertThat(response.state).isEqualTo(Metric.State.FAILED)
-      assertThat(response.result).isEqualTo(MetricResult.getDefaultInstance())
+      assertThat(response.result).isEqualTo(metricResult {
+        cmmsMeasurements += SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.name
+      })
     }
 
   @Test
-  fun `getMetric returns failed metric when the succeeded metric contains no measurement`(): Unit =
+  fun `getMetric returns failed metric when the succeeded metric contains no result`(): Unit =
     runBlocking {
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
             metrics +=
               INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+                weightedMeasurements.clear()
                 weightedMeasurements += weightedMeasurement {
                   weight = 1
                   binaryRepresentation = 3
@@ -7402,7 +7406,9 @@ class MetricsServiceTest {
         }
 
       assertThat(response.state).isEqualTo(Metric.State.FAILED)
-      assertThat(response.result).isEqualTo(MetricResult.getDefaultInstance())
+      assertThat(response.result).isEqualTo(metricResult {
+        cmmsMeasurements += SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.name
+      })
     }
 
   @Test
@@ -8403,6 +8409,7 @@ class MetricsServiceTest {
         internalBatchGetMetricsResponse {
           metrics +=
             INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+              weightedMeasurements.clear()
               weightedMeasurements += weightedMeasurement {
                 weight = 1
                 binaryRepresentation = 1
@@ -8447,8 +8454,10 @@ class MetricsServiceTest {
         runBlocking { service.getMetric(request) }
       }
     assertThat(response.state).isEqualTo(Metric.State.FAILED)
-    assertThat(response.result).isEqualTo(MetricResult.getDefaultInstance())
-  }
+    assertThat(response.result).isEqualTo(metricResult {
+      cmmsMeasurements += SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.name
+    })
+    }
 
   @Test
   fun `getMetric returns succeeded metric for rf when custom direct methodology has scalar`():
