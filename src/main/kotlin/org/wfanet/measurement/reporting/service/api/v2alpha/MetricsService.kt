@@ -1747,6 +1747,17 @@ class MetricsService(
             else -> throw e
           }
         }
+      } else if (state == Metric.State.FAILED) {
+        result = metricResult {
+          cmmsMeasurements +=
+            source.weightedMeasurementsList.map {
+              MeasurementKey(
+                source.cmmsMeasurementConsumerId,
+                it.measurement.cmmsMeasurementId,
+              )
+                .toName()
+            }
+        }
       }
     }
   }

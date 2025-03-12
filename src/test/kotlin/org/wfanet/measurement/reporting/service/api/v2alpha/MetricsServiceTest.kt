@@ -6117,7 +6117,16 @@ class MetricsServiceTest {
 
     val expected = listMetricsResponse {
       metrics += PENDING_INCREMENTAL_REACH_METRIC
-      metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { state = Metric.State.FAILED }
+      metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+        state = Metric.State.FAILED
+        this.result = metricResult {
+          cmmsMeasurements +=
+            MeasurementKey(
+              INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementConsumerId,
+              INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId,
+            ).toName()
+        }
+      }
     }
 
     // Verify proto argument of internal MetricsCoroutineImplBase::streamMetrics
@@ -7376,7 +7385,7 @@ class MetricsServiceTest {
     }
 
   @Test
-  fun `getMetric returns failed metric when the succeeded metric contains no result`(): Unit =
+  fun `getMetric returns failed metric when the succeeded measurement contains no result`(): Unit =
     runBlocking {
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
