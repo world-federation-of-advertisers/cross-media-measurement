@@ -22,8 +22,10 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.db.postgres.PostgresFlags
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.gcloud.spanner.SpannerFlags
+import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer
-import org.wfanet.measurement.reporting.deploy.v2.common.server.postgres.PostgresServices
+import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
 import picocli.CommandLine
 
 /** Implementation of [InternalReportingServer] using Postgres. */
@@ -35,14 +37,19 @@ import picocli.CommandLine
 )
 class PostgresInternalReportingServer : InternalReportingServer() {
   @CommandLine.Mixin private lateinit var postgresFlags: PostgresFlags
+  @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
     val idGenerator = RandomIdGenerator(clock)
 
-    val client = PostgresDatabaseClient.fromFlags(postgresFlags)
+    val postgresClient = PostgresDatabaseClient.fromFlags(postgresFlags)
 
-    run(PostgresServices.create(idGenerator, client))
+    spannerFlags.usingSpanner { spanner ->
+      val spannerClient = spanner.databaseClient
+
+      run(DataServices.create(idGenerator, postgresClient, spannerClient))
+    }
   }
 }
 

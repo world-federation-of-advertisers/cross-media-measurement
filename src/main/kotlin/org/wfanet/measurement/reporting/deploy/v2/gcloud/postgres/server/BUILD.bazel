@@ -8,13 +8,14 @@ kt_jvm_library(
     runtime_deps = ["@wfa_common_jvm//imports/java/com/google/cloud/sql/postgres:r2dbc"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:internal_reporting_server",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server/postgres:services",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/service:services",
         "@wfa_common_jvm//imports/java/io/r2dbc",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/postgres:factories",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/postgres:flags",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )
 

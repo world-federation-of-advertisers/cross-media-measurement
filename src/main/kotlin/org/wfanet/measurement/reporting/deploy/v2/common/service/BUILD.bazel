@@ -2,16 +2,19 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 kt_jvm_library(
     name = "services",
-    srcs = ["PostgresServices.kt"],
+    srcs = ["DataServices.kt"],
     visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud/reporting:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/postgres/server:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/server:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:internal_reporting_server",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner:basic_reports_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres:services",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )
