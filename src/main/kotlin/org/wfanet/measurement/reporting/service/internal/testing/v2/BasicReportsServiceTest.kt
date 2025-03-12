@@ -173,6 +173,8 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.BASIC_REPORT_ALREADY_EXISTS.name
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+            basicReport.cmmsMeasurementConsumerId
           metadata[Errors.Metadata.EXTERNAL_BASIC_REPORT_ID.key] = basicReport.externalBasicReportId
         }
       )
@@ -237,6 +239,8 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.BASIC_REPORT_NOT_FOUND.name
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+            createdBasicReport.cmmsMeasurementConsumerId
           metadata[Errors.Metadata.EXTERNAL_BASIC_REPORT_ID.key] =
             createdBasicReport.externalBasicReportId + "b"
         }

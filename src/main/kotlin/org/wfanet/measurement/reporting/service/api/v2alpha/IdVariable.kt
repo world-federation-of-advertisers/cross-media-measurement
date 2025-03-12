@@ -20,6 +20,8 @@ import java.util.Locale
 import org.wfanet.measurement.common.ResourceNameParser
 
 internal enum class IdVariable {
+  BASIC_REPORT,
+  IMPRESSION_QUALIFICATION_FILTER,
   DATA_PROVIDER,
   EVENT_GROUP,
   MEASUREMENT_CONSUMER,

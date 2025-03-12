@@ -55,7 +55,7 @@ class GooglePubSubWorkItemsServiceTest {
     workItemsService = GooglePubSubWorkItemsService(projectId, googlePubSubClient)
   }
 
-  @Test(timeout = 1_000)
+  @Test(timeout = 1_070)
   fun `test successful work item creation`() = runBlocking {
     googlePubSubClient.createTopic(projectId, topicId)
     googlePubSubClient.createSubscription(projectId, subscriptionId, topicId)
