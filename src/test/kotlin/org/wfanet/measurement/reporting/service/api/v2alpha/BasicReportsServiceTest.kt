@@ -1929,7 +1929,7 @@ class BasicReportsServiceTest {
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.FIELD_VALUE_DOES_NOT_MATCH_PAGE_TOKEN.name
+            reason = Errors.Reason.ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE.name
             metadata[Errors.Metadata.FIELD_NAME.key] = "filter.create_time_after"
           }
         )

@@ -28,8 +28,8 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest as I
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt as InternalListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest as internalListBasicReportsRequest
+import org.wfanet.measurement.reporting.service.api.ArgumentChangedInRequestForNextPageException
 import org.wfanet.measurement.reporting.service.api.BasicReportNotFoundException
-import org.wfanet.measurement.reporting.service.api.FieldValueDoesNotMatchPageTokenException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
@@ -167,7 +167,7 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
         }
 
       if (!decodedPageToken.filter.createTimeAfter.equals(source.filter.createTimeAfter)) {
-        throw FieldValueDoesNotMatchPageTokenException("filter.create_time_after")
+        throw ArgumentChangedInRequestForNextPageException("filter.create_time_after")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 

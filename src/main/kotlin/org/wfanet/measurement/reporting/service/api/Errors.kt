@@ -31,7 +31,7 @@ object Errors {
     BASIC_REPORT_NOT_FOUND,
     REQUIRED_FIELD_NOT_SET,
     INVALID_FIELD_VALUE,
-    FIELD_VALUE_DOES_NOT_MATCH_PAGE_TOKEN,
+    ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE,
   }
 
   enum class Metadata(val key: String) {
@@ -134,7 +134,7 @@ class InvalidFieldValueException(
     cause,
   )
 
-class FieldValueDoesNotMatchPageTokenException(
+class ArgumentChangedInRequestForNextPageException(
   fieldName: String,
   cause: Throwable? = null,
   buildMessage: (fieldName: String) -> String = {
@@ -142,7 +142,7 @@ class FieldValueDoesNotMatchPageTokenException(
   },
 ) :
   ServiceException(
-    Errors.Reason.FIELD_VALUE_DOES_NOT_MATCH_PAGE_TOKEN,
+    Errors.Reason.ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE,
     buildMessage(fieldName),
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
     cause,
