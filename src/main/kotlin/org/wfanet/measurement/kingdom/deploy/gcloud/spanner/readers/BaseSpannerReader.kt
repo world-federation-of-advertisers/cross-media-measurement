@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import java.util.logging.Logger
@@ -32,7 +33,10 @@ abstract class BaseSpannerReader<T> {
   /** Executes the query. */
   fun execute(readContext: AsyncDatabaseClient.ReadContext): Flow<T> {
     logger.fine { "Executing Query: " + builder.build() }
-    return readContext.executeQuery(builder.build()).map(::translate)
+    val className: String = this::class.simpleName ?: "Anonymous"
+    return readContext
+      .executeQuery(builder.build(), Options.tag("reader=$className"))
+      .map(::translate)
   }
 
   companion object {

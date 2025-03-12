@@ -559,6 +559,264 @@ class ReportConversionTest {
   }
 
   @Test
+  fun `report with demographic slicing is successfully converted to report summary proto`() {
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_demographic_slicing.json").toFile()
+    val reportAsJson = reportFile.readText()
+    val reportSummaries = ReportConversion.convertJsontoReportSummaries(reportAsJson)
+
+    // Verifies that there are 6 report summaries that match 6 demographic groups in the report.
+    assertThat(reportSummaries).hasSize(6)
+
+    // Verifies that each report summary has 8 measurements.
+    reportSummaries.forEach { reportSummary ->
+      assertThat(reportSummary.measurementDetailsList).hasSize(8)
+    }
+
+    // Verifies the report summary for the demographic group [common.sex==1, common.age_group==2].
+    val expectedReportSummary12 = reportSummary {
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "cumulative"
+        isCumulative = true
+        dataProviders += "edp1"
+        measurementResults += measurementResult {
+          reach = reachResult {
+            value = 4091069
+            standardDeviation = 9420.159895996094
+          }
+          metric = "measurementConsumers/fLhOpt2Z4x8/metrics/a55c10a65-8de3-46c9-980a-de54b9565b5f"
+        }
+        measurementResults += measurementResult {
+          reach = reachResult {
+            value = 4116486
+            standardDeviation = 9420.159895996094
+          }
+          metric = "measurementConsumers/fLhOpt2Z4x8/metrics/a820f0601-8e2e-4221-94a5-0d9d1d477c49"
+        }
+      }
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "union"
+        dataProviders += "edp1"
+        measurementResults += measurementResult {
+          reachAndFrequency = reachAndFrequencyResult {
+            reach = reachResult {
+              value = 4075739
+              standardDeviation = 103183.18151361225
+            }
+            frequency = frequencyResult {
+              bins += binResult {
+                label = "1"
+                value = 3450
+                standardDeviation = 3253.2458892873115
+              }
+              bins += binResult {
+                label = "2"
+                value = 1725
+                standardDeviation = 3238.0460772496767
+              }
+              bins += binResult {
+                label = "3"
+                standardDeviation = 3223.3558207024994
+              }
+              bins += binResult {
+                label = "4"
+                standardDeviation = 3223.3558207024994
+              }
+              bins += binResult {
+                label = "5"
+                value = 4070563
+                standardDeviation = 103254.58360196998
+              }
+            }
+          }
+          metric = "measurementConsumers/fLhOpt2Z4x8/metrics/ab5b4f513-624f-4e64-87aa-dcfee2a08cd4"
+        }
+        measurementResults += measurementResult {
+          impressionCount = impressionCountResult {
+            value = 47516912
+            standardDeviation = 361974.60188177926
+          }
+          metric = "measurementConsumers/fLhOpt2Z4x8/metrics/ab6b41793-c7e6-4da0-92d0-fef36980f170"
+        }
+      }
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "cumulative"
+        isCumulative = true
+        dataProviders += "edp2"
+        dataProviders += "edp1"
+        leftHandSideTargets += "edp1"
+        leftHandSideTargets += "edp2"
+        measurementResults += measurementResult {
+          reach = reachResult {
+            value = 4101959
+            standardDeviation = 103123.07369317865
+          }
+          metric = "measurementConsumers/fLhOpt2Z4x8/metrics/a5e6e4318-4c8b-4be8-84da-51ab05ad42a1"
+        }
+        measurementResults += measurementResult {
+          reach = reachResult {
+            value = 4098766
+            standardDeviation = 103123.07369317865
+          }
+          metric = "measurementConsumers/fLhOpt2Z4x8/metrics/ab80afd6f-782e-44d8-a579-c6c7ee4662f8"
+        }
+      }
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "union"
+        dataProviders += "edp2"
+        dataProviders += "edp1"
+        leftHandSideTargets += "edp1"
+        leftHandSideTargets += "edp2"
+        measurementResults += measurementResult {
+          impressionCount = impressionCountResult {
+            value = 65152282
+            standardDeviation = 510226.05412966275
+          }
+          metric = "measurementConsumers/fLhOpt2Z4x8/metrics/a1bf0e6be-17ea-4af0-bfe1-85b885280513"
+        }
+        measurementResults += measurementResult {
+          reachAndFrequency = reachAndFrequencyResult {
+            reach = reachResult {
+              value = 4073399
+              standardDeviation = 102490.16730804376
+            }
+            frequency = frequencyResult {
+              bins += binResult {
+                label = "1"
+                value = 659
+                standardDeviation = 3223.469791075696
+              }
+              bins += binResult {
+                label = "2"
+                value = 4259
+                standardDeviation = 3223.469791075696
+              }
+              bins += binResult {
+                label = "3"
+                value = 4859
+                standardDeviation = 3223.469791075696
+              }
+              bins += binResult {
+                label = "5"
+                value = 4063619
+                standardDeviation = 102946.78989273963
+              }
+              bins += binResult {
+                label = "4"
+                standardDeviation = 3223.469791075696
+              }
+            }
+          }
+          metric = "measurementConsumers/fLhOpt2Z4x8/metrics/a69f8ba0b-95b4-4d33-8ac7-835633e10a72"
+        }
+      }
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "cumulative"
+        isCumulative = true
+        dataProviders += "edp2"
+        measurementResults += measurementResult {
+          reach = reachResult {
+            value = 1666066
+            standardDeviation = 9420.159895996094
+          }
+          metric = "measurementConsumers/fLhOpt2Z4x8/metrics/ac636b58f-1af1-40c8-afeb-fbb4fa7c5217"
+        }
+        measurementResults += measurementResult {
+          reach = reachResult {
+            value = 1654276
+            standardDeviation = 9420.159895996094
+          }
+          metric = "measurementConsumers/fLhOpt2Z4x8/metrics/ac7c15fa0-d3d2-4f56-905a-312bfd171aff"
+        }
+      }
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "union"
+        dataProviders += "edp2"
+        measurementResults += measurementResult {
+          impressionCount = impressionCountResult {
+            value = 17671264
+            standardDeviation = 359592.937507083
+          }
+          metric = "measurementConsumers/fLhOpt2Z4x8/metrics/a4dbe3175-e047-4dfa-964a-00022fbae865"
+        }
+        measurementResults += measurementResult {
+          reachAndFrequency = reachAndFrequencyResult {
+            reach = reachResult {
+              value = 1717079
+              standardDeviation = 102506.62424766447
+            }
+            frequency = frequencyResult {
+              bins += binResult {
+                label = "1"
+                standardDeviation = 3228.0602405038294
+              }
+              bins += binResult {
+                label = "2"
+                value = 2360
+                standardDeviation = 3248.2700501747786
+              }
+              bins += binResult {
+                label = "3"
+                value = 931
+                standardDeviation = 3235.3231393200517
+              }
+              bins += binResult {
+                label = "4"
+                standardDeviation = 3228.0602405038294
+              }
+              bins += binResult {
+                label = "5"
+                value = 1713786
+                standardDeviation = 102513.74351444335
+              }
+            }
+          }
+          metric = "measurementConsumers/fLhOpt2Z4x8/metrics/af1c4be36-cc5a-4239-99e3-482e31f5b64e"
+        }
+      }
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "difference"
+        dataProviders += "edp2"
+        dataProviders += "edp1"
+        uniqueReachTarget = "edp1"
+        leftHandSideTargets += "edp1"
+        rightHandSideTargets += "edp2"
+        measurementResults += measurementResult {
+          reach = reachResult {
+            value = 2514100
+            standardDeviation = 102490.16730804376
+          }
+          metric = "measurementConsumers/fLhOpt2Z4x8/metrics/a0978c883-62d8-4f53-8b15-124609732cdd"
+        }
+      }
+      measurementDetails += measurementDetail {
+        measurementPolicy = "ami"
+        setOperation = "difference"
+        dataProviders += "edp2"
+        dataProviders += "edp1"
+        uniqueReachTarget = "edp2"
+        leftHandSideTargets += "edp2"
+        rightHandSideTargets += "edp1"
+        measurementResults += measurementResult {
+          reach = reachResult {
+            value = 284600
+            standardDeviation = 102490.16730804376
+          }
+          metric = "measurementConsumers/fLhOpt2Z4x8/metrics/aff225199-571a-4e16-b33d-a71cbbff8a70"
+        }
+      }
+    }
+    assertThat(reportSummaries).contains(expectedReportSummary12)
+  }
+
+  @Test
   fun `report with unsuccessful state fails to be converted to report summary proto`() {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("report_with_unspecified_state.json").toFile()
     val reportAsJson = reportFile.readText()

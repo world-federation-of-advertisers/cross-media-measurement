@@ -77,7 +77,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     val measurementConsumerId =
       (MeasurementConsumerReader(transactionContext)
           .getByCmmsId(request.report.cmmsMeasurementConsumerId)
-          ?: throw MeasurementConsumerNotFoundException())
+          ?: throw MeasurementConsumerNotFoundException(request.report.cmmsMeasurementConsumerId))
         .measurementConsumerId
 
     val createReportRequestId = request.requestId

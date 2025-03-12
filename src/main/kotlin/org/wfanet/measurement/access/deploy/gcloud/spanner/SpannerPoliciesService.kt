@@ -17,6 +17,7 @@
 package org.wfanet.measurement.access.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.ErrorCode
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Timestamp
 import io.grpc.Status
@@ -32,7 +33,6 @@ import org.wfanet.measurement.access.deploy.gcloud.spanner.db.insertPolicyBindin
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.policyExists
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.updatePolicy
 import org.wfanet.measurement.access.service.internal.EtagMismatchException
-import org.wfanet.measurement.access.service.internal.IdGenerator
 import org.wfanet.measurement.access.service.internal.PolicyAlreadyExistsException
 import org.wfanet.measurement.access.service.internal.PolicyBindingMembershipAlreadyExistsException
 import org.wfanet.measurement.access.service.internal.PolicyBindingMembershipNotFoundException
@@ -42,8 +42,9 @@ import org.wfanet.measurement.access.service.internal.PrincipalNotFoundException
 import org.wfanet.measurement.access.service.internal.PrincipalTypeNotSupportedException
 import org.wfanet.measurement.access.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.access.service.internal.RoleNotFoundException
-import org.wfanet.measurement.access.service.internal.generateNewId
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.api.ETags
+import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.access.AddPolicyBindingMembersRequest
@@ -115,7 +116,7 @@ class SpannerPoliciesService(
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
 
-    val transactionRunner = databaseClient.readWriteTransaction()
+    val transactionRunner = databaseClient.readWriteTransaction(Options.tag("action=createPolicy"))
     return try {
       transactionRunner.run { txn ->
         val policyId = idGenerator.generateNewId { id -> txn.policyExists(id) }
@@ -178,7 +179,8 @@ class SpannerPoliciesService(
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
 
-    val transactionRunner = databaseClient.readWriteTransaction()
+    val transactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=addPolicyBindingMembers"))
     return try {
       val policy =
         transactionRunner.run { txn ->
@@ -249,7 +251,8 @@ class SpannerPoliciesService(
     }
     val memberPrincipalResourceIds: Set<String> = request.memberPrincipalResourceIdsList.toSet()
 
-    val transactionRunner = databaseClient.readWriteTransaction()
+    val transactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=removePolicyBindingMembers"))
     return try {
       val policy: Policy =
         transactionRunner.run { txn ->
