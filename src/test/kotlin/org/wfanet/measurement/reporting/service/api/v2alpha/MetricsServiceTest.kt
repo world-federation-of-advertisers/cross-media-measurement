@@ -6117,16 +6117,18 @@ class MetricsServiceTest {
 
     val expected = listMetricsResponse {
       metrics += PENDING_INCREMENTAL_REACH_METRIC
-      metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-        state = Metric.State.FAILED
-        this.result = metricResult {
-          cmmsMeasurements +=
-            MeasurementKey(
-              INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementConsumerId,
-              INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId,
-            ).toName()
+      metrics +=
+        PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+          state = Metric.State.FAILED
+          this.result = metricResult {
+            cmmsMeasurements +=
+              MeasurementKey(
+                  INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementConsumerId,
+                  INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId,
+                )
+                .toName()
+          }
         }
-      }
     }
 
     // Verify proto argument of internal MetricsCoroutineImplBase::streamMetrics
