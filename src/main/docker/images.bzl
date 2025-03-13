@@ -270,7 +270,7 @@ REPORTING_V2_COMMON_IMAGES = [
     ),
     struct(
         name = "reporting_spanner_update_schema_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/tools:update_schema_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:update_schema_image",
         repository = _PREFIX + "/reporting/v2/spanner-update-schema",
     ),
 ]
