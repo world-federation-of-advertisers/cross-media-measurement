@@ -34,6 +34,8 @@ import org.wfanet.measurement.internal.reporting.v2.GetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.InsertBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponse
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponseKt
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponseKt.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
@@ -107,9 +109,14 @@ class SpannerBasicReportsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val basicReports =
+    val limit =
+      if (request.limit > 0) {
+        request.limit + 1
+      } else 0
+
+    var basicReports =
       spannerClient.singleUse().use { txn ->
-        txn.readBasicReports(request.limit, request.filter).map { it.basicReport }.toList()
+        txn.readBasicReports(limit, request.filter).map { it.basicReport }.toList()
       }
 
     val reportingSetResultMap: Map<String, ReportingSetReader.Result> = buildMap {
@@ -123,6 +130,26 @@ class SpannerBasicReportsService(
     }
 
     return listBasicReportsResponse {
+      if (limit > 0 && basicReports.size == limit) {
+        basicReports = basicReports.subList(0, basicReports.lastIndex)
+
+        nextPageToken = listBasicReportsPageToken {
+          this.limit = request.limit
+          cmmsMeasurementConsumerId = request.filter.cmmsMeasurementConsumerId
+          if (request.filter.hasCreateTimeAfter()) {
+            filter =
+              ListBasicReportsResponseKt.ListBasicReportsPageTokenKt.filter {
+                createTimeAfter = request.filter.createTimeAfter
+              }
+          }
+          lastBasicReport =
+            ListBasicReportsResponseKt.ListBasicReportsPageTokenKt.previousPageEnd {
+              createTime = basicReports[basicReports.lastIndex].createTime
+              externalBasicReportId = basicReports[basicReports.lastIndex].externalBasicReportId
+            }
+        }
+      }
+
       this.basicReports +=
         basicReports.map {
           it.copy {

@@ -71,10 +71,11 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemat
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponseKt as InternalListBasicReportsResponseKt
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponseKt.listBasicReportsPageToken
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
-import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilterKt
@@ -84,7 +85,6 @@ import org.wfanet.measurement.reporting.v2alpha.eventFilter
 import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
-import org.wfanet.measurement.reporting.v2alpha.listBasicReportsPageToken
 import org.wfanet.measurement.reporting.v2alpha.listBasicReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.reportingImpressionQualificationFilter
@@ -1731,10 +1731,10 @@ class BasicReportsServiceTest {
     assertThat(listBasicReportsResponse.nextPageToken)
       .isEqualTo(
         listBasicReportsPageToken {
-            pageSize = 1
+            limit = 1
             this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
             lastBasicReport =
-              ListBasicReportsPageTokenKt.previousPageEnd {
+              InternalListBasicReportsResponseKt.ListBasicReportsPageTokenKt.previousPageEnd {
                 createTime = internalBasicReport1.createTime
                 externalBasicReportId = internalBasicReport1.externalBasicReportId
               }
@@ -1917,7 +1917,7 @@ class BasicReportsServiceTest {
         pageToken =
           listBasicReportsPageToken {
               filter =
-                ListBasicReportsPageTokenKt.filter { createTimeAfter = timestamp { seconds = 1 } }
+                InternalListBasicReportsResponseKt.ListBasicReportsPageTokenKt.filter { createTimeAfter = timestamp { seconds = 1 } }
             }
             .toByteString()
             .base64UrlEncode()

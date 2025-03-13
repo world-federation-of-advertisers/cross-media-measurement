@@ -23,9 +23,11 @@ import io.grpc.StatusException
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest as InternalListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt as InternalListBasicReportsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponse as InternalListBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest as internalListBasicReportsRequest
 import org.wfanet.measurement.reporting.service.api.ArgumentChangedInRequestForNextPageException
@@ -37,11 +39,8 @@ import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.CreateBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.GetBasicReportRequest
-import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsPageToken
-import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsResponse
-import org.wfanet.measurement.reporting.v2alpha.listBasicReportsPageToken
 import org.wfanet.measurement.reporting.v2alpha.listBasicReportsResponse
 
 class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoroutineStub) :
@@ -49,7 +48,7 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
 
   override suspend fun createBasicReport(request: CreateBasicReportRequest): Operation {
     // TODO(@tristanvuong2021): Will be implemented for phase 2
-    throw NotImplementedError()
+    return super.createBasicReport(request)
   }
 
   override suspend fun getBasicReport(request: GetBasicReportRequest): BasicReport {
@@ -63,7 +62,7 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    val internalBasicReport =
+    val internalBasicReport: InternalBasicReport =
       try {
         internalBasicReportsStub.getBasicReport(
           internalGetBasicReportRequest {
@@ -74,7 +73,7 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
           InternalErrors.Reason.BASIC_REPORT_NOT_FOUND ->
-            BasicReportNotFoundException.fromInternal(e)
+            BasicReportNotFoundException(request.name, e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
           InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
@@ -104,51 +103,23 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
     }
 
     val internalRequest = request.toInternal()
-    val basicReports: List<BasicReport> =
+    val internalListBasicReportsResponse =
       try {
         internalBasicReportsStub
           .listBasicReports(internalRequest)
-          .basicReportsList
-          .map { it.toBasicReport() }
-          .toList()
       } catch (e: StatusException) {
         throw Status.INTERNAL.withCause(e).asRuntimeException()
       }
 
-    if (basicReports.isEmpty()) {
+    if (internalListBasicReportsResponse.basicReportsList.isEmpty()) {
       return listBasicReportsResponse {}
     }
 
-    val nextPageToken: ListBasicReportsPageToken? =
-      if (basicReports.size == internalRequest.limit) {
-        listBasicReportsPageToken {
-          pageSize = internalRequest.limit - 1
-          cmmsMeasurementConsumerId = internalRequest.filter.cmmsMeasurementConsumerId
-          if (internalRequest.filter.hasCreateTimeAfter()) {
-            filter =
-              ListBasicReportsPageTokenKt.filter {
-                createTimeAfter = internalRequest.filter.createTimeAfter
-              }
-          }
-          lastBasicReport =
-            ListBasicReportsPageTokenKt.previousPageEnd {
-              createTime = basicReports[basicReports.lastIndex - 1].createTime
-              externalBasicReportId =
-                BasicReportKey.fromName(basicReports[basicReports.lastIndex - 1].name)!!
-                  .basicReportId
-            }
-        }
-      } else {
-        null
-      }
-
     return listBasicReportsResponse {
-      if (nextPageToken != null) {
-        this.basicReports += basicReports.subList(0, basicReports.lastIndex)
-        this.nextPageToken = nextPageToken.toByteString().base64UrlEncode()
-      } else {
-        this.basicReports += basicReports
-      }
+      this.basicReports += internalListBasicReportsResponse.basicReportsList
+        .map { it.toBasicReport() }
+        .toList()
+      nextPageToken = internalListBasicReportsResponse.nextPageToken.toByteString().base64UrlEncode()
     }
   }
 
@@ -160,7 +131,7 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
     return if (source.pageToken.isNotBlank()) {
       val decodedPageToken =
         try {
-          ListBasicReportsPageToken.parseFrom(source.pageToken.base64UrlDecode())
+          InternalListBasicReportsResponse.ListBasicReportsPageToken.parseFrom(source.pageToken.base64UrlDecode())
         } catch (e: InvalidProtocolBufferException) {
           throw InvalidFieldValueException("page_token")
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -176,7 +147,7 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
           source.pageSize
         } else if (source.pageSize > MAX_PAGE_SIZE) {
           MAX_PAGE_SIZE
-        } else decodedPageToken.pageSize
+        } else decodedPageToken.limit
 
       internalListBasicReportsRequest {
         this.filter =
@@ -188,7 +159,7 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
                 externalBasicReportId = decodedPageToken.lastBasicReport.externalBasicReportId
               }
           }
-        limit = finalPageSize + 1
+        limit = finalPageSize
       }
     } else {
       val finalPageSize =
@@ -206,7 +177,7 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
               createTimeAfter = source.filter.createTimeAfter
             }
           }
-        limit = finalPageSize + 1
+        limit = finalPageSize
       }
     }
   }

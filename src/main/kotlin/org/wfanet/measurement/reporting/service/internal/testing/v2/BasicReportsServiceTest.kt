@@ -34,8 +34,11 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
+import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponseKt
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponseKt.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
@@ -336,7 +339,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       }
     )
 
-    val retrievedBasicReports =
+    val listBasicReportsResponse =
       service
         .listBasicReports(
           listBasicReportsRequest {
@@ -347,11 +350,75 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             limit = 2
           }
         )
+
+    assertThat(listBasicReportsResponse).isEqualTo(
+      listBasicReportsResponse {
+        basicReports += createdBasicReport
+        basicReports += createdBasicReport2
+        nextPageToken = listBasicReportsPageToken {
+          limit = 2
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          lastBasicReport = ListBasicReportsResponseKt.ListBasicReportsPageTokenKt.previousPageEnd {
+            createTime = createdBasicReport2.createTime
+            externalBasicReportId = createdBasicReport2.externalBasicReportId
+          }
+        }
+      }
+    )
+  }
+
+  @Test
+  fun `listBasicReport with create_time_after succeeds`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val createdBasicReport =
+      service.insertBasicReport(insertBasicReportRequest { basicReport = BASIC_REPORT })
+
+    val createdBasicReport2 =
+      service.insertBasicReport(
+        insertBasicReportRequest {
+          basicReport =
+            createdBasicReport.copy {
+              externalBasicReportId = createdBasicReport.externalBasicReportId + "b"
+            }
+        }
+      )
+
+    val createdBasicReport3 =
+      service.insertBasicReport(
+        insertBasicReportRequest {
+          basicReport =
+            createdBasicReport.copy {
+              externalBasicReportId = createdBasicReport2.externalBasicReportId + "b"
+            }
+        }
+      )
+
+    val retrievedBasicReports =
+      service
+        .listBasicReports(
+          listBasicReportsRequest {
+            filter =
+              ListBasicReportsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                createTimeAfter = createdBasicReport.createTime
+              }
+          }
+        )
         .basicReportsList
 
     assertThat(retrievedBasicReports).hasSize(2)
-    assertThat(retrievedBasicReports[0]).isEqualTo(createdBasicReport)
-    assertThat(retrievedBasicReports[1]).isEqualTo(createdBasicReport2)
+    assertThat(retrievedBasicReports[0]).isEqualTo(createdBasicReport2)
+    assertThat(retrievedBasicReports[1]).isEqualTo(createdBasicReport3)
   }
 
   @Test

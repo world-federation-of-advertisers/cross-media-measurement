@@ -21,7 +21,6 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.errorInfo
-import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
 
 object Errors {
@@ -94,24 +93,6 @@ class BasicReportNotFoundException(name: String, cause: Throwable? = null) :
     mapOf(Errors.Metadata.BASIC_REPORT to name),
     cause,
   ) {
-  companion object : Factory<BasicReportNotFoundException>() {
-    override val reason: Errors.Reason
-      get() = Errors.Reason.BASIC_REPORT_NOT_FOUND
-
-    override fun fromInternal(
-      internalMetadata: Map<InternalErrors.Metadata, String>,
-      cause: Throwable,
-    ): BasicReportNotFoundException {
-      val basicReportKey =
-        BasicReportKey(
-          cmmsMeasurementConsumerId =
-            internalMetadata.getValue(InternalErrors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID),
-          basicReportId =
-            internalMetadata.getValue(InternalErrors.Metadata.EXTERNAL_BASIC_REPORT_ID),
-        )
-      return BasicReportNotFoundException(basicReportKey.toName(), cause)
-    }
-  }
 }
 
 class RequiredFieldNotSetException(fieldName: String, cause: Throwable? = null) :

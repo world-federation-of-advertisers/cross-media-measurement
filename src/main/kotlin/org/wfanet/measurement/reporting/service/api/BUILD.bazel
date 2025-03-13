@@ -38,7 +38,6 @@ kt_jvm_library(
     srcs = ["Errors.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:errors",
         "//src/main/proto/google/rpc:error_details_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
