@@ -1,0 +1,72 @@
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load(
+    "@wfa_rules_kotlin_jvm//kotlin:defs.bzl",
+    "kt_jvm_grpc_proto_library",
+    "kt_jvm_proto_library",
+)
+
+package(default_visibility = ["//visibility:public"])
+
+IMPORT_PREFIX = "/src/main/proto"
+
+#Resources and shared message types.
+
+proto_library(
+    name = "metadata_action_proto",
+    srcs = ["metadata_action.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "metadata_action_kt_jvm_proto",
+    deps = [":metadata_action_proto"],
+)
+
+proto_library(
+    name = "requisition_metadata_proto",
+    srcs = ["requisition_metadata.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":metadata_action_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "requisition_metadata_kt_jvm_proto",
+    deps = [":requisition_metadata_proto"],
+)
+
+#Services.
+
+proto_library(
+    name = "metadata_action_service_proto",
+    srcs = ["metadata_action_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":metadata_action_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "metadata_action_service_kt_jvm_grpc_proto",
+    deps = [":metadata_action_service_proto"],
+)
+
+proto_library(
+    name = "requisitions_metadata_service_proto",
+    srcs = ["requisitions_metadata_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":metadata_action_proto",
+        ":requisition_metadata_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "requisitions_metadata_service_kt_jvm_grpc_proto",
+    deps = [":requisitions_metadata_service_proto"],
+)
