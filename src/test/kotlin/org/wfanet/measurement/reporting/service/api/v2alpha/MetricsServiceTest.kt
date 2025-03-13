@@ -7686,14 +7686,19 @@ class MetricsServiceTest {
       batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
     }
 
-    assertThat(result).isEqualTo(FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-      this.result = metricResult {
-        cmmsMeasurements += MeasurementKey(
-          INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementConsumerId,
-          INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId,
-        ).toName()
-      }
-    })
+    assertThat(result)
+      .isEqualTo(
+        FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+          this.result = metricResult {
+            cmmsMeasurements +=
+              MeasurementKey(
+                  INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementConsumerId,
+                  INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId,
+                )
+                .toName()
+          }
+        }
+      )
   }
 
   @Test
@@ -8997,14 +9002,20 @@ class MetricsServiceTest {
           }
         )
 
-      assertThat(result).isEqualTo(FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-        this.result = metricResult {
-          cmmsMeasurements += MeasurementKey(
-            INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementConsumerId,
-            INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId,
-          ).toName()
-        }
-      })
+      assertThat(result)
+        .isEqualTo(
+          FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+            this.result = metricResult {
+              cmmsMeasurements +=
+                MeasurementKey(
+                    INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+                      .cmmsMeasurementConsumerId,
+                    INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId,
+                  )
+                  .toName()
+            }
+          }
+        )
     }
 
   @Test
