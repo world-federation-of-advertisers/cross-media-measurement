@@ -268,6 +268,11 @@ REPORTING_V2_COMMON_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/job:report_scheduling_job_executor_image",
         repository = _PREFIX + "/reporting/v2/report-scheduling",
     ),
+    struct(
+        name = "reporting_spanner_update_schema_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/tools:update_schema_image",
+        repository = _PREFIX + "/reporting/v2/spanner-update-schema",
+    ),
 ]
 
 REPORTING_V2_LOCAL_IMAGES = [

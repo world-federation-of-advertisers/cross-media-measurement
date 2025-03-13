@@ -13,6 +13,9 @@ free to use whichever you prefer.
 ### What are we creating/deploying?
 
 -   1 Cloud SQL managed PostgreSQL database
+-   2 Cloud Spanner databases
+    -   `access`
+    -   `reporting`
 -   1 GKE cluster
     -   1 Kubernetes secret
         -   `certs-and-configs`

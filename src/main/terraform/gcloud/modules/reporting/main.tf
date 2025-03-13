@@ -63,6 +63,23 @@ resource "postgresql_grant" "db" {
   }
 }
 
+resource "google_spanner_database" "reporting" {
+  instance         = var.spanner_instance.name
+  name             = var.reporting_spanner_database_name
+  database_dialect = "GOOGLE_STANDARD_SQL"
+}
+
+resource "google_spanner_database_iam_member" "reporting_internal" {
+  instance = google_spanner_database.reporting.instance
+  database = google_spanner_database.reporting.name
+  role     = "roles/spanner.databaseUser"
+  member   = module.reporting_internal.iam_service_account.member
+
+  lifecycle {
+    replace_triggered_by = [google_spanner_database.reporting.id]
+  }
+}
+
 module "access" {
   source = "../access"
 

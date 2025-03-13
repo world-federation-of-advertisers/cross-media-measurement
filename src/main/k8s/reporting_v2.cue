@@ -24,6 +24,9 @@ package k8s
 	_dataProviderCacheExpirationDuration: string | *"60m"
 
 	_postgresConfig:      #PostgresConfig
+  _reportingSpannerConfig: #SpannerConfig & {
+    database: "reporting"
+  }
 	_accessSpannerConfig: #SpannerConfig & {
 		database: "access"
 	}
@@ -53,7 +56,8 @@ package k8s
 
 	_imageSuffixes: [_=string]: string
 	_imageSuffixes: {
-		"update-reporting-schema":             string | *"reporting/v2/postgres-update-schema"
+		"update-reporting-spanner-schema":     string | *"reporting/v2/spanner-update-schema"
+		"update-reporting-postgres-schema":    string | *"reporting/v2/postgres-update-schema"
 		"postgres-internal-reporting-server":  string | *"reporting/v2/postgres-internal-server"
 		"reporting-v2alpha-public-api-server": string | *"reporting/v2/v2alpha-public-api"
 		"report-scheduling":                   string | *"reporting/v2/report-scheduling"
@@ -118,17 +122,27 @@ package k8s
 						_debugVerboseGrpcServerLoggingFlag,
 						"--port=8443",
 						"--health-port=8080",
-			] + _postgresConfig.flags + _tlsArgs
+			] + _postgresConfig.flags +  _reportingSpannerConfig.flags + _tlsArgs
 
-			_updateSchemaContainer: Container=#Container & {
+			_updatePostgresSchemaContainer: Container=#Container & {
 				image:            _images[Container.name]
 				args:             _postgresConfig.flags
 				imagePullPolicy?: _container.imagePullPolicy
 			}
 
 			spec: template: spec: _initContainers: {
-				"update-reporting-schema": _updateSchemaContainer
+				"update-reporting-postgres-schema": _updateSchemaContainer
 			}
+
+			_updateSpannerSchemaContainer: Container=#Container & {
+        image:            _images[Container.name]
+        args:             _reportingSpannerConfig.flags
+        imagePullPolicy?: _container.imagePullPolicy
+      }
+
+      spec: template: spec: _initContainers: {
+        "update-reporting-spanner-schema": _updateSchemaContainer
+      }
 		}
 
 		"reporting-v2alpha-public-api-server": {
@@ -250,7 +264,7 @@ package k8s
 				"report-scheduling-app",
 			]
 			_egresses: {
-				// Needs to call out to Postgres server.
+				// Needs to call out to Postgres and Spanner.
 				any: {}
 			}
 		}
