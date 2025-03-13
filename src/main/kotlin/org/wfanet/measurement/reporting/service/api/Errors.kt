@@ -92,8 +92,7 @@ class BasicReportNotFoundException(name: String, cause: Throwable? = null) :
     "Basic Report $name not found",
     mapOf(Errors.Metadata.BASIC_REPORT to name),
     cause,
-  ) {
-}
+  ) {}
 
 class RequiredFieldNotSetException(fieldName: String, cause: Throwable? = null) :
   ServiceException(

@@ -34,7 +34,6 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
-import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponseKt
@@ -50,6 +49,7 @@ import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.insertBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
+import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.resultGroup
@@ -340,31 +340,32 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     )
 
     val listBasicReportsResponse =
-      service
-        .listBasicReports(
-          listBasicReportsRequest {
-            filter =
-              ListBasicReportsRequestKt.filter {
-                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              }
-            limit = 2
-          }
-        )
-
-    assertThat(listBasicReportsResponse).isEqualTo(
-      listBasicReportsResponse {
-        basicReports += createdBasicReport
-        basicReports += createdBasicReport2
-        nextPageToken = listBasicReportsPageToken {
+      service.listBasicReports(
+        listBasicReportsRequest {
+          filter =
+            ListBasicReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            }
           limit = 2
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          lastBasicReport = ListBasicReportsResponseKt.ListBasicReportsPageTokenKt.previousPageEnd {
-            createTime = createdBasicReport2.createTime
-            externalBasicReportId = createdBasicReport2.externalBasicReportId
+        }
+      )
+
+    assertThat(listBasicReportsResponse)
+      .isEqualTo(
+        listBasicReportsResponse {
+          basicReports += createdBasicReport
+          basicReports += createdBasicReport2
+          nextPageToken = listBasicReportsPageToken {
+            limit = 2
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            lastBasicReport =
+              ListBasicReportsResponseKt.ListBasicReportsPageTokenKt.previousPageEnd {
+                createTime = createdBasicReport2.createTime
+                externalBasicReportId = createdBasicReport2.externalBasicReportId
+              }
           }
         }
-      }
-    )
+      )
   }
 
   @Test

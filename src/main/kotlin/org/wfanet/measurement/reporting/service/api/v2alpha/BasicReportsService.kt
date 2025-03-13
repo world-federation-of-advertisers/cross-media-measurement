@@ -105,8 +105,7 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
     val internalRequest = request.toInternal()
     val internalListBasicReportsResponse =
       try {
-        internalBasicReportsStub
-          .listBasicReports(internalRequest)
+        internalBasicReportsStub.listBasicReports(internalRequest)
       } catch (e: StatusException) {
         throw Status.INTERNAL.withCause(e).asRuntimeException()
       }
@@ -116,10 +115,10 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
     }
 
     return listBasicReportsResponse {
-      this.basicReports += internalListBasicReportsResponse.basicReportsList
-        .map { it.toBasicReport() }
-        .toList()
-      nextPageToken = internalListBasicReportsResponse.nextPageToken.toByteString().base64UrlEncode()
+      this.basicReports +=
+        internalListBasicReportsResponse.basicReportsList.map { it.toBasicReport() }.toList()
+      nextPageToken =
+        internalListBasicReportsResponse.nextPageToken.toByteString().base64UrlEncode()
     }
   }
 
@@ -131,7 +130,9 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
     return if (source.pageToken.isNotBlank()) {
       val decodedPageToken =
         try {
-          InternalListBasicReportsResponse.ListBasicReportsPageToken.parseFrom(source.pageToken.base64UrlDecode())
+          InternalListBasicReportsResponse.ListBasicReportsPageToken.parseFrom(
+            source.pageToken.base64UrlDecode()
+          )
         } catch (e: InvalidProtocolBufferException) {
           throw InvalidFieldValueException("page_token")
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
