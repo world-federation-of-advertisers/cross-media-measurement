@@ -131,7 +131,7 @@ package k8s
 			}
 
 			spec: template: spec: _initContainers: {
-				"update-reporting-postgres-schema": _updateSchemaContainer
+				"update-reporting-postgres-schema": _updatePostgresSchemaContainer
 			}
 
 			_updateSpannerSchemaContainer: Container=#Container & {
@@ -141,7 +141,7 @@ package k8s
 			}
 
 			spec: template: spec: _initContainers: {
-				"update-reporting-spanner-schema": _updateSchemaContainer
+				"update-reporting-spanner-schema": _updateSpannerSchemaContainer
 			}
 		}
 
