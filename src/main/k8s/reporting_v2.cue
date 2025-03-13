@@ -23,10 +23,10 @@ package k8s
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
 
-	_postgresConfig:      #PostgresConfig
-  _reportingSpannerConfig: #SpannerConfig & {
-    database: "reporting"
-  }
+	_postgresConfig:         #PostgresConfig
+	_reportingSpannerConfig: #SpannerConfig & {
+		database: "reporting"
+	}
 	_accessSpannerConfig: #SpannerConfig & {
 		database: "access"
 	}
@@ -122,7 +122,7 @@ package k8s
 						_debugVerboseGrpcServerLoggingFlag,
 						"--port=8443",
 						"--health-port=8080",
-			] + _postgresConfig.flags +  _reportingSpannerConfig.flags + _tlsArgs
+			] + _postgresConfig.flags + _reportingSpannerConfig.flags + _tlsArgs
 
 			_updatePostgresSchemaContainer: Container=#Container & {
 				image:            _images[Container.name]
@@ -135,14 +135,14 @@ package k8s
 			}
 
 			_updateSpannerSchemaContainer: Container=#Container & {
-        image:            _images[Container.name]
-        args:             _reportingSpannerConfig.flags
-        imagePullPolicy?: _container.imagePullPolicy
-      }
+				image:            _images[Container.name]
+				args:             _reportingSpannerConfig.flags
+				imagePullPolicy?: _container.imagePullPolicy
+			}
 
-      spec: template: spec: _initContainers: {
-        "update-reporting-spanner-schema": _updateSchemaContainer
-      }
+			spec: template: spec: _initContainers: {
+				"update-reporting-spanner-schema": _updateSchemaContainer
+			}
 		}
 
 		"reporting-v2alpha-public-api-server": {

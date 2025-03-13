@@ -62,8 +62,8 @@ reporting: #Reporting & {
 			_container: _envVars:                     EnvVars
 			_updatePostgresSchemaContainer: _envVars: EnvVars
 			spec: template: spec: {
-        _dependencies: ["spanner-emulator"]
-      }
+				_dependencies: ["spanner-emulator"]
+			}
 		}
 		"reporting-v2alpha-public-api-server": {
 			spec: template: spec: {
