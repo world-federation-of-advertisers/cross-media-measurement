@@ -51,6 +51,7 @@ import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.encryptResult
@@ -97,7 +98,6 @@ class ResultsFulfillerApp(
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
   private val dataProviderCertificateKey: DataProviderCertificateKey?,
   private val dataProviderSigningKeyHandle: SigningKeyHandle?,
-  private val privacyBudgetManager: PrivacyBudgetManager,
   private val measurementConsumerName: String,
   private val eventGroupPrefix: String,
   subscriptionId: String,
@@ -110,7 +110,6 @@ class ResultsFulfillerApp(
 //    val teeAppConfig = message.config.unpack(TeeAppConfig::class.java)
 //    assert(teeAppConfig.workTypeCase == TeeAppConfig.WorkTypeCase.REACH_AND_FREQUENCY_CONFIG)
 //    val reachAndFrequencyConfig = teeAppConfig.reachAndFrequencyConfig
-
     // Gets list of new requisitions in blob storage from the path provided in the TriggeredApp event
     val requisitions = getRequisitions(message.path)
 
@@ -183,10 +182,10 @@ class ResultsFulfillerApp(
 
   private fun getEventGroupDataList(requisitionSpec: RequisitionSpec): List<EventGroupData> {
     return requisitionSpec.events.eventGroupsList.map {
-      val ds = it.value.collectionInterval.startTime.toString()
+      val ds = it.value.collectionInterval.startTime.toInstant().toString()
       val spec = it.value.filter
-      val program = compileProgram(spec, VirtualPersonActivity.getDescriptor())
-      EventGroupData(it.key, ds, "", program)
+      val program = compileProgram(spec, LabelerOutput.getDescriptor())
+      EventGroupData(it.key, ds, eventGroupPrefix, program)
     }
   }
 
@@ -305,7 +304,7 @@ class ResultsFulfillerApp(
       val eventGroupId = it.eventGroupKey
       val ds = it.ds
       val prefix = it.prefix
-      val blobKey = "/$prefix/ds/$ds/event-group-id/$eventGroupId/metadata"
+      val blobKey = "$prefix/ds/$ds/event-group-id/$eventGroupId/metadata"
 
       // Get EncryptedDek message from storage using the blobKey made up of the ds and eventGroupId
       val encryptedDekBlob = storageClient.getBlob(blobKey)!!
@@ -317,10 +316,10 @@ class ResultsFulfillerApp(
         .apply { TextFormat.Parser.newBuilder().build().merge(encryptedDekData, this) }
         .build() as EncryptedDEK
 
+
       // Get blobKey used to retrieve merged sharded impressions from ShardedStorage
       // "/$prefix/ds/$ds/event-group-id/$eventGroupId/sharded-impressions
-      val shardedStorageBlobKey = storageClient.getBlob(encryptedDek.blobKey)!!
-        .read().reduce { acc, byteString -> acc.concat(byteString)}.toStringUtf8()
+      val shardedStorageBlobKey = encryptedDek.blobKey
 
       // Returns the LabelerOutput messages stored in ShardedStorage
       storageClient.getBlob(shardedStorageBlobKey)!!
@@ -386,6 +385,7 @@ class ResultsFulfillerApp(
     } else {
       NoiseMechanism.CONTINUOUS_GAUSSIAN
     }
+
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementSpec.measurementTypeCase) {
       MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
