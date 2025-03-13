@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.securecomputation.metadata;
 
-import "google/protobuf/timestamp.proto";
 import "wfa/measurement/securecomputation/metadata/metadata_action.proto";
 
 option java_package = "org.wfanet.measurement.securecomputation.metadata";
