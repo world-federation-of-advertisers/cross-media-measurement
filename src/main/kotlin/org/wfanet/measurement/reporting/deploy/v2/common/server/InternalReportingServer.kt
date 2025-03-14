@@ -89,4 +89,5 @@ open class InternalReportingServer : Runnable {
     }
   }
 }
+
 fun main(args: Array<String>) = commandLineMain(InternalReportingServer(), args)

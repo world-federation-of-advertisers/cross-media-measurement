@@ -57,11 +57,11 @@ objectSets: [
 reporting: #Reporting & {
 	_secretName:         _reportingSecretName
 	_mcConfigSecretName: _reportingMcConfigSecretName
-  _imageSuffixes: {
-    "update-reporting-postgres-schema":   "reporting/v2/gcloud-postgres-update-schema"
-    "internal-reporting-server":          "reporting/v2/gcloud-internal-server"
-  }
-	_kingdomApiTarget:   #KingdomApiTarget
+	_imageSuffixes: {
+		"update-reporting-postgres-schema": "reporting/v2/gcloud-postgres-update-schema"
+		"internal-reporting-server":        "reporting/v2/gcloud-internal-server"
+	}
+	_kingdomApiTarget: #KingdomApiTarget
 
 	_postgresConfig: {
 		iamUserLocal: "reporting-v2-internal"
