@@ -37,6 +37,8 @@ import java.time.temporal.Temporal
 import java.time.temporal.TemporalAdjusters
 import java.util.UUID
 import java.util.logging.Logger
+import org.wfanet.measurement.access.client.v1alpha.TrustedPrincipalAuthInterceptor
+import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -62,7 +64,6 @@ import org.wfanet.measurement.internal.reporting.v2.listReportSchedulesRequest
 import org.wfanet.measurement.internal.reporting.v2.reportScheduleIteration
 import org.wfanet.measurement.internal.reporting.v2.setReportScheduleIterationStateRequest
 import org.wfanet.measurement.internal.reporting.v2.stopReportScheduleRequest
-import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.withReportScheduleInfo
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportSchedulesService
@@ -84,14 +85,18 @@ class ReportSchedulingJob(
 ) {
 
   suspend fun execute() {
+    val measurementConsumerConfigByName =
+      measurementConsumerConfigs.configsMap.filterValues { it.offlinePrincipal.isNotEmpty() }
     // map of resource name to resource
     val dataProvidersMap: MutableMap<String, DataProvider> = mutableMapOf()
-    for (measurementConsumerConfig in measurementConsumerConfigs.configsMap.entries) {
+    for ((measurementConsumerName, measurementConsumerConfig) in
+      measurementConsumerConfigByName.entries) {
+
       // map of resource name to resource
       val eventGroupsMap: MutableMap<String, EventGroup> = mutableMapOf()
 
       val measurementConsumerId =
-        MeasurementConsumerKey.fromName(measurementConsumerConfig.key)!!.measurementConsumerId
+        MeasurementConsumerKey.fromName(measurementConsumerName)!!.measurementConsumerId
       var listReportSchedulesResponse: ListReportSchedulesResponse =
         ListReportSchedulesResponse.getDefaultInstance()
       do {
@@ -164,7 +169,7 @@ class ReportSchedulingJob(
                 dataProvidersMap,
                 eventGroupsStub,
                 eventGroupsMap,
-                measurementConsumerConfig.value.apiKey,
+                measurementConsumerConfig.apiKey,
               )
 
             if (isDataAvailable) {
@@ -219,7 +224,14 @@ class ReportSchedulingJob(
 
               try {
                 reportsStub
-                  .withPrincipalName(measurementConsumerConfig.key)
+                  .withCallCredentials(
+                    TrustedPrincipalAuthInterceptor.Credentials(
+                      // TODO(@SanjayVas): Read full Principal from Access.
+                      principal { name = measurementConsumerConfig.offlinePrincipal },
+                      // TODO(@SanjayVas): Use a minimal set of scopes.
+                      setOf("*"),
+                    )
+                  )
                   .withReportScheduleInfo(
                     ReportScheduleInfoServerInterceptor.ReportScheduleInfo(
                       publicReportSchedule.name,
@@ -228,7 +240,7 @@ class ReportSchedulingJob(
                   )
                   .createReport(
                     createReportRequest {
-                      parent = measurementConsumerConfig.key
+                      parent = measurementConsumerName
                       requestId = reportScheduleIteration.createReportRequestId
                       reportId = "a" + reportScheduleIteration.createReportRequestId
                       report =
