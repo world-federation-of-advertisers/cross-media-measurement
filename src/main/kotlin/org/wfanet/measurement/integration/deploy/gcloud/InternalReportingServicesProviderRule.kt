@@ -30,9 +30,10 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemat
 
 class InternalReportingServicesProviderRule(
   emulatorDatabaseAdmin: SpannerDatabaseAdmin,
-  val postgresDatabaseProvider: PostgresDatabaseProviderRule,
+  private val postgresDatabaseProvider: PostgresDatabaseProviderRule,
 ) : ProviderRule<Services> {
-  val spannerDatabase = SpannerEmulatorDatabaseRule(emulatorDatabaseAdmin, REPORTING_CHANGELOG_PATH)
+  private val spannerDatabase =
+    SpannerEmulatorDatabaseRule(emulatorDatabaseAdmin, REPORTING_CHANGELOG_PATH)
 
   private lateinit var services: Services
 
