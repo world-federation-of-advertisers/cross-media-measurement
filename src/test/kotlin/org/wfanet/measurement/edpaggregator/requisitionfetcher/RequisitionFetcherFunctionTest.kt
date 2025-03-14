@@ -1,10 +1,6 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.common.truth.Truth.assertThat
-import io.grpc.Server
-import io.grpc.ServerInterceptors
-import io.grpc.netty.NettyServerBuilder
-import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.URI
 import java.net.http.HttpClient
@@ -25,7 +21,6 @@ import kotlinx.coroutines.yield
 import org.jetbrains.annotations.BlockingExecutor
 import org.junit.After
 import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.mockito.kotlin.any
@@ -36,40 +31,37 @@ import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.readByteString
-import org.wfanet.measurement.common.testing.HeaderCapturingInterceptor
 import org.wfanet.measurement.securecomputation.storage.requisitionBatch
 import com.google.protobuf.Any
-import org.wfanet.measurement.securecomputation.storage.RequisitionBatch
-
+import io.netty.handler.ssl.ClientAuth
+import org.wfanet.measurement.common.grpc.CommonServer
 
 class RequisitionFetcherFunctionTest {
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { listRequisitions(any()) }
       .thenReturn(listRequisitionsResponse { requisitions += REQUISITION })
   }
-
-  private lateinit var grpcServer: Server
+  private lateinit var grpcServer: CommonServer
   private lateinit var functionProcess: RequisitionFetcherProcess
-
   private lateinit var tempFolder: TemporaryFolder
 
   @Before
   fun setUp() {
+    // Set up temp folder to emulate GCS
     tempFolder = TemporaryFolder()
     tempFolder.create()
 
     // Start gRPC server with mock service
-    grpcServer = NettyServerBuilder
-      .forAddress(InetSocketAddress("localhost", 0))  // Use port 0 to find an available port
-      .addService(ServerInterceptors.intercept(requisitionsServiceMock.bindService(), HeaderCapturingInterceptor()))
-      .sslContext(serverCerts.toServerTlsContext())
-      .build()
-      .start()
+    grpcServer = CommonServer.fromParameters(
+      verboseGrpcLogging = true,
+      certs = serverCerts,
+      clientAuth = ClientAuth.REQUIRE,
+      nameForLogging = "RequisitionFetcherServer",
+      services = listOf(requisitionsServiceMock.bindService())
+    ).start()
 
     println("Started mock gRPC server on port ${grpcServer.port}")
-
 
     // Start the RequisitionFetcher process
     functionProcess = RequisitionFetcherProcess()
@@ -98,7 +90,6 @@ class RequisitionFetcherFunctionTest {
   fun cleanUp() {
     functionProcess.close()
     grpcServer.shutdown()
-    grpcServer.awaitTermination(5, TimeUnit.SECONDS)
   }
 
   @Test
@@ -204,7 +195,6 @@ class RequisitionFetcherFunctionTest {
           // Start the process
           process = processBuilder.start()
 
-          // Replace the error stream reading code in the start() method with this:
           val reader = process.inputStream.bufferedReader()
           val readyPattern = "Serving function..."
           var isReady = false
@@ -264,7 +254,6 @@ class RequisitionFetcherFunctionTest {
       "wfa_measurement_system", "src", "main", "kotlin", "org", "wfanet", "measurement",
       "edpaggregator", "requisitionfetcher", "run_requisition_fetcher_function_deploy.jar"
     )
-
     private const val EDP_ID = "someDataProvider"
     private const val EDP_NAME = "dataProviders/$EDP_ID"
     private val REQUISITION = requisition {
@@ -276,12 +265,10 @@ class RequisitionFetcherFunctionTest {
       requisitions += listOf(Any.pack(REQUISITION))
     }
     private val STORAGE_PATH_PREFIX = "storage-path-prefix"
-
     private val SECRETS_DIR: Path =
       getRuntimePath(
         Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
       )!!
-
     private val serverCerts =
       SigningCerts.fromPemFiles(
         certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
