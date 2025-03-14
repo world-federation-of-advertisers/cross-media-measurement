@@ -16,6 +16,7 @@ configMapGenerator:
 - name: config-files
   files:
   - authority_key_identifier_to_principal_map.textproto
+  - open_id_providers_config.json
   - encryption_key_pair_config.textproto
   - metric_spec_config.textproto
   - known_event_group_metadata_type_set.pb
