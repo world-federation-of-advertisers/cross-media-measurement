@@ -39,3 +39,24 @@ spanner_emulator_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )
+
+spanner_emulator_test(
+    name = "SpannerImpressionQualificationFiltersServiceTest",
+    srcs = ["SpannerImpressionQualificationFiltersServiceTest.kt"],
+    data = [
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:impression_qualification_filters_config.textproto",
+    ],
+    tags = [
+        "cpu:1",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.SpannerImpressionQualificationFiltersServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner:impression_qualification_filters_service",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing/v2:impression_qualification_filters_service_test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
