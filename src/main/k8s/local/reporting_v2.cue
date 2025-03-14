@@ -53,7 +53,7 @@ reporting: #Reporting & {
 	}
 
 	deployments: {
-		"postgres-internal-reporting-server": {
+		"internal-reporting-server": {
 			_container: _envVars:                     EnvVars
 			_updatePostgresSchemaContainer: _envVars: EnvVars
 			spec: template: spec: {
@@ -63,7 +63,7 @@ reporting: #Reporting & {
 		"reporting-v2alpha-public-api-server": {
 			spec: template: spec: {
 				_dependencies: [
-					"postgres-internal-reporting-server",
+					"internal-reporting-server",
 					"access-public-api-server",
 					"v2alpha-public-api-server", // Kingdom public API server.
 				]
