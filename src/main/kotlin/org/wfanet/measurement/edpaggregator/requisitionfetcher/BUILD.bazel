@@ -48,6 +48,6 @@ java_binary(
     main_class = "com.google.cloud.functions.invoker.runner.Invoker",
     runtime_deps = [
         ":RequisitionFetcherFunction_deploy.jar",
-        "//imports/java/com/google/cloud/functions:java_function_invoker",
+        "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",
     ],
 )
