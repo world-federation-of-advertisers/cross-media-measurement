@@ -69,7 +69,8 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
           bind("externalBasicReportId").to(externalBasicReportId)
         }
       )
-      .singleOrNullIfEmpty() ?: throw BasicReportNotFoundException(externalBasicReportId)
+      .singleOrNullIfEmpty()
+      ?: throw BasicReportNotFoundException(cmmsMeasurementConsumerId, externalBasicReportId)
 
   return BasicReportResult(row.getLong("BasicReportId"), buildBasicReport(row))
 }
@@ -109,10 +110,12 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
           .trimIndent()
       )
     } else if (filter.hasCreateTimeAfter()) {
-      """
-      AND BasicReports.CreateTime > @createTime
-      """
-        .trimIndent()
+      appendLine(
+        """
+        AND BasicReports.CreateTime > @createTime
+        """
+          .trimIndent()
+      )
     }
     appendLine("ORDER BY CreateTime, ExternalBasicReportId")
     if (limit > 0) {
