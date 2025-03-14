@@ -79,4 +79,7 @@ enum ErrorCode {
 
   /** Metric Calculation Spec with same IDs already exists. */
   METRIC_CALCULATION_SPEC_ALREADY_EXISTS = 19;
+
+  /** Impression Qualification Filter with the provided IDs does not exist. */
+  IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND = 20;
 }

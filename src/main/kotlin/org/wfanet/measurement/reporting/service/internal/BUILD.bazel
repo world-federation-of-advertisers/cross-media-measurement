@@ -27,3 +27,12 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/grpc:api",
     ],
 )
+
+kt_jvm_library(
+    name = "impression_qualification_filter_mapping",
+    srcs = ["ImpressionQualificationFilterMapping.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:impression_qualification_filter_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:impression_qualification_filters_config_kt_jvm_proto",
+    ],
+)

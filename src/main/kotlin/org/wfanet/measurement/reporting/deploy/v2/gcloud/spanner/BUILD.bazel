@@ -27,3 +27,14 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )
+
+kt_jvm_library(
+    name = "impression_qualification_filters_service",
+    srcs = ["SpannerImpressionQualificationFiltersService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:impression_qualification_filter_mapping",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:internal_exception",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:impression_qualification_filters_service_kt_jvm_grpc_proto",
+    ],
+)
