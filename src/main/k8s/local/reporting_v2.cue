@@ -53,7 +53,7 @@ reporting: #Reporting & {
 	}
 
 	deployments: {
-		"internal-reporting-server": {
+		"postgres-internal-reporting-server": {
 			_container: _envVars:                     EnvVars
 			_updatePostgresSchemaContainer: _envVars: EnvVars
 			spec: template: spec: {
