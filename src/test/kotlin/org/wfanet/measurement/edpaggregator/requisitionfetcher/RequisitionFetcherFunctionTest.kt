@@ -252,7 +252,7 @@ class RequisitionFetcherFunctionTest {
   companion object {
     private val FETCHER_BINARY_PATH = Paths.get(
       "wfa_measurement_system", "src", "main", "kotlin", "org", "wfanet", "measurement",
-      "edpaggregator", "requisitionfetcher", "run_requisition_fetcher_function_deploy.jar"
+      "edpaggregator", "requisitionfetcher", "InvokeRequisitionFetcherFunction_deploy.jar"
     )
     private const val EDP_ID = "someDataProvider"
     private const val EDP_NAME = "dataProviders/$EDP_ID"

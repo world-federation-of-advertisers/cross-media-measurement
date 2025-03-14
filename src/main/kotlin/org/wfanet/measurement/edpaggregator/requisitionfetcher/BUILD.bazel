@@ -30,24 +30,24 @@ kt_jvm_library(
 )
 
 java_binary(
-    name = "requisition_fetcher_function_jar",
+    name = "RequisitionFetcherFunction",
     main_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
     runtime_deps = [":requisition_fetcher_function"],
 )
 
 java_binary(
-    name = "run_requisition_fetcher_function",
+    name = "InvokeRequisitionFetcherFunction",
     args = [
         "--port 8080",
-        "--classpath $(location :requisition_fetcher_function_jar_deploy.jar)",
+        "--classpath $(location :RequisitionFetcherFunction_deploy.jar)",
         "--target org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
     ],
     data = [
-        ":requisition_fetcher_function_jar_deploy.jar",
+        ":RequisitionFetcherFunction_deploy.jar",
     ],
     main_class = "com.google.cloud.functions.invoker.runner.Invoker",
     runtime_deps = [
-        ":requisition_fetcher_function_jar_deploy.jar",
+        ":RequisitionFetcherFunction_deploy.jar",
         "//imports/java/com/google/cloud/functions:java_function_invoker",
     ],
 )
