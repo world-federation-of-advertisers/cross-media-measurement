@@ -21,6 +21,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.reduce
 import kotlinx.coroutines.flow.toList
 import org.apache.commons.math3.distribution.ConstantRealDistribution
+import org.halo_cmm.uk.pilot.Event
+import org.halo_cmm.uk.pilot.common
+import org.halo_cmm.uk.pilot.event
 import org.projectnessie.cel.Program
 import org.projectnessie.cel.common.types.BoolT
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt.variance
@@ -184,7 +187,7 @@ class ResultsFulfillerApp(
     return requisitionSpec.events.eventGroupsList.map {
       val ds = it.value.collectionInterval.startTime.toInstant().toString()
       val spec = it.value.filter
-      val program = compileProgram(spec, LabelerOutput.getDescriptor())
+      val program = compileProgram(spec, Event.getDescriptor())
       EventGroupData(it.key, ds, eventGroupPrefix, program)
     }
   }
@@ -336,7 +339,8 @@ class ResultsFulfillerApp(
         .flatten()
         // Filters out all the VirtualPersonActivity messages are not needed for the requisition
         .filter {virtualPersonActivity ->
-          EventFilters.matches(virtualPersonActivity, it.program)
+          val event = mapVirtualPersonActivityToEvent(virtualPersonActivity)
+          EventFilters.matches(event, it.program)
         }
     }.flatten().filterNotNull()
 
@@ -351,6 +355,15 @@ class ResultsFulfillerApp(
           vidSamplingIntervalWidth,
         )
       }
+  }
+
+  fun mapVirtualPersonActivityToEvent(virtualPersonActivity: VirtualPersonActivity): Event {
+    val demographic = virtualPersonActivity.label.demo
+    //TODO: Add logic to convert. Need to release a new version of uk-pilot-event-templates repo
+    return event {
+      this.common = common {
+      }
+    }
   }
 
   fun compileProgram(
