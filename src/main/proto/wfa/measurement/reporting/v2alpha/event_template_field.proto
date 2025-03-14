@@ -21,6 +21,7 @@ import "google/api/field_behavior.proto";
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "EventTemplateFieldProto";
+option go_package = "github.com/world-federation-of-advertisers/cross-media-measurement/reporting/apiv2alpha/reportingpb";
 
 // A representation of an event template field with its value
 message EventTemplateField {
