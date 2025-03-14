@@ -20,7 +20,6 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
-import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import java.io.File
 import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
