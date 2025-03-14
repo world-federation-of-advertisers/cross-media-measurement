@@ -14,36 +14,36 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.reporting.deploy.v2.postgres.server
+package org.wfanet.measurement.reporting.deploy.v2.gcloud.server
 
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.db.postgres.PostgresFlags
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.gcloud.spanner.SpannerFlags
+import org.wfanet.measurement.gcloud.postgres.PostgresConnectionFactories
+import org.wfanet.measurement.gcloud.postgres.PostgresFlags as GCloudPostgresFlags
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer
 import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
 import picocli.CommandLine
 
-/** Implementation of [InternalReportingServer] using Postgres. */
+/** Implementation of [InternalReportingServer] using Google Cloud Postgres. */
 @CommandLine.Command(
-  name = "PostgresInternalReportingServer",
+  name = "GCloudInternalReportingServer",
   description = ["Start the internal Reporting data-layer services in a single blocking server."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true,
 )
-class PostgresInternalReportingServer : InternalReportingServer() {
-  @CommandLine.Mixin private lateinit var postgresFlags: PostgresFlags
-  @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
+class GCloudInternalReportingServer : InternalReportingServer() {
+  @CommandLine.Mixin private lateinit var gCloudPostgresFlags: GCloudPostgresFlags
 
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
     val idGenerator = RandomIdGenerator(clock)
 
-    val postgresClient = PostgresDatabaseClient.fromFlags(postgresFlags)
+    val factory = PostgresConnectionFactories.buildConnectionFactory(gCloudPostgresFlags)
+    val postgresClient = PostgresDatabaseClient.fromConnectionFactory(factory)
 
     spannerFlags.usingSpanner { spanner ->
       val spannerClient = spanner.databaseClient
@@ -53,4 +53,4 @@ class PostgresInternalReportingServer : InternalReportingServer() {
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(PostgresInternalReportingServer(), args)
+fun main(args: Array<String>) = commandLineMain(GCloudInternalReportingServer(), args)

@@ -278,26 +278,26 @@ REPORTING_V2_COMMON_IMAGES = [
 REPORTING_V2_LOCAL_IMAGES = [
     struct(
         name = "internal_reporting_v2_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/server:postgres_internal_reporting_server_image",
-        repository = _PREFIX + "/reporting/v2/local-postgres-internal",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:internal_reporting_server_image",
+        repository = _PREFIX + "/reporting/v2/internal-server",
     ),
     struct(
         name = "reporting_v2_postgres_update_schema_image",
         image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/tools:update_schema_image",
-        repository = _PREFIX + "/reporting/v2/local-postgres-update-schema",
+        repository = _PREFIX + "/reporting/v2/postgres-update-schema",
     ),
 ]
 
 REPORTING_V2_GKE_IMAGES = [
     struct(
         name = "gcloud_reporting_v2_internal_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/postgres/server:gcloud_postgres_internal_reporting_server_image",
-        repository = _PREFIX + "/reporting/v2/postgres-internal-server",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/server:gcloud_internal_reporting_server_image",
+        repository = _PREFIX + "/reporting/v2/gcloud-internal-server",
     ),
     struct(
         name = "gcloud_reporting_v2_postgres_update_schema_image",
         image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/postgres/tools:update_schema_image",
-        repository = _PREFIX + "/reporting/v2/postgres-update-schema",
+        repository = _PREFIX + "/reporting/v2/gcloud-postgres-update-schema",
     ),
 ]
 

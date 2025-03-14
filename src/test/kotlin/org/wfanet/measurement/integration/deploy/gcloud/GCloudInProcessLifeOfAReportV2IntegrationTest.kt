@@ -29,6 +29,7 @@ import org.wfanet.measurement.integration.deploy.common.postgres.PostgresDuchyDe
 import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemata.REPORTING_CHANGELOG_PATH as SPANNER_REPORTING_CHANGELOG_PATH
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPORTING_CHANGELOG_PATH as POSTGRES_REPORTING_CHANGELOG_PATH
+import org.junit.Rule
 
 /** Implementation of [InProcessLifeOfAReportIntegrationTest] for Google Cloud. */
 class GCloudInProcessLifeOfAReportV2IntegrationTest :
@@ -53,7 +54,7 @@ class GCloudInProcessLifeOfAReportV2IntegrationTest :
     val reportingPostgresDatabaseProvider =
       PostgresDatabaseProviderRule(POSTGRES_REPORTING_CHANGELOG_PATH)
 
-    @get:ClassRule
+    @get:Rule
     @JvmStatic
     val reportingSpannerDatabaseProvider =
       SpannerEmulatorDatabaseRule(spannerEmulator, SPANNER_REPORTING_CHANGELOG_PATH)

@@ -17,9 +17,17 @@
 package org.wfanet.measurement.reporting.deploy.v2.common.server
 
 import io.grpc.BindableService
+import java.time.Clock
 import kotlin.reflect.full.declaredMemberProperties
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.runInterruptible
+import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.db.postgres.PostgresFlags
+import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.gcloud.spanner.SpannerFlags
+import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
@@ -29,9 +37,19 @@ import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineImplBase
+import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
 import picocli.CommandLine
 
-abstract class InternalReportingServer : Runnable {
+@CommandLine.Command(
+  name = "InternalReportingServer",
+  description = ["Start the internal Reporting data-layer services in a single blocking server."],
+  mixinStandardHelpOptions = true,
+  showDefaultValues = true,
+)
+open class InternalReportingServer : Runnable {
+  @CommandLine.Mixin protected lateinit var postgresFlags: PostgresFlags
+  @CommandLine.Mixin protected lateinit var spannerFlags: SpannerFlags
+
   data class Services(
     val basicReportsService: BasicReportsCoroutineImplBase,
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
@@ -52,9 +70,23 @@ abstract class InternalReportingServer : Runnable {
     runInterruptible { server.start().blockUntilShutdown() }
   }
 
+  override fun run() = runBlocking {
+    val clock = Clock.systemUTC()
+    val idGenerator = RandomIdGenerator(clock)
+
+    val postgresClient = PostgresDatabaseClient.fromFlags(postgresFlags)
+
+    spannerFlags.usingSpanner { spanner ->
+      val spannerClient = spanner.databaseClient
+
+      run(DataServices.create(idGenerator, postgresClient, spannerClient))
+    }
+  }
+
   companion object {
     fun Services.toList(): List<BindableService> {
       return Services::class.declaredMemberProperties.map { it.get(this) as BindableService }
     }
   }
 }
+fun main(args: Array<String>) = commandLineMain(InternalReportingServer(), args)

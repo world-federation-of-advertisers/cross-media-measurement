@@ -23,11 +23,6 @@ objectSets: [ for objectSet in reporting {objectSet}]
 reporting: #Reporting & {
 	_secretName:         _reportingSecretName
 	_mcConfigSecretName: _reportingMcConfigSecretName
-	_imageSuffixes: {
-		"update-reporting-postgres-schema":   "reporting/v2/local-postgres-update-schema"
-		"postgres-internal-reporting-server": "reporting/v2/local-postgres-internal"
-	}
-
 	_postgresConfig: {
 		serviceName: "postgres"
 		password:    "$(POSTGRES_PASSWORD)"
@@ -58,7 +53,7 @@ reporting: #Reporting & {
 	}
 
 	deployments: {
-		"postgres-internal-reporting-server": {
+		"internal-reporting-server": {
 			_container: _envVars:                     EnvVars
 			_updatePostgresSchemaContainer: _envVars: EnvVars
 			spec: template: spec: {
@@ -68,7 +63,7 @@ reporting: #Reporting & {
 		"reporting-v2alpha-public-api-server": {
 			spec: template: spec: {
 				_dependencies: [
-					"postgres-internal-reporting-server",
+					"internal-reporting-server",
 					"access-public-api-server",
 					"v2alpha-public-api-server", // Kingdom public API server.
 				]
