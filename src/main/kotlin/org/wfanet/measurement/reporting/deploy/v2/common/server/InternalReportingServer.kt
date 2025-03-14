@@ -32,15 +32,7 @@ import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import picocli.CommandLine
 
-@CommandLine.Command(
-  name = "InternalReportingServer",
-  description = ["Start the internal Reporting data-layer services in a single blocking server."],
-  mixinStandardHelpOptions = true,
-  showDefaultValues = true,
-)
-open class InternalReportingServer : Runnable {
-  @CommandLine.Mixin protected lateinit var postgresFlags: PostgresFlags
-  @CommandLine.Mixin protected lateinit var spannerFlags: SpannerFlags
+abstract class AbstractInternalReportingServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
 
   protected suspend fun run(services: Services) {
@@ -48,6 +40,23 @@ open class InternalReportingServer : Runnable {
 
     runInterruptible { server.start().blockUntilShutdown() }
   }
+
+  companion object {
+    fun Services.toList(): List<BindableService> {
+      return Services::class.declaredMemberProperties.map { it.get(this) as BindableService }
+    }
+  }
+}
+
+@CommandLine.Command(
+  name = "InternalReportingServer",
+  description = ["Start the internal Reporting data-layer services in a single blocking server."],
+  mixinStandardHelpOptions = true,
+  showDefaultValues = true,
+)
+class InternalReportingServer : AbstractInternalReportingServer() {
+  @CommandLine.Mixin private lateinit var postgresFlags: PostgresFlags
+  @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
@@ -59,12 +68,6 @@ open class InternalReportingServer : Runnable {
       val spannerClient = spanner.databaseClient
 
       run(DataServices.create(idGenerator, postgresClient, spannerClient))
-    }
-  }
-
-  companion object {
-    fun Services.toList(): List<BindableService> {
-      return Services::class.declaredMemberProperties.map { it.get(this) as BindableService }
     }
   }
 }

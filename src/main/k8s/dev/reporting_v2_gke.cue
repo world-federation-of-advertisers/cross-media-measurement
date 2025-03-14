@@ -58,8 +58,8 @@ reporting: #Reporting & {
 	_secretName:         _reportingSecretName
 	_mcConfigSecretName: _reportingMcConfigSecretName
 	_imageSuffixes: {
-		"update-reporting-postgres-schema": "reporting/v2/gcloud-postgres-update-schema"
-		"internal-reporting-server":        "reporting/v2/gcloud-internal-server"
+		"update-reporting-postgres-schema":   "reporting/v2/gcloud-postgres-update-schema"
+		"postgres-internal-reporting-server": "reporting/v2/gcloud-internal-server"
 	}
 	_kingdomApiTarget: #KingdomApiTarget
 
@@ -82,7 +82,7 @@ reporting: #Reporting & {
 	configMaps: "java": #JavaConfigMap
 
 	deployments: {
-		"internal-reporting-server": {
+		"postgres-internal-reporting-server": {
 			_container: resources: #InternalServerResourceRequirements
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalServerServiceAccount

@@ -32,7 +32,7 @@ package k8s
 	}
 
 	_internalApiTarget: #GrpcTarget & {
-		serviceName:           "internal-reporting-server"
+		serviceName:           "postgres-internal-reporting-server"
 		certificateHost:       "localhost"
 		targetOption:          "--internal-api-target"
 		certificateHostOption: "--internal-api-cert-host"
@@ -58,7 +58,7 @@ package k8s
 	_imageSuffixes: {
 		"update-reporting-spanner-schema":     string | *"reporting/v2/spanner-update-schema"
 		"update-reporting-postgres-schema":    string | *"reporting/v2/postgres-update-schema"
-		"internal-reporting-server":           string | *"reporting/v2/internal-server"
+		"postgres-internal-reporting-server":  string | *"reporting/v2/internal-server"
 		"reporting-v2alpha-public-api-server": string | *"reporting/v2/v2alpha-public-api"
 		"report-scheduling":                   string | *"reporting/v2/report-scheduling"
 		"update-access-schema":                string | *"access/update-schema"
@@ -101,7 +101,7 @@ package k8s
 		}
 	}
 	services: {
-		"internal-reporting-server": {}
+		"postgres-internal-reporting-server": {}
 		"reporting-v2alpha-public-api-server": #ExternalService
 		"access-internal-api-server": {}
 		"access-public-api-server": #ExternalService
@@ -116,7 +116,7 @@ package k8s
 		}
 	}
 	deployments: {
-		"internal-reporting-server": {
+		"postgres-internal-reporting-server": {
 			_container: args: [
 						_reportingCertCollectionFileFlag,
 						_debugVerboseGrpcServerLoggingFlag,
@@ -169,7 +169,7 @@ package k8s
 					}
 					"config-files": #ConfigMapMount
 				}
-				_dependencies: _ | *["internal-reporting-server", "access-public-api-server"]
+				_dependencies: _ | *["postgres-internal-reporting-server", "access-public-api-server"]
 			}
 		}
 
@@ -255,7 +255,7 @@ package k8s
 	}
 
 	networkPolicies: {
-		"internal-reporting-server": {
+		"postgres-internal-reporting-server": {
 			_sourceMatchLabels: [
 				"reporting-v2alpha-public-api-server-app",
 				"report-scheduling-app",
@@ -266,7 +266,7 @@ package k8s
 			}
 		}
 		"reporting-v2alpha-public-api-server": {
-			_destinationMatchLabels: ["internal-reporting-server-app"]
+			_destinationMatchLabels: ["postgres-internal-reporting-server-app"]
 			_ingresses: {
 				gRpc: {
 					ports: [{
@@ -280,7 +280,7 @@ package k8s
 			}
 		}
 		"report-scheduling": {
-			_destinationMatchLabels: ["internal-reporting-server-app"]
+			_destinationMatchLabels: ["postgres-internal-reporting-server-app"]
 			_egresses: {
 				// Needs to call out to Kingdom.
 				any: {}

@@ -23,20 +23,22 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.gcloud.postgres.PostgresConnectionFactories
 import org.wfanet.measurement.gcloud.postgres.PostgresFlags as GCloudPostgresFlags
+import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
-import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer
+import org.wfanet.measurement.reporting.deploy.v2.common.server.AbstractInternalReportingServer
 import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
 import picocli.CommandLine
 
-/** Implementation of [InternalReportingServer] using Google Cloud Postgres. */
+/** Implementation of [AbstractInternalReportingServer] using Google Cloud Postgres. */
 @CommandLine.Command(
   name = "GCloudInternalReportingServer",
   description = ["Start the internal Reporting data-layer services in a single blocking server."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true,
 )
-class GCloudInternalReportingServer : InternalReportingServer() {
+class GCloudInternalReportingServer : AbstractInternalReportingServer() {
   @CommandLine.Mixin private lateinit var gCloudPostgresFlags: GCloudPostgresFlags
+  @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
