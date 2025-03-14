@@ -63,7 +63,7 @@ reporting: #Reporting & {
 		"reporting-v2alpha-public-api-server": {
 			spec: template: spec: {
 				_dependencies: [
-					"internal-reporting-server",
+					"postgres-internal-reporting-server",
 					"access-public-api-server",
 					"v2alpha-public-api-server", // Kingdom public API server.
 				]
