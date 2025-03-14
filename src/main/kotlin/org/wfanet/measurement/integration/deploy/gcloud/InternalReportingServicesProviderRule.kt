@@ -31,13 +31,8 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemat
 class InternalReportingServicesProviderRule(
   emulatorDatabaseAdmin: SpannerDatabaseAdmin,
   val postgresDatabaseProvider: PostgresDatabaseProviderRule,
-  ) :
-  ProviderRule<Services> {
-  val spannerDatabase =
-    SpannerEmulatorDatabaseRule(
-      emulatorDatabaseAdmin,
-      REPORTING_CHANGELOG_PATH
-    )
+) : ProviderRule<Services> {
+  val spannerDatabase = SpannerEmulatorDatabaseRule(emulatorDatabaseAdmin, REPORTING_CHANGELOG_PATH)
 
   private lateinit var services: Services
 
@@ -48,11 +43,12 @@ class InternalReportingServicesProviderRule(
     val statement =
       object : Statement() {
         override fun evaluate() {
-          services = DataServices.create(
-            RandomIdGenerator(Clock.systemUTC()),
-            postgresDatabaseProvider.createDatabase(),
-            spannerDatabase.databaseClient,
-          )
+          services =
+            DataServices.create(
+              RandomIdGenerator(Clock.systemUTC()),
+              postgresDatabaseProvider.createDatabase(),
+              spannerDatabase.databaseClient,
+            )
           base.evaluate()
         }
       }
