@@ -83,10 +83,11 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.validate
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub as PublicMetricsCoroutineStub
+import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 
 /** TestRule that starts and stops all Reporting Server gRPC services. */
 class InProcessReportingServer(
-  private val internalReportingServerServices: InternalReportingServer.Services,
+  private val internalReportingServerServices: Services,
   private val accessServicesFactory: AccessServicesFactory,
   kingdomPublicApiChannel: Channel,
   private val encryptionKeyPairConfig: EncryptionKeyPairConfig,

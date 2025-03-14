@@ -28,16 +28,8 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
-import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
+import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -49,19 +41,6 @@ import picocli.CommandLine
 open class InternalReportingServer : Runnable {
   @CommandLine.Mixin protected lateinit var postgresFlags: PostgresFlags
   @CommandLine.Mixin protected lateinit var spannerFlags: SpannerFlags
-
-  data class Services(
-    val basicReportsService: BasicReportsCoroutineImplBase,
-    val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
-    val measurementsService: MeasurementsCoroutineImplBase,
-    val metricsService: MetricsCoroutineImplBase,
-    val reportingSetsService: ReportingSetsCoroutineImplBase,
-    val reportsService: ReportsCoroutineImplBase,
-    val reportSchedulesService: ReportSchedulesCoroutineImplBase,
-    val reportScheduleIterationsService: ReportScheduleIterationsCoroutineImplBase,
-    val metricCalculationSpecsService: MetricCalculationSpecsCoroutineImplBase,
-  )
-
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
 
   protected suspend fun run(services: Services) {
