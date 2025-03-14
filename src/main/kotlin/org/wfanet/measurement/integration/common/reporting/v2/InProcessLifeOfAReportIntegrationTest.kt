@@ -139,6 +139,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       ) -> InProcessDuchy.DuchyDependencies
     >,
   accessServicesFactory: AccessServicesFactory,
+  reportingDataServicesProviderRule: ProviderRule<Services>,
 ) {
   private val inProcessCmmsComponents: InProcessCmmsComponents =
     InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
@@ -155,8 +156,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       }
     }
   }
-
-  abstract val internalReportingServerServices: Services
 
   private val reportingServerRule =
     object : TestRule {
@@ -189,7 +188,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         }
 
         return InProcessReportingServer(
-          internalReportingServerServices,
+          reportingDataServicesProviderRule.value,
           accessServicesFactory,
           inProcessCmmsComponents.kingdom.publicApiChannel,
           encryptionKeyPairConfig,
@@ -219,6 +218,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     chainRulesSequentially(
       inProcessCmmsComponents,
       inProcessCmmsComponentsStartup,
+      reportingDataServicesProviderRule,
       reportingServerRule,
     )
 
