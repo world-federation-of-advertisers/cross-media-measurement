@@ -36,6 +36,8 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponseKt
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponseKt.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
@@ -47,6 +49,7 @@ import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.insertBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
+import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.resultGroup
@@ -173,6 +176,8 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.BASIC_REPORT_ALREADY_EXISTS.name
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+            basicReport.cmmsMeasurementConsumerId
           metadata[Errors.Metadata.EXTERNAL_BASIC_REPORT_ID.key] = basicReport.externalBasicReportId
         }
       )
@@ -237,6 +242,8 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.BASIC_REPORT_NOT_FOUND.name
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+            createdBasicReport.cmmsMeasurementConsumerId
           metadata[Errors.Metadata.EXTERNAL_BASIC_REPORT_ID.key] =
             createdBasicReport.externalBasicReportId + "b"
         }
@@ -244,7 +251,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `listBasicReport without limit succeeds`(): Unit = runBlocking {
+  fun `listBasicReport without page_size succeeds`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -298,7 +305,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `listBasicReport with limit succeeds`(): Unit = runBlocking {
+  fun `listBasicReport with page_size succeeds`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -332,6 +339,71 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       }
     )
 
+    val listBasicReportsResponse =
+      service.listBasicReports(
+        listBasicReportsRequest {
+          filter =
+            ListBasicReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            }
+          pageSize = 2
+        }
+      )
+
+    assertThat(listBasicReportsResponse)
+      .isEqualTo(
+        listBasicReportsResponse {
+          basicReports += createdBasicReport
+          basicReports += createdBasicReport2
+          nextPageToken = listBasicReportsPageToken {
+            pageSize = 2
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            lastBasicReport =
+              ListBasicReportsResponseKt.ListBasicReportsPageTokenKt.previousPageEnd {
+                createTime = createdBasicReport2.createTime
+                externalBasicReportId = createdBasicReport2.externalBasicReportId
+              }
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `listBasicReport with create_time_after succeeds`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val createdBasicReport =
+      service.insertBasicReport(insertBasicReportRequest { basicReport = BASIC_REPORT })
+
+    val createdBasicReport2 =
+      service.insertBasicReport(
+        insertBasicReportRequest {
+          basicReport =
+            createdBasicReport.copy {
+              externalBasicReportId = createdBasicReport.externalBasicReportId + "b"
+            }
+        }
+      )
+
+    val createdBasicReport3 =
+      service.insertBasicReport(
+        insertBasicReportRequest {
+          basicReport =
+            createdBasicReport.copy {
+              externalBasicReportId = createdBasicReport2.externalBasicReportId + "b"
+            }
+        }
+      )
+
     val retrievedBasicReports =
       service
         .listBasicReports(
@@ -339,15 +411,15 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             filter =
               ListBasicReportsRequestKt.filter {
                 cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                createTimeAfter = createdBasicReport.createTime
               }
-            limit = 2
           }
         )
         .basicReportsList
 
     assertThat(retrievedBasicReports).hasSize(2)
-    assertThat(retrievedBasicReports[0]).isEqualTo(createdBasicReport)
-    assertThat(retrievedBasicReports[1]).isEqualTo(createdBasicReport2)
+    assertThat(retrievedBasicReports[0]).isEqualTo(createdBasicReport2)
+    assertThat(retrievedBasicReports[1]).isEqualTo(createdBasicReport3)
   }
 
   @Test
@@ -503,6 +575,51 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         .basicReportsList
 
     assertThat(retrievedBasicReports).hasSize(0)
+  }
+
+  @Test
+  fun `getBasicReport throws INVALID_ARGUMENT when missing cmms_measurement_consumer_id`(): Unit =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.listBasicReports(listBasicReportsRequest {})
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "filter.cmms_measurement_consumer_id"
+          }
+        )
+    }
+
+  @Test
+  fun `getBasicReport throws INVALID_ARGUMENT when page_size is negative`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listBasicReports(
+          listBasicReportsRequest {
+            pageSize = -1
+            filter =
+              ListBasicReportsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
+        }
+      )
   }
 
   companion object {
