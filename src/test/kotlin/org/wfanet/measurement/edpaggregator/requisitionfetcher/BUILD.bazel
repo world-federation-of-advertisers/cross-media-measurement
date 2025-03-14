@@ -41,6 +41,7 @@ kt_jvm_test(
     srcs = ["RequisitionFetcherFunctionTest.kt"],
     data = [
         "//src/main/k8s/testing/secretfiles:edp_aggregator_certs",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:run_requisition_fetcher_function",
     ],
     test_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunctionTest",
     deps = [
@@ -65,15 +66,14 @@ java_test(
     name = "RequisitionFetcherFunctionTest",
     size = "enormous",
     timeout = "long",
-    data = [
-        "//src/main/docker:push_all_edp_aggregator_images",
-    ],
+    data = ["//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:run_requisition_fetcher_function_deploy.jar"],
     env_inherit = [
         "DOCKER_HOST",
         "KUBECONFIG",
     ],
     tags = [
         "cpu:8",
+        "excusive",
         "latest",
         "manual",
         "no-remote-exec",

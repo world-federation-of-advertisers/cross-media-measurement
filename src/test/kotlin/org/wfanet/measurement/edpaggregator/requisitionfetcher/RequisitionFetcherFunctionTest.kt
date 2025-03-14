@@ -2,144 +2,102 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import io.grpc.Server
 import io.grpc.ServerInterceptors
+import io.grpc.netty.NettyServerBuilder
+import java.net.InetSocketAddress
+import java.net.ServerSocket
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
+import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.Paths
-import kotlinx.coroutines.delay
+import java.util.concurrent.TimeUnit
+import kotlin.coroutines.CoroutineContext
+import kotlin.properties.Delegates
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
+import org.jetbrains.annotations.BlockingExecutor
 import org.junit.After
 import org.junit.Before
-import org.junit.ClassRule
 import org.junit.Test
-import org.junit.rules.TestRule
-import org.junit.runner.Description
-import org.junit.runners.model.Statement
-import org.testcontainers.containers.GenericContainer
-import org.testcontainers.utility.DockerImageName
-import org.testcontainers.utility.MountableFile
-import org.wfanet.measurement.common.k8s.testing.Processes
-import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
-import org.wfanet.measurement.common.grpc.testing.mockService
 import org.mockito.kotlin.any
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.requisition
-import io.grpc.netty.NettyServerBuilder
-import java.net.InetSocketAddress
-import java.nio.file.Path
-import java.util.concurrent.TimeUnit
-import org.testcontainers.Testcontainers
-import org.wfanet.measurement.common.getRuntimePath
-import org.wfanet.measurement.common.testing.HeaderCapturingInterceptor
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.grpc.toServerTlsContext
+import org.wfanet.measurement.common.testing.HeaderCapturingInterceptor
+
 
 class RequisitionFetcherFunctionTest {
-  private class Images : TestRule {
-    override fun apply(base: Statement, description: Description): Statement {
-      return object : Statement() {
-        override fun evaluate() {
-          pushImages()
-          base.evaluate()
-        }
-      }
-    }
-    private fun pushImages() {
-      val pusherRuntimePath = checkNotNull(
-        org.wfanet.measurement.common.getRuntimePath(Paths.get("wfa_measurement_system").resolve(IMAGE_PUSHER_PATH))
-      )
-      Processes.runCommand(pusherRuntimePath.toString())
-    }
-  }
-
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { listRequisitions(any()) }
       .thenReturn(listRequisitionsResponse { requisitions += REQUISITION })
   }
 
+  private lateinit var grpcServer: Server
+  private lateinit var functionProcess: RequisitionFetcherProcess
+
   @Before
   fun setUp() {
-    // Push GCF image to docker registry
-    Images()
-
+    // Start gRPC server with mock service
     grpcServer = NettyServerBuilder
-      .forAddress(InetSocketAddress("0.0.0.0", GRPC_SERVER_PORT))  // Bind to all interfaces
+      .forAddress(InetSocketAddress("localhost", 0))  // Use port 0 to find an available port
       .addService(ServerInterceptors.intercept(requisitionsServiceMock.bindService(), HeaderCapturingInterceptor()))
       .sslContext(serverCerts.toServerTlsContext())
       .build()
       .start()
 
     println("Started mock gRPC server on port ${grpcServer.port}")
-    println("gRPC server bound to addresses: ${grpcServer.listenSockets.joinToString { it.toString() }}")
-
-    // Expose the gRPC server port to containers
-    Testcontainers.exposeHostPorts(grpcServer.port)
-
-    // Configure the function container
-    gcfContainer = GenericContainer(DockerImageName.parse(IMAGE_NAME)).apply {
-      //TODO(): Figure out better way to emulate GCS
-      withEnv("IS_TEST_CALL", "true")
-
-      withExposedPorts(GCF_CONTAINER_PORT)
-      withAccessToHost(true)
-      withEnv("FUNCTION_TARGET", "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction")
-
-      // Configure gRPC connection to the mock server
-      withEnv("TARGET", "host.testcontainers.internal:${grpcServer.port}")
-      withEnv("CERT_HOST", "localhost")
 
 
-      // Configure GCS
-      withEnv("REQUISITIONS_GCS_PROJECT_ID", "test-project-id")
-      withEnv("REQUISITIONS_GCS_BUCKET", "test-bucket")
-
-        // Other configuration parameters
-        withEnv("DATAPROVIDER_NAME", EDP_NAME)
-        withEnv("PAGE_SIZE", "10")
-        withEnv("STORAGE_PATH_PREFIX", "storage-path-prefix")
-
-        // Certificate files
-        withEnv("CERT_FILE_PATH", "/path/to/cert.pem")
-        withEnv("PRIVATE_KEY_FILE_PATH", "/path/to/private-key.pem")
-        withEnv("CERT_COLLECTION_FILE_PATH", "/path/to/cert-collection.pem")
-
-        // Copy certificate files into the container
-        withCopyFileToContainer(
-          MountableFile.forHostPath(SECRETS_DIR.resolve("edp1_tls.pem")),
-          "/path/to/cert.pem"
+    // Start the RequisitionFetcher process
+    functionProcess = RequisitionFetcherProcess()
+    runBlocking {
+      val port = functionProcess.start(
+        mapOf(
+          "FUNCTION_TARGET" to "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
+          "IS_TEST_CALL" to "true",
+          "TARGET" to "localhost:${grpcServer.port}",
+          "CERT_HOST" to "localhost",
+          "REQUISITIONS_GCS_PROJECT_ID" to "test-project-id",
+          "REQUISITIONS_GCS_BUCKET" to "test-bucket",
+          "DATAPROVIDER_NAME" to EDP_NAME,
+          "PAGE_SIZE" to "10",
+          "STORAGE_PATH_PREFIX" to "storage-path-prefix",
+          "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.pem").toString(),
+          "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.key").toString(),
+          "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString()
         )
-        withCopyFileToContainer(
-          MountableFile.forHostPath(SECRETS_DIR.resolve("edp1_tls.key")),
-          "/path/to/private-key.pem"
-        )
-        withCopyFileToContainer(
-          MountableFile.forHostPath(SECRETS_DIR.resolve("kingdom_root.pem")),
-          "/path/to/cert-collection.pem"
-        )
-      }
-
-    gcfContainer.start()
-    println("Started function container at ${gcfContainer.host}:${gcfContainer.getMappedPort(GCF_CONTAINER_PORT)}")
+      )
+      println("Started RequisitionFetcher process on port $port")
+    }
   }
 
   @After
   fun cleanUp() {
+    functionProcess.close()
     grpcServer.shutdown()
     grpcServer.awaitTermination(5, TimeUnit.SECONDS)
-    gcfContainer.stop()
   }
 
   @Test
-  fun `use RequisitionFetcherFunction in Docker container`() {
-    // Give the container a bit of time to start up
-    runBlocking {
-      delay(60000)
+  fun `test RequisitionFetcherFunction as local process`() {
+    while(true) {
+      if (functionProcess.started == true) {
+        val url = "http://localhost:${functionProcess.port}"
+        break
+      }
     }
-
-    val url = "http://${gcfContainer.host}:${gcfContainer.getMappedPort(GCF_CONTAINER_PORT)}"
+    val url = "http://localhost:${functionProcess.port}"
     println("Testing Cloud Function at: $url")
 
     val client = HttpClient.newHttpClient()
@@ -161,22 +119,134 @@ class RequisitionFetcherFunctionTest {
       e.printStackTrace()
       throw e
     }
+  }
 
-    // Print container logs for debugging
-    println("Container logs:\n${gcfContainer.logs}")
+  /**
+   * Wrapper for the RequisitionFetcher java_binary process.
+   */
+  class RequisitionFetcherProcess(
+    private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO
+  ) : AutoCloseable {
+
+    private val startMutex = Mutex()
+    @Volatile private lateinit var process: Process
+
+    var localPort by Delegates.notNull<Int>()
+
+    val started: Boolean
+      get() = this::process.isInitialized
+
+    val port: Int
+      get() {
+        check(started) { "RequisitionFetcher process not started" }
+        return localPort
+      }
+
+    /**
+     * Starts the RequisitionFetcher process if it has not already been started.
+     *
+     * This suspends until the process is ready.
+     *
+     * @param env Environment variables to pass to the process
+     * @returns The HTTP port the process is listening on
+     */
+    suspend fun start(env: Map<String, String>): Int {
+      if (started) {
+        return port
+      }
+
+      return startMutex.withLock {
+        // Double-checked locking.
+        if (started) {
+          return@withLock port
+        }
+
+        return withContext(coroutineContext) {
+          // Open a socket on `port`. This should reduce the likelihood that the port
+          // is in use. Additionally, this will allocate a port if `port` is 0.
+          localPort = ServerSocket(0).use { it.localPort }
+          val runtimePath = getRuntimePath(FETCHER_BINARY_PATH)
+          check(runtimePath != null && Files.exists(runtimePath)) {
+            "$FETCHER_BINARY_PATH not found in runfiles"
+          }
+
+          val processBuilder = ProcessBuilder(
+            "java",
+            "-jar",
+            runtimePath.toString()
+          )
+            .redirectErrorStream(true)
+            .redirectOutput(ProcessBuilder.Redirect.PIPE)
+
+          // Set environment variables
+          processBuilder.environment().putAll(env)
+
+          // Add HTTP port configuration
+          processBuilder.environment()["PORT"] = localPort.toString()
+
+          // Start the process
+          process = processBuilder.start()
+
+          // Replace the error stream reading code in the start() method with this:
+          val reader = process.inputStream.bufferedReader()
+          val readyPattern = "Serving function..."
+          var isReady = false
+
+          // Start a thread to read output
+          Thread {
+            try {
+              while (true) {
+                val line = reader.readLine() ?: break
+                println("Process output: $line")
+
+                // Check if the ready message is in the output
+                if (line.contains(readyPattern)) {
+                  isReady = true
+                }
+              }
+            } catch (e: Exception) {
+              if (process.isAlive) {
+                println("Error reading process output: ${e.message}")
+              }
+            }
+          }.start()
+
+          // Wait for the ready message or timeout
+          val timeoutMs = 60000L // 30 seconds timeout
+          val startTime = System.currentTimeMillis()
+          while (!isReady) {
+            yield()
+            check(process.isAlive) { "Google Cloud Function stopped unexpectedly" }
+
+            if (System.currentTimeMillis() - startTime > timeoutMs) {
+              throw IllegalStateException("Timeout waiting for Google Cloud Function to start")
+            }
+          }
+          localPort
+        }
+      }
+    }
+
+    override fun close() {
+      if (started) {
+        process.destroy()
+        try {
+          if (!process.waitFor(5, TimeUnit.SECONDS)) {
+            process.destroyForcibly()
+          }
+        } catch (e: InterruptedException) {
+          process.destroyForcibly()
+          Thread.currentThread().interrupt()
+        }
+      }
+    }
   }
 
   companion object {
-    private val IMAGE_PUSHER_PATH = Paths.get("src", "main", "docker", "push_all_edp_aggregator_images.bash")
-    private const val IMAGE_NAME = "localhost:5000/halo/requisitions/requisition-fetcher:latest"
-
-    // Late initialize container so we can use grpcPort and hostIpAddress from the test instance
-    lateinit var gcfContainer: GenericContainer<*>
-    lateinit var grpcServer: Server
-    private const val GRPC_SERVER_PORT = 8090
-    // Google Cloud Function will listen on port 8080 by default
-    private const val GCF_CONTAINER_PORT = 8080
-
+    private val FETCHER_BINARY_PATH = Paths.get(
+      "wfa_measurement_system", "src", "main", "kotlin", "org", "wfanet", "measurement",
+      "edpaggregator", "requisitionfetcher", "run_requisition_fetcher_function_deploy.jar"
+    )
 
     private const val EDP_ID = "someDataProvider"
     private const val EDP_NAME = "dataProviders/$EDP_ID"
