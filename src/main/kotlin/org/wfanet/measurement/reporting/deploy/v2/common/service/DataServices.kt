@@ -46,8 +46,10 @@ data class Services(
   val reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase,
   val reportsService: ReportsGrpcKt.ReportsCoroutineImplBase,
   val reportSchedulesService: ReportSchedulesGrpcKt.ReportSchedulesCoroutineImplBase,
-  val reportScheduleIterationsService: ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineImplBase,
-  val metricCalculationSpecsService: MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase,
+  val reportScheduleIterationsService:
+    ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineImplBase,
+  val metricCalculationSpecsService:
+    MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase,
 )
 
 object DataServices {
