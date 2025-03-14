@@ -27,7 +27,8 @@ service ImpressionQualificationFilters {
   rpc GetImpressionQualificationFilter(GetImpressionQualificationFilterRequest)
       returns (ImpressionQualificationFilter);
 
-  rpc ListImpressionQualificationFilters(ListImpressionQualificationFiltersRequest)
+  rpc ListImpressionQualificationFilters(
+      ListImpressionQualificationFiltersRequest)
       returns (ListImpressionQualificationFiltersResponse);
 }
 
