@@ -298,8 +298,8 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.11.0/MODULE.bazel": "22f7e06ac78cd614d2143fcd0e7028eb595d9902dbfa94f777531439c616f13f",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.13.0/MODULE.bazel": "ad9f152e8f710943b2d9aa4ea19e06b47911abd8a5fb63d9e69e66636475794d",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.13.0/source.json": "910ffe09948e90417f98e00fd88819dbaa54efda4175e05e528481acc81c5d71",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.101.0/MODULE.bazel": "8729a08573dacb81d0e8bb4319d49485deef461fae4efa982b5872483fb61b43",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.101.0/source.json": "8808fe1022ff90b296b4284136df3a28c24ad65c2e032ea12b286c42e43be122",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.101.1/MODULE.bazel": "6c9a471adff45e53d5e247dab68083bd915ebf4bcc5e1a4ff905c885dacd7b4e",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.101.1/source.json": "416eac89728f04d55198c738a384f4d3f8cf5e0aa04dcd709883aac05a81fa5f",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.82.1/MODULE.bazel": "e5d9aee83831d55952c193f6f05b3952d3f3cd61d8d4e3bfedf3549e25edf308",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.22.0/MODULE.bazel": "6437a69ac68ec8e3589d595a5ed79d3f6404510124e455838ce9cf51b8b27d52",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.22.0/source.json": "844344f41ae9b780cfb0452438388465d3cf7c7b5accedb1fcc4900ace5111ca",
@@ -3149,7 +3149,7 @@
     "@@rules_oci~//oci:extensions.bzl%oci": {
       "general": {
         "bzlTransitiveDigest": "+0qwxOrCE1tVFyOe8kPvpm2Vu8mBF9FZ8170o6g/YxI=",
-        "usagesDigest": "IiukuWRKZWUody08U58uo1u9RRiihMshwu22uaY9Ryw=",
+        "usagesDigest": "Oi6tubFa7WX2IowhPwIMBaHwtWG/BcVUy39TsCUNO8o=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},

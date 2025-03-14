@@ -221,6 +221,8 @@ configuration uses one named `config-files`.
 
 *   `authority_key_identifier_to_principal_map.textproto`
     *   [`AuthorityKeyToPrincipalMap`](../../src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto)
+*   `open_id_providers_config.json`
+    *   [`OpenIdProvidersConfig`](../../src/main/proto/wfa/measurement/config/access/open_id_providers_config.proto)
 *   `encryption_key_pair_config.textproto`
     *   [`EncryptionKeyPairConfig`](../../src/main/proto/wfa/measurement/config/reporting/encryption_key_pair_config.proto)
 *   `metric_spec_config.textproto`
@@ -316,6 +318,13 @@ for an example.
     If you believe you have everything configured correctly, try deleting and
     recreating the IAM service account for DB access. Apparently there's a
     glitch with Cloud SQL that this sometimes resolves.
+
+### Authentication
+
+The default configuration supports both client certificates (mTLS) and RFC 9068
+OAuth 2.0 access tokens. For testing purposes, you can use the
+[OpenIdProvider tool](../../src/main/kotlin/org/wfanet/measurement/common/tools)
+to generate access tokens.
 
 ### Manual testing via CLI
 

@@ -152,6 +152,21 @@ jobs:
         cp src/main/k8s/testing/secretfiles/metric_spec_config.textproto
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_config_files/"
 
+    - name: Write OpenIdProvidersConfig
+      env:
+        OPEN_ID_PROVIDER_ISSUER: ${{ vars.OPEN_ID_PROVIDER_ISSUER }}
+        REPORTING_TOKEN_AUDIENCE: ${{ vars.REPORTING_TOKEN_AUDIENCE }}
+      run: |
+        jwks_uri="${OPEN_ID_PROVIDER_ISSUER%/}/.well-known/jwks.json"
+        curl -L "${jwks_uri}" -o "$RUNNER_TEMP/jwks.json"
+        jq \
+          --arg audience "$REPORTING_TOKEN_AUDIENCE" \
+          --arg issuer "$OPEN_ID_PROVIDER_ISSUER" \
+          --slurpfile jwks "$RUNNER_TEMP/jwks.json" \
+          '.audience = $audience | .providerConfigByIssuer[$issuer] = {"jwks": $jwks[0] }' \
+          < src/main/k8s/local/open_id_providers_config.json \
+          > "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_config_files/open_id_providers_config.json"
+
     - name: Write measurement consumer config
       env:
         MEASUREMENT_CONSUMER_CONFIG: ${{ secrets.MEASUREMENT_CONSUMER_CONFIG }}
@@ -163,6 +178,13 @@ jobs:
       run: >
         cp src/main/k8s/testing/secretfiles/reporting_secrets_kustomization.yaml
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_secrets/kustomization.yaml"
+
+    - name: Upload Kustomization artifact
+      uses: actions/upload-artifact@v4
+      continue-on-error: true
+      with:
+        name: reporting-kustomization
+        path: ${{ env.KUSTOMIZATION_PATH }}
 
     - name: Export KUSTOMIZE_PATH
       run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2" >> $GITHUB_ENV
