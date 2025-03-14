@@ -21,12 +21,14 @@ import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
+import java.io.File
 import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 
 class RequisitionFetcherFunction : HttpFunction {
@@ -41,8 +43,8 @@ class RequisitionFetcherFunction : HttpFunction {
     val requisitionsStub = RequisitionsCoroutineStub(publicChannel)
 
 
-    val requisitionsStorageClient = if(System.getenv("IS_TEST_CALL").isNotEmpty()) {
-      GcsStorageClient(LocalStorageHelper.getOptions().service, System.getenv("REQUISITIONS_GCS_BUCKET"))
+    val requisitionsStorageClient = if(System.getenv("REQUISITION_FILE_SYSTEM_PATH").isNotEmpty()) {
+      FileSystemStorageClient(File(System.getenv("REQUISITION_FILE_SYSTEM_PATH")))
     } else {
       GcsStorageClient(
         StorageOptions.newBuilder()

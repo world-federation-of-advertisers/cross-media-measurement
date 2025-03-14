@@ -25,6 +25,7 @@ kt_jvm_library(
         ":requisition_fetcher",
         "@wfa_common_jvm//imports/java/com/google/cloud/storage/contrib/nio",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
 )
 

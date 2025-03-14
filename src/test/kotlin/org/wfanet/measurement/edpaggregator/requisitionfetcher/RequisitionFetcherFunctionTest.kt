@@ -1,5 +1,6 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
+import com.google.common.truth.Truth.assertThat
 import io.grpc.Server
 import io.grpc.ServerInterceptors
 import io.grpc.netty.NettyServerBuilder
@@ -24,7 +25,9 @@ import kotlinx.coroutines.yield
 import org.jetbrains.annotations.BlockingExecutor
 import org.junit.After
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.mockito.kotlin.any
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
@@ -34,7 +37,11 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.grpc.toServerTlsContext
+import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.HeaderCapturingInterceptor
+import org.wfanet.measurement.securecomputation.storage.requisitionBatch
+import com.google.protobuf.Any
+import org.wfanet.measurement.securecomputation.storage.RequisitionBatch
 
 
 class RequisitionFetcherFunctionTest {
@@ -46,8 +53,13 @@ class RequisitionFetcherFunctionTest {
   private lateinit var grpcServer: Server
   private lateinit var functionProcess: RequisitionFetcherProcess
 
+  private lateinit var tempFolder: TemporaryFolder
+
   @Before
   fun setUp() {
+    tempFolder = TemporaryFolder()
+    tempFolder.create()
+
     // Start gRPC server with mock service
     grpcServer = NettyServerBuilder
       .forAddress(InetSocketAddress("localhost", 0))  // Use port 0 to find an available port
@@ -65,14 +77,14 @@ class RequisitionFetcherFunctionTest {
       val port = functionProcess.start(
         mapOf(
           "FUNCTION_TARGET" to "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
-          "IS_TEST_CALL" to "true",
+          "REQUISITION_FILE_SYSTEM_PATH" to tempFolder.root.path,
           "TARGET" to "localhost:${grpcServer.port}",
           "CERT_HOST" to "localhost",
           "REQUISITIONS_GCS_PROJECT_ID" to "test-project-id",
           "REQUISITIONS_GCS_BUCKET" to "test-bucket",
           "DATAPROVIDER_NAME" to EDP_NAME,
           "PAGE_SIZE" to "10",
-          "STORAGE_PATH_PREFIX" to "storage-path-prefix",
+          "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
           "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.pem").toString(),
           "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.key").toString(),
           "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString()
@@ -119,6 +131,11 @@ class RequisitionFetcherFunctionTest {
       e.printStackTrace()
       throw e
     }
+
+    val storedRequisitionPath = Paths.get(STORAGE_PATH_PREFIX, REQUISITION.name)
+    val requistionFile = tempFolder.root.toPath().resolve(storedRequisitionPath).toFile()
+    assertThat(requistionFile.exists()).isTrue()
+    assertThat(requistionFile.readByteString()).isEqualTo(REQUISITION_BATCH.toByteString())
   }
 
   /**
@@ -131,7 +148,7 @@ class RequisitionFetcherFunctionTest {
     private val startMutex = Mutex()
     @Volatile private lateinit var process: Process
 
-    var localPort by Delegates.notNull<Int>()
+    private var localPort by Delegates.notNull<Int>()
 
     val started: Boolean
       get() = this::process.isInitialized
@@ -212,7 +229,7 @@ class RequisitionFetcherFunctionTest {
           }.start()
 
           // Wait for the ready message or timeout
-          val timeoutMs = 60000L // 30 seconds timeout
+          val timeoutMs = 30000L // 30 seconds timeout
           val startTime = System.currentTimeMillis()
           while (!isReady) {
             yield()
@@ -255,6 +272,10 @@ class RequisitionFetcherFunctionTest {
       measurement = "MEASUREMENT_NAME"
       state = Requisition.State.UNFULFILLED
     }
+    private val REQUISITION_BATCH = requisitionBatch {
+      requisitions += listOf(Any.pack(REQUISITION))
+    }
+    private val STORAGE_PATH_PREFIX = "storage-path-prefix"
 
     private val SECRETS_DIR: Path =
       getRuntimePath(
