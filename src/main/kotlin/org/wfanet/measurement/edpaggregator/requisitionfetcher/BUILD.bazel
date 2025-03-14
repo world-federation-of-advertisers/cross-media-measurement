@@ -51,10 +51,3 @@ java_binary(
         "//imports/java/com/google/cloud/functions:java_function_invoker",
     ],
 )
-
-java_image(
-    name = "run_requisition_fetcher_function_image",
-    binary = "run_requisition_fetcher_function",
-    main_class = "com.google.cloud.functions.invoker.runner.Invoker",
-    visibility = ["//visibility:public"],
-)
