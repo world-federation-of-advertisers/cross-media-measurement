@@ -17,23 +17,54 @@ syntax = "proto3";
 package wfa.measurement.securecomputation.metadata;
 
 import "wfa/measurement/securecomputation/metadata/metadata_action.proto";
+import "google/protobuf/timestamp.proto";
+
 
 option java_package = "org.wfanet.measurement.securecomputation.metadata";
 option java_multiple_files = true;
 option java_outer_classname = "MetadataActionServiceProto";
 
 service MetadataActionService {
-  rpc CreateAction(MetadataAction) returns (MetadataAction);
+  rpc CreateMetadataAction(CreateMetadataActionRequest) returns (MetadataAction);
 
-  rpc FetchResource(MetadataAction) returns (MetadataAction);
+  rpc GetMetadataAction(GetMetadataActionRequest) returns (MetadataAction);
 
-  rpc StoreResource(MetadataAction) returns (MetadataAction);
+  rpc StreamMetadataAction(StreamMetadataActionRequest) returns (StreamMetadataActionResponse);
+}
 
-  rpc QueueResource(MetadataAction) returns (MetadataAction);
+message CreateMetadataActionRequest {
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_resource_id = 2;
+  ActorType actor_type = 3;
+  State prior_state = 4;
+  State new_state = 5;
+  google.protobuf.Timestamp action_time = 6;
+}
 
-  rpc ProcessResource(MetadataAction) returns (MetadataAction);
+message GetMetadataActionRequest {
+  fixed64 action_id = 1;
+  fixed64 external_data_provider_id = 2;
+  fixed64 external_resource_id = 3;
+}
 
-  rpc FinishProcessingResource(MetadataAction) returns (MetadataAction);
+message StreamMetadataActionRequest {
+  message AfterFilter {
+    google.protobuf.Timestamp action_time = 1;
+  }
+  message Filter {
+    fixed64 external_data_provider_id = 1;
+    fixed64 external_resource_id = 2;
+    ActorType actor_type = 3;
+    AfterFilter after = 4;
+  }
 
-  rpc DeleteResource(MetadataAction) returns (MetadataAction);
+  Filter filter = 1;
+
+  // The maximum number of results to return. If not specified or 0, it implies
+  // unlimited.
+  int32 limit = 2;
+}
+
+message StreamMetadataActionResponse {
+  repeated MetadataAction metadata_actions = 1;
 }

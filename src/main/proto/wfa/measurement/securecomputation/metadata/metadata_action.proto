@@ -22,11 +22,11 @@ option java_package = "org.wfanet.measurement.securecomputation.metadata";
 option java_multiple_files = true;
 option java_outer_classname = "MetadataActionProto";
 
-// Enum for ActionerType
-enum ActionerType {
+// Enum for ActorType
+enum ActorType {
   DATA_WATCHER = 0;
   REQUISITION_FETCHER = 1;
-  TEESDK = 2;
+  TEE_SDK = 2;
 }
 
 // Enum for State
@@ -41,9 +41,9 @@ enum State {
 
 message MetadataAction {
   fixed64 action_id = 1;
-  string data_provider_name = 2;
-  ActionerType actioner_type = 3;
-  fixed64 resource_name = 4;
+  fixed64 external_data_provider_id = 2;
+  fixed64 external_resource_id = 3;
+  ActorType actor_type = 4;
   State prior_state = 5;
   State new_state = 6;
   google.protobuf.Timestamp action_time = 7;
