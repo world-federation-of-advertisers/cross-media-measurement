@@ -28,26 +28,3 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
 )
-
-java_binary(
-    name = "RequisitionFetcherFunction",
-    main_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
-    runtime_deps = [":requisition_fetcher_function"],
-)
-
-java_binary(
-    name = "InvokeRequisitionFetcherFunction",
-    args = [
-        "--port 8080",
-        "--classpath $(location :RequisitionFetcherFunction_deploy.jar)",
-        "--target org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
-    ],
-    data = [
-        ":RequisitionFetcherFunction_deploy.jar",
-    ],
-    main_class = "com.google.cloud.functions.invoker.runner.Invoker",
-    runtime_deps = [
-        ":RequisitionFetcherFunction_deploy.jar",
-        "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",
-    ],
-)

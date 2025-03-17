@@ -24,7 +24,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.mockito.kotlin.any
-import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.requisition
@@ -35,24 +34,31 @@ import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.securecomputation.storage.requisitionBatch
 import com.google.protobuf.Any
 import io.netty.handler.ssl.ClientAuth
+import java.time.Duration
+import kotlin.time.DurationUnit
+import kotlin.time.TimeSource
+import kotlin.time.toDuration
+import kotlinx.coroutines.time.withTimeout
+import org.junit.Rule
 import org.wfanet.measurement.common.grpc.CommonServer
 
 class RequisitionFetcherFunctionTest {
+  // Temp folder to store Requisitions in test
+  @Rule
+  @JvmField val tempFolder = TemporaryFolder()
+  // Mock of RequisitionsService
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { listRequisitions(any()) }
       .thenReturn(listRequisitionsResponse { requisitions += REQUISITION })
   }
+  // Mock grpc server to handle calls tp RequisitionService
   private lateinit var grpcServer: CommonServer
+  // Process for RequisitionFetcher Google cloud function
   private lateinit var functionProcess: RequisitionFetcherProcess
-  private lateinit var tempFolder: TemporaryFolder
 
   @Before
   fun setUp() {
-    // Set up temp folder to emulate GCS
-    tempFolder = TemporaryFolder()
-    tempFolder.create()
-
-    // Start gRPC server with mock service
+    // Start gRPC server with mock Requisitions service
     grpcServer = CommonServer.fromParameters(
       verboseGrpcLogging = true,
       certs = serverCerts,
@@ -63,7 +69,7 @@ class RequisitionFetcherFunctionTest {
 
     println("Started mock gRPC server on port ${grpcServer.port}")
 
-    // Start the RequisitionFetcher process
+    // Start the RequisitionFetcherFunction process
     functionProcess = RequisitionFetcherProcess()
     runBlocking {
       val port = functionProcess.start(
@@ -74,7 +80,7 @@ class RequisitionFetcherFunctionTest {
           "CERT_HOST" to "localhost",
           "REQUISITIONS_GCS_PROJECT_ID" to "test-project-id",
           "REQUISITIONS_GCS_BUCKET" to "test-bucket",
-          "DATAPROVIDER_NAME" to EDP_NAME,
+          "DATAPROVIDER_NAME" to DATA_PROVIDER_NAME,
           "PAGE_SIZE" to "10",
           "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
           "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.pem").toString(),
@@ -94,10 +100,9 @@ class RequisitionFetcherFunctionTest {
 
   @Test
   fun `test RequisitionFetcherFunction as local process`() {
-    while(true) {
-      if (functionProcess.started == true) {
-        val url = "http://localhost:${functionProcess.port}"
-        break
+    runBlocking {
+      withTimeout(Duration.ofSeconds(10)) {
+        while (functionProcess.started == false);
       }
     }
     val url = "http://localhost:${functionProcess.port}"
@@ -124,9 +129,9 @@ class RequisitionFetcherFunctionTest {
     }
 
     val storedRequisitionPath = Paths.get(STORAGE_PATH_PREFIX, REQUISITION.name)
-    val requistionFile = tempFolder.root.toPath().resolve(storedRequisitionPath).toFile()
-    assertThat(requistionFile.exists()).isTrue()
-    assertThat(requistionFile.readByteString()).isEqualTo(REQUISITION_BATCH.toByteString())
+    val requisitionFile = tempFolder.root.toPath().resolve(storedRequisitionPath).toFile()
+    assertThat(requisitionFile.exists()).isTrue()
+    assertThat(requisitionFile.readByteString()).isEqualTo(REQUISITION_BATCH.toByteString())
   }
 
   /**
@@ -179,18 +184,17 @@ class RequisitionFetcherFunctionTest {
           }
 
           val processBuilder = ProcessBuilder(
-            "java",
-            "-jar",
-            runtimePath.toString()
-          )
+              runtimePath.toString(),
+            // Add HTTP port configuration
+            "--port",
+            localPort.toString(),
+
+            )
             .redirectErrorStream(true)
             .redirectOutput(ProcessBuilder.Redirect.PIPE)
 
           // Set environment variables
           processBuilder.environment().putAll(env)
-
-          // Add HTTP port configuration
-          processBuilder.environment()["PORT"] = localPort.toString()
 
           // Start the process
           process = processBuilder.start()
@@ -219,13 +223,14 @@ class RequisitionFetcherFunctionTest {
           }.start()
 
           // Wait for the ready message or timeout
-          val timeoutMs = 30000L // 30 seconds timeout
-          val startTime = System.currentTimeMillis()
+          val timeoutMs = 10000L // 10 seconds timeout
+          val startTime = TimeSource.Monotonic.markNow()
+
           while (!isReady) {
             yield()
             check(process.isAlive) { "Google Cloud Function stopped unexpectedly" }
 
-            if (System.currentTimeMillis() - startTime > timeoutMs) {
+            if (TimeSource.Monotonic.markNow().minus(startTime) > timeoutMs.toDuration(DurationUnit.SECONDS)) {
               throw IllegalStateException("Timeout waiting for Google Cloud Function to start")
             }
           }
@@ -251,15 +256,13 @@ class RequisitionFetcherFunctionTest {
 
   companion object {
     private val FETCHER_BINARY_PATH = Paths.get(
-      "wfa_measurement_system", "src", "main", "kotlin", "org", "wfanet", "measurement",
-      "edpaggregator", "requisitionfetcher", "InvokeRequisitionFetcherFunction_deploy.jar"
+      "wfa_measurement_system", "src", "test", "kotlin", "org", "wfanet", "measurement",
+      "edpaggregator", "requisitionfetcher", "InvokeRequisitionFetcherFunction"
     )
-    private const val EDP_ID = "someDataProvider"
-    private const val EDP_NAME = "dataProviders/$EDP_ID"
+    private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
+    private const val REQUISITION_NAME = "${DATA_PROVIDER_NAME}/requisitions/foo"
     private val REQUISITION = requisition {
-      name = "${EDP_NAME}/requisitions/foo"
-      measurement = "MEASUREMENT_NAME"
-      state = Requisition.State.UNFULFILLED
+      name = REQUISITION_NAME
     }
     private val REQUISITION_BATCH = requisitionBatch {
       requisitions += listOf(Any.pack(REQUISITION))

@@ -116,11 +116,6 @@ COMMON_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner/tools:update_schema_image",
         repository = _PREFIX + "/access/update-schema",
     ),
-    struct(
-        name = "population_requisition_fulfiller_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:population_requisition_fulfiller_daemon_image",
-        repository = _PREFIX + "/data-provider/population-requisition-fulfiller",
-    ),
 ]
 
 # List of specs for all Docker containers to push to a container registry.
