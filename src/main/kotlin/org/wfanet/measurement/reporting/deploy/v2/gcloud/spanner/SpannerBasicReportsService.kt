@@ -136,9 +136,9 @@ class SpannerBasicReportsService(
     val reportingSetsByExternalId: Map<String, ReportingSetReader.Result> = buildMap {
       putAll(
         getReportingSets(
-          request.filter.cmmsMeasurementConsumerId,
-          basicReports.map { it.externalCampaignGroupId }.distinct(),
-        )
+            request.filter.cmmsMeasurementConsumerId,
+            basicReports.map { it.externalCampaignGroupId }.distinct(),
+          )
           .associateBy { it.reportingSet.externalReportingSetId }
       )
     }
@@ -149,7 +149,10 @@ class SpannerBasicReportsService(
           basicReports.subList(0, basicReports.lastIndex).map {
             it.copy {
               campaignGroupDisplayName =
-                reportingSetsByExternalId.getValue(it.externalCampaignGroupId).reportingSet.displayName
+                reportingSetsByExternalId
+                  .getValue(it.externalCampaignGroupId)
+                  .reportingSet
+                  .displayName
             }
           }
 
@@ -173,7 +176,10 @@ class SpannerBasicReportsService(
           basicReports.map {
             it.copy {
               campaignGroupDisplayName =
-                reportingSetsByExternalId.getValue(it.externalCampaignGroupId).reportingSet.displayName
+                reportingSetsByExternalId
+                  .getValue(it.externalCampaignGroupId)
+                  .reportingSet
+                  .displayName
             }
           }
       }

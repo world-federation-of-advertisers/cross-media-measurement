@@ -36,7 +36,6 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
-import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
@@ -47,6 +46,7 @@ import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.insertBasicReportRequest
+import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
@@ -464,13 +464,13 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             filter =
               ListBasicReportsRequestKt.filter {
                 cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-                pageToken =
-                  listBasicReportsPageToken {
-                    lastBasicReport = ListBasicReportsPageTokenKt.previousPageEnd {
+                pageToken = listBasicReportsPageToken {
+                  lastBasicReport =
+                    ListBasicReportsPageTokenKt.previousPageEnd {
                       createTime = createdBasicReport.createTime
                       externalBasicReportId = createdBasicReport.externalBasicReportId
                     }
-                  }
+                }
               }
           }
         )
@@ -525,14 +525,14 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             filter =
               ListBasicReportsRequestKt.filter {
                 cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-                pageToken =
-                  listBasicReportsPageToken {
-                    pageSize = 3
-                    lastBasicReport = ListBasicReportsPageTokenKt.previousPageEnd {
+                pageToken = listBasicReportsPageToken {
+                  pageSize = 3
+                  lastBasicReport =
+                    ListBasicReportsPageTokenKt.previousPageEnd {
                       createTime = createdBasicReport.createTime
                       externalBasicReportId = createdBasicReport.externalBasicReportId
                     }
-                  }
+                }
               }
           }
         )
@@ -586,13 +586,13 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             filter =
               ListBasicReportsRequestKt.filter {
                 cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-                pageToken =
-                  listBasicReportsPageToken {
-                    lastBasicReport = ListBasicReportsPageTokenKt.previousPageEnd {
+                pageToken = listBasicReportsPageToken {
+                  lastBasicReport =
+                    ListBasicReportsPageTokenKt.previousPageEnd {
                       createTime = createdBasicReport.createTime
                       externalBasicReportId = createdBasicReport.externalBasicReportId[0].toString()
                     }
-                  }
+                }
               }
           }
         )
@@ -627,13 +627,13 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             filter =
               ListBasicReportsRequestKt.filter {
                 cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-                pageToken =
-                  listBasicReportsPageToken {
-                    lastBasicReport = ListBasicReportsPageTokenKt.previousPageEnd {
+                pageToken = listBasicReportsPageToken {
+                  lastBasicReport =
+                    ListBasicReportsPageTokenKt.previousPageEnd {
                       createTime = createdBasicReport.createTime
                       externalBasicReportId = createdBasicReport.externalBasicReportId
                     }
-                  }
+                }
               }
           }
         )
