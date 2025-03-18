@@ -1719,8 +1719,7 @@ class MetricsService(
           } catch (e: Exception) {
             when (e) {
               is MeasurementVarianceNotComputableException,
-              is NoiseMechanismUnrecognizedException
-              -> {
+              is NoiseMechanismUnrecognizedException -> {
                 result = buildMetricResult(source)
                 logger.log(
                   Level.WARNING,
@@ -1735,9 +1734,9 @@ class MetricsService(
                   cmmsMeasurements +=
                     source.weightedMeasurementsList.map {
                       MeasurementKey(
-                        source.cmmsMeasurementConsumerId,
-                        it.measurement.cmmsMeasurementId,
-                      )
+                          source.cmmsMeasurementConsumerId,
+                          it.measurement.cmmsMeasurementId,
+                        )
                         .toName()
                     }
                 }
