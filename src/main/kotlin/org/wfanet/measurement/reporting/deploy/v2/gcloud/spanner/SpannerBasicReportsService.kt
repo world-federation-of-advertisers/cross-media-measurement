@@ -153,6 +153,8 @@ class SpannerBasicReportsService(
           }
 
         nextPageToken = listBasicReportsPageToken {
+          this.pageSize = pageSize
+          cmmsMeasurementConsumerId = request.filter.cmmsMeasurementConsumerId
           if (request.filter.hasCreateTimeAfter()) {
             filter =
               ListBasicReportsPageTokenKt.filter {

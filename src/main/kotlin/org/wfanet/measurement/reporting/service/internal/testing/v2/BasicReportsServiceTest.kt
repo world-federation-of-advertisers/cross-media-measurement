@@ -355,6 +355,8 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           basicReports += createdBasicReport
           basicReports += createdBasicReport2
           nextPageToken = listBasicReportsPageToken {
+            pageSize = 2
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             lastBasicReport =
               ListBasicReportsPageTokenKt.previousPageEnd {
                 createTime = createdBasicReport2.createTime
@@ -463,6 +465,68 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
               ListBasicReportsRequestKt.filter {
                 cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
                 pageToken = listBasicReportsPageToken {
+                  lastBasicReport =
+                    ListBasicReportsPageTokenKt.previousPageEnd {
+                      createTime = createdBasicReport.createTime
+                      externalBasicReportId = createdBasicReport.externalBasicReportId
+                    }
+                }
+              }
+          }
+        )
+        .basicReportsList
+
+    assertThat(retrievedBasicReports).hasSize(2)
+    assertThat(retrievedBasicReports[0]).isEqualTo(createdBasicReport2)
+    assertThat(retrievedBasicReports[1]).isEqualTo(createdBasicReport3)
+  }
+
+  @Test
+  fun `listBasicReport with page_token and page_size uses page_size`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val createdBasicReport =
+      service.insertBasicReport(insertBasicReportRequest { basicReport = BASIC_REPORT })
+
+    val createdBasicReport2 =
+      service.insertBasicReport(
+        insertBasicReportRequest {
+          basicReport =
+            createdBasicReport.copy {
+              externalBasicReportId = createdBasicReport.externalBasicReportId + "b"
+            }
+        }
+      )
+
+    val createdBasicReport3 =
+      service.insertBasicReport(
+        insertBasicReportRequest {
+          basicReport =
+            createdBasicReport.copy {
+              externalBasicReportId = createdBasicReport2.externalBasicReportId + "b"
+            }
+        }
+      )
+
+    val retrievedBasicReports =
+      service
+        .listBasicReports(
+          listBasicReportsRequest {
+            pageSize = 2
+            filter =
+              ListBasicReportsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                pageToken = listBasicReportsPageToken {
+                  pageSize = 3
                   lastBasicReport =
                     ListBasicReportsPageTokenKt.previousPageEnd {
                       createTime = createdBasicReport.createTime
