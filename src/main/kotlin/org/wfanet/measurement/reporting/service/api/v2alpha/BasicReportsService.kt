@@ -105,15 +105,18 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
       try {
         val internalRequest: InternalListBasicReportsRequest = request.toInternal()
         internalBasicReportsStub.listBasicReports(internalRequest)
+      } catch (e: InvalidFieldValueException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } catch (e: ArgumentChangedInRequestForNextPageException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
           InternalErrors.Reason.INVALID_FIELD_VALUE ->
-            S
+            Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
           InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
           InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
           InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE,
           null
           -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
@@ -154,7 +157,6 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
 
       if (!decodedPageToken.filter.createTimeAfter.equals(source.filter.createTimeAfter)) {
         throw ArgumentChangedInRequestForNextPageException("filter.create_time_after")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
       val finalPageSize =
