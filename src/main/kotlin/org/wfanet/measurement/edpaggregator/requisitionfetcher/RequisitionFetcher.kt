@@ -28,7 +28,6 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
-import org.wfanet.measurement.securecomputation.storage.requisitionBatch
 import org.wfanet.measurement.storage.StorageClient
 
 /**
@@ -42,9 +41,9 @@ class RequisitionFetcher(
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val storageClient: StorageClient,
   private val dataProviderName: String,
-  private val responsePageSize: Int,
   private val storagePathPrefix: String,
-) {
+  private val responsePageSize: Int? = null,
+  ) {
 
   /**
    * Fetches and stores unfulfilled requisitions from a data provider.
@@ -65,7 +64,9 @@ class RequisitionFetcher(
       val request = listRequisitionsRequest {
         parent = dataProviderName
         filter = ListRequisitionsRequestKt.filter { states += Requisition.State.UNFULFILLED }
-        pageSize = responsePageSize
+        if (responsePageSize != null) {
+          pageSize = responsePageSize
+        }
         this.pageToken = pageToken
       }
       val response: ListRequisitionsResponse = try {
@@ -105,9 +106,7 @@ class RequisitionFetcher(
       if (storageClient.getBlob(blobKey) == null) {
         storageClient.writeBlob(
           blobKey,
-            requisitionBatch {
-              this.requisitions += listOf(Any.pack(requisition))
-            }.toByteString()
+          Any.pack(requisition).toByteString()
         )
         storedRequisitions += 1
       }

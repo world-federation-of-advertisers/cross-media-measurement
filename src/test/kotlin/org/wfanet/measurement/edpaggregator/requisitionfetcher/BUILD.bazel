@@ -5,12 +5,6 @@ package(
 )
 
 java_binary(
-    name = "RequisitionFetcherFunction",
-    main_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
-    runtime_deps = ["//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_fetcher_function"],
-)
-
-java_binary(
     name = "InvokeRequisitionFetcherFunction",
     args = [
         "--target org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
@@ -27,8 +21,8 @@ kt_jvm_library(
     srcs = ["RequisitionFetcherFunctionTest.kt"],
     data = [
         ":InvokeRequisitionFetcherFunction",
-        "//src/main/k8s/testing/secretfiles:edp_aggregator_certs",
-        "//src/main/k8s/testing/secretfiles:kingdom_certs",
+        "//src/main/k8s/testing/secretfiles:root_certs",
+        "//src/main/k8s/testing/secretfiles:secret_files",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
@@ -51,13 +45,6 @@ kt_jvm_library(
 kt_jvm_test(
     name = "RequisitionFetcherTest",
     srcs = ["RequisitionFetcherTest.kt"],
-    data = [
-        "//src/main/k8s/testing/secretfiles:all_configs",
-        "//src/main/k8s/testing/secretfiles:all_der_files",
-        "//src/main/k8s/testing/secretfiles:all_tink_keysets",
-        "//src/main/k8s/testing/secretfiles:edp_trusted_certs.pem",
-        "//src/main/k8s/testing/secretfiles:kingdom_certs",
-    ],
     test_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
@@ -81,8 +68,8 @@ kt_jvm_test(
     timeout = "short",
     data = [
         ":InvokeRequisitionFetcherFunction",
-        "//src/main/k8s/testing/secretfiles:edp_aggregator_certs",
-        "//src/main/k8s/testing/secretfiles:kingdom_certs",
+        "//src/main/k8s/testing/secretfiles:root_certs",
+        "//src/main/k8s/testing/secretfiles:secret_files",
     ],
     tags = [
         "cpu:2",

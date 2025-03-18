@@ -80,24 +80,6 @@ filegroup(
     ],
 )
 
-filegroup(
-    name = "edp_aggregator_certs",
-    srcs = [
-        "edp1_root.pem",
-        "edp1_tls.key",
-        "edp1_tls.pem",
-    ],
-)
-
-filegroup(
-    name = "kingdom_certs",
-    srcs = [
-        "kingdom_root.pem",
-        "kingdom_tls.key",
-        "kingdom_tls.pem",
-    ],
-)
-
 genrule(
     name = "gen_trusted_certs",
     srcs = [":root_certs"],

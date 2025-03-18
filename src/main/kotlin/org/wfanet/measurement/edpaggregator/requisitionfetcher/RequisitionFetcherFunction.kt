@@ -53,13 +53,20 @@ class RequisitionFetcherFunction : HttpFunction {
         System.getenv("REQUISITIONS_GCS_BUCKET"),
       )
     }
+
+    val pageSize = if(System.getenv("PAGE_SIZE").isNotEmpty()) {
+      System.getenv("PAGE_SIZE").toInt()
+    } else {
+      null
+    }
+
     val requisitionFetcher =
       RequisitionFetcher(
         requisitionsStub,
         requisitionsStorageClient,
-        System.getenv("DATAPROVIDER_NAME"),
-        System.getenv("PAGE_SIZE").toInt(),
+        System.getenv("DATA_PROVIDER_NAME"),
         System.getenv("STORAGE_PATH_PREFIX"),
+        pageSize
       )
 
     private fun getClientCerts(): SigningCerts {

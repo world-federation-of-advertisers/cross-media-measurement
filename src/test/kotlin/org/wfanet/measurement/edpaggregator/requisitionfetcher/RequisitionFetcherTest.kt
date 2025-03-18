@@ -35,7 +35,6 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toByteArray
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.securecomputation.storage.requisitionBatch
 import org.wfanet.measurement.api.v2alpha.copy
 
 
@@ -55,11 +54,9 @@ class RequisitionFetcherTest {
   fun `fetchAndStoreRequisitions stores Requisition`() {
     val storage = LocalStorageHelper.getOptions().service
     val storageClient = GcsStorageClient(storage, BUCKET)
-    val fetcher = RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME, 50, STORAGE_PATH_PREFIX)
+    val fetcher = RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME, STORAGE_PATH_PREFIX)
 
-    val expectedResult = requisitionBatch {
-      requisitions += listOf(Any.pack(REQUISITION))
-    }
+    val expectedResult = Any.pack(REQUISITION)
     val persistedRequisition = runBlocking {
       fetcher.fetchAndStoreRequisitions()
       storageClient.getBlob("$STORAGE_PATH_PREFIX/${REQUISITION.name}")?.read()?.toByteArray()?.toByteString()
@@ -71,7 +68,7 @@ class RequisitionFetcherTest {
   fun `fetchAndStoreRequisitions stores multiple Requisitions`() {
     val storage = LocalStorageHelper.getOptions().service
     val storageClient = GcsStorageClient(storage, BUCKET)
-    val fetcher = RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME, 50, STORAGE_PATH_PREFIX)
+    val fetcher = RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME, STORAGE_PATH_PREFIX, 50)
 
     val requisitionsList = List(100) {
       REQUISITION.copy {
@@ -84,14 +81,12 @@ class RequisitionFetcherTest {
     }
 
     val expectedResult = requisitionsList.map {
-      requisitionBatch {
-        requisitions += listOf(Any.pack(it))
-      }
+      Any.pack(it)
     }
     runBlocking {
       fetcher.fetchAndStoreRequisitions()
       expectedResult.map {
-        val requisition = it.requisitionsList[0].unpack(Requisition::class.java)
+        val requisition = it.unpack(Requisition::class.java)
         assertThat(storageClient.getBlob("$STORAGE_PATH_PREFIX/${requisition.name}")).isNotNull()
       }
     }
