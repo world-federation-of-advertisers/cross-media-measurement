@@ -106,6 +106,14 @@ class RequiredFieldNotSetException(fieldName: String, cause: Throwable? = null) 
     cause,
   )
 
+class InvalidFieldValueException(fieldName: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.INVALID_FIELD_VALUE,
+    "$fieldName value invalid",
+    mapOf(Errors.Metadata.FIELD_NAME to fieldName),
+    cause,
+  )
+
 class ImpressionQualificationFilterNotFoundException(
   impressionQualificationFilterId: String,
   cause: Throwable? = null,

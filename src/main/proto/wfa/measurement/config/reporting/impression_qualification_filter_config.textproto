@@ -1,9 +1,10 @@
-# proto-file: impression_qualification_filters_config.proto
-# proto-message: wfa.measurement.internal.reporting.v2.ImpressionQualificationFiltersConfig
+# proto-file: impression_qualification_filter_config.proto
+# proto-message: wfa.measurement.config.reporting.ImpressionQualificationFilterConfig
 
 # AMI
 impression_qualification_filters {
-  impression_qualification_filter_resource_id: "ami"
+  external_impression_qualification_filter_id: "ami"
+  internal_impression_qualification_filter_id: 1
   filter_specs {
     media_type: VIDEO
     filters: []
@@ -20,7 +21,8 @@ impression_qualification_filters {
 
 # MRC
 impression_qualification_filters {
-  impression_qualification_filter_resource_id: "mrc"
+  external_impression_qualification_filter_id: "mrc"
+  internal_impression_qualification_filter_id: 2
   filter_specs {
     media_type: DISPLAY
     filters: {

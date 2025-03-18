@@ -9,8 +9,6 @@ load("//src/main/proto/wfa/measurement/internal/common:macros.bzl", "IMPORT_PREF
 
 package(default_visibility = ["//:__subpackages__"])
 
-exports_files(["impression_qualification_filters_config.textproto"])
-
 proto_and_kt_jvm_proto_library(
     name = "measurement_consumer",
 )

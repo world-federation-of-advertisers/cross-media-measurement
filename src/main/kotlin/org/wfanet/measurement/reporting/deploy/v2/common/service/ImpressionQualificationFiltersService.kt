@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
+package org.wfanet.measurement.reporting.deploy.v2.common.service
 
 import io.grpc.Status
 import kotlin.math.abs
@@ -26,50 +26,54 @@ import org.wfanet.measurement.internal.reporting.v2.listImpressionQualificationF
 import org.wfanet.measurement.internal.reporting.v2.listImpressionQualificationFiltersResponse
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterNotFoundException
+import org.wfanet.measurement.reporting.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.internal.RequiredFieldNotSetException
+import org.wfanet.measurement.reporting.service.internal.toImpressionQualificationFilter
 
-class SpannerImpressionQualificationFiltersService(
+class ImpressionQualificationFiltersService(
   private val impressionQualificationFilterMapping: ImpressionQualificationFilterMapping
 ) : ImpressionQualificationFiltersCoroutineImplBase() {
   override suspend fun getImpressionQualificationFilter(
     request: GetImpressionQualificationFilterRequest
   ): ImpressionQualificationFilter {
-    if (request.impressionQualificationFilterResourceId.isEmpty()) {
-      throw RequiredFieldNotSetException("impression_qualification_filter_resource_id")
+    if (request.externalImpressionQualificationFilterId.isEmpty()) {
+      throw RequiredFieldNotSetException("external_impression_qualification_filter_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    val mappingImpressionQualificationFilter: ImpressionQualificationFilter? =
-      try {
-        impressionQualificationFilterMapping.getImpressionQualificationFilter(
-          request.impressionQualificationFilterResourceId
-        )
-      } catch (e: ImpressionQualificationFilterNotFoundException) {
-        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
-      }
+    val mappingImpressionQualificationFilter: ImpressionQualificationFilter =
+      impressionQualificationFilterMapping
+        .getImpressionQualificationByExternalId(request.externalImpressionQualificationFilterId)
+        ?.toImpressionQualificationFilter()
+        ?: throw ImpressionQualificationFilterNotFoundException(
+            request.externalImpressionQualificationFilterId
+          )
+          .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
-    return mappingImpressionQualificationFilter!!
+    return mappingImpressionQualificationFilter
   }
 
   override suspend fun listImpressionQualificationFilters(
     request: ListImpressionQualificationFiltersRequest
   ): ListImpressionQualificationFiltersResponse {
     if (request.pageSize < 0) {
-      throw Status.INVALID_ARGUMENT.withDescription("page_size must be non-negative")
-        .asRuntimeException()
+      throw InvalidFieldValueException("page_size")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     val pageSize: Int =
       if (request.pageSize == 0) DEFAULT_PAGE_SIZE else request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
 
     val mappingImpressionQualificationFilters: List<ImpressionQualificationFilter> =
-      impressionQualificationFilterMapping.impressionQualificationFilters
+      impressionQualificationFilterMapping.impressionQualificationFilters.map {
+        it.toImpressionQualificationFilter()
+      }
 
     val fromIndex: Int =
       if (request.hasPageToken()) {
         val searchResult: Int =
           mappingImpressionQualificationFilters.binarySearchBy(
-            request.pageToken.after.impressionQualificationFilterResourceId
+            request.pageToken.after.externalImpressionQualificationFilterId
           ) {
-            it.impressionQualificationFilterResourceId
+            it.externalImpressionQualificationFilterId
           }
         abs(searchResult + 1)
       } else {
@@ -86,8 +90,8 @@ class SpannerImpressionQualificationFiltersService(
         nextPageToken = listImpressionQualificationFiltersPageToken {
           after =
             ListImpressionQualificationFiltersPageTokenKt.after {
-              impressionQualificationFilterResourceId =
-                impressionQualificationFilters.last().impressionQualificationFilterResourceId
+              externalImpressionQualificationFilterId =
+                impressionQualificationFilters.last().externalImpressionQualificationFilterId
             }
         }
       }

@@ -23,7 +23,7 @@ option java_multiple_files = true;
 option java_outer_classname = "ImpressionQualificationFilterProto";
 
 message ImpressionQualificationFilter {
-  string impression_qualification_filter_resource_id = 1;
+  string external_impression_qualification_filter_id = 1;
 
   // Specifies the filter criteria for each MediaType.
   //

@@ -60,7 +60,7 @@ abstract class ImpressionQualificationFiltersServiceTest<
   fun `getImpressionQualificationFilter succeeds`() = runBlocking {
     val result =
       service.getImpressionQualificationFilter(
-        getImpressionQualificationFilterRequest { impressionQualificationFilterResourceId = "ami" }
+        getImpressionQualificationFilterRequest { externalImpressionQualificationFilterId = "ami" }
       )
 
     assertThat(result).isEqualTo(AMI_IQF)
@@ -81,7 +81,7 @@ abstract class ImpressionQualificationFiltersServiceTest<
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "impressionQualificationFilterResourceId"
+            metadata[Errors.Metadata.FIELD_NAME.key] = "externalImpressionQualificationFilterId"
           }
         )
     }
@@ -92,7 +92,7 @@ abstract class ImpressionQualificationFiltersServiceTest<
         assertFailsWith<StatusRuntimeException> {
           service.getImpressionQualificationFilter(
             getImpressionQualificationFilterRequest {
-              impressionQualificationFilterResourceId = "abc"
+              externalImpressionQualificationFilterId = "abc"
             }
           )
         }
@@ -145,14 +145,14 @@ abstract class ImpressionQualificationFiltersServiceTest<
 
   companion object {
     private val AMI_IQF = impressionQualificationFilter {
-      impressionQualificationFilterResourceId = "ami"
+      externalImpressionQualificationFilterId = "ami"
       filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
       filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
       filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
     }
 
     private val MRC_IQF = impressionQualificationFilter {
-      impressionQualificationFilterResourceId = "mrc"
+      externalImpressionQualificationFilterId = "mrc"
       filterSpecs += impressionQualificationFilterSpec {
         mediaType = MediaType.DISPLAY
         filters += eventFilter {
