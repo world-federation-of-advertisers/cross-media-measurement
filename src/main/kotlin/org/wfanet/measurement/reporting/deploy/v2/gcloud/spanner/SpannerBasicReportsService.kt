@@ -32,6 +32,7 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.GetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.InsertBasicReportRequest
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponse
@@ -124,9 +125,16 @@ class SpannerBasicReportsService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
+    val pageToken: ListBasicReportsPageToken? =
+      if (request.hasPageToken()) {
+        request.pageToken
+      } else {
+        null
+      }
+
     val basicReports =
       spannerClient.singleUse().use { txn ->
-        txn.readBasicReports(pageSize + 1, request.filter).map { it.basicReport }.toList()
+        txn.readBasicReports(pageSize + 1, request.filter, pageToken).map { it.basicReport }.toList()
       }
 
     val reportingSetsByExternalId: Map<String, ReportingSetReader.Result> = buildMap {
@@ -153,7 +161,6 @@ class SpannerBasicReportsService(
           }
 
         nextPageToken = listBasicReportsPageToken {
-          this.pageSize = pageSize
           cmmsMeasurementConsumerId = request.filter.cmmsMeasurementConsumerId
           if (request.filter.hasCreateTimeAfter()) {
             filter =

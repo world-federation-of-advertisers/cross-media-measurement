@@ -52,19 +52,18 @@ message GetBasicReportRequest {
 }
 
 message ListBasicReportsPageToken {
-  int32 page_size = 1;
-  string cmms_measurement_consumer_id = 2;
+  string cmms_measurement_consumer_id = 1;
 
   message Filter {
     google.protobuf.Timestamp create_time_after = 1;
   }
-  Filter filter = 3;
+  Filter filter = 2;
 
   message PreviousPageEnd {
     google.protobuf.Timestamp create_time = 1;
     string external_basic_report_id = 2;
   }
-  PreviousPageEnd last_basic_report = 4;
+  PreviousPageEnd last_basic_report = 3;
 }
 
 message ListBasicReportsRequest {
@@ -76,12 +75,10 @@ message ListBasicReportsRequest {
     //
     // Ignored if `page_token` is set.
     google.protobuf.Timestamp create_time_after = 2;
-
-    ListBasicReportsPageToken page_token = 3;
   }
   Filter filter = 1;
-
   int32 page_size = 2;
+  ListBasicReportsPageToken page_token = 3;
 }
 
 message ListBasicReportsResponse {
