@@ -77,7 +77,9 @@ object EventFilters {
       }
     val celVariables =
       eventMessageDescriptor.fields
-        .filter { it.messageType.options.hasExtension(EventAnnotationsProto.eventTemplate) }
+        .filter {
+          println("lololololo ${it}")
+          it.messageType.options.hasExtension(EventAnnotationsProto.eventTemplate) }
         .map { field ->
           val fieldType =
             checkNotNull(

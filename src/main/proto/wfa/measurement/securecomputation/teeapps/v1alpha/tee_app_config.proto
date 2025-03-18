@@ -18,6 +18,8 @@ package wfa.measurement.securecomputation.teeapps.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/protobuf/descriptor.proto";
+
 
 option java_package = "org.wfanet.measurement.securecomputation.teeapps.v1alpha";
 option java_multiple_files = true;
@@ -39,6 +41,10 @@ message TeeAppConfig {
   }
   message ReachAndFrequencyConfig {
     string labeled_impression_prefix = 1;
+    string event_message_type_url = 2;
+    map<string, string> event_field_name_mapping = 3;
+
+
   }
   oneof WorkType {
     VidLabelingConfig vid_labeling_config = 1;

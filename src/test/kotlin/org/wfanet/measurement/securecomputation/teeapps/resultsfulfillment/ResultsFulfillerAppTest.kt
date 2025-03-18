@@ -20,6 +20,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import com.google.protobuf.Any
+import com.google.protobuf.Descriptors
+import com.google.protobuf.TypeRegistry
 import org.mockito.kotlin.any
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -53,6 +55,7 @@ import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
@@ -85,7 +88,9 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GooglePubSu
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.encryptedDEK
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfig
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfigKt.triggeredApp
+import org.wfanet.measurement.securecomputation.teeapps.v1alpha.TeeAppConfigKt.reachAndFrequencyConfig
 import org.wfanet.measurement.securecomputation.teeapps.v1alpha.requisitionsList
+import org.wfanet.measurement.securecomputation.teeapps.v1alpha.teeAppConfig
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.virtualpeople.common.DemoBucket
@@ -263,15 +268,25 @@ class ResultsFulfillerAppTest {
       DATA_PROVIDER_CERTIFICATE_KEY,
       EDP_RESULT_SIGNING_KEY,
       MC_NAME,
-      EVENT_GROUP_STORAGE_PREFIX,
+      TypeRegistry.newBuilder().add(Person.getDescriptor()).build(),
       subscriptionId,
       queueSubscriber,
       DataWatcherConfig.TriggeredApp.parser()
     )
+
     val job = launch { resultsFulfillerApp.run() }
 
     val work = triggeredApp {
       path = requisitionsPath
+      config = teeAppConfig {
+        this.reachAndFrequencyConfig = reachAndFrequencyConfig {
+          labeledImpressionPrefix = EVENT_GROUP_STORAGE_PREFIX
+          eventMessageTypeUrl = ProtoReflection.getTypeUrl(Person.getDescriptor())
+          eventFieldNameMapping["gender"] = "gender"
+          eventFieldNameMapping["age"] = "age_group"
+          eventFieldNameMapping["social_grade_group"] = "social_grade_group"
+        }
+      }.pack()
     }
 
     publisher.publishMessage(topicId, work)
@@ -440,7 +455,7 @@ class ResultsFulfillerAppTest {
                   endTime = TIME_RANGE.endExclusive.toProtoTime()
                 }
                 filter = eventFilter {
-                  expression = ""
+                  expression = "person.gender == 1"
                 }
               }
           }

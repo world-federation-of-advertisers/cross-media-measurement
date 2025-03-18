@@ -3,8 +3,12 @@ package org.wfanet.measurement.securecomputation.teeapps.resultsfulfillment
 import com.google.common.hash.HashFunction
 import com.google.common.hash.Hashing
 import com.google.protobuf.Descriptors.Descriptor
+import com.google.protobuf.DynamicMessage
+import com.google.protobuf.EnumValue
+import com.google.protobuf.Message
 import com.google.protobuf.Parser
 import com.google.protobuf.TextFormat
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.protobuf.kotlin.unpack
@@ -34,6 +38,7 @@ import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
@@ -65,11 +70,6 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.EncryptedDEK
@@ -78,7 +78,9 @@ import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherC
 import org.wfanet.measurement.securecomputation.resultsfulfillment.MeasurementResults
 import org.wfanet.measurement.securecomputation.teeapps.v1alpha.RequisitionsList
 import org.wfanet.measurement.securecomputation.teeapps.v1alpha.TeeAppConfig
+import org.wfanet.measurement.securecomputation.teeapps.v1alpha.TeeAppConfig.ReachAndFrequencyConfig
 import org.wfanet.sampling.VidSampler
+import org.wfanet.virtualpeople.common.DemoBucket
 import org.wfanet.virtualpeople.common.LabelerOutput
 import org.wfanet.virtualpeople.common.VirtualPersonActivity
 
@@ -102,7 +104,7 @@ class ResultsFulfillerApp(
   private val dataProviderCertificateKey: DataProviderCertificateKey?,
   private val dataProviderSigningKeyHandle: SigningKeyHandle?,
   private val measurementConsumerName: String,
-  private val eventGroupPrefix: String,
+  private val typeRegistry: TypeRegistry,
   subscriptionId: String,
   queueSubscriber: QueueSubscriber,
   parser: Parser<TriggeredApp>,
@@ -110,13 +112,13 @@ class ResultsFulfillerApp(
 ): BaseTeeApplication<TriggeredApp>(subscriptionId,queueSubscriber,parser) {
 
   override suspend fun runWork(message: TriggeredApp) {
-//    val teeAppConfig = message.config.unpack(TeeAppConfig::class.java)
-//    assert(teeAppConfig.workTypeCase == TeeAppConfig.WorkTypeCase.REACH_AND_FREQUENCY_CONFIG)
+    val teeAppConfig = message.config.unpack(TeeAppConfig::class.java)
+    assert(teeAppConfig.workTypeCase == TeeAppConfig.WorkTypeCase.REACH_AND_FREQUENCY_CONFIG)
 //    val reachAndFrequencyConfig = teeAppConfig.reachAndFrequencyConfig
     // Gets list of new requisitions in blob storage from the path provided in the TriggeredApp event
     val requisitions = getRequisitions(message.path)
-
     for (requisition in requisitions) {
+      requisition.descriptorForType
       val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
       val signedRequisitionSpec: SignedMessage =
         try {
@@ -128,9 +130,6 @@ class ResultsFulfillerApp(
           throw Exception("RequisitionSpec decryption failed", e)
         }
       val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
-
-      // Get EventGroupData for this requisition from different EDPs
-      val eventGroupDataList = getEventGroupDataList(requisitionSpec)
 
       val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
 
@@ -147,11 +146,8 @@ class ResultsFulfillerApp(
           fulfillDirectReachAndFrequencyMeasurement(
             requisition,
             measurementSpec,
-            requisitionSpec.nonce,
-            eventGroupDataList,
-            requisitionSpec.events.eventGroupsList.map {
-              it.value
-            },
+            requisitionSpec,
+            teeAppConfig,
             directProtocolConfig,
             selectReachAndFrequencyNoiseMechanism(directNoiseMechanismOptions),
           )
@@ -180,15 +176,6 @@ class ResultsFulfillerApp(
       // Delete the Requsisitions once it is fulfilled
       storageClient.getBlob(message.path)!!.delete()
       // TODO: Save result to kingdom for backward compatibility
-    }
-  }
-
-  private fun getEventGroupDataList(requisitionSpec: RequisitionSpec): List<EventGroupData> {
-    return requisitionSpec.events.eventGroupsList.map {
-      val ds = it.value.collectionInterval.startTime.toInstant().toString()
-      val spec = it.value.filter
-      val program = compileProgram(spec, Event.getDescriptor())
-      EventGroupData(it.key, ds, eventGroupPrefix, program)
     }
   }
 
@@ -228,14 +215,13 @@ class ResultsFulfillerApp(
   private suspend fun fulfillDirectReachAndFrequencyMeasurement(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
-    nonce: Long,
-    eventGroupDataList: Iterable<EventGroupData>,
-    eventSpecs: Iterable<RequisitionSpec.EventGroupEntry.Value>,
+    requisitionSpec: RequisitionSpec,
+    teeConfig: TeeAppConfig,
     directProtocolConfig: ProtocolConfig.Direct,
     directNoiseMechanism: DirectNoiseMechanism
   ) {
     logger.info("Calculating direct reach and frequency...")
-    val samples = sampleVids(eventGroupDataList, measurementSpec.vidSamplingInterval)
+    val samples = sampleVids(requisitionSpec, teeConfig.reachAndFrequencyConfig, measurementSpec.vidSamplingInterval)
     val measurementResult = buildDirectMeasurementResult(
       directProtocolConfig,
       directNoiseMechanism,
@@ -243,7 +229,7 @@ class ResultsFulfillerApp(
       samples,
     )
 
-    fulfillDirectMeasurement(requisition, measurementSpec, nonce, measurementResult)
+    fulfillDirectMeasurement(requisition, measurementSpec, requisitionSpec.nonce, measurementResult)
   }
 
   protected suspend fun fulfillDirectMeasurement(
@@ -286,7 +272,8 @@ class ResultsFulfillerApp(
   }
 
   private suspend fun sampleVids(
-    eventGroupDataList: Iterable<EventGroupData>,
+    requisitionSpec: RequisitionSpec,
+    reachAndFrequencyConfig: ReachAndFrequencyConfig,
     vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
   ): Iterable<Long> {
     val vidSamplingIntervalStart = vidSamplingInterval.start
@@ -303,11 +290,10 @@ class ResultsFulfillerApp(
       "Invalid vidSamplingInterval: start = $vidSamplingIntervalStart, width = " +
         "$vidSamplingIntervalWidth"
     }
-    val labeledImpressions: List<VirtualPersonActivity> = eventGroupDataList.map {
-      val eventGroupId = it.eventGroupKey
-      val ds = it.ds
-      val prefix = it.prefix
-      val blobKey = "$prefix/ds/$ds/event-group-id/$eventGroupId/metadata"
+    val labeledImpressions: List<VirtualPersonActivity> = requisitionSpec.events.eventGroupsList.map {
+      val eventGroupId = it.key
+      val ds = it.value.collectionInterval.startTime.toInstant().toString()
+      val blobKey = "${reachAndFrequencyConfig.labeledImpressionPrefix}/ds/$ds/event-group-id/$eventGroupId/metadata"
 
       // Get EncryptedDek message from storage using the blobKey made up of the ds and eventGroupId
       val encryptedDekBlob = storageClient.getBlob(blobKey)!!
@@ -339,8 +325,10 @@ class ResultsFulfillerApp(
         .flatten()
         // Filters out all the VirtualPersonActivity messages are not needed for the requisition
         .filter {virtualPersonActivity ->
-          val event = mapVirtualPersonActivityToEvent(virtualPersonActivity)
-          EventFilters.matches(event, it.program)
+          val filterExpression = it.value.filter
+          val mappedEvent = mapVirtualPersonActivityToEvent(virtualPersonActivity, typeRegistry.getDescriptorForTypeUrl(reachAndFrequencyConfig.eventMessageTypeUrl), reachAndFrequencyConfig.eventFieldNameMappingMap)
+          val program = compileProgram(filterExpression, mappedEvent.descriptorForType)
+          EventFilters.matches(mappedEvent, program)
         }
     }.flatten().filterNotNull()
 
@@ -357,12 +345,66 @@ class ResultsFulfillerApp(
       }
   }
 
-  fun mapVirtualPersonActivityToEvent(virtualPersonActivity: VirtualPersonActivity): Event {
-    val demographic = virtualPersonActivity.label.demo
-    //TODO: Add logic to convert. Need to release a new version of uk-pilot-event-templates repo
-    return event {
-      this.common = common {
+  /**
+   * Maps a VirtualPersonActivity protobuf message to a new message type based on field mappings
+   *
+   * @param virtualPersonActivity The source virtualPersonActivity message
+   * @param eventDescriptor The descriptor for the new message type to be created
+   * @param fieldMapping Map where:
+   *                     - Key: Field name in DemoBucket (limited to: "gender", "age_min", "age_max")
+   *                     - Value: Field name in the new message
+   * @return A new message instance of the type specified by eventDescriptor with mapped fields
+   */
+  fun mapVirtualPersonActivityToEvent(
+    virtualPersonActivity: VirtualPersonActivity,
+    eventDescriptor: Descriptor,
+    fieldMapping: Map<String, String>
+  ): Message {
+    val demoBucket = virtualPersonActivity.label.demo
+    val builder = DynamicMessage.newBuilder(eventDescriptor)
+
+    for ((sourceField, targetField) in fieldMapping) {
+      try {
+        // Find the field in the target descriptor
+        val field = eventDescriptor.findFieldByName(targetField)
+          ?: throw IllegalArgumentException("Target field not found: $targetField")
+
+        // Set the field value in the builder
+        when (sourceField) {
+          "gender" -> {
+            val enumValue = field.enumType.findValueByNumber(demoBucket.gender.number)
+              ?: throw IllegalArgumentException("Invalid enum value: ${demoBucket.gender.number} for ${field.fullName}")
+            builder.setField(field, enumValue)
+          }
+          "age" -> {
+            builder.setField(
+              field,
+              field.enumType.findValueByNumber(
+                getEnumValueForAgeRange(demoBucket.age.minAge, demoBucket.age.maxAge)
+              )
+            )
+          }
+          "social_grade_group" -> {
+            builder.setField(
+              field,
+              field.enumType.findValueByNumber(1)
+            )
+          }
+          else -> {}
+        }
+      } catch (e: Exception) {
+        println("Error mapping field from $sourceField to $targetField: ${e.message}")
       }
+    }
+    return builder.build()
+  }
+
+  private fun getEnumValueForAgeRange(minAge: Int, maxAge: Int): Int {
+    return when {
+      maxAge <= 34 -> 1 // YEARS_16_TO_34 or YEARS_18_TO_34
+      minAge >= 35 && maxAge <= 54 -> 2 // YEARS_35_TO_54
+      minAge >= 55 -> 3 // YEARS_55_PLUS
+      else -> 0 // AGE_GROUP_UNSPECIFIED
     }
   }
 
