@@ -1712,49 +1712,58 @@ class MetricsService(
       createTime = source.createTime
       containingReport = source.details.containingReport
       // The calculations can throw an error, but we still want to return the metric.
-      if (state == Metric.State.SUCCEEDED) {
-        try {
-          result = buildMetricResult(source, variances)
-        } catch (e: Exception) {
-          when (e) {
-            is MeasurementVarianceNotComputableException,
-            is NoiseMechanismUnrecognizedException -> {
-              result = buildMetricResult(source)
-              logger.log(
-                Level.WARNING,
-                "Failed to calculate metric variance for metric with ID ${source.externalMetricId}",
-                e,
-              )
-            }
-            is MetricResultNotComputableException -> {
-              state = Metric.State.FAILED
-              result = metricResult {
-                cmmsMeasurements +=
-                  source.weightedMeasurementsList.map {
-                    MeasurementKey(
+      when (state) {
+        Metric.State.SUCCEEDED -> {
+          try {
+            result = buildMetricResult(source, variances)
+          } catch (e: Exception) {
+            when (e) {
+              is MeasurementVarianceNotComputableException,
+              is NoiseMechanismUnrecognizedException
+              -> {
+                result = buildMetricResult(source)
+                logger.log(
+                  Level.WARNING,
+                  "Failed to calculate metric variance for metric with ID ${source.externalMetricId}",
+                  e,
+                )
+              }
+
+              is MetricResultNotComputableException -> {
+                state = Metric.State.FAILED
+                result = metricResult {
+                  cmmsMeasurements +=
+                    source.weightedMeasurementsList.map {
+                      MeasurementKey(
                         source.cmmsMeasurementConsumerId,
                         it.measurement.cmmsMeasurementId,
                       )
-                      .toName()
-                  }
+                        .toName()
+                    }
+                }
+                logger.log(
+                  Level.WARNING,
+                  "Failed to calculate metric result for metric with ID ${source.externalMetricId}",
+                  e,
+                )
               }
-              logger.log(
-                Level.WARNING,
-                "Failed to calculate metric result for metric with ID ${source.externalMetricId}",
-                e,
-              )
+
+              else -> throw e
             }
-            else -> throw e
           }
         }
-      } else if (state == Metric.State.FAILED) {
-        result = metricResult {
-          cmmsMeasurements +=
-            source.weightedMeasurementsList.map {
-              MeasurementKey(source.cmmsMeasurementConsumerId, it.measurement.cmmsMeasurementId)
-                .toName()
-            }
+        Metric.State.FAILED -> {
+          result = metricResult {
+            cmmsMeasurements +=
+              source.weightedMeasurementsList.map {
+                MeasurementKey(source.cmmsMeasurementConsumerId, it.measurement.cmmsMeasurementId)
+                  .toName()
+              }
+          }
         }
+        Metric.State.STATE_UNSPECIFIED,
+        Metric.State.RUNNING,
+        Metric.State.UNRECOGNIZED -> {}
       }
     }
   }
