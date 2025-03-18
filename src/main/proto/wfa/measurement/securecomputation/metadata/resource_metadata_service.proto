@@ -16,16 +16,18 @@ syntax = "proto3";
 
 package wfa.measurement.securecomputation.metadata;
 
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
 import "wfa/measurement/securecomputation/metadata/requisition_metadata.proto";
 import "wfa/measurement/securecomputation/metadata/metadata_action.proto";
 
 
 option java_package = "org.wfanet.measurement.securecomputation.metadata";
 option java_multiple_files = true;
-option java_outer_classname = "RequisitionsMetadataServiceProto";
+option java_outer_classname = "ResourceMetadataServiceProto";
 
 
-service RequisitionsMetadataService {
+service ResourceMetadataService {
   rpc CreateRequisitionMetadata(CreateRequisitionMetadataRequest) returns (RequisitionMetadata);
 
   rpc GetRequisitionMetadata(GetRequisitionMetadataRequest) returns (RequisitionMetadata);
@@ -36,35 +38,38 @@ service RequisitionsMetadataService {
 }
 
 message CreateRequisitionMetadataRequest {
-  fixed64 external_data_provider_id = 1;
-  fixed64 external_requisition_id = 2;
-  string storage_location = 3;
-  State state = 4;
+  // Resource name of the `Requisition.
+  string name = 1 [
+    (google.api.resource_reference).type = "halo.wfanet.org/Requisition",
+    (google.api.field_behavior) = REQUIRED
+  ];
+  string storage_location = 2;
+  ResourceState state = 3;
 }
 
 message GetRequisitionMetadataRequest {
-  message RequisitionIdentifier {
-    fixed64 external_data_provider_id = 1;
-    fixed64 external_requisition_id = 2;
-  }
   oneof lookup_key {
-    RequisitionIdentifier requisition_identifier = 1;
+    string requisition_name = 1 [
+      (google.api.resource_reference).type = "halo.wfanet.org/Requisition",
+      (google.api.field_behavior) = REQUIRED
+    ];
     string storage_location = 2;
   }
 }
 
 message StreamRequisitionsMetadataRequest {
+  // Resource key of the parent `DataProvider`.
+  string parent = 1 [
+    (google.api.resource_reference).type = "halo.wfanet.org/DataProvider",
+    (google.api.field_behavior) = REQUIRED
+  ];
+
   message Filter {
-    fixed64 external_data_provider_id = 1;
-    string storage_location = 2;
-    State state = 3;
+    string storage_location = 1;
+    ResourceState state = 2;
   }
 
-  Filter filter = 1;
-
-  // The maximum number of results to return. If not specified or 0, it implies
-  // unlimited.
-  int32 limit = 2;
+  Filter filter = 2;
 }
 
 message StreamRequisitionsMetadataResponse {
@@ -72,7 +77,11 @@ message StreamRequisitionsMetadataResponse {
 }
 
 message UpdateRequisitionMetadataState {
-  fixed64 external_data_provider_id = 1;
-  fixed64 external_requisition_id = 2;
-  MetadataAction action = 3;
+  // Resource name of the `Requisition`.
+  string name = 1 [
+    (google.api.resource_reference).type = "halo.wfanet.org/Requisition",
+    (google.api.field_behavior) = REQUIRED
+  ];
+  ActorType actor_type = 2;
+  ResourceState new_state = 3;
 }

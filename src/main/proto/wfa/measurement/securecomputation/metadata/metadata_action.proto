@@ -29,8 +29,8 @@ enum ActorType {
   TEE_SDK = 2;
 }
 
-// Enum for State
-enum State {
+// Enum for ResourceState
+enum ResourceState {
   FETCHED = 0;
   STORED = 1;
   QUEUED = 2;
@@ -40,12 +40,11 @@ enum State {
 }
 
 message MetadataAction {
-  fixed64 action_id = 1;
-  fixed64 external_data_provider_id = 2;
-  fixed64 external_resource_id = 3;
-  ActorType actor_type = 4;
-  State prior_state = 5;
-  State new_state = 6;
-  google.protobuf.Timestamp action_time = 7;
-  google.protobuf.Timestamp create_time = 8;
+  string name = 1;
+  string resource_name = 2;
+  ActorType actor_type = 3;
+  ResourceState prior_state = 4;
+  ResourceState new_state = 5;
+  google.protobuf.Timestamp action_time = 6;
+  google.protobuf.Timestamp create_time = 7;
 }
