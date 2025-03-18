@@ -185,7 +185,7 @@ class ResultsFulfillerAppTest {
       DATA_PROVIDER_CERTIFICATE_KEY,
       EDP_RESULT_SIGNING_KEY,
       MC_NAME,
-      EVENT_GROUP_STORAGE_PREFIX,
+      TypeRegistry.newBuilder().add(Person.getDescriptor()).build(),
       subscriptionId,
       queueSubscriber,
       DataWatcherConfig.TriggeredApp.parser()
