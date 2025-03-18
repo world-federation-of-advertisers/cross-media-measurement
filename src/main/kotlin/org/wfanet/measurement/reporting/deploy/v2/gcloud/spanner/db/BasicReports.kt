@@ -75,7 +75,11 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
   return BasicReportResult(row.getLong("BasicReportId"), buildBasicReport(row))
 }
 
-/** Reads [BasicReport]s ordered by create time ascending, external basic report id ascending. */
+/**
+ * Reads [BasicReport]s ordered by create time ascending, external basic report id ascending.
+ *
+ * Does not set the campaign_group_display_name field in the result.
+ */
 fun AsyncDatabaseClient.ReadContext.readBasicReports(
   limit: Int,
   filter: ListBasicReportsRequest.Filter,
@@ -100,7 +104,7 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
       """
         .trimIndent()
     )
-    if (filter.hasAfter()) {
+    if (filter.hasPageToken()) {
       appendLine(
         """
         AND (BasicReports.CreateTime > @createTime
@@ -125,9 +129,9 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
   val query =
     statement(sql) {
       bind("cmmsMeasurementConsumerId").to(filter.cmmsMeasurementConsumerId)
-      if (filter.hasAfter()) {
-        bind("createTime").to(filter.after.createTime.toGcloudTimestamp())
-        bind("externalBasicReportId").to(filter.after.externalBasicReportId)
+      if (filter.hasPageToken()) {
+        bind("createTime").to(filter.pageToken.lastBasicReport.createTime.toGcloudTimestamp())
+        bind("externalBasicReportId").to(filter.pageToken.lastBasicReport.externalBasicReportId)
       } else if (filter.hasCreateTimeAfter()) {
         bind("createTime").to(filter.createTimeAfter.toGcloudTimestamp())
       }

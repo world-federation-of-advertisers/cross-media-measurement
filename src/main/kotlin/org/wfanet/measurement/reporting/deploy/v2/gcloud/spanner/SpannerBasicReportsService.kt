@@ -32,13 +32,13 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.GetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.InsertBasicReportRequest
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponse
-import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponseKt
-import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponseKt.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
+import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
@@ -118,55 +118,65 @@ class SpannerBasicReportsService(
           request.pageSize
         }
       } else if (request.pageSize == 0) {
-        DEFAULT_PAGE_SIZE
+        if (request.filter.pageToken.pageSize > 0) {
+          request.filter.pageToken.pageSize
+        } else {
+          DEFAULT_PAGE_SIZE
+        }
       } else {
         throw InvalidFieldValueException("page_size")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
-    var basicReports =
+    val basicReports =
       spannerClient.singleUse().use { txn ->
         txn.readBasicReports(pageSize + 1, request.filter).map { it.basicReport }.toList()
       }
 
-    val reportingSetResultMap: Map<String, ReportingSetReader.Result> = buildMap {
+    val reportingSetsByExternalId: Map<String, ReportingSetReader.Result> = buildMap {
       putAll(
         getReportingSets(
-            request.filter.cmmsMeasurementConsumerId,
-            basicReports.map { it.externalCampaignGroupId }.distinct(),
-          )
+          request.filter.cmmsMeasurementConsumerId,
+          basicReports.map { it.externalCampaignGroupId }.distinct(),
+        )
           .associateBy { it.reportingSet.externalReportingSetId }
       )
     }
 
     return listBasicReportsResponse {
-      if (pageSize > 0 && basicReports.size == pageSize + 1) {
-        basicReports = basicReports.subList(0, basicReports.lastIndex)
+      if (basicReports.size == pageSize + 1) {
+        this.basicReports +=
+          basicReports.subList(0, basicReports.lastIndex).map {
+            it.copy {
+              campaignGroupDisplayName =
+                reportingSetsByExternalId.getValue(it.externalCampaignGroupId).reportingSet.displayName
+            }
+          }
 
         nextPageToken = listBasicReportsPageToken {
           this.pageSize = pageSize
           cmmsMeasurementConsumerId = request.filter.cmmsMeasurementConsumerId
           if (request.filter.hasCreateTimeAfter()) {
             filter =
-              ListBasicReportsResponseKt.ListBasicReportsPageTokenKt.filter {
+              ListBasicReportsPageTokenKt.filter {
                 createTimeAfter = request.filter.createTimeAfter
               }
           }
           lastBasicReport =
-            ListBasicReportsResponseKt.ListBasicReportsPageTokenKt.previousPageEnd {
-              createTime = basicReports[basicReports.lastIndex].createTime
-              externalBasicReportId = basicReports[basicReports.lastIndex].externalBasicReportId
+            ListBasicReportsPageTokenKt.previousPageEnd {
+              createTime = basicReports[basicReports.lastIndex - 1].createTime
+              externalBasicReportId = basicReports[basicReports.lastIndex - 1].externalBasicReportId
             }
         }
-      }
-
-      this.basicReports +=
-        basicReports.map {
-          it.copy {
-            campaignGroupDisplayName =
-              reportingSetResultMap[it.externalCampaignGroupId]!!.reportingSet.displayName
+      } else {
+        this.basicReports +=
+          basicReports.map {
+            it.copy {
+              campaignGroupDisplayName =
+                reportingSetsByExternalId.getValue(it.externalCampaignGroupId).reportingSet.displayName
+            }
           }
-        }
+      }
     }
   }
 

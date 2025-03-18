@@ -18,7 +18,6 @@ package org.wfanet.measurement.reporting.service.internal.testing.v2
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.copy
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -35,9 +34,9 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
-import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponseKt
-import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponseKt.listBasicReportsPageToken
+import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
@@ -359,7 +358,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             pageSize = 2
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             lastBasicReport =
-              ListBasicReportsResponseKt.ListBasicReportsPageTokenKt.previousPageEnd {
+              ListBasicReportsPageTokenKt.previousPageEnd {
                 createTime = createdBasicReport2.createTime
                 externalBasicReportId = createdBasicReport2.externalBasicReportId
               }
@@ -423,7 +422,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `listBasicReport with after succeeds`(): Unit = runBlocking {
+  fun `listBasicReport with page_token succeeds`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -465,10 +464,74 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             filter =
               ListBasicReportsRequestKt.filter {
                 cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-                after =
-                  ListBasicReportsRequestKt.afterFilter {
-                    createTime = createdBasicReport.createTime
-                    externalBasicReportId = createdBasicReport.externalBasicReportId
+                pageToken =
+                  listBasicReportsPageToken {
+                    lastBasicReport = ListBasicReportsPageTokenKt.previousPageEnd {
+                      createTime = createdBasicReport.createTime
+                      externalBasicReportId = createdBasicReport.externalBasicReportId
+                    }
+                  }
+              }
+          }
+        )
+        .basicReportsList
+
+    assertThat(retrievedBasicReports).hasSize(2)
+    assertThat(retrievedBasicReports[0]).isEqualTo(createdBasicReport2)
+    assertThat(retrievedBasicReports[1]).isEqualTo(createdBasicReport3)
+  }
+
+  @Test
+  fun `listBasicReport with page_token and page_size uses page_size`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val createdBasicReport =
+      service.insertBasicReport(insertBasicReportRequest { basicReport = BASIC_REPORT })
+
+    val createdBasicReport2 =
+      service.insertBasicReport(
+        insertBasicReportRequest {
+          basicReport =
+            createdBasicReport.copy {
+              externalBasicReportId = createdBasicReport.externalBasicReportId + "b"
+            }
+        }
+      )
+
+    val createdBasicReport3 =
+      service.insertBasicReport(
+        insertBasicReportRequest {
+          basicReport =
+            createdBasicReport.copy {
+              externalBasicReportId = createdBasicReport2.externalBasicReportId + "b"
+            }
+        }
+      )
+
+    val retrievedBasicReports =
+      service
+        .listBasicReports(
+          listBasicReportsRequest {
+            pageSize = 2
+            filter =
+              ListBasicReportsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                pageToken =
+                  listBasicReportsPageToken {
+                    pageSize = 3
+                    lastBasicReport = ListBasicReportsPageTokenKt.previousPageEnd {
+                      createTime = createdBasicReport.createTime
+                      externalBasicReportId = createdBasicReport.externalBasicReportId
+                    }
                   }
               }
           }
@@ -523,10 +586,12 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             filter =
               ListBasicReportsRequestKt.filter {
                 cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-                after =
-                  ListBasicReportsRequestKt.afterFilter {
-                    createTime = createdBasicReport.createTime
-                    externalBasicReportId = createdBasicReport.externalBasicReportId[0].toString()
+                pageToken =
+                  listBasicReportsPageToken {
+                    lastBasicReport = ListBasicReportsPageTokenKt.previousPageEnd {
+                      createTime = createdBasicReport.createTime
+                      externalBasicReportId = createdBasicReport.externalBasicReportId[0].toString()
+                    }
                   }
               }
           }
@@ -562,12 +627,12 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             filter =
               ListBasicReportsRequestKt.filter {
                 cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-                after =
-                  ListBasicReportsRequestKt.afterFilter {
-                    createTime =
-                      createdBasicReport.createTime.copy {
-                        seconds = createdBasicReport.createTime.seconds + 1
-                      }
+                pageToken =
+                  listBasicReportsPageToken {
+                    lastBasicReport = ListBasicReportsPageTokenKt.previousPageEnd {
+                      createTime = createdBasicReport.createTime
+                      externalBasicReportId = createdBasicReport.externalBasicReportId
+                    }
                   }
               }
           }

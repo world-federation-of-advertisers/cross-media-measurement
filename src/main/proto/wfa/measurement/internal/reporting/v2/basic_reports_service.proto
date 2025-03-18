@@ -51,23 +51,33 @@ message GetBasicReportRequest {
   string external_basic_report_id = 2;
 }
 
-message ListBasicReportsRequest {
-  message AfterFilter {
-    // Any `BasicReport` created after this time, exclusive, will be included.
-    // A `BasicReport` with this time will only be included if its
-    // `external_basic_report_id` is greater than the one below.
+message ListBasicReportsPageToken {
+  int32 page_size = 1;
+  string cmms_measurement_consumer_id = 2;
+
+  message Filter {
+    google.protobuf.Timestamp create_time_after = 1;
+  }
+  Filter filter = 3;
+
+  message PreviousPageEnd {
     google.protobuf.Timestamp create_time = 1;
     string external_basic_report_id = 2;
   }
+  PreviousPageEnd last_basic_report = 4;
+}
 
+message ListBasicReportsRequest {
   message Filter {
     // `MeasurementConsumer` ID from the CMMS public API. Required.
     string cmms_measurement_consumer_id = 1;
+
     // Any `BasicReport` created after this time, exclusive, will be included.
     //
-    // Ignored if `after` is set.
+    // Ignored if `page_token` is set.
     google.protobuf.Timestamp create_time_after = 2;
-    AfterFilter after = 3;
+
+    ListBasicReportsPageToken page_token = 3;
   }
   Filter filter = 1;
 
@@ -76,21 +86,5 @@ message ListBasicReportsRequest {
 
 message ListBasicReportsResponse {
   repeated BasicReport basic_reports = 1;
-
-  message ListBasicReportsPageToken {
-    int32 page_size = 1;
-    string cmms_measurement_consumer_id = 2;
-
-    message Filter {
-      google.protobuf.Timestamp create_time_after = 1;
-    }
-    Filter filter = 3;
-
-    message PreviousPageEnd {
-      google.protobuf.Timestamp create_time = 1;
-      string external_basic_report_id = 2;
-    }
-    PreviousPageEnd last_basic_report = 4;
-  }
   ListBasicReportsPageToken next_page_token = 2;
 }
