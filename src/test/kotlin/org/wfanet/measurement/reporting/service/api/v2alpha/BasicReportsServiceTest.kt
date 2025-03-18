@@ -47,8 +47,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as InternalEventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec as InternalImpressionQualificationFilterSpec
-import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponseKt as InternalListBasicReportsResponseKt
-import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponseKt.listBasicReportsPageToken
+import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
@@ -73,6 +72,7 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemat
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
@@ -1734,7 +1734,7 @@ class BasicReportsServiceTest {
             pageSize = 1
             this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
             lastBasicReport =
-              InternalListBasicReportsResponseKt.ListBasicReportsPageTokenKt.previousPageEnd {
+              ListBasicReportsPageTokenKt.previousPageEnd {
                 createTime = internalBasicReport1.createTime
                 externalBasicReportId = internalBasicReport1.externalBasicReportId
               }
@@ -1917,7 +1917,7 @@ class BasicReportsServiceTest {
         pageToken =
           listBasicReportsPageToken {
               filter =
-                InternalListBasicReportsResponseKt.ListBasicReportsPageTokenKt.filter {
+                ListBasicReportsPageTokenKt.filter {
                   createTimeAfter = timestamp { seconds = 1 }
                 }
             }

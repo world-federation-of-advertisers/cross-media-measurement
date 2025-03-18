@@ -27,7 +27,6 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasic
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest as InternalListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt as InternalListBasicReportsRequestKt
-import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponse as InternalListBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest as internalListBasicReportsRequest
 import org.wfanet.measurement.reporting.service.api.ArgumentChangedInRequestForNextPageException
@@ -35,6 +34,9 @@ import org.wfanet.measurement.reporting.service.api.BasicReportNotFoundException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
+import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.CreateBasicReportRequest
@@ -94,49 +96,60 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    MeasurementConsumerKey.fromName(request.parent)
-      ?: throw InvalidFieldValueException("parent")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-
     if (request.pageSize < 0) {
       throw InvalidFieldValueException("page_size")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val internalRequest = request.toInternal()
     val internalListBasicReportsResponse =
       try {
+        val internalRequest: InternalListBasicReportsRequest = request.toInternal()
         internalBasicReportsStub.listBasicReports(internalRequest)
       } catch (e: StatusException) {
-        throw Status.INTERNAL.withCause(e).asRuntimeException()
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.INVALID_FIELD_VALUE ->
+            S
+          InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
+          InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
+          InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          null
+          -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
+  }
 
     if (internalListBasicReportsResponse.basicReportsList.isEmpty()) {
-      return listBasicReportsResponse {}
+      return ListBasicReportsResponse.getDefaultInstance()
     }
 
     return listBasicReportsResponse {
       this.basicReports +=
         internalListBasicReportsResponse.basicReportsList.map { it.toBasicReport() }.toList()
-      nextPageToken =
-        internalListBasicReportsResponse.nextPageToken.toByteString().base64UrlEncode()
+      if (internalListBasicReportsResponse.hasNextPageToken()) {
+        nextPageToken =
+          internalListBasicReportsResponse.nextPageToken.toByteString().base64UrlEncode()
+      }
     }
   }
 
   private fun ListBasicReportsRequest.toInternal(): InternalListBasicReportsRequest {
     val source = this
+
+    MeasurementConsumerKey.fromName(source.parent)
+      ?: throw InvalidFieldValueException("parent")
+
     val cmmsMeasurementConsumerId =
       MeasurementConsumerKey.fromName(source.parent)!!.measurementConsumerId
 
     return if (source.pageToken.isNotBlank()) {
       val decodedPageToken =
         try {
-          InternalListBasicReportsResponse.ListBasicReportsPageToken.parseFrom(
+          ListBasicReportsPageToken.parseFrom(
             source.pageToken.base64UrlDecode()
           )
         } catch (e: InvalidProtocolBufferException) {
           throw InvalidFieldValueException("page_token")
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
       if (!decodedPageToken.filter.createTimeAfter.equals(source.filter.createTimeAfter)) {
@@ -155,10 +168,12 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
         this.filter =
           InternalListBasicReportsRequestKt.filter {
             this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-            after =
-              InternalListBasicReportsRequestKt.afterFilter {
-                createTime = decodedPageToken.lastBasicReport.createTime
-                externalBasicReportId = decodedPageToken.lastBasicReport.externalBasicReportId
+            pageToken =
+              listBasicReportsPageToken {
+                lastBasicReport = ListBasicReportsPageTokenKt.previousPageEnd {
+                  createTime = decodedPageToken.lastBasicReport.createTime
+                  externalBasicReportId = decodedPageToken.lastBasicReport.externalBasicReportId
+                }
               }
           }
         pageSize = finalPageSize
