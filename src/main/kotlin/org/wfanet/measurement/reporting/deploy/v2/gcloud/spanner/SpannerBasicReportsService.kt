@@ -134,7 +134,10 @@ class SpannerBasicReportsService(
 
     val basicReports =
       spannerClient.singleUse().use { txn ->
-        txn.readBasicReports(pageSize + 1, request.filter, pageToken).map { it.basicReport }.toList()
+        txn
+          .readBasicReports(pageSize + 1, request.filter, pageToken)
+          .map { it.basicReport }
+          .toList()
       }
 
     val reportingSetsByExternalId: Map<String, ReportingSetReader.Result> = buildMap {
