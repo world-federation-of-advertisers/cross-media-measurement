@@ -118,11 +118,7 @@ class SpannerBasicReportsService(
           request.pageSize
         }
       } else if (request.pageSize == 0) {
-        if (request.filter.pageToken.pageSize > 0) {
-          request.filter.pageToken.pageSize
-        } else {
-          DEFAULT_PAGE_SIZE
-        }
+        DEFAULT_PAGE_SIZE
       } else {
         throw InvalidFieldValueException("page_size")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -157,8 +153,6 @@ class SpannerBasicReportsService(
           }
 
         nextPageToken = listBasicReportsPageToken {
-          this.pageSize = pageSize
-          cmmsMeasurementConsumerId = request.filter.cmmsMeasurementConsumerId
           if (request.filter.hasCreateTimeAfter()) {
             filter =
               ListBasicReportsPageTokenKt.filter {

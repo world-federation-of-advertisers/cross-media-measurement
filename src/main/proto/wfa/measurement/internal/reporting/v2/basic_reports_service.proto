@@ -52,19 +52,16 @@ message GetBasicReportRequest {
 }
 
 message ListBasicReportsPageToken {
-  int32 page_size = 1;
-  string cmms_measurement_consumer_id = 2;
-
   message Filter {
     google.protobuf.Timestamp create_time_after = 1;
   }
-  Filter filter = 3;
+  Filter filter = 1;
 
   message PreviousPageEnd {
     google.protobuf.Timestamp create_time = 1;
     string external_basic_report_id = 2;
   }
-  PreviousPageEnd last_basic_report = 4;
+  PreviousPageEnd last_basic_report = 2;
 }
 
 message ListBasicReportsRequest {
