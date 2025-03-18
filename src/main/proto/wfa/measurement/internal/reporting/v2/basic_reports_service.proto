@@ -77,6 +77,9 @@ message ListBasicReportsRequest {
     google.protobuf.Timestamp create_time_after = 2;
   }
   Filter filter = 1;
+  // The maximum number of basic reports to return. The service may return fewer
+  // than this value. If unspecified, at most 10 basic reports will be returned.
+  // The maximum value is 25; values above 25 will be coerced to 25.
   int32 page_size = 2;
   ListBasicReportsPageToken page_token = 3;
 }
