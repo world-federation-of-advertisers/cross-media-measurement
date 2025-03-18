@@ -33,7 +33,7 @@ service ImpressionQualificationFilters {
 }
 
 message GetImpressionQualificationFilterRequest {
-  string impression_qualification_filter_resource_id = 1;
+  string external_impression_qualification_filter_id = 1;
 }
 
 message ListImpressionQualificationFiltersRequest {
@@ -56,7 +56,7 @@ message ListImpressionQualificationFiltersResponse {
 
 message ListImpressionQualificationFiltersPageToken {
   message After {
-    string impression_qualification_filter_resource_id = 1;
+    string external_impression_qualification_filter_id = 1;
   }
   After after = 1;
 }

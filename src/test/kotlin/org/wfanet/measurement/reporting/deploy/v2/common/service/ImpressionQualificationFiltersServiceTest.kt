@@ -12,25 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
+package org.wfanet.measurement.reporting.deploy.v2.common.service
 
 import java.nio.file.Paths
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersConfig
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.service.internal.testing.v2.ImpressionQualificationFiltersServiceTest
 
 @RunWith(JUnit4::class)
-class SpannerImpressionQualificationFiltersServiceTest :
-  ImpressionQualificationFiltersServiceTest<SpannerImpressionQualificationFiltersService>() {
+class ImpressionQualificationFiltersServiceTest :
+  ImpressionQualificationFiltersServiceTest<ImpressionQualificationFiltersService>() {
 
-  override fun newService(): SpannerImpressionQualificationFiltersService {
+  override fun newService(): ImpressionQualificationFiltersService {
     val impressionQualificationFilterMapping = ImpressionQualificationFilterMapping(IQF_CONFIG)
 
-    return SpannerImpressionQualificationFiltersService(impressionQualificationFilterMapping)
+    return ImpressionQualificationFiltersService(impressionQualificationFilterMapping)
   }
 
   companion object {
@@ -43,15 +43,14 @@ class SpannerImpressionQualificationFiltersServiceTest :
         "proto",
         "wfa",
         "measurement",
-        "internal",
+        "config",
         "reporting",
-        "v2",
       )
-    private val IQF_CONFIG: ImpressionQualificationFiltersConfig by lazy {
+    private val IQF_CONFIG: ImpressionQualificationFilterConfig by lazy {
       val configFile =
-        getRuntimePath(CONFIG_PATH.resolve("impression_qualification_filters_config.textproto"))!!
+        getRuntimePath(CONFIG_PATH.resolve("impression_qualification_filter_config.textproto"))!!
           .toFile()
-      parseTextProto(configFile, ImpressionQualificationFiltersConfig.getDefaultInstance())
+      parseTextProto(configFile, ImpressionQualificationFilterConfig.getDefaultInstance())
     }
   }
 }
