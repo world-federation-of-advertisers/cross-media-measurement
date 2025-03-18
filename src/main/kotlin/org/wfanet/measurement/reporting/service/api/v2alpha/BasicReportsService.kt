@@ -167,15 +167,15 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
         this.filter =
             InternalListBasicReportsRequestKt.filter {
               this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-              pageToken = listBasicReportsPageToken {
-                lastBasicReport =
-                    ListBasicReportsPageTokenKt.previousPageEnd {
-                      createTime = decodedPageToken.lastBasicReport.createTime
-                      externalBasicReportId = decodedPageToken.lastBasicReport.externalBasicReportId
-                    }
-              }
             }
         pageSize = finalPageSize
+        pageToken = listBasicReportsPageToken {
+          lastBasicReport =
+            ListBasicReportsPageTokenKt.previousPageEnd {
+              createTime = decodedPageToken.lastBasicReport.createTime
+              externalBasicReportId = decodedPageToken.lastBasicReport.externalBasicReportId
+            }
+        }
       }
     } else {
       val finalPageSize =

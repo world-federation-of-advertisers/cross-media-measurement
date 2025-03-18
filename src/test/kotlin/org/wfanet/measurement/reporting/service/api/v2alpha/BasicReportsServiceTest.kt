@@ -1731,7 +1731,6 @@ class BasicReportsServiceTest {
     assertThat(listBasicReportsResponse.nextPageToken)
       .isEqualTo(
         listBasicReportsPageToken {
-            pageSize = 1
             this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
             lastBasicReport =
               ListBasicReportsPageTokenKt.previousPageEnd {
@@ -1853,7 +1852,7 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `getBasicReport throws INVALID_ARGUMENT when parent is invalid`() = runBlocking {
+  fun `listBasicReports throws INVALID_ARGUMENT when parent is invalid`() = runBlocking {
     val request = listBasicReportsRequest { parent = "measurementConsumers" }
     val exception = assertFailsWith<StatusRuntimeException> { service.listBasicReports(request) }
 
@@ -1869,7 +1868,7 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `getBasicReport throws INVALID_ARGUMENT when page_size is negative`() = runBlocking {
+  fun `listBasicReports throws INVALID_ARGUMENT when page_size is negative`() = runBlocking {
     val request = listBasicReportsRequest {
       parent = "measurementConsumers/abc"
       pageSize = -1
@@ -1888,7 +1887,7 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `getBasicReport throws INVALID_ARGUMENT when page_token is invalid`() = runBlocking {
+  fun `listBasicReports throws INVALID_ARGUMENT when page_token is invalid`() = runBlocking {
     val request = listBasicReportsRequest {
       parent = "measurementConsumers/abc"
       pageSize = 5
@@ -1908,7 +1907,7 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `getBasicReport throws INVALID_ARGUMENT when request doesnt' match page token`() =
+  fun `listBasicReports throws INVALID_ARGUMENT when request doesnt' match page token`() =
     runBlocking {
       val request = listBasicReportsRequest {
         parent = "measurementConsumers/abc"
