@@ -35,9 +35,9 @@ import com.google.protobuf.Any
 import io.netty.handler.ssl.ClientAuth
 import java.util.logging.Level
 import java.util.logging.Logger
-import kotlin.time.DurationUnit
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
-import kotlin.time.toDuration
 import org.junit.Rule
 import org.wfanet.measurement.common.grpc.CommonServer
 
@@ -76,7 +76,6 @@ class RequisitionFetcherFunctionTest {
     runBlocking {
       val port = functionProcess.start(
         mapOf(
-          "FUNCTION_TARGET" to "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction",
           "REQUISITION_FILE_SYSTEM_PATH" to tempFolder.root.path,
           "TARGET" to "localhost:${grpcServer.port}",
           "CERT_HOST" to "localhost",
@@ -104,7 +103,6 @@ class RequisitionFetcherFunctionTest {
   /** Tests the RequisitionFetcherFunction as a local process. */
   @Test
   fun `test RequisitionFetcherFunction as local process`() {
-    while (!functionProcess.started);
     val url = "http://localhost:${functionProcess.port}"
     logger.info("Testing Cloud Function at: $url")
 
@@ -120,7 +118,6 @@ class RequisitionFetcherFunctionTest {
       // Verify the function worked
       assert(getResponse.statusCode() == 200)
     } catch (e: Exception) {
-      logger.log(Level.WARNING, "Error calling cloud function: ${e.message}")
       throw e
     }
 
@@ -167,10 +164,9 @@ class RequisitionFetcherFunctionTest {
           return@withLock port
         }
         return withContext(coroutineContext) {
-          /**
-           * Open a socket on `port`. This should reduce the likelihood that the port
-           * is in use. Additionally, this will allocate a port if `port` is 0.
-           * */
+
+          // Open a socket on `port`. This should reduce the likelihood that the port
+          // is in use. Additionally, this will allocate a port if `port` is 0.
           localPort = ServerSocket(0).use { it.localPort }
           val runtimePath = getRuntimePath(FETCHER_BINARY_PATH)
           check(runtimePath != null && Files.exists(runtimePath)) {
@@ -181,20 +177,22 @@ class RequisitionFetcherFunctionTest {
             runtimePath.toString(),
             /** Add HTTP port configuration */
             "--port",
-            localPort.toString()
+            localPort.toString(),
+            "--target",
+            GCF_TARGET
           )
             .redirectErrorStream(true)
             .redirectOutput(ProcessBuilder.Redirect.PIPE)
 
-          /** Set environment variables */
+          // Set environment variables
           processBuilder.environment().putAll(env)
-          /** Start the process */
+          // Start the process
           process = processBuilder.start()
           val reader = process.inputStream.bufferedReader()
           val readyPattern = "Serving function..."
           var isReady = false
 
-          /** Start a thread to read output */
+          // Start a thread to read output
           Thread {
             try {
               while (true) {
@@ -212,13 +210,13 @@ class RequisitionFetcherFunctionTest {
             }
           }.start()
 
-          /** Wait for the ready message or timeout */
-          val timeoutMs = 10000L.toDuration(DurationUnit.SECONDS) // 10 seconds timeout
+          // Wait for the ready message or timeout
+          val timeout: Duration = 10.seconds
           val startTime = TimeSource.Monotonic.markNow()
           while (!isReady) {
             yield()
             check(process.isAlive) { "Google Cloud Function stopped unexpectedly" }
-            if (startTime.elapsedNow() >= timeoutMs) {
+            if (startTime.elapsedNow() >= timeout) {
               throw IllegalStateException("Timeout waiting for Google Cloud Function to start")
             }
           }
@@ -248,6 +246,7 @@ class RequisitionFetcherFunctionTest {
       "wfa_measurement_system", "src", "test", "kotlin", "org", "wfanet", "measurement",
       "edpaggregator", "requisitionfetcher", "InvokeRequisitionFetcherFunction"
     )
+    private const val GCF_TARGET = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction"
     private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
     private const val REQUISITION_NAME = "${DATA_PROVIDER_NAME}/requisitions/foo"
     private val REQUISITION = requisition {
