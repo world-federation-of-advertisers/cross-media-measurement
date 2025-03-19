@@ -121,6 +121,6 @@ class ImpressionQualificationFilterNotFoundException(
   ServiceException(
     Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
     "Impression Qualification Filter with ID $impressionQualificationFilterId not found",
-    mapOf(Errors.Metadata.EXTERNAL_BASIC_REPORT_ID to impressionQualificationFilterId),
+    mapOf(Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER_ID to impressionQualificationFilterId),
     cause,
   )

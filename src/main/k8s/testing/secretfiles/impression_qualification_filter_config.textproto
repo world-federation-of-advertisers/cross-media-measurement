@@ -4,7 +4,7 @@
 # AMI
 impression_qualification_filters {
   external_impression_qualification_filter_id: "ami"
-  internal_impression_qualification_filter_id: 1
+  impression_qualification_filter_id: 1
   filter_specs {
     media_type: VIDEO
     filters: []
@@ -22,7 +22,7 @@ impression_qualification_filters {
 # MRC
 impression_qualification_filters {
   external_impression_qualification_filter_id: "mrc"
-  internal_impression_qualification_filter_id: 2
+  impression_qualification_filter_id: 2
   filter_specs {
     media_type: DISPLAY
     filters: {

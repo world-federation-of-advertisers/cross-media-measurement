@@ -32,6 +32,7 @@ kt_jvm_library(
     name = "impression_qualification_filter_mapping",
     srcs = ["ImpressionQualificationFilterMapping.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_ids",
         "//src/main/proto/wfa/measurement/config/reporting:impression_qualification_filter_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:impression_qualification_filter_kt_jvm_proto",
     ],
