@@ -30,12 +30,14 @@ import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.GetImpressionQualificationFilterRequest
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec.MediaType
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpcKt
+import org.wfanet.measurement.internal.reporting.v2.ListImpressionQualificationFiltersPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListImpressionQualificationFiltersRequest
 import org.wfanet.measurement.internal.reporting.v2.eventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.getImpressionQualificationFilterRequest
 import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilterSpec
+import org.wfanet.measurement.internal.reporting.v2.listImpressionQualificationFiltersPageToken
 import org.wfanet.measurement.internal.reporting.v2.listImpressionQualificationFiltersRequest
 import org.wfanet.measurement.internal.reporting.v2.listImpressionQualificationFiltersResponse
 import org.wfanet.measurement.reporting.service.internal.Errors
@@ -57,7 +59,7 @@ abstract class ImpressionQualificationFiltersServiceTest<
   }
 
   @Test
-  fun `getImpressionQualificationFilter succeeds`() = runBlocking {
+  fun `getImpressionQualificationFilter returns ImpressionQualificationFilter`() = runBlocking {
     val result =
       service.getImpressionQualificationFilter(
         getImpressionQualificationFilterRequest { externalImpressionQualificationFilterId = "ami" }
@@ -108,20 +110,65 @@ abstract class ImpressionQualificationFiltersServiceTest<
         )
     }
 
-  fun `listImpressionQualificationFilter succeeds`() = runBlocking {
-    val result =
-      service.listImpressionQualificationFilters(
-        ListImpressionQualificationFiltersRequest.getDefaultInstance()
-      )
+  fun `listImpressionQualificationFilter returns ImpressionQualificationFilters when no page size and page token is specified`() =
+    runBlocking {
+      val result =
+        service.listImpressionQualificationFilters(
+          ListImpressionQualificationFiltersRequest.getDefaultInstance()
+        )
 
-    assertThat(result)
-      .isEqualTo(
-        listImpressionQualificationFiltersResponse {
-          impressionQualificationFilters += AMI_IQF
-          impressionQualificationFilters += MRC_IQF
-        }
-      )
-  }
+      assertThat(result)
+        .isEqualTo(
+          listImpressionQualificationFiltersResponse {
+            impressionQualificationFilters += AMI_IQF
+            impressionQualificationFilters += MRC_IQF
+          }
+        )
+    }
+
+  fun `listImpressionQualificationFilter returns AMI IQF when page size is one and no page token is specified`() =
+    runBlocking {
+      val result =
+        service.listImpressionQualificationFilters(
+          listImpressionQualificationFiltersRequest { pageSize = 1 }
+        )
+
+      assertThat(result)
+        .isEqualTo(
+          listImpressionQualificationFiltersResponse {
+            impressionQualificationFilters += AMI_IQF
+            nextPageToken = listImpressionQualificationFiltersPageToken {
+              after =
+                ListImpressionQualificationFiltersPageTokenKt.after {
+                  externalImpressionQualificationFilterId =
+                    AMI_IQF.externalImpressionQualificationFilterId
+                }
+            }
+          }
+        )
+    }
+
+  fun `listImpressionQualificationFilter returns MRC IQF and no next page token when page size is one and page token is AMI`() =
+    runBlocking {
+      val result =
+        service.listImpressionQualificationFilters(
+          listImpressionQualificationFiltersRequest {
+            pageSize = 1
+            pageToken = listImpressionQualificationFiltersPageToken {
+              after =
+                ListImpressionQualificationFiltersPageTokenKt.after {
+                  externalImpressionQualificationFilterId =
+                    AMI_IQF.externalImpressionQualificationFilterId
+                }
+            }
+          }
+        )
+
+      assertThat(result)
+        .isEqualTo(
+          listImpressionQualificationFiltersResponse { impressionQualificationFilters += MRC_IQF }
+        )
+    }
 
   fun `listImpressionQualificationFilter throws INVALID_ARGUMENT when pageSize is negative `() =
     runBlocking {
