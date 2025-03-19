@@ -3,10 +3,10 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "TeeApplicationUtilsTest",
     srcs = ["TeeApplicationUtilsTest.kt"],
-    tags = [
-        "no-remote-exec",
-    ],
     test_class = "org.wfanet.measurement.securecomputation.teeapps.utils.TeeApplicationUtilsTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/teeapps/utils:TeeApplicationUtils",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/org/junit",
     ],
 )
