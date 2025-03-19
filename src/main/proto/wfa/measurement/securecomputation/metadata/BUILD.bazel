@@ -50,6 +50,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":metadata_action_proto",
+        "@com_google_protobuf//:timestamp_proto",
     ],
 )
 
