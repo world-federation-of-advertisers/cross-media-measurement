@@ -5,8 +5,6 @@ package(default_visibility = ["//visibility:public"])
 
 IMPORT_PREFIX = "/src/main/proto"
 
-exports_files(["impression_qualification_filter_config.textproto"])
-
 proto_library(
     name = "encryption_key_pair_config_proto",
     srcs = ["encryption_key_pair_config.proto"],

@@ -20,6 +20,7 @@ package(
 )
 
 exports_files([
+    "impression_qualification_filter_config.textproto",
     "metric_spec_config.textproto",
 ])
 

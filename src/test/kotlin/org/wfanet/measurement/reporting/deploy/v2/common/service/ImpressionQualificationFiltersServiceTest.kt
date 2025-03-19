@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.common.service
 
-import java.nio.file.Paths
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.getRuntimePath
@@ -22,6 +21,7 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.service.internal.testing.v2.ImpressionQualificationFiltersServiceTest
+import java.nio.file.Paths
 
 @RunWith(JUnit4::class)
 class ImpressionQualificationFiltersServiceTest :
@@ -40,11 +40,9 @@ class ImpressionQualificationFiltersServiceTest :
         "wfa_measurement_system",
         "src",
         "main",
-        "proto",
-        "wfa",
-        "measurement",
-        "config",
-        "reporting",
+        "k8s",
+        "testing",
+        "secretfiles",
       )
     private val IQF_CONFIG: ImpressionQualificationFilterConfig by lazy {
       val configFile =

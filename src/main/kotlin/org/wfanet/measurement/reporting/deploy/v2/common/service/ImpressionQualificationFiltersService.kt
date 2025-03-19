@@ -15,7 +15,6 @@
 package org.wfanet.measurement.reporting.deploy.v2.common.service
 
 import io.grpc.Status
-import kotlin.math.abs
 import org.wfanet.measurement.internal.reporting.v2.GetImpressionQualificationFilterRequest
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineImplBase
@@ -29,7 +28,9 @@ import org.wfanet.measurement.reporting.service.internal.ImpressionQualification
 import org.wfanet.measurement.reporting.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.internal.toImpressionQualificationFilter
+import kotlin.math.abs
 
+/** Implementation based on a config file. */
 class ImpressionQualificationFiltersService(
   private val impressionQualificationFilterMapping: ImpressionQualificationFilterMapping
 ) : ImpressionQualificationFiltersCoroutineImplBase() {

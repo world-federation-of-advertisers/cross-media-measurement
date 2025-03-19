@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.reporting.service.internal
 
+import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
@@ -36,33 +37,49 @@ class ImpressionQualificationFilterMapping(config: ImpressionQualificationFilter
           ) {
             "Invalid external impression qualification filter resource ID ${impressionQualificationFilter.externalImpressionQualificationFilterId}"
           }
+
+          val existingImpressionQualificationFilter:
+            ImpressionQualificationFilterConfig.ImpressionQualificationFilter? =
+            find { it: ImpressionQualificationFilterConfig.ImpressionQualificationFilter ->
+              it.externalImpressionQualificationFilterId ==
+                impressionQualificationFilter.externalImpressionQualificationFilterId
+            }
+
+          if (existingImpressionQualificationFilter != null) {
+            error(
+              "External id collision between impressionQualificationFilters " +
+                "${existingImpressionQualificationFilter.externalImpressionQualificationFilterId} and " +
+                "${impressionQualificationFilter.impressionQualificationFilterId}"
+            )
+          }
+
           add(impressionQualificationFilter)
         }
       }
       .sortedBy { it.externalImpressionQualificationFilterId }
 
-  private val impressionQualificationFilterByInternalId:
+  private val impressionQualificationFilterById:
     Map<Long, ImpressionQualificationFilterConfig.ImpressionQualificationFilter> =
     buildMap(impressionQualificationFilters.size) {
       for (impressionQualificationFilter in impressionQualificationFilters) {
         val existingImpressionQualificationFilter =
-          get(impressionQualificationFilter.internalImpressionQualificationFilterId)
+          get(impressionQualificationFilter.impressionQualificationFilterId)
         if (existingImpressionQualificationFilter != null) {
           error(
             "Internal id collision between impressionQualificationFilters " +
-              "${existingImpressionQualificationFilter.internalImpressionQualificationFilterId} and " +
-              "${impressionQualificationFilter.internalImpressionQualificationFilterId}"
+              "${existingImpressionQualificationFilter.impressionQualificationFilterId} and " +
+              "${impressionQualificationFilter.impressionQualificationFilterId}"
           )
         }
         put(
-          impressionQualificationFilter.internalImpressionQualificationFilterId,
+          impressionQualificationFilter.impressionQualificationFilterId,
           impressionQualificationFilter,
         )
       }
     }
 
-  fun getImpressionQualificationFilterByInternalId(impressionQualificationFilterInternalId: Long) =
-    impressionQualificationFilterByInternalId[impressionQualificationFilterInternalId]
+  fun getImpressionQualificationFilterById(impressionQualificationFilterInternalId: Long) =
+    impressionQualificationFilterById[impressionQualificationFilterInternalId]
 
   private val impressionQualificationFilterByExternalId:
     Map<String, ImpressionQualificationFilterConfig.ImpressionQualificationFilter> =
@@ -72,8 +89,7 @@ class ImpressionQualificationFilterMapping(config: ImpressionQualificationFilter
     impressionQualificationFilterByExternalId[externalImpressionQualificationFilterId]
 
   companion object {
-    private val EXTERNAL_IMPRESSION_QUALIFICATION_FILTER_ID_REGEX =
-      Regex("^[a-zA-Z]([a-zA-Z0-9.-]{0,61}[a-zA-Z0-9])?$")
+    private val EXTERNAL_IMPRESSION_QUALIFICATION_FILTER_ID_REGEX = ResourceIds.AIP_122_REGEX
   }
 }
 
