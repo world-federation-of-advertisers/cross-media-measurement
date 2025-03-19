@@ -80,41 +80,26 @@ import org.wfanet.measurement.securecomputation.teeapps.v1alpha.RequisitionsList
 import org.wfanet.measurement.securecomputation.teeapps.v1alpha.TeeAppConfig
 import org.wfanet.measurement.securecomputation.teeapps.v1alpha.TeeAppConfig.ReachAndFrequencyConfig
 import org.wfanet.sampling.VidSampler
-import org.wfanet.virtualpeople.common.DemoBucket
 import org.wfanet.virtualpeople.common.LabelerOutput
 import org.wfanet.virtualpeople.common.VirtualPersonActivity
 
 
-data class EventGroupData(
-  /** The EventGroups's key. */
-  val eventGroupKey: String,
-  /** The EventGroups's collection interval. */
-  val ds: String,
-  /** The prefix of labelled impressions in ShardedStorage. */
-  val prefix: String,
-  /** The program used to filter VIDs based on a requisition spec. */
-  val program: Program
-)
-
 class ResultsFulfillerApp(
   private val storageClient: StorageClient,
-//  private val shardedStorageClient: StorageClient,
   private val privateEncryptionKey: PrivateKeyHandle,
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
   private val dataProviderCertificateKey: DataProviderCertificateKey?,
   private val dataProviderSigningKeyHandle: SigningKeyHandle?,
-  private val measurementConsumerName: String,
-  private val typeRegistry: TypeRegistry,
   subscriptionId: String,
   queueSubscriber: QueueSubscriber,
   parser: Parser<TriggeredApp>,
   private val random: Random = Random,
 ): BaseTeeApplication<TriggeredApp>(subscriptionId,queueSubscriber,parser) {
-
   override suspend fun runWork(message: TriggeredApp) {
     val teeAppConfig = message.config.unpack(TeeAppConfig::class.java)
     assert(teeAppConfig.workTypeCase == TeeAppConfig.WorkTypeCase.REACH_AND_FREQUENCY_CONFIG)
-//    val reachAndFrequencyConfig = teeAppConfig.reachAndFrequencyConfig
+    val reachAndFrequencyConfig = teeAppConfig.reachAndFrequencyConfig
+
     // Gets list of new requisitions in blob storage from the path provided in the TriggeredApp event
     val requisitions = getRequisitions(message.path)
     for (requisition in requisitions) {
@@ -147,7 +132,7 @@ class ResultsFulfillerApp(
             requisition,
             measurementSpec,
             requisitionSpec,
-            teeAppConfig,
+            reachAndFrequencyConfig,
             directProtocolConfig,
             selectReachAndFrequencyNoiseMechanism(directNoiseMechanismOptions),
           )
@@ -216,12 +201,12 @@ class ResultsFulfillerApp(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
     requisitionSpec: RequisitionSpec,
-    teeConfig: TeeAppConfig,
+    reachAndFrequencyConfig: ReachAndFrequencyConfig,
     directProtocolConfig: ProtocolConfig.Direct,
     directNoiseMechanism: DirectNoiseMechanism
   ) {
     logger.info("Calculating direct reach and frequency...")
-    val samples = sampleVids(requisitionSpec, teeConfig.reachAndFrequencyConfig, measurementSpec.vidSamplingInterval)
+    val samples = sampleVids(requisitionSpec, reachAndFrequencyConfig, measurementSpec.vidSamplingInterval)
     val measurementResult = buildDirectMeasurementResult(
       directProtocolConfig,
       directNoiseMechanism,
@@ -326,9 +311,9 @@ class ResultsFulfillerApp(
         // Filters out all the VirtualPersonActivity messages are not needed for the requisition
         .filter {virtualPersonActivity ->
           val filterExpression = it.value.filter
-          val mappedEvent = mapVirtualPersonActivityToEvent(virtualPersonActivity, typeRegistry.getDescriptorForTypeUrl(reachAndFrequencyConfig.eventMessageTypeUrl), reachAndFrequencyConfig.eventFieldNameMappingMap)
-          val program = compileProgram(filterExpression, mappedEvent.descriptorForType)
-          EventFilters.matches(mappedEvent, program)
+          // TODO: Add call to message mapper to convert DemoBucket message into the desired message type. Passing DdemoBucket for now.
+          val program = compileProgram(filterExpression, virtualPersonActivity.label.demo.descriptorForType)
+          EventFilters.matches(virtualPersonActivity.label.demo, program)
         }
     }.flatten().filterNotNull()
 
@@ -343,69 +328,6 @@ class ResultsFulfillerApp(
           vidSamplingIntervalWidth,
         )
       }
-  }
-
-  /**
-   * Maps a VirtualPersonActivity protobuf message to a new message type based on field mappings
-   *
-   * @param virtualPersonActivity The source virtualPersonActivity message
-   * @param eventDescriptor The descriptor for the new message type to be created
-   * @param fieldMapping Map where:
-   *                     - Key: Field name in DemoBucket (limited to: "gender", "age_min", "age_max")
-   *                     - Value: Field name in the new message
-   * @return A new message instance of the type specified by eventDescriptor with mapped fields
-   */
-  fun mapVirtualPersonActivityToEvent(
-    virtualPersonActivity: VirtualPersonActivity,
-    eventDescriptor: Descriptor,
-    fieldMapping: Map<String, String>
-  ): Message {
-    val demoBucket = virtualPersonActivity.label.demo
-    val builder = DynamicMessage.newBuilder(eventDescriptor)
-
-    for ((sourceField, targetField) in fieldMapping) {
-      try {
-        // Find the field in the target descriptor
-        val field = eventDescriptor.findFieldByName(targetField)
-          ?: throw IllegalArgumentException("Target field not found: $targetField")
-
-        // Set the field value in the builder
-        when (sourceField) {
-          "gender" -> {
-            val enumValue = field.enumType.findValueByNumber(demoBucket.gender.number)
-              ?: throw IllegalArgumentException("Invalid enum value: ${demoBucket.gender.number} for ${field.fullName}")
-            builder.setField(field, enumValue)
-          }
-          "age" -> {
-            builder.setField(
-              field,
-              field.enumType.findValueByNumber(
-                getEnumValueForAgeRange(demoBucket.age.minAge, demoBucket.age.maxAge)
-              )
-            )
-          }
-          "social_grade_group" -> {
-            builder.setField(
-              field,
-              field.enumType.findValueByNumber(1)
-            )
-          }
-          else -> {}
-        }
-      } catch (e: Exception) {
-        println("Error mapping field from $sourceField to $targetField: ${e.message}")
-      }
-    }
-    return builder.build()
-  }
-
-  private fun getEnumValueForAgeRange(minAge: Int, maxAge: Int): Int {
-    return when {
-      maxAge <= 34 -> 1 // YEARS_16_TO_34 or YEARS_18_TO_34
-      minAge >= 35 && maxAge <= 54 -> 2 // YEARS_35_TO_54
-      minAge >= 55 -> 3 // YEARS_55_PLUS
-      else -> 0 // AGE_GROUP_UNSPECIFIED
-    }
   }
 
   fun compileProgram(

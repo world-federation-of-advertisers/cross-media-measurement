@@ -184,8 +184,6 @@ class ResultsFulfillerAppTest {
       requisitionsStub,
       DATA_PROVIDER_CERTIFICATE_KEY,
       EDP_RESULT_SIGNING_KEY,
-      MC_NAME,
-      TypeRegistry.newBuilder().add(Person.getDescriptor()).build(),
       subscriptionId,
       queueSubscriber,
       DataWatcherConfig.TriggeredApp.parser()
@@ -267,8 +265,6 @@ class ResultsFulfillerAppTest {
       requisitionsStub,
       DATA_PROVIDER_CERTIFICATE_KEY,
       EDP_RESULT_SIGNING_KEY,
-      MC_NAME,
-      TypeRegistry.newBuilder().add(Person.getDescriptor()).build(),
       subscriptionId,
       queueSubscriber,
       DataWatcherConfig.TriggeredApp.parser()
@@ -455,7 +451,7 @@ class ResultsFulfillerAppTest {
                   endTime = TIME_RANGE.endExclusive.toProtoTime()
                 }
                 filter = eventFilter {
-                  expression = "person.gender == 1"
+                  expression = ""
                 }
               }
           }
