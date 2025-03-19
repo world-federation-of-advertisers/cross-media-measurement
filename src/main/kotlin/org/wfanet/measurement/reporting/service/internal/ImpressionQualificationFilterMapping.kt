@@ -44,26 +44,24 @@ class ImpressionQualificationFilterMapping(config: ImpressionQualificationFilter
 
   private val impressionQualificationFilterById:
     Map<Long, ImpressionQualificationFilterConfig.ImpressionQualificationFilter> =
-    buildMap(impressionQualificationFilters.size) {
-      for (impressionQualificationFilter in impressionQualificationFilters) {
-        impressionQualificationFilters.associateBy { it.impressionQualificationFilterId }
-        check(size < impressionQualificationFilters.size) {
-          "There are duplicate internal ids of impressionQualificationFilters"
-        }
-      }
-    }
+    impressionQualificationFilters.associateBy { it.impressionQualificationFilterId }
 
   fun getImpressionQualificationFilterById(impressionQualificationFilterInternalId: Long) =
     impressionQualificationFilterById[impressionQualificationFilterInternalId]
 
   private val impressionQualificationFilterByExternalId:
     Map<String, ImpressionQualificationFilterConfig.ImpressionQualificationFilter> =
-    buildMap(impressionQualificationFilters.size) {
-      impressionQualificationFilters.associateBy { it.externalImpressionQualificationFilterId }
-      check(size < impressionQualificationFilters.size) {
-        "There are duplicate external ids of impressionQualificationFilters"
-      }
+    impressionQualificationFilters.associateBy { it.externalImpressionQualificationFilterId }
+
+  init {
+    check(impressionQualificationFilterByExternalId.size == impressionQualificationFilters.size) {
+      "There are duplicate external ids of impressionQualificationFilters"
     }
+
+    check(impressionQualificationFilterById.size == impressionQualificationFilters.size) {
+      "There are duplicate internal ids of impressionQualificationFilters"
+    }
+  }
 
   fun getImpressionQualificationByExternalId(externalImpressionQualificationFilterId: String) =
     impressionQualificationFilterByExternalId[externalImpressionQualificationFilterId]
