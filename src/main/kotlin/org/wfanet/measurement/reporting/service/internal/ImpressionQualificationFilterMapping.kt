@@ -37,22 +37,6 @@ class ImpressionQualificationFilterMapping(config: ImpressionQualificationFilter
           ) {
             "Invalid external impression qualification filter resource ID ${impressionQualificationFilter.externalImpressionQualificationFilterId}"
           }
-
-          val existingImpressionQualificationFilter:
-            ImpressionQualificationFilterConfig.ImpressionQualificationFilter? =
-            find { it: ImpressionQualificationFilterConfig.ImpressionQualificationFilter ->
-              it.externalImpressionQualificationFilterId ==
-                impressionQualificationFilter.externalImpressionQualificationFilterId
-            }
-
-          if (existingImpressionQualificationFilter != null) {
-            error(
-              "External id collision between impressionQualificationFilters " +
-                "${existingImpressionQualificationFilter.externalImpressionQualificationFilterId} and " +
-                "${impressionQualificationFilter.impressionQualificationFilterId}"
-            )
-          }
-
           add(impressionQualificationFilter)
         }
       }
@@ -62,19 +46,10 @@ class ImpressionQualificationFilterMapping(config: ImpressionQualificationFilter
     Map<Long, ImpressionQualificationFilterConfig.ImpressionQualificationFilter> =
     buildMap(impressionQualificationFilters.size) {
       for (impressionQualificationFilter in impressionQualificationFilters) {
-        val existingImpressionQualificationFilter =
-          get(impressionQualificationFilter.impressionQualificationFilterId)
-        if (existingImpressionQualificationFilter != null) {
-          error(
-            "Internal id collision between impressionQualificationFilters " +
-              "${existingImpressionQualificationFilter.impressionQualificationFilterId} and " +
-              "${impressionQualificationFilter.impressionQualificationFilterId}"
-          )
+        impressionQualificationFilters.associateBy { it.impressionQualificationFilterId }
+        check(size < impressionQualificationFilters.size) {
+          "There are duplicate internal ids of impressionQualificationFilters"
         }
-        put(
-          impressionQualificationFilter.impressionQualificationFilterId,
-          impressionQualificationFilter,
-        )
       }
     }
 
@@ -83,7 +58,12 @@ class ImpressionQualificationFilterMapping(config: ImpressionQualificationFilter
 
   private val impressionQualificationFilterByExternalId:
     Map<String, ImpressionQualificationFilterConfig.ImpressionQualificationFilter> =
-    impressionQualificationFilters.associateBy { it.externalImpressionQualificationFilterId }
+    buildMap(impressionQualificationFilters.size) {
+      impressionQualificationFilters.associateBy { it.externalImpressionQualificationFilterId }
+      check(size < impressionQualificationFilters.size) {
+        "There are duplicate external ids of impressionQualificationFilters"
+      }
+    }
 
   fun getImpressionQualificationByExternalId(externalImpressionQualificationFilterId: String) =
     impressionQualificationFilterByExternalId[externalImpressionQualificationFilterId]
