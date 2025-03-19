@@ -29,22 +29,23 @@ enum ActorType {
   TEE_SDK = 2;
 }
 
-// Enum for ResourceState
-enum ResourceState {
-  FETCHED = 0;
-  STORED = 1;
-  QUEUED = 2;
-  PROCESSING = 3;
-  PROCESSED = 4;
-  DELETED = 5;
+// Enum for MetadataState
+enum MetadataState {
+  UNDEFINED = 0;
+  FETCHED = 1;
+  STORED = 2;
+  QUEUED = 3;
+  PROCESSING = 4;
+  PROCESSED = 5;
+  DELETED = 6;
 }
 
 message MetadataAction {
   string name = 1;
   string resource_name = 2;
   ActorType actor_type = 3;
-  ResourceState prior_state = 4;
-  ResourceState new_state = 5;
+  MetadataState prior_state = 4;
+  MetadataState new_state = 5;
   google.protobuf.Timestamp action_time = 6;
   google.protobuf.Timestamp create_time = 7;
 }

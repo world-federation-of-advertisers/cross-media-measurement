@@ -32,7 +32,7 @@ message RequisitionMetadata {
     (google.api.resource_reference).type = "halo.wfanet.org/Requisition",
     (google.api.field_behavior) = REQUIRED
   ];
-  string storage_location = 2;
-  ResourceState state = 3;
+  string storage_uri = 2;
+  MetadataState current_state = 3;
   google.protobuf.Timestamp create_time = 4;
 }

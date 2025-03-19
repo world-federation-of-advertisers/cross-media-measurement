@@ -34,7 +34,7 @@ service ResourceMetadataService {
 
   rpc StreamRequisitionsMetadata(StreamRequisitionsMetadataRequest) returns (StreamRequisitionsMetadataResponse);
 
-  rpc UpdateRequisitionMetadataState(UpdateRequisitionMetadataState) returns (RequisitionMetadata);
+  rpc UpdateRequisitionMetadataState(UpdateRequisitionMetadataStateRequest) returns (RequisitionMetadata);
 }
 
 message CreateRequisitionMetadataRequest {
@@ -43,8 +43,8 @@ message CreateRequisitionMetadataRequest {
     (google.api.resource_reference).type = "halo.wfanet.org/Requisition",
     (google.api.field_behavior) = REQUIRED
   ];
-  string storage_location = 2;
-  ResourceState state = 3;
+  string storage_uri = 2;
+  MetadataState current_state = 3;
 }
 
 message GetRequisitionMetadataRequest {
@@ -53,7 +53,7 @@ message GetRequisitionMetadataRequest {
       (google.api.resource_reference).type = "halo.wfanet.org/Requisition",
       (google.api.field_behavior) = REQUIRED
     ];
-    string storage_location = 2;
+    string storage_uri = 2;
   }
 }
 
@@ -65,8 +65,8 @@ message StreamRequisitionsMetadataRequest {
   ];
 
   message Filter {
-    string storage_location = 1;
-    ResourceState state = 2;
+    string storage_uri= 1;
+    MetadataState current_state = 2;
   }
 
   Filter filter = 2;
@@ -76,12 +76,12 @@ message StreamRequisitionsMetadataResponse {
   repeated RequisitionMetadata requisition_metadata = 1;
 }
 
-message UpdateRequisitionMetadataState {
+message UpdateRequisitionMetadataStateRequest {
   // Resource name of the `Requisition`.
   string name = 1 [
     (google.api.resource_reference).type = "halo.wfanet.org/Requisition",
     (google.api.field_behavior) = REQUIRED
   ];
   ActorType actor_type = 2;
-  ResourceState new_state = 3;
+  MetadataState new_state = 3;
 }
