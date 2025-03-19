@@ -1651,7 +1651,7 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `listBasicReports returns next page tokeh when more to list`(): Unit = runBlocking {
+  fun `listBasicReports returns next page token when more to list`(): Unit = runBlocking {
     val cmmsMeasurementConsumerId = "1234"
     val reportingSetId = "4322"
     val basicReportId = "4321"
@@ -1937,14 +1937,14 @@ class BasicReportsServiceTest {
     }
 
   companion object {
-    @JvmStatic val spannerEmulator = SpannerEmulatorRule()
+    @get:ClassRule
     @JvmStatic
-    val postgresDatabaseProvider =
-      PostgresDatabaseProviderRule(PostgresSchemata.REPORTING_CHANGELOG_PATH)
+    val spannerEmulator = SpannerEmulatorRule()
 
     @get:ClassRule
     @JvmStatic
-    val ruleChain: TestRule = chainRulesSequentially(spannerEmulator, postgresDatabaseProvider)
+    val postgresDatabaseProvider =
+      PostgresDatabaseProviderRule(PostgresSchemata.REPORTING_CHANGELOG_PATH)
 
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
