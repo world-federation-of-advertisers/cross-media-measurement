@@ -51,29 +51,40 @@ message GetBasicReportRequest {
   string external_basic_report_id = 2;
 }
 
-message ListBasicReportsRequest {
-  message AfterFilter {
-    // Any `BasicReport` created after this time, exclusive, will be included.
-    // A `BasicReport` with this time will only be included if its
-    // `external_basic_report_id` is greater than the one below.
+message ListBasicReportsPageToken {
+  string cmms_measurement_consumer_id = 1;
+
+  message Filter {
+    google.protobuf.Timestamp create_time_after = 1;
+  }
+  Filter filter = 2;
+
+  message PreviousPageEnd {
     google.protobuf.Timestamp create_time = 1;
     string external_basic_report_id = 2;
   }
+  PreviousPageEnd last_basic_report = 3;
+}
 
+message ListBasicReportsRequest {
   message Filter {
     // `MeasurementConsumer` ID from the CMMS public API. Required.
     string cmms_measurement_consumer_id = 1;
+
     // Any `BasicReport` created after this time, exclusive, will be included.
     //
-    // Ignored if `after` is set.
+    // Ignored if `page_token` is set.
     google.protobuf.Timestamp create_time_after = 2;
-    AfterFilter after = 3;
   }
   Filter filter = 1;
-
-  int32 limit = 2;
+  // The maximum number of basic reports to return. The service may return fewer
+  // than this value. If unspecified, at most 10 basic reports will be returned.
+  // The maximum value is 25; values above 25 will be coerced to 25.
+  int32 page_size = 2;
+  ListBasicReportsPageToken page_token = 3;
 }
 
 message ListBasicReportsResponse {
   repeated BasicReport basic_reports = 1;
+  ListBasicReportsPageToken next_page_token = 2;
 }
