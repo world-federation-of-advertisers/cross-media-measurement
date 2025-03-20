@@ -40,6 +40,8 @@ message EventTemplateField {
       string enum_value = 2;
       // The field value as a Boolean
       bool bool_value = 3;
+      // The field value as a float
+      float float_value = 4;
     }
   }
   // The value of the field

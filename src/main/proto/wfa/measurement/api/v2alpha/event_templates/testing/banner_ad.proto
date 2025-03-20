@@ -30,8 +30,14 @@ message Banner {
 
   bool viewable = 1 [(.wfa.measurement.api.v2alpha.template_field) = {
     display_name: "Viewable"
-    description: "Whether the ad was shown for more than 2 seconds with at "
+    description: "Whether the ad was shown for more than 1 seconds with at "
                  "least 50% of the pixels on the screen. If not specified, "
                  "viewability was not determined."
   }];
+
+  // Fraction of pixels shown for at least 1 second
+  float viewable_fraction_1_second = 2
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Fraction of pixels shown for at least 1 second"
+      }];
 }
