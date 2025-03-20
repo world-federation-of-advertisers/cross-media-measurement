@@ -60,6 +60,7 @@ import org.wfanet.measurement.config.reporting.metricSpecConfig
 import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.InProcessAccess
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
+import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
@@ -83,6 +84,8 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.validate
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub as PublicMetricsCoroutineStub
+import io.grpc.ServerInterceptors
+import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
 
 /** TestRule that starts and stops all Reporting Server gRPC services. */
 class InProcessReportingServer(
@@ -126,6 +129,10 @@ class InProcessReportingServer(
     InternalReportingSetsCoroutineStub(internalApiChannel)
   }
   private val internalReportsClient by lazy { InternalReportsCoroutineStub(internalApiChannel) }
+
+  val internalBasicReportsClient by lazy {
+    InternalBasicReportsCoroutineStub(internalApiChannel)
+  }
 
   private val internalReportingServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
@@ -261,6 +268,7 @@ class InProcessReportingServer(
                 SecureRandom().asKotlinRandom(),
               )
               .withMetadataPrincipalIdentities(measurementConsumerConfigs),
+          ServerInterceptors.interceptForward(BasicReportsService(internalBasicReportsClient)),
           )
           .forEach { addService(it.withVerboseLogging(verboseGrpcLogging)) }
       }
