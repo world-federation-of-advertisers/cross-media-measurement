@@ -38,3 +38,14 @@ kt_jvm_proto_library(
     name = "metric_spec_config_kt_jvm_proto",
     deps = [":metric_spec_config_proto"],
 )
+
+proto_library(
+    name = "impression_qualification_filter_config_proto",
+    srcs = ["impression_qualification_filter_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "impression_qualification_filter_config_kt_jvm_proto",
+    deps = [":impression_qualification_filter_config_proto"],
+)
