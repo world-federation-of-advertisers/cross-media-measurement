@@ -46,9 +46,6 @@ class ImpressionQualificationFilterMapping(config: ImpressionQualificationFilter
     Map<Long, ImpressionQualificationFilterConfig.ImpressionQualificationFilter> =
     impressionQualificationFilters.associateBy { it.impressionQualificationFilterId }
 
-  fun getImpressionQualificationFilterById(impressionQualificationFilterInternalId: Long) =
-    impressionQualificationFilterById[impressionQualificationFilterInternalId]
-
   private val impressionQualificationFilterByExternalId:
     Map<String, ImpressionQualificationFilterConfig.ImpressionQualificationFilter> =
     impressionQualificationFilters.associateBy { it.externalImpressionQualificationFilterId }
@@ -62,6 +59,9 @@ class ImpressionQualificationFilterMapping(config: ImpressionQualificationFilter
       "There are duplicate internal ids of impressionQualificationFilters"
     }
   }
+
+  fun getImpressionQualificationFilterById(impressionQualificationFilterInternalId: Long) =
+    impressionQualificationFilterById[impressionQualificationFilterInternalId]
 
   fun getImpressionQualificationByExternalId(externalImpressionQualificationFilterId: String) =
     impressionQualificationFilterByExternalId[externalImpressionQualificationFilterId]
