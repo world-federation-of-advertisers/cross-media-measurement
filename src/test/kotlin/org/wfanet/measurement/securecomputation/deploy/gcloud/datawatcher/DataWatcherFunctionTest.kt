@@ -18,7 +18,6 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.Any
 import com.google.protobuf.Int32Value
 import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlinx.coroutines.flow.flowOf
@@ -39,7 +38,7 @@ import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherC
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.dataWatcherConfig
 
 @RunWith(JUnit4::class)
-class DataWatcherTest() {
+class DataWatcherFunctionTest() {
 
   lateinit var storageClient: GcsStorageClient
   @Before
@@ -63,7 +62,7 @@ class DataWatcherTest() {
         }
       }
 
-      val dataWatcher = DataWatcher(mockWorkItemsService, listOf(dataWatcherConfig))
+      val dataWatcher = DataWatcherFunction(mockWorkItemsService, listOf(dataWatcherConfig))
       subscribingStorageClient.subscribe(dataWatcher)
 
       subscribingStorageClient.writeBlob(
@@ -91,7 +90,7 @@ class DataWatcherTest() {
         }
       }
 
-      val dataWatcher = DataWatcher(mockWorkItemsService, listOf(dataWatcherConfig))
+      val dataWatcher = DataWatcherFunction(mockWorkItemsService, listOf(dataWatcherConfig))
       subscribingStorageClient.subscribe(dataWatcher)
 
       subscribingStorageClient.writeBlob(
