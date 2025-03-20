@@ -47,7 +47,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as InternalEventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec as InternalImpressionQualificationFilterSpec
-import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
@@ -61,6 +61,7 @@ import org.wfanet.measurement.internal.reporting.v2.eventFilter as internalEvent
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField as internalEventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilterSpec as internalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.insertBasicReportRequest
+import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as internalMetricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
@@ -72,7 +73,6 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemat
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
-import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
@@ -1916,9 +1916,7 @@ class BasicReportsServiceTest {
         pageToken =
           listBasicReportsPageToken {
               filter =
-                ListBasicReportsPageTokenKt.filter {
-                  createTimeAfter = timestamp { seconds = 1 }
-                }
+                ListBasicReportsPageTokenKt.filter { createTimeAfter = timestamp { seconds = 1 } }
             }
             .toByteString()
             .base64UrlEncode()
@@ -1937,9 +1935,7 @@ class BasicReportsServiceTest {
     }
 
   companion object {
-    @get:ClassRule
-    @JvmStatic
-    val spannerEmulator = SpannerEmulatorRule()
+    @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
 
     @get:ClassRule
     @JvmStatic
