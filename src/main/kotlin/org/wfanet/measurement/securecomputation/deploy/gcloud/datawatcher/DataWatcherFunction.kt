@@ -20,7 +20,6 @@ import com.google.cloud.functions.CloudEventsFunction
 import com.google.events.cloud.storage.v1.StorageObjectData
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
-import java.nio.charset.StandardCharsets
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.pack
@@ -38,7 +37,7 @@ import org.wfanet.measurement.common.crypto.SigningCerts
  * It then launches sends work to the Control Plane or a Cloud Function to do that work.
  * Reads a config with regexes mapping to different work types and config.
  */
-class DataWatcher(
+class DataWatcherFunction(
   private val workItemsService: GooglePubSubWorkItemsService,
   private val dataWatcherConfigs: List<DataWatcherConfig>
 ) : CloudEventsFunction {
