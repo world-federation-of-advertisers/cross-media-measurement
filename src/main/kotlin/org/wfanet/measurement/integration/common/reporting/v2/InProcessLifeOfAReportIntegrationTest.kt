@@ -19,6 +19,7 @@ package org.wfanet.measurement.integration.common.reporting.v2
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
+import com.google.type.DayOfWeek
 import com.google.type.Interval
 import com.google.type.date
 import com.google.type.dateTime
@@ -53,16 +54,17 @@ import org.wfanet.measurement.access.v1alpha.policy
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.access.v1alpha.role
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
@@ -86,55 +88,12 @@ import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.integration.common.reporting.v2.identity.withPrincipalName
-import org.wfanet.measurement.internal.reporting.v2.insertBasicReportRequest
-import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
-import org.wfanet.measurement.loadtest.dataprovider.EventQuery
-import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
-import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
-import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
-import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
-import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.EventGroup
-import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.Metric
-import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
-import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
-import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
-import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.Report
-import org.wfanet.measurement.reporting.v2alpha.ReportKt
-import org.wfanet.measurement.reporting.v2alpha.ReportingSet
-import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
-import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.createMetricCalculationSpecRequest
-import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
-import org.wfanet.measurement.reporting.v2alpha.createReportRequest
-import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
-import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
-import org.wfanet.measurement.reporting.v2alpha.getMetricRequest
-import org.wfanet.measurement.reporting.v2alpha.getReportRequest
-import org.wfanet.measurement.reporting.v2alpha.getReportingSetRequest
-import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
-import org.wfanet.measurement.reporting.v2alpha.listMetricsRequest
-import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
-import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
-import org.wfanet.measurement.reporting.v2alpha.metric
-import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
-import org.wfanet.measurement.reporting.v2alpha.metricSpec
-import org.wfanet.measurement.reporting.v2alpha.report
-import org.wfanet.measurement.reporting.v2alpha.reportingSet
-import org.wfanet.measurement.reporting.v2alpha.timeIntervals
-import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as InternalEventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec as InternalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt as InternalResultGroupKt
 import org.wfanet.measurement.internal.reporting.v2.basicReport as internalBasicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.basicReportResultDetails
-import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.eventFilter as internalEventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField as internalEventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilterSpec as internalImpressionQualificationFilterSpec
@@ -144,23 +103,61 @@ import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as inter
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
 import org.wfanet.measurement.internal.reporting.v2.resultGroup as internalResultGroup
-import com.google.type.DayOfWeek
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+import org.wfanet.measurement.loadtest.dataprovider.EventQuery
+import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
+import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
+import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
+import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
+import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
+import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.EventGroup
+import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.MediaType
+import org.wfanet.measurement.reporting.v2alpha.Metric
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
+import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.Report
+import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilterKt
+import org.wfanet.measurement.reporting.v2alpha.ReportingSet
+import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
+import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupKt
 import org.wfanet.measurement.reporting.v2alpha.basicReport
+import org.wfanet.measurement.reporting.v2alpha.createMetricCalculationSpecRequest
+import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
+import org.wfanet.measurement.reporting.v2alpha.createReportRequest
+import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.eventFilter
 import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
+import org.wfanet.measurement.reporting.v2alpha.getMetricRequest
+import org.wfanet.measurement.reporting.v2alpha.getReportRequest
+import org.wfanet.measurement.reporting.v2alpha.getReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
+import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.reporting.v2alpha.listMetricsRequest
+import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
+import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
+import org.wfanet.measurement.reporting.v2alpha.metric
+import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
+import org.wfanet.measurement.reporting.v2alpha.metricSpec
+import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.reportingInterval
+import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.resultGroup
+import org.wfanet.measurement.reporting.v2alpha.timeIntervals
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
 
 /**
  * Test that everything is wired up properly.
@@ -1753,11 +1750,12 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val eventGroupKey = EventGroupKey.fromName(eventGroup.name)
     val reportingSetKey = ReportingSetKey.fromName(createdPrimitiveReportingSet.name)
 
-    val basicReportKey = BasicReportKey(
-      cmmsMeasurementConsumerId = MeasurementConsumerKey
-        .fromName(measurementConsumerData.name)!!.measurementConsumerId,
-      basicReportId = "basicReport123",
-    )
+    val basicReportKey =
+      BasicReportKey(
+        cmmsMeasurementConsumerId =
+          MeasurementConsumerKey.fromName(measurementConsumerData.name)!!.measurementConsumerId,
+        basicReportId = "basicReport123",
+      )
 
     val internalBasicReport = internalBasicReport {
       this.cmmsMeasurementConsumerId = basicReportKey.cmmsMeasurementConsumerId
@@ -1799,7 +1797,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                           eventGroupSummaries +=
                             InternalResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
-                                this.cmmsMeasurementConsumerId = basicReportKey.cmmsMeasurementConsumerId
+                                this.cmmsMeasurementConsumerId =
+                                  basicReportKey.cmmsMeasurementConsumerId
                                 cmmsEventGroupId = eventGroupKey!!.cmmsEventGroupId
                               }
                         }
@@ -1932,82 +1931,71 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       }
     }
 
-    val createdInternalBasicReport = reportingServer.internalBasicReportsClient
-      .insertBasicReport(insertBasicReportRequest {
-        basicReport = internalBasicReport
-      })
+    val createdInternalBasicReport =
+      reportingServer.internalBasicReportsClient.insertBasicReport(
+        insertBasicReportRequest { basicReport = internalBasicReport }
+      )
 
-    val retrievedPublicBasicReport = publicBasicReportsClient.getBasicReport(getBasicReportRequest {
-      name = basicReportKey.toName()
-    })
+    val retrievedPublicBasicReport =
+      publicBasicReportsClient.getBasicReport(
+        getBasicReportRequest { name = basicReportKey.toName() }
+      )
 
     assertThat(retrievedPublicBasicReport)
-      .isEqualTo(basicReport {
-        name = basicReportKey.toName()
-        title = internalBasicReport.details.title
-        campaignGroup = createdPrimitiveReportingSet.name
-        campaignGroupDisplayName = createdPrimitiveReportingSet.displayName
-        reportingInterval = reportingInterval {
-          reportStart = dateTime { day = 3 }
-          reportEnd = date { day = 5 }
-        }
+      .isEqualTo(
+        basicReport {
+          name = basicReportKey.toName()
+          title = internalBasicReport.details.title
+          campaignGroup = createdPrimitiveReportingSet.name
+          campaignGroupDisplayName = createdPrimitiveReportingSet.displayName
+          reportingInterval = reportingInterval {
+            reportStart = dateTime { day = 3 }
+            reportEnd = date { day = 5 }
+          }
 
-        impressionQualificationFilters += reportingImpressionQualificationFilter {
-          custom =
-            ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-              filterSpec += impressionQualificationFilterSpec {
-                mediaType = MediaType.VIDEO
-                filters += eventFilter {
-                  terms += eventTemplateField {
-                    path = "common.age_group"
-                    value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+          impressionQualificationFilters += reportingImpressionQualificationFilter {
+            custom =
+              ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                filterSpec += impressionQualificationFilterSpec {
+                  mediaType = MediaType.VIDEO
+                  filters += eventFilter {
+                    terms += eventTemplateField {
+                      path = "common.age_group"
+                      value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                    }
                   }
                 }
               }
-            }
-        }
+          }
 
-        resultGroups += resultGroup {
-          title = "title"
-          results +=
-            ResultGroupKt.result {
-              metadata =
-                ResultGroupKt.metricMetadata {
-                  reportingUnitSummary =
-                    ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
-                      reportingUnitComponentSummary +=
-                        ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
-                          component = dataProvider.name
-                          displayName = dataProvider.displayName
-                          eventGroupSummaries +=
-                            ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
-                              .eventGroupSummary {
-                                this.eventGroup = eventGroup.name
-                              }
-                        }
-                    }
-                  nonCumulativeMetricStartTime = timestamp { seconds = 10 }
-                  cumulativeMetricStartTime = timestamp { seconds = 12 }
-                  metricEndTime = timestamp { seconds = 20 }
-                  metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-                  dimensionSpecSummary =
-                    ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
-                      grouping = eventTemplateField {
-                        path = "common.gender"
-                        value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+          resultGroups += resultGroup {
+            title = "title"
+            results +=
+              ResultGroupKt.result {
+                metadata =
+                  ResultGroupKt.metricMetadata {
+                    reportingUnitSummary =
+                      ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
+                        reportingUnitComponentSummary +=
+                          ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+                            component = dataProvider.name
+                            displayName = dataProvider.displayName
+                            eventGroupSummaries +=
+                              ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
+                                .eventGroupSummary { this.eventGroup = eventGroup.name }
+                          }
                       }
+                    nonCumulativeMetricStartTime = timestamp { seconds = 10 }
+                    cumulativeMetricStartTime = timestamp { seconds = 12 }
+                    metricEndTime = timestamp { seconds = 20 }
+                    metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+                    dimensionSpecSummary =
+                      ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
+                        grouping = eventTemplateField {
+                          path = "common.gender"
+                          value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+                        }
 
-                      filters += eventFilter {
-                        terms += eventTemplateField {
-                          path = "common.age_group"
-                          value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
-                        }
-                      }
-                    }
-                  filter = reportingImpressionQualificationFilter {
-                    custom = ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-                      filterSpec += impressionQualificationFilterSpec {
-                        mediaType = MediaType.VIDEO
                         filters += eventFilter {
                           terms += eventTemplateField {
                             path = "common.age_group"
@@ -2015,108 +2003,122 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                           }
                         }
                       }
+                    filter = reportingImpressionQualificationFilter {
+                      custom =
+                        ReportingImpressionQualificationFilterKt
+                          .customImpressionQualificationFilterSpec {
+                            filterSpec += impressionQualificationFilterSpec {
+                              mediaType = MediaType.VIDEO
+                              filters += eventFilter {
+                                terms += eventTemplateField {
+                                  path = "common.age_group"
+                                  value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                                }
+                              }
+                            }
+                          }
                     }
                   }
-                }
 
-              metricSet =
-                ResultGroupKt.metricSet {
-                  populationSize = 1000
-                  reportingUnit =
-                    ResultGroupKt.MetricSetKt.reportingUnitMetricSet {
-                      nonCumulative =
-                        ResultGroupKt.MetricSetKt.basicMetricSet {
-                          reach = 1
-                          percentReach = 0.1f
-                          kPlusReach += 1
-                          kPlusReach += 2
-                          percentKPlusReach += 0.1f
-                          percentKPlusReach += 0.2f
-                          averageFrequency = 0.1f
-                          impressions = 1
-                          grps = 0.1f
-                        }
-                      cumulative =
-                        ResultGroupKt.MetricSetKt.basicMetricSet {
-                          reach = 2
-                          percentReach = 0.2f
-                          kPlusReach += 2
-                          kPlusReach += 4
-                          percentKPlusReach += 0.2f
-                          percentKPlusReach += 0.4f
-                          averageFrequency = 0.2f
-                          impressions = 2
-                          grps = 0.2f
-                        }
-                      stackedIncrementalReach += 10
-                      stackedIncrementalReach += 15
-                    }
-                  components +=
-                    ResultGroupKt.MetricSetKt.componentMetricSetMapEntry {
-                      key = dataProvider.name
-                      value =
-                        ResultGroupKt.MetricSetKt.componentMetricSet {
-                          nonCumulative =
-                            ResultGroupKt.MetricSetKt.basicMetricSet {
-                              reach = 1
-                              percentReach = 0.1f
-                              kPlusReach += 1
-                              kPlusReach += 2
-                              percentKPlusReach += 0.1f
-                              percentKPlusReach += 0.2f
-                              averageFrequency = 0.1f
-                              impressions = 1
-                              grps = 0.1f
-                            }
-                          cumulative =
-                            ResultGroupKt.MetricSetKt.basicMetricSet {
-                              reach = 2
-                              percentReach = 0.2f
-                              kPlusReach += 2
-                              kPlusReach += 4
-                              percentKPlusReach += 0.2f
-                              percentKPlusReach += 0.4f
-                              averageFrequency = 0.2f
-                              impressions = 2
-                              grps = 0.2f
-                            }
-                          uniqueReach = 5
-                        }
-                    }
-                  componentIntersections +=
-                    ResultGroupKt.MetricSetKt.componentIntersectionMetricSet {
-                      nonCumulative =
-                        ResultGroupKt.MetricSetKt.basicMetricSet {
-                          reach = 15
-                          percentReach = 0.1f
-                          kPlusReach += 1
-                          kPlusReach += 2
-                          percentKPlusReach += 0.1f
-                          percentKPlusReach += 0.2f
-                          averageFrequency = 0.1f
-                          impressions = 1
-                          grps = 0.1f
-                        }
-                      cumulative =
-                        ResultGroupKt.MetricSetKt.basicMetricSet {
-                          reach = 20
-                          percentReach = 0.2f
-                          kPlusReach += 2
-                          kPlusReach += 4
-                          percentKPlusReach += 0.2f
-                          percentKPlusReach += 0.4f
-                          averageFrequency = 0.2f
-                          impressions = 2
-                          grps = 0.2f
-                        }
-                      components += dataProvider.name
-                    }
-                }
-            }
+                metricSet =
+                  ResultGroupKt.metricSet {
+                    populationSize = 1000
+                    reportingUnit =
+                      ResultGroupKt.MetricSetKt.reportingUnitMetricSet {
+                        nonCumulative =
+                          ResultGroupKt.MetricSetKt.basicMetricSet {
+                            reach = 1
+                            percentReach = 0.1f
+                            kPlusReach += 1
+                            kPlusReach += 2
+                            percentKPlusReach += 0.1f
+                            percentKPlusReach += 0.2f
+                            averageFrequency = 0.1f
+                            impressions = 1
+                            grps = 0.1f
+                          }
+                        cumulative =
+                          ResultGroupKt.MetricSetKt.basicMetricSet {
+                            reach = 2
+                            percentReach = 0.2f
+                            kPlusReach += 2
+                            kPlusReach += 4
+                            percentKPlusReach += 0.2f
+                            percentKPlusReach += 0.4f
+                            averageFrequency = 0.2f
+                            impressions = 2
+                            grps = 0.2f
+                          }
+                        stackedIncrementalReach += 10
+                        stackedIncrementalReach += 15
+                      }
+                    components +=
+                      ResultGroupKt.MetricSetKt.componentMetricSetMapEntry {
+                        key = dataProvider.name
+                        value =
+                          ResultGroupKt.MetricSetKt.componentMetricSet {
+                            nonCumulative =
+                              ResultGroupKt.MetricSetKt.basicMetricSet {
+                                reach = 1
+                                percentReach = 0.1f
+                                kPlusReach += 1
+                                kPlusReach += 2
+                                percentKPlusReach += 0.1f
+                                percentKPlusReach += 0.2f
+                                averageFrequency = 0.1f
+                                impressions = 1
+                                grps = 0.1f
+                              }
+                            cumulative =
+                              ResultGroupKt.MetricSetKt.basicMetricSet {
+                                reach = 2
+                                percentReach = 0.2f
+                                kPlusReach += 2
+                                kPlusReach += 4
+                                percentKPlusReach += 0.2f
+                                percentKPlusReach += 0.4f
+                                averageFrequency = 0.2f
+                                impressions = 2
+                                grps = 0.2f
+                              }
+                            uniqueReach = 5
+                          }
+                      }
+                    componentIntersections +=
+                      ResultGroupKt.MetricSetKt.componentIntersectionMetricSet {
+                        nonCumulative =
+                          ResultGroupKt.MetricSetKt.basicMetricSet {
+                            reach = 15
+                            percentReach = 0.1f
+                            kPlusReach += 1
+                            kPlusReach += 2
+                            percentKPlusReach += 0.1f
+                            percentKPlusReach += 0.2f
+                            averageFrequency = 0.1f
+                            impressions = 1
+                            grps = 0.1f
+                          }
+                        cumulative =
+                          ResultGroupKt.MetricSetKt.basicMetricSet {
+                            reach = 20
+                            percentReach = 0.2f
+                            kPlusReach += 2
+                            kPlusReach += 4
+                            percentKPlusReach += 0.2f
+                            percentKPlusReach += 0.4f
+                            averageFrequency = 0.2f
+                            impressions = 2
+                            grps = 0.2f
+                          }
+                        components += dataProvider.name
+                      }
+                  }
+              }
+          }
+
+          createTime = createdInternalBasicReport.createTime
         }
-
-        createTime = createdInternalBasicReport.createTime
-      })
+      )
   }
 
   private suspend fun listEventGroups(): List<EventGroup> {

@@ -20,6 +20,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
 import com.google.protobuf.util.Durations
 import io.grpc.Channel
+import io.grpc.ServerInterceptors
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.File
@@ -73,6 +74,7 @@ import org.wfanet.measurement.reporting.deploy.v2.common.server.AbstractInternal
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
+import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
@@ -84,8 +86,6 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.validate
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub as PublicMetricsCoroutineStub
-import io.grpc.ServerInterceptors
-import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
 
 /** TestRule that starts and stops all Reporting Server gRPC services. */
 class InProcessReportingServer(
@@ -130,9 +130,7 @@ class InProcessReportingServer(
   }
   private val internalReportsClient by lazy { InternalReportsCoroutineStub(internalApiChannel) }
 
-  val internalBasicReportsClient by lazy {
-    InternalBasicReportsCoroutineStub(internalApiChannel)
-  }
+  val internalBasicReportsClient by lazy { InternalBasicReportsCoroutineStub(internalApiChannel) }
 
   private val internalReportingServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
@@ -268,7 +266,7 @@ class InProcessReportingServer(
                 SecureRandom().asKotlinRandom(),
               )
               .withMetadataPrincipalIdentities(measurementConsumerConfigs),
-          ServerInterceptors.interceptForward(BasicReportsService(internalBasicReportsClient)),
+            ServerInterceptors.interceptForward(BasicReportsService(internalBasicReportsClient)),
           )
           .forEach { addService(it.withVerboseLogging(verboseGrpcLogging)) }
       }
