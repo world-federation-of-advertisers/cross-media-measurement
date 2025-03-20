@@ -30,6 +30,7 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Cartesian
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.cartesianSyntheticEventGroupSpecRecipe
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.dateRange
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.fieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticPopulationSpec
@@ -93,19 +94,18 @@ class SyntheticDataGenerationTest {
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 6
-                day = 27
-              }
-              endExclusive = date {
-                year = 2023
-                month = 6
-                day = 28
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 6
+              day = 27
             }
+            endExclusive = date {
+              year = 2023
+              month = 6
+              day = 28
+            }
+          }
 
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
@@ -156,19 +156,18 @@ class SyntheticDataGenerationTest {
         }
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 6
-                day = 28
-              }
-              endExclusive = date {
-                year = 2023
-                month = 6
-                day = 29
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 6
+              day = 28
             }
+            endExclusive = date {
+              year = 2023
+              month = 6
+              day = 29
+            }
+          }
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
               frequency = 1
@@ -301,19 +300,18 @@ class SyntheticDataGenerationTest {
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 6
-                day = 27
-              }
-              endExclusive = date {
-                year = 2023
-                month = 6
-                day = 28
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 6
+              day = 27
             }
+            endExclusive = date {
+              year = 2023
+              month = 6
+              day = 28
+            }
+          }
 
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
@@ -364,19 +362,18 @@ class SyntheticDataGenerationTest {
         }
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 6
-                day = 28
-              }
-              endExclusive = date {
-                year = 2023
-                month = 6
-                day = 29
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 6
+              day = 28
             }
+            endExclusive = date {
+              year = 2023
+              month = 6
+              day = 29
+            }
+          }
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
               frequency = 1
@@ -461,19 +458,18 @@ class SyntheticDataGenerationTest {
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 6
-                day = 27
-              }
-              endExclusive = date {
-                year = 2023
-                month = 6
-                day = 28
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 6
+              day = 27
             }
+            endExclusive = date {
+              year = 2023
+              month = 6
+              day = 28
+            }
+          }
 
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
@@ -590,19 +586,18 @@ class SyntheticDataGenerationTest {
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 6
-                day = 27
-              }
-              endExclusive = date {
-                year = 2023
-                month = 6
-                day = 28
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 6
+              day = 27
             }
+            endExclusive = date {
+              year = 2023
+              month = 6
+              day = 28
+            }
+          }
 
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
@@ -683,19 +678,18 @@ class SyntheticDataGenerationTest {
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 6
-                day = 27
-              }
-              endExclusive = date {
-                year = 2023
-                month = 6
-                day = 28
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 6
+              day = 27
             }
+            endExclusive = date {
+              year = 2023
+              month = 6
+              day = 28
+            }
+          }
 
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
@@ -806,19 +800,18 @@ class SyntheticDataGenerationTest {
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 6
-                day = 27
-              }
-              endExclusive = date {
-                year = 2023
-                month = 6
-                day = 28
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 6
+              day = 27
             }
+            endExclusive = date {
+              year = 2023
+              month = 6
+              day = 28
+            }
+          }
 
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
@@ -885,19 +878,18 @@ class SyntheticDataGenerationTest {
     val eventGroupSpec = syntheticEventGroupSpec {
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 7
-                day = 30
-              }
-              endExclusive = date {
-                year = 2023
-                month = 7
-                day = 31
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 7
+              day = 30
             }
+            endExclusive = date {
+              year = 2023
+              month = 7
+              day = 31
+            }
+          }
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
               frequency = 1
@@ -960,19 +952,18 @@ class SyntheticDataGenerationTest {
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 7
-                day = 1
-              }
-              endExclusive = date {
-                year = 2023
-                month = 7
-                day = 2
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 7
+              day = 1
             }
+            endExclusive = date {
+              year = 2023
+              month = 7
+              day = 2
+            }
+          }
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
               frequency = 1
@@ -1028,19 +1019,18 @@ class SyntheticDataGenerationTest {
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 7
-                day = 1
-              }
-              endExclusive = date {
-                year = 2023
-                month = 7
-                day = 2
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 7
+              day = 1
             }
+            endExclusive = date {
+              year = 2023
+              month = 7
+              day = 2
+            }
+          }
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
               frequency = 1
@@ -1098,19 +1088,18 @@ class SyntheticDataGenerationTest {
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 7
-                day = 1
-              }
-              endExclusive = date {
-                year = 2023
-                month = 7
-                day = 2
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 7
+              day = 1
             }
+            endExclusive = date {
+              year = 2023
+              month = 7
+              day = 2
+            }
+          }
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
               frequency = 1
@@ -1168,19 +1157,18 @@ class SyntheticDataGenerationTest {
 
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 7
-                day = 1
-              }
-              endExclusive = date {
-                year = 2023
-                month = 7
-                day = 2
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 7
+              day = 1
             }
+            endExclusive = date {
+              year = 2023
+              month = 7
+              day = 2
+            }
+          }
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
               frequency = 1
@@ -1259,19 +1247,18 @@ class SyntheticDataGenerationTest {
       dateSpecs +=
         CartesianSyntheticEventGroupSpecRecipeKt.dateSpec {
           totalReach = 100
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 6
-                day = 27
-              }
-              endExclusive = date {
-                year = 2023
-                month = 6
-                day = 28
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 6
+              day = 27
             }
+            endExclusive = date {
+              year = 2023
+              month = 6
+              day = 28
+            }
+          }
           frequencyRatios[1] = 0.5f
           frequencyRatios[2] = 0.5f
 
@@ -1315,19 +1302,18 @@ class SyntheticDataGenerationTest {
       samplingNonce = 42L
       dateSpecs +=
         SyntheticEventGroupSpecKt.dateSpec {
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 6
-                day = 27
-              }
-              endExclusive = date {
-                year = 2023
-                month = 6
-                day = 28
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 6
+              day = 27
             }
+            endExclusive = date {
+              year = 2023
+              month = 6
+              day = 28
+            }
+          }
           // For gender = MALE and age_group = 18_TO_34
           frequencySpecs +=
             SyntheticEventGroupSpecKt.frequencySpec {
@@ -1697,19 +1683,18 @@ class SyntheticDataGenerationTest {
       dateSpecs +=
         CartesianSyntheticEventGroupSpecRecipeKt.dateSpec {
           totalReach = 100
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 6
-                day = 27
-              }
-              endExclusive = date {
-                year = 2023
-                month = 6
-                day = 28
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 6
+              day = 27
             }
+            endExclusive = date {
+              year = 2023
+              month = 6
+              day = 28
+            }
+          }
 
           frequencyRatios[1] = 0.5f
           frequencyRatios[2] = 0.5f
@@ -1740,19 +1725,18 @@ class SyntheticDataGenerationTest {
       dateSpecs +=
         CartesianSyntheticEventGroupSpecRecipeKt.dateSpec {
           totalReach = 100
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 6
-                day = 29
-              }
-              endExclusive = date {
-                year = 2023
-                month = 6
-                day = 30
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 6
+              day = 29
             }
+            endExclusive = date {
+              year = 2023
+              month = 6
+              day = 30
+            }
+          }
 
           frequencyRatios[1] = 0.5f
           frequencyRatios[2] = 0.5f
@@ -1846,19 +1830,18 @@ class SyntheticDataGenerationTest {
       dateSpecs +=
         CartesianSyntheticEventGroupSpecRecipeKt.dateSpec {
           totalReach = 100
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 6
-                day = 27
-              }
-              endExclusive = date {
-                year = 2023
-                month = 6
-                day = 28
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 6
+              day = 27
             }
+            endExclusive = date {
+              year = 2023
+              month = 6
+              day = 28
+            }
+          }
 
           frequencyRatios[1] = 1.0f
 
@@ -1934,19 +1917,18 @@ class SyntheticDataGenerationTest {
       dateSpecs +=
         CartesianSyntheticEventGroupSpecRecipeKt.dateSpec {
           totalReach = 100
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 6
-                day = 27
-              }
-              endExclusive = date {
-                year = 2023
-                month = 6
-                day = 28
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 6
+              day = 27
             }
+            endExclusive = date {
+              year = 2023
+              month = 6
+              day = 28
+            }
+          }
 
           frequencyRatios[1] = 1.0f
 
@@ -2026,19 +2008,18 @@ class SyntheticDataGenerationTest {
       dateSpecs +=
         CartesianSyntheticEventGroupSpecRecipeKt.dateSpec {
           totalReach = 100_000L
-          dateRange =
-            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-              start = date {
-                year = 2023
-                month = 6
-                day = 27
-              }
-              endExclusive = date {
-                year = 2023
-                month = 6
-                day = 28
-              }
+          dateRange = dateRange {
+            start = date {
+              year = 2023
+              month = 6
+              day = 27
             }
+            endExclusive = date {
+              year = 2023
+              month = 6
+              day = 28
+            }
+          }
 
           frequencyRatios[1] = 1.0f
           nonPopulationDimensionSpecs["banner_ad.viewable"] =
