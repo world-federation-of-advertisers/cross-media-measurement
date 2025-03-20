@@ -14,98 +14,103 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
+package org.wfanet.measurement.securecomputation.datawatcher
 
-import com.google.cloud.functions.CloudEventsFunction
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsService
 import com.google.events.cloud.storage.v1.StorageObjectData
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
-import java.time.Duration
-import java.util.logging.Logger
+import java.util.UUID
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GooglePubSubWorkItemsService
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemConfig
+import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfig
+import kotlin.text.matches
+import kotlin.io.path.Path
 import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.getJarResourceFile
-import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.grpc.withShutdownTimeout
-import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.config.securecomputation.DataWatcherConfigs
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
-import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 
 /*
- * Cloud Function receives a CloudEvent. If the cloud event path matches config, it calls the
- * DataWatcher with the path and config.
+ * The DataWatcher receives cloud events when data is written to storage.
+ * It then launches sends work to the Control Plane or a Cloud Function to do that work.
+ * Reads a config with regexes mapping to different work types and config.
  */
-class DataWatcherFunction : CloudEventsFunction {
-
-  init {
-    for (envVar in requiredEnvVals) {
-      checkNotNull(System.getenv(envVar))
-    }
-  }
-
-  override fun accept(event: CloudEvent) {
-    logger.fine("Starting DataWatcherFunction")
-    val publicChannel =
-      buildMutualTlsChannel(
-        System.getenv("CONTROL_PLANE_TARGET"),
-        getClientCerts(),
-        System.getenv("CONTROL_PLANE_CERT_HOST"),
-      )
-        .withShutdownTimeout(
-          Duration.ofSeconds(
-            System.getenv("CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLong()
-              ?: DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS
-          )
-        )
-
-    val workItemsStub = WorkItemsCoroutineStub(publicChannel)
-    val config = checkNotNull(CLASS_LOADER.getJarResourceFile(CONFIG_RESOURCE_PATH)) {
-      "Missing embedded config file at $CONFIG_RESOURCE_PATH"
-    }
-    val dataWatcherConfigs = parseTextProto(config, DataWatcherConfigs.getDefaultInstance())
-    val dataWatcher =
-      DataWatcher(
-        workItemsStub = workItemsStub,
-        dataWatcherConfigs = dataWatcherConfigs.configsList,
-      )
-    val cloudEventData =
-      requireNotNull(event.getData()) { "event must have data" }.toBytes().decodeToString()
-    val data =
-      StorageObjectData.newBuilder()
-        .apply { JsonFormat.parser().merge(cloudEventData, this) }
-        .build()
-    val blobKey: String = data.getName()
-    val bucket: String = data.getBucket()
-    val path = "$scheme://$bucket/$blobKey"
-    logger.info("Receiving path $path")
-    runBlocking { dataWatcher.receivePath(path) }
-  }
+class DataWatcherFunction(
+  private val workItemsService: GooglePubSubWorkItemsService,
+  private val dataWatcherConfigs: List<DataWatcherConfig>
+) : CloudEventsFunction {
 
   private fun getClientCerts(): SigningCerts {
     return SigningCerts.fromPemFiles(
-      certificateFile =
-      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_FILE_PATH"))),
-      privateKeyFile =
-      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("PRIVATE_KEY_FILE_PATH"))),
-      trustedCertCollectionFile =
-      checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_COLLECTION_FILE_PATH"))),
+      certificateFile = Path(System.getenv("CERT_FILE_PATH")).toFile(),
+      privateKeyFile = Path(System.getenv("PRIVATE_KEY_FILE_PATH")).toFile(),
+      trustedCertCollectionFile = Path(System.getenv("CERT_COLLECTION_FILE_PATH")).toFile(),
     )
   }
 
-  companion object {
-    private const val scheme = "gs"
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
-    private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
-    private val requiredEnvVals: List<String> =
-      listOf(
-        "CERT_FILE_PATH",
-        "PRIVATE_KEY_FILE_PATH",
-        "CERT_COLLECTION_FILE_PATH",
-        "CONTROL_PLANE_TARGET",
-        "CONTROL_PLANE_CERT_HOST",
+override fun service(request: HttpRequest, response: HttpResponse) {
+  response.getWriter().write("OK")
+  if (true) {
+    val publicChannel =
+      buildMutualTlsChannel(System.getenv("TARGET"), getClientCerts(), System.getenv("CERT_HOST"))
+
+    val requisitionsStub = RequisitionsCoroutineStub(publicChannel)
+    val requisitionsStorageClient =
+      GcsStorageClient(
+        StorageOptions.newBuilder()
+          .setProjectId(System.getenv("REQUISITIONS_GCS_PROJECT_ID"))
+          .build()
+          .service,
+        System.getenv("REQUISITIONS_GCS_BUCKET"),
       )
-    private const val CONFIG_RESOURCE_PATH = "securecomputation/datawatcher/data_watcher_config.textproto"
+    val requisitionFetcher =
+      RequisitionFetcher(
+        requisitionsStub,
+        requisitionsStorageClient,
+        System.getenv("DATAPROVIDER_NAME"),
+        System.getenv("PAGE_SIZE").toInt(),
+        System.getenv("STORAGE_PATH_PREFIX"),
+      )
+    runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
+
+  override fun accept(event: CloudEvent) {
+    val cloudEventData = String(event.getData().toBytes(), StandardCharsets.UTF_8)
+    val builder = StorageObjectData.newBuilder()
+    JsonFormat.parser().merge(cloudEventData, builder)
+    val data = builder.build()
+    val bucket = data.getBucket()
+    val blobKey = data.getName()
+    dataWatcherConfigs.forEach { config ->
+      val regex = config.sourcePathRegex.toRegex()
+      if (regex.containsMatchIn(blobKey)) {
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+        when (config.sinkConfigCase) {
+          DataWatcherConfig.SinkConfigCase.CONTROL_PLANE_CONFIG -> {
+            val queueConfig = config.controlPlaneConfig
+            val workItemId = UUID.randomUUID().toString()
+            val workItemParams =
+              triggeredApp {
+                  this.config = queueConfig.appConfig
+                  this.path = path
+                }
+                .pack()
+            val request = createWorkItemRequest {
+              this.workItemId = workItemId
+              this.workItem = workItem {
+                queue = queueConfig.queueName
+                this.workItemParams = workItemParams
+              }
+            }
+            runBlocking { workItemsService.createWorkItem(request) }
+          }
+          DataWatcherConfig.SinkConfigCase.CLOUD_FUNCTION_CONFIG ->
+            TODO("Cloud Function Sink not currently supported")
+          DataWatcherConfig.SinkConfigCase.SINKCONFIG_NOT_SET ->
+            error("Invalid sink config: ${config.sinkConfigCase}")
+        }
+      }
+    }
   }
 }
