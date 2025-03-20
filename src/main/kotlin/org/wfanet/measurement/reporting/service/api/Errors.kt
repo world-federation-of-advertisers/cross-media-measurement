@@ -20,8 +20,8 @@ import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
-import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
 
 object Errors {
@@ -62,12 +62,7 @@ sealed class ServiceException(
       reason = source.reason.name
       metadata.putAll(source.metadata.mapKeys { it.key.key })
     }
-    return CommonErrors.buildStatusRuntimeException(
-      code,
-      message,
-      errorInfo,
-      this,
-    )
+    return CommonErrors.buildStatusRuntimeException(code, message, errorInfo, this)
   }
 
   abstract class Factory<T : ServiceException> {
