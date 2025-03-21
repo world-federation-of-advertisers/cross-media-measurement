@@ -143,6 +143,9 @@ fun InternalEventTemplateField.toEventTemplateField(): EventTemplateField {
           InternalEventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> {
             boolValue = source.value.boolValue
           }
+          InternalEventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
+            floatValue = source.value.floatValue
+          }
           InternalEventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> {}
         }
       }
