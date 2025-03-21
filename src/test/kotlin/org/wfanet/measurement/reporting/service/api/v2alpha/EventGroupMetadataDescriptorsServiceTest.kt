@@ -18,7 +18,6 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import io.grpc.ServerInterceptors
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
@@ -30,26 +29,32 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.testing.Authentication.withPrincipalAndScopes
+import org.wfanet.measurement.access.client.v1alpha.testing.PrincipalMatcher.Companion.hasPrincipal
+import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
+import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
+import org.wfanet.measurement.access.v1alpha.copy
+import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.ApiKeyConstants
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
 import org.wfanet.measurement.api.v2alpha.getEventGroupMetadataDescriptorRequest
-import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.grpc.withInterceptor
 import org.wfanet.measurement.common.testing.HeaderCapturingInterceptor
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 
 @RunWith(JUnit4::class)
 class EventGroupMetadataDescriptorsServiceTest {
@@ -66,33 +71,42 @@ class EventGroupMetadataDescriptorsServiceTest {
           }
         )
     }
+  private val permissionsServiceMock: PermissionsGrpcKt.PermissionsCoroutineImplBase = mockService {
+    onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doReturn
+      checkPermissionsResponse {
+        permissions +=
+          EventGroupMetadataDescriptorsService.GET_DESCRIPTOR_PERMISSIONS.map { "permissions/$it" }
+      }
+  }
 
   private val headerCapturingInterceptor = HeaderCapturingInterceptor()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(
-      ServerInterceptors.intercept(
-        publicKingdomEventGroupMetadataDescriptorsMock,
-        headerCapturingInterceptor,
-      )
+      publicKingdomEventGroupMetadataDescriptorsMock.withInterceptor(headerCapturingInterceptor)
     )
+    addService(permissionsServiceMock)
   }
 
   private lateinit var service: EventGroupMetadataDescriptorsService
 
   @Before
   fun initService() {
+    val authorization =
+      Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel))
     service =
       EventGroupMetadataDescriptorsService(
-        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel)
+        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
+        authorization,
+        API_AUTHENTICATION_KEY,
       )
   }
 
   @Test
   fun `getEventGroupMetadataDescriptor returns eventGroupMetadataDescriptor`() = runBlocking {
     val response =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking {
           service.getEventGroupMetadataDescriptor(
             getEventGroupMetadataDescriptorRequest { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME }
@@ -120,23 +134,6 @@ class EventGroupMetadataDescriptorsServiceTest {
   }
 
   @Test
-  fun `getEventGroupMetadataDescriptor throws UNAUTHENTICATED when principal isn't reporting`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking {
-            service.getEventGroupMetadataDescriptor(
-              getEventGroupMetadataDescriptorRequest { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME }
-            )
-          }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.message).contains("No ReportingPrincipal")
-  }
-
-  @Test
   fun `getEventGroupMetadataDescriptor throws UNAUTHENTICATED when principal is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -148,7 +145,6 @@ class EventGroupMetadataDescriptorsServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.message).contains("No ReportingPrincipal")
   }
 
   @Test
@@ -162,7 +158,7 @@ class EventGroupMetadataDescriptorsServiceTest {
 
     val exception =
       assertFailsWith<StatusException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking {
             service.getEventGroupMetadataDescriptor(
               getEventGroupMetadataDescriptorRequest { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME }
@@ -178,7 +174,7 @@ class EventGroupMetadataDescriptorsServiceTest {
   fun `batchGetEventGroupMetadataDescriptors returns eventGroupMetadataDescriptors`() =
     runBlocking {
       val response =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking {
             service.batchGetEventGroupMetadataDescriptors(
               batchGetEventGroupMetadataDescriptorsRequest {
@@ -217,10 +213,10 @@ class EventGroupMetadataDescriptorsServiceTest {
     }
 
   @Test
-  fun `batchGetEventGroupMetadataDescriptors throws UNAUTHENTICATED when principal is wrong`() {
+  fun `batchGetEventGroupMetadataDescriptors throws PERMISSION_DENIED when principal is wrong`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        withPrincipalAndScopes(PRINCIPAL.copy { name = "$name-wrong" }, SCOPES) {
           runBlocking {
             service.batchGetEventGroupMetadataDescriptors(
               batchGetEventGroupMetadataDescriptorsRequest {
@@ -232,8 +228,7 @@ class EventGroupMetadataDescriptorsServiceTest {
         }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.message).contains("No ReportingPrincipal")
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -251,7 +246,6 @@ class EventGroupMetadataDescriptorsServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.message).contains("No ReportingPrincipal")
   }
 
   @Test
@@ -267,7 +261,7 @@ class EventGroupMetadataDescriptorsServiceTest {
 
     val exception =
       assertFailsWith<StatusException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking {
             service.batchGetEventGroupMetadataDescriptors(
               batchGetEventGroupMetadataDescriptorsRequest {
@@ -284,13 +278,10 @@ class EventGroupMetadataDescriptorsServiceTest {
 
   companion object {
     private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
-    private val CONFIG = measurementConsumerConfig { apiKey = API_AUTHENTICATION_KEY }
-    private const val MEASUREMENT_CONSUMER_ID = "1234"
-    private val MEASUREMENT_CONSUMER_NAME = MeasurementConsumerKey(MEASUREMENT_CONSUMER_ID).toName()
+    private val PRINCIPAL = principal { name = "principals/mc-user" }
+    private val SCOPES = EventGroupMetadataDescriptorsService.GET_DESCRIPTOR_PERMISSIONS
 
     private const val DATA_PROVIDER_ID = "1235"
-    private val DATA_PROVIDER_NAME = DataProviderKey(DATA_PROVIDER_ID).toName()
-
     private val TEST_MESSAGE = testMetadataMessage { publisherId = 15 }
     private val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
       EventGroupMetadataDescriptorKey(DATA_PROVIDER_ID, "1236").toName()

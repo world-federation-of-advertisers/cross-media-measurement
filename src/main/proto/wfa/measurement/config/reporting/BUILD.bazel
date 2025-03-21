@@ -20,6 +20,9 @@ proto_library(
     name = "measurement_consumer_config_proto",
     srcs = ["measurement_consumer_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
 )
 
 kt_jvm_proto_library(
