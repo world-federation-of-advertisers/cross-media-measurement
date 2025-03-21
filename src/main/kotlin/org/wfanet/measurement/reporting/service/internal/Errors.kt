@@ -39,7 +39,7 @@ object Errors {
   enum class Metadata(val key: String) {
     CMMS_MEASUREMENT_CONSUMER_ID("cmmsMeasurementConsumerId"),
     EXTERNAL_BASIC_REPORT_ID("externalBasicReportId"),
-    IMPRESSION_QUALIFICATION_FILTER_ID("impressionQualificationFilterId");
+    IMPRESSION_QUALIFICATION_FILTER_ID("impressionQualificationFilterId"),
     EXTERNAL_METRIC_ID("externalMetricId"),
     FIELD_NAME("fieldName");
 
