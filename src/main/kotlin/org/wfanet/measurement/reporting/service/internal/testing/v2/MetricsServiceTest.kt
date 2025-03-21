@@ -27,6 +27,7 @@ import io.grpc.StatusRuntimeException
 import java.time.Clock
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -3288,6 +3289,43 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { service.streamMetrics(streamMetricsRequest {}) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `invalidateMetric sets the state to INVALIDATED`(): Unit = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+
+    val createMetricRequest =
+      createCreateMetricRequest(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        reportingSetsService,
+        "externalMetricId1",
+      )
+
+    val createdMetric = service.createMetric(createMetricRequest)
+
+    assertThat(createdMetric.state).isEqualTo(Metric.State.RUNNING)
+
+    service.invalidateMetric(
+      invalidateMetricRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        externalMetricId = createdMetric.externalMetricId
+      }
+    )
+
+    val retrievedMetric =
+      service
+        .streamMetrics(
+          streamMetricsRequest {
+            filter =
+              StreamMetricsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              }
+          }
+        )
+        .first()
+
+    assertThat(retrievedMetric.state).isEqualTo(Metric.State.INVALIDATED)
   }
 
   @Test
