@@ -3428,15 +3428,15 @@ class ReportsServiceTest {
     val invalidatedReachMetric = RUNNING_REACH_METRIC.copy { state = Metric.State.INVALIDATED }
 
     whenever(
-      metricsMock.batchGetMetrics(
-        eq(
-          batchGetMetricsRequest {
-            parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
-            names += invalidatedReachMetric.name
-          }
+        metricsMock.batchGetMetrics(
+          eq(
+            batchGetMetricsRequest {
+              parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+              names += invalidatedReachMetric.name
+            }
+          )
         )
       )
-    )
       .thenReturn(batchGetMetricsResponse { metrics += invalidatedReachMetric })
 
     val request = getReportRequest { name = PENDING_REACH_REPORT.name }

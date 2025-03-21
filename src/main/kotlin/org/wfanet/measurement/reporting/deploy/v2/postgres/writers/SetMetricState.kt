@@ -32,16 +32,17 @@ import org.wfanet.measurement.reporting.service.internal.MetricNotFoundException
  * Throws the following on [execute]:
  * * [MetricNotFoundException] Metric not found.
  */
-class SetMetricState(private val request: InvalidateMetricRequest) :
-  PostgresWriter<Unit>() {
+class SetMetricState(private val request: InvalidateMetricRequest) : PostgresWriter<Unit>() {
   override suspend fun TransactionScope.runTransaction() {
     val metricResult =
       try {
         MetricReader(transactionContext)
-          .batchGetMetrics(batchGetMetricsRequest {
-            cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId
-            externalMetricIds += request.externalMetricId
-          })
+          .batchGetMetrics(
+            batchGetMetricsRequest {
+              cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId
+              externalMetricIds += request.externalMetricId
+            }
+          )
           .withSerializableErrorRetries()
           .first()
       } catch (e: NoSuchElementException) {
@@ -56,7 +57,8 @@ class SetMetricState(private val request: InvalidateMetricRequest) :
         """
       UPDATE Metrics SET State = $1
       WHERE MeasurementConsumerId = $2 AND MetricId = $3
-      """.trimIndent()
+      """
+          .trimIndent()
       ) {
         bind("$1", Metric.State.INVALIDATED)
         bind("$2", metricResult.measurementConsumerId)

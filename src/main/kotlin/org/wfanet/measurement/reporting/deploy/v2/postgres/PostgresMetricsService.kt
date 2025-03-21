@@ -140,18 +140,20 @@ class PostgresMetricsService(
         readContext.close()
       }
 
-    val metricIdSet = buildSet<String> {
-      for (metric in metrics) {
-        add(metric.externalMetricId)
+    val metricIdSet =
+      buildSet<String> {
+        for (metric in metrics) {
+          add(metric.externalMetricId)
+        }
       }
-    }
 
     for (metricId in request.externalMetricIdsList) {
       if (!metricIdSet.contains(metricId)) {
         throw MetricNotFoundException(
-          cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
-          externalMetricId = metricId,
-        ).asStatusRuntimeException(Status.Code.NOT_FOUND)
+            cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
+            externalMetricId = metricId,
+          )
+          .asStatusRuntimeException(Status.Code.NOT_FOUND)
       }
     }
 

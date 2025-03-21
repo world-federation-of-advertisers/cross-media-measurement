@@ -20,6 +20,7 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.Duration as ProtoDuration
+import com.google.protobuf.Empty
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Durations
@@ -144,6 +145,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresR
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
+import org.wfanet.measurement.internal.reporting.v2.invalidateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.metric as internalMetric
 import org.wfanet.measurement.measurementconsumer.stats.CustomDirectFrequencyMethodology
@@ -161,8 +163,6 @@ import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMetho
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
-import com.google.protobuf.Empty
-import org.wfanet.measurement.internal.reporting.v2.invalidateMetricRequest
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
@@ -176,10 +176,10 @@ import org.wfanet.measurement.measurementconsumer.stats.WeightedReachMeasurement
 import org.wfanet.measurement.measurementconsumer.stats.WeightedWatchDurationMeasurementVarianceParams
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
+import org.wfanet.measurement.reporting.service.api.MetricNotFoundException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
-import org.wfanet.measurement.reporting.service.api.MetricNotFoundException
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
@@ -1229,9 +1229,10 @@ class MetricsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val metricKey = MetricKey.fromName(request.name)
-      ?: throw InvalidFieldValueException("name")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    val metricKey =
+      MetricKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("name")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     when (val principal: ReportingPrincipal = principalFromCurrentContext) {
       is MeasurementConsumerPrincipal -> {
@@ -1253,8 +1254,7 @@ class MetricsService(
     } catch (e: StatusException) {
       throw when (InternalErrors.getReason(e)) {
         InternalErrors.Reason.METRIC_NOT_FOUND ->
-          MetricNotFoundException(request.name, e)
-            .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          MetricNotFoundException(request.name, e).asStatusRuntimeException(Status.Code.NOT_FOUND)
         InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
         InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
         InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,

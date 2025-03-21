@@ -3059,8 +3059,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.METRIC_NOT_FOUND.name
-          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
-            CMMS_MEASUREMENT_CONSUMER_ID
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] = CMMS_MEASUREMENT_CONSUMER_ID
           metadata[Errors.Metadata.EXTERNAL_METRIC_ID.key] = "1L"
         }
       )
@@ -3311,8 +3310,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.METRIC_NOT_FOUND.name
-          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
-            CMMS_MEASUREMENT_CONSUMER_ID
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] = CMMS_MEASUREMENT_CONSUMER_ID
           metadata[Errors.Metadata.EXTERNAL_METRIC_ID.key] = "1L"
         }
       )
@@ -3322,11 +3320,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   fun `invalidateMetric throws INVALID_ARGUMENT when missing mc id`(): Unit = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.invalidateMetric(
-          invalidateMetricRequest {
-            externalMetricId = "1L"
-          }
-        )
+        service.invalidateMetric(invalidateMetricRequest { externalMetricId = "1L" })
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -3345,9 +3339,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.invalidateMetric(
-          invalidateMetricRequest {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          }
+          invalidateMetricRequest { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
         )
       }
 
