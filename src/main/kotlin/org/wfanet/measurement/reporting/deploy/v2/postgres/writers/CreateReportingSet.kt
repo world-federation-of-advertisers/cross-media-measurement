@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.EventGroupReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
+import org.wfanet.measurement.reporting.service.internal.CampaignGroupInvalidException
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
@@ -48,6 +49,7 @@ const val INTEGRITY_CONSTRAINT_VIOLATION = "23505"
  * * [ReportingSetNotFoundException] ReportingSet not found
  * * [ReportingSetAlreadyExistsException] ReportingSet already exists
  * * [MeasurementConsumerNotFoundException] MeasurementConsumer not found
+ * * [CampaignGroupInvalidException] Existing ReportingSet is not a valid Campaign Group
  */
 class CreateReportingSet(private val request: CreateReportingSetRequest) :
   PostgresWriter<ReportingSet>() {
@@ -90,16 +92,31 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
   )
 
   override suspend fun TransactionScope.runTransaction(): ReportingSet {
+    val cmmsMeasurementConsumerId = request.reportingSet.cmmsMeasurementConsumerId
     val measurementConsumerId =
-      (MeasurementConsumerReader(transactionContext)
-          .getByCmmsId(request.reportingSet.cmmsMeasurementConsumerId)
-          ?: throw MeasurementConsumerNotFoundException(
-            request.reportingSet.cmmsMeasurementConsumerId
-          ))
+      (MeasurementConsumerReader(transactionContext).getByCmmsId(cmmsMeasurementConsumerId)
+          ?: throw MeasurementConsumerNotFoundException(cmmsMeasurementConsumerId))
         .measurementConsumerId
 
     val reportingSetId = idGenerator.generateInternalId()
     val externalReportingSetId: String = request.externalReportingSetId
+    val externalCampaignGroupId = request.reportingSet.externalCampaignGroupId
+    val campaignGroupIds: ReportingSetReader.ReportingSetIds? =
+      if (externalCampaignGroupId.isNotEmpty()) {
+        if (externalCampaignGroupId == externalReportingSetId) {
+          ReportingSetReader.ReportingSetIds(
+            measurementConsumerId,
+            reportingSetId,
+            externalReportingSetId,
+          )
+        } else {
+          ReportingSetReader(transactionContext)
+            .readCampaignGroup(measurementConsumerId, externalCampaignGroupId)
+            ?: throw ReportingSetNotFoundException()
+        }
+      } else {
+        null
+      }
 
     val statement =
       boundStatement(
@@ -112,9 +129,10 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
           DisplayName,
           Filter,
           ReportingSetDetails,
-          ReportingSetDetailsJson
+          ReportingSetDetailsJson,
+          CampaignGroupId
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       """
       ) {
         bind("$1", measurementConsumerId)
@@ -124,6 +142,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         bind("$5", request.reportingSet.filter)
         bind("$6", request.reportingSet.details)
         bind("$7", request.reportingSet.details.toJson())
+        bind("$8", campaignGroupIds?.reportingSetId)
       }
 
     try {
@@ -229,6 +248,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
 
     return request.reportingSet.copy {
       this.externalReportingSetId = externalReportingSetId
+      this.externalCampaignGroupId = externalCampaignGroupId
       if (this.valueCase == ReportingSet.ValueCase.PRIMITIVE && weightedSubsetUnions.isEmpty()) {
         weightedSubsetUnions +=
           ReportingSetKt.weightedSubsetUnion {

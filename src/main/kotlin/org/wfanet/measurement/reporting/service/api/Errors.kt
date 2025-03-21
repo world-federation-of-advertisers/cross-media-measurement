@@ -29,6 +29,7 @@ object Errors {
 
   enum class Reason {
     BASIC_REPORT_NOT_FOUND,
+    CAMPAIGN_GROUP_INVALID,
     REQUIRED_FIELD_NOT_SET,
     INVALID_FIELD_VALUE,
     ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE,
@@ -36,6 +37,7 @@ object Errors {
 
   enum class Metadata(val key: String) {
     BASIC_REPORT("basicReport"),
+    REPORTING_SET("reportingSet"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -88,7 +90,15 @@ class BasicReportNotFoundException(name: String, cause: Throwable? = null) :
     "Basic Report $name not found",
     mapOf(Errors.Metadata.BASIC_REPORT to name),
     cause,
-  ) {}
+  )
+
+class CampaignGroupInvalidException(reportingSet: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.CAMPAIGN_GROUP_INVALID,
+    "$reportingSet is not a valid Campaign Group",
+    mapOf(Errors.Metadata.REPORTING_SET to reportingSet),
+    cause,
+  )
 
 class RequiredFieldNotSetException(fieldName: String, cause: Throwable? = null) :
   ServiceException(

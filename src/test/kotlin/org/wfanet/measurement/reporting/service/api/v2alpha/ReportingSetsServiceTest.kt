@@ -29,6 +29,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
+import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -51,6 +52,7 @@ import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest as internalCreateReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
+import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 import org.wfanet.measurement.reporting.v2alpha.GetReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsRequest
@@ -297,6 +299,55 @@ class ReportingSetsServiceTest {
 
       assertThat(result).isEqualTo(ROOT_COMPOSITE_REPORTING_SET)
     }
+
+  @Test
+  fun `createReportingSet returns ReportingSet when it is a Campaign Group`() = runBlocking {
+    val reportingSetResourceId = "reporting-set-id"
+    val internalReportingSet =
+      INTERNAL_PRIMITIVE_REPORTING_SETS.first().copy {
+        externalReportingSetId = reportingSetResourceId
+        externalCampaignGroupId = externalReportingSetId
+      }
+    whenever(internalReportingSetsMock.createReportingSet(any())).thenReturn(internalReportingSet)
+    val measurementConsumerKey = MEASUREMENT_CONSUMER_KEYS.first()
+    val request = createReportingSetRequest {
+      parent = measurementConsumerKey.toName()
+      reportingSetId = reportingSetResourceId
+      reportingSet =
+        PRIMITIVE_REPORTING_SETS.first().copy {
+          clearName()
+          campaignGroup = ReportingSetKey(measurementConsumerKey, reportingSetResourceId).toName()
+        }
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(measurementConsumerKey.toName(), CONFIG) {
+        runBlocking { service.createReportingSet(request) }
+      }
+
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        ReportingSetsCoroutineImplBase::createReportingSet,
+      )
+      .isEqualTo(
+        internalCreateReportingSetRequest {
+          reportingSet =
+            internalReportingSet.copy {
+              clearExternalReportingSetId()
+              weightedSubsetUnions.clear()
+            }
+          externalReportingSetId = reportingSetResourceId
+        }
+      )
+
+    assertThat(result)
+      .isEqualTo(
+        request.reportingSet.copy {
+          name = request.reportingSet.campaignGroup
+          campaignGroup = name
+        }
+      )
+  }
 
   @Test
   fun `createReportingSet throws UNAUTHENTICATED when no principal is found`() {
@@ -607,10 +658,12 @@ class ReportingSetsServiceTest {
   }
 
   @Test
-  fun `createReportingSet throws NOT_FOUND when child reporting cannot be found during creation`() =
+  fun `createReportingSet throws FAILED_PRECONDITION when child reporting cannot be found during creation`() =
     runBlocking {
       whenever(internalReportingSetsMock.createReportingSet(any()))
-        .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
+        .thenThrow(
+          ReportingSetNotFoundException().asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        )
       val request = createReportingSetRequest {
         parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
         reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
@@ -622,7 +675,7 @@ class ReportingSetsServiceTest {
             runBlocking { service.createReportingSet(request) }
           }
         }
-      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     }
 
   @Test
@@ -675,6 +728,34 @@ class ReportingSetsServiceTest {
         runBlocking { service.getReportingSet(request) }
       }
     assertThat(reportingSet).isEqualTo(PRIMITIVE_REPORTING_SETS.first())
+  }
+
+  @Test
+  fun `getReportingSet returns ReportingSet with Campaign Group reference`() {
+    val reportingSetKey = ReportingSetKey(MEASUREMENT_CONSUMER_KEYS.first(), "reporting-set-id")
+    val reportingSetName = reportingSetKey.toName()
+    val internalReportingSet =
+      INTERNAL_PRIMITIVE_REPORTING_SETS.first().copy {
+        externalReportingSetId = reportingSetKey.reportingSetId
+        externalCampaignGroupId = "campaign-group-id"
+      }
+    wheneverBlocking { internalReportingSetsMock.batchGetReportingSets(any()) }
+      .thenReturn(batchGetReportingSetsResponse { reportingSets += internalReportingSet })
+
+    val response: ReportingSet =
+      withMeasurementConsumerPrincipal(reportingSetKey.parentKey.toName(), CONFIG) {
+        runBlocking { service.getReportingSet(getReportingSetRequest { name = reportingSetName }) }
+      }
+
+    assertThat(response)
+      .isEqualTo(
+        PRIMITIVE_REPORTING_SETS.first().copy {
+          name = reportingSetName
+          campaignGroup =
+            ReportingSetKey(reportingSetKey.parentKey, internalReportingSet.externalCampaignGroupId)
+              .toName()
+        }
+      )
   }
 
   @Test
