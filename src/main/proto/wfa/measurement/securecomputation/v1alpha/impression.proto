@@ -1,0 +1,58 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.securecomputation.v1alpha;
+
+//import "google/api/field_behavior.proto";
+//import "google/api/resource.proto";
+import "wfa/measurement/api/v2alpha/event_annotations.proto";
+
+option java_package = "org.wfanet.measurement.securecomputation.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ImpressionProto";
+
+message Impression {
+    enum Gender {
+      GENDER_UNKNOWN = 0;
+      GENDER_MALE = 1;
+      GENDER_FEMALE = 2;
+    }
+  int64 impression_unix_time_stamp = 1;
+  Gender gender = 2;
+  int32 age = 3;
+  int64 geo = 4;
+  string device_type_os = 5;
+  int64 campaign_id = 6;
+  int64 watch_duration_ms = 7;
+  int64 ad_duration_ms = 8;
+  oneof viewability {
+      bool banner_viewable = 9 [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Viewable"
+        description: "Whether the ad was shown for more than 2 seconds with at "
+                     "least 50% of the pixels on the screen. If not specified, "
+                     "viewability was not determined."
+      }];
+        double video_viewed_fraction = 10 [(.wfa.measurement.api.v2alpha.template_field) = {
+          display_name: "Viewed Fraction"
+          description: "Fraction of the video that was viewed in the range [0, 1]"
+        }];
+  }
+  string country = 11;
+  int64 join_id = 12;
+  string email = 13;
+  string phone_number = 14;
+  string placement = 15;
+}
