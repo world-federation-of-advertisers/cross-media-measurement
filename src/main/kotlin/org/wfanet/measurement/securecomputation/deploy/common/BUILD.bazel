@@ -1,0 +1,25 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "flags",
+    srcs = ["InternalApiFlags.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/picocli",
+    ],
+)
+
+kt_jvm_library(
+    name = "controlplane_api_server_flags",
+    srcs = ["ControlPlaneApiServerFlags.kt"],
+    deps = [
+        ":flags",
+        "@wfa_common_jvm//imports/java/picocli",
+    ],
+)

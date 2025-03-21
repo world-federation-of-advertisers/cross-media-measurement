@@ -114,6 +114,11 @@ REPORTING_K8S_SETTINGS = struct(
     public_api_address_name = "$(reporting_public_api_address_name)",
 )
 
+# Settings for Control Plane Kubernetes deployments.
+CONTROL_PLANE_K8S_SETTINGS = struct(
+    public_api_address_name = "$(control_plane_public_api_address_name)",
+)
+
 # Settings for simulator Kubernetes deployments.
 SIMULATOR_K8S_SETTINGS = struct(
     mc_name = "$(mc_name)",
