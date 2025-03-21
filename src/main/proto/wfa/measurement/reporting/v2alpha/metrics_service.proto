@@ -21,6 +21,7 @@ import "google/api/client.proto";
 import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
+import "google/protobuf/empty.proto";
 import "wfa/measurement/reporting/v2alpha/metric.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
@@ -71,6 +72,15 @@ service Metrics {
       post: "/v2alpha/{parent=measurementConsumers/*}/metrics:batchCreate"
       body: "*"
     };
+  }
+
+  // Invalidates the `Metric` with the specified resource key.
+  rpc InvalidateMetric(InvalidateMetricRequest)
+      returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      get: "/v2alpha/{name=measurementConsumers/*/metrics/*}"
+    };
+    option (google.api.method_signature) = "name";
   }
 }
 
@@ -190,4 +200,14 @@ message BatchCreateMetricsRequest {
 message BatchCreateMetricsResponse {
   // Metrics created.
   repeated Metric metrics = 1;
+}
+
+// Request message for `InvalidateMetric` method.
+message InvalidateMetricRequest {
+  // The name of the metric to invalidate.
+  // Format: measurementConsumers/{measurement_consumer}/metrics/{metric}
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "reporting.halo-cmm.org/Metric" }
+  ];
 }

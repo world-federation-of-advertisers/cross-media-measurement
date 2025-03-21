@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Empty
@@ -182,6 +183,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsRequest as
 import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsResponse as internalBatchCreateMetricsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest as internalBatchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsResponse as internalBatchGetMetricsResponse
+import org.wfanet.measurement.internal.reporting.v2.invalidateMetricRequest as internalInvalidateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
@@ -198,6 +200,8 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsSketchParams as internalReachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.reporting.v2.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
+import com.google.rpc.errorInfo
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMetricVarianceParams
@@ -211,6 +215,9 @@ import org.wfanet.measurement.measurementconsumer.stats.Variances
 import org.wfanet.measurement.measurementconsumer.stats.WatchDurationMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.WatchDurationMetricVarianceParams
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
+import org.wfanet.measurement.reporting.service.api.Errors
+import org.wfanet.measurement.reporting.service.internal.MetricNotFoundException
+import org.wfanet.measurement.reporting.v2alpha.invalidateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
@@ -6505,6 +6512,71 @@ class MetricsServiceTest {
     }
 
   @Test
+  fun `getMetric returns the metric with INVALIDATED when metric has state INVALIDATED`() =
+    runBlocking {
+      val invalidatedMetric = INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+        state = InternalMetric.State.INVALIDATED
+      }
+
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics += invalidatedMetric
+          }
+        )
+
+      val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
+      val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMetricsMock, times(1)) {
+        batchGetMetrics(batchGetInternalMetricsCaptor.capture())
+      }
+      val capturedInternalGetMetricRequests = batchGetInternalMetricsCaptor.allValues
+      assertThat(capturedInternalGetMetricRequests)
+        .containsExactly(
+          internalBatchGetMetricsRequest {
+            cmmsMeasurementConsumerId = invalidatedMetric.cmmsMeasurementConsumerId
+            externalMetricIds += invalidatedMetric.externalMetricId
+          }
+        )
+
+      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+      }
+
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+      val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+      }
+
+      assertThat(result).isEqualTo(SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+        state = Metric.State.INVALIDATED
+        clearResult()
+        this.result = metricResult {
+          for (weightedMeasurement in INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.weightedMeasurementsList) {
+            cmmsMeasurements += MeasurementKey(
+              measurementConsumerId = weightedMeasurement.measurement.cmmsMeasurementConsumerId,
+              measurementId = weightedMeasurement.measurement.cmmsMeasurementId,
+            ).toName()
+          }
+        }
+      })
+    }
+
+  @Test
   fun `getMetric returns SUCCEEDED metric when metric already succeeded and single params set`() =
     runBlocking {
       val internalMeasurement = internalMeasurement {
@@ -9697,7 +9769,7 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `getMetric throws INVALID_ARGUMENT when Report name is invalid`() {
+  fun `getMetric throws INVALID_ARGUMENT when Metric name is invalid`() {
     val request = getMetricRequest { name = "invalid_metric_name" }
 
     val exception =
@@ -10224,6 +10296,113 @@ class MetricsServiceTest {
     }
 
     assertThat(result).isEqualTo(SUCCEEDED_POPULATION_METRIC)
+  }
+
+  @Test
+  fun `invalidateMetric returns Empty`() = runBlocking {
+    whenever(internalMetricsMock.invalidateMetric(any()))
+      .thenReturn(Empty.getDefaultInstance())
+
+    val request = invalidateMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        runBlocking { service.invalidateMetric(request) }
+      }
+
+    assertThat(result).isEqualTo(Empty.getDefaultInstance())
+
+    val metricKey = MetricKey.fromName(SUCCEEDED_INCREMENTAL_REACH_METRIC.name)
+
+    // Verify proto argument of the internal MetricsCoroutineImplBase::invalidateMetric
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::invalidateMetric)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalInvalidateMetricRequest {
+          cmmsMeasurementConsumerId = metricKey!!.cmmsMeasurementConsumerId
+          externalMetricId = metricKey.metricId
+        }
+      )
+  }
+
+  @Test
+  fun `invalidateMetric throws NOT_FOUND when metric not found`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMERS.values.first().name)
+    val metricKey = MetricKey(measurementConsumerKey!!, "aaa")
+    whenever(internalMetricsMock.invalidateMetric(any()))
+      .thenThrow(MetricNotFoundException(
+        cmmsMeasurementConsumerId = measurementConsumerKey!!.measurementConsumerId,
+        externalMetricId = metricKey.metricId
+      ).asStatusRuntimeException(Status.Code.NOT_FOUND))
+
+    val request = invalidateMetricRequest { name = metricKey.toName() }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.invalidateMetric(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.METRIC_NOT_FOUND.name
+          metadata[Errors.Metadata.METRIC.key] = request.name
+        }
+      )
+  }
+
+  @Test
+  fun `invalidateMetric throws INVALID_ARGUMENT when Metric name is invalid`() {
+    val request = invalidateMetricRequest { name = "invalid_metric_name" }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.invalidateMetric(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "name"
+        }
+      )
+  }
+
+  @Test
+  fun `invalidateMetric throws PERMISSION_DENIED when MC's identity does not match`() {
+    val request = invalidateMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.last().name, CONFIG) {
+          runBlocking { service.invalidateMetric(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `invalidateMetric throws UNAUTHENTICATED when the caller is not a MeasurementConsumer`() {
+    val request = invalidateMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDERS.values.first().name) {
+          runBlocking { service.invalidateMetric(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   companion object {

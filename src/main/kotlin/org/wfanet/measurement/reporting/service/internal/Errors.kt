@@ -29,6 +29,7 @@ object Errors {
   enum class Reason {
     MEASUREMENT_CONSUMER_NOT_FOUND,
     BASIC_REPORT_NOT_FOUND,
+    METRIC_NOT_FOUND,
     BASIC_REPORT_ALREADY_EXISTS,
     REQUIRED_FIELD_NOT_SET,
     INVALID_FIELD_VALUE,
@@ -37,6 +38,7 @@ object Errors {
   enum class Metadata(val key: String) {
     CMMS_MEASUREMENT_CONSUMER_ID("cmmsMeasurementConsumerId"),
     EXTERNAL_BASIC_REPORT_ID("externalBasicReportId"),
+    EXTERNAL_METRIC_ID("externalMetricId"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -156,5 +158,20 @@ class InvalidFieldValueException(
     Errors.Reason.INVALID_FIELD_VALUE,
     buildMessage(fieldName),
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
+    cause,
+  )
+
+class MetricNotFoundException(
+  cmmsMeasurementConsumerId: String,
+  externalMetricId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.METRIC_NOT_FOUND,
+    "Metric with cmms measurement consumer ID $cmmsMeasurementConsumerId and external ID $externalMetricId not found",
+    mapOf(
+      Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
+      Errors.Metadata.EXTERNAL_METRIC_ID to externalMetricId,
+    ),
     cause,
   )

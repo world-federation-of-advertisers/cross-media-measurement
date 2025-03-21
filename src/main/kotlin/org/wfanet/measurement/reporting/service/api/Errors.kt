@@ -29,6 +29,7 @@ object Errors {
 
   enum class Reason {
     BASIC_REPORT_NOT_FOUND,
+    METRIC_NOT_FOUND,
     REQUIRED_FIELD_NOT_SET,
     INVALID_FIELD_VALUE,
     ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE,
@@ -36,6 +37,7 @@ object Errors {
 
   enum class Metadata(val key: String) {
     BASIC_REPORT("basicReport"),
+    METRIC("metric"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -88,7 +90,15 @@ class BasicReportNotFoundException(name: String, cause: Throwable? = null) :
     "Basic Report $name not found",
     mapOf(Errors.Metadata.BASIC_REPORT to name),
     cause,
-  ) {}
+  )
+
+class MetricNotFoundException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.METRIC_NOT_FOUND,
+    "Metric $name not found",
+    mapOf(Errors.Metadata.METRIC to name),
+    cause,
+  )
 
 class RequiredFieldNotSetException(fieldName: String, cause: Throwable? = null) :
   ServiceException(

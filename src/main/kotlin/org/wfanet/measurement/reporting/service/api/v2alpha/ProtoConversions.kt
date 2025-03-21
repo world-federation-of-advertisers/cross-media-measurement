@@ -550,6 +550,7 @@ fun InternalMetric.State.toPublic(): Metric.State {
     InternalMetric.State.RUNNING -> Metric.State.RUNNING
     InternalMetric.State.SUCCEEDED -> Metric.State.SUCCEEDED
     InternalMetric.State.FAILED -> Metric.State.FAILED
+    InternalMetric.State.INVALIDATED -> Metric.State.INVALIDATED
     InternalMetric.State.STATE_UNSPECIFIED -> Metric.State.STATE_UNSPECIFIED
     InternalMetric.State.UNRECOGNIZED ->
       // State is set by the system so if this is reached, something went wrong.

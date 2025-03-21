@@ -414,10 +414,12 @@ message Metric {
     STATE_UNSPECIFIED = 0;
     // Computation is running.
     RUNNING = 1;
-    // Completed successfully. Terminal state.
+    // Completed successfully.
     SUCCEEDED = 2;
     // Completed with failure. Terminal state.
     FAILED = 3;
+    // Result invalidated after successful completion. Terminal state.
+    INVALIDATED = 4;
   }
 
   // The Report that this Metric was first created for

@@ -60,6 +60,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRe
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
+import org.wfanet.measurement.internal.reporting.v2.invalidateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metric
@@ -3053,7 +3054,16 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.message).contains("not found")
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.METRIC_NOT_FOUND.name
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+            CMMS_MEASUREMENT_CONSUMER_ID
+          metadata[Errors.Metadata.EXTERNAL_METRIC_ID.key] = "1L"
+        }
+      )
   }
 
   @Test
@@ -3279,6 +3289,77 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { service.streamMetrics(streamMetricsRequest {}) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `invalidateMetric throws NOT_FOUND when metric not found`(): Unit = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.invalidateMetric(
+          invalidateMetricRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalMetricId = "1L"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.METRIC_NOT_FOUND.name
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+            CMMS_MEASUREMENT_CONSUMER_ID
+          metadata[Errors.Metadata.EXTERNAL_METRIC_ID.key] = "1L"
+        }
+      )
+  }
+
+  @Test
+  fun `invalidateMetric throws INVALID_ARGUMENT when missing mc id`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.invalidateMetric(
+          invalidateMetricRequest {
+            externalMetricId = "1L"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "cmms_measurement_consumer_id"
+        }
+      )
+  }
+
+  @Test
+  fun `invalidateMetric throws INVALID_ARGUMENT when missing metric id`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.invalidateMetric(
+          invalidateMetricRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "external_metric_id"
+        }
+      )
   }
 
   companion object {
