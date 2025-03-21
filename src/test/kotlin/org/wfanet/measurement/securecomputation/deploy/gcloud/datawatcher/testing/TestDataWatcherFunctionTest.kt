@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.datawatcher
+package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Int32Value

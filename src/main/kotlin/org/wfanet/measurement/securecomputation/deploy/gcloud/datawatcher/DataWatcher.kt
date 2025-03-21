@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.datawatcher
+package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsService
 import com.google.events.cloud.storage.v1.StorageObjectData
