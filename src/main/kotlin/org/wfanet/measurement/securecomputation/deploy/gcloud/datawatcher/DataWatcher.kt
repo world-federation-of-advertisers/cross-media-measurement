@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.datawatcher
+package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 
 import java.util.UUID
 import kotlin.text.matches
@@ -35,7 +35,7 @@ class DataWatcher(
   private val workItemsService: GooglePubSubWorkItemsService,
   private val dataWatcherConfigs: List<DataWatcherConfig>,
 ) {
-  fun receivePath(path: String) {
+  suspend fun receivePath(path: String) {
     for (config in dataWatcherConfigs) {
       val regex = config.sourcePathRegex.toRegex()
       if (regex.matches(path)) {
@@ -56,7 +56,7 @@ class DataWatcher(
                 this.workItemParams = workItemParams
               }
             }
-            runBlocking { workItemsService.createWorkItem(request) }
+            workItemsService.createWorkItem(request)
           }
           DataWatcherConfig.SinkConfigCase.CLOUD_FUNCTION_CONFIG ->
             TODO("Cloud Function Sink not currently supported")

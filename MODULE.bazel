@@ -40,6 +40,11 @@ bazel_dep(
     version = "0.101.0",
     repo_name = "wfa_common_jvm",
 )
+archive_override(
+    module_name = "common-jvm",
+    strip_prefix = "common-jvm-217944789cbf82d429489401a035777815434e75",
+    urls = "https://github.com/world-federation-of-advertisers/common-jvm/archive/217944789cbf82d429489401a035777815434e75.tar.gz",
+)
 bazel_dep(
     name = "common-cpp",
     version = "0.13.0",
@@ -229,7 +234,7 @@ maven.install(
         # TODO(googleapis/java-cloud-bom#5279): Remove when managed by BOM.
         "com.google.apis:google-api-services-storage:v1-rev20240706-2.0.0",
         "com.google.cloud.functions.invoker:java-function-invoker:1.4.0",
-        
+
         # AWS
         "software.amazon.awssdk:acmpca",
 
