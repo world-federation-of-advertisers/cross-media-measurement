@@ -1833,6 +1833,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                   }
                 }
 
+              // Numbers below aren't actually calculated.
               metricSet =
                 InternalResultGroupKt.metricSet {
                   populationSize = 1000
@@ -2020,6 +2021,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                     }
                   }
 
+                // Numbers below aren't actually calculated.
                 metricSet =
                   ResultGroupKt.metricSet {
                     populationSize = 1000
