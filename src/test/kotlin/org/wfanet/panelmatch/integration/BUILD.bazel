@@ -64,6 +64,8 @@ spanner_emulator_test(
     name = "FullWorkflowTest",
     size = "medium",
     srcs = ["FullWorkflowTest.kt"],
+    # TODO(world-federation-of-advertisers/cross-media-measurement#2096): Remove when flakiness has been addressed.
+    flaky = True,
     resources = ["//src/test/kotlin/org/wfanet/panelmatch/integration/config"],
     tags = [
         "cpu:2",
@@ -89,6 +91,8 @@ spanner_emulator_test(
     name = "FullWithPreprocessingTest",
     size = "medium",
     srcs = ["FullWithPreprocessingTest.kt"],
+    # TODO(world-federation-of-advertisers/cross-media-measurement#2096): Remove when flakiness has been addressed.
+    flaky = True,
     resources = ["//src/test/kotlin/org/wfanet/panelmatch/integration/config"],
     tags = [
         "cpu:2",
