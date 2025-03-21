@@ -1731,7 +1731,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   @Test
-  fun `inserting and retrieving a basic report succeeds`() = runBlocking {
+  fun `getBasicReport returns basic report inserted via internal API`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
     val eventGroup = eventGroups.first()
