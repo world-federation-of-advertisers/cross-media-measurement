@@ -25,6 +25,11 @@ bazel_dep(
     version = "0.6.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
+git_override(
+    module_name = "rules_kotlin",
+    commit = "cbfa497979069781ae7ed0cfc9a8622a3c5ad190",
+    remote = "https://github.com/laureanobrs/rules_kotlin.git",
+)
 bazel_dep(
     name = "rules_swig",
     version = "0.1.0",
