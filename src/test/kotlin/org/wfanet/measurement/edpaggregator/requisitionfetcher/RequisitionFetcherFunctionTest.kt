@@ -111,15 +111,11 @@ class RequisitionFetcherFunctionTest {
       .uri(URI.create(url))
       .GET()
       .build()
-    try {
-      val getResponse = client.send(getRequest, BodyHandlers.ofString())
-      logger.info("Response status: ${getResponse.statusCode()}")
-      logger.info("Response body: ${getResponse.body()}")
-      // Verify the function worked
-      assert(getResponse.statusCode() == 200)
-    } catch (e: Exception) {
-      throw e
-    }
+    val getResponse = client.send(getRequest, BodyHandlers.ofString())
+    logger.info("Response status: ${getResponse.statusCode()}")
+    logger.info("Response body: ${getResponse.body()}")
+    // Verify the function worked
+    assertThat(getResponse.statusCode() == 200)
 
     val storedRequisitionPath = Paths.get(STORAGE_PATH_PREFIX, REQUISITION.name)
     val requisitionFile = tempFolder.root.toPath().resolve(storedRequisitionPath).toFile()

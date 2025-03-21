@@ -41,7 +41,6 @@ class RequisitionFetcherFunction : HttpFunction {
 
     val requisitionsStub = RequisitionsCoroutineStub(publicChannel)
 
-
     val requisitionsStorageClient = if(System.getenv("REQUISITION_FILE_SYSTEM_PATH").isNotEmpty()) {
       FileSystemStorageClient(File(System.getenv("REQUISITION_FILE_SYSTEM_PATH")))
     } else {

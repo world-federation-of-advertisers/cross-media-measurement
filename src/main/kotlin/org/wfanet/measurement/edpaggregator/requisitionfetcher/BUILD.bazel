@@ -11,7 +11,6 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
-        "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
@@ -22,7 +21,7 @@ kt_jvm_library(
     srcs = ["RequisitionFetcherFunction.kt"],
     deps = [
         ":requisition_fetcher",
-        "@wfa_common_jvm//imports/java/com/google/cloud/storage/contrib/nio",
+        "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],

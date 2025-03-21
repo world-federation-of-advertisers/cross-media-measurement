@@ -16,13 +16,13 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
-import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.kotlin.toByteString
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
@@ -34,8 +34,8 @@ import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toByteArray
-import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 
 @RunWith(JUnit4::class)
@@ -49,11 +49,12 @@ class RequisitionFetcherTest {
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub by lazy {
     RequisitionsGrpcKt.RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
+  @Rule
+  @JvmField val tempFolder = TemporaryFolder()
 
   @Test
   fun `fetchAndStoreRequisitions stores Requisition`() {
-    val storage = LocalStorageHelper.getOptions().service
-    val storageClient = GcsStorageClient(storage, BUCKET)
+    val storageClient = FileSystemStorageClient(tempFolder.root)
     val fetcher = RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME, STORAGE_PATH_PREFIX)
 
     val expectedResult = Any.pack(REQUISITION)
@@ -66,8 +67,7 @@ class RequisitionFetcherTest {
 
   @Test
   fun `fetchAndStoreRequisitions stores multiple Requisitions`() {
-    val storage = LocalStorageHelper.getOptions().service
-    val storageClient = GcsStorageClient(storage, BUCKET)
+    val storageClient = FileSystemStorageClient(tempFolder.root)
     val fetcher = RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME, STORAGE_PATH_PREFIX, 50)
 
     val requisitionsList = List(100) {
@@ -94,7 +94,6 @@ class RequisitionFetcherTest {
 
   companion object {
     private const val STORAGE_PATH_PREFIX = "test-requisitions/"
-    private const val BUCKET = "requisition-storage-test-bucket"
     private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
     private const val REQUISITION_NAME = "${DATA_PROVIDER_NAME}/requisitions/foo"
     private val REQUISITION = requisition {
