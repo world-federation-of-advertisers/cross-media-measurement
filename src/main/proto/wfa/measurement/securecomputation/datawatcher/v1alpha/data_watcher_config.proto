@@ -50,3 +50,8 @@ message DataWatcherConfig {
     CloudFunctionConfig cloud_function = 3;
   }
 }
+
+message DataWatcherConfigs {
+
+  repeated DataWatcherConfig configs = 1;
+}
