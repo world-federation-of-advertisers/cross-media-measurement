@@ -955,11 +955,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val failedReport =
       publicReportsClient
         .withPrincipalName(measurementConsumerData.name)
-        .getReport(
-          getReportRequest {
-            name = retrievedReport.name
-          }
-        )
+        .getReport(getReportRequest { name = retrievedReport.name })
     assertThat(failedReport.state).isEqualTo(Report.State.FAILED)
   }
 
