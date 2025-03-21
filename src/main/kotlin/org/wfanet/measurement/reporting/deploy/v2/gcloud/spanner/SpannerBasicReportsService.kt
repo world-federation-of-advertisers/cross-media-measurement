@@ -32,11 +32,14 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.GetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.InsertBasicReportRequest
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
+import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
@@ -51,6 +54,7 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicRep
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.service.internal.BasicReportAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
+import org.wfanet.measurement.reporting.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 import org.wfanet.measurement.reporting.service.internal.RequiredFieldNotSetException
@@ -107,12 +111,36 @@ class SpannerBasicReportsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val basicReports =
-      spannerClient.singleUse().use { txn ->
-        txn.readBasicReports(request.limit, request.filter).map { it.basicReport }.toList()
+    val pageSize =
+      if (request.pageSize > 0) {
+        if (request.pageSize > MAX_PAGE_SIZE) {
+          MAX_PAGE_SIZE
+        } else {
+          request.pageSize
+        }
+      } else if (request.pageSize == 0) {
+        DEFAULT_PAGE_SIZE
+      } else {
+        throw InvalidFieldValueException("page_size")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
-    val reportingSetResultMap: Map<String, ReportingSetReader.Result> = buildMap {
+    val pageToken: ListBasicReportsPageToken? =
+      if (request.hasPageToken()) {
+        request.pageToken
+      } else {
+        null
+      }
+
+    val basicReports =
+      spannerClient.singleUse().use { txn ->
+        txn
+          .readBasicReports(pageSize + 1, request.filter, pageToken)
+          .map { it.basicReport }
+          .toList()
+      }
+
+    val reportingSetsByExternalId: Map<String, ReportingSetReader.Result> = buildMap {
       putAll(
         getReportingSets(
             request.filter.cmmsMeasurementConsumerId,
@@ -123,13 +151,44 @@ class SpannerBasicReportsService(
     }
 
     return listBasicReportsResponse {
-      this.basicReports +=
-        basicReports.map {
-          it.copy {
-            campaignGroupDisplayName =
-              reportingSetResultMap[it.externalCampaignGroupId]!!.reportingSet.displayName
+      if (basicReports.size == pageSize + 1) {
+        this.basicReports +=
+          basicReports.subList(0, basicReports.lastIndex).map {
+            it.copy {
+              campaignGroupDisplayName =
+                reportingSetsByExternalId
+                  .getValue(it.externalCampaignGroupId)
+                  .reportingSet
+                  .displayName
+            }
           }
+
+        nextPageToken = listBasicReportsPageToken {
+          cmmsMeasurementConsumerId = request.filter.cmmsMeasurementConsumerId
+          if (request.filter.hasCreateTimeAfter()) {
+            filter =
+              ListBasicReportsPageTokenKt.filter {
+                createTimeAfter = request.filter.createTimeAfter
+              }
+          }
+          lastBasicReport =
+            ListBasicReportsPageTokenKt.previousPageEnd {
+              createTime = basicReports[basicReports.lastIndex - 1].createTime
+              externalBasicReportId = basicReports[basicReports.lastIndex - 1].externalBasicReportId
+            }
         }
+      } else {
+        this.basicReports +=
+          basicReports.map {
+            it.copy {
+              campaignGroupDisplayName =
+                reportingSetsByExternalId
+                  .getValue(it.externalCampaignGroupId)
+                  .reportingSet
+                  .displayName
+            }
+          }
+      }
     }
   }
 
@@ -185,7 +244,10 @@ class SpannerBasicReportsService(
       }
     } catch (e: SpannerException) {
       if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
-        throw BasicReportAlreadyExistsException(request.basicReport.externalBasicReportId)
+        throw BasicReportAlreadyExistsException(
+            request.basicReport.cmmsMeasurementConsumerId,
+            request.basicReport.externalBasicReportId,
+          )
           .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
       } else {
         throw e
@@ -269,5 +331,10 @@ class SpannerBasicReportsService(
     } finally {
       postgresReadContext?.close()
     }
+  }
+
+  companion object {
+    private const val DEFAULT_PAGE_SIZE = 10
+    private const val MAX_PAGE_SIZE = 25
   }
 }

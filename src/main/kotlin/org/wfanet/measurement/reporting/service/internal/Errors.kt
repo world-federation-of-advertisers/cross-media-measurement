@@ -16,9 +16,12 @@
 
 package org.wfanet.measurement.reporting.service.internal
 
+import com.google.rpc.ErrorInfo
 import com.google.rpc.errorInfo
 import io.grpc.Status
+import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import org.wfanet.measurement.common.grpc.errorInfo
 
 object Errors {
   const val DOMAIN = "internal.reporting.halo-cmm.org"
@@ -28,18 +31,47 @@ object Errors {
     BASIC_REPORT_NOT_FOUND,
     BASIC_REPORT_ALREADY_EXISTS,
     REQUIRED_FIELD_NOT_SET,
+    IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+    INVALID_FIELD_VALUE,
   }
 
   enum class Metadata(val key: String) {
     CMMS_MEASUREMENT_CONSUMER_ID("cmmsMeasurementConsumerId"),
     EXTERNAL_BASIC_REPORT_ID("externalBasicReportId"),
-    FIELD_NAME("fieldName");
+    FIELD_NAME("fieldName"),
+    IMPRESSION_QUALIFICATION_FILTER_ID("impressionQualificationFilterId");
 
     companion object {
       private val METADATA_BY_KEY by lazy { entries.associateBy { it.key } }
 
       fun fromKey(key: String): Metadata = METADATA_BY_KEY.getValue(key)
     }
+  }
+
+  /**
+   * Returns the [Reason] extracted from [exception], or `null` if [exception] is not this type of
+   * error.
+   */
+  fun getReason(exception: StatusException): Reason? {
+    val errorInfo = exception.errorInfo ?: return null
+    return getReason(errorInfo)
+  }
+
+  /**
+   * Returns the [Reason] extracted from [errorInfo], or `null` if [errorInfo] is not this type of
+   * error.
+   */
+  fun getReason(errorInfo: ErrorInfo): Reason? {
+    if (errorInfo.domain != DOMAIN) {
+      return null
+    }
+
+    return Reason.valueOf(errorInfo.reason)
+  }
+
+  fun parseMetadata(errorInfo: ErrorInfo): Map<Metadata, String> {
+    require(errorInfo.domain == DOMAIN) { "Error domain is not ${DOMAIN}" }
+    return errorInfo.metadataMap.mapKeys { Metadata.fromKey(it.key) }
   }
 }
 
@@ -79,19 +111,33 @@ class MeasurementConsumerNotFoundException(
     cause,
   )
 
-class BasicReportNotFoundException(externalBasicReportId: String, cause: Throwable? = null) :
+class BasicReportNotFoundException(
+  cmmsMeasurementConsumerId: String,
+  externalBasicReportId: String,
+  cause: Throwable? = null,
+) :
   ServiceException(
     Errors.Reason.BASIC_REPORT_NOT_FOUND,
-    "Basic Report with external ID $externalBasicReportId not found",
-    mapOf(Errors.Metadata.EXTERNAL_BASIC_REPORT_ID to externalBasicReportId),
+    "Basic Report with cmms measurement consumer ID $cmmsMeasurementConsumerId and external ID $externalBasicReportId not found",
+    mapOf(
+      Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
+      Errors.Metadata.EXTERNAL_BASIC_REPORT_ID to externalBasicReportId,
+    ),
     cause,
   )
 
-class BasicReportAlreadyExistsException(externalBasicReportId: String, cause: Throwable? = null) :
+class BasicReportAlreadyExistsException(
+  cmmsMeasurementConsumerId: String,
+  externalBasicReportId: String,
+  cause: Throwable? = null,
+) :
   ServiceException(
     Errors.Reason.BASIC_REPORT_ALREADY_EXISTS,
-    "Basic Report with external ID $externalBasicReportId already exists",
-    mapOf(Errors.Metadata.EXTERNAL_BASIC_REPORT_ID to externalBasicReportId),
+    "Basic Report with cmms measurement consumer ID $cmmsMeasurementConsumerId and external ID $externalBasicReportId already exists",
+    mapOf(
+      Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
+      Errors.Metadata.EXTERNAL_BASIC_REPORT_ID to externalBasicReportId,
+    ),
     cause,
   )
 
@@ -99,6 +145,29 @@ class RequiredFieldNotSetException(fieldName: String, cause: Throwable? = null) 
   ServiceException(
     Errors.Reason.REQUIRED_FIELD_NOT_SET,
     "$fieldName not set",
+    mapOf(Errors.Metadata.FIELD_NAME to fieldName),
+    cause,
+  )
+
+class ImpressionQualificationFilterNotFoundException(
+  impressionQualificationFilterId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+    "Impression Qualification Filter with ID $impressionQualificationFilterId not found",
+    mapOf(Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER_ID to impressionQualificationFilterId),
+    cause,
+  )
+
+class InvalidFieldValueException(
+  fieldName: String,
+  cause: Throwable? = null,
+  buildMessage: (fieldName: String) -> String = { "Invalid value for field $fieldName" },
+) :
+  ServiceException(
+    Errors.Reason.INVALID_FIELD_VALUE,
+    buildMessage(fieldName),
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
     cause,
   )

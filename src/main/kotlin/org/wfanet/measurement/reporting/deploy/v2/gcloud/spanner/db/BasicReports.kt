@@ -29,6 +29,7 @@ import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.BasicReportResultDetails
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
@@ -69,15 +70,21 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
           bind("externalBasicReportId").to(externalBasicReportId)
         }
       )
-      .singleOrNullIfEmpty() ?: throw BasicReportNotFoundException(externalBasicReportId)
+      .singleOrNullIfEmpty()
+      ?: throw BasicReportNotFoundException(cmmsMeasurementConsumerId, externalBasicReportId)
 
   return BasicReportResult(row.getLong("BasicReportId"), buildBasicReport(row))
 }
 
-/** Reads [BasicReport]s ordered by create time ascending, external basic report id ascending. */
+/**
+ * Reads [BasicReport]s ordered by create time ascending, external basic report id ascending.
+ *
+ * Does not set the campaign_group_display_name field in the result.
+ */
 fun AsyncDatabaseClient.ReadContext.readBasicReports(
   limit: Int,
   filter: ListBasicReportsRequest.Filter,
+  pageToken: ListBasicReportsPageToken? = null,
 ): Flow<BasicReportResult> {
   val sql = buildString {
     appendLine(
@@ -99,7 +106,8 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
       """
         .trimIndent()
     )
-    if (filter.hasAfter()) {
+
+    if (pageToken != null) {
       appendLine(
         """
         AND (BasicReports.CreateTime > @createTime
@@ -109,11 +117,14 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
           .trimIndent()
       )
     } else if (filter.hasCreateTimeAfter()) {
-      """
-      AND BasicReports.CreateTime > @createTime
-      """
-        .trimIndent()
+      appendLine(
+        """
+        AND BasicReports.CreateTime > @createTime
+        """
+          .trimIndent()
+      )
     }
+
     appendLine("ORDER BY CreateTime, ExternalBasicReportId")
     if (limit > 0) {
       appendLine("LIMIT @limit")
@@ -122,12 +133,13 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
   val query =
     statement(sql) {
       bind("cmmsMeasurementConsumerId").to(filter.cmmsMeasurementConsumerId)
-      if (filter.hasAfter()) {
-        bind("createTime").to(filter.after.createTime.toGcloudTimestamp())
-        bind("externalBasicReportId").to(filter.after.externalBasicReportId)
+      if (pageToken != null) {
+        bind("createTime").to(pageToken.lastBasicReport.createTime.toGcloudTimestamp())
+        bind("externalBasicReportId").to(pageToken.lastBasicReport.externalBasicReportId)
       } else if (filter.hasCreateTimeAfter()) {
         bind("createTime").to(filter.createTimeAfter.toGcloudTimestamp())
       }
+
       if (limit > 0) {
         bind("limit").to(limit.toLong())
       }

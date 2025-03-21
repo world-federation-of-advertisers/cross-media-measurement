@@ -2,6 +2,7 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing/v2:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/v2:__subpackages__",
 ])
@@ -25,5 +26,15 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
         "@wfa_common_jvm//imports/java/io/grpc:api",
+    ],
+)
+
+kt_jvm_library(
+    name = "impression_qualification_filter_mapping",
+    srcs = ["ImpressionQualificationFilterMapping.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_ids",
+        "//src/main/proto/wfa/measurement/config/reporting:impression_qualification_filter_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:impression_qualification_filter_kt_jvm_proto",
     ],
 )
