@@ -32,6 +32,8 @@ service Metrics {
 
   // Ordered by (cmms_measurement_consumer_id, external_metric_id).
   rpc StreamMetrics(StreamMetricsRequest) returns (stream Metric);
+
+  rpc InvalidateMetric(InvalidateMetricRequest) returns (Metric);
 }
 
 message CreateMetricRequest {
@@ -74,4 +76,10 @@ message StreamMetricsRequest {
   Filter filter = 1;
 
   int32 limit = 2;
+}
+
+message InvalidateMetricRequest {
+  // `MeasurementConsumer` ID from the CMMS public API.
+  string cmms_measurement_consumer_id = 1;
+  string external_metric_id = 2;
 }
