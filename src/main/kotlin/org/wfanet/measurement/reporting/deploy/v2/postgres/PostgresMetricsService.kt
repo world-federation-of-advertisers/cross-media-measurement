@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.postgres
 
-import com.google.protobuf.Empty
 import io.grpc.Status
 import java.lang.IllegalStateException
 import kotlinx.coroutines.flow.Flow
@@ -180,7 +179,7 @@ class PostgresMetricsService(
     }
   }
 
-  override suspend fun invalidateMetric(request: InvalidateMetricRequest): Empty {
+  override suspend fun invalidateMetric(request: InvalidateMetricRequest): Metric {
     if (request.cmmsMeasurementConsumerId.isEmpty()) {
       throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -192,11 +191,9 @@ class PostgresMetricsService(
     }
 
     try {
-      SetMetricState(request).execute(client, idGenerator)
+      return SetMetricState(request).execute(client, idGenerator)
     } catch (e: MetricNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
-
-    return Empty.getDefaultInstance()
   }
 }

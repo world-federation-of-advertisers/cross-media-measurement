@@ -2135,7 +2135,12 @@ private val PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC =
   }
 
 private val FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC =
-  PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { state = Metric.State.FAILED }
+  PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+    state = Metric.State.FAILED
+    result = metricResult {
+      cmmsMeasurements += PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name
+    }
+  }
 
 private val SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC =
   PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
@@ -10302,27 +10307,32 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `invalidateMetric returns Empty`() = runBlocking {
-    whenever(internalMetricsMock.invalidateMetric(any())).thenReturn(Empty.getDefaultInstance())
+  fun `invalidateMetric returns Metric with state INVALIDATED`() = runBlocking {
+    whenever(internalMetricsMock.invalidateMetric(any())).thenReturn(
+      INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+        state = InternalMetric.State.INVALIDATED
+      })
 
-    val request = invalidateMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
+    val request = invalidateMetricRequest { name = FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
     val result =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
         runBlocking { service.invalidateMetric(request) }
       }
 
-    assertThat(result).isEqualTo(Empty.getDefaultInstance())
-
-    val metricKey = MetricKey.fromName(SUCCEEDED_INCREMENTAL_REACH_METRIC.name)
+    assertThat(result).isEqualTo(FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+      state = Metric.State.INVALIDATED
+    })
 
     // Verify proto argument of the internal MetricsCoroutineImplBase::invalidateMetric
     verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::invalidateMetric)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         internalInvalidateMetricRequest {
-          cmmsMeasurementConsumerId = metricKey!!.cmmsMeasurementConsumerId
-          externalMetricId = metricKey.metricId
+          cmmsMeasurementConsumerId =
+            INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId
+          externalMetricId =
+            INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
         }
       )
   }

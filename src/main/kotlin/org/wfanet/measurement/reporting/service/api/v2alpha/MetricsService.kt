@@ -20,7 +20,6 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.Duration as ProtoDuration
-import com.google.protobuf.Empty
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Durations
@@ -1223,7 +1222,7 @@ class MetricsService(
     }
   }
 
-  override suspend fun invalidateMetric(request: InvalidateMetricRequest): Empty {
+  override suspend fun invalidateMetric(request: InvalidateMetricRequest): Metric {
     if (request.name.isEmpty()) {
       throw RequiredFieldNotSetException("name")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -1245,12 +1244,12 @@ class MetricsService(
     }
 
     try {
-      internalMetricsStub.invalidateMetric(
+      return internalMetricsStub.invalidateMetric(
         invalidateMetricRequest {
           cmmsMeasurementConsumerId = metricKey.cmmsMeasurementConsumerId
           externalMetricId = metricKey.metricId
         }
-      )
+      ).toMetric(variances)
     } catch (e: StatusException) {
       throw when (InternalErrors.getReason(e)) {
         InternalErrors.Reason.METRIC_NOT_FOUND ->
@@ -1264,8 +1263,6 @@ class MetricsService(
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
-
-    return Empty.getDefaultInstance()
   }
 
   /** Gets a batch of [InternalMetric]s. */

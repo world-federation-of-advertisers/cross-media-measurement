@@ -3306,12 +3306,18 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
 
     assertThat(createdMetric.state).isEqualTo(Metric.State.RUNNING)
 
-    service.invalidateMetric(
+    val invalidatedMetric = service.invalidateMetric(
       invalidateMetricRequest {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalMetricId = createdMetric.externalMetricId
       }
     )
+
+    assertThat(invalidatedMetric)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(createdMetric.copy {
+      state = Metric.State.INVALIDATED
+    })
 
     val retrievedMetric =
       service
@@ -3325,7 +3331,11 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
         )
         .first()
 
-    assertThat(retrievedMetric.state).isEqualTo(Metric.State.INVALIDATED)
+    assertThat(retrievedMetric)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(createdMetric.copy {
+      state = Metric.State.INVALIDATED
+    })
   }
 
   @Test

@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
-import "google/protobuf/empty.proto";
 import "wfa/measurement/internal/reporting/v2/metric.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
@@ -34,7 +33,7 @@ service Metrics {
   // Ordered by (cmms_measurement_consumer_id, external_metric_id).
   rpc StreamMetrics(StreamMetricsRequest) returns (stream Metric);
 
-  rpc InvalidateMetric(InvalidateMetricRequest) returns (google.protobuf.Empty);
+  rpc InvalidateMetric(InvalidateMetricRequest) returns (Metric);
 }
 
 message CreateMetricRequest {

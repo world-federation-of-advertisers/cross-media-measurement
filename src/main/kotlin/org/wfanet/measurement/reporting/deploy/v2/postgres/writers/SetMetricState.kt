@@ -23,17 +23,18 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.SerializableErrors.withSe
 import org.wfanet.measurement.internal.reporting.v2.InvalidateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.Metric
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest
+import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MetricReader
 import org.wfanet.measurement.reporting.service.internal.MetricNotFoundException
 
 /**
- * Updates State for a row in Metrics in the database.
+ * Updates State for a row in Metrics in the database and returns the updated Metric.
  *
  * Throws the following on [execute]:
  * * [MetricNotFoundException] Metric not found.
  */
-class SetMetricState(private val request: InvalidateMetricRequest) : PostgresWriter<Unit>() {
-  override suspend fun TransactionScope.runTransaction() {
+class SetMetricState(private val request: InvalidateMetricRequest) : PostgresWriter<Metric>() {
+  override suspend fun TransactionScope.runTransaction(): Metric {
     val metricResult =
       try {
         MetricReader(transactionContext)
@@ -66,5 +67,9 @@ class SetMetricState(private val request: InvalidateMetricRequest) : PostgresWri
       }
 
     transactionContext.executeStatement(statement)
+
+    return metricResult.metric.copy {
+      state = Metric.State.INVALIDATED
+    }
   }
 }

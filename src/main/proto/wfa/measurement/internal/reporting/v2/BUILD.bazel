@@ -105,10 +105,7 @@ proto_library(
     name = "metrics_service_proto",
     srcs = ["metrics_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        ":metric_proto",
-        "@com_google_protobuf//:empty_proto",
-    ],
+    deps = [":metric_proto"],
 )
 
 kt_jvm_grpc_proto_library(

@@ -21,7 +21,6 @@ import "google/api/client.proto";
 import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
-import "google/protobuf/empty.proto";
 import "wfa/measurement/reporting/v2alpha/metric.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
@@ -75,8 +74,7 @@ service Metrics {
   }
 
   // Invalidates the `Metric` with the specified resource key.
-  rpc InvalidateMetric(InvalidateMetricRequest)
-      returns (google.protobuf.Empty) {
+  rpc InvalidateMetric(InvalidateMetricRequest) returns (Metric) {
     option (google.api.http) = {
       get: "/v2alpha/{name=measurementConsumers/*/metrics/*}"
     };
