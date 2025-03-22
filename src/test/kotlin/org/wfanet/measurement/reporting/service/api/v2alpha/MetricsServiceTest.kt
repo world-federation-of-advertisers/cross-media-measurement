@@ -10308,10 +10308,12 @@ class MetricsServiceTest {
 
   @Test
   fun `invalidateMetric returns Metric with state INVALIDATED`() = runBlocking {
-    whenever(internalMetricsMock.invalidateMetric(any())).thenReturn(
-      INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-        state = InternalMetric.State.INVALIDATED
-      })
+    whenever(internalMetricsMock.invalidateMetric(any()))
+      .thenReturn(
+        INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+          state = InternalMetric.State.INVALIDATED
+        }
+      )
 
     val request = invalidateMetricRequest { name = FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
@@ -10320,9 +10322,10 @@ class MetricsServiceTest {
         runBlocking { service.invalidateMetric(request) }
       }
 
-    assertThat(result).isEqualTo(FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-      state = Metric.State.INVALIDATED
-    })
+    assertThat(result)
+      .isEqualTo(
+        FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { state = Metric.State.INVALIDATED }
+      )
 
     // Verify proto argument of the internal MetricsCoroutineImplBase::invalidateMetric
     verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::invalidateMetric)
@@ -10331,8 +10334,7 @@ class MetricsServiceTest {
         internalInvalidateMetricRequest {
           cmmsMeasurementConsumerId =
             INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId
-          externalMetricId =
-            INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+          externalMetricId = INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
         }
       )
   }

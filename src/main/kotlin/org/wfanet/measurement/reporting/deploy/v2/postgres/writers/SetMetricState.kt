@@ -68,8 +68,6 @@ class SetMetricState(private val request: InvalidateMetricRequest) : PostgresWri
 
     transactionContext.executeStatement(statement)
 
-    return metricResult.metric.copy {
-      state = Metric.State.INVALIDATED
-    }
+    return metricResult.metric.copy { state = Metric.State.INVALIDATED }
   }
 }

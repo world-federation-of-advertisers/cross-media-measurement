@@ -1244,12 +1244,14 @@ class MetricsService(
     }
 
     try {
-      return internalMetricsStub.invalidateMetric(
-        invalidateMetricRequest {
-          cmmsMeasurementConsumerId = metricKey.cmmsMeasurementConsumerId
-          externalMetricId = metricKey.metricId
-        }
-      ).toMetric(variances)
+      return internalMetricsStub
+        .invalidateMetric(
+          invalidateMetricRequest {
+            cmmsMeasurementConsumerId = metricKey.cmmsMeasurementConsumerId
+            externalMetricId = metricKey.metricId
+          }
+        )
+        .toMetric(variances)
     } catch (e: StatusException) {
       throw when (InternalErrors.getReason(e)) {
         InternalErrors.Reason.METRIC_NOT_FOUND ->
