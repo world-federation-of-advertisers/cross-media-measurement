@@ -31,13 +31,15 @@ object Errors {
     BASIC_REPORT_NOT_FOUND,
     BASIC_REPORT_ALREADY_EXISTS,
     REQUIRED_FIELD_NOT_SET,
+    IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
     INVALID_FIELD_VALUE,
   }
 
   enum class Metadata(val key: String) {
     CMMS_MEASUREMENT_CONSUMER_ID("cmmsMeasurementConsumerId"),
     EXTERNAL_BASIC_REPORT_ID("externalBasicReportId"),
-    FIELD_NAME("fieldName");
+    FIELD_NAME("fieldName"),
+    IMPRESSION_QUALIFICATION_FILTER_ID("impressionQualificationFilterId");
 
     companion object {
       private val METADATA_BY_KEY by lazy { entries.associateBy { it.key } }
@@ -144,6 +146,17 @@ class RequiredFieldNotSetException(fieldName: String, cause: Throwable? = null) 
     Errors.Reason.REQUIRED_FIELD_NOT_SET,
     "$fieldName not set",
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
+    cause,
+  )
+
+class ImpressionQualificationFilterNotFoundException(
+  impressionQualificationFilterId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+    "Impression Qualification Filter with ID $impressionQualificationFilterId not found",
+    mapOf(Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER_ID to impressionQualificationFilterId),
     cause,
   )
 
