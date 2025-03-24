@@ -31,6 +31,9 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAt
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt as internalWorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt as InternalWorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemAttemptRequest as internalCreateWorkItemAttemptRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemAttemptRequest as internalGetWorkItemAttemptRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemAttemptRequest as internalFailWorkItemAttemptRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.completeWorkItemAttemptRequest as internalCompleteWorkItemAttemptRequest
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -42,8 +45,8 @@ import org.mockito.kotlin.stub
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.securecomputation.service.Errors
-import org.wfanet.measurement.securecomputation.service.internal.WorkItemAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptAlreadyExistsException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptNotFoundException
 
 @RunWith(JUnit4::class)
 class WorkItemAttemptsServiceTest {
@@ -198,4 +201,256 @@ class WorkItemAttemptsServiceTest {
       )
   }
 
+   @Test
+    fun `getWorkItemAttempt returns WorkItemAttempt`() = runBlocking {
+      val internalWorkItemAttempt = internalWorkItemAttempt {
+        workItemResourceId = "workItem"
+        workItemAttemptResourceId = "workItemAttempt"
+      }
+      internalServiceMock.stub { onBlocking { getWorkItemAttempt(any()) } doReturn internalWorkItemAttempt }
+
+      val request = getWorkItemAttemptRequest { name = "workItems/${internalWorkItemAttempt.workItemResourceId}/workItemAttempts/${internalWorkItemAttempt.workItemAttemptResourceId}" }
+      val response = service.getWorkItemAttempt(request)
+
+      verifyProtoArgument(internalServiceMock, WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::getWorkItemAttempt)
+        .isEqualTo(internalGetWorkItemAttemptRequest {
+          workItemResourceId = internalWorkItemAttempt.workItemResourceId
+          workItemAttemptResourceId = internalWorkItemAttempt.workItemAttemptResourceId
+        })
+
+      assertThat(response)
+        .ignoringFields(
+          WorkItemAttempt.CREATE_TIME_FIELD_NUMBER,
+          WorkItemAttempt.UPDATE_TIME_FIELD_NUMBER
+        )
+        .isEqualTo(
+          workItemAttempt {
+            name = request.name
+          }
+        )
+    }
+
+  @Test
+    fun `getWorkItemAttempt throws REQUIRED_FIELD_NOT_SET when name is not set`() = runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.getWorkItemAttempt(GetWorkItemAttemptRequest.getDefaultInstance())
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "name"
+          }
+        )
+    }
+
+  @Test
+    fun `getWorkItemAttempt throws INVALID_FIELD_VALUE when name is malformed`() = runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.getWorkItemAttempt(getWorkItemAttemptRequest {
+            name = "workItemAttempts"
+          })
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "name"
+          }
+        )
+    }
+
+   @Test
+    fun `getWorkItemAttempt throws WORK_ITEM_ATTEMPT_NOT_FOUND from backend`() = runBlocking {
+      internalServiceMock.stub {
+        onBlocking { getWorkItemAttempt(any()) } doThrow
+          WorkItemAttemptNotFoundException("workItem", "workItemAttempt").asStatusRuntimeException(Status.Code.NOT_FOUND)
+      }
+      val request = getWorkItemAttemptRequest { name = "workItems/workItem/workItemAttempts/workItemAttempt" }
+      val exception = assertFailsWith<StatusRuntimeException> { service.getWorkItemAttempt(request) }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+          assertThat(exception.errorInfo)
+            .isEqualTo(
+              errorInfo {
+                domain = Errors.DOMAIN
+                reason = Errors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND.name
+                metadata[Errors.Metadata.WORK_ITEM.key] = request.name
+              }
+            )
+    }
+
+   @Test
+    fun `failWorkItemAttempt returns WorkItemAttempt`() = runBlocking {
+
+      val internalWorkItemAttempt = internalWorkItemAttempt {
+        workItemResourceId = "workItem"
+        workItemAttemptResourceId = "workItemAttempt"
+        state = InternalWorkItemAttempt.State.FAILED
+      }
+      internalServiceMock.stub { onBlocking { failWorkItemAttempt(any()) } doReturn internalWorkItemAttempt }
+
+      val request = failWorkItemAttemptRequest {
+        name = "workItems/${internalWorkItemAttempt.workItemResourceId}/workItemAttempts/${internalWorkItemAttempt.workItemAttemptResourceId}"
+      }
+      val response = service.failWorkItemAttempt(request)
+
+      val internalRequest = internalFailWorkItemAttemptRequest {
+        workItemResourceId = internalWorkItemAttempt.workItemResourceId
+        workItemAttemptResourceId = internalWorkItemAttempt.workItemAttemptResourceId
+      }
+      verifyProtoArgument(internalServiceMock, WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::failWorkItemAttempt)
+        .isEqualTo(internalRequest)
+
+      assertThat(response.state).isEqualTo(WorkItemAttempt.State.FAILED)
+    }
+
+   @Test
+    fun `failWorkItemAttempt throws REQUIRED_FIELD_NOT_SET when name is not set`() = runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.failWorkItemAttempt(FailWorkItemAttemptRequest.getDefaultInstance())
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "name"
+          }
+        )
+    }
+
+   @Test
+    fun `failWorkItemAttempt throws INVALID_FIELD_VALUE when name is malformed`() = runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.failWorkItemAttempt(failWorkItemAttemptRequest {
+            name = "workItems"
+          })
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "name"
+          }
+        )
+    }
+
+   @Test
+    fun `failWorkItemAttempt throws WORK_ITEM_ATTEMPT_NOT_FOUND from backend`() = runBlocking {
+      internalServiceMock.stub {
+        onBlocking { failWorkItemAttempt(any()) } doThrow
+          WorkItemAttemptNotFoundException("workItem", "workItemAttempt").asStatusRuntimeException(Status.Code.NOT_FOUND)
+      }
+      val request = failWorkItemAttemptRequest { name = "workItems/workItem/workItemAttempts/workItemAttempt" }
+      val exception = assertFailsWith<StatusRuntimeException> { service.failWorkItemAttempt(request) }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND.name
+            metadata[Errors.Metadata.WORK_ITEM_ATTEMPT.key] = request.name
+          }
+        )
+    }
+
+  @Test
+  fun `completeWorkItemAttempt returns WorkItemAttempt`() = runBlocking {
+
+    val internalWorkItemAttempt = internalWorkItemAttempt {
+      workItemResourceId = "workItem"
+      workItemAttemptResourceId = "workItemAttempt"
+      state = InternalWorkItemAttempt.State.SUCCEEDED
+    }
+    internalServiceMock.stub { onBlocking { completeWorkItemAttempt(any()) } doReturn internalWorkItemAttempt }
+
+    val request = completeWorkItemAttemptRequest {
+      name = "workItems/${internalWorkItemAttempt.workItemResourceId}/workItemAttempts/${internalWorkItemAttempt.workItemAttemptResourceId}"
+    }
+    val response = service.completeWorkItemAttempt(request)
+
+    val internalRequest = internalCompleteWorkItemAttemptRequest {
+      workItemResourceId = internalWorkItemAttempt.workItemResourceId
+      workItemAttemptResourceId = internalWorkItemAttempt.workItemAttemptResourceId
+    }
+    verifyProtoArgument(internalServiceMock, WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::completeWorkItemAttempt)
+      .isEqualTo(internalRequest)
+
+    assertThat(response.state).isEqualTo(WorkItemAttempt.State.SUCCEEDED)
+  }
+
+  @Test
+  fun `completeWorkItemAttempt throws REQUIRED_FIELD_NOT_SET when name is not set`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.completeWorkItemAttempt(CompleteWorkItemAttemptRequest.getDefaultInstance())
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "name"
+        }
+      )
+  }
+
+  @Test
+  fun `completeWorkItemAttempt throws INVALID_FIELD_VALUE when name is malformed`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.completeWorkItemAttempt(completeWorkItemAttemptRequest {
+          name = "workItems"
+        })
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "name"
+        }
+      )
+  }
+
+  @Test
+  fun `completeWorkItemAttempt throws WORK_ITEM_ATTEMPT_NOT_FOUND from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { completeWorkItemAttempt(any()) } doThrow
+        WorkItemAttemptNotFoundException("workItem", "workItemAttempt").asStatusRuntimeException(Status.Code.NOT_FOUND)
+    }
+    val request = completeWorkItemAttemptRequest { name = "workItems/workItem/workItemAttempts/workItemAttempt" }
+    val exception = assertFailsWith<StatusRuntimeException> { service.completeWorkItemAttempt(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND.name
+          metadata[Errors.Metadata.WORK_ITEM_ATTEMPT.key] = request.name
+        }
+      )
+  }
 }
