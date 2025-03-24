@@ -43,7 +43,7 @@ class DataWatcherTest() {
       val mockWorkItemsService: GooglePubSubWorkItemsService = mock {}
 
       val dataWatcherConfig = dataWatcherConfig {
-        sourcePathRegex = "test-bucket://path-to-watch/(.*)"
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
         this.controlPlaneConfig = controlPlaneConfig {
           queueName = topicId
           appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
@@ -52,7 +52,7 @@ class DataWatcherTest() {
 
       val dataWatcher = DataWatcher(mockWorkItemsService, listOf(dataWatcherConfig))
 
-      dataWatcher.receivePath("test-bucket://path-to-watch/some-data")
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data")
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
       verify(mockWorkItemsService, times(1)).createWorkItem(createWorkItemRequestCaptor.capture())
       assertThat(createWorkItemRequestCaptor.allValues.single().workItem.queue).isEqualTo(topicId)
@@ -66,7 +66,7 @@ class DataWatcherTest() {
       val mockWorkItemsService: GooglePubSubWorkItemsService = mock {}
 
       val dataWatcherConfig = dataWatcherConfig {
-        sourcePathRegex = "test-bucket://path-to-watch/(.*)"
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
         this.controlPlaneConfig = controlPlaneConfig {
           queueName = topicId
           appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
@@ -74,14 +74,10 @@ class DataWatcherTest() {
       }
 
       val dataWatcher = DataWatcher(mockWorkItemsService, listOf(dataWatcherConfig))
-      dataWatcher.receivePath("test-bucket://some-other-path/some-data")
+      dataWatcher.receivePath("test-schema://test-bucket/some-other-path/some-data")
 
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
       verify(mockWorkItemsService, times(0)).createWorkItem(createWorkItemRequestCaptor.capture())
     }
-  }
-
-  companion object {
-    private const val BUCKET = "test-bucket"
   }
 }
