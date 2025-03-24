@@ -28,7 +28,6 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
-import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
@@ -45,26 +44,30 @@ suspend fun AsyncDatabaseClient.ReadContext.workItemIdExists(workItemId: Long): 
 
 /**
  * Buffers an update mutation for the WorkItems table.
- * Set as FAILED all the child WorkItemAttempts
- * */
+ * Set as FAILED all the child WorkItemAttempts.
+ * Returns the updated `WorkItem.State`.
+ */
 fun AsyncDatabaseClient.TransactionContext.failWorkItem(workItemId: Long): WorkItem.State {
   val state = WorkItem.State.FAILED
   bufferUpdateMutation("WorkItems") {
     set("WorkItemId").to(workItemId)
-    set("State").toInt64(state)
+    set("State").to(state)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
   return state
 }
 
-/** Buffers an insert mutation for the WorkItems table. */
+/**
+ * Buffers an insert mutation for the WorkItems table.
+ * Returns the resulting `State` of the `WorkItem` after insertion.
+ */
 fun AsyncDatabaseClient.TransactionContext.insertWorkItem(workItemId: Long, workItemResourceId: String, queueId: Long): WorkItem.State {
   val state = WorkItem.State.QUEUED
   bufferInsertMutation("WorkItems") {
     set("WorkItemId").to(workItemId)
     set("WorkItemResourceId").to(workItemResourceId)
     set("QueueId").to(queueId)
-    set("State").toInt64(state)
+    set("State").to(state)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
@@ -99,7 +102,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getWorkItemByResourceId(
 }
 
 /**
- * Reads [WorkItem]s ordered by resource ID.
+ * Reads [WorkItem]s ordered by create time and resource ID.
  *
  * @throws QueueNotFoundForWorkItem
  */
@@ -154,7 +157,7 @@ private object WorkItems {
       workItem {
         workItemResourceId = row.getString("WorkItemResourceId")
         queueResourceId = queue.queueResourceId
-        state = WorkItem.State.forNumber(row.getLong("State").toInt())
+        state = row.getProtoEnum("State", WorkItem.State::forNumber)
         createTime = row.getTimestamp("CreateTime").toProto()
         updateTime = row.getTimestamp("UpdateTime").toProto()
       },

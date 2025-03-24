@@ -30,8 +30,8 @@ object Errors {
   enum class Reason {
     REQUIRED_FIELD_NOT_SET,
     QUEUE_NOT_FOUND,
-    QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
-    INVALID_WORK_ITEM_PRECONDITION_STATE,
+    QUEUE_NOT_FOUND_FOR_WORK_ITEM,
+    INVALID_WORK_ITEM_STATE,
     WORK_ITEM_NOT_FOUND,
     WORK_ITEM_ATTEMPT_NOT_FOUND,
     WORK_ITEM_ALREADY_EXISTS,
@@ -118,7 +118,7 @@ class QueueNotFoundException(queueResourceId: String, cause: Throwable? = null) 
 
 class QueueNotFoundForWorkItem(workItemResourceId: String, cause: Throwable? = null) :
   ServiceException(
-    Errors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
+    Errors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
     "Queue for WorkItem with ID $workItemResourceId not found",
     mapOf(Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId),
     cause,
@@ -153,9 +153,9 @@ class WorkItemAlreadyExistsException(cause: Throwable? = null) :
 class WorkItemAttemptAlreadyExistsException(cause: Throwable? = null) :
   ServiceException(Errors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS, "WorkItemAttempt already exists", emptyMap(), cause)
 
-class WorkItemInvalidPreconditionStateException(workItemResourceId: String, cause: Throwable? = null) :
+class WorkItemInvalidStateException(workItemResourceId: String, cause: Throwable? = null) :
   ServiceException(
-    Errors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
+    Errors.Reason.INVALID_WORK_ITEM_STATE,
     "WorkItemAttempt cannot be created when parent WorkItem has state either SUCCEEDED or FAILED",
     mapOf(Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId),
     cause,

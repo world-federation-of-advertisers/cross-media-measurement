@@ -133,7 +133,7 @@ abstract class WorkItemAttemptsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "work_item_resource_id"
+          metadata[Errors.Metadata.FIELD_NAME.key] = "work_item_attempt_resource_id"
         }
       )
   }

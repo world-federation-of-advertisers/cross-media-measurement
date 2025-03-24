@@ -53,7 +53,7 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundFo
 import org.wfanet.measurement.securecomputation.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptNotFoundException
-import org.wfanet.measurement.securecomputation.service.internal.WorkItemInvalidPreconditionStateException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemInvalidStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
 
 class SpannerWorkItemAttemptsService(
@@ -70,7 +70,7 @@ class SpannerWorkItemAttemptsService(
     }
 
     if (request.workItemAttempt.workItemAttemptResourceId.isEmpty()) {
-      throw RequiredFieldNotSetException("work_item_resource_id")
+      throw RequiredFieldNotSetException("work_item_attempt_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
@@ -82,21 +82,28 @@ class SpannerWorkItemAttemptsService(
         val result =
           txn.getWorkItemByResourceId(queueMapping, request.workItemAttempt.workItemResourceId)
         val workItemState = result.workItem.state
-        if (workItemState == WorkItem.State.FAILED ||
-          workItemState == WorkItem.State.SUCCEEDED
-        ) {
-          throw WorkItemInvalidPreconditionStateException(result.workItem.workItemResourceId)
-        }
-        val workItemAttemptId =
-          idGenerator.generateNewId { id -> txn.workItemAttemptExists(result.workItemId, id) }
-        val (attemptNumber, state) = txn.insertWorkItemAttempt(
-          result.workItemId,
-          workItemAttemptId,
-          request.workItemAttempt.workItemAttemptResourceId
-        )
-        request.workItemAttempt.copy {
-          this.state = state
-          this.attemptNumber = attemptNumber
+        when (workItemState) {
+          WorkItem.State.FAILED,
+          WorkItem.State.SUCCEEDED,
+          WorkItem.State.STATE_UNSPECIFIED,
+          WorkItem.State.UNRECOGNIZED,
+          null -> {
+            throw WorkItemInvalidStateException(result.workItem.workItemResourceId)
+          }
+          WorkItem.State.QUEUED,
+          WorkItem.State.RUNNING -> {
+            val workItemAttemptId : Long =
+              idGenerator.generateNewId { id -> txn.workItemAttemptExists(result.workItemId, id) }
+            val (attemptNumber, state) = txn.insertWorkItemAttempt(
+              result.workItemId,
+              workItemAttemptId,
+              request.workItemAttempt.workItemAttemptResourceId
+            )
+            request.workItemAttempt.copy {
+              this.state = state
+              this.attemptNumber = attemptNumber
+            }
+          }
         }
       }
     } catch (e: SpannerException) {

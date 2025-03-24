@@ -78,7 +78,7 @@ class SpannerWorkItemsService(
     val transactionRunner = databaseClient.readWriteTransaction(Options.tag("action=createWorkItem"))
 
     val workItem = transactionRunner.run { txn ->
-      val workItemId = idGenerator.generateNewId { id -> txn.workItemIdExists(id) }
+      val workItemId : Long = idGenerator.generateNewId { id -> txn.workItemIdExists(id) }
 
       val state = txn.insertWorkItem(workItemId, request.workItem.workItemResourceId, queue.queueId)
 

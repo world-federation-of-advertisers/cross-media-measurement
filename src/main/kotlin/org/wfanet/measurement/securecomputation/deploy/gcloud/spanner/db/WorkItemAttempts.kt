@@ -22,17 +22,15 @@ import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.any
-import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
+import org.wfanet.measurement.gcloud.spanner.getNullableString
 import org.wfanet.measurement.gcloud.spanner.statement
-import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
@@ -48,7 +46,13 @@ suspend fun AsyncDatabaseClient.ReadContext.workItemAttemptExists(
   return readRow("WorkItemAttempts", Key.of(workItemId, workItemAttemptId), listOf("WorkItemId", "WorkItemAttemptId")) != null
 }
 
-/** Buffers an insert mutation for the WorkItemAttempts table. */
+/**
+ * Buffers an insert mutation for the WorkItemAttempts table.
+ *
+ * Returns a pair consisting of:
+ * - The `attemptNumber` assigned to the newly inserted row.
+ * - The resulting `State` of the `WorkItemAttempt` after insertion.
+ * */
 suspend fun AsyncDatabaseClient.TransactionContext.insertWorkItemAttempt(
   workItemId: Long,
   workItemAttemptId: Long,
@@ -59,27 +63,29 @@ suspend fun AsyncDatabaseClient.TransactionContext.insertWorkItemAttempt(
     "WorkItemAttempts",
     KeySet.prefixRange(Key.of(workItemId)),
     listOf("WorkItemId")
-  ).toList().count() + 1
-  val workItemAttemptstate = WorkItemAttempt.State.ACTIVE
+  ).count() + 1
+  val workItemAttemptState = WorkItemAttempt.State.ACTIVE
   bufferInsertMutation("WorkItemAttempts") {
     set("WorkItemId").to(workItemId)
     set("WorkItemAttemptId").to(workItemAttemptId)
     set("WorkItemAttemptResourceId").to(workItemAttemptResourceId)
-    set("State").toInt64(workItemAttemptstate)
+    set("State").to(workItemAttemptState)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
   bufferUpdateMutation("WorkItems") {
     set("WorkItemId").to(workItemId)
-    set("State").toInt64(WorkItem.State.RUNNING)
+    set("State").to(WorkItem.State.RUNNING)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
-  return Pair(attemptNumber, workItemAttemptstate)
+  return Pair(attemptNumber, workItemAttemptState)
 }
 
 /**
  * Reads a [WorkItemAttempt] by its [workItemResourceId] and [workItemAttemptResourceId].
  *
+ * A [WorkItemAttemptResult] containing the associated work item ID,
+ * work item attempt ID, and the retrieved [WorkItemAttempt].
  * @throws WorkItemAttemptNotFoundException
  */
 suspend fun AsyncDatabaseClient.ReadContext.getWorkItemAttemptByResourceId(
@@ -103,37 +109,43 @@ suspend fun AsyncDatabaseClient.ReadContext.getWorkItemAttemptByResourceId(
   return WorkItemAttempts.buildWorkItemAttemptResult(row)
 }
 
-/** Buffers an update mutation for the WorkItemAttempts table. */
+/**
+ * Buffers an update mutation for the WorkItemAttempts table.
+ * Returns the updated `WorkItemAttempt.State`.
+ */
 fun AsyncDatabaseClient.TransactionContext.completeWorkItemAttempt(workItemId: Long, workItemAttemptId: Long): WorkItemAttempt.State {
   val state = WorkItemAttempt.State.SUCCEEDED
   bufferUpdateMutation("WorkItemAttempts") {
     set("WorkItemId").to(workItemId)
     set("WorkItemAttemptId").to(workItemAttemptId)
-    set("State").toInt64(state)
+    set("State").to(state)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
   bufferUpdateMutation("WorkItems") {
     set("WorkItemId").to(workItemId)
-    set("State").toInt64(WorkItem.State.SUCCEEDED)
-    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
-  }
-  return state
-}
-
-/** Buffers an update mutation for the WorkItemAttempts table. */
-fun AsyncDatabaseClient.TransactionContext.failWorkItemAttempt(workItemId: Long, workItemAttemptId: Long): WorkItemAttempt.State {
-  val state = WorkItemAttempt.State.FAILED
-  bufferUpdateMutation("WorkItemAttempts") {
-    set("WorkItemId").to(workItemId)
-    set("WorkItemAttemptId").to(workItemAttemptId)
-    set("State").toInt64(state)
+    set("State").to(WorkItem.State.SUCCEEDED)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
   return state
 }
 
 /**
- * Reads [WorkItemAttempts]s ordered by resource ID.
+ * Buffers an update mutation for the WorkItemAttempts table.
+ * Returns the updated `WorkItemAttempt.State`.
+ */
+fun AsyncDatabaseClient.TransactionContext.failWorkItemAttempt(workItemId: Long, workItemAttemptId: Long): WorkItemAttempt.State {
+  val state = WorkItemAttempt.State.FAILED
+  bufferUpdateMutation("WorkItemAttempts") {
+    set("WorkItemId").to(workItemId)
+    set("WorkItemAttemptId").to(workItemAttemptId)
+    set("State").to(state)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+  return state
+}
+
+/**
+ * Reads [WorkItemAttempts]s ordered by create time, work item id and work item attempt resource id.
  */
 fun AsyncDatabaseClient.ReadContext.readWorkItemAttempts(
   limit: Int,
@@ -192,7 +204,7 @@ private object WorkItemAttempts {
       WorkItemAttempts.ErrorMessage,
       WorkItemAttempts.CreateTime,
       WorkItemAttempts.UpdateTime
-      FROM WorkItems
+    FROM WorkItems
       JOIN WorkItemAttempts USING (WorkItemId)
     """
       .trimIndent()
@@ -204,9 +216,9 @@ private object WorkItemAttempts {
       workItemAttempt {
         workItemResourceId = row.getString("WorkItemResourceId")
         workItemAttemptResourceId = row.getString("WorkItemAttemptResourceId")
-        state = WorkItemAttempt.State.forNumber(row.getLong("State").toInt())
+        state = row.getProtoEnum("State", WorkItemAttempt.State::forNumber)
         attemptNumber = row.getLong("AttemptNumber").toInt()
-        errorMessage = if (row.isNull("ErrorMessage")) "" else row.getString("ErrorMessage")
+        errorMessage = row.getNullableString("ErrorMessage") ?: ""
         createTime = row.getTimestamp("CreateTime").toProto()
         updateTime = row.getTimestamp("UpdateTime").toProto()
       },
