@@ -922,173 +922,172 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `createReport doesn't reuse existing INVALID metrics from the other report`() =
-    runBlocking {
-      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
-      val createdMetricCalculationSpecsByExternalId =
-        (0 until 2).associate {
-          val externalMetricCalculationSpecId = "external-metric-calculation-spec-id$it"
-          externalMetricCalculationSpecId to
-            createMetricCalculationSpec(
-              CMMS_MEASUREMENT_CONSUMER_ID,
-              metricCalculationSpecsService,
-              externalMetricCalculationSpecId,
-            )
-        }
-      val createdReportingSetsByExternalId =
-        (0 until 2).associate {
-          val externalReportingSetId = "external-reporting-set-id$it"
-          externalReportingSetId to
-            createReportingSet(
-              CMMS_MEASUREMENT_CONSUMER_ID,
-              reportingSetsService,
-              externalReportingSetId,
-              "data-provider-id${it % 3}",
-              "event-group-id$it",
-            )
-        }
-
-      val groupingPredicatesList = List(1) { listOf("predicate1", "predicate2") }
-
-      val intervals: List<Interval> =
-        listOf(
-          interval {
-            startTime = timestamp { seconds = 100 }
-            endTime = timestamp { seconds = 200 }
-          },
-          interval {
-            startTime = timestamp { seconds = 200 }
-            endTime = timestamp { seconds = 300 }
-          },
-          interval {
-            startTime = timestamp { seconds = 100 }
-            endTime = timestamp { seconds = 300 }
-          },
-        )
-
-      val reportingMetrics =
-        groupingPredicatesList.flatMap { groupingPredicates ->
-          intervals.map { interval ->
-            ReportKt.reportingMetric {
-              details =
-                ReportKt.ReportingMetricKt.details {
-                  metricSpec = metricSpec {
-                    reach =
-                      MetricSpecKt.reachParams {
-                        multipleDataProviderParams =
-                          MetricSpecKt.samplingAndPrivacyParams {
-                            privacyParams =
-                              MetricSpecKt.differentialPrivacyParams {
-                                epsilon = 1.0
-                                delta = 2.0
-                              }
-                            vidSamplingInterval =
-                              MetricSpecKt.vidSamplingInterval {
-                                start = 0.1f
-                                width = 0.5f
-                              }
-                          }
-                      }
-                  }
-                  this.timeInterval = interval
-                  this.groupingPredicates += groupingPredicates
-                }
-            }
-          }
-        }
-
-      val report = report {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        reportingMetricEntries.putAll(
-          createdReportingSetsByExternalId.keys.associateWith {
-            ReportKt.reportingMetricCalculationSpec {
-              metricCalculationSpecReportingMetrics +=
-                createdMetricCalculationSpecsByExternalId.keys.map { externalMetricCalSpecId ->
-                  ReportKt.metricCalculationSpecReportingMetrics {
-                    externalMetricCalculationSpecId = externalMetricCalSpecId
-                    this.reportingMetrics += reportingMetrics
-                  }
-                }
-            }
-          }
-        )
-        details =
-          ReportKt.details {
-            tags.putAll(REPORT_TAGS)
-            timeIntervals = timeIntervals { this.timeIntervals += intervals }
-          }
-      }
-
-      val createdReport =
-        service.createReport(
-          createReportRequest {
-            this.report = report
-            externalReportId = "external-report-id"
-          }
-        )
-
-      var metricIndex = 0
-      val createMetricsRequests: List<CreateMetricRequest> =
-        createdReport.reportingMetricEntriesMap.entries.flatMap { entry ->
-          val reportingSet = createdReportingSetsByExternalId.getValue(entry.key)
-
-          entry.value.metricCalculationSpecReportingMetricsList.flatMap {
-            metricCalculationSpecReportingMetrics ->
-            val metricCalculationSpecFilter =
-              createdMetricCalculationSpecsByExternalId
-                .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
-                .details
-                .filter
-            metricCalculationSpecReportingMetrics.reportingMetricsList.map { reportingMetric ->
-              val externalMetricId = "externalMetricId$metricIndex"
-              metricIndex++
-              buildCreateMetricRequest(
-                createdReport.cmmsMeasurementConsumerId,
-                externalMetricId,
-                reportingSet,
-                reportingMetric,
-                metricCalculationSpecFilter,
-              )
-            }
-          }
-        }
-
-      val metrics =
-        metricsService
-          .batchCreateMetrics(
-            batchCreateMetricsRequest {
-              cmmsMeasurementConsumerId = createdReport.cmmsMeasurementConsumerId
-              requests += createMetricsRequests
-            }
+  fun `createReport doesn't reuse existing INVALID metrics from the other report`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val createdMetricCalculationSpecsByExternalId =
+      (0 until 2).associate {
+        val externalMetricCalculationSpecId = "external-metric-calculation-spec-id$it"
+        externalMetricCalculationSpecId to
+          createMetricCalculationSpec(
+            CMMS_MEASUREMENT_CONSUMER_ID,
+            metricCalculationSpecsService,
+            externalMetricCalculationSpecId,
           )
-          .metricsList
-
-      for (metric in metrics) {
-        metricsService.invalidateMetric(
-          invalidateMetricRequest {
-            cmmsMeasurementConsumerId = metric.cmmsMeasurementConsumerId
-            externalMetricId = metric.externalMetricId
-          }
-        )
+      }
+    val createdReportingSetsByExternalId =
+      (0 until 2).associate {
+        val externalReportingSetId = "external-reporting-set-id$it"
+        externalReportingSetId to
+          createReportingSet(
+            CMMS_MEASUREMENT_CONSUMER_ID,
+            reportingSetsService,
+            externalReportingSetId,
+            "data-provider-id${it % 3}",
+            "event-group-id$it",
+          )
       }
 
-      val report2 =
-        service.createReport(
-          createReportRequest {
-            this.report = report
-            externalReportId = "external-report-id2"
+    val groupingPredicatesList = List(1) { listOf("predicate1", "predicate2") }
+
+    val intervals: List<Interval> =
+      listOf(
+        interval {
+          startTime = timestamp { seconds = 100 }
+          endTime = timestamp { seconds = 200 }
+        },
+        interval {
+          startTime = timestamp { seconds = 200 }
+          endTime = timestamp { seconds = 300 }
+        },
+        interval {
+          startTime = timestamp { seconds = 100 }
+          endTime = timestamp { seconds = 300 }
+        },
+      )
+
+    val reportingMetrics =
+      groupingPredicatesList.flatMap { groupingPredicates ->
+        intervals.map { interval ->
+          ReportKt.reportingMetric {
+            details =
+              ReportKt.ReportingMetricKt.details {
+                metricSpec = metricSpec {
+                  reach =
+                    MetricSpecKt.reachParams {
+                      multipleDataProviderParams =
+                        MetricSpecKt.samplingAndPrivacyParams {
+                          privacyParams =
+                            MetricSpecKt.differentialPrivacyParams {
+                              epsilon = 1.0
+                              delta = 2.0
+                            }
+                          vidSamplingInterval =
+                            MetricSpecKt.vidSamplingInterval {
+                              start = 0.1f
+                              width = 0.5f
+                            }
+                        }
+                    }
+                }
+                this.timeInterval = interval
+                this.groupingPredicates += groupingPredicates
+              }
+          }
+        }
+      }
+
+    val report = report {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      reportingMetricEntries.putAll(
+        createdReportingSetsByExternalId.keys.associateWith {
+          ReportKt.reportingMetricCalculationSpec {
+            metricCalculationSpecReportingMetrics +=
+              createdMetricCalculationSpecsByExternalId.keys.map { externalMetricCalSpecId ->
+                ReportKt.metricCalculationSpecReportingMetrics {
+                  externalMetricCalculationSpecId = externalMetricCalSpecId
+                  this.reportingMetrics += reportingMetrics
+                }
+              }
+          }
+        }
+      )
+      details =
+        ReportKt.details {
+          tags.putAll(REPORT_TAGS)
+          timeIntervals = timeIntervals { this.timeIntervals += intervals }
+        }
+    }
+
+    val createdReport =
+      service.createReport(
+        createReportRequest {
+          this.report = report
+          externalReportId = "external-report-id"
+        }
+      )
+
+    var metricIndex = 0
+    val createMetricsRequests: List<CreateMetricRequest> =
+      createdReport.reportingMetricEntriesMap.entries.flatMap { entry ->
+        val reportingSet = createdReportingSetsByExternalId.getValue(entry.key)
+
+        entry.value.metricCalculationSpecReportingMetricsList.flatMap {
+          metricCalculationSpecReportingMetrics ->
+          val metricCalculationSpecFilter =
+            createdMetricCalculationSpecsByExternalId
+              .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
+              .details
+              .filter
+          metricCalculationSpecReportingMetrics.reportingMetricsList.map { reportingMetric ->
+            val externalMetricId = "externalMetricId$metricIndex"
+            metricIndex++
+            buildCreateMetricRequest(
+              createdReport.cmmsMeasurementConsumerId,
+              externalMetricId,
+              reportingSet,
+              reportingMetric,
+              metricCalculationSpecFilter,
+            )
+          }
+        }
+      }
+
+    val metrics =
+      metricsService
+        .batchCreateMetrics(
+          batchCreateMetricsRequest {
+            cmmsMeasurementConsumerId = createdReport.cmmsMeasurementConsumerId
+            requests += createMetricsRequests
           }
         )
+        .metricsList
 
-      for (entry in report2.reportingMetricEntriesMap.entries) {
-        for (metricCalculationSpecReportingMetrics in
-          entry.value.metricCalculationSpecReportingMetricsList) {
-          for (reportingMetric in metricCalculationSpecReportingMetrics.reportingMetricsList) {
-            assertThat(reportingMetric.externalMetricId).isEmpty()
-          }
+    for (metric in metrics) {
+      metricsService.invalidateMetric(
+        invalidateMetricRequest {
+          cmmsMeasurementConsumerId = metric.cmmsMeasurementConsumerId
+          externalMetricId = metric.externalMetricId
+        }
+      )
+    }
+
+    val report2 =
+      service.createReport(
+        createReportRequest {
+          this.report = report
+          externalReportId = "external-report-id2"
+        }
+      )
+
+    for (entry in report2.reportingMetricEntriesMap.entries) {
+      for (metricCalculationSpecReportingMetrics in
+        entry.value.metricCalculationSpecReportingMetricsList) {
+        for (reportingMetric in metricCalculationSpecReportingMetrics.reportingMetricsList) {
+          assertThat(reportingMetric.externalMetricId).isEmpty()
         }
       }
     }
+  }
 
   @Test
   fun `createReport throws INVALID_ARGUMENT when request missing external ID`() = runBlocking {

@@ -6516,73 +6516,70 @@ class MetricsServiceTest {
     }
 
   @Test
-  fun `getMetric returns the metric with INVALID when metric has state INVALID`() =
-    runBlocking {
-      val invalidatedMetric =
-        INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
-          state = InternalMetric.State.INVALID
+  fun `getMetric returns the metric with INVALID when metric has state INVALID`() = runBlocking {
+    val invalidatedMetric =
+      INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy { state = InternalMetric.State.INVALID }
+
+    whenever(internalMetricsMock.batchGetMetrics(any()))
+      .thenReturn(internalBatchGetMetricsResponse { metrics += invalidatedMetric })
+
+    val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        runBlocking { service.getMetric(request) }
+      }
+
+    // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
+    val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMetricsMock, times(1)) {
+      batchGetMetrics(batchGetInternalMetricsCaptor.capture())
+    }
+    val capturedInternalGetMetricRequests = batchGetInternalMetricsCaptor.allValues
+    assertThat(capturedInternalGetMetricRequests)
+      .containsExactly(
+        internalBatchGetMetricsRequest {
+          cmmsMeasurementConsumerId = invalidatedMetric.cmmsMeasurementConsumerId
+          externalMetricIds += invalidatedMetric.externalMetricId
         }
+      )
 
-      whenever(internalMetricsMock.batchGetMetrics(any()))
-        .thenReturn(internalBatchGetMetricsResponse { metrics += invalidatedMetric })
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+    val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMeasurementsMock, never()) {
+      batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+    }
 
-      val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
+    // Verify proto argument of internal
+    // MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+    val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMeasurementsMock, never()) {
+      batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+    }
 
-      val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
-
-      // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
-      val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
-        argumentCaptor()
-      verifyBlocking(internalMetricsMock, times(1)) {
-        batchGetMetrics(batchGetInternalMetricsCaptor.capture())
-      }
-      val capturedInternalGetMetricRequests = batchGetInternalMetricsCaptor.allValues
-      assertThat(capturedInternalGetMetricRequests)
-        .containsExactly(
-          internalBatchGetMetricsRequest {
-            cmmsMeasurementConsumerId = invalidatedMetric.cmmsMeasurementConsumerId
-            externalMetricIds += invalidatedMetric.externalMetricId
-          }
-        )
-
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
-      val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
-        argumentCaptor()
-      verifyBlocking(internalMeasurementsMock, never()) {
-        batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
-      }
-
-      // Verify proto argument of internal
-      // MeasurementsCoroutineImplBase::batchSetMeasurementFailures
-      val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
-        argumentCaptor()
-      verifyBlocking(internalMeasurementsMock, never()) {
-        batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
-      }
-
-      assertThat(result)
-        .isEqualTo(
-          SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
-            state = Metric.State.INVALID
-            clearResult()
-            this.result = metricResult {
-              for (weightedMeasurement in
-                INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.weightedMeasurementsList) {
-                cmmsMeasurements +=
-                  MeasurementKey(
-                      measurementConsumerId =
-                        weightedMeasurement.measurement.cmmsMeasurementConsumerId,
-                      measurementId = weightedMeasurement.measurement.cmmsMeasurementId,
-                    )
-                    .toName()
-              }
+    assertThat(result)
+      .isEqualTo(
+        SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+          state = Metric.State.INVALID
+          clearResult()
+          this.result = metricResult {
+            for (weightedMeasurement in
+              INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.weightedMeasurementsList) {
+              cmmsMeasurements +=
+                MeasurementKey(
+                    measurementConsumerId =
+                      weightedMeasurement.measurement.cmmsMeasurementConsumerId,
+                    measurementId = weightedMeasurement.measurement.cmmsMeasurementId,
+                  )
+                  .toName()
             }
           }
-        )
-    }
+        }
+      )
+  }
 
   @Test
   fun `getMetric returns SUCCEEDED metric when metric already succeeded and single params set`() =
@@ -10323,9 +10320,7 @@ class MetricsServiceTest {
       }
 
     assertThat(result)
-      .isEqualTo(
-        FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { state = Metric.State.INVALID }
-      )
+      .isEqualTo(FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { state = Metric.State.INVALID })
 
     // Verify proto argument of the internal MetricsCoroutineImplBase::invalidateMetric
     verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::invalidateMetric)
