@@ -96,8 +96,8 @@ abstract class WorkItemsService(private val internalWorkItemsStub: InternalWorkI
         throw when (InternalErrors.getReason(e)) {
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.QUEUE_NOT_FOUND,
-          InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
-          InternalErrors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
+          InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
+          InternalErrors.Reason.INVALID_WORK_ITEM_STATE,
           InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
@@ -133,8 +133,8 @@ abstract class WorkItemsService(private val internalWorkItemsStub: InternalWorkI
         throw when (InternalErrors.getReason(e)) {
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.QUEUE_NOT_FOUND,
-          InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
-          InternalErrors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
+          InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
+          InternalErrors.Reason.INVALID_WORK_ITEM_STATE,
           InternalErrors.Reason.WORK_ITEM_NOT_FOUND ->
             WorkItemNotFoundException(request.name, e).asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
@@ -208,8 +208,8 @@ abstract class WorkItemsService(private val internalWorkItemsStub: InternalWorkI
         throw when (InternalErrors.getReason(e)) {
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.QUEUE_NOT_FOUND,
-          InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
-          InternalErrors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
+          InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
+          InternalErrors.Reason.INVALID_WORK_ITEM_STATE,
           InternalErrors.Reason.WORK_ITEM_NOT_FOUND ->
             WorkItemNotFoundException(request.name, e).asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,

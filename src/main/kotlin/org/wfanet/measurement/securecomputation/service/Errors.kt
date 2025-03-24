@@ -134,9 +134,14 @@ class WorkItemNotFoundException(name: String, cause: Throwable? = null) :
         internalMetadata: Map<InternalErrors.Metadata, String>,
         cause: Throwable,
       ):WorkItemNotFoundException {
-        return WorkItemNotFoundException(
-          internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_RESOURCE_ID)
+
+        val workItemKey = WorkItemKey(
+          internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_RESOURCE_ID),
         )
+        return WorkItemNotFoundException(
+          workItemKey.toName()
+        )
+
       }
     }
   }
@@ -180,6 +185,33 @@ class WorkItemNotFoundException(name: String, cause: Throwable? = null) :
 //    cause,
 //  )
 //
+
+class WorkItemAttemptNotFoundException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
+    "WorkItemAttempt $name not found",
+    mapOf(Errors.Metadata.WORK_ITEM_ATTEMPT to name),
+    cause,
+  ) {
+  companion object : Factory<WorkItemAttemptNotFoundException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ):WorkItemAttemptNotFoundException {
+
+      val workItemAttemptKey = WorkItemAttemptKey(
+        internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_RESOURCE_ID),
+        internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID)
+      )
+      return WorkItemAttemptNotFoundException(
+        workItemAttemptKey.toName()
+      )
+    }
+  }
+}
 
 class WorkItemAlreadyExistsException(name: String, cause: Throwable? = null) :
   ServiceException(
