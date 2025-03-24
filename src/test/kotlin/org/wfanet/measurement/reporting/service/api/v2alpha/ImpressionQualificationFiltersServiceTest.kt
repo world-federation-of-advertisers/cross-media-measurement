@@ -28,9 +28,19 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.stub
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.testing.Authentication.withPrincipalAndScopes
+import org.wfanet.measurement.access.client.v1alpha.testing.PrincipalMatcher.Companion.hasPrincipal
+import org.wfanet.measurement.access.v1alpha.CheckPermissionsRequest
+import org.wfanet.measurement.access.v1alpha.CheckPermissionsResponse
+import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
+import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
+import org.wfanet.measurement.access.v1alpha.copy
+import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -68,17 +78,33 @@ class ImpressionQualificationFiltersServiceTest {
       InternalImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineImplBase
     >()
 
-  @get:Rule val grpcTestServer = GrpcTestServerRule { addService(internalServiceMock) }
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(internalServiceMock)
+    addService(permissionsServiceMock)
+  }
 
   private lateinit var service: ImpressionQualificationFiltersService
+
+  private val permissionsServiceMock: PermissionsGrpcKt.PermissionsCoroutineImplBase = mockService {
+    onBlocking { checkPermissions(any()) } doReturn CheckPermissionsResponse.getDefaultInstance()
+
+    // Grant all permissions to PRINCIPAL.
+    onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doAnswer
+      { invocation ->
+        val request: CheckPermissionsRequest = invocation.getArgument(0)
+        checkPermissionsResponse { permissions += request.permissionsList }
+      }
+  }
 
   @Before
   fun initService() {
     service =
       ImpressionQualificationFiltersService(
         InternalImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub(
-          grpcTestServer.channel
-        )
+          grpcTestServerRule.channel
+        ),
+        Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel)),
       )
   }
 
@@ -91,10 +117,30 @@ class ImpressionQualificationFiltersServiceTest {
     val request = getImpressionQualificationFilterRequest {
       name = "impressionQualificationFilters/ami"
     }
-    val response: ImpressionQualificationFilter = service.getImpressionQualificationFilter(request)
+    val response: ImpressionQualificationFilter =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        service.getImpressionQualificationFilter(request)
+      }
 
     assertThat(response).isEqualTo(PUBLIC_AMI_IQF)
   }
+
+  @Test
+  fun `getImpressionQualificationFilter throws PERMISSION_DENIED when MC caller doesn't match`() =
+    runBlocking {
+      val request = getImpressionQualificationFilterRequest {
+        name = "impressionQualificationFilters/ami"
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL.copy { name = "principals/mc-2-user" }, SCOPES) {
+            service.getImpressionQualificationFilter(request)
+          }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    }
 
   @Test
   fun `getImpressionQualificationFilter throws IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND from backend`() =
@@ -107,9 +153,13 @@ class ImpressionQualificationFiltersServiceTest {
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.getImpressionQualificationFilter(
-            getImpressionQualificationFilterRequest { name = "impressionQualificationFilters/abc" }
-          )
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+            service.getImpressionQualificationFilter(
+              getImpressionQualificationFilterRequest {
+                name = "impressionQualificationFilters/abc"
+              }
+            )
+          }
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -128,7 +178,11 @@ class ImpressionQualificationFiltersServiceTest {
   fun `getImpressionQualificationFilter throws INVALID_ARGUMENT if name not set`() = runBlocking {
     val request = GetImpressionQualificationFilterRequest.getDefaultInstance()
     val exception =
-      assertFailsWith<StatusRuntimeException> { service.getImpressionQualificationFilter(request) }
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          service.getImpressionQualificationFilter(request)
+        }
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -146,9 +200,11 @@ class ImpressionQualificationFiltersServiceTest {
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.getImpressionQualificationFilter(
-            getImpressionQualificationFilterRequest { name = "123" }
-          )
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+            service.getImpressionQualificationFilter(
+              getImpressionQualificationFilterRequest { name = "123" }
+            )
+          }
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -168,21 +224,25 @@ class ImpressionQualificationFiltersServiceTest {
       internalServiceMock.stub {
         onBlocking { listImpressionQualificationFilters(any()) } doReturn
           internalListImpressionQualificationFiltersResponse {
-            impressionQualificationFilters += INTERNAL_MRC_IQF
             impressionQualificationFilters += INTERNAL_AMI_IQF
+            impressionQualificationFilters += INTERNAL_MRC_IQF
+            impressionQualificationFilters += INTERNAL_VIDEO_IQF
           }
       }
 
       val response: ListImpressionQualificationFiltersResponse =
-        service.listImpressionQualificationFilters(
-          ListImpressionQualificationFiltersRequest.getDefaultInstance()
-        )
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          service.listImpressionQualificationFilters(
+            ListImpressionQualificationFiltersRequest.getDefaultInstance()
+          )
+        }
 
       assertThat(response)
         .isEqualTo(
           listImpressionQualificationFiltersResponse {
-            impressionQualificationFilters += PUBLIC_MRC_IQF
             impressionQualificationFilters += PUBLIC_AMI_IQF
+            impressionQualificationFilters += PUBLIC_MRC_IQF
+            impressionQualificationFilters += PUBLIC_VIDEO_IQF
           }
         )
     }
@@ -207,9 +267,11 @@ class ImpressionQualificationFiltersServiceTest {
       }
 
       val response: ListImpressionQualificationFiltersResponse =
-        service.listImpressionQualificationFilters(
-          listImpressionQualificationFiltersRequest { pageSize = 1 }
-        )
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          service.listImpressionQualificationFilters(
+            listImpressionQualificationFiltersRequest { pageSize = 1 }
+          )
+        }
 
       assertThat(response)
         .isEqualTo(
@@ -229,6 +291,7 @@ class ImpressionQualificationFiltersServiceTest {
       val internalListImpressionQualificationFiltersResponse =
         internalListImpressionQualificationFiltersResponse {
           impressionQualificationFilters += INTERNAL_MRC_IQF
+          impressionQualificationFilters += INTERNAL_VIDEO_IQF
         }
 
       internalServiceMock.stub {
@@ -245,18 +308,81 @@ class ImpressionQualificationFiltersServiceTest {
       }
 
       val response: ListImpressionQualificationFiltersResponse =
-        service.listImpressionQualificationFilters(
-          listImpressionQualificationFiltersRequest {
-            pageToken = internalPageToken.toByteString().base64UrlEncode()
-          }
-        )
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          service.listImpressionQualificationFilters(
+            listImpressionQualificationFiltersRequest {
+              pageToken = internalPageToken.toByteString().base64UrlEncode()
+            }
+          )
+        }
 
       assertThat(response)
         .isEqualTo(
           listImpressionQualificationFiltersResponse {
             impressionQualificationFilters += PUBLIC_MRC_IQF
+            impressionQualificationFilters += PUBLIC_VIDEO_IQF
           }
         )
+    }
+
+  @Test
+  fun `listImpressionQualificationFilter with page token and page size returns ImpressionQualificationFilter`() =
+    runBlocking {
+      val internalResponse = internalListImpressionQualificationFiltersResponse {
+        impressionQualificationFilters += INTERNAL_MRC_IQF
+        nextPageToken = internalListImpressionQualificationFiltersPageToken {
+          after =
+            InternalListImpressionQualificationFiltersPageTokenKt.after {
+              externalImpressionQualificationFilterId =
+                INTERNAL_VIDEO_IQF.externalImpressionQualificationFilterId
+            }
+        }
+      }
+
+      internalServiceMock.stub {
+        onBlocking { listImpressionQualificationFilters(any()) } doReturn internalResponse
+      }
+
+      val internalPageToken = internalListImpressionQualificationFiltersPageToken {
+        after =
+          InternalListImpressionQualificationFiltersPageTokenKt.after {
+            externalImpressionQualificationFilterId =
+              INTERNAL_MRC_IQF.externalImpressionQualificationFilterId
+          }
+      }
+
+      val response: ListImpressionQualificationFiltersResponse =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          service.listImpressionQualificationFilters(
+            listImpressionQualificationFiltersRequest {
+              pageSize = 1
+              pageToken = internalPageToken.toByteString().base64UrlEncode()
+            }
+          )
+        }
+
+      assertThat(response)
+        .isEqualTo(
+          listImpressionQualificationFiltersResponse {
+            impressionQualificationFilters += PUBLIC_MRC_IQF
+            nextPageToken = internalResponse.nextPageToken.after.toByteString().base64UrlEncode()
+          }
+        )
+    }
+
+  @Test
+  fun `listImpressionQualificationFilter throws PERMISSION_DENIED when MC caller doesn't match`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL.copy { name = "principals/mc-2-user" }, SCOPES) {
+            service.listImpressionQualificationFilters(
+              ListImpressionQualificationFiltersRequest.getDefaultInstance()
+            )
+          }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
     }
 
   @Test
@@ -264,9 +390,11 @@ class ImpressionQualificationFiltersServiceTest {
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.listImpressionQualificationFilters(
-            listImpressionQualificationFiltersRequest { pageSize = -1 }
-          )
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+            service.listImpressionQualificationFilters(
+              listImpressionQualificationFiltersRequest { pageSize = -1 }
+            )
+          }
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -285,9 +413,11 @@ class ImpressionQualificationFiltersServiceTest {
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.listImpressionQualificationFilters(
-            listImpressionQualificationFiltersRequest { pageToken = "mayhem" }
-          )
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+            service.listImpressionQualificationFilters(
+              listImpressionQualificationFiltersRequest { pageToken = "mayhem" }
+            )
+          }
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -367,5 +497,35 @@ class ImpressionQualificationFiltersServiceTest {
         }
       }
     }
+
+    private val INTERNAL_VIDEO_IQF = internalImpressionQualificationFilter {
+      externalImpressionQualificationFilterId = "video"
+      filterSpecs += internalImpressionQualificationFilterSpec {
+        mediaType = InternalMediaType.VIDEO
+        filters += internalEventFilter {
+          terms += internalEventTemplateField {
+            path = "video.viewable_fraction_1_second"
+            value = InternalEventTemplateFieldKt.fieldValue { floatValue = 1.0F }
+          }
+        }
+      }
+    }
+
+    private val PUBLIC_VIDEO_IQF = impressionQualificationFilter {
+      name = "impressionQualificationFilters/video"
+      displayName = "video"
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.VIDEO
+        filters += eventFilter {
+          terms += eventTemplateField {
+            path = "video.viewable_fraction_1_second"
+            value = EventTemplateFieldKt.fieldValue { floatValue = 1.0F }
+          }
+        }
+      }
+    }
+
+    private val PRINCIPAL = principal { name = "principals/mc-user" }
+    private val SCOPES = setOf("*")
   }
 }

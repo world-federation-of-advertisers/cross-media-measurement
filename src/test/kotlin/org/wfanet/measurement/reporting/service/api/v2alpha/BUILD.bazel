@@ -297,6 +297,10 @@ kt_jvm_test(
     ],
     test_class = "org.wfanet.measurement.reporting.service.api.v2alpha.ImpressionQualificationFiltersServiceTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha/testing:authentication",
+        "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha/testing:permission_matcher",
+        "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha/testing:principal_matcher",
+        "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha/testing:protected_resource_matcher",
         "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:impression_qualification_filter_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:impression_qualification_filter_kt_jvm_proto",
