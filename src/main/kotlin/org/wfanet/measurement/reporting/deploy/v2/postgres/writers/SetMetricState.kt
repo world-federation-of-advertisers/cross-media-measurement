@@ -61,13 +61,13 @@ class SetMetricState(private val request: InvalidateMetricRequest) : PostgresWri
       """
           .trimIndent()
       ) {
-        bind("$1", Metric.State.INVALIDATED)
+        bind("$1", Metric.State.INVALID)
         bind("$2", metricResult.measurementConsumerId)
         bind("$3", metricResult.metricId)
       }
 
     transactionContext.executeStatement(statement)
 
-    return metricResult.metric.copy { state = Metric.State.INVALIDATED }
+    return metricResult.metric.copy { state = Metric.State.INVALID }
   }
 }

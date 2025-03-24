@@ -3424,8 +3424,8 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun `getReport returns the report with INVALIDATED when any metric INVALIDATED`() = runBlocking {
-    val invalidatedReachMetric = RUNNING_REACH_METRIC.copy { state = Metric.State.INVALIDATED }
+  fun `getReport returns the report with INVALID when any metric INVALID`() = runBlocking {
+    val invalidatedReachMetric = RUNNING_REACH_METRIC.copy { state = Metric.State.INVALID }
 
     whenever(
         metricsMock.batchGetMetrics(
@@ -3460,7 +3460,7 @@ class ReportsServiceTest {
                   metric = invalidatedReachMetric.name
                   metricSpec = invalidatedReachMetric.metricSpec
                   timeInterval = invalidatedReachMetric.timeInterval
-                  state = Metric.State.INVALIDATED
+                  state = Metric.State.INVALID
                 }
             }
         }

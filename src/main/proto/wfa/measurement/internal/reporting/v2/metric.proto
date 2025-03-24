@@ -114,7 +114,7 @@ message Metric {
     RUNNING = 1;
     SUCCEEDED = 2;
     FAILED = 3;
-    INVALIDATED = 4;
+    INVALID = 4;
   }
   State state = 9;
 }

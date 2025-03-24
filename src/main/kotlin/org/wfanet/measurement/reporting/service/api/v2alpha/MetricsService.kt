@@ -1714,7 +1714,7 @@ class MetricsService(
         when (state) {
           InternalMetric.State.SUCCEEDED,
           InternalMetric.State.FAILED,
-          InternalMetric.State.INVALIDATED ->
+          InternalMetric.State.INVALID ->
             addAll(metricsByState.getValue(state).map { it.toMetric(variances) })
           InternalMetric.State.RUNNING -> {
             if (anyMeasurementUpdated) {
@@ -1804,7 +1804,7 @@ class MetricsService(
           }
         }
         Metric.State.FAILED,
-        Metric.State.INVALIDATED -> {
+        Metric.State.INVALID -> {
           result = metricResult {
             cmmsMeasurements +=
               source.weightedMeasurementsList.map {

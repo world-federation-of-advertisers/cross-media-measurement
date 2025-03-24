@@ -6516,11 +6516,11 @@ class MetricsServiceTest {
     }
 
   @Test
-  fun `getMetric returns the metric with INVALIDATED when metric has state INVALIDATED`() =
+  fun `getMetric returns the metric with INVALID when metric has state INVALID`() =
     runBlocking {
       val invalidatedMetric =
         INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
-          state = InternalMetric.State.INVALIDATED
+          state = InternalMetric.State.INVALID
         }
 
       whenever(internalMetricsMock.batchGetMetrics(any()))
@@ -6566,7 +6566,7 @@ class MetricsServiceTest {
       assertThat(result)
         .isEqualTo(
           SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
-            state = Metric.State.INVALIDATED
+            state = Metric.State.INVALID
             clearResult()
             this.result = metricResult {
               for (weightedMeasurement in
@@ -10307,11 +10307,11 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `invalidateMetric returns Metric with state INVALIDATED`() = runBlocking {
+  fun `invalidateMetric returns Metric with state INVALID`() = runBlocking {
     whenever(internalMetricsMock.invalidateMetric(any()))
       .thenReturn(
         INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-          state = InternalMetric.State.INVALIDATED
+          state = InternalMetric.State.INVALID
         }
       )
 
@@ -10324,7 +10324,7 @@ class MetricsServiceTest {
 
     assertThat(result)
       .isEqualTo(
-        FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { state = Metric.State.INVALIDATED }
+        FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { state = Metric.State.INVALID }
       )
 
     // Verify proto argument of the internal MetricsCoroutineImplBase::invalidateMetric

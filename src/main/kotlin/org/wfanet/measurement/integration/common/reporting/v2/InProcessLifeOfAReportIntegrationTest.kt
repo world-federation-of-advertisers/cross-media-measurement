@@ -1881,7 +1881,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       when (retrievedMetric.state) {
         Metric.State.SUCCEEDED,
         Metric.State.FAILED,
-        Metric.State.INVALIDATED -> return retrievedMetric
+        Metric.State.INVALID -> return retrievedMetric
         Metric.State.RUNNING,
         Metric.State.UNRECOGNIZED,
         Metric.State.STATE_UNSPECIFIED -> delay(5000)

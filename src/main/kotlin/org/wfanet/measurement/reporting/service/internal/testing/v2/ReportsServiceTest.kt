@@ -922,7 +922,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `createReport doesn't reuse existing INVALIDATED metrics from the other report`() =
+  fun `createReport doesn't reuse existing INVALID metrics from the other report`() =
     runBlocking {
       createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
       val createdMetricCalculationSpecsByExternalId =

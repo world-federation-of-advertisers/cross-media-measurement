@@ -189,7 +189,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
             val oldValue: MetricReader.ReportingMetric? = get(key)
             if (
               it.state != Metric.State.FAILED &&
-                it.state != Metric.State.INVALIDATED &&
+                it.state != Metric.State.INVALID &&
                 (oldValue == null || it.createTime.isAfter(oldValue.createTime))
             ) {
               put(key, it)

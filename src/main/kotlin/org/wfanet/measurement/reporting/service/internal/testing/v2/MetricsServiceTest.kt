@@ -3292,7 +3292,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   }
 
   @Test
-  fun `invalidateMetric sets the state to INVALIDATED`(): Unit = runBlocking {
+  fun `invalidateMetric sets the state to INVALID`(): Unit = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
 
     val createMetricRequest =
@@ -3316,7 +3316,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
 
     assertThat(invalidatedMetric)
       .ignoringRepeatedFieldOrder()
-      .isEqualTo(createdMetric.copy { state = Metric.State.INVALIDATED })
+      .isEqualTo(createdMetric.copy { state = Metric.State.INVALID })
 
     val retrievedMetric =
       service
@@ -3332,7 +3332,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
 
     assertThat(retrievedMetric)
       .ignoringRepeatedFieldOrder()
-      .isEqualTo(createdMetric.copy { state = Metric.State.INVALIDATED })
+      .isEqualTo(createdMetric.copy { state = Metric.State.INVALID })
   }
 
   @Test
