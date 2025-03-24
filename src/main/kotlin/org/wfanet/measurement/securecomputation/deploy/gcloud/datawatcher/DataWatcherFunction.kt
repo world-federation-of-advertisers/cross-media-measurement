@@ -23,27 +23,31 @@ import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
-import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GooglePubSubWorkItemsService
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfigs
 
 /*
  * The DataWatcherFunction receives a CloudEvent and calls the DataWatcher with the path and config.
  */
-abstract class DataWatcherFunction : CloudEventsFunction {
+class DataWatcherFunction(
+  private val workItemsService: Lazy<GooglePubSubWorkItemsService> = lazy {
+    val projectId = System.getProperty("CONTROL_PLANE_PROJECT_ID")
+    val googlePubSubClient = DefaultGooglePubSubClient()
+    GooglePubSubWorkItemsService(projectId, googlePubSubClient)
+  }
+) : CloudEventsFunction {
 
-  abstract val schema: String
-  abstract val workItemsService: GooglePubSubWorkItemsService
+  private val schema = "gs://"
 
   override fun accept(event: CloudEvent) {
-    val configData: String = System.getenv("DATA_WATCHER_CONFIGS")
+    val configData: String = System.getProperty("DATA_WATCHER_CONFIGS")
     val dataWatcherConfigs =
       DataWatcherConfigs.newBuilder()
         .apply { TextFormat.Parser.newBuilder().build().merge(configData, this) }
         .build()
     val dataWatcher =
       DataWatcher(
-        workItemsService = workItemsService,
+        workItemsService = workItemsService.value,
         dataWatcherConfigs = dataWatcherConfigs.configsList,
       )
     val cloudEventData =

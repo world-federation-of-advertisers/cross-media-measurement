@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.testing
+package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.Int32Value
 import com.google.protobuf.Any
+import com.google.protobuf.Int32Value
 import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -37,8 +37,7 @@ import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.dataWatcherC
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
-class TestDataWatcherFunctionTest() {
-
+class DataWatcherFunctionTest() {
   @Test
   fun matchedPath() {
     runBlocking {
@@ -54,8 +53,9 @@ class TestDataWatcherFunctionTest() {
           appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
         }
       }
+      System.setProperty("DATA_WATCHER_CONFIGS", dataWatcherConfigs.toString())
 
-      val dataWatcher = TestDataWatcherFunction(mockWorkItemsService)
+      val dataWatcher = DataWatcherFunction(lazy { mockWorkItemsService })
       subscribingStorageClient.subscribe(dataWatcher)
 
       subscribingStorageClient.writeBlob(
@@ -83,8 +83,9 @@ class TestDataWatcherFunctionTest() {
           appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
         }
       }
+      System.setProperty("DATA_WATCHER_CONFIGS", dataWatcherConfigs.toString())
 
-      val dataWatcher = TestDataWatcherFunction(mockWorkItemsService)
+      val dataWatcher = DataWatcherFunction(lazy { mockWorkItemsService })
       subscribingStorageClient.subscribe(dataWatcher)
 
       subscribingStorageClient.writeBlob(
