@@ -166,3 +166,18 @@ permissions {
     protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
   }
 }
+
+# impressionQualificationFilters
+permissions {
+  key: "reporting.impressionQualificationFilters.get"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/Root"
+    protected_resource_types: "reporting.halo-cmm.org/ImpressionQualificationFilter"
+  }
+}
+permissions {
+  key: "reporting.impressionQualificationFilters.list"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/Root"
+  }
+}
