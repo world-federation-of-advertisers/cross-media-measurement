@@ -42,7 +42,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsResponse
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MetricReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateMetrics
-import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.SetMetricState
+import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.InvalidateMetric
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.MetricAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.MetricNotFoundException
@@ -191,7 +191,7 @@ class PostgresMetricsService(
     }
 
     try {
-      return SetMetricState(request).execute(client, idGenerator)
+      return InvalidateMetric(request).execute(client, idGenerator)
     } catch (e: MetricNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     }

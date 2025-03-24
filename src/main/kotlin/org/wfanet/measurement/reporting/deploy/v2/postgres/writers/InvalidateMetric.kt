@@ -33,7 +33,7 @@ import org.wfanet.measurement.reporting.service.internal.MetricNotFoundException
  * Throws the following on [execute]:
  * * [MetricNotFoundException] Metric not found.
  */
-class SetMetricState(private val request: InvalidateMetricRequest) : PostgresWriter<Metric>() {
+class InvalidateMetric(private val request: InvalidateMetricRequest) : PostgresWriter<Metric>() {
   override suspend fun TransactionScope.runTransaction(): Metric {
     val metricResult =
       try {
