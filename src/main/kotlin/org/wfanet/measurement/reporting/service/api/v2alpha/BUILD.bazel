@@ -423,6 +423,7 @@ kt_jvm_library(
         ":principal_server_interceptor",
         ":reporting_principal",
         ":resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:authorization",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/common/api:resource_ids",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:errors",

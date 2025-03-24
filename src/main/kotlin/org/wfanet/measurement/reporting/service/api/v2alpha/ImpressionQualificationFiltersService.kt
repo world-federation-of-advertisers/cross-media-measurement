@@ -16,6 +16,8 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.IOException
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilter as InternalImpressionQualificationFilter
@@ -36,11 +38,14 @@ import org.wfanet.measurement.reporting.v2alpha.listImpressionQualificationFilte
 
 class ImpressionQualificationFiltersService(
   private val internalImpressionQualificationFiltersStub:
-    ImpressionQualificationFiltersCoroutineStub
+    ImpressionQualificationFiltersCoroutineStub,
+  private val authorization: Authorization,
 ) : ImpressionQualificationFiltersCoroutineImplBase() {
   override suspend fun getImpressionQualificationFilter(
     request: GetImpressionQualificationFilterRequest
   ): ImpressionQualificationFilter {
+    authorization.check(listOf(Authorization.ROOT_RESOURCE_NAME, request.name), Permission.GET)
+
     if (request.name.isEmpty()) {
       throw RequiredFieldNotSetException("name")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -79,6 +84,8 @@ class ImpressionQualificationFiltersService(
   override suspend fun listImpressionQualificationFilters(
     request: ListImpressionQualificationFiltersRequest
   ): ListImpressionQualificationFiltersResponse {
+    authorization.check(Authorization.ROOT_RESOURCE_NAME, Permission.LIST)
+
     if (request.pageSize < 0) {
       throw InvalidFieldValueException("page_size")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -132,5 +139,11 @@ class ImpressionQualificationFiltersService(
             .base64UrlEncode()
       }
     }
+  }
+
+  object Permission {
+    private const val TYPE = "reporting.impressionQualificationFilters"
+    const val GET = "$TYPE.get"
+    const val LIST = "$TYPE.list"
   }
 }
