@@ -88,7 +88,6 @@ class CloudFunctionProcess(
               "-jar",
               runtimePath.toString(),
               /** Add HTTP port configuration */
-              /** Add HTTP port configuration */
               "--port",
               localPort.toString(),
               "--target",
