@@ -122,7 +122,8 @@ package k8s
 						_debugVerboseGrpcServerLoggingFlag,
 						"--port=8443",
 						"--health-port=8080",
-			] + _postgresConfig.flags + _reportingSpannerConfig.flags + _tlsArgs
+						"--impression-qualification-filters-config=/var/run/secrets/files/impression_qualification_filter_config.textproto"
+			] + _postgresConfig.flags + _reportingSpannerConfig.flags +  _tlsArgs
 
 			_updatePostgresSchemaContainer: Container=#Container & {
 				image:            _images[Container.name]

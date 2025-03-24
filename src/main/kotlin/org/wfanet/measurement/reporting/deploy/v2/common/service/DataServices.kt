@@ -20,6 +20,7 @@ import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt
+import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt
@@ -37,9 +38,12 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportSchedul
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportSchedulesService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportsService
+import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 
 data class Services(
   val basicReportsService: BasicReportsGrpcKt.BasicReportsCoroutineImplBase,
+  val impressionQualificationFiltersService:
+    ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineImplBase,
   val measurementConsumersService: MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase,
   val measurementsService: MeasurementsGrpcKt.MeasurementsCoroutineImplBase,
   val metricsService: MetricsGrpcKt.MetricsCoroutineImplBase,
@@ -58,9 +62,12 @@ object DataServices {
     idGenerator: IdGenerator,
     postgresClient: DatabaseClient,
     spannerClient: AsyncDatabaseClient,
+    impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
   ): Services {
+    // TODO: pass iqf mappingG
     return Services(
       SpannerBasicReportsService(spannerClient, postgresClient),
+      ImpressionQualificationFiltersService(impressionQualificationFilterMapping),
       PostgresMeasurementConsumersService(idGenerator, postgresClient),
       PostgresMeasurementsService(idGenerator, postgresClient),
       PostgresMetricsService(idGenerator, postgresClient),
