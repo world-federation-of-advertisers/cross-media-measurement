@@ -17,6 +17,7 @@
 package org.wfanet.measurement.reporting.deploy.v2.common.server
 
 import io.grpc.BindableService
+import java.io.File
 import java.time.Clock
 import kotlin.reflect.full.declaredMemberProperties
 import kotlinx.coroutines.runBlocking
@@ -26,10 +27,15 @@ import org.wfanet.measurement.common.db.postgres.PostgresFlags
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.reporting.deploy.v2.common.SpannerFlags
+import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.deploy.v2.common.usingSpanner
+import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import picocli.CommandLine
 import picocli.CommandLine.MissingParameterException
 
@@ -73,6 +79,16 @@ class InternalReportingServer : AbstractInternalReportingServer() {
   @CommandLine.Mixin private lateinit var postgresFlags: PostgresFlags
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
+  @CommandLine.Option(
+    names = ["--impression-qualification-filters-config"],
+    description =
+      [
+        "Path to file containing a ImpressionQualificationsFiltersConfig protobuf message in text format"
+      ],
+    required = true,
+  )
+  private lateinit var impressionQualificationFiltersConfigFile: File
+
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
     val idGenerator = RandomIdGenerator(clock)
@@ -94,10 +110,18 @@ class InternalReportingServer : AbstractInternalReportingServer() {
 
       spannerFlags.usingSpanner { spanner ->
         val spannerClient = spanner.databaseClient
-        run(DataServices.create(idGenerator, postgresClient, spannerClient))
+        val impressionQualificationFiltersConfig =
+          parseTextProto(
+            impressionQualificationFiltersConfigFile,
+            ImpressionQualificationFilterConfig.getDefaultInstance(),
+          )
+        val impressionQualificationFilterMapping =
+          ImpressionQualificationFilterMapping(impressionQualificationFiltersConfig)
+
+        run(DataServices.create(idGenerator, postgresClient, spannerClient, impressionQualificationFilterMapping))
       }
     } else {
-      run(DataServices.create(idGenerator, postgresClient, null))
+      run(DataServices.create(idGenerator, postgresClient, null, null))
     }
   }
 }
