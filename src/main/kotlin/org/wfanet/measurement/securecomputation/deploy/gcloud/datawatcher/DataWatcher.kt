@@ -18,7 +18,6 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 
 import java.util.UUID
 import kotlin.text.matches
-import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GooglePubSubWorkItemsService
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
