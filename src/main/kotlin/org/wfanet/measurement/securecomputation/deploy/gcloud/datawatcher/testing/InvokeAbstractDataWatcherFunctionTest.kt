@@ -133,11 +133,8 @@ abstract class InvokeAbstractDataWatcherFunctionTest() {
     logger.info("Response status: ${getResponse.statusCode()}")
     logger.info("Response body: ${getResponse.body()}")
     // Verify the function worked
-    // Note that this always returns 200 in spite of the documentation saying otherwise
-    // TOOD: Decide how to verify this test succeeded. It currently logs
-    // INFO: Process output: io.grpc.StatusRuntimeException: UNKNOWN: An unknown error occurred:
-    // Your default credentials were not found. To set up Application Default Credentials for your
-    // environment, see https://cloud.google.com/docs/authentication/external/set-up-adc.
+    // Note that this always returns 200 in spite of the documentation saying that it will return
+    // a 500 if the cloud function throws an exception.
     assertThat(getResponse.statusCode()).isEqualTo(200)
   }
 
