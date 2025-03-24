@@ -21,6 +21,7 @@ import com.google.events.cloud.storage.v1.StorageObjectData
 import com.google.protobuf.TextFormat
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
+import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GooglePubSubWorkItemsService
@@ -29,18 +30,20 @@ import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherC
 /*
  * The DataWatcherFunction receives a CloudEvent and calls the DataWatcher with the path and config.
  */
-class DataWatcherFunction(
+open class DataWatcherFunction(
   private val workItemsService: Lazy<GooglePubSubWorkItemsService> = lazy {
-    val projectId = System.getProperty("CONTROL_PLANE_PROJECT_ID")
+    val projectId = getPropertyValue("CONTROL_PLANE_PROJECT_ID")
     val googlePubSubClient = DefaultGooglePubSubClient()
     GooglePubSubWorkItemsService(projectId, googlePubSubClient)
   }
 ) : CloudEventsFunction {
 
   private val schema = "gs://"
+  private val logger: Logger = Logger.getLogger(this::class.java.name)
 
   override fun accept(event: CloudEvent) {
-    val configData: String = System.getProperty("DATA_WATCHER_CONFIGS")
+    logger.fine("Starting DataWatcherFunction")
+    val configData: String = getPropertyValue("DATA_WATCHER_CONFIGS")
     val dataWatcherConfigs =
       DataWatcherConfigs.newBuilder()
         .apply { TextFormat.Parser.newBuilder().build().merge(configData, this) }
@@ -59,6 +62,11 @@ class DataWatcherFunction(
     val blobKey: String = data.getName()
     val bucket: String = data.getBucket()
     val path = "$schema$bucket/$blobKey"
+    logger.info("Receiving path $path")
     runBlocking { dataWatcher.receivePath(path) }
   }
+}
+
+fun getPropertyValue(propertyName: String): String {
+  return System.getProperty(propertyName) ?: System.getenv(propertyName)
 }
