@@ -77,8 +77,8 @@ class RequisitionFetcherFunctionTest {
       val port = functionProcess.start(
         mapOf(
           "REQUISITION_FILE_SYSTEM_PATH" to tempFolder.root.path,
-          "TARGET" to "localhost:${grpcServer.port}",
-          "CERT_HOST" to "localhost",
+          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+          "KINGDOM_CERT_HOST" to "localhost",
           "REQUISITIONS_GCS_PROJECT_ID" to "test-project-id",
           "REQUISITIONS_GCS_BUCKET" to "test-bucket",
           "DATA_PROVIDER_NAME" to DATA_PROVIDER_NAME,
@@ -115,7 +115,7 @@ class RequisitionFetcherFunctionTest {
     logger.info("Response status: ${getResponse.statusCode()}")
     logger.info("Response body: ${getResponse.body()}")
     // Verify the function worked
-    assertThat(getResponse.statusCode() == 200)
+    assertThat(getResponse.statusCode()).isEqualTo(200)
 
     val storedRequisitionPath = Paths.get(STORAGE_PATH_PREFIX, REQUISITION.name)
     val requisitionFile = tempFolder.root.toPath().resolve(storedRequisitionPath).toFile()

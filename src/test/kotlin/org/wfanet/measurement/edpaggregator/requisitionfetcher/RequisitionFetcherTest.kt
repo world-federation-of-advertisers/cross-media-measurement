@@ -17,7 +17,11 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat as protobufAssertThat
 import com.google.protobuf.Any
+import com.google.protobuf.ByteString
+import com.google.protobuf.ExtensionRegistry
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.toByteString
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -35,6 +39,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toByteArray
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 
@@ -56,13 +61,15 @@ class RequisitionFetcherTest {
   fun `fetchAndStoreRequisitions stores Requisition`() {
     val storageClient = FileSystemStorageClient(tempFolder.root)
     val fetcher = RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME, STORAGE_PATH_PREFIX)
-
-    val expectedResult = Any.pack(REQUISITION)
-    val persistedRequisition = runBlocking {
+    val typeRegistry = TypeRegistry.newBuilder().add(Requisition.getDescriptor()).build()
+    val parsedBlob = runBlocking {
       fetcher.fetchAndStoreRequisitions()
-      storageClient.getBlob("$STORAGE_PATH_PREFIX/${REQUISITION.name}")?.read()?.toByteArray()?.toByteString()
+      val blob = storageClient.getBlob("$STORAGE_PATH_PREFIX/${REQUISITION.name}")
+      assertThat(blob).isNotNull()
+      val blobContent: ByteString = blob!!.read().flatten()
+      Any.parseFrom(blobContent)
     }
-    assertThat(expectedResult.toByteString()).isEqualTo(persistedRequisition)
+    protobufAssertThat(parsedBlob).unpackingAnyUsing(typeRegistry, ExtensionRegistry.getEmptyRegistry()).isEqualTo(Any.pack(REQUISITION))
   }
 
   @Test

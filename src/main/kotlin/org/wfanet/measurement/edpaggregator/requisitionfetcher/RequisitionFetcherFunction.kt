@@ -37,7 +37,7 @@ class RequisitionFetcherFunction : HttpFunction {
 
   companion object {
     val publicChannel =
-      buildMutualTlsChannel(System.getenv("TARGET"), getClientCerts(), System.getenv("CERT_HOST"))
+      buildMutualTlsChannel(System.getenv("KINGDOM_TARGET"), getClientCerts(), System.getenv("KINGDOM_CERT_HOST"))
 
     val requisitionsStub = RequisitionsCoroutineStub(publicChannel)
 
