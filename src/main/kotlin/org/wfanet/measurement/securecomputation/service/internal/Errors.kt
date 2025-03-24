@@ -32,6 +32,7 @@ object Errors {
     QUEUE_NOT_FOUND,
     QUEUE_NOT_FOUND_FOR_WORK_ITEM,
     INVALID_WORK_ITEM_STATE,
+    INVALID_WORK_ITEM_ATTEMPT_STATE,
     WORK_ITEM_NOT_FOUND,
     WORK_ITEM_ATTEMPT_NOT_FOUND,
     WORK_ITEM_ALREADY_EXISTS,
@@ -158,6 +159,16 @@ class WorkItemInvalidStateException(workItemResourceId: String, cause: Throwable
     Errors.Reason.INVALID_WORK_ITEM_STATE,
     "WorkItemAttempt cannot be created when parent WorkItem has state either SUCCEEDED or FAILED",
     mapOf(Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId),
+    cause,
+  )
+
+class WorkItemAttemptInvalidStateException(workItemResourceId: String, workItemAttemptResourceId: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE,
+    "WorkItemAttempt has invalid state",
+    mapOf(Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId,
+      Errors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID to workItemAttemptResourceId
+    ),
     cause,
   )
 

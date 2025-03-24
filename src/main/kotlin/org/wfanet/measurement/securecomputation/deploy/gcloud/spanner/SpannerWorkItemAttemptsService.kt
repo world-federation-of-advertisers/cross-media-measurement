@@ -52,6 +52,7 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForWorkItem
 import org.wfanet.measurement.securecomputation.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptAlreadyExistsException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptInvalidStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptNotFoundException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemInvalidStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
@@ -112,6 +113,8 @@ class SpannerWorkItemAttemptsService(
       } else {
         throw e
       }
+    } catch (e: WorkItemInvalidStateException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: WorkItemNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
@@ -163,10 +166,27 @@ class SpannerWorkItemAttemptsService(
     val workItemAttempt = transactionRunner.run { txn ->
       try {
         val workItemAttemptResult = txn.getWorkItemAttemptByResourceId(request.workItemResourceId, request.workItemAttemptResourceId)
-        val state = txn.failWorkItemAttempt(workItemAttemptResult.workItemId, workItemAttemptResult.workItemAttemptId)
-        workItemAttemptResult.workItemAttempt.copy {
-          this.state = state
+        val workItemAttemptState = workItemAttemptResult.workItemAttempt.state
+        when (workItemAttemptState) {
+          WorkItemAttempt.State.FAILED,
+          WorkItemAttempt.State.SUCCEEDED,
+          WorkItemAttempt.State.STATE_UNSPECIFIED,
+          WorkItemAttempt.State.UNRECOGNIZED,
+          null -> {
+            throw WorkItemAttemptInvalidStateException(
+              workItemAttemptResult.workItemAttempt.workItemResourceId,
+              workItemAttemptResult.workItemAttempt.workItemAttemptResourceId
+            )
+          }
+          WorkItemAttempt.State.ACTIVE -> {
+            val state = txn.failWorkItemAttempt(workItemAttemptResult.workItemId, workItemAttemptResult.workItemAttemptId)
+            workItemAttemptResult.workItemAttempt.copy {
+              this.state = state
+            }
+          }
         }
+      } catch (e: WorkItemAttemptInvalidStateException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       } catch (e: WorkItemAttemptNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       } catch (e: QueueNotFoundForWorkItem) {
@@ -193,10 +213,27 @@ class SpannerWorkItemAttemptsService(
     val workItemAttempt = transactionRunner.run { txn ->
       try {
         val workItemAttemptResult = txn.getWorkItemAttemptByResourceId(request.workItemResourceId, request.workItemAttemptResourceId)
-        val state = txn.completeWorkItemAttempt(workItemAttemptResult.workItemId, workItemAttemptResult.workItemAttemptId)
-        workItemAttemptResult.workItemAttempt.copy {
-          this.state = state
+        val workItemAttemptState = workItemAttemptResult.workItemAttempt.state
+        when (workItemAttemptState) {
+          WorkItemAttempt.State.FAILED,
+          WorkItemAttempt.State.SUCCEEDED,
+          WorkItemAttempt.State.STATE_UNSPECIFIED,
+          WorkItemAttempt.State.UNRECOGNIZED,
+          null -> {
+            throw WorkItemAttemptInvalidStateException(
+              workItemAttemptResult.workItemAttempt.workItemResourceId,
+              workItemAttemptResult.workItemAttempt.workItemAttemptResourceId
+            )
+          }
+          WorkItemAttempt.State.ACTIVE -> {
+            val state = txn.completeWorkItemAttempt(workItemAttemptResult.workItemId, workItemAttemptResult.workItemAttemptId)
+            workItemAttemptResult.workItemAttempt.copy {
+              this.state = state
+            }
+          }
         }
+      } catch (e: WorkItemAttemptInvalidStateException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       } catch (e: WorkItemAttemptNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       } catch (e: QueueNotFoundForWorkItem) {
