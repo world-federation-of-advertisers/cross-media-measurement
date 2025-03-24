@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.testing
+package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.Int32Value
 import com.google.protobuf.Any
+import com.google.protobuf.Int32Value
 import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -37,11 +37,13 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GooglePubSubWorkItemsService
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfigKt.controlPlaneConfig
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.dataWatcherConfig
+import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.dataWatcherConfigs
 
 @RunWith(JUnit4::class)
-class TestDataWatcherFunctionTest() {
+class DataWatcherFunctionTest() {
 
   lateinit var storageClient: GcsStorageClient
+
   @Before
   fun initStorageClient() {
     val storage = LocalStorageHelper.getOptions().service
@@ -55,15 +57,18 @@ class TestDataWatcherFunctionTest() {
       val mockWorkItemsService: GooglePubSubWorkItemsService = mock {}
       val subscribingStorageClient = GcsSubscribingStorageClient(storageClient)
 
-      val dataWatcherConfig = dataWatcherConfig {
-        sourcePathRegex = "test-bucket://path-to-watch/(.*)"
-        this.controlPlaneConfig = controlPlaneConfig {
-          queueName = topicId
-          appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
+      val dataWatcherConfigs = dataWatcherConfigs {
+        configs += dataWatcherConfig {
+          sourcePathRegex = "gs://$BUCKET/path-to-watch/(.*)"
+          this.controlPlaneConfig = controlPlaneConfig {
+            queueName = topicId
+            appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
+          }
         }
       }
+      System.setProperty("DATA_WATCHER_CONFIGS", dataWatcherConfigs.toString())
 
-      val dataWatcher = TestDataWatcherFunction(mockWorkItemsService)
+      val dataWatcher = DataWatcherFunction(lazy { mockWorkItemsService })
       subscribingStorageClient.subscribe(dataWatcher)
 
       subscribingStorageClient.writeBlob(
@@ -83,15 +88,18 @@ class TestDataWatcherFunctionTest() {
       val mockWorkItemsService: GooglePubSubWorkItemsService = mock {}
       val subscribingStorageClient = GcsSubscribingStorageClient(storageClient)
 
-      val dataWatcherConfig = dataWatcherConfig {
-        sourcePathRegex = "test-bucket://path-to-watch/(.*)"
-        this.controlPlaneConfig = controlPlaneConfig {
-          queueName = topicId
-          appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
+      val dataWatcherConfigs = dataWatcherConfigs {
+        configs += dataWatcherConfig {
+          sourcePathRegex = "gs://$BUCKET/path-to-watch/(.*)"
+          this.controlPlaneConfig = controlPlaneConfig {
+            queueName = topicId
+            appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
+          }
         }
       }
+      System.setProperty("DATA_WATCHER_CONFIGS", dataWatcherConfigs.toString())
 
-      val dataWatcher = TestDataWatcherFunction(mockWorkItemsService)
+      val dataWatcher = DataWatcherFunction(lazy { mockWorkItemsService })
       subscribingStorageClient.subscribe(dataWatcher)
 
       subscribingStorageClient.writeBlob(
