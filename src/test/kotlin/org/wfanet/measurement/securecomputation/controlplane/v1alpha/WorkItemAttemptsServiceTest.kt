@@ -35,6 +35,11 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.createWork
 import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemAttemptRequest as internalGetWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemAttemptRequest as internalFailWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.completeWorkItemAttemptRequest as internalCompleteWorkItemAttemptRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsRequest as internalListWorkItemAttemptsRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsResponse as internalListWorkItemAttemptsResponse
+import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsPageToken as internalListWorkItemAttemptsPageToken
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsPageTokenKt as InternalListWorkItemAttemptsPageTokenKt
+
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -43,6 +48,7 @@ import org.junit.Test
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.stub
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.securecomputation.service.Errors
@@ -525,6 +531,75 @@ class WorkItemAttemptsServiceTest {
           reason = Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name
           metadata[Errors.Metadata.WORK_ITEM_ATTEMPT.key] = request.name
           metadata[Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key] = "SUCCEEDED"
+        }
+      )
+  }
+
+  @Test
+  fun `listWorkItemAttempts returns WorkItemAttempts`() = runBlocking {
+    val internalWorkItemAttemptFirst = internalWorkItemAttempt {
+        workItemResourceId = "workItemOne"
+        workItemAttemptResourceId = "workItemAttemptOne"
+        state = InternalWorkItemAttempt.State.ACTIVE
+        attemptNumber = 1
+      }
+
+    val internalListWorkItemAttemptsResponse = internalListWorkItemAttemptsResponse {
+      workItemAttempts += internalWorkItemAttemptFirst
+      nextPageToken = internalListWorkItemAttemptsPageToken {
+        after = InternalListWorkItemAttemptsPageTokenKt.after {
+          workItemResourceId = "workItemTwo"
+          workItemAttemptResourceId = "workItemAttemptTwo"
+        }
+      }
+    }
+    internalServiceMock.stub { onBlocking { listWorkItemAttempts(any()) } doReturn internalListWorkItemAttemptsResponse }
+
+    val response = service.listWorkItemAttempts(listWorkItemAttemptsRequest { pageSize = 1 })
+
+    verifyProtoArgument(internalServiceMock, WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::listWorkItemAttempts)
+      .isEqualTo(internalListWorkItemAttemptsRequest { pageSize = 1 })
+    assertThat(response)
+      .isEqualTo(
+        listWorkItemAttemptsResponse {
+          workItemAttempts += internalWorkItemAttemptFirst.toWorkItemAttempt()
+          nextPageToken =
+            internalListWorkItemAttemptsResponse.nextPageToken.after.toByteString().base64UrlEncode()
+        }
+      )
+  }
+
+  @Test
+  fun `listWorkItemAttempts throws INVALID_FIELD_VALUE when page size is invalid`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listWorkItemAttempts(listWorkItemAttemptsRequest { pageSize = -1 })
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
+        }
+      )
+  }
+  @Test
+  fun `listWorkItemAttepmts throws INVALID_FIELD_VALUE when page token is invalid`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listWorkItemAttempts(listWorkItemAttemptsRequest { pageToken = "1" })
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "page_token"
         }
       )
   }
