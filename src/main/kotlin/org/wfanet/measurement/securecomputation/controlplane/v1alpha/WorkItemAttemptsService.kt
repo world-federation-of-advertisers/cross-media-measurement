@@ -37,7 +37,6 @@ import java.io.IOException
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
-import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsPageToken
 import org.wfanet.measurement.securecomputation.service.WorkItemAttemptAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.WorkItemAttemptInvalidStateException
