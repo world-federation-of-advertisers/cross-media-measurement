@@ -19,25 +19,27 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 import java.util.UUID
 import kotlin.text.matches
 import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GooglePubSubWorkItemsService
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemConfig
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfig
+import java.util.logging.Logger
 
 /*
- * The DataWatcher calls various sinks to with the data it has received.
+ * Watcher to observe blob creation events and take the appropriate action for each.
  * @param workItemsService - the Google Pub Sub Sink to call
  * @param dataWatcherConfigs - a list of [DataWatcherConfig]
  */
 class DataWatcher(
-  private val workItemsService: GooglePubSubWorkItemsService,
+  private val workItemsService: WorkItemsCoroutineImplBase,
   private val dataWatcherConfigs: List<DataWatcherConfig>,
 ) {
   suspend fun receivePath(path: String) {
     for (config in dataWatcherConfigs) {
       val regex = config.sourcePathRegex.toRegex()
       if (regex.matches(path)) {
+        logger.info("Matched path: $path")
         when (config.sinkConfigCase) {
           DataWatcherConfig.SinkConfigCase.CONTROL_PLANE_CONFIG -> {
             val queueConfig = config.controlPlaneConfig
@@ -64,5 +66,8 @@ class DataWatcher(
         }
       }
     }
+  }
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
