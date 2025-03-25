@@ -83,13 +83,13 @@ class SpannerWorkItemAttemptsService(
         val result =
           txn.getWorkItemByResourceId(queueMapping, request.workItemAttempt.workItemResourceId)
         val workItemState = result.workItem.state
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
         when (workItemState) {
           WorkItem.State.FAILED,
           WorkItem.State.SUCCEEDED,
           WorkItem.State.STATE_UNSPECIFIED,
-          WorkItem.State.UNRECOGNIZED,
-          null -> {
-            throw WorkItemInvalidStateException(result.workItem.workItemResourceId)
+          WorkItem.State.UNRECOGNIZED -> {
+            throw WorkItemInvalidStateException(result.workItem.workItemResourceId, workItemState)
           }
           WorkItem.State.QUEUED,
           WorkItem.State.RUNNING -> {
@@ -167,15 +167,16 @@ class SpannerWorkItemAttemptsService(
       try {
         val workItemAttemptResult = txn.getWorkItemAttemptByResourceId(request.workItemResourceId, request.workItemAttemptResourceId)
         val workItemAttemptState = workItemAttemptResult.workItemAttempt.state
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
         when (workItemAttemptState) {
           WorkItemAttempt.State.FAILED,
           WorkItemAttempt.State.SUCCEEDED,
           WorkItemAttempt.State.STATE_UNSPECIFIED,
-          WorkItemAttempt.State.UNRECOGNIZED,
-          null -> {
+          WorkItemAttempt.State.UNRECOGNIZED -> {
             throw WorkItemAttemptInvalidStateException(
               workItemAttemptResult.workItemAttempt.workItemResourceId,
-              workItemAttemptResult.workItemAttempt.workItemAttemptResourceId
+              workItemAttemptResult.workItemAttempt.workItemAttemptResourceId,
+              workItemAttemptState
             )
           }
           WorkItemAttempt.State.ACTIVE -> {
@@ -214,15 +215,16 @@ class SpannerWorkItemAttemptsService(
       try {
         val workItemAttemptResult = txn.getWorkItemAttemptByResourceId(request.workItemResourceId, request.workItemAttemptResourceId)
         val workItemAttemptState = workItemAttemptResult.workItemAttempt.state
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
         when (workItemAttemptState) {
           WorkItemAttempt.State.FAILED,
           WorkItemAttempt.State.SUCCEEDED,
           WorkItemAttempt.State.STATE_UNSPECIFIED,
-          WorkItemAttempt.State.UNRECOGNIZED,
-          null -> {
+          WorkItemAttempt.State.UNRECOGNIZED -> {
             throw WorkItemAttemptInvalidStateException(
               workItemAttemptResult.workItemAttempt.workItemResourceId,
-              workItemAttemptResult.workItemAttempt.workItemAttemptResourceId
+              workItemAttemptResult.workItemAttempt.workItemAttemptResourceId,
+              workItemAttemptState
             )
           }
           WorkItemAttempt.State.ACTIVE -> {

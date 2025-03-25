@@ -16,7 +16,9 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
+import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Options
+import com.google.cloud.spanner.SpannerException
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
@@ -49,6 +51,8 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workIte
 import org.wfanet.measurement.securecomputation.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForWorkItem
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemAlreadyExistsException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptAlreadyExistsException
 
 
 class SpannerWorkItemsService(
@@ -77,13 +81,21 @@ class SpannerWorkItemsService(
 
     val transactionRunner = databaseClient.readWriteTransaction(Options.tag("action=createWorkItem"))
 
-    val workItem = transactionRunner.run { txn ->
-      val workItemId : Long = idGenerator.generateNewId { id -> txn.workItemIdExists(id) }
+    val workItem = try {
+      transactionRunner.run { txn ->
+        val workItemId : Long = idGenerator.generateNewId { id -> txn.workItemIdExists(id) }
 
-      val state = txn.insertWorkItem(workItemId, request.workItem.workItemResourceId, queue.queueId)
+        val state = txn.insertWorkItem(workItemId, request.workItem.workItemResourceId, queue.queueId)
 
-      request.workItem.copy {
-        this.state = state
+        request.workItem.copy {
+          this.state = state
+        }
+      }
+    } catch (e: SpannerException) {
+      if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
+        throw WorkItemAlreadyExistsException(e).asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+      } else {
+        throw e
       }
     }
 

@@ -256,6 +256,7 @@ abstract class WorkItemAttemptsServiceTest {
           reason = Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name
           metadata[Errors.Metadata.WORK_ITEM_RESOURCE_ID.key] = "work_item_resource_id"
           metadata[Errors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID.key] = "work_item_attempt_resource_id_1"
+          metadata[Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key] = "FAILED"
         }
       )
   }
@@ -367,6 +368,7 @@ abstract class WorkItemAttemptsServiceTest {
           reason = Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name
           metadata[Errors.Metadata.WORK_ITEM_RESOURCE_ID.key] = "work_item_resource_id"
           metadata[Errors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID.key] = "work_item_attempt_resource_id_1"
+          metadata[Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key] = "SUCCEEDED"
         }
       )
   }

@@ -49,7 +49,7 @@ suspend fun AsyncDatabaseClient.ReadContext.workItemAttemptExists(
 /**
  * Buffers an insert mutation for the WorkItemAttempts table.
  *
- * Returns a pair consisting of:
+ * @return a pair consisting of:
  * - The `attemptNumber` assigned to the newly inserted row.
  * - The resulting `State` of the `WorkItemAttempt` after insertion.
  * */
@@ -111,7 +111,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getWorkItemAttemptByResourceId(
 
 /**
  * Buffers an update mutation for the WorkItemAttempts table.
- * Returns the updated `WorkItemAttempt.State`.
+ * @return the updated `WorkItemAttempt.State`.
  */
 fun AsyncDatabaseClient.TransactionContext.completeWorkItemAttempt(workItemId: Long, workItemAttemptId: Long): WorkItemAttempt.State {
   val state = WorkItemAttempt.State.SUCCEEDED
@@ -131,7 +131,7 @@ fun AsyncDatabaseClient.TransactionContext.completeWorkItemAttempt(workItemId: L
 
 /**
  * Buffers an update mutation for the WorkItemAttempts table.
- * Returns the updated `WorkItemAttempt.State`.
+ * @return the updated `WorkItemAttempt.State`.
  */
 fun AsyncDatabaseClient.TransactionContext.failWorkItemAttempt(workItemId: Long, workItemAttemptId: Long): WorkItemAttempt.State {
   val state = WorkItemAttempt.State.FAILED

@@ -37,7 +37,7 @@ import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoun
 
 data class WorkItemResult(val workItemId: Long, val workItem: WorkItem)
 
-/** Returns whether a [WorkItem] with the specified [workItemId] exists. */
+/** @return whether a [WorkItem] with the specified [workItemId] exists. */
 suspend fun AsyncDatabaseClient.ReadContext.workItemIdExists(workItemId: Long): Boolean {
   return readRow("WorkItems", Key.of(workItemId), listOf("WorkItemId")) != null
 }
@@ -45,7 +45,7 @@ suspend fun AsyncDatabaseClient.ReadContext.workItemIdExists(workItemId: Long): 
 /**
  * Buffers an update mutation for the WorkItems table.
  * Set as FAILED all the child WorkItemAttempts.
- * Returns the updated `WorkItem.State`.
+ * @return the updated `WorkItem.State`.
  */
 fun AsyncDatabaseClient.TransactionContext.failWorkItem(workItemId: Long): WorkItem.State {
   val state = WorkItem.State.FAILED
@@ -59,7 +59,7 @@ fun AsyncDatabaseClient.TransactionContext.failWorkItem(workItemId: Long): WorkI
 
 /**
  * Buffers an insert mutation for the WorkItems table.
- * Returns the resulting `State` of the `WorkItem` after insertion.
+ * @return the resulting `State` of the `WorkItem` after insertion.
  */
 fun AsyncDatabaseClient.TransactionContext.insertWorkItem(workItemId: Long, workItemResourceId: String, queueId: Long): WorkItem.State {
   val state = WorkItem.State.QUEUED

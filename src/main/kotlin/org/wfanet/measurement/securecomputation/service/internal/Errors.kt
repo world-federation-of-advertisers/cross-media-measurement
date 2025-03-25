@@ -23,6 +23,8 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
 
 object Errors {
   const val DOMAIN = "internal.securecomputation.halo-cmm.org"
@@ -44,7 +46,9 @@ object Errors {
     QUEUE_RESOURCE_ID("queueResourceId"),
     QUEUE_ID("queueId"),
     WORK_ITEM_RESOURCE_ID("workItemResourceId"),
+    WORK_ITEM_STATE("workItemState"),
     WORK_ITEM_ATTEMPT_RESOURCE_ID("workItemAttemptResourceId"),
+    WORK_ITEM_ATTEMPT_STATE("workItemAttemptState"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -154,20 +158,25 @@ class WorkItemAlreadyExistsException(cause: Throwable? = null) :
 class WorkItemAttemptAlreadyExistsException(cause: Throwable? = null) :
   ServiceException(Errors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS, "WorkItemAttempt already exists", emptyMap(), cause)
 
-class WorkItemInvalidStateException(workItemResourceId: String, cause: Throwable? = null) :
+class WorkItemInvalidStateException(workItemResourceId: String, workItemState: WorkItem.State, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.INVALID_WORK_ITEM_STATE,
-    "WorkItemAttempt cannot be created when parent WorkItem has state either SUCCEEDED or FAILED",
-    mapOf(Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId),
+    "WorkItem with resource ID $workItemResourceId is in an invalid state for this operation",
+    mapOf(
+      Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId,
+      Errors.Metadata.WORK_ITEM_STATE to workItemState.name
+    ),
     cause,
   )
 
-class WorkItemAttemptInvalidStateException(workItemResourceId: String, workItemAttemptResourceId: String, cause: Throwable? = null) :
+class WorkItemAttemptInvalidStateException(workItemResourceId: String, workItemAttemptResourceId: String, workItemAttemptState: WorkItemAttempt.State, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE,
-    "WorkItemAttempt has invalid state",
-    mapOf(Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId,
-      Errors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID to workItemAttemptResourceId
+    "WorkItemAttempt with resource ID $workItemAttemptResourceId is in an invalid state for this operation",
+    mapOf(
+      Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId,
+      Errors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID to workItemAttemptResourceId,
+      Errors.Metadata.WORK_ITEM_ATTEMPT_STATE to workItemAttemptState.name
     ),
     cause,
   )
