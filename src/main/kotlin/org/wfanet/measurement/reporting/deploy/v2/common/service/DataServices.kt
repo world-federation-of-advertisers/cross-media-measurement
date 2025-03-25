@@ -64,7 +64,6 @@ object DataServices {
     spannerClient: AsyncDatabaseClient,
     impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
   ): Services {
-    // TODO: pass iqf mappingG
     return Services(
       SpannerBasicReportsService(spannerClient, postgresClient),
       ImpressionQualificationFiltersService(impressionQualificationFilterMapping),
