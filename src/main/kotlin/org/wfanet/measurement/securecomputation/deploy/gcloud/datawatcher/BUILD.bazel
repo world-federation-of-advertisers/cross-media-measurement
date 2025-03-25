@@ -42,12 +42,3 @@ java_binary(
     main_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction",
     runtime_deps = ["//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:data_watcher_function"],
 )
-
-java_binary(
-    name = "InvokeDataWatcherFunction",
-    main_class = "com.google.cloud.functions.invoker.runner.Invoker",
-    runtime_deps = [
-        ":DataWatcherFunction_deploy.jar",
-        "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",
-    ],
-)

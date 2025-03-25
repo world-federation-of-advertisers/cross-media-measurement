@@ -40,6 +40,7 @@ bazel_dep(
     version = "0.101.0",
     repo_name = "wfa_common_jvm",
 )
+# DO NOT SUBMIT - wait on next release
 archive_override(
     module_name = "common-jvm",
     strip_prefix = "common-jvm-217944789cbf82d429489401a035777815434e75",

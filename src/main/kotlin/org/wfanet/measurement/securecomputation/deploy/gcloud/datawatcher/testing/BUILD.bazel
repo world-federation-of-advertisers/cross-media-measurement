@@ -60,3 +60,12 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
     ],
 )
+
+java_binary(
+    name = "InvokeDataWatcherFunction",
+    main_class = "com.google.cloud.functions.invoker.runner.Invoker",
+    runtime_deps = [
+        "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar",
+    ],
+)

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
+package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.testing
 
 import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
@@ -22,7 +22,6 @@ import org.junit.Before
 import org.junit.ClassRule
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
-import org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.testing.InvokeAbstractDataWatcherFunctionTest
 
 class InvokeDataWatcherFunctionTest : InvokeAbstractDataWatcherFunctionTest() {
   override val functionBinaryPath =
@@ -38,6 +37,7 @@ class InvokeDataWatcherFunctionTest : InvokeAbstractDataWatcherFunctionTest() {
       "deploy",
       "gcloud",
       "datawatcher",
+      "testing",
       "InvokeDataWatcherFunction_deploy.jar",
     )
   // Note that this target is expected to return
