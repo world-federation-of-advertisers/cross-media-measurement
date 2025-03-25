@@ -3362,6 +3362,102 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   }
 
   @Test
+  fun `invalidateMetric throws FAILED_PRECONDITION when metric FAILED`(): Unit = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+
+    val createMetricRequest =
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService).copy {
+        val source = this
+        metric =
+          source.metric.copy {
+            weightedMeasurements +=
+              MetricKt.weightedMeasurement {
+                weight = 2
+                binaryRepresentation = 1
+                measurement = measurement {
+                  cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                  cmmsCreateMeasurementRequestId = "1234"
+                  timeInterval = interval {
+                    startTime = timestamp { seconds = 10 }
+                    endTime = timestamp { seconds = 100 }
+                  }
+                  primitiveReportingSetBases +=
+                    ReportingSetKt.primitiveReportingSetBasis {
+                      externalReportingSetId = source.metric.externalReportingSetId
+                    }
+                }
+              }
+            weightedMeasurements +=
+              MetricKt.weightedMeasurement {
+                weight = 3
+                binaryRepresentation = 2
+                measurement = measurement {
+                  cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                  cmmsCreateMeasurementRequestId = "1235"
+                  timeInterval = interval {
+                    startTime = timestamp { seconds = 10 }
+                    endTime = timestamp { seconds = 100 }
+                  }
+                  primitiveReportingSetBases +=
+                    ReportingSetKt.primitiveReportingSetBasis {
+                      externalReportingSetId = source.metric.externalReportingSetId
+                    }
+                }
+              }
+          }
+      }
+    val createdMetric = service.createMetric(createMetricRequest)
+
+    val suffix = "-1"
+    val batchSetCmmsMeasurementIdsRequest = batchSetCmmsMeasurementIdsRequest {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      createdMetric.weightedMeasurementsList.forEach {
+        measurementIds +=
+          BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+            cmmsCreateMeasurementRequestId = it.measurement.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = it.measurement.cmmsCreateMeasurementRequestId + suffix
+          }
+      }
+    }
+    measurementsService.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest)
+
+    val batchSetMeasurementFailuresRequest = batchSetMeasurementFailuresRequest {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      measurementFailures +=
+        BatchSetMeasurementFailuresRequestKt.measurementFailure {
+          cmmsMeasurementId =
+            createdMetric.weightedMeasurementsList
+              .first()
+              .measurement
+              .cmmsCreateMeasurementRequestId + suffix
+          failure = MeasurementKt.failure { message = "failure" }
+        }
+    }
+    measurementsService.batchSetMeasurementFailures(batchSetMeasurementFailuresRequest)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.invalidateMetric(
+          invalidateMetricRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalMetricId = createdMetric.externalMetricId
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_STATE_TRANSITION.name
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] = CMMS_MEASUREMENT_CONSUMER_ID
+          metadata[Errors.Metadata.EXTERNAL_METRIC_ID.key] = createdMetric.externalMetricId
+        }
+      )
+  }
+
+  @Test
   fun `invalidateMetric throws INVALID_ARGUMENT when missing mc id`(): Unit = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {

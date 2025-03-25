@@ -33,6 +33,7 @@ object Errors {
     BASIC_REPORT_ALREADY_EXISTS,
     REQUIRED_FIELD_NOT_SET,
     IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+    INVALID_STATE_TRANSITION,
     INVALID_FIELD_VALUE,
   }
 
@@ -182,6 +183,21 @@ class MetricNotFoundException(
   ServiceException(
     Errors.Reason.METRIC_NOT_FOUND,
     "Metric with cmms measurement consumer ID $cmmsMeasurementConsumerId and external ID $externalMetricId not found",
+    mapOf(
+      Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
+      Errors.Metadata.EXTERNAL_METRIC_ID to externalMetricId,
+    ),
+    cause,
+  )
+
+class InvalidMetricStateTransitionToInvalidStateException(
+  cmmsMeasurementConsumerId: String,
+  externalMetricId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.INVALID_STATE_TRANSITION,
+    "Metric with cmms measurement consumer ID $cmmsMeasurementConsumerId and external ID $externalMetricId cannot be transitioned from FAILED to INVALID",
     mapOf(
       Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
       Errors.Metadata.EXTERNAL_METRIC_ID to externalMetricId,

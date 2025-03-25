@@ -20,6 +20,8 @@ option java_package = "org.wfanet.measurement.internal.reporting";
 option java_multiple_files = true;
 
 enum ErrorCode {
+  reserved 10;
+
   UNKNOWN_ERROR = 0;
 
   /** Reporting Set with the same IDs already exists. */
