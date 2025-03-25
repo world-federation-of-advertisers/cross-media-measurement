@@ -21,6 +21,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.securecomputation.service.internal.Errors as InternalErrors
 
 object Errors {
@@ -28,9 +29,8 @@ object Errors {
 
   enum class Reason {
     REQUIRED_FIELD_NOT_SET,
-    QUEUE_NOT_FOUND,
-    QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
-    INVALID_WORK_ITEM_PRECONDITION_STATE,
+    INVALID_WORK_ITEM_STATE,
+    INVALID_WORK_ITEM_ATTEMPT_STATE,
     WORK_ITEM_NOT_FOUND,
     WORK_ITEM_ATTEMPT_NOT_FOUND,
     WORK_ITEM_ALREADY_EXISTS,
@@ -39,10 +39,10 @@ object Errors {
   }
 
   enum class Metadata(val key: String) {
-    QUEUE_RESOURCE_ID("queueResourceId"),
-    QUEUE_ID("queueId"),
     WORK_ITEM("workItem"),
     WORK_ITEM_ATTEMPT("workItem"),
+    WORK_ITEM_ATTEMPT_STATE("workItemAttemptState"),
+    WORK_ITEM_STATE("workItemState"),
     FIELD_NAME("fieldName");
   }
 }
@@ -63,7 +63,7 @@ sealed class ServiceException(
       reason = source.reason.name
       metadata.putAll(source.metadata.mapKeys { it.key.key })
     }
-    return org.wfanet.measurement.common.grpc.Errors.buildStatusRuntimeException(code, message, errorInfo, this)
+    return CommonErrors.buildStatusRuntimeException(code, message, errorInfo, this)
   }
 
   abstract class Factory<T : ServiceException> {
@@ -103,25 +103,9 @@ class InvalidFieldValueException(
     cause,
   )
 
-//class QueueNotFoundException(queueResourceId: String, cause: Throwable? = null) :
-//  ServiceException(
-//    Errors.Reason.QUEUE_NOT_FOUND,
-//    "Queue with resource ID $queueResourceId not found",
-//    mapOf(Errors.Metadata.QUEUE_RESOURCE_ID to queueResourceId),
-//    cause,
-//  )
-//
-//class QueueNotFoundForInternalIdException(queueId: Long, cause: Throwable? = null) :
-//  ServiceException(
-//    Errors.Reason.QUEUE_NOT_FOUND_FOR_INTERNAL_ID,
-//    "Queue with ID $queueId not found",
-//    mapOf(Errors.Metadata.QUEUE_ID to queueId.toString()),
-//    cause,
-//  )
-
 class WorkItemNotFoundException(name: String, cause: Throwable? = null) :
   ServiceException(
-    Errors.Reason.WORK_ITEM_NOT_FOUND,
+    reason,
     "WorkItem $name not found",
     mapOf(Errors.Metadata.WORK_ITEM to name),
     cause,
@@ -146,49 +130,9 @@ class WorkItemNotFoundException(name: String, cause: Throwable? = null) :
     }
   }
 
-//class EtagMismatchException(requestEtag: String, etag: String, cause: Throwable? = null) :
-//  ServiceException(
-//    reason,
-//    "Request etag $requestEtag does not match actual etag $etag",
-//    mapOf(Errors.Metadata.REQUEST_ETAG to requestEtag, Errors.Metadata.ETAG to etag),
-//    cause,
-//  ) {
-//  companion object : Factory<EtagMismatchException>() {
-//    override val reason: Errors.Reason
-//      get() = Errors.Reason.ETAG_MISMATCH
-//
-//    override fun fromInternal(
-//      internalMetadata: Map<InternalErrors.Metadata, String>,
-//      cause: Throwable,
-//    ): EtagMismatchException {
-//      return EtagMismatchException(
-//        internalMetadata.getValue(InternalErrors.Metadata.REQUEST_ETAG),
-//        internalMetadata.getValue(InternalErrors.Metadata.ETAG),
-//        cause,
-//      )
-//    }
-//  }
-//}
-
-//class WorkItemAttemptNotFoundException(
-//  workItemResourceId: String,
-//  workItemAttemptResourceId: String,
-//  cause: Throwable? = null) :
-//  org.wfanet.measurement.securecomputation.service.internal.ServiceException(
-//    org.wfanet.measurement.securecomputation.service.internal.Errors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
-//    "WorkItemAttempt with workItemResource ID $workItemResourceId and workItemAttemptResource ID $workItemAttemptResourceId not found",
-//    mapOf(
-//      org.wfanet.measurement.securecomputation.service.internal.Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId.toString(),
-//      org.wfanet.measurement.securecomputation.service.internal.Errors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID to workItemAttemptResourceId.toString()
-//
-//    ),
-//    cause,
-//  )
-//
-
 class WorkItemAttemptNotFoundException(name: String, cause: Throwable? = null) :
   ServiceException(
-    Errors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
+    reason,
     "WorkItemAttempt $name not found",
     mapOf(Errors.Metadata.WORK_ITEM_ATTEMPT to name),
     cause,
@@ -229,10 +173,64 @@ class WorkItemAttemptAlreadyExistsException(name: String, cause: Throwable? = nu
     cause,
   )
 
-//class WorkItemInvalidPreconditionStateException(workItemResourceId: String, cause: Throwable? = null) :
-//  org.wfanet.measurement.securecomputation.service.internal.ServiceException(
-//    org.wfanet.measurement.securecomputation.service.internal.Errors.Reason.INVALID_WORK_ITEM_PRECONDITION_STATE,
-//    "WorkItemAttempt cannot be created when parent WorkItem has state either SUCCEEDED or FAILED",
-//    mapOf(org.wfanet.measurement.securecomputation.service.internal.Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId.toString()),
-//    cause,
-//  )
+class WorkItemInvalidStateException(name: String, workItemState: String, cause: Throwable? = null) :
+  ServiceException(
+    reason,
+    "WorkItem $name is in an invalid state for this operation",
+    mapOf(
+      Errors.Metadata.WORK_ITEM to name,
+      Errors.Metadata.WORK_ITEM_STATE to workItemState
+    ),
+    cause,
+  ) {
+  companion object : Factory<WorkItemInvalidStateException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.INVALID_WORK_ITEM_STATE
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ):WorkItemInvalidStateException {
+
+      val workItemKey = WorkItemKey(
+        internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_RESOURCE_ID),
+      )
+      return WorkItemInvalidStateException(
+        workItemKey.toName(),
+        internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_STATE)
+      )
+    }
+  }
+}
+
+class WorkItemAttemptInvalidStateException(name: String, workItemAttemptState: String, cause: Throwable? = null) :
+  ServiceException(
+    reason,
+    "WorkItemAttempt $name is in an invalid state for this operation",
+    mapOf(
+      Errors.Metadata.WORK_ITEM_ATTEMPT to name,
+      Errors.Metadata.WORK_ITEM_ATTEMPT_STATE to workItemAttemptState
+    ),
+    cause,
+  ) {
+  companion object : Factory<WorkItemAttemptInvalidStateException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ):WorkItemAttemptInvalidStateException {
+
+      val workItemAttemptKey = WorkItemAttemptKey(
+        internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_RESOURCE_ID),
+        internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID)
+      )
+      return WorkItemAttemptInvalidStateException(
+        workItemAttemptKey.toName(),
+        internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_ATTEMPT_STATE)
+      )
+    }
+  }
+}
+

@@ -37,9 +37,13 @@ import java.io.IOException
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsPageToken
 import org.wfanet.measurement.securecomputation.service.WorkItemAttemptAlreadyExistsException
+import org.wfanet.measurement.securecomputation.service.WorkItemAttemptInvalidStateException
+import org.wfanet.measurement.securecomputation.service.WorkItemNotFoundException
 import org.wfanet.measurement.securecomputation.service.WorkItemAttemptNotFoundException
+import org.wfanet.measurement.securecomputation.service.WorkItemInvalidStateException
 
 class WorkItemAttemptsService(private val internalWorkItemAttemptsStub: InternalWorkItemAttemptsCoroutineStub) :
   WorkItemAttemptsCoroutineImplBase() {
@@ -71,16 +75,19 @@ class WorkItemAttemptsService(private val internalWorkItemAttemptsStub: Internal
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.WORK_ITEM_NOT_FOUND ->
+            WorkItemNotFoundException(parentKey!!.toName(), e).asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS ->
+            WorkItemAttemptAlreadyExistsException(request.workItemAttempt.name, e).asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.INVALID_WORK_ITEM_STATE ->
+            WorkItemInvalidStateException.fromInternal(e).asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.QUEUE_NOT_FOUND,
           InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
-          InternalErrors.Reason.INVALID_WORK_ITEM_STATE,
-          InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
+          InternalErrors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
-          InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS ->
-            WorkItemAttemptAlreadyExistsException(request.workItemAttempt.name, e).asStatusRuntimeException(e.status.code)
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -108,13 +115,14 @@ class WorkItemAttemptsService(private val internalWorkItemAttemptsStub: Internal
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND ->
+            WorkItemAttemptNotFoundException(request.name, e).asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.QUEUE_NOT_FOUND,
           InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
           InternalErrors.Reason.INVALID_WORK_ITEM_STATE,
+          InternalErrors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE,
           InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
-          InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND ->
-            WorkItemAttemptNotFoundException(request.name, e).asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
@@ -147,13 +155,15 @@ class WorkItemAttemptsService(private val internalWorkItemAttemptsStub: Internal
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND ->
+            WorkItemAttemptNotFoundException(request.name, e).asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE ->
+            WorkItemAttemptInvalidStateException.fromInternal(e).asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.QUEUE_NOT_FOUND,
           InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
           InternalErrors.Reason.INVALID_WORK_ITEM_STATE,
           InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
-          InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND ->
-            WorkItemAttemptNotFoundException(request.name, e).asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
@@ -185,13 +195,15 @@ class WorkItemAttemptsService(private val internalWorkItemAttemptsStub: Internal
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND ->
+            WorkItemAttemptNotFoundException(request.name, e).asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE ->
+            WorkItemAttemptInvalidStateException.fromInternal(e).asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.QUEUE_NOT_FOUND,
           InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
           InternalErrors.Reason.INVALID_WORK_ITEM_STATE,
           InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
-          InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND ->
-            WorkItemAttemptNotFoundException(request.name, e).asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
