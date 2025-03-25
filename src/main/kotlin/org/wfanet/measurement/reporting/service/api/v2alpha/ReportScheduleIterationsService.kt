@@ -20,9 +20,10 @@ import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.min
 import org.projectnessie.cel.Env
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.internal.reporting.v2.ListReportScheduleIterationsRequest as InternalListReportScheduleIterationsRequest
@@ -48,7 +49,8 @@ private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
 class ReportScheduleIterationsService(
-  private val internalReportScheduleIterationsStub: ReportScheduleIterationsCoroutineStub
+  private val internalReportScheduleIterationsStub: ReportScheduleIterationsCoroutineStub,
+  private val authorization: Authorization,
 ) : ReportScheduleIterationsCoroutineImplBase() {
   override suspend fun getReportScheduleIteration(
     request: GetReportScheduleIterationRequest
@@ -58,15 +60,13 @@ class ReportScheduleIterationsService(
         "ReportScheduleIteration name is either unspecified or invalid"
       }
 
-    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
-      is MeasurementConsumerPrincipal -> {
-        if (reportScheduleIterationKey.parentKey.parentKey != principal.resourceKey) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot get ReportScheduleIteration belonging to other MeasurementConsumers."
-          }
-        }
-      }
-    }
+    authorization.check(
+      listOf(
+        reportScheduleIterationKey.parentKey.toName(),
+        reportScheduleIterationKey.parentKey.parentKey.toName(),
+      ),
+      GET_REPORT_SCHEDULE_PERMISSION,
+    )
 
     val internalReportScheduleIteration =
       try {
@@ -101,15 +101,10 @@ class ReportScheduleIterationsService(
       }
     val listReportScheduleIterationsPageToken = request.toListReportScheduleIterationsPageToken()
 
-    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
-      is MeasurementConsumerPrincipal -> {
-        if (parentKey.cmmsMeasurementConsumerId != principal.resourceKey.measurementConsumerId) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot list ReportScheduleIterations belonging to other MeasurementConsumers."
-          }
-        }
-      }
-    }
+    authorization.check(
+      listOf(request.parent, parentKey.parentKey.toName()),
+      GET_REPORT_SCHEDULE_PERMISSION,
+    )
 
     val internalListReportScheduleIterationsRequest: InternalListReportScheduleIterationsRequest =
       listReportScheduleIterationsPageToken.toListReportScheduleIterationsRequest()
@@ -179,6 +174,7 @@ class ReportScheduleIterationsService(
   }
 
   companion object {
+    const val GET_REPORT_SCHEDULE_PERMISSION = "reporting.reportSchedules.get"
     private val ENV: Env = buildCelEnvironment(ReportScheduleIteration.getDefaultInstance())
   }
 }

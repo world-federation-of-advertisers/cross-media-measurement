@@ -84,7 +84,6 @@ import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
-import org.wfanet.measurement.integration.common.reporting.v2.identity.withPrincipalName
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
@@ -348,7 +347,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdPrimitiveReportingSet =
       publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReportingSet(
           createReportingSetRequest {
             parent = measurementConsumerData.name
@@ -359,7 +358,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val retrievedPrimitiveReportingSet =
       publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .getReportingSet(getReportingSetRequest { name = createdPrimitiveReportingSet.name })
 
     assertThat(createdPrimitiveReportingSet).isEqualTo(retrievedPrimitiveReportingSet)
@@ -400,7 +399,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdCompositeReportingSet =
       publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReportingSet(
           createReportingSetRequest {
             parent = measurementConsumerData.name
@@ -411,7 +410,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerData.name
@@ -440,7 +439,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdReport =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReport(
           createReportRequest {
             parent = measurementConsumerData.name
@@ -449,7 +448,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
+    val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
@@ -517,7 +516,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdCompositeReportingSet =
       publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReportingSet(
           createReportingSetRequest {
             parent = measurementConsumerData.name
@@ -528,7 +527,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerData.name
@@ -557,7 +556,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdReport =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReport(
           createReportRequest {
             parent = measurementConsumerData.name
@@ -566,7 +565,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
+    val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
     val equivalentFilter =
@@ -623,7 +622,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdCompositeReportingSet =
       publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReportingSet(
           createReportingSetRequest {
             parent = measurementConsumerData.name
@@ -634,7 +633,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerData.name
@@ -663,7 +662,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdReport =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReport(
           createReportRequest {
             parent = measurementConsumerData.name
@@ -672,7 +671,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
+    val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
     val equivalentFilter =
@@ -706,7 +705,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerData.name
@@ -743,7 +742,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdReport =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReport(
           createReportRequest {
             parent = measurementConsumerData.name
@@ -752,7 +751,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
+    val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
@@ -786,7 +785,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerData.name
@@ -818,7 +817,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdReport =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReport(
           createReportRequest {
             parent = measurementConsumerData.name
@@ -827,7 +826,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
+    val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
     for (resultAttribute in retrievedReport.metricCalculationResultsList[0].resultAttributesList) {
@@ -858,7 +857,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerData.name
@@ -909,7 +908,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdReport =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReport(
           createReportRequest {
             parent = measurementConsumerData.name
@@ -918,7 +917,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
+    val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
     for (resultAttribute in retrievedReport.metricCalculationResultsList[0].resultAttributesList) {
@@ -949,7 +948,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerData.name
@@ -1003,7 +1002,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdReport =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReport(
           createReportRequest {
             parent = measurementConsumerData.name
@@ -1012,7 +1011,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
+    val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
     assertThat(retrievedReport.metricCalculationResultsList[0].resultAttributesList).hasSize(2)
@@ -1060,7 +1059,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerData.name
@@ -1099,7 +1098,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdReport =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReport(
           createReportRequest {
             parent = measurementConsumerData.name
@@ -1108,7 +1107,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
+    val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
     for (resultAttribute in retrievedReport.metricCalculationResultsList[0].resultAttributesList) {
@@ -1143,7 +1142,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerData.name
@@ -1180,7 +1179,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       deferred.add(
         async {
           publicReportsClient
-            .withPrincipalName(measurementConsumerData.name)
+            .withCallCredentials(credentials)
             .createReport(
               createReportRequest {
                 parent = measurementConsumerData.name
@@ -1195,7 +1194,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     deferred.awaitAll()
     val retrievedReports =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .listReports(
           listReportsRequest {
             parent = measurementConsumerData.name
@@ -1238,7 +1237,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetric =
       publicMetricsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetric(
           createMetricRequest {
             parent = measurementConsumerData.name
@@ -1247,7 +1246,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedMetric = pollForCompletedMetric(measurementConsumerData.name, createdMetric.name)
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
@@ -1295,7 +1294,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetric =
       publicMetricsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetric(
           createMetricRequest {
             parent = measurementConsumerData.name
@@ -1304,7 +1303,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedMetric = pollForCompletedMetric(measurementConsumerData.name, createdMetric.name)
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
@@ -1346,7 +1345,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetric =
       publicMetricsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetric(
           createMetricRequest {
             parent = measurementConsumerData.name
@@ -1355,7 +1354,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedMetric = pollForCompletedMetric(measurementConsumerData.name, createdMetric.name)
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
@@ -1416,7 +1415,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetric =
       publicMetricsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetric(
           createMetricRequest {
             parent = measurementConsumerData.name
@@ -1425,7 +1424,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedMetric = pollForCompletedMetric(measurementConsumerData.name, createdMetric.name)
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
@@ -1472,7 +1471,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetric =
       publicMetricsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetric(
           createMetricRequest {
             parent = measurementConsumerData.name
@@ -1481,7 +1480,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedMetric = pollForCompletedMetric(measurementConsumerData.name, createdMetric.name)
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
 
     // TODO(@tristanvuong2021): Calculate watch duration using synthetic spec.
@@ -1509,7 +1508,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetric =
       publicMetricsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetric(
           createMetricRequest {
             parent = measurementConsumerData.name
@@ -1518,7 +1517,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedMetric = pollForCompletedMetric(measurementConsumerData.name, createdMetric.name)
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
@@ -1563,7 +1562,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       deferred.add(
         async {
           publicMetricsClient
-            .withPrincipalName(measurementConsumerData.name)
+            .withCallCredentials(credentials)
             .createMetric(
               createMetricRequest {
                 parent = measurementConsumerData.name
@@ -1578,7 +1577,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     deferred.awaitAll()
     val retrievedMetrics =
       publicMetricsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .listMetrics(
           listMetricsRequest {
             parent = measurementConsumerData.name
@@ -1617,7 +1616,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       deferred.add(
         async {
           publicReportingSetsClient
-            .withPrincipalName(measurementConsumerData.name)
+            .withCallCredentials(credentials)
             .createReportingSet(
               createReportingSetRequest {
                 parent = measurementConsumerData.name
@@ -1632,7 +1631,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     deferred.awaitAll()
     val retrievedPrimitiveReportingSets =
       publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .listReportingSets(
           listReportingSetsRequest {
             parent = measurementConsumerData.name
@@ -1652,10 +1651,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val eventGroups = listEventGroups()
     val dataProviderName = eventGroups.first().cmmsDataProvider
 
-    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val dataProvider =
       publicDataProvidersClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .getDataProvider(getDataProviderRequest { name = dataProviderName })
 
     assertThat(DataProviderCertificateKey.fromName(dataProvider.certificate)).isNotNull()
@@ -1667,10 +1665,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val descriptorNames = eventGroups.map { it.metadata.eventGroupMetadataDescriptor }
 
-    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val descriptors =
       publicEventGroupMetadataDescriptorsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .batchGetEventGroupMetadataDescriptors(
           batchGetEventGroupMetadataDescriptorsRequest { names += descriptorNames }
         )
@@ -1695,7 +1692,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
 
     return publicEventGroupsClient
-      .withPrincipalName(measurementConsumerData.name)
+      .withCallCredentials(credentials)
       .listEventGroups(
         listEventGroupsRequest {
           parent = measurementConsumerData.name
@@ -1722,7 +1719,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     return primitiveReportingSets.mapIndexed { index, primitiveReportingSet ->
       publicReportingSetsClient
-        .withPrincipalName(measurementConsumerName)
+        .withCallCredentials(credentials)
         .createReportingSet(
           createReportingSetRequest {
             parent = measurementConsumerName
@@ -1733,14 +1730,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
   }
 
-  private suspend fun pollForCompletedReport(
-    measurementConsumerName: String,
-    reportName: String,
-  ): Report {
+  private suspend fun pollForCompletedReport(reportName: String): Report {
     while (true) {
       val retrievedReport =
         publicReportsClient
-          .withPrincipalName(measurementConsumerName)
+          .withCallCredentials(credentials)
           .getReport(getReportRequest { name = reportName })
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -1754,14 +1748,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
   }
 
-  private suspend fun pollForCompletedMetric(
-    measurementConsumerName: String,
-    metricName: String,
-  ): Metric {
+  private suspend fun pollForCompletedMetric(metricName: String): Metric {
     while (true) {
       val retrievedMetric =
         publicMetricsClient
-          .withPrincipalName(measurementConsumerName)
+          .withCallCredentials(credentials)
           .getMetric(getMetricRequest { name = metricName })
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.

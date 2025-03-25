@@ -29,11 +29,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.transformWhile
 import org.projectnessie.cel.common.types.Err
 import org.projectnessie.cel.common.types.ref.Val
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
-import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as CmmsEventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse as CmmsListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
@@ -43,6 +45,7 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptMetadata
 import org.wfanet.measurement.reporting.service.api.CelEnvProvider
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
@@ -55,9 +58,11 @@ import org.wfanet.measurement.reporting.v2alpha.eventGroup
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsResponse
 
 class EventGroupsService(
-  private val cmmsEventGroupsStub: CmmsEventGroupsCoroutineStub,
-  private val encryptionKeyPairStore: EncryptionKeyPairStore,
+  private val cmmsEventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub,
+  private val authorization: Authorization,
   private val celEnvProvider: CelEnvProvider,
+  private val measurementConsumerConfigs: MeasurementConsumerConfigs,
+  private val encryptionKeyPairStore: EncryptionKeyPairStore,
   private val ticker: Ticker = Deadline.getSystemTicker(),
 ) : EventGroupsCoroutineImplBase() {
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
@@ -66,22 +71,18 @@ class EventGroupsService(
         "Parent is either unspecified or invalid."
       }
 
-    val principal: ReportingPrincipal = principalFromCurrentContext
-    when (principal) {
-      is MeasurementConsumerPrincipal -> {
-        if (parentKey != principal.resourceKey) {
-          throw Status.PERMISSION_DENIED.withDescription(
-              "Cannot list event groups for another MeasurementConsumer"
-            )
-            .asRuntimeException()
-        }
-      }
-    }
+    authorization.check(request.parent, LIST_EVENT_GROUPS_PERMISSIONS)
 
     val deadline: Deadline =
       Context.current().deadline
         ?: Deadline.after(RPC_DEFAULT_DEADLINE_MILLIS, TimeUnit.MILLISECONDS, ticker)
-    val apiAuthenticationKey: String = principal.config.apiKey
+    val measurementConsumerConfig =
+      measurementConsumerConfigs.configsMap[request.parent]
+        ?: throw Status.INTERNAL.withDescription(
+            "MeasurementConsumerConfig not found for ${request.parent}"
+          )
+          .asRuntimeException()
+    val apiAuthenticationKey: String = measurementConsumerConfig.apiKey
 
     grpcRequire(request.pageSize >= 0) { "page_size cannot be negative" }
 
@@ -106,7 +107,7 @@ class EventGroupsService(
           response.eventGroupsList.map {
             val cmmsMetadata: CmmsEventGroup.Metadata? =
               if (it.hasEncryptedMetadata()) {
-                decryptMetadata(it, principal.resourceKey.toName())
+                decryptMetadata(it, parentKey.toName())
               } else {
                 null
               }
@@ -287,5 +288,7 @@ class EventGroupsService(
 
     /** Default RPC deadline in milliseconds. */
     private const val RPC_DEFAULT_DEADLINE_MILLIS = 30_000L
+
+    val LIST_EVENT_GROUPS_PERMISSIONS = setOf("reporting.eventGroups.list")
   }
 }
