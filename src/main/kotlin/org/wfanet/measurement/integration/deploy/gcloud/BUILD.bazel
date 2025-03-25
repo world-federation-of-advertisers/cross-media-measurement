@@ -62,6 +62,7 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/service:services",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:impression_qualification_filter_mapping",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
