@@ -36,3 +36,9 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
+
+java_binary(
+    name = "DataWatcherFunction",
+    main_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction",
+    runtime_deps = ["//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:data_watcher_function"],
+)
