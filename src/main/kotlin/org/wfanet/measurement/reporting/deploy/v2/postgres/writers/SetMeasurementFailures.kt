@@ -44,7 +44,7 @@ class SetMeasurementFailures(private val request: BatchSetMeasurementFailuresReq
   override suspend fun TransactionScope.runTransaction() {
     val measurementConsumerId =
       (MeasurementConsumerReader(transactionContext).getByCmmsId(request.cmmsMeasurementConsumerId)
-          ?: throw MeasurementConsumerNotFoundException())
+          ?: throw MeasurementConsumerNotFoundException(request.cmmsMeasurementConsumerId))
         .measurementConsumerId
 
     val measurementDetailsMap =

@@ -19,6 +19,8 @@ package wfa.measurement.securecomputation.controlplane.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/securecomputation/controlplane/v1alpha/work_item_attempt.proto";
 
 option java_package = "org.wfanet.measurement.securecomputation.controlplane.v1alpha";
 option java_multiple_files = true;
@@ -47,4 +49,34 @@ message WorkItem {
   // The parameters to be delivered to the TEE application.
   google.protobuf.Any work_item_params = 3
       [(google.api.field_behavior) = IMMUTABLE];
+
+  // State of a `WorkItem`.
+  enum State {
+    // Default value if state is omitted.
+    STATE_UNSPECIFIED = 0;
+
+    // The `WorkItem` has been queued but has not yet been attempted.
+    // At this stage, there are no `WorkItemAttempt`s associated with it.
+    QUEUED = 1;
+
+    // There is at least one `WorkItemAttempt` associated with the `WorkItem`.
+    RUNNING = 2;
+
+    // The `WorkItem` has been successfully processed.
+    SUCCEEDED = 3;
+
+    // A `WorkItemAttempt` failed with a non-retriable error.
+    FAILED = 4;
+  }
+
+  // State of this `WorkItem`.
+  State state = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Create time.
+  google.protobuf.Timestamp create_time = 5
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Update time.
+  google.protobuf.Timestamp update_time = 6
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }

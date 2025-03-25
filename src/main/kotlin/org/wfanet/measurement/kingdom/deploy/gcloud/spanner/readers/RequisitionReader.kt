@@ -16,10 +16,11 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.gcloud.spanner.bind
+import org.wfanet.measurement.gcloud.spanner.to
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantDetails
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementDetails
@@ -30,7 +31,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
-class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
+class RequisitionReader(primaryTable: PrimaryTable) : SpannerReader<RequisitionReader.Result>() {
   data class Result(
     val measurementConsumerId: InternalId,
     val measurementId: InternalId,
@@ -39,115 +40,9 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
     val measurementDetails: MeasurementDetails,
   )
 
-  override val baseSql: String
-    get() = BASE_SQL
-
-  override suspend fun translate(struct: Struct): Result {
-    return Result(
-      InternalId(struct.getLong("MeasurementConsumerId")),
-      InternalId(struct.getLong("MeasurementId")),
-      InternalId(struct.getLong("RequisitionId")),
-      buildRequisition(struct),
-      struct.getProtoMessage("MeasurementDetails", MeasurementDetails.getDefaultInstance()),
-    )
-  }
-
-  suspend fun readByExternalDataProviderId(
-    readContext: AsyncDatabaseClient.ReadContext,
-    externalDataProviderId: Long,
-    externalRequisitionId: Long,
-  ): Result? {
-    return fillStatementBuilder {
-        appendClause(
-          """
-          WHERE
-            ExternalRequisitionId = @${Params.EXTERNAL_REQUISITION_ID}
-            AND ExternalDataProviderId = @${Params.EXTERNAL_DATA_PROVIDER_ID}
-          """
-            .trimIndent()
-        )
-        bind(Params.EXTERNAL_DATA_PROVIDER_ID to externalDataProviderId)
-        bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)
-      }
-      .execute(readContext)
-      .singleOrNull()
-  }
-
-  suspend fun readByExternalComputationId(
-    readContext: AsyncDatabaseClient.ReadContext,
-    externalComputationId: Long,
-    externalRequisitionId: Long,
-  ): Result? {
-    return fillStatementBuilder {
-        appendClause(
-          """
-          WHERE
-            ExternalComputationId = @${Params.EXTERNAL_COMPUTATION_ID}
-            AND ExternalRequisitionId = @${Params.EXTERNAL_REQUISITION_ID}
-          """
-            .trimIndent()
-        )
-        bind(Params.EXTERNAL_COMPUTATION_ID to externalComputationId)
-        bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)
-      }
-      .execute(readContext)
-      .singleOrNull()
-  }
-
-  companion object {
-    private object Params {
-      const val EXTERNAL_COMPUTATION_ID = "externalComputationId"
-      const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
-      const val EXTERNAL_REQUISITION_ID = "externalRequisitionId"
-    }
-
-    private val BASE_SQL =
+  enum class PrimaryTable(val fromClause: String) {
+    REQUISITIONS(
       """
-      @{spanner_emulator.disable_query_null_filtered_index_check=TRUE}
-      SELECT
-        MeasurementConsumerId,
-        MeasurementId,
-        RequisitionId,
-        Requisitions.UpdateTime,
-        ExternalRequisitionId,
-        Requisitions.State AS RequisitionState,
-        FulfillingDuchyId,
-        RequisitionDetails,
-        ExternalMeasurementId,
-        ExternalMeasurementConsumerId,
-        ExternalMeasurementConsumerCertificateId,
-        ExternalComputationId,
-        ExternalDataProviderId,
-        ExternalDataProviderCertificateId,
-        SubjectKeyIdentifier,
-        NotValidBefore,
-        NotValidAfter,
-        RevocationState,
-        CertificateDetails,
-        Measurements.State AS MeasurementState,
-        MeasurementDetails,
-        Measurements.CreateTime,
-        (
-          SELECT
-            COUNT(DataProviderId),
-          FROM
-            Requisitions
-          WHERE
-            Requisitions.MeasurementConsumerId = Measurements.MeasurementConsumerId
-            AND Requisitions.MeasurementId = Measurements.MeasurementId
-        ) AS MeasurementRequisitionCount,
-        ARRAY(
-          SELECT AS STRUCT
-            ComputationParticipants.DuchyId,
-            ComputationParticipants.ParticipantDetails,
-            ExternalDuchyCertificateId
-          FROM
-            ComputationParticipants
-            LEFT JOIN DuchyCertificates USING (DuchyId, CertificateId)
-          WHERE
-            ComputationParticipants.MeasurementConsumerId = Requisitions.MeasurementConsumerId
-            AND ComputationParticipants.MeasurementId = Requisitions.MeasurementId
-        ) AS ComputationParticipants
       FROM
         Requisitions
         JOIN DataProviders USING (DataProviderId)
@@ -160,6 +55,150 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
         JOIN Certificates ON (Certificates.CertificateId = DataProviderCertificates.CertificateId)
       """
         .trimIndent()
+    ),
+    MEASUREMENT_CONSUMERS(
+      """
+      FROM
+        MeasurementConsumers
+        JOIN Measurements USING (MeasurementConsumerId)
+        JOIN Requisitions USING (MeasurementConsumerId, MeasurementId)
+        JOIN DataProviders USING (DataProviderId)
+        JOIN MeasurementConsumerCertificates USING (MeasurementConsumerId, CertificateId)
+        JOIN DataProviderCertificates ON (
+          DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId
+        )
+        JOIN Certificates ON (Certificates.CertificateId = DataProviderCertificates.CertificateId)
+      """
+        .trimIndent()
+    ),
+    MEASUREMENTS(
+      """
+      FROM
+        Measurements
+        JOIN Requisitions USING (MeasurementConsumerId, MeasurementId)
+        JOIN MeasurementConsumers USING (MeasurementConsumerId)
+        JOIN MeasurementConsumerCertificates USING (MeasurementConsumerId, CertificateId)
+        JOIN DataProviders USING (DataProviderId)
+        JOIN DataProviderCertificates ON (
+          DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId
+        )
+        JOIN Certificates ON (Certificates.CertificateId = DataProviderCertificates.CertificateId)
+      """
+        .trimIndent()
+    ),
+  }
+
+  override val baseSql: String =
+    """
+    @{spanner_emulator.disable_query_null_filtered_index_check=TRUE}
+    SELECT
+      MeasurementConsumerId,
+      MeasurementId,
+      RequisitionId,
+      Requisitions.UpdateTime,
+      ExternalRequisitionId,
+      Requisitions.State AS RequisitionState,
+      FulfillingDuchyId,
+      RequisitionDetails,
+      ExternalMeasurementId,
+      ExternalMeasurementConsumerId,
+      ExternalMeasurementConsumerCertificateId,
+      ExternalComputationId,
+      ExternalDataProviderId,
+      ExternalDataProviderCertificateId,
+      SubjectKeyIdentifier,
+      NotValidBefore,
+      NotValidAfter,
+      RevocationState,
+      CertificateDetails,
+      Measurements.State AS MeasurementState,
+      MeasurementDetails,
+      Measurements.CreateTime,
+      (
+        SELECT
+          COUNT(DataProviderId),
+        FROM
+          Requisitions
+        WHERE
+          Requisitions.MeasurementConsumerId = Measurements.MeasurementConsumerId
+          AND Requisitions.MeasurementId = Measurements.MeasurementId
+      ) AS MeasurementRequisitionCount,
+      ARRAY(
+        SELECT AS STRUCT
+          ComputationParticipants.DuchyId,
+          ComputationParticipants.ParticipantDetails,
+          ExternalDuchyCertificateId
+        FROM
+          ComputationParticipants
+          LEFT JOIN DuchyCertificates USING (DuchyId, CertificateId)
+        WHERE
+          ComputationParticipants.MeasurementConsumerId = Requisitions.MeasurementConsumerId
+          AND ComputationParticipants.MeasurementId = Requisitions.MeasurementId
+      ) AS ComputationParticipants
+    ${primaryTable.fromClause}
+    """
+      .trimIndent()
+
+  override suspend fun translate(struct: Struct): Result {
+    return Result(
+      InternalId(struct.getLong("MeasurementConsumerId")),
+      InternalId(struct.getLong("MeasurementId")),
+      InternalId(struct.getLong("RequisitionId")),
+      buildRequisition(struct),
+      struct.getProtoMessage("MeasurementDetails", MeasurementDetails.getDefaultInstance()),
+    )
+  }
+
+  companion object {
+    private object Params {
+      const val EXTERNAL_COMPUTATION_ID = "externalComputationId"
+      const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
+      const val EXTERNAL_REQUISITION_ID = "externalRequisitionId"
+    }
+
+    suspend fun readByExternalDataProviderId(
+      readContext: AsyncDatabaseClient.ReadContext,
+      externalDataProviderId: ExternalId,
+      externalRequisitionId: ExternalId,
+    ): Result? {
+      return RequisitionReader(PrimaryTable.REQUISITIONS)
+        .fillStatementBuilder {
+          appendClause(
+            """
+            WHERE
+              ExternalRequisitionId = @${Params.EXTERNAL_REQUISITION_ID}
+              AND ExternalDataProviderId = @${Params.EXTERNAL_DATA_PROVIDER_ID}
+            """
+              .trimIndent()
+          )
+          bind(Params.EXTERNAL_DATA_PROVIDER_ID).to(externalDataProviderId)
+          bind(Params.EXTERNAL_REQUISITION_ID).to(externalRequisitionId)
+        }
+        .execute(readContext)
+        .singleOrNull()
+    }
+
+    suspend fun readByExternalComputationId(
+      readContext: AsyncDatabaseClient.ReadContext,
+      externalComputationId: ExternalId,
+      externalRequisitionId: ExternalId,
+    ): Result? {
+      return RequisitionReader(PrimaryTable.MEASUREMENTS)
+        .fillStatementBuilder {
+          appendClause(
+            """
+            WHERE
+              ExternalComputationId = @${Params.EXTERNAL_COMPUTATION_ID}
+              AND ExternalRequisitionId = @${Params.EXTERNAL_REQUISITION_ID}
+            """
+              .trimIndent()
+          )
+          bind(Params.EXTERNAL_COMPUTATION_ID).to(externalComputationId)
+          bind(Params.EXTERNAL_REQUISITION_ID).to(externalRequisitionId)
+        }
+        .execute(readContext)
+        .singleOrNull()
+    }
 
     /** Builds a [Requisition] from [struct]. */
     private fun buildRequisition(struct: Struct): Requisition {
@@ -231,9 +270,11 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
         ComputationParticipantDetails.ProtocolCase.LIQUID_LEGIONS_V2 -> {
           liquidLegionsV2 = participantDetails.liquidLegionsV2
         }
+
         ComputationParticipantDetails.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> {
           reachOnlyLiquidLegionsV2 = participantDetails.reachOnlyLiquidLegionsV2
         }
+
         ComputationParticipantDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
           honestMajorityShareShuffle = participantDetails.honestMajorityShareShuffle
         }

@@ -18,6 +18,7 @@ package org.wfanet.measurement.access.deploy.tools
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.Empty
 import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.netty.NettyServerBuilder
@@ -33,43 +34,59 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.verify
+import org.wfanet.measurement.access.v1alpha.AddPolicyBindingMembersRequest
 import org.wfanet.measurement.access.v1alpha.CheckPermissionsRequest
 import org.wfanet.measurement.access.v1alpha.CheckPermissionsResponse
+import org.wfanet.measurement.access.v1alpha.CreatePolicyRequest
 import org.wfanet.measurement.access.v1alpha.CreatePrincipalRequest
 import org.wfanet.measurement.access.v1alpha.CreateRoleRequest
 import org.wfanet.measurement.access.v1alpha.DeletePrincipalRequest
+import org.wfanet.measurement.access.v1alpha.DeleteRoleRequest
 import org.wfanet.measurement.access.v1alpha.GetPermissionRequest
+import org.wfanet.measurement.access.v1alpha.GetPolicyRequest
 import org.wfanet.measurement.access.v1alpha.GetPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.GetRoleRequest
 import org.wfanet.measurement.access.v1alpha.ListPermissionsRequest
 import org.wfanet.measurement.access.v1alpha.ListPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.ListRolesRequest
 import org.wfanet.measurement.access.v1alpha.ListRolesResponse
+import org.wfanet.measurement.access.v1alpha.LookupPolicyRequest
 import org.wfanet.measurement.access.v1alpha.Permission
 import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt.PermissionsCoroutineImplBase
+import org.wfanet.measurement.access.v1alpha.PoliciesGrpcKt.PoliciesCoroutineImplBase
+import org.wfanet.measurement.access.v1alpha.Policy
+import org.wfanet.measurement.access.v1alpha.PolicyKt
 import org.wfanet.measurement.access.v1alpha.Principal
 import org.wfanet.measurement.access.v1alpha.PrincipalKt.oAuthUser
 import org.wfanet.measurement.access.v1alpha.PrincipalKt.tlsClient
 import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt.PrincipalsCoroutineImplBase
+import org.wfanet.measurement.access.v1alpha.RemovePolicyBindingMembersRequest
 import org.wfanet.measurement.access.v1alpha.Role
 import org.wfanet.measurement.access.v1alpha.RolesGrpcKt
 import org.wfanet.measurement.access.v1alpha.UpdateRoleRequest
+import org.wfanet.measurement.access.v1alpha.addPolicyBindingMembersRequest
 import org.wfanet.measurement.access.v1alpha.checkPermissionsRequest
 import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.copy
+import org.wfanet.measurement.access.v1alpha.createPolicyRequest
 import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.createRoleRequest
 import org.wfanet.measurement.access.v1alpha.deletePrincipalRequest
+import org.wfanet.measurement.access.v1alpha.deleteRoleRequest
 import org.wfanet.measurement.access.v1alpha.getPermissionRequest
+import org.wfanet.measurement.access.v1alpha.getPolicyRequest
 import org.wfanet.measurement.access.v1alpha.getPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.getRoleRequest
 import org.wfanet.measurement.access.v1alpha.listPermissionsRequest
 import org.wfanet.measurement.access.v1alpha.listPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.listRolesRequest
 import org.wfanet.measurement.access.v1alpha.listRolesResponse
+import org.wfanet.measurement.access.v1alpha.lookupPolicyRequest
 import org.wfanet.measurement.access.v1alpha.lookupPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.permission
+import org.wfanet.measurement.access.v1alpha.policy
 import org.wfanet.measurement.access.v1alpha.principal
+import org.wfanet.measurement.access.v1alpha.removePolicyBindingMembersRequest
 import org.wfanet.measurement.access.v1alpha.role
 import org.wfanet.measurement.access.v1alpha.updateRoleRequest
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -97,6 +114,32 @@ class AccessTest {
       )
   }
 
+  private val policiesServiceMock: PoliciesCoroutineImplBase = mockService {
+    onBlocking { getPolicy(any()) }.thenReturn(POLICY)
+    onBlocking { createPolicy(any()) }.thenReturn(POLICY)
+    onBlocking { lookupPolicy(any()) }.thenReturn(POLICY)
+    onBlocking { addPolicyBindingMembers(any()) }
+      .thenReturn(
+        POLICY.copy {
+          bindings.clear()
+          bindings += READER_BINDING.copy { members += NON_MEMBER_PRINCIPAL_NAME }
+          bindings += WRITER_BINDING
+        }
+      )
+    onBlocking { removePolicyBindingMembers(any()) }
+      .thenReturn(
+        POLICY.copy {
+          bindings.clear()
+          bindings +=
+            READER_BINDING.copy {
+              members.clear()
+              members += WRITER_BINDING.membersList
+            }
+          bindings += WRITER_BINDING
+        }
+      )
+  }
+
   private val principalsServiceMock: PrincipalsCoroutineImplBase = mockService {
     onBlocking { getPrincipal(any()) }.thenReturn(USER_PRINCIPAL)
     onBlocking { createPrincipal(any()) }.thenReturn(USER_PRINCIPAL)
@@ -109,6 +152,7 @@ class AccessTest {
     onBlocking { listRoles(any()) }.thenReturn(listRolesResponse { roles += ROLE })
     onBlocking { createRole(any()) }.thenReturn(ROLE)
     onBlocking { updateRole(any()) }.thenReturn(ROLE)
+    onBlocking { deleteRole(any()) }.thenReturn(Empty.getDefaultInstance())
   }
 
   private val serverCerts =
@@ -121,6 +165,7 @@ class AccessTest {
   private val services: List<ServerServiceDefinition> =
     listOf(
       permissionsServiceMock.bindService(),
+      policiesServiceMock.bindService(),
       principalsServiceMock.bindService(),
       rolesServiceMock.bindService(),
     )
@@ -144,7 +189,7 @@ class AccessTest {
 
   @Test
   fun `principals get calls GetPrincipal with valid request `() {
-    val args = commonArgs + arrayOf("principals", "get", PRINCIPAL_NAME)
+    val args = commonArgs + arrayOf("principals", "get", OWNER_PRINCIPAL_NAME)
 
     val output = callCli(args)
 
@@ -152,7 +197,7 @@ class AccessTest {
       runBlocking { verify(principalsServiceMock).getPrincipal(capture()) }
     }
 
-    assertThat(request).isEqualTo(getPrincipalRequest { name = PRINCIPAL_NAME })
+    assertThat(request).isEqualTo(getPrincipalRequest { name = OWNER_PRINCIPAL_NAME })
     assertThat(parseTextProto(output.reader(), Principal.getDefaultInstance()))
       .isEqualTo(USER_PRINCIPAL)
   }
@@ -164,7 +209,6 @@ class AccessTest {
         arrayOf(
           "principals",
           "create",
-          "--name=$PRINCIPAL_NAME",
           "--issuer=example.com",
           "--subject=user1@example.com",
           "--principal-id=user-1",
@@ -179,7 +223,6 @@ class AccessTest {
       .isEqualTo(
         createPrincipalRequest {
           principal = principal {
-            name = PRINCIPAL_NAME
             user = oAuthUser {
               issuer = "example.com"
               subject = "user1@example.com"
@@ -194,7 +237,7 @@ class AccessTest {
 
   @Test
   fun `principals delete calls DeletePrincipal with valid request`() {
-    val args = commonArgs + arrayOf("principals", "delete", "--name=$PRINCIPAL_NAME")
+    val args = commonArgs + arrayOf("principals", "delete", OWNER_PRINCIPAL_NAME)
 
     callCli(args)
 
@@ -202,7 +245,7 @@ class AccessTest {
       runBlocking { verify(principalsServiceMock).deletePrincipal(capture()) }
     }
 
-    assertThat(request).isEqualTo(deletePrincipalRequest { name = PRINCIPAL_NAME })
+    assertThat(request).isEqualTo(deletePrincipalRequest { name = OWNER_PRINCIPAL_NAME })
   }
 
   @Test
@@ -230,14 +273,14 @@ class AccessTest {
 
   @Test
   fun `roles get calls GetRole with valid request`() {
-    val args = commonArgs + arrayOf("roles", "get", ROLE_NAME)
+    val args = commonArgs + arrayOf("roles", "get", READER_ROLE_NAME)
     val output = callCli(args)
 
     val request: GetRoleRequest = captureFirst {
       runBlocking { verify(rolesServiceMock).getRole(capture()) }
     }
 
-    assertThat(request).isEqualTo(getRoleRequest { name = ROLE_NAME })
+    assertThat(request).isEqualTo(getRoleRequest { name = READER_ROLE_NAME })
     assertThat(parseTextProto(output.reader(), Role.getDefaultInstance())).isEqualTo(ROLE)
   }
 
@@ -266,8 +309,7 @@ class AccessTest {
           "--resource-type=$DESK_RESOURCE",
           "--permission=$GET_BOOK_PERMISSION_NAME",
           "--permission=$WRITE_BOOK_PERMISSION_NAME",
-          "--etag=$ROLE_REQUEST_ETAG",
-          "--role-id=$ROLE_ID",
+          "--role-id=$READER_ROLE_ID",
         )
 
     val output = callCli(args)
@@ -282,9 +324,9 @@ class AccessTest {
           role =
             ROLE.copy {
               name = ""
-              etag = ROLE_REQUEST_ETAG
+              etag = ""
             }
-          roleId = ROLE_ID
+          roleId = READER_ROLE_ID
         }
       )
     assertThat(parseTextProto(output.reader(), Role.getDefaultInstance())).isEqualTo(ROLE)
@@ -297,12 +339,12 @@ class AccessTest {
         arrayOf(
           "roles",
           "update",
-          "--name=$ROLE_NAME",
+          "--name=$READER_ROLE_NAME",
           "--resource-type=$SHELF_RESOURCE",
           "--resource-type=$DESK_RESOURCE",
           "--permission=$GET_BOOK_PERMISSION_NAME",
           "--permission=$WRITE_BOOK_PERMISSION_NAME",
-          "--etag=$ROLE_REQUEST_ETAG",
+          "--etag=$REQUEST_ETAG",
         )
 
     val output = callCli(args)
@@ -311,9 +353,20 @@ class AccessTest {
       runBlocking { verify(rolesServiceMock).updateRole(capture()) }
     }
 
-    assertThat(request)
-      .isEqualTo(updateRoleRequest { role = ROLE.copy { etag = ROLE_REQUEST_ETAG } })
+    assertThat(request).isEqualTo(updateRoleRequest { role = ROLE.copy { etag = REQUEST_ETAG } })
     assertThat(parseTextProto(output.reader(), Role.getDefaultInstance())).isEqualTo(ROLE)
+  }
+
+  @Test
+  fun `roles delete calls DeleteRole with valid request`() {
+    val args = commonArgs + arrayOf("roles", "delete", READER_ROLE_NAME)
+    callCli(args)
+
+    val request: DeleteRoleRequest = captureFirst {
+      runBlocking { verify(rolesServiceMock).deleteRole(capture()) }
+    }
+
+    assertThat(request).isEqualTo(deleteRoleRequest { name = READER_ROLE_NAME })
   }
 
   @Test
@@ -351,7 +404,7 @@ class AccessTest {
         arrayOf(
           "permissions",
           "check",
-          "--principal=$PRINCIPAL_NAME",
+          "--principal=$OWNER_PRINCIPAL_NAME",
           "--protected-resource=$SHELF_RESOURCE",
           "--permission=$GET_BOOK_PERMISSION_NAME",
           "--permission=$WRITE_BOOK_PERMISSION_NAME",
@@ -365,7 +418,7 @@ class AccessTest {
     assertThat(request)
       .isEqualTo(
         checkPermissionsRequest {
-          principal = PRINCIPAL_NAME
+          principal = OWNER_PRINCIPAL_NAME
           protectedResource += SHELF_RESOURCE
           permissions += GET_BOOK_PERMISSION_NAME
           permissions += WRITE_BOOK_PERMISSION_NAME
@@ -377,6 +430,153 @@ class AccessTest {
         checkPermissionsResponse {
           permissions += GET_BOOK_PERMISSION_NAME
           permissions += WRITE_BOOK_PERMISSION_NAME
+        }
+      )
+  }
+
+  @Test
+  fun `policies get calls GetPolicy with valid request`() {
+    val args = commonArgs + arrayOf("policies", "get", POLICY_NAME)
+    val output = callCli(args)
+
+    val request: GetPolicyRequest = captureFirst {
+      runBlocking { verify(policiesServiceMock).getPolicy(capture()) }
+    }
+
+    assertThat(request).isEqualTo(getPolicyRequest { name = POLICY_NAME })
+    assertThat(parseTextProto(output.reader(), Policy.getDefaultInstance())).isEqualTo(POLICY)
+  }
+
+  @Test
+  fun `policies create calls CreatePolicy with valid request`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "policies",
+          "create",
+          "--protected-resource=$SHELF_RESOURCE",
+          "--binding-role=$READER_ROLE_NAME",
+          "--binding-member=$OWNER_PRINCIPAL_NAME",
+          "--binding-member=$EDITOR_PRINCIPAL_NAME",
+          "--binding-member=$MEMBER_PRINCIPAL_NAME",
+          "--binding-role=$WRITER_ROLE_NAME",
+          "--binding-member=$OWNER_PRINCIPAL_NAME",
+          "--binding-member=$EDITOR_PRINCIPAL_NAME",
+          "--policy-id=$POLICY_ID",
+        )
+    val output = callCli(args)
+
+    val request: CreatePolicyRequest = captureFirst {
+      runBlocking { verify(policiesServiceMock).createPolicy(capture()) }
+    }
+
+    assertThat(request)
+      .isEqualTo(
+        createPolicyRequest {
+          policy = policy {
+            protectedResource = SHELF_RESOURCE
+            bindings += READER_BINDING
+            bindings += WRITER_BINDING
+          }
+          policyId = POLICY_ID
+        }
+      )
+
+    assertThat(parseTextProto(output.reader(), Policy.getDefaultInstance())).isEqualTo(POLICY)
+  }
+
+  @Test
+  fun `policies lookup calls LookupPolicy with valid request`() {
+    val args = commonArgs + arrayOf("policies", "lookup", "--protected-resource=$SHELF_RESOURCE")
+    val output = callCli(args)
+
+    val request: LookupPolicyRequest = captureFirst {
+      runBlocking { verify(policiesServiceMock).lookupPolicy(capture()) }
+    }
+
+    assertThat(request).isEqualTo(lookupPolicyRequest { protectedResource = SHELF_RESOURCE })
+    assertThat(parseTextProto(output.reader(), Policy.getDefaultInstance())).isEqualTo(POLICY)
+  }
+
+  @Test
+  fun `policies add-members calls AddPolicyBindingMembers with valid request`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "policies",
+          "add-members",
+          "--name=$POLICY_NAME",
+          "--binding-role=$READER_ROLE_NAME",
+          "--binding-member=$NON_MEMBER_PRINCIPAL_NAME",
+          "--etag=$REQUEST_ETAG",
+        )
+    val output = callCli(args)
+
+    val request: AddPolicyBindingMembersRequest = captureFirst {
+      runBlocking { verify(policiesServiceMock).addPolicyBindingMembers(capture()) }
+    }
+
+    assertThat(request)
+      .isEqualTo(
+        addPolicyBindingMembersRequest {
+          name = POLICY_NAME
+          role = READER_ROLE_NAME
+          members += NON_MEMBER_PRINCIPAL_NAME
+          etag = REQUEST_ETAG
+        }
+      )
+    assertThat(parseTextProto(output.reader(), Policy.getDefaultInstance()))
+      .isEqualTo(
+        POLICY.copy {
+          bindings.clear()
+          bindings +=
+            PolicyKt.binding {
+              role = "roles/bookReader"
+              members += READER_BINDING.membersList
+              members += NON_MEMBER_PRINCIPAL_NAME
+            }
+          bindings += WRITER_BINDING
+        }
+      )
+  }
+
+  @Test
+  fun `policies remove-members calls RemovePolicyBindingMembers with valid request`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "policies",
+          "remove-members",
+          "--name=$POLICY_NAME",
+          "--binding-role=$READER_ROLE_NAME",
+          "--binding-member=$MEMBER_PRINCIPAL_NAME",
+          "--etag=$REQUEST_ETAG",
+        )
+    val output = callCli(args)
+
+    val request: RemovePolicyBindingMembersRequest = captureFirst {
+      runBlocking { verify(policiesServiceMock).removePolicyBindingMembers(capture()) }
+    }
+
+    assertThat(request)
+      .isEqualTo(
+        removePolicyBindingMembersRequest {
+          name = POLICY_NAME
+          role = READER_ROLE_NAME
+          members += MEMBER_PRINCIPAL_NAME
+          etag = REQUEST_ETAG
+        }
+      )
+    assertThat(parseTextProto(output.reader(), Policy.getDefaultInstance()))
+      .isEqualTo(
+        POLICY.copy {
+          bindings.clear()
+          bindings +=
+            PolicyKt.binding {
+              role = "roles/bookReader"
+              members += WRITER_BINDING.membersList
+            }
+          bindings += WRITER_BINDING
         }
       )
   }
@@ -406,9 +606,12 @@ class AccessTest {
     private val MC_CERT_FILE: File = MC_CERT_PATH.toFile()
     private val TLS_CLIENT_AKID: ByteString = readCertificate(MC_CERT_FILE).authorityKeyIdentifier!!
 
-    private const val PRINCIPAL_NAME = "principals/user-1"
+    private const val OWNER_PRINCIPAL_NAME = "principals/owner"
+    private const val EDITOR_PRINCIPAL_NAME = "principals/manager"
+    private const val MEMBER_PRINCIPAL_NAME = "principals/member"
+    private const val NON_MEMBER_PRINCIPAL_NAME = "principals/non-member"
     private val USER_PRINCIPAL = principal {
-      name = PRINCIPAL_NAME
+      name = OWNER_PRINCIPAL_NAME
       user = oAuthUser {
         issuer = "example.com"
         subject = "user1@example.com"
@@ -416,7 +619,7 @@ class AccessTest {
     }
 
     private val TLS_PRINCIPAL = principal {
-      name = PRINCIPAL_NAME
+      name = OWNER_PRINCIPAL_NAME
       tlsClient = tlsClient { authorityKeyIdentifier = TLS_CLIENT_AKID }
     }
 
@@ -431,14 +634,16 @@ class AccessTest {
       tlsClient = tlsClient { authorityKeyIdentifier = TLS_CLIENT_AKID }
     }
 
-    private const val ROLE_NAME = "roles/bookReader"
-    private const val ROLE_ID = "bookReader"
+    private const val READER_ROLE_ID = "bookReader"
+    private const val READER_ROLE_NAME = "roles/$READER_ROLE_ID"
+    private const val WRITER_ROLE_ID = "bookWriter"
+    private const val WRITER_ROLE_NAME = "roles/$WRITER_ROLE_ID"
     private const val SHELF_RESOURCE = "library.googleapis.com/Shelf"
     private const val DESK_RESOURCE = "library.googleapis.com/Desk"
 
-    private const val ROLE_REQUEST_ETAG = "request-etag"
+    private const val REQUEST_ETAG = "request-etag"
     private val ROLE = role {
-      name = ROLE_NAME
+      name = READER_ROLE_NAME
       resourceTypes += SHELF_RESOURCE
       resourceTypes += DESK_RESOURCE
       permissions += GET_BOOK_PERMISSION_NAME
@@ -452,6 +657,28 @@ class AccessTest {
       name = GET_BOOK_PERMISSION_NAME
       resourceTypes += SHELF_RESOURCE
       resourceTypes += DESK_RESOURCE
+    }
+
+    private const val POLICY_ID = "policy-1"
+    private const val POLICY_NAME = "policies/policy-1"
+    private val READER_BINDING =
+      PolicyKt.binding {
+        role = "roles/bookReader"
+        members += OWNER_PRINCIPAL_NAME
+        members += EDITOR_PRINCIPAL_NAME
+        members += MEMBER_PRINCIPAL_NAME
+      }
+    private val WRITER_BINDING =
+      PolicyKt.binding {
+        role = "roles/bookWriter"
+        members += OWNER_PRINCIPAL_NAME
+        members += EDITOR_PRINCIPAL_NAME
+      }
+    private val POLICY = policy {
+      name = POLICY_NAME
+      protectedResource = SHELF_RESOURCE
+      bindings += READER_BINDING
+      bindings += WRITER_BINDING
     }
   }
 }

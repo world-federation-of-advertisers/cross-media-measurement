@@ -16,27 +16,17 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
-import "wfa/measurement/internal/reporting/v2/metric_frequency_spec.proto";
+import "wfa/measurement/internal/reporting/v2/impression_qualification_filter_spec.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
+option java_outer_classname = "ImpressionQualificationFilterProto";
 
-// Defines the windowing criteria for a set of Metrics including the time
-// period over which they are computed and whether they are cumulative or
-// not.
-message WindowingSpec {
-  // The reporting frequency for the results.
-  MetricFrequencySpec metric_frequency = 1;
+message ImpressionQualificationFilter {
+  string external_impression_qualification_filter_id = 1;
 
-  // Options for specifying cumulative or non-cumulative metrics.
-  enum AccumulationOptions {
-    // Default value. Unused.
-    ACCUMULATION_OPTIONS_UNSPECIFIED = 0;
-    // Cumulative metrics
-    CUMULATIVE = 1;
-    // Non-cumulative metrics
-    NON_CUMULATIVE = 2;
-  }
-  // How to accumulate results.
-  AccumulationOptions accumulation_options = 2;
+  // Specifies the filter criteria for each MediaType.
+  //
+  // There may be at most one spec per MediaType.
+  repeated ImpressionQualificationFilterSpec filter_specs = 2;
 }

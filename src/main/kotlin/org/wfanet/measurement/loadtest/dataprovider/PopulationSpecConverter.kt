@@ -34,6 +34,21 @@ fun SyntheticPopulationSpec.toPopulationSpec(): PopulationSpec {
             startVid = it.vidSubRange.start
             endVidInclusive = (it.vidSubRange.endExclusive - 1)
           }
+        }
+      }
+  }
+}
+
+/** Adds the attribute field for TestEvents. */
+fun SyntheticPopulationSpec.toPopulationSpecWithAttributes(): PopulationSpec {
+  return populationSpec {
+    subpopulations +=
+      subPopulationsList.map { it ->
+        subPopulation {
+          vidRanges += vidRange {
+            startVid = it.vidSubRange.start
+            endVidInclusive = (it.vidSubRange.endExclusive - 1)
+          }
           attributes +=
             person {
                 gender =

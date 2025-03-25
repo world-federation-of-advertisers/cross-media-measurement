@@ -21,6 +21,7 @@ package(
 )
 
 exports_files([
+    "impression_qualification_filter_config.textproto",
     "metric_spec_config.textproto",
 ])
 
@@ -219,6 +220,8 @@ SECRET_FILES = [
     "reporting_root.pem",
     "reporting_tls.key",
     "reporting_tls.pem",
+    "access_tls.pem",
+    "access_tls.key",
     "pdp1_cs_cert.der",
     "pdp1_cs_private.der",
     "pdp1_enc_private.tink",

@@ -16,18 +16,18 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
-import "google/type/interval.proto";
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/reporting/v2/event_filter.proto";
 import "wfa/measurement/internal/reporting/v2/event_template_field.proto";
+import "wfa/measurement/internal/reporting/v2/metric_frequency_spec.proto";
 import "wfa/measurement/internal/reporting/v2/reporting_impression_qualification_filter.proto";
-import "wfa/measurement/internal/reporting/v2/windowing_spec.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
-// A page of results.
-message Page {
-  // The title of the page.
+// A group of results.
+message ResultGroup {
+  // The title of the result group.
   string title = 1;
 
   // The metric metadata.
@@ -65,10 +65,17 @@ message Page {
     // A summary of the ReportingUnit
     ReportingUnitSummary reporting_unit_summary = 1;
 
-    // The time interval over which the metrics were computed
-    google.type.Interval time_interval = 2;
+    // The time at which non-cumulative metrics start.
+    google.protobuf.Timestamp non_cumulative_metric_start_time = 2;
 
-    WindowingSpec windowing_spec = 3;
+    // The time at which cumulative metrics start.
+    google.protobuf.Timestamp cumulative_metric_start_time = 3;
+
+    // The time at which both cumulative and non-cumulative metrics end.
+    google.protobuf.Timestamp metric_end_time = 4;
+
+    // The frequency over which metrics were computed
+    MetricFrequencySpec metric_frequency_spec = 5;
 
     // A summary of the aspects of the DimensionSpec that were applied
     message DimensionSpecSummary {
@@ -77,10 +84,10 @@ message Page {
       // The filters applied to the reported metrics
       repeated EventFilter filters = 2;
     }
-    DimensionSpecSummary dimension_spec_summary = 4;
+    DimensionSpecSummary dimension_spec_summary = 6;
 
     // The impression qualification filter that was applied
-    ReportingImpressionQualificationFilter filter = 5;
+    ReportingImpressionQualificationFilter filter = 7;
   }
 
   // The metric values
@@ -107,8 +114,12 @@ message Page {
     }
     // Metrics for the entire reporting_unit.
     message ReportingUnitMetricSet {
-      // The metrics for the union of the reporting_unit components
-      BasicMetricSet basic = 1;
+      // The non-cumulative metrics for the union of the reporting_unit
+      // components
+      BasicMetricSet non_cumulative = 1;
+
+      // The cumulative metrics for the union of the reporting_unit components
+      BasicMetricSet cumulative = 2;
 
       // The stacked incremental reach of the ReportingUnit.
       //
@@ -117,18 +128,21 @@ message Page {
       //  1. reach(edp1)
       //  2. reach(edp1+edp2) - reach(edp1)
       //  3. reach(edp1+edp2+edp3) - reach(edp1+edp2)
-      repeated int32 stacked_incremental_reach = 2;
+      repeated int32 stacked_incremental_reach = 3;
     }
     // Metrics for the whole reporting_unit
     ReportingUnitMetricSet reporting_unit = 2;
 
     // Metrics for a single component of the reporting_unit.
     message ComponentMetricSet {
-      // The basic metrics for this component
-      BasicMetricSet basic = 1;
+      // The non-cumulative basic metrics for this component
+      BasicMetricSet non_cumulative = 1;
+
+      // The cumulative basic metrics for this component
+      BasicMetricSet cumulative = 2;
 
       // The component's unique reach
-      int32 unique_reach = 2;
+      int32 unique_reach = 3;
     }
     // Entry for `DataProvider` components map.
     message DataProviderComponentMetricSetMapEntry {
@@ -153,8 +167,10 @@ message Page {
       // Ex: If a `DataProvider` has the name "dataproviders/abc", then the
       // ID is "abc".
       repeated string cmms_data_provider_ids = 1;
-      // Basic metrics for the intersection of the components
-      BasicMetricSet basic = 2;
+      // Non-cumulative basic metrics for the intersection of the components
+      BasicMetricSet non_cumulative = 2;
+      // Cumulative basic metrics for the intersection of the components
+      BasicMetricSet cumulative = 3;
     }
     // The metrics for the requested intersections
     repeated DataProviderComponentIntersectionMetricSet
@@ -168,7 +184,7 @@ message Page {
     // Metric values
     MetricSet metric_set = 2;
   }
-  // The set of results for the Page, one per impression qualification filter
-  // that was applicable to the page.
+  // The set of results for the ResultGroup, one per impression qualification
+  // filter that was applicable to the result group.
   repeated Result results = 2;
 }

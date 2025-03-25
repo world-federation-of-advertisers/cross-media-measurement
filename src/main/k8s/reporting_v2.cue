@@ -167,8 +167,10 @@ package k8s
 						_debugVerboseGrpcServerLoggingFlag,
 						_akidToPrincipalMapFileFlag,
 						"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
+						"--tls-cert-file=/var/run/secrets/files/access_tls.pem",
+						"--tls-key-file=/var/run/secrets/files/access_tls.key",
 						"--permissions-config=/etc/\(#AppName)/access-config/permissions_config.textproto",
-			] + _tlsArgs + _accessSpannerConfig.flags
+			] + _accessSpannerConfig.flags
 
 			_updateSchemaContainer: Container=#Container & {
 				image:            _images[Container.name]
@@ -192,7 +194,9 @@ package k8s
 						_debugVerboseGrpcClientLoggingFlag,
 						_debugVerboseGrpcServerLoggingFlag,
 						"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
-			] + _tlsArgs + _accessInternalApiTarget.args
+						"--tls-cert-file=/var/run/secrets/files/access_tls.pem",
+						"--tls-key-file=/var/run/secrets/files/access_tls.key",
+			] + _accessInternalApiTarget.args
 			spec: template: spec: {
 				_dependencies: ["access-internal-api-server"]
 			}

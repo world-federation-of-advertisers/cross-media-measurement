@@ -1,6 +1,22 @@
 # proto-file: wfa/measurement/config/access/permissions_config.proto
 # proto-message: wfa.measurement.config.access.PermissionsConfig
 
+# dataProviders
+permissions {
+  key: "reporting.dataProviders.get"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/Root"
+  }
+}
+
+# eventGroupMetadataDescriptors
+permissions {
+  key: "reporting.eventGroupMetadataDescriptors.get"
+  value {
+    protected_resource_types: "reporting.halo-cmm.org/Root"
+  }
+}
+
 # eventGroups
 permissions {
   key: "reporting.eventGroups.get"
@@ -38,22 +54,8 @@ permissions {
   }
 }
 permissions {
-  # Allow creation of composite ReportingSets with UNION as the set operation.
-  key: "reporting.reportingSets.createUnion"
-  value {
-    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
-  }
-}
-permissions {
-  # Allow creation of composite ReportingSets with DIFFERENCE as the set operation.
-  key: "reporting.reportingSets.createDifference"
-  value {
-    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
-  }
-}
-permissions {
-  # Allow creation of composite ReportingSets with INTERSECTION as the set operation.
-  key: "reporting.reportingSets.createIntersection"
+  # Allow creation of composite ReportingSets.
+  key: "reporting.reportingSets.createComposite"
   value {
     protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
   }

@@ -218,12 +218,12 @@ MESSAGE_LIBS = [
     "basic_report",
     "event_filter",
     "event_template_field",
+    "impression_qualification_filter",
     "impression_qualification_filter_spec",
     "metric_frequency_spec",
-    "page",
+    "result_group",
     "reporting_impression_qualification_filter",
     "reporting_interval",
-    "windowing_spec",
 ]
 
 proto_library(
@@ -240,7 +240,7 @@ proto_library(
     name = "basic_report_result_details_proto",
     srcs = ["basic_report_result_details.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = [":page_proto"],
+    deps = [":result_group_proto"],
 )
 
 proto_library(
@@ -268,6 +268,13 @@ proto_library(
 )
 
 proto_library(
+    name = "impression_qualification_filter_proto",
+    srcs = ["impression_qualification_filter.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [":impression_qualification_filter_spec_proto"],
+)
+
+proto_library(
     name = "impression_qualification_filter_spec_proto",
     srcs = ["impression_qualification_filter_spec.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -275,23 +282,24 @@ proto_library(
 )
 
 proto_library(
+    name = "impression_qualification_filters_service_proto",
+    srcs = ["impression_qualification_filters_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":impression_qualification_filter_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "impression_qualification_filters_service_kt_jvm_grpc_proto",
+    deps = [":impression_qualification_filters_service_proto"],
+)
+
+proto_library(
     name = "metric_frequency_spec_proto",
     srcs = ["metric_frequency_spec.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = ["@com_google_googleapis//google/type:dayofweek_proto"],
-)
-
-proto_library(
-    name = "page_proto",
-    srcs = ["page.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        ":event_filter_proto",
-        ":event_template_field_proto",
-        ":reporting_impression_qualification_filter_proto",
-        ":windowing_spec_proto",
-        "@com_google_googleapis//google/type:interval_proto",
-    ],
 )
 
 proto_library(
@@ -312,10 +320,16 @@ proto_library(
 )
 
 proto_library(
-    name = "windowing_spec_proto",
-    srcs = ["windowing_spec.proto"],
+    name = "result_group_proto",
+    srcs = ["result_group.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = [":metric_frequency_spec_proto"],
+    deps = [
+        ":event_filter_proto",
+        ":event_template_field_proto",
+        ":metric_frequency_spec_proto",
+        ":reporting_impression_qualification_filter_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
 )
 
 SERVICE_LIBS = [
@@ -355,11 +369,11 @@ proto_descriptor_set(
         ":basic_report_result_details_proto",
         ":event_filter_proto",
         ":event_template_field_proto",
+        ":impression_qualification_filter_proto",
         ":impression_qualification_filter_spec_proto",
         ":metric_frequency_spec_proto",
-        ":page_proto",
         ":reporting_impression_qualification_filter_proto",
         ":reporting_interval_proto",
-        ":windowing_spec_proto",
+        ":result_group_proto",
     ],
 )
