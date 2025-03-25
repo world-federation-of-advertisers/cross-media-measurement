@@ -30,6 +30,7 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt as internalWorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt as InternalWorkItemAttempt
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemAttemptRequest as internalCreateWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemAttemptRequest as internalGetWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemAttemptRequest as internalFailWorkItemAttemptRequest
@@ -45,6 +46,8 @@ import org.mockito.kotlin.stub
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.securecomputation.service.Errors
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemInvalidStateException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptInvalidStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptNotFoundException
 
@@ -197,6 +200,36 @@ class WorkItemAttemptsServiceTest {
           domain = Errors.DOMAIN
           reason = Errors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS.name
           metadata[Errors.Metadata.WORK_ITEM_ATTEMPT.key] = "workItems/workItem/workItemAttempts/workItemAttempt"
+        }
+      )
+  }
+
+  @Test
+  fun `createWorkItemAttempt throws INVALID_WORK_ITEM_STATE from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doThrow
+        WorkItemInvalidStateException("workItem", InternalWorkItem.State.SUCCEEDED).asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+
+    }
+
+    val request = createWorkItemAttemptRequest {
+      parent = "workItems/workItem"
+      workItemAttempt = workItemAttempt {
+        name = "workItems/workItem/workItemAttempts/workItemAttempt"
+      }
+      workItemAttemptId = "workItem"
+    }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.createWorkItemAttempt(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_WORK_ITEM_STATE.name
+          metadata[Errors.Metadata.WORK_ITEM.key] = "workItems/workItem"
+          metadata[Errors.Metadata.WORK_ITEM_STATE.key] = "SUCCEEDED"
         }
       )
   }
@@ -372,6 +405,27 @@ class WorkItemAttemptsServiceTest {
     }
 
   @Test
+  fun `failWorkItemAttempt throws INVALID_WORK_ITEM_ATTEMPT_STATE from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { failWorkItemAttempt(any()) } doThrow
+        WorkItemAttemptInvalidStateException("workItem", "workItemAttempt", InternalWorkItemAttempt.State.SUCCEEDED).asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+    val request = failWorkItemAttemptRequest { name = "workItems/workItem/workItemAttempts/workItemAttempt" }
+    val exception = assertFailsWith<StatusRuntimeException> { service.failWorkItemAttempt(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name
+          metadata[Errors.Metadata.WORK_ITEM_ATTEMPT.key] = request.name
+          metadata[Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key] = "SUCCEEDED"
+        }
+      )
+  }
+
+  @Test
   fun `completeWorkItemAttempt returns WorkItemAttempt`() = runBlocking {
 
     val internalWorkItemAttempt = internalWorkItemAttempt {
@@ -453,4 +507,26 @@ class WorkItemAttemptsServiceTest {
         }
       )
   }
+
+  @Test
+  fun `completeWorkItemAttempt throws INVALID_WORK_ITEM_ATTEMPT_STATE from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { completeWorkItemAttempt(any()) } doThrow
+        WorkItemAttemptInvalidStateException("workItem", "workItemAttempt", InternalWorkItemAttempt.State.SUCCEEDED).asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+    val request = completeWorkItemAttemptRequest { name = "workItems/workItem/workItemAttempts/workItemAttempt" }
+    val exception = assertFailsWith<StatusRuntimeException> { service.completeWorkItemAttempt(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name
+          metadata[Errors.Metadata.WORK_ITEM_ATTEMPT.key] = request.name
+          metadata[Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key] = "SUCCEEDED"
+        }
+      )
+  }
+
 }
