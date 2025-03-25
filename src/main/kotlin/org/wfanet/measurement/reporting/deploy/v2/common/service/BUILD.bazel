@@ -13,6 +13,7 @@ kt_jvm_library(
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
     ],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/service:impression_qualification_filters_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner:basic_reports_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres:services",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:impression_qualification_filter_mapping",
