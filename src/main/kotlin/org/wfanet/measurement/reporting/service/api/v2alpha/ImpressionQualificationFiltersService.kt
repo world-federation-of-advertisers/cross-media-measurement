@@ -134,7 +134,7 @@ class ImpressionQualificationFiltersService(
         }
       if (internalListImpressionQualificationFiltersResponse.hasNextPageToken()) {
         nextPageToken =
-          internalListImpressionQualificationFiltersResponse.nextPageToken.after
+          internalListImpressionQualificationFiltersResponse.nextPageToken
             .toByteString()
             .base64UrlEncode()
       }
