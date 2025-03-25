@@ -28,6 +28,7 @@ import "wfa/measurement/reporting/v2alpha/reporting_unit.proto";
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ResultProto";
+option go_package = "github.com/world-federation-of-advertisers/cross-media-measurement/reporting/apiv2alpha/reportingpb";
 
 // Defines the dimensions over which metrics are grouped and filtered.
 message DimensionSpec {

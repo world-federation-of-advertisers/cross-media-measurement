@@ -268,6 +268,11 @@ REPORTING_V2_COMMON_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/job:report_scheduling_job_executor_image",
         repository = _PREFIX + "/reporting/v2/report-scheduling",
     ),
+    struct(
+        name = "reporting_grpc_gateway_image",
+        repository = _PREFIX + "/reporting/grpc-gateway",
+        image = "//src/main/go/reporting:grpc_gateway_image",
+    ),
 ]
 
 REPORTING_V2_LOCAL_IMAGES = [
