@@ -37,6 +37,7 @@ import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.access.PermissionsConfig
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
@@ -80,6 +81,11 @@ val HMSS_PROTOCOL_CONFIG_CONFIG: HmssProtocolConfigConfig =
   loadTextProto(
     "hmss_protocol_config_config.textproto",
     HmssProtocolConfigConfig.getDefaultInstance(),
+  )
+val IMPRESSION_QUALIFICATION_FILTERS_CONFIG: ImpressionQualificationFilterConfig =
+  loadTextProto(
+    "impression_qualification_filters_config.textproto",
+    ImpressionQualificationFilterConfig.getDefaultInstance(),
   )
 
 val AGGREGATOR_NAME =
