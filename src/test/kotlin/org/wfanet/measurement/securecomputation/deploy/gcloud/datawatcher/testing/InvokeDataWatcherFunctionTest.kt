@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
+package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.testing
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
@@ -29,24 +29,9 @@ import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
-import org.junit.Rule
-import org.junit.Test
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
-import org.mockito.kotlin.any
-import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.times
-import org.mockito.kotlin.verifyBlocking
-import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.getJarResourceFile
-import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
-import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.junit.ClassRule
+import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
+import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 
 @RunWith(JUnit4::class)
 class InvokeDataWatcherFunctionTest() {
@@ -65,7 +50,7 @@ class InvokeDataWatcherFunctionTest() {
       "gcloud",
       "datawatcher",
       "testing",
-      "InvokeDataWatcherFunction",
+      "InvokeDataWatcherFunction_deploy.jar",
     )
   val gcfTarget =
     "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction"
