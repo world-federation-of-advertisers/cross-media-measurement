@@ -65,10 +65,15 @@ abstract class WorkItemsService(private val internalWorkItemsStub: InternalWorkI
     }
 
     val workItem = request.workItem
+
+    val workItemName = WorkItemKey(request.workItemId).toName()
+    val finalizedWorkItem = workItem.copy {
+      name = workItemName
+    }
     val topicId = workItem.queue
 
     try {
-      publishMessage(topicId, workItem.workItemParams)
+      publishMessage(topicId, finalizedWorkItem)
     } catch (e: Exception) {
       throw when {
         e.message?.contains("Topic id: $topicId does not exist") == true -> {
