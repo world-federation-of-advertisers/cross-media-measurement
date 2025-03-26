@@ -17,11 +17,11 @@
 package org.wfanet.measurement.securecomputation.teesdk
 
 import com.google.protobuf.InvalidProtocolBufferException
-import com.google.protobuf.Message
 import com.google.protobuf.Parser
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
+import com.google.protobuf.Any
 import kotlinx.coroutines.channels.ReceiveChannel
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -30,7 +30,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAtt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsService
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.completeWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemAttemptRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemRequest
 
@@ -73,7 +72,7 @@ abstract class BaseTeeApplication(
    * If parsing fails, the message is negatively acknowledged and discarded. If processing fails,
    * the message is negatively acknowledged and optionally requeued.
    *
-   * @param queueMessage The raw message received from the queue.
+   * @param queueMessage The raw message received from the queue of type [WorkItem].
    */
   private suspend fun processMessage(queueMessage: QueueSubscriber.QueueMessage<WorkItem>) {
     val body = queueMessage.body
