@@ -42,7 +42,7 @@ platform(
         "@bazel_tools//tools/cpp:clang",
     ],
     exec_properties = {
-        "container-image": "docker://ghcr.io/world-federation-of-advertisers/bazel@sha256:43d6c594c748e02c3afe69e678ce1c66520396178055f5b760325d49f9a7ff03",
+        "container-image": "docker://ghcr.io/world-federation-of-advertisers/bazel@sha256:f2d8cc7b7994731ef432f4404e71ed26c1c6c015005fe8c9d5f0191aed13040a",
         "OSFamily": "Linux",
     },
 )
