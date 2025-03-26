@@ -60,9 +60,7 @@ import org.wfanet.measurement.common.readByteString
 /** Test class for the RequisitionFetcherFunction. */
 class RequisitionFetcherFunctionTest {
   /** Temp folder to store Requisitions in test. */
-  @Rule
-  @JvmField
-  val tempFolder = TemporaryFolder()
+  @Rule @JvmField val tempFolder = TemporaryFolder()
 
   /** Mock of RequisitionsService. */
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
