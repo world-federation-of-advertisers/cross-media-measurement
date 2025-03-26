@@ -116,7 +116,7 @@ cc_toolchain_config(
         "cpp": "/usr/bin/cpp",
         "gcc": "/usr/lib/llvm-14/bin/clang",
         "dwp": "/usr/bin/dwp",
-        "gcov": "None",
+        "gcov": "/usr/bin/llvm-cov",
         "nm": "/usr/bin/nm",
         "objcopy": "/usr/bin/objcopy",
         "objdump": "/usr/bin/objdump",
