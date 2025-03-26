@@ -82,12 +82,12 @@ class RequisitionFetcherFunctionTest {
     /** Start gRPC server with mock Requisitions service */
     grpcServer =
       CommonServer.fromParameters(
-        verboseGrpcLogging = true,
-        certs = serverCerts,
-        clientAuth = ClientAuth.REQUIRE,
-        nameForLogging = "RequisitionFetcherServer",
-        services = listOf(requisitionsServiceMock.bindService()),
-      )
+          verboseGrpcLogging = true,
+          certs = serverCerts,
+          clientAuth = ClientAuth.REQUIRE,
+          nameForLogging = "RequisitionFetcherServer",
+          services = listOf(requisitionsServiceMock.bindService()),
+        )
         .start()
     logger.info("Started gRPC server on port ${grpcServer.port}")
 
@@ -146,8 +146,7 @@ class RequisitionFetcherFunctionTest {
     private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO
   ) : AutoCloseable {
     private val startMutex = Mutex()
-    @Volatile
-    private lateinit var process: Process
+    @Volatile private lateinit var process: Process
     private var localPort by Delegates.notNull<Int>()
 
     /** Indicates whether the process has started. */
@@ -190,13 +189,13 @@ class RequisitionFetcherFunctionTest {
 
           val processBuilder =
             ProcessBuilder(
-              runtimePath.toString(),
-              /** Add HTTP port configuration */
-              "--port",
-              localPort.toString(),
-              "--target",
-              GCF_TARGET,
-            )
+                runtimePath.toString(),
+                /** Add HTTP port configuration */
+                "--port",
+                localPort.toString(),
+                "--target",
+                GCF_TARGET,
+              )
               .redirectErrorStream(true)
               .redirectOutput(ProcessBuilder.Redirect.PIPE)
 
@@ -210,21 +209,21 @@ class RequisitionFetcherFunctionTest {
 
           // Start a thread to read output
           Thread {
-            try {
-              while (true) {
-                val line = reader.readLine() ?: break
-                logger.info("Process output: $line")
-                /** Check if the ready message is in the output */
-                if (line.contains(readyPattern)) {
-                  isReady = true
+              try {
+                while (true) {
+                  val line = reader.readLine() ?: break
+                  logger.info("Process output: $line")
+                  /** Check if the ready message is in the output */
+                  if (line.contains(readyPattern)) {
+                    isReady = true
+                  }
+                }
+              } catch (e: Exception) {
+                if (process.isAlive) {
+                  logger.log(Level.WARNING, "Error reading process output: ${e.message}")
                 }
               }
-            } catch (e: Exception) {
-              if (process.isAlive) {
-                logger.log(Level.WARNING, "Error reading process output: ${e.message}")
-              }
             }
-          }
             .start()
 
           // Wait for the ready message or timeout
