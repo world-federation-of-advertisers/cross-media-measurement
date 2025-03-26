@@ -80,14 +80,14 @@ class InternalReportingServer : AbstractInternalReportingServer() {
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
   @CommandLine.Option(
-    names = ["--impression-qualification-filters-config"],
+    names = ["--impression-qualification-filter-config"],
     description =
       [
-        "Path to file containing a ImpressionQualificationsFiltersConfig protobuf message in text format"
+        "Path to file containing a ImpressionQualificationsFilterConfig protobuf message in text format"
       ],
     required = true,
   )
-  private lateinit var impressionQualificationFiltersConfigFile: File
+  private lateinit var impressionQualificationFilterConfigFile: File
 
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
@@ -108,16 +108,16 @@ class InternalReportingServer : AbstractInternalReportingServer() {
         )
       }
 
+      val impressionQualificationFilterConfig =
+        parseTextProto(
+          impressionQualificationFilterConfigFile,
+          ImpressionQualificationFilterConfig.getDefaultInstance(),
+        )
+      val impressionQualificationFilterMapping =
+        ImpressionQualificationFilterMapping(impressionQualificationFilterConfig)
+
       spannerFlags.usingSpanner { spanner ->
         val spannerClient = spanner.databaseClient
-        val impressionQualificationFiltersConfig =
-          parseTextProto(
-            impressionQualificationFiltersConfigFile,
-            ImpressionQualificationFilterConfig.getDefaultInstance(),
-          )
-        val impressionQualificationFilterMapping =
-          ImpressionQualificationFilterMapping(impressionQualificationFiltersConfig)
-
         run(DataServices.create(idGenerator, postgresClient, spannerClient, impressionQualificationFilterMapping))
       }
     } else {
