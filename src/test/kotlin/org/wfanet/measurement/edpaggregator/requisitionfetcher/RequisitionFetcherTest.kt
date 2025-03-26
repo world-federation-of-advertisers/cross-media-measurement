@@ -48,8 +48,7 @@ class RequisitionFetcherTest {
         .thenReturn(listRequisitionsResponse { requisitions += REQUISITION })
     }
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
+  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub by lazy {
     RequisitionsGrpcKt.RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
@@ -83,7 +82,7 @@ class RequisitionFetcherTest {
         storageClient,
         DATA_PROVIDER_NAME,
         STORAGE_PATH_PREFIX,
-        50
+        50,
       )
 
     val requisitionsList =
