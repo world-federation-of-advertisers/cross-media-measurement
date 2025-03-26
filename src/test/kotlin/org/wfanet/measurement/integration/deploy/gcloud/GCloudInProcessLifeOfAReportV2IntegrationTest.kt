@@ -51,7 +51,6 @@ class GCloudInProcessLifeOfAReportV2IntegrationTest :
     @JvmStatic
     val duchyDatabaseProvider = PostgresDatabaseProviderRule(DUCHY_CHANGELOG_PATH)
 
-    @get:ClassRule
     @JvmStatic
     val impressionQualificationFilterMapping =
       ImpressionQualificationFilterMapping(IMPRESSION_QUALIFICATION_FILTERS_CONFIG)
