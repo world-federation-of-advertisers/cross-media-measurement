@@ -215,6 +215,7 @@ import org.wfanet.measurement.measurementconsumer.stats.WatchDurationMeasurement
 import org.wfanet.measurement.measurementconsumer.stats.WatchDurationMetricVarianceParams
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
+import org.wfanet.measurement.reporting.service.internal.InvalidMetricStateTransitionException
 import org.wfanet.measurement.reporting.service.internal.MetricNotFoundException
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsRequest
@@ -10335,7 +10336,7 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `invalidateMetric throws NOT_FOUND when metric not found`() = runBlocking {
+  fun `invalidateMetric throws FAILED_PRECONDITION when metric FAILED`() = runBlocking {
     val measurementConsumerKey =
       MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMERS.values.first().name)
     val metricKey = MetricKey(measurementConsumerKey!!, "aaa")
@@ -10364,6 +10365,43 @@ class MetricsServiceTest {
           domain = Errors.DOMAIN
           reason = Errors.Reason.METRIC_NOT_FOUND.name
           metadata[Errors.Metadata.METRIC.key] = request.name
+        }
+      )
+  }
+     est
+  fun `invalidateMetric throws NOT_FOUND when metric not found`() = runBlocking {
+    val measurementConsumerKey =
+      MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMERS.values.first().name)
+    val metricKey = MetricKey(measurementConsumerKey!!, "aaa")
+    whenever(internalMetricsMock.invalidateMetric(any()))
+      .thenThrow(
+        InvalidMetricStateTransitionException(
+          cmmsMeasurementConsumerId = measurementConsumerKey!!.measurementConsumerId,
+          externalMetricId = metricKey.metricId,
+          metricState = InternalMetric.State.FAILED,
+          newMetricState = InternalMetric.State.INVALID,
+        )
+          .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      )
+
+    val request = invalidateMetricRequest { name = metricKey.toName() }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.invalidateMetric(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.METRIC_NOT_FOUND.name
+          metadata[Errors.Metadata.METRIC.key] = request.name
+          metadata[Errors.Metadata.METRIC_STATE.key] = Metric.State.FAILED.name
+          metadata[Errors.Metadata.NEW_METRIC_STATE.key] = Metric.State.INVALID.name
         }
       )
   }

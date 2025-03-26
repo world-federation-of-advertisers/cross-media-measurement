@@ -179,6 +179,7 @@ import org.wfanet.measurement.reporting.service.api.MetricNotFoundException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.reporting.service.api.InvalidMetricStateTransitionException
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
@@ -1256,13 +1257,15 @@ class MetricsService(
       throw when (InternalErrors.getReason(e)) {
         InternalErrors.Reason.METRIC_NOT_FOUND ->
           MetricNotFoundException(request.name, e).asStatusRuntimeException(Status.Code.NOT_FOUND)
+        InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION ->
+          InvalidMetricStateTransitionException(request.name, Metric.State.FAILED, Metric.State.INVALID)
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
         InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
         InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
         InternalErrors.Reason.INVALID_FIELD_VALUE,
         InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
         InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
-        InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }

@@ -3453,7 +3453,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           reason = Errors.Reason.INVALID_METRIC_STATE_TRANSITION.name
           metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] = CMMS_MEASUREMENT_CONSUMER_ID
           metadata[Errors.Metadata.EXTERNAL_METRIC_ID.key] = createdMetric.externalMetricId
-          metadata[Errors.Metadata.CURRENT_METRIC_STATE.key] = Metric.State.FAILED.name
+          metadata[Errors.Metadata.METRIC_STATE.key] = Metric.State.FAILED.name
           metadata[Errors.Metadata.NEW_METRIC_STATE.key] = Metric.State.INVALID.name
         }
       )
