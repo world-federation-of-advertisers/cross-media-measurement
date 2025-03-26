@@ -84,7 +84,7 @@ val HMSS_PROTOCOL_CONFIG_CONFIG: HmssProtocolConfigConfig =
   )
 val IMPRESSION_QUALIFICATION_FILTERS_CONFIG: ImpressionQualificationFilterConfig =
   loadTextProto(
-    "impression_qualification_filters_config.textproto",
+    "impression_qualification_filter_config.textproto",
     ImpressionQualificationFilterConfig.getDefaultInstance(),
   )
 
