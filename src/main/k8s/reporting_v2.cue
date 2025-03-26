@@ -91,6 +91,7 @@ package k8s
 	_encryptionKeyPairConfigFileFlag:   "--key-pair-config-file=/etc/\(#AppName)/config-files/encryption_key_pair_config.textproto"
 	_metricSpecConfigFileFlag:          "--metric-spec-config-file=/etc/\(#AppName)/config-files/metric_spec_config.textproto"
 	_knownEventGroupMetadataTypeFlag:   "--known-event-group-metadata-type=/etc/\(#AppName)/config-files/known_event_group_metadata_type_set.pb"
+	_impressionQualificationFilterConfigFileFlag:   "--impression-qualification-filter-config-file=/etc/\(#AppName)/config-files/impression_qualification_filter_config.textproto"
 	_debugVerboseGrpcClientLoggingFlag: "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
 	_debugVerboseGrpcServerLoggingFlag: "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
 
@@ -120,9 +121,9 @@ package k8s
 			_container: args: [
 						_reportingCertCollectionFileFlag,
 						_debugVerboseGrpcServerLoggingFlag,
+						_impressionQualificationFilterConfigFileFlag,
 						"--port=8443",
 						"--health-port=8080",
-						"--impression-qualification-filters-config=/var/run/secrets/files/impression_qualification_filter_config.textproto"
 			] + _postgresConfig.flags + _reportingSpannerConfig.flags +  _tlsArgs
 
 			_updatePostgresSchemaContainer: Container=#Container & {
