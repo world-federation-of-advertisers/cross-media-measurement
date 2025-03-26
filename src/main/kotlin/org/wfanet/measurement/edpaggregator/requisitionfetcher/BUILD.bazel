@@ -1,7 +1,5 @@
-load("@rules_java//java:defs.bzl", "java_binary")
-load("@rules_java//java:java_library.bzl", "java_library")
+load("@rules_java//java:java_binary.bzl", "java_binary")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
-load("//src/main/docker:macros.bzl", "java_image")
 
 package(default_visibility = ["//src/test/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:__subpackages__"])
 
