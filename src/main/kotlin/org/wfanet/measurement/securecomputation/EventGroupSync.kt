@@ -16,16 +16,21 @@
 
 package org.wfanet.measurement.securecomputation
 
+import com.google.type.interval
 import io.grpc.StatusException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -48,30 +53,79 @@ class EventGroupSync(
       fetchEventGroups().toList().associateBy { it.eventGroupReferenceId }
     val eventGroupMap = mutableMapOf<String, String>()
     for (campaign in campaigns) {
-      val eventGroup = if (campaign.eventGroupReferenceId in registeredEventGroups) {
-        val existingEventGroup = registeredEventGroups[campaign.eventGroupReferenceId]!!
-        //eventGroupMap[campaign.eventGroupReferenceId] = existingEventGroup.name
-        val request = updateEventGroupRequest {
-          eventGroup =
+      val eventGroup =
+        if (campaign.eventGroupReferenceId in registeredEventGroups) {
+          val existingEventGroup = registeredEventGroups[campaign.eventGroupReferenceId]!!
+          val syncedEventGroup =
             existingEventGroup.copy {
-              this.eventTemplates.clear()
-              //this.eventTemplates += eventTemplates
+              measurementConsumer = campaign.measurementConsumerName
+              eventGroupReferenceId = campaign.eventGroupReferenceId
+              this.eventGroupMetadata = eventGroupMetadata {
+                this.adMetadata = adMetadata {
+                  this.campaignMetadata = campaignMetadata {
+                    brandName = campaign.brandName
+                    campaignName = campaign.campaignName
+                  }
+                }
+              }
+              mediaTypes.clear()
+              mediaTypes += campaign.mediaTypesList.map { MediaType.valueOf(it) }
+              dataAvailabilityInterval = interval {
+                startTime = campaign.startTime
+                endTime = campaign.endTime
+              }
             }
-        }
-        eventGroupsStub.updateEventGroup(request)
-      } else {
-        val request = createEventGroupRequest {
-          parent = edpName
-          eventGroup = eventGroup {
-            this.measurementConsumer = campaign.measurementConsumerName
-            this.eventGroupReferenceId = campaign.eventGroupReferenceId
-            // this.eventTemplates += eventTemplates
+          if (!syncedEventGroup.equals(existingEventGroup)) {
+            val request = updateEventGroupRequest {
+              eventGroup =
+                existingEventGroup.copy {
+                  measurementConsumer = campaign.measurementConsumerName
+                  eventGroupReferenceId = campaign.eventGroupReferenceId
+                  this.eventGroupMetadata = eventGroupMetadata {
+                    this.adMetadata = adMetadata {
+                      this.campaignMetadata = campaignMetadata {
+                        brandName = campaign.brandName
+                        campaignName = campaign.campaignName
+                      }
+                    }
+                  }
+                  mediaTypes.clear()
+                  mediaTypes += campaign.mediaTypesList.map { MediaType.valueOf(it) }
+                  dataAvailabilityInterval = interval {
+                    startTime = campaign.startTime
+                    endTime = campaign.endTime
+                  }
+                }
+            }
+            eventGroupsStub.updateEventGroup(request)
+          } else {
+            existingEventGroup
           }
-        }
+        } else {
+          val request = createEventGroupRequest {
+            parent = edpName
+            eventGroup = eventGroup {
+              measurementConsumer = campaign.measurementConsumerName
+              eventGroupReferenceId = campaign.eventGroupReferenceId
+              this.eventGroupMetadata = eventGroupMetadata {
+                this.adMetadata = adMetadata {
+                  this.campaignMetadata = campaignMetadata {
+                    brandName = campaign.brandName
+                    campaignName = campaign.campaignName
+                  }
+                }
+              }
+              mediaTypes += campaign.mediaTypesList.map { MediaType.valueOf(it) }
+              dataAvailabilityInterval = interval {
+                startTime = campaign.startTime
+                endTime = campaign.endTime
+              }
+            }
+          }
 
-        eventGroupsStub.createEventGroup(request)
-      }
-      eventGroupMap[campaign.eventGroupReferenceId] = eventGroup.eventGroupReferenceId
+          eventGroupsStub.createEventGroup(request)
+        }
+      eventGroupMap[campaign.eventGroupReferenceId] = eventGroup.name
     }
     return eventGroupMap
   }
@@ -82,7 +136,7 @@ class EventGroupSync(
       .listResources { pageToken ->
         val response =
           try {
-            listEventGroups(
+            eventGroupsStub.listEventGroups(
               listEventGroupsRequest {
                 parent = edpName
                 this.pageToken = pageToken

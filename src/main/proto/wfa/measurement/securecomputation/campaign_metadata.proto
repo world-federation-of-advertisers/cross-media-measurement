@@ -29,14 +29,13 @@ message CampaignMetadata {
   // `EventGroupMetadata` which provides a set of identifiers with better
   // defined semantics.
   string event_group_reference_id = 1;
-  string display_name_brand = 2;
-  string display_name = 3;
-  google.protobuf.Timestamp campaign_start_time = 4;
-  google.protobuf.Timestamp campaign_end_time = 5;
+  string brand_name = 2;
+  string campaign_name = 3;
+  google.protobuf.Timestamp start_time = 4;
+  google.protobuf.Timestamp end_time = 5;
   // ID referencing the `MeasurementConsumer` in an external system, provided out-of-band.
   string measurement_consumer_name = 6;
-  string data_type = 7;
-  repeated string data_type_ids = 8;
+  repeated string media_types = 7;
 }
 
 message Campaigns {
