@@ -19,7 +19,7 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 import java.util.UUID
 import kotlin.text.matches
 import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemConfig
@@ -28,11 +28,11 @@ import java.util.logging.Logger
 
 /*
  * Watcher to observe blob creation events and take the appropriate action for each.
- * @param workItemsService - the Google Pub Sub Sink to call
+ * @param workItemsStub - the Google Pub Sub Sink to call
  * @param dataWatcherConfigs - a list of [DataWatcherConfig]
  */
 class DataWatcher(
-  private val workItemsService: WorkItemsCoroutineImplBase,
+  private val workItemsStub: WorkItemsCoroutineStub,
   private val dataWatcherConfigs: List<DataWatcherConfig>,
 ) {
   suspend fun receivePath(path: String) {
@@ -57,7 +57,7 @@ class DataWatcher(
                 this.workItemParams = workItemParams
               }
             }
-            workItemsService.createWorkItem(request)
+            workItemsStub.createWorkItem(request)
           }
           DataWatcherConfig.SinkConfigCase.CLOUD_FUNCTION_CONFIG ->
             TODO("Cloud Function Sink not currently supported")
