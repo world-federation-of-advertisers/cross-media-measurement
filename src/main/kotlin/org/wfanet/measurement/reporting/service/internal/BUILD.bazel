@@ -1,6 +1,7 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:__subpackages__",
