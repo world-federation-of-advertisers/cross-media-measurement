@@ -45,14 +45,14 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
   @CommandLine.Option(
-    names = ["--impression-qualification-filters-config"],
+    names = ["--impression-qualification-filter-config"],
     description =
       [
-        "Path to file containing a ImpressionQualificationsFiltersConfig protobuf message in text format"
+        "Path to file containing a ImpressionQualificationsFilterConfig protobuf message in text format"
       ],
     required = true,
   )
-  private lateinit var impressionQualificationFiltersConfigFile: File
+  private lateinit var impressionQualificationFilterConfigFile: File
 
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
@@ -63,7 +63,7 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
 
     val impressionQualificationFiltersConfig =
       parseTextProto(
-        impressionQualificationFiltersConfigFile,
+        impressionQualificationFilterConfigFile,
         ImpressionQualificationFilterConfig.getDefaultInstance(),
       )
     val impressionQualificationFilterMapping =
