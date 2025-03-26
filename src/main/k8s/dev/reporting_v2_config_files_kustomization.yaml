@@ -20,3 +20,4 @@ configMapGenerator:
   - encryption_key_pair_config.textproto
   - metric_spec_config.textproto
   - known_event_group_metadata_type_set.pb
+  - impression_qualification_filter_config.textproto
