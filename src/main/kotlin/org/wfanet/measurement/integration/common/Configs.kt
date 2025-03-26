@@ -45,6 +45,7 @@ import org.wfanet.measurement.internal.kingdom.HmssProtocolConfigConfig
 import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
+import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 
 private const val REPO_NAME = "wfa_measurement_system"
 
@@ -82,11 +83,13 @@ val HMSS_PROTOCOL_CONFIG_CONFIG: HmssProtocolConfigConfig =
     "hmss_protocol_config_config.textproto",
     HmssProtocolConfigConfig.getDefaultInstance(),
   )
-val IMPRESSION_QUALIFICATION_FILTERS_CONFIG: ImpressionQualificationFilterConfig =
+val IMPRESSION_QUALIFICATION_FILTER_CONFIG: ImpressionQualificationFilterConfig =
   loadTextProto(
     "impression_qualification_filter_config.textproto",
     ImpressionQualificationFilterConfig.getDefaultInstance(),
   )
+val IMPRESSION_QUALIFICATION_FILTER_MAPPING: ImpressionQualificationFilterMapping =
+  ImpressionQualificationFilterMapping(IMPRESSION_QUALIFICATION_FILTER_CONFIG)
 
 val AGGREGATOR_NAME =
   AGGREGATOR_PROTOCOLS_SETUP_CONFIG.honestMajorityShareShuffle.aggregatorDuchyId!!
