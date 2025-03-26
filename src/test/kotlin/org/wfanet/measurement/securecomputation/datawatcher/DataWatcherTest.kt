@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
+package org.wfanet.measurement.securecomputation.datawatcher
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
@@ -29,7 +29,6 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
