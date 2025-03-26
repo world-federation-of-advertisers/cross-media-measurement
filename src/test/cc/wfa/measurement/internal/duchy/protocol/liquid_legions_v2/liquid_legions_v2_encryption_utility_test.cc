@@ -34,8 +34,8 @@
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/testing/liquid_legions_v2_encryption_utility_helper.h"
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_encryption_methods.pb.h"
 
-#include <iostream>
-#include <cstdlib>
+#include <stdio.h>
+#include <stdlib.h>
 
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 namespace {
@@ -1665,14 +1665,23 @@ TEST(EndToEnd, CombinedCasesWithDeterministicReachAndFrequencyDpNoises) {
                            Pair(6, DoubleNear(0.5, 0.001)),
                            Pair(kMaxFrequency, DoubleNear(0.25, 0.001))));
 
-  const char* value = std::getenv("BAZEL_USE_LLVM_NATIVE_COVERAGE");
-
-  if (value) {
-    std::cout << "marker-BAZEL_USE_LLVM_NATIVE_COVERAGE=" << value << std::endl;
-  } else {
-    std::cout << "marker-BAZEL_USE_LLVM_NATIVE_COVERAGE is not set." << std::endl;
-  }
-
+    const char *env_vars[] = {
+        "BAZEL_USE_LLVM_NATIVE_COVERAGE",
+        "GCOV",
+        "BAZEL_LLVM_COV"
+    };
+    
+    size_t num_vars = sizeof(env_vars) / sizeof(env_vars[0]);
+    
+    for (size_t i = 0; i < num_vars; i++) {
+        const char *value = getenv(env_vars[i]);
+        if (value) {
+            printf("%s=%s\n", env_vars[i], value);
+        } else {
+            printf("%s is not set\n", env_vars[i]);
+        }
+    }
+    
   ASSERT_OK_AND_ASSIGN(
       MpcResult result_with_gaussian_noise,
       test_data.GoThroughEntireMpcProtocol(
