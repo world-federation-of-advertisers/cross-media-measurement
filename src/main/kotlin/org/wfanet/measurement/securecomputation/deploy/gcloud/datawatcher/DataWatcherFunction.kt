@@ -26,12 +26,13 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GooglePubSubWorkItemsService
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfigs
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 
 /*
  * The DataWatcherFunction receives a CloudEvent and calls the DataWatcher with the path and config.
  */
 open class DataWatcherFunction(
-  private val workItemsService: Lazy<GooglePubSubWorkItemsService> = lazy {
+  private val workItemsService: Lazy<WorkItemsCoroutineStub> = lazy {
     val projectId = getPropertyValue("CONTROL_PLANE_PROJECT_ID")
     val googlePubSubClient = DefaultGooglePubSubClient()
     GooglePubSubWorkItemsService(projectId, googlePubSubClient)
