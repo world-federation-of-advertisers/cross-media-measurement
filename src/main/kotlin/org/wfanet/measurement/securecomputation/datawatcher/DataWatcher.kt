@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
+package org.wfanet.measurement.securecomputation.datawatcher
 
 import java.util.UUID
+import java.util.logging.Logger
 import kotlin.text.matches
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
@@ -24,7 +25,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemConfig
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfig
-import java.util.logging.Logger
 
 /*
  * Watcher to observe blob creation events and take the appropriate action for each.
@@ -67,6 +67,7 @@ class DataWatcher(
       }
     }
   }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
