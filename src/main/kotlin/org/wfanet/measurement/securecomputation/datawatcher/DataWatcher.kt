@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
+package org.wfanet.measurement.securecomputation.datawatcher
 
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsService
 import com.google.events.cloud.storage.v1.StorageObjectData
@@ -32,7 +32,6 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
-
 class DataWatcher(
   private val workItemsService: GooglePubSubWorkItemsService,
   private val dataWatcherConfigs: List<DataWatcherConfig>
@@ -77,6 +76,7 @@ class DataWatcher(
       }
     }
   }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }

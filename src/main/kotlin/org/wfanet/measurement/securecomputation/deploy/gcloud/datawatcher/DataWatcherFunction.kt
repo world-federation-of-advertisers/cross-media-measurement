@@ -22,28 +22,32 @@ import com.google.protobuf.TextFormat
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
 import java.util.logging.Logger
+import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GooglePubSubWorkItemsService
-import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfigs
+import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
+import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfigs
 
 /*
  * The DataWatcherFunction receives a CloudEvent and calls the DataWatcher with the path and config.
  */
-open class DataWatcherFunction(
-  private val workItemsService: Lazy<WorkItemsCoroutineStub> = lazy {
-    val projectId = getPropertyValue("CONTROL_PLANE_PROJECT_ID")
-    val googlePubSubClient = DefaultGooglePubSubClient()
-    GooglePubSubWorkItemsService(projectId, googlePubSubClient)
-  }
-) : CloudEventsFunction {
+class DataWatcherFunction : CloudEventsFunction {
 
   private val schema = "gs://"
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 
   override fun accept(event: CloudEvent) {
     logger.fine("Starting DataWatcherFunction")
+    val publicChannel =
+      buildMutualTlsChannel(
+        System.getenv("KINGDOM_TARGET"),
+        getClientCerts(),
+        System.getenv("KINGDOM_CERT_HOST"),
+      )
+
+    val workItemsStub = WorkItemsCoroutineStub(publicChannel)
     val configData: String = getPropertyValue("DATA_WATCHER_CONFIGS")
     val dataWatcherConfigs =
       DataWatcherConfigs.newBuilder()
@@ -51,7 +55,7 @@ open class DataWatcherFunction(
         .build()
     val dataWatcher =
       DataWatcher(
-        workItemsService = workItemsService.value,
+        workItemsStub = workItemsStub,
         dataWatcherConfigs = dataWatcherConfigs.configsList,
       )
     val cloudEventData =
@@ -66,8 +70,16 @@ open class DataWatcherFunction(
     logger.info("Receiving path $path")
     runBlocking { dataWatcher.receivePath(path) }
   }
-}
 
-fun getPropertyValue(propertyName: String): String {
-  return System.getProperty(propertyName) ?: System.getenv(propertyName)
+  private fun getClientCerts(): SigningCerts {
+    return SigningCerts.fromPemFiles(
+      certificateFile = Path(System.getenv("CERT_FILE_PATH")).toFile(),
+      privateKeyFile = Path(System.getenv("PRIVATE_KEY_FILE_PATH")).toFile(),
+      trustedCertCollectionFile = Path(System.getenv("CERT_COLLECTION_FILE_PATH")).toFile(),
+    )
+  }
+
+  fun getPropertyValue(propertyName: String): String {
+    return System.getProperty(propertyName) ?: System.getenv(propertyName)
+  }
 }
