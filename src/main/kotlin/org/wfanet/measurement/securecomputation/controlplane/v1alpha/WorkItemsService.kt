@@ -68,7 +68,7 @@ class WorkItemsService(
       throw InvalidFieldValueException("work_item_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-
+    
     val internalResponse: InternalWorkItem =
       try {
         internalWorkItemsStub.createWorkItem(
