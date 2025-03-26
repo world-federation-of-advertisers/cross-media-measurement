@@ -1,0 +1,17 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation/controlplane:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "fake_work_items_publisher",
+    srcs = ["FakeWorkItemsPublisher.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy:work_items_publisher",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)

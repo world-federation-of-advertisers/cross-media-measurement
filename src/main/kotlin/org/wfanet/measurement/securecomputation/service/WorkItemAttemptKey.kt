@@ -17,9 +17,10 @@
 package org.wfanet.measurement.securecomputation.service
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 
-class WorkItemAttemptKey(val workItemId: String, val workItemAttemptId: String) : ResourceKey {
+class WorkItemAttemptKey(val workItemId: String, val workItemAttemptId: String) : ChildResourceKey {
 
   override fun toName(): String {
     return parser.assembleName(mapOf(
@@ -27,6 +28,8 @@ class WorkItemAttemptKey(val workItemId: String, val workItemAttemptId: String) 
       IdVariable.WORK_ITEM_ATTEMPT to workItemAttemptId
     ))
   }
+
+   override val parentKey = WorkItemKey(workItemId)
 
   companion object : ResourceKey.Factory<WorkItemAttemptKey> {
     private val parser = ResourceNameParser("workItems/{work_item}/workItemAttempts/{work_item_attempt}")

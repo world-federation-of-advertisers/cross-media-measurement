@@ -31,7 +31,6 @@ import org.junit.Before
 import org.junit.Test
 import org.mockito.kotlin.any
 import org.wfanet.measurement.common.base64UrlEncode
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.testing.TestWorkItemsService
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem as internalWorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse as internalListWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsRequest as internalListWorkItemsRequest
@@ -49,6 +48,7 @@ import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.stub
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.securecomputation.deploy.testing.FakeWorkItemsPublisher
 import org.wfanet.measurement.securecomputation.service.Errors
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
@@ -61,11 +61,13 @@ class WorkItemServiceTest {
   @get:Rule
   val grpcTestServer = GrpcTestServerRule { addService(internalServiceMock) }
 
-  private lateinit var service: TestWorkItemsService
+  private lateinit var service: WorkItemsService
+  private lateinit var workItemPublisher: FakeWorkItemsPublisher
 
   @Before
   fun initService() {
-    service = TestWorkItemsService(InternalWorkItemsCoroutineStub(grpcTestServer.channel))
+    workItemPublisher = FakeWorkItemsPublisher()
+    service = WorkItemsService(InternalWorkItemsCoroutineStub(grpcTestServer.channel), workItemPublisher)
   }
 
   @Test
@@ -461,4 +463,4 @@ class WorkItemServiceTest {
       )
   }
 
-  }
+}

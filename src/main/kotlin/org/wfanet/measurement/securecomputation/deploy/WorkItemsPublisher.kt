@@ -14,16 +14,10 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.controlplane.v1alpha.testing
+package org.wfanet.measurement.securecomputation.deploy
 
-import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineStub as InternalWorkItemsCoroutineImplBase
 import com.google.protobuf.Message
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsService
 
-class TestWorkItemsService(
-  internalWorkItemsStub: InternalWorkItemsCoroutineImplBase
-) : WorkItemsService(internalWorkItemsStub) {
-  override suspend fun publishMessage(queueName: String, message: Message) {
-    print("publish_message")
-  }
+interface WorkItemsPublisher {
+  suspend fun publishMessage(queueName: String, message: Message)
 }
