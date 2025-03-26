@@ -39,7 +39,7 @@ class RequisitionFetcherFunction : HttpFunction {
       buildMutualTlsChannel(
         System.getenv("KINGDOM_TARGET"),
         getClientCerts(),
-        System.getenv("KINGDOM_CERT_HOST")
+        System.getenv("KINGDOM_CERT_HOST"),
       )
 
     val requisitionsStub = RequisitionsCoroutineStub(publicChannel)
@@ -70,7 +70,7 @@ class RequisitionFetcherFunction : HttpFunction {
         requisitionsStorageClient,
         System.getenv("DATA_PROVIDER_NAME"),
         System.getenv("STORAGE_PATH_PREFIX"),
-        pageSize
+        pageSize,
       )
 
     private fun getClientCerts(): SigningCerts {

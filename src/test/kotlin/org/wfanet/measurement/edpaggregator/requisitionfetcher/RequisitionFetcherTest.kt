@@ -32,14 +32,13 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.requisition
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.api.v2alpha.copy
-import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
-
 
 @RunWith(JUnit4::class)
 class RequisitionFetcherTest {
@@ -48,17 +47,20 @@ class RequisitionFetcherTest {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += REQUISITION })
     }
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
+
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub by lazy {
     RequisitionsGrpcKt.RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
-  @Rule
-  @JvmField val tempFolder = TemporaryFolder()
+
+  @Rule @JvmField val tempFolder = TemporaryFolder()
 
   @Test
   fun `fetchAndStoreRequisitions stores Requisition`() {
     val storageClient = FileSystemStorageClient(tempFolder.root)
-    val fetcher = RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME, STORAGE_PATH_PREFIX)
+    val fetcher =
+      RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME, STORAGE_PATH_PREFIX)
     val typeRegistry = TypeRegistry.newBuilder().add(Requisition.getDescriptor()).build()
     val parsedBlob = runBlocking {
       fetcher.fetchAndStoreRequisitions()
@@ -67,27 +69,31 @@ class RequisitionFetcherTest {
       val blobContent: ByteString = blob!!.read().flatten()
       Any.parseFrom(blobContent)
     }
-    assertThat(parsedBlob).unpackingAnyUsing(typeRegistry, ExtensionRegistry.getEmptyRegistry()).isEqualTo(Any.pack(REQUISITION))
+    assertThat(parsedBlob)
+      .unpackingAnyUsing(typeRegistry, ExtensionRegistry.getEmptyRegistry())
+      .isEqualTo(Any.pack(REQUISITION))
   }
 
   @Test
   fun `fetchAndStoreRequisitions stores multiple Requisitions`() {
     val storageClient = FileSystemStorageClient(tempFolder.root)
-    val fetcher = RequisitionFetcher(requisitionsStub, storageClient, DATA_PROVIDER_NAME, STORAGE_PATH_PREFIX, 50)
+    val fetcher =
+      RequisitionFetcher(
+        requisitionsStub,
+        storageClient,
+        DATA_PROVIDER_NAME,
+        STORAGE_PATH_PREFIX,
+        50
+      )
 
-    val requisitionsList = List(100) {
-      REQUISITION.copy {
-        name = REQUISITION_NAME + it.toString()
-      }
-    }
+    val requisitionsList =
+      List(100) { REQUISITION.copy { name = REQUISITION_NAME + it.toString() } }
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisitionsList })
     }
 
-    val expectedResult = requisitionsList.map {
-      Any.pack(it)
-    }
+    val expectedResult = requisitionsList.map { Any.pack(it) }
     runBlocking {
       fetcher.fetchAndStoreRequisitions()
       expectedResult.map {
@@ -101,8 +107,6 @@ class RequisitionFetcherTest {
     private const val STORAGE_PATH_PREFIX = "test-requisitions/"
     private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
     private const val REQUISITION_NAME = "${DATA_PROVIDER_NAME}/requisitions/foo"
-    private val REQUISITION = requisition {
-      name = REQUISITION_NAME
-    }
+    private val REQUISITION = requisition { name = REQUISITION_NAME }
   }
 }

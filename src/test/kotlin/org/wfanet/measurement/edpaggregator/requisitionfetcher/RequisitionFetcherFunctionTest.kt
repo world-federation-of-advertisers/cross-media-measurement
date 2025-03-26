@@ -80,7 +80,7 @@ class RequisitionFetcherFunctionTest {
           certs = serverCerts,
           clientAuth = ClientAuth.REQUIRE,
           nameForLogging = "RequisitionFetcherServer",
-          services = listOf(requisitionsServiceMock.bindService())
+          services = listOf(requisitionsServiceMock.bindService()),
         )
         .start()
     logger.info("Started gRPC server on port ${grpcServer.port}")
@@ -101,7 +101,7 @@ class RequisitionFetcherFunctionTest {
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
             "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.pem").toString(),
             "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.key").toString(),
-            "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString()
+            "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString(),
           )
         )
       logger.info("Started RequisitionFetcher process on port $port")
@@ -145,6 +145,7 @@ class RequisitionFetcherFunctionTest {
     /** Indicates whether the process has started. */
     val started: Boolean
       get() = this::process.isInitialized
+
     /** Returns the port the process is listening on. */
     val port: Int
       get() {
@@ -186,7 +187,7 @@ class RequisitionFetcherFunctionTest {
                 "--port",
                 localPort.toString(),
                 "--target",
-                GCF_TARGET
+                GCF_TARGET,
               )
               .redirectErrorStream(true)
               .redirectOutput(ProcessBuilder.Redirect.PIPE)
@@ -261,7 +262,7 @@ class RequisitionFetcherFunctionTest {
         "measurement",
         "edpaggregator",
         "requisitionfetcher",
-        "InvokeRequisitionFetcherFunction"
+        "InvokeRequisitionFetcherFunction",
       )
     private const val GCF_TARGET =
       "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherFunction"
