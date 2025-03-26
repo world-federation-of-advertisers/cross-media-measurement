@@ -22,11 +22,10 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseP
 import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata.DUCHY_CHANGELOG_PATH
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
-import org.wfanet.measurement.integration.common.IMPRESSION_QUALIFICATION_FILTERS_CONFIG
+import org.wfanet.measurement.integration.common.IMPRESSION_QUALIFICATION_FILTER_MAPPING
 import org.wfanet.measurement.integration.common.reporting.v2.InProcessLifeOfAReportIntegrationTest
 import org.wfanet.measurement.integration.deploy.common.postgres.PostgresDuchyDependencyProviderRule
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPORTING_CHANGELOG_PATH as POSTGRES_REPORTING_CHANGELOG_PATH
-import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 
 /** Implementation of [InProcessLifeOfAReportIntegrationTest] for Google Cloud. */
 class GCloudInProcessLifeOfAReportV2IntegrationTest :
@@ -37,7 +36,7 @@ class GCloudInProcessLifeOfAReportV2IntegrationTest :
     InternalReportingServicesProviderRule(
       spannerEmulator,
       reportingPostgresDatabaseProvider,
-      impressionQualificationFilterMapping,
+      IMPRESSION_QUALIFICATION_FILTER_MAPPING,
     ),
   ) {
   companion object {
@@ -51,9 +50,5 @@ class GCloudInProcessLifeOfAReportV2IntegrationTest :
     @get:Rule
     @JvmStatic
     val duchyDatabaseProvider = PostgresDatabaseProviderRule(DUCHY_CHANGELOG_PATH)
-
-    @JvmStatic
-    val impressionQualificationFilterMapping =
-      ImpressionQualificationFilterMapping(IMPRESSION_QUALIFICATION_FILTERS_CONFIG)
   }
 }
