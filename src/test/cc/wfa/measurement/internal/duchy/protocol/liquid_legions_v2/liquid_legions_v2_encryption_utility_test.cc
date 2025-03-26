@@ -34,6 +34,9 @@
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/testing/liquid_legions_v2_encryption_utility_helper.h"
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_encryption_methods.pb.h"
 
+#include <iostream>
+#include <cstdlib>
+
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 namespace {
 
@@ -1661,6 +1664,14 @@ TEST(EndToEnd, CombinedCasesWithDeterministicReachAndFrequencyDpNoises) {
       UnorderedElementsAre(Pair(3, DoubleNear(0.25, 0.001)),
                            Pair(6, DoubleNear(0.5, 0.001)),
                            Pair(kMaxFrequency, DoubleNear(0.25, 0.001))));
+
+  const char* value = std::getenv("BAZEL_USE_LLVM_NATIVE_COVERAGE");
+
+  if (value) {
+    std::cout << "marker-BAZEL_USE_LLVM_NATIVE_COVERAGE=" << value << std::endl;
+  } else {
+    std::cout << "marker-BAZEL_USE_LLVM_NATIVE_COVERAGE is not set." << std::endl;
+  }
 
   ASSERT_OK_AND_ASSIGN(
       MpcResult result_with_gaussian_noise,
