@@ -25,7 +25,7 @@ import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.securecomputation.service.internal.Errors as InternalErrors
 
 object Errors {
-  const val DOMAIN = "securecomputation.halo-cmm.org"
+  const val DOMAIN = "control-plane.secure-computation.halo-cmm.org"
 
   enum class Reason {
     REQUIRED_FIELD_NOT_SET,
@@ -105,57 +105,19 @@ class InvalidFieldValueException(
 
 class WorkItemNotFoundException(name: String, cause: Throwable? = null) :
   ServiceException(
-    reason,
+    Errors.Reason.WORK_ITEM_NOT_FOUND,
     "WorkItem $name not found",
     mapOf(Errors.Metadata.WORK_ITEM to name),
     cause,
-  ) {
-    companion object : Factory<WorkItemNotFoundException>() {
-      override val reason: Errors.Reason
-        get() = Errors.Reason.WORK_ITEM_NOT_FOUND
-
-      override fun fromInternal(
-        internalMetadata: Map<InternalErrors.Metadata, String>,
-        cause: Throwable,
-      ):WorkItemNotFoundException {
-
-        val workItemKey = WorkItemKey(
-          internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_RESOURCE_ID),
-        )
-        return WorkItemNotFoundException(
-          workItemKey.toName()
-        )
-
-      }
-    }
-  }
+  )
 
 class WorkItemAttemptNotFoundException(name: String, cause: Throwable? = null) :
   ServiceException(
-    reason,
+    Errors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
     "WorkItemAttempt $name not found",
     mapOf(Errors.Metadata.WORK_ITEM_ATTEMPT to name),
     cause,
-  ) {
-  companion object : Factory<WorkItemAttemptNotFoundException>() {
-    override val reason: Errors.Reason
-      get() = Errors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND
-
-    override fun fromInternal(
-      internalMetadata: Map<InternalErrors.Metadata, String>,
-      cause: Throwable,
-    ):WorkItemAttemptNotFoundException {
-
-      val workItemAttemptKey = WorkItemAttemptKey(
-        internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_RESOURCE_ID),
-        internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID)
-      )
-      return WorkItemAttemptNotFoundException(
-        workItemAttemptKey.toName()
-      )
-    }
-  }
-}
+  )
 
 class WorkItemAlreadyExistsException(name: String, cause: Throwable? = null) :
   ServiceException(

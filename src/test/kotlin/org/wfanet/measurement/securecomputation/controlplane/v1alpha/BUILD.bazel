@@ -39,7 +39,7 @@ kt_jvm_test(
     ],
     test_class = "org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemServiceTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha/testing:fake_work_items_service",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/testing:fake_work_items_publisher",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:errors",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",

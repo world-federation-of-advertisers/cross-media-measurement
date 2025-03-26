@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
-import com.google.protobuf.Message
 import io.grpc.Status
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineStub as InternalWorkItemsCoroutineStub
 import io.grpc.StatusException
@@ -30,20 +29,28 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkIt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.service.internal.Errors as InternalErrors
 import java.io.IOException
+import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.api.ResourceIds
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageToken
+import org.wfanet.measurement.securecomputation.deploy.WorkItemsPublisher
 import org.wfanet.measurement.securecomputation.service.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.WorkItemAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
 import org.wfanet.measurement.securecomputation.service.WorkItemNotFoundException
 
-abstract class WorkItemsService(private val internalWorkItemsStub: InternalWorkItemsCoroutineStub) :
-  WorkItemsCoroutineImplBase() {
+private const val DEFAULT_PAGE_SIZE = 50
+private const val MAX_PAGE_SIZE = 100
 
-  abstract suspend fun publishMessage(queueName: String, message: Message)
+class WorkItemsService(
+  private val internalWorkItemsStub: InternalWorkItemsCoroutineStub,
+  private val workItemsPublisher: WorkItemsPublisher
+) :
+  WorkItemsCoroutineImplBase() {
 
   override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
 
@@ -68,7 +75,7 @@ abstract class WorkItemsService(private val internalWorkItemsStub: InternalWorkI
     val topicId = workItem.queue
 
     try {
-      publishMessage(topicId, workItem.workItemParams)
+      workItemsPublisher.publishMessage(topicId, workItem.workItemParams)
     } catch (e: Exception) {
       throw when {
         e.message?.contains("Topic id: $topicId does not exist") == true -> {
@@ -157,35 +164,59 @@ abstract class WorkItemsService(private val internalWorkItemsStub: InternalWorkI
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val internalPageToken: ListWorkItemsPageToken? =
-      if (request.pageToken.isEmpty()) {
+    val pageSize = when {
+      request.pageSize == 0 -> DEFAULT_PAGE_SIZE
+      request.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
+      else -> request.pageSize
+    }
+
+    val resourceFlow: Flow<ResourceList<WorkItem>> = internalWorkItemsStub.listResources(
+      limit = pageSize,
+      pageToken = request.pageToken
+    ) { nextPageTokenStr: String, remaining: Int ->
+      val internalToken = if (nextPageTokenStr.isEmpty()) {
         null
       } else {
         try {
-          ListWorkItemsPageToken.parseFrom(request.pageToken.base64UrlDecode())
+          ListWorkItemsPageToken.parseFrom(nextPageTokenStr.base64UrlDecode())
         } catch (e: IOException) {
           throw InvalidFieldValueException("page_token", e)
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
       }
 
-    val internalResponse: InternalListWorkItemsResponse =
-      internalWorkItemsStub.listWorkItems(
-        internalListWorkItemsRequest {
-          pageSize = request.pageSize
-          if (internalPageToken != null) {
-            pageToken = internalPageToken
-          }
+      val internalRequest = internalListWorkItemsRequest {
+        this.pageSize = remaining.coerceAtMost(MAX_PAGE_SIZE)
+        if (internalToken != null) {
+          pageToken = internalToken
+        }
+      }
+
+      val internalResponse = this.listWorkItems(internalRequest)
+
+      ResourceList(
+        resources = internalResponse.workItemsList.map { it.toWorkItem() },
+        nextPageToken = if (internalResponse.hasNextPageToken()) {
+          internalResponse.nextPageToken.after.toByteString().base64UrlEncode()
+        } else {
+          ""
         }
       )
-
-    return listWorkItemsResponse {
-      workItems += internalResponse.workItemsList.map { it.toWorkItem() }
-      if (internalResponse.hasNextPageToken()) {
-        nextPageToken = internalResponse.nextPageToken.after.toByteString().base64UrlEncode()
-      }
     }
 
+    val allWorkItems = mutableListOf<WorkItem>()
+    var finalNextPageToken = ""
+    resourceFlow.collect { resourceList ->
+      allWorkItems.addAll(resourceList.resources)
+      finalNextPageToken = resourceList.nextPageToken
+    }
+
+    return listWorkItemsResponse {
+      workItems += allWorkItems
+      if (finalNextPageToken.isNotEmpty()) {
+        nextPageToken = finalNextPageToken
+      }
+    }
   }
 
   override suspend fun failWorkItem(request: FailWorkItemRequest): WorkItem {

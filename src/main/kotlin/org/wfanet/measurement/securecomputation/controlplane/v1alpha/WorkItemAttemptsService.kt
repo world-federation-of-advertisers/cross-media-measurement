@@ -18,7 +18,7 @@ package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
-import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsResponse
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsResponse as InternalListWorkItemAttemptsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt as InternalWorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt as internalWorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemAttemptRequest as internalCreateWorkItemAttemptRequest
@@ -34,7 +34,10 @@ import org.wfanet.measurement.securecomputation.service.WorkItemAttemptKey
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
 import org.wfanet.measurement.securecomputation.service.internal.Errors as InternalErrors
 import java.io.IOException
+import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.api.ResourceIds
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsPageToken
@@ -43,6 +46,9 @@ import org.wfanet.measurement.securecomputation.service.WorkItemAttemptInvalidSt
 import org.wfanet.measurement.securecomputation.service.WorkItemNotFoundException
 import org.wfanet.measurement.securecomputation.service.WorkItemAttemptNotFoundException
 import org.wfanet.measurement.securecomputation.service.WorkItemInvalidStateException
+
+private const val DEFAULT_PAGE_SIZE = 50
+private const val MAX_PAGE_SIZE = 100
 
 class WorkItemAttemptsService(private val internalWorkItemAttemptsStub: InternalWorkItemAttemptsCoroutineStub) :
   WorkItemAttemptsCoroutineImplBase() {
@@ -61,13 +67,15 @@ class WorkItemAttemptsService(private val internalWorkItemAttemptsStub: Internal
     }
 
     val parentKey = WorkItemKey.fromName(request.parent)
+      ?: throw InvalidFieldValueException("parent")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     val internalResponse: InternalWorkItemAttempt =
       try {
         internalWorkItemAttemptsStub.createWorkItemAttempt(
           internalCreateWorkItemAttemptRequest {
             internalWorkItemAttempt {
-              workItemResourceId = parentKey!!.workItemId
+              workItemResourceId = parentKey.workItemId
               workItemAttemptResourceId = request.workItemAttemptId
             }
           }
@@ -75,7 +83,7 @@ class WorkItemAttemptsService(private val internalWorkItemAttemptsStub: Internal
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
           InternalErrors.Reason.WORK_ITEM_NOT_FOUND ->
-            WorkItemNotFoundException(parentKey!!.toName(), e).asStatusRuntimeException(e.status.code)
+            WorkItemNotFoundException(parentKey.toName(), e).asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS ->
             WorkItemAttemptAlreadyExistsException(request.workItemAttempt.name, e).asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.INVALID_WORK_ITEM_STATE ->
@@ -213,38 +221,63 @@ class WorkItemAttemptsService(private val internalWorkItemAttemptsStub: Internal
     return internalResponse.toWorkItemAttempt()
   }
 
-  override suspend fun listWorkItemAttempts(request: ListWorkItemAttemptsRequest): org.wfanet.measurement.securecomputation.controlplane.v1alpha.ListWorkItemAttemptsResponse {
+  override suspend fun listWorkItemAttempts(request: ListWorkItemAttemptsRequest): ListWorkItemAttemptsResponse {
     if (request.pageSize < 0) {
       throw InvalidFieldValueException("page_size") { fieldName -> "$fieldName cannot be negative" }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val internalPageToken: ListWorkItemAttemptsPageToken? =
-      if (request.pageToken.isEmpty()) {
+    val effectivePageSize = when {
+      request.pageSize == 0 -> DEFAULT_PAGE_SIZE
+      request.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
+      else -> request.pageSize
+    }
+
+    val resourceFlow: Flow<ResourceList<WorkItemAttempt>> = internalWorkItemAttemptsStub.listResources(
+      limit = effectivePageSize,
+      pageToken = request.pageToken
+    ) { nextPageTokenStr: String, remaining: Int ->
+      val internalToken = if (nextPageTokenStr.isEmpty()) {
         null
       } else {
         try {
-          ListWorkItemAttemptsPageToken.parseFrom(request.pageToken.base64UrlDecode())
+          ListWorkItemAttemptsPageToken.parseFrom(nextPageTokenStr.base64UrlDecode())
         } catch (e: IOException) {
           throw InvalidFieldValueException("page_token", e)
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
       }
 
-    val internalResponse: ListWorkItemAttemptsResponse =
-      internalWorkItemAttemptsStub.listWorkItemAttempts(
-        internalListWorkItemAttemptsRequest {
-          pageSize = request.pageSize
-          if (internalPageToken != null) {
-            pageToken = internalPageToken
-          }
+      val internalRequest = internalListWorkItemAttemptsRequest {
+        pageSize = remaining.coerceAtMost(MAX_PAGE_SIZE)
+        if (internalToken != null) {
+          pageToken = internalToken
+        }
+      }
+
+      val internalResponse = this.listWorkItemAttempts(internalRequest)
+
+      ResourceList(
+        resources = internalResponse.workItemAttemptsList.map { it.toWorkItemAttempt() },
+        nextPageToken = if (internalResponse.hasNextPageToken()) {
+          internalResponse.nextPageToken.after.toByteString().base64UrlEncode()
+        } else {
+          ""
         }
       )
+    }
+
+    val allWorkItemAttempts = mutableListOf<WorkItemAttempt>()
+    var finalNextPageToken = ""
+    resourceFlow.collect { resourceList ->
+      allWorkItemAttempts.addAll(resourceList.resources)
+      finalNextPageToken = resourceList.nextPageToken
+    }
 
     return listWorkItemAttemptsResponse {
-      workItemAttempts += internalResponse.workItemAttemptsList.map { it.toWorkItemAttempt() }
-      if (internalResponse.hasNextPageToken()) {
-        nextPageToken = internalResponse.nextPageToken.after.toByteString().base64UrlEncode()
+      workItemAttempts += allWorkItemAttempts
+      if (finalNextPageToken.isNotEmpty()) {
+        nextPageToken = finalNextPageToken
       }
     }
   }
