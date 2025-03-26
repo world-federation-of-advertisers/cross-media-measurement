@@ -17,12 +17,11 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.ProtoTruth.assertThat as protobufAssertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.TypeRegistry
-import com.google.protobuf.kotlin.toByteString
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -37,7 +36,6 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.toByteArray
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -69,7 +67,7 @@ class RequisitionFetcherTest {
       val blobContent: ByteString = blob!!.read().flatten()
       Any.parseFrom(blobContent)
     }
-    protobufAssertThat(parsedBlob).unpackingAnyUsing(typeRegistry, ExtensionRegistry.getEmptyRegistry()).isEqualTo(Any.pack(REQUISITION))
+    assertThat(parsedBlob).unpackingAnyUsing(typeRegistry, ExtensionRegistry.getEmptyRegistry()).isEqualTo(Any.pack(REQUISITION))
   }
 
   @Test

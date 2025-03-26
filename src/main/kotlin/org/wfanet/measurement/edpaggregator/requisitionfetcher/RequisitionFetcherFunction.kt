@@ -29,7 +29,6 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
-
 class RequisitionFetcherFunction : HttpFunction {
   override fun service(request: HttpRequest, response: HttpResponse) {
     runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
@@ -37,27 +36,33 @@ class RequisitionFetcherFunction : HttpFunction {
 
   companion object {
     val publicChannel =
-      buildMutualTlsChannel(System.getenv("KINGDOM_TARGET"), getClientCerts(), System.getenv("KINGDOM_CERT_HOST"))
+      buildMutualTlsChannel(
+        System.getenv("KINGDOM_TARGET"),
+        getClientCerts(),
+        System.getenv("KINGDOM_CERT_HOST")
+      )
 
     val requisitionsStub = RequisitionsCoroutineStub(publicChannel)
 
-    val requisitionsStorageClient = if(System.getenv("REQUISITION_FILE_SYSTEM_PATH").isNotEmpty()) {
-      FileSystemStorageClient(File(System.getenv("REQUISITION_FILE_SYSTEM_PATH")))
-    } else {
-      GcsStorageClient(
-        StorageOptions.newBuilder()
-          .setProjectId(System.getenv("REQUISITIONS_GCS_PROJECT_ID"))
-          .build()
-          .service,
-        System.getenv("REQUISITIONS_GCS_BUCKET"),
-      )
-    }
+    val requisitionsStorageClient =
+      if (System.getenv("REQUISITION_FILE_SYSTEM_PATH").isNotEmpty()) {
+        FileSystemStorageClient(File(System.getenv("REQUISITION_FILE_SYSTEM_PATH")))
+      } else {
+        GcsStorageClient(
+          StorageOptions.newBuilder()
+            .setProjectId(System.getenv("REQUISITIONS_GCS_PROJECT_ID"))
+            .build()
+            .service,
+          System.getenv("REQUISITIONS_GCS_BUCKET"),
+        )
+      }
 
-    val pageSize = if(System.getenv("PAGE_SIZE").isNotEmpty()) {
-      System.getenv("PAGE_SIZE").toInt()
-    } else {
-      null
-    }
+    val pageSize =
+      if (System.getenv("PAGE_SIZE").isNotEmpty()) {
+        System.getenv("PAGE_SIZE").toInt()
+      } else {
+        null
+      }
 
     val requisitionFetcher =
       RequisitionFetcher(
