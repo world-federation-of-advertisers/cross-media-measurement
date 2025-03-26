@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation
+package org.wfanet.measurement.securecomputation.eventgroups
 
 import com.google.type.interval
 import io.grpc.StatusException

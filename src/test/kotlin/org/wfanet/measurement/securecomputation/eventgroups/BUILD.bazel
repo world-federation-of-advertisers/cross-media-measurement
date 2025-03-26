@@ -3,15 +3,15 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "EventGroupSyncTest",
     srcs = ["EventGroupSyncTest.kt"],
-    test_class = "org.wfanet.measurement.securecomputation.EventGroupSyncTest",
+    test_class = "org.wfanet.measurement.securecomputation.eventgroups.EventGroupSyncTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
-        "//src/main/kotlin/org/wfanet/measurement/securecomputation:event_group_sync",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/eventgroups:event_group_sync",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:media_type_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/securecomputation:campaign_metadata_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/eventgroups/v1alpha:campaign_metadata_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/events",
         "@wfa_common_jvm//imports/java/com/google/protobuf",

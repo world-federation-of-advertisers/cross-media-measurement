@@ -14,14 +14,15 @@
 
 syntax = "proto3";
 
-package wfa.measurement.securecomputation;
+package wfa.measurement.securecomputation.eventgroups;
 
-option java_package = "org.wfanet.measurement.securecomputation";
+option java_package = "org.wfanet.measurement.securecomputation.eventgroups";
 option java_multiple_files = true;
-option java_outer_classname = "DataProviderInfoProto";
+option java_outer_classname = "EventGroupSyncConfigProto";
 
-message DataProviderInfo {
+message EventGroupSyncConfig {
+  // Contains serialized campaign_metadata. Only DataProviders should have write access.
   string campaigns_blob_uri = 1;
-  // A map from event_group_reference_id to the EventGroup resource name.
-  map<string, string> event_group_map = 2;
+  // Contains serialized event_group_info. Only the EventGroupSyncFunction should have write access.
+  string event_group_map_uri = 2;
 }

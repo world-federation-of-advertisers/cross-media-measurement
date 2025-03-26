@@ -24,3 +24,14 @@ kt_jvm_proto_library(
     name = "campaign_metadata_kt_jvm_proto",
     deps = [":campaign_metadata_proto"],
 )
+
+proto_library(
+    name = "event_group_map_proto",
+    srcs = ["event_group_map.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "event_group_map_kt_jvm_proto",
+    deps = [":event_group_map_proto"],
+)

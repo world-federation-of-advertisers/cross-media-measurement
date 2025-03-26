@@ -1,0 +1,26 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load(
+    "@wfa_rules_kotlin_jvm//kotlin:defs.bzl",
+    "kt_jvm_proto_library",
+)
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+])
+
+IMPORT_PREFIX = "/src/main/proto"
+
+proto_library(
+    name = "event_group_info_proto",
+    srcs = ["event_group_info.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "event_group_info_kt_jvm_proto",
+    deps = [":event_group_info_proto"],
+)
