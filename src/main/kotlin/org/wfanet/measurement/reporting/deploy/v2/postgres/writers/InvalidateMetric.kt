@@ -25,7 +25,7 @@ import org.wfanet.measurement.internal.reporting.v2.Metric
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MetricReader
-import org.wfanet.measurement.reporting.service.internal.InvalidMetricStateTransitionToInvalidStateException
+import org.wfanet.measurement.reporting.service.internal.InvalidMetricStateTransitionException
 import org.wfanet.measurement.reporting.service.internal.MetricNotFoundException
 
 /**
@@ -51,13 +51,16 @@ class InvalidateMetric(private val request: InvalidateMetricRequest) : PostgresW
         throw MetricNotFoundException(
           cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
           externalMetricId = request.externalMetricId,
+          cause = e,
         )
       }
 
     if (metricResult.metric.state == Metric.State.FAILED) {
-      throw InvalidMetricStateTransitionToInvalidStateException(
+      throw InvalidMetricStateTransitionException(
         cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
         externalMetricId = request.externalMetricId,
+        currentMetricState = Metric.State.FAILED,
+        newMetricState = Metric.State.INVALID,
       )
     }
 

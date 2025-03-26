@@ -22,6 +22,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.internal.reporting.v2.Metric
 
 object Errors {
   const val DOMAIN = "internal.reporting.halo-cmm.org"
@@ -33,7 +34,7 @@ object Errors {
     BASIC_REPORT_ALREADY_EXISTS,
     REQUIRED_FIELD_NOT_SET,
     IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
-    INVALID_STATE_TRANSITION,
+    INVALID_METRIC_STATE_TRANSITION,
     INVALID_FIELD_VALUE,
   }
 
@@ -42,6 +43,8 @@ object Errors {
     EXTERNAL_BASIC_REPORT_ID("externalBasicReportId"),
     IMPRESSION_QUALIFICATION_FILTER_ID("impressionQualificationFilterId"),
     EXTERNAL_METRIC_ID("externalMetricId"),
+    CURRENT_METRIC_STATE("currentMetricState"),
+    NEW_METRIC_STATE("newMetricState"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -190,17 +193,24 @@ class MetricNotFoundException(
     cause,
   )
 
-class InvalidMetricStateTransitionToInvalidStateException(
+class InvalidMetricStateTransitionException(
   cmmsMeasurementConsumerId: String,
   externalMetricId: String,
+  currentMetricState: Metric.State,
+  newMetricState: Metric.State,
   cause: Throwable? = null,
 ) :
   ServiceException(
-    Errors.Reason.INVALID_STATE_TRANSITION,
-    "Metric with cmms measurement consumer ID $cmmsMeasurementConsumerId and external ID $externalMetricId cannot be transitioned from FAILED to INVALID",
+    Errors.Reason.INVALID_METRIC_STATE_TRANSITION,
+    """
+      Metric with cmms measurement consumer ID $cmmsMeasurementConsumerId and external ID
+      $externalMetricId cannot be transitioned from $currentMetricState to $newMetricState
+    """,
     mapOf(
       Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
       Errors.Metadata.EXTERNAL_METRIC_ID to externalMetricId,
+      Errors.Metadata.CURRENT_METRIC_STATE to currentMetricState.name,
+      Errors.Metadata.NEW_METRIC_STATE to newMetricState.name,
     ),
     cause,
   )

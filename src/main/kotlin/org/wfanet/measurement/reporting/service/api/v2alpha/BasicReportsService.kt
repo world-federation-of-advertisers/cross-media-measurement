@@ -82,7 +82,7 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.METRIC_NOT_FOUND,
-          InternalErrors.Reason.INVALID_STATE_TRANSITION,
+          InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
           InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
@@ -121,7 +121,7 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
           InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.METRIC_NOT_FOUND,
-          InternalErrors.Reason.INVALID_STATE_TRANSITION,
+          InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
           InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }

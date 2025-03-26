@@ -43,7 +43,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsResponse
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MetricReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateMetrics
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.InvalidateMetric
-import org.wfanet.measurement.reporting.service.internal.InvalidMetricStateTransitionToInvalidStateException
+import org.wfanet.measurement.reporting.service.internal.InvalidMetricStateTransitionException
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.MetricAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.MetricNotFoundException
@@ -195,7 +195,7 @@ class PostgresMetricsService(
       return InvalidateMetric(request).execute(client, idGenerator)
     } catch (e: MetricNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
-    } catch (e: InvalidMetricStateTransitionToInvalidStateException) {
+    } catch (e: InvalidMetricStateTransitionException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
   }
