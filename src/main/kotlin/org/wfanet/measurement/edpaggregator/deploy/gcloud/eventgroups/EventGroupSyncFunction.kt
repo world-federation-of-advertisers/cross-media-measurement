@@ -38,7 +38,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 
 /*
  * The EventGroupSyncFunction receives a HTTPRequest with EventGroupSyncConfig. It updates/registers
- * EventGroups with the kingdom and outputs a map of the registered resource names.
+ * EventGroups with the kingdom and writes a map of the registered resource names to storage.
  */
 class EventGroupSyncFunction() : HttpFunction {
 
