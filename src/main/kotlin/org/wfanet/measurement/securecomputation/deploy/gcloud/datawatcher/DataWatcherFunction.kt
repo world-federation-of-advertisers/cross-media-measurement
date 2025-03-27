@@ -42,9 +42,9 @@ class DataWatcherFunction : CloudEventsFunction {
     logger.fine("Starting DataWatcherFunction")
     val publicChannel =
       buildMutualTlsChannel(
-        getPropertyValue("KINGDOM_TARGET"),
+        getPropertyValue("CONTROL_PLANE_TARGET"),
         getClientCerts(),
-        getPropertyValue("KINGDOM_CERT_HOST"),
+        getPropertyValue("CONTROL_PLANE_CERT_HOST"),
       )
 
     val workItemsStub = WorkItemsCoroutineStub(publicChannel)
