@@ -23,7 +23,6 @@ import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
-import org.wfanet.measurement.reporting.v2alpha.Metric
 
 object Errors {
   const val DOMAIN = "reporting.halo-cmm.org"
@@ -140,8 +139,8 @@ class ArgumentChangedInRequestForNextPageException(
 
 class InvalidMetricStateTransitionException(
   name: String,
-  metricState: Metric.State,
-  newMetricState: Metric.State,
+  metricState: String,
+  newMetricState: String,
   cause: Throwable? = null,
 ) :
   ServiceException(
@@ -149,8 +148,8 @@ class InvalidMetricStateTransitionException(
     "Metric $name cannot be transitioned from $metricState to $newMetricState",
     mapOf(
       Errors.Metadata.METRIC to name,
-      Errors.Metadata.METRIC_STATE to metricState.name,
-      Errors.Metadata.NEW_METRIC_STATE to newMetricState.name,
+      Errors.Metadata.METRIC_STATE to metricState,
+      Errors.Metadata.NEW_METRIC_STATE to newMetricState,
     ),
     cause,
   )

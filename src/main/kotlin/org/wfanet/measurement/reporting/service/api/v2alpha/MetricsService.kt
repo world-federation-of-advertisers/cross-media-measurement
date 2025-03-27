@@ -175,11 +175,11 @@ import org.wfanet.measurement.measurementconsumer.stats.WeightedReachMeasurement
 import org.wfanet.measurement.measurementconsumer.stats.WeightedWatchDurationMeasurementVarianceParams
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
+import org.wfanet.measurement.reporting.service.api.InvalidMetricStateTransitionException
 import org.wfanet.measurement.reporting.service.api.MetricNotFoundException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
-import org.wfanet.measurement.reporting.service.api.InvalidMetricStateTransitionException
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
@@ -1258,7 +1258,11 @@ class MetricsService(
         InternalErrors.Reason.METRIC_NOT_FOUND ->
           MetricNotFoundException(request.name, e).asStatusRuntimeException(Status.Code.NOT_FOUND)
         InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION ->
-          InvalidMetricStateTransitionException(request.name, Metric.State.FAILED, Metric.State.INVALID)
+          InvalidMetricStateTransitionException(
+              request.name,
+              Metric.State.FAILED.name,
+              Metric.State.INVALID.name,
+            )
             .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
         InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,

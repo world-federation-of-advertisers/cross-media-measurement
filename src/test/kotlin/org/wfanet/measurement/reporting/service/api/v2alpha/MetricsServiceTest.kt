@@ -10368,7 +10368,7 @@ class MetricsServiceTest {
         }
       )
   }
-     est
+
   fun `invalidateMetric throws NOT_FOUND when metric not found`() = runBlocking {
     val measurementConsumerKey =
       MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMERS.values.first().name)
@@ -10378,8 +10378,8 @@ class MetricsServiceTest {
         InvalidMetricStateTransitionException(
           cmmsMeasurementConsumerId = measurementConsumerKey!!.measurementConsumerId,
           externalMetricId = metricKey.metricId,
-          metricState = InternalMetric.State.FAILED,
-          newMetricState = InternalMetric.State.INVALID,
+          metricState = InternalMetric.State.FAILED.name,
+          newMetricState = InternalMetric.State.INVALID.name,
         )
           .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       )
