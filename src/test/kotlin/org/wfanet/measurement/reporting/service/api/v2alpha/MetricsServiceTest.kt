@@ -10376,11 +10376,11 @@ class MetricsServiceTest {
     whenever(internalMetricsMock.invalidateMetric(any()))
       .thenThrow(
         InvalidMetricStateTransitionException(
-          cmmsMeasurementConsumerId = measurementConsumerKey!!.measurementConsumerId,
-          externalMetricId = metricKey.metricId,
-          metricState = InternalMetric.State.FAILED.name,
-          newMetricState = InternalMetric.State.INVALID.name,
-        )
+            cmmsMeasurementConsumerId = measurementConsumerKey!!.measurementConsumerId,
+            externalMetricId = metricKey.metricId,
+            metricState = InternalMetric.State.FAILED.name,
+            newMetricState = InternalMetric.State.INVALID.name,
+          )
           .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       )
 
