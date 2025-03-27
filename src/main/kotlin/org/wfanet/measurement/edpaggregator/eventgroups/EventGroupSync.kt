@@ -36,6 +36,7 @@ import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.CampaignMetadata
 
 /*
  * Syncs event groups with kingdom.

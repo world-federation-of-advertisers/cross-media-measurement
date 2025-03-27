@@ -2,8 +2,8 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_binary")
 
 package(default_visibility = [
-    "//src/main/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
-    "//src/test/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
 ])
 
 kt_jvm_library(
@@ -12,16 +12,13 @@ kt_jvm_library(
     deps = [
         "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/eventgroups:event_group_sync",
+        "//src/main/proto/wfa/measurement/edpaggregator/eventgroups:event_group_sync_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha:campaign_metadata_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha:event_group_map_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
-        "@wfa_common_jvm//imports/java/com/google/cloud/storage",
         "@wfa_common_jvm//imports/java/com/google/events",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
-)
-
-java_binary(
-    name = "EventGroupSyncFunction",
-    main_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.eventgroups.EventGroupSyncFunction",
-    runtime_deps = [":event_group_sync_function"],
 )

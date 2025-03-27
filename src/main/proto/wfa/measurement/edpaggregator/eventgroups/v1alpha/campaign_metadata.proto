@@ -14,11 +14,11 @@
 
 syntax = "proto3";
 
-package wfa.measurement.securecomputation.eventgroups;
+package wfa.measurement.edpaggregator.eventgroups.v1alpha;
 
 import "google/protobuf/timestamp.proto";
 
-option java_package = "org.wfanet.measurement.securecomputation.eventgroups";
+option java_package = "org.wfanet.measurement.edpaggregator.eventgroups.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "CampaignMetadataProto";
 

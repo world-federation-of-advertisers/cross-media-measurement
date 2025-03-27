@@ -18,7 +18,6 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
 
 import com.google.cloud.functions.CloudEventsFunction
 import com.google.events.cloud.storage.v1.StorageObjectData
-import com.google.protobuf.TextFormat
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
 import java.util.logging.Logger
@@ -26,20 +25,19 @@ import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
-import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
-import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfigs
+import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 
 /*
- * The DataWatcherFunction receives a CloudEvent and calls the DataWatcher with the path and config.
+ * The EventGroupSyncFunction receives a CloudEvent, syncs the Kingdom's event groups and writes out a map of eventGroupReferenceId to Event Group resource name that an EDP can later consume.
  */
-class DataWatcherFunction : CloudEventsFunction {
+open class EventGroupSyncFunction() : CloudEventsFunction {
 
   private val schema = "gs://"
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 
   override fun accept(event: CloudEvent) {
-    logger.fine("Starting DataWatcherFunction")
+    logger.fine("Starting EventGroupSyncFunction")
+    val configData: String = getPropertyValue("EVENT_GROUP_SYNC_CONFIG")
     val publicChannel =
       buildMutualTlsChannel(
         getPropertyValue("KINGDOM_TARGET"),
@@ -47,16 +45,11 @@ class DataWatcherFunction : CloudEventsFunction {
         getPropertyValue("KINGDOM_CERT_HOST"),
       )
 
-    val workItemsStub = WorkItemsCoroutineStub(publicChannel)
-    val configData: String = getPropertyValue("DATA_WATCHER_CONFIGS")
-    val dataWatcherConfigs =
-      DataWatcherConfigs.newBuilder()
-        .apply { TextFormat.Parser.newBuilder().build().merge(configData, this) }
-        .build()
-    val dataWatcher =
-      DataWatcher(
-        workItemsStub = workItemsStub,
-        dataWatcherConfigs = dataWatcherConfigs.configsList,
+    val workItemsStub = EventGroupsCoroutineStub(publicChannel)
+    val eventGroupSync =
+      EventGroupSync(
+        eventGroupsStub = eventGroupsClient,
+        campaigns = campaigns,
       )
     val cloudEventData =
       requireNotNull(event.getData()) { "event must have data" }.toBytes().decodeToString()
@@ -69,7 +62,6 @@ class DataWatcherFunction : CloudEventsFunction {
     val path = "$schema$bucket/$blobKey"
     logger.info("Receiving path $path")
     runBlocking { dataWatcher.receivePath(path) }
-    publicChannel.shutdown()
   }
 
   private fun getClientCerts(): SigningCerts {
@@ -80,7 +72,7 @@ class DataWatcherFunction : CloudEventsFunction {
     )
   }
 
-  fun getPropertyValue(propertyName: String): String {
+  private fun getPropertyValue(propertyName: String): String {
     return System.getProperty(propertyName) ?: System.getenv(propertyName)
   }
 }
