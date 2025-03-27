@@ -20,13 +20,18 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.Int32Value
 import com.google.protobuf.kotlin.toByteStringUtf8
+import com.google.protobuf.kotlin.unpack
+import io.netty.handler.ssl.ClientAuth
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.gcloud.gcs.testing.GcsSubscribingStorageClient
@@ -38,6 +43,7 @@ import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
 class DataWatcherFunctionTest() {
+
   @Test
   fun matchedPath() {
     runBlocking {
@@ -62,11 +68,20 @@ class DataWatcherFunctionTest() {
         "path-to-watch/some-data",
         flowOf("some-data".toByteStringUtf8()),
       )
-      /*val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
-      verifyBlocking(mockWorkItemsService, times(1)) {
+      val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsServiceMock, times(1)) {
         createWorkItem(createWorkItemRequestCaptor.capture())
       }
-      assertThat(createWorkItemRequestCaptor.allValues.single().workItem.queue).isEqualTo(topicId)*/
+      assertThat(createWorkItemRequestCaptor.allValues.single().workItem.queue).isEqualTo(topicId)
+      assertThat(
+          createWorkItemRequestCaptor.allValues
+            .single()
+            .workItem
+            .workItemParams
+            .unpack(WorkItemConfig::class.java)
+            .dataPath
+        )
+        .isEqualTo("gs://$BUCKET/path-to-watch/some-data")
     }
   }
 
@@ -95,7 +110,22 @@ class DataWatcherFunctionTest() {
         flowOf("some-data".toByteStringUtf8()),
       )
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
-      verify(mockWorkItemsService, times(0)).createWorkItem(createWorkItemRequestCaptor.capture())
+      verify(workItemsServiceMock, times(0)).createWorkItem(createWorkItemRequestCaptor.capture())
     }
+  }
+
+  companion object {
+    private const val BUCKET = "test-bucket"
+    private val SECRETS_DIR: Path =
+      getRuntimePath(
+        Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+      )!!
+    private val serverCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
+        privateKeyFile = SECRETS_DIR.resolve("kingdom_tls.key").toFile(),
+        trustedCertCollectionFile = SECRETS_DIR.resolve("edp1_root.pem").toFile(),
+      )
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

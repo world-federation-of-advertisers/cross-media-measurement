@@ -42,9 +42,9 @@ class DataWatcherFunction : CloudEventsFunction {
     logger.fine("Starting DataWatcherFunction")
     val publicChannel =
       buildMutualTlsChannel(
-        System.getenv("KINGDOM_TARGET"),
+        getPropertyValue("KINGDOM_TARGET"),
         getClientCerts(),
-        System.getenv("KINGDOM_CERT_HOST"),
+        getPropertyValue("KINGDOM_CERT_HOST"),
       )
 
     val workItemsStub = WorkItemsCoroutineStub(publicChannel)
@@ -69,13 +69,14 @@ class DataWatcherFunction : CloudEventsFunction {
     val path = "$schema$bucket/$blobKey"
     logger.info("Receiving path $path")
     runBlocking { dataWatcher.receivePath(path) }
+    publicChannel.shutdown()
   }
 
   private fun getClientCerts(): SigningCerts {
     return SigningCerts.fromPemFiles(
-      certificateFile = Path(System.getenv("CERT_FILE_PATH")).toFile(),
-      privateKeyFile = Path(System.getenv("PRIVATE_KEY_FILE_PATH")).toFile(),
-      trustedCertCollectionFile = Path(System.getenv("CERT_COLLECTION_FILE_PATH")).toFile(),
+      certificateFile = Path(getPropertyValue("CERT_FILE_PATH")).toFile(),
+      privateKeyFile = Path(getPropertyValue("PRIVATE_KEY_FILE_PATH")).toFile(),
+      trustedCertCollectionFile = Path(getPropertyValue("CERT_COLLECTION_FILE_PATH")).toFile(),
     )
   }
 
