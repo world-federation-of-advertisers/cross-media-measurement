@@ -204,7 +204,7 @@ class ReportProcessorTest {
           !fuzzyLessEqual(
             kreachWeightedSum.toDouble(),
             impression[edpCombination]!!.toDouble(),
-            totalWeight*TOLERANCE,
+            totalWeight * TOLERANCE,
           )
         ) {
           return false
