@@ -192,8 +192,7 @@ class RolesServiceTest {
       .isEqualTo(
         listRolesResponse {
           roles += internalBookReaderRole.toRole()
-          nextPageToken =
-            internalListRolesResponse.nextPageToken.after.toByteString().base64UrlEncode()
+          nextPageToken = internalListRolesResponse.nextPageToken.toByteString().base64UrlEncode()
         }
       )
   }

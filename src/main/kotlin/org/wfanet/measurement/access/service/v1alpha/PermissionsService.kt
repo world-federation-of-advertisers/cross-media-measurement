@@ -145,7 +145,7 @@ class PermissionsService(private val internalPermissionStub: InternalPermissions
     return listPermissionsResponse {
       permissions += internalResponse.permissionsList.map { it.toPermission() }
       if (internalResponse.hasNextPageToken()) {
-        nextPageToken = internalResponse.nextPageToken.after.toByteString().base64UrlEncode()
+        nextPageToken = internalResponse.nextPageToken.toByteString().base64UrlEncode()
       }
     }
   }
