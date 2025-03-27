@@ -40,27 +40,10 @@ class InvokeDataWatcherFunctionTest : InvokeAbstractDataWatcherFunctionTest() {
       "testing",
       "InvokeDataWatcherFunction_deploy.jar",
     )
-  // Note that this target is expected to return
-  // INFO: Process output: io.grpc.StatusRuntimeException: UNKNOWN: An unknown error occurred: Your
-  // default credentials were not found. To set up Application Default Credentials for your
-  // environment, see https://cloud.google.com/docs/authentication/external/set-up-adc.
-  //
-  // The cloud function does not currently return a 500 as documented.
   override val gcfTarget =
     "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction"
   override val additionalFlags = emptyMap<String, String>()
   override val projectId = "some-project-id"
   override val topicId = "some-topic-id"
 
-  @Before
-  fun initPubSub() {
-    val googlePubSubClient =
-      GooglePubSubEmulatorClient(pubSubEmulatorProvider.host, pubSubEmulatorProvider.port)
-    runBlocking { googlePubSubClient.createTopic(projectId, topicId) }
-  }
-
-  companion object {
-
-    @ClassRule @JvmField val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
-  }
 }

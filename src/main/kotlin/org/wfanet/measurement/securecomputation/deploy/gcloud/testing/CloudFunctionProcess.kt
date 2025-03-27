@@ -35,7 +35,7 @@ import kotlinx.coroutines.yield
 import org.jetbrains.annotations.BlockingExecutor
 import org.wfanet.measurement.common.getRuntimePath
 
-/** Wrapper for the DataWatcher java_binary process. */
+/** Wrapper for the CloudFunction java_binary process. */
 class CloudFunctionProcess(
   private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
   private val functionBinaryPath: Path,
@@ -48,15 +48,16 @@ class CloudFunctionProcess(
   /** Indicates whether the process has started. */
   val started: Boolean
     get() = this::process.isInitialized
+
   /** Returns the port the process is listening on. */
   val port: Int
     get() {
-      check(started) { "DataWatcher process not started" }
+      check(started) { "CloudFunction process not started" }
       return localPort
     }
 
   /**
-   * Starts the DataWatcher process if it has not already been started.
+   * Starts the CloudFunction process if it has not already been started.
    *
    * This suspends until the process is ready.
    *

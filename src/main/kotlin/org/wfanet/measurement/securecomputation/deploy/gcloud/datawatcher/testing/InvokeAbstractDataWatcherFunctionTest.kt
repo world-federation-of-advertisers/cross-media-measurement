@@ -97,7 +97,7 @@ abstract class InvokeAbstractDataWatcherFunctionTest() {
       configs += dataWatcherConfig {
         sourcePathRegex = "gs://$BUCKET/path-to-watch/(.*)"
         this.controlPlaneConfig = controlPlaneConfig {
-          queueName = topicId
+          queue = topicId
           appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
         }
       }
