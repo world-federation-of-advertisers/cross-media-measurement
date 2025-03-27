@@ -31,7 +31,7 @@ enum ActorType {
 
 // Enum for MetadataState
 enum MetadataState {
-  UNDEFINED = 0;
+  METADATA_STATE_UNDEFINED = 0;
   FETCHED = 1;
   STORED = 2;
   QUEUED = 3;
@@ -46,6 +46,6 @@ message MetadataAction {
   ActorType actor_type = 3;
   MetadataState prior_state = 4;
   MetadataState new_state = 5;
-  google.protobuf.Timestamp action_time = 6;
+  google.protobuf.Timestamp state_change_time = 6;
   google.protobuf.Timestamp create_time = 7;
 }

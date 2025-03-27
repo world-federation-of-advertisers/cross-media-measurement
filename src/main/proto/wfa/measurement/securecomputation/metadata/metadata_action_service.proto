@@ -38,7 +38,7 @@ message StreamMetadataActionRequest {
   // Resource key of the actioned upon resource.
   string name = 1;
   message AfterFilter {
-    google.protobuf.Timestamp action_time = 1;
+    google.protobuf.Timestamp state_change_time = 1;
   }
   message Filter {
     ActorType actor_type = 1;

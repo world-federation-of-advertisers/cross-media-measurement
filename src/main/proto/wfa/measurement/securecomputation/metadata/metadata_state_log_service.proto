@@ -18,6 +18,7 @@ package wfa.measurement.securecomputation.metadata;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/securecomputation/metadata/requisition_metadata.proto";
 import "wfa/measurement/securecomputation/metadata/metadata_action.proto";
 
@@ -27,14 +28,14 @@ option java_multiple_files = true;
 option java_outer_classname = "ResourceMetadataServiceProto";
 
 
-service ResourceMetadataService {
+service MetadataStateLogService {
   rpc CreateRequisitionMetadata(CreateRequisitionMetadataRequest) returns (RequisitionMetadata);
 
   rpc GetRequisitionMetadata(GetRequisitionMetadataRequest) returns (RequisitionMetadata);
 
-  rpc StreamRequisitionsMetadata(StreamRequisitionsMetadataRequest) returns (StreamRequisitionsMetadataResponse);
+  rpc ListRequisitionsMetadata(ListRequisitionsMetadataRequest) returns (ListRequisitionsMetadataResponse);
 
-  rpc UpdateRequisitionMetadataState(UpdateRequisitionMetadataStateRequest) returns (RequisitionMetadata);
+  rpc TransitionRequisitionMetadataState(TransitionRequisitionMetadataStateRequest) returns (RequisitionMetadata);
 }
 
 message CreateRequisitionMetadataRequest {
@@ -45,6 +46,8 @@ message CreateRequisitionMetadataRequest {
   ];
   string storage_uri = 2;
   MetadataState current_state = 3;
+  google.protobuf.Timestamp state_time = 4;
+  ActorType actor = 5;
 }
 
 message GetRequisitionMetadataRequest {
@@ -57,7 +60,7 @@ message GetRequisitionMetadataRequest {
   }
 }
 
-message StreamRequisitionsMetadataRequest {
+message ListRequisitionsMetadataRequest {
   // Resource key of the parent `DataProvider`.
   string parent = 1 [
     (google.api.resource_reference).type = "halo.wfanet.org/DataProvider",
@@ -72,11 +75,11 @@ message StreamRequisitionsMetadataRequest {
   Filter filter = 2;
 }
 
-message StreamRequisitionsMetadataResponse {
+message ListRequisitionsMetadataResponse {
   repeated RequisitionMetadata requisition_metadata = 1;
 }
 
-message UpdateRequisitionMetadataStateRequest {
+message TransitionRequisitionMetadataStateRequest {
   // Resource name of the `Requisition`.
   string name = 1 [
     (google.api.resource_reference).type = "halo.wfanet.org/Requisition",
@@ -84,4 +87,5 @@ message UpdateRequisitionMetadataStateRequest {
   ];
   ActorType actor_type = 2;
   MetadataState new_state = 3;
+  google.protobuf.Timestamp state_time = 4;
 }

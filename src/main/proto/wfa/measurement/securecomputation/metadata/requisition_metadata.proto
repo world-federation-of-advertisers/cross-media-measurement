@@ -27,12 +27,13 @@ option java_outer_classname = "RequisitionMetadataProto";
 
 
 message RequisitionMetadata {
-  // Resource name of the `Requisition`.
-  string name = 1 [
+  string  name = 1;
+  // Resource name of the `Requisition` this metadata references.
+  string requisition_name = 2 [
     (google.api.resource_reference).type = "halo.wfanet.org/Requisition",
-    (google.api.field_behavior) = REQUIRED
+    (google.api.field_behavior) = IDENTIFIER
   ];
-  string storage_uri = 2;
-  MetadataState current_state = 3;
-  google.protobuf.Timestamp create_time = 4;
+  string storage_uri = 3;
+  MetadataState current_state = 4;
+  google.protobuf.Timestamp create_time = 5;
 }
