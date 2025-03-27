@@ -3,7 +3,11 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "EventGroupSyncTest",
     srcs = ["EventGroupSyncTest.kt"],
-    test_class = "org.wfanet.measurement.securecomputation.eventgroups.EventGroupSyncTest",
+    data = [
+        "//src/main/k8s/testing/secretfiles:root_certs",
+        "//src/main/k8s/testing/secretfiles:secret_files",
+    ],
+    test_class = "org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSyncTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/eventgroups:event_group_sync",

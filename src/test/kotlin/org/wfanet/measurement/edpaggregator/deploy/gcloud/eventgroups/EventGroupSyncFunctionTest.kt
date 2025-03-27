@@ -49,12 +49,14 @@ import org.wfanet.measurement.gcloud.gcs.testing.GcsSubscribingStorageClient
 import com.google.cloud.functions.CloudEventsFunction
 import com.google.events.cloud.storage.v1.StorageObjectData
 import com.google.protobuf.TextFormat
+import com.google.protobuf.timestamp
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
 import java.net.URI
 import java.util.logging.Logger
 import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
@@ -62,6 +64,7 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSyncConfig
+import org.wfanet.measurement.edpaggregator.eventgroups.toEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.Campaigns
 import org.wfanet.measurement.storage.SelectedStorageClient
 
@@ -163,8 +166,16 @@ class EventGroupSyncFunctionTest() {
 
   @Test
   fun `sync registersUnregisteredEventGroups`() {
-    val testCampaigns =
-      campaigns + campaigns[0].copy { eventGroupReferenceId = "some-new-reference-id" }
+    val newCampaign = campaignMetadata {
+      eventGroupReferenceId = "reference-id-4"
+      campaignName = "campaign-2"
+      measurementConsumerName = "measurement-consumer-2"
+      brandName = "brand-2"
+      startTime = timestamp { seconds = 200 }
+      endTime = timestamp { seconds = 300 }
+      mediaTypes += listOf("OTHER")
+    }
+    val testCampaigns = campaigns + newCampaign
     val eventGroupSync = EventGroupSync("edp-name", eventGroupsStub, testCampaigns)
     runBlocking { eventGroupSync.sync() }
     verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
@@ -190,6 +201,27 @@ class EventGroupSyncFunctionTest() {
             "reference-id-3" to "resource-name-for-reference-id-3",
           )
         )
+    }
+  }
+
+private fun CampaignMetadata.toEventGroup(): EventGroup {
+  val campaign = this
+  return eventGroup {
+    name = "resource-name-for-${campaign.eventGroupReferenceId}"
+    measurementConsumer = campaign.measurementConsumerName
+    eventGroupReferenceId = campaign.eventGroupReferenceId
+    this.eventGroupMetadata = eventGroupMetadata {
+      this.adMetadata = adMetadata {
+        this.campaignMetadata = eventGroupCampaignMetadata {
+          brandName = campaign.brandName
+          campaignName = campaign.campaignName
+        }
+      }
+    }
+    mediaTypes += campaign.mediaTypesList.map { MediaType.valueOf(it) }
+    dataAvailabilityInterval = interval {
+      startTime = campaign.startTime
+      endTime = campaign.endTime
     }
   }
 

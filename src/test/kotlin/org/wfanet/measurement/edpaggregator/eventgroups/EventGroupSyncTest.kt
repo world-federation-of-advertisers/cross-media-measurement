@@ -17,6 +17,8 @@
 package org.wfanet.measurement.edpaggregator.eventgroups
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.timestamp
+import com.google.type.interval
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -25,15 +27,22 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as eventGroupCampaignMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.MediaType
+import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
+import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.CampaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.campaignMetadata
 
 @RunWith(JUnit4::class)
@@ -102,8 +111,16 @@ class EventGroupSyncTest {
 
   @Test
   fun `sync registersUnregisteredEventGroups`() {
-    val testCampaigns =
-      campaigns + campaigns[0].copy { eventGroupReferenceId = "some-new-reference-id" }
+    val newCampaign = campaignMetadata {
+      eventGroupReferenceId = "reference-id-4"
+      campaignName = "campaign-2"
+      measurementConsumerName = "measurement-consumer-2"
+      brandName = "brand-2"
+      startTime = timestamp { seconds = 200 }
+      endTime = timestamp { seconds = 300 }
+      mediaTypes += listOf("OTHER")
+    }
+    val testCampaigns = campaigns + newCampaign
     val eventGroupSync = EventGroupSync("edp-name", eventGroupsStub, testCampaigns)
     runBlocking { eventGroupSync.sync() }
     verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
@@ -129,6 +146,28 @@ class EventGroupSyncTest {
             "reference-id-3" to "resource-name-for-reference-id-3",
           )
         )
+    }
+  }
+}
+
+private fun CampaignMetadata.toEventGroup(): EventGroup {
+  val campaign = this
+  return eventGroup {
+    name = "resource-name-for-${campaign.eventGroupReferenceId}"
+    measurementConsumer = campaign.measurementConsumerName
+    eventGroupReferenceId = campaign.eventGroupReferenceId
+    this.eventGroupMetadata = eventGroupMetadata {
+      this.adMetadata = adMetadata {
+        this.campaignMetadata = eventGroupCampaignMetadata {
+          brandName = campaign.brandName
+          campaignName = campaign.campaignName
+        }
+      }
+    }
+    mediaTypes += campaign.mediaTypesList.map { MediaType.valueOf(it) }
+    dataAvailabilityInterval = interval {
+      startTime = campaign.startTime
+      endTime = campaign.endTime
     }
   }
 }
