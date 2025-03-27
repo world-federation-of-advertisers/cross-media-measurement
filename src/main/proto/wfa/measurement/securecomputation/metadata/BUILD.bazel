@@ -45,8 +45,8 @@ kt_jvm_proto_library(
 #Services.
 
 proto_library(
-    name = "metadata_action_service_proto",
-    srcs = ["metadata_action_service.proto"],
+    name = "metadata_state_log_service_proto",
+    srcs = ["metadata_state_log_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":metadata_action_proto",
@@ -55,13 +55,13 @@ proto_library(
 )
 
 kt_jvm_grpc_proto_library(
-    name = "metadata_action_service_kt_jvm_grpc_proto",
-    deps = [":metadata_action_service_proto"],
+    name = "metadata_state_log_service_kt_jvm_grpc_proto",
+    deps = [":metadata_state_log_service_proto"],
 )
 
 proto_library(
-    name = "metadata_state_log_service_proto",
-    srcs = ["metadata_state_log_service.proto"],
+    name = "resource_metadata_service_proto",
+    srcs = ["resource_metadata_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":metadata_action_proto",
@@ -73,6 +73,6 @@ proto_library(
 )
 
 kt_jvm_grpc_proto_library(
-    name = "metadata_state_log_service_kt_jvm_grpc_proto",
-    deps = [":metadata_state_log_service_proto"],
+    name = "resource_metadata_service_kt_jvm_grpc_proto",
+    deps = [":resource_metadata_service_proto"],
 )

@@ -16,76 +16,38 @@ syntax = "proto3";
 
 package wfa.measurement.securecomputation.metadata;
 
-import "google/api/field_behavior.proto";
-import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/securecomputation/metadata/requisition_metadata.proto";
 import "wfa/measurement/securecomputation/metadata/metadata_action.proto";
 
 
 option java_package = "org.wfanet.measurement.securecomputation.metadata";
 option java_multiple_files = true;
-option java_outer_classname = "ResourceMetadataServiceProto";
-
+option java_outer_classname = "MetadataActionServiceProto";
 
 service MetadataStateLogService {
-  rpc CreateRequisitionMetadata(CreateRequisitionMetadataRequest) returns (RequisitionMetadata);
+  rpc GetMetadataAction(GetMetadataActionRequest) returns (MetadataAction);
 
-  rpc GetRequisitionMetadata(GetRequisitionMetadataRequest) returns (RequisitionMetadata);
-
-  rpc ListRequisitionsMetadata(ListRequisitionsMetadataRequest) returns (ListRequisitionsMetadataResponse);
-
-  rpc TransitionRequisitionMetadataState(TransitionRequisitionMetadataStateRequest) returns (RequisitionMetadata);
+  rpc ListMetadataAction(ListMetadataActionRequest) returns (ListMetadataActionResponse);
 }
 
-message CreateRequisitionMetadataRequest {
-  // Resource name of the `Requisition.
-  string name = 1 [
-    (google.api.resource_reference).type = "halo.wfanet.org/Requisition",
-    (google.api.field_behavior) = REQUIRED
-  ];
-  string storage_uri = 2;
-  MetadataState current_state = 3;
-  google.protobuf.Timestamp state_time = 4;
-  ActorType actor = 5;
+message GetMetadataActionRequest {
+  string name = 1;
 }
 
-message GetRequisitionMetadataRequest {
-  oneof lookup_key {
-    string requisition_name = 1 [
-      (google.api.resource_reference).type = "halo.wfanet.org/Requisition",
-      (google.api.field_behavior) = REQUIRED
-    ];
-    string storage_uri = 2;
+message ListMetadataActionRequest {
+  // Resource key of the actioned upon resource.
+  string name = 1;
+  message AfterFilter {
+    google.protobuf.Timestamp state_change_time = 1;
   }
-}
-
-message ListRequisitionsMetadataRequest {
-  // Resource key of the parent `DataProvider`.
-  string parent = 1 [
-    (google.api.resource_reference).type = "halo.wfanet.org/DataProvider",
-    (google.api.field_behavior) = REQUIRED
-  ];
-
   message Filter {
-    string storage_uri= 1;
-    MetadataState current_state = 2;
+    ActorType actor_type = 1;
+    AfterFilter after = 2;
   }
 
   Filter filter = 2;
 }
 
-message ListRequisitionsMetadataResponse {
-  repeated RequisitionMetadata requisition_metadata = 1;
-}
-
-message TransitionRequisitionMetadataStateRequest {
-  // Resource name of the `Requisition`.
-  string name = 1 [
-    (google.api.resource_reference).type = "halo.wfanet.org/Requisition",
-    (google.api.field_behavior) = REQUIRED
-  ];
-  ActorType actor_type = 2;
-  MetadataState new_state = 3;
-  google.protobuf.Timestamp state_time = 4;
+message ListMetadataActionResponse {
+  repeated MetadataAction metadata_actions = 1;
 }
