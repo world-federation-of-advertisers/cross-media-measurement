@@ -30,6 +30,7 @@ import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemConfig
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfigKt.controlPlaneConfig
@@ -50,12 +51,13 @@ class DataWatcherTest() {
   fun `creates WorkItem when path matches`() {
     runBlocking {
       val topicId = "test-topic-id"
+      val appConfig = Int32Value.newBuilder().setValue(5).build()
 
       val dataWatcherConfig = dataWatcherConfig {
         sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
         this.controlPlaneConfig = controlPlaneConfig {
           queueName = topicId
-          appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
+          this.appConfig = Any.pack(appConfig)
         }
       }
 
@@ -67,6 +69,16 @@ class DataWatcherTest() {
         createWorkItem(createWorkItemRequestCaptor.capture())
       }
       assertThat(createWorkItemRequestCaptor.allValues.single().workItem.queue).isEqualTo(topicId)
+      val workItemConfig =
+        createWorkItemRequestCaptor.allValues
+          .single()
+          .workItem
+          .workItemParams
+          .unpack(WorkItemConfig::class.java)
+      assertThat(workItemConfig.dataPath)
+        .isEqualTo("test-schema://test-bucket/path-to-watch/some-data")
+      val workItemAppConfig = workItemConfig.config.unpack(Int32Value::class.java)
+      assertThat(workItemAppConfig).isEqualTo(appConfig)
     }
   }
 

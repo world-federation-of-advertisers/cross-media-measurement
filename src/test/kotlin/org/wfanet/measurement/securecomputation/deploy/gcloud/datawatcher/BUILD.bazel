@@ -8,6 +8,10 @@ package(
 kt_jvm_test(
     name = "DataWatcherFunctionTest",
     srcs = ["DataWatcherFunctionTest.kt"],
+    data = [
+        "//src/main/k8s/testing/secretfiles:root_certs",
+        "//src/main/k8s/testing/secretfiles:secret_files",
+    ],
     test_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunctionTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:data_watcher",
