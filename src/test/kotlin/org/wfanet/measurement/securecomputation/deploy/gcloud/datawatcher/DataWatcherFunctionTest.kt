@@ -49,7 +49,6 @@ import org.wfanet.measurement.gcloud.gcs.testing.GcsSubscribingStorageClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemConfig
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfigKt.controlPlaneConfig
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.dataWatcherConfig
@@ -110,7 +109,7 @@ class DataWatcherFunctionTest() {
         configs += dataWatcherConfig {
           sourcePathRegex = "gs://$BUCKET/path-to-watch/(.*)"
           this.controlPlaneConfig = controlPlaneConfig {
-            queueName = topicId
+            queue = topicId
             appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
           }
         }
@@ -151,7 +150,7 @@ class DataWatcherFunctionTest() {
         configs += dataWatcherConfig {
           sourcePathRegex = "gs://$BUCKET/path-to-watch/(.*)"
           this.controlPlaneConfig = controlPlaneConfig {
-            queueName = topicId
+            queue = topicId
             appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
           }
         }
