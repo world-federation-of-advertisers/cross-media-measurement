@@ -44,7 +44,7 @@ class ImpressionQualificationFiltersService(
   override suspend fun getImpressionQualificationFilter(
     request: GetImpressionQualificationFilterRequest
   ): ImpressionQualificationFilter {
-    authorization.check(listOf(Authorization.ROOT_RESOURCE_NAME, request.name), Permission.GET)
+    authorization.check(listOf(request.name, Authorization.ROOT_RESOURCE_NAME), Permission.GET)
 
     if (request.name.isEmpty()) {
       throw RequiredFieldNotSetException("name")
