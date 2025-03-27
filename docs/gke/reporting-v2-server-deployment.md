@@ -229,7 +229,7 @@ configuration uses one named `config-files`.
 *   `metric_spec_config.textproto`
     *   [`MetricSpecConfig`](../../src/main/proto/wfa/measurement/config/reporting/metric_spec_config.proto)
 *   `known_event_group_metadata_type_set.pb`
-    *   Protobuf `FileDescriptorSet` containing known `EventGroup` metadata 
+    *   Protobuf `FileDescriptorSet` containing known `EventGroup` metadata
         types.
 *   `impression_qualification_filter_config.textproto`
     * [`ImpressionQualificationFilterConfig`](../../src/main/proto/wfa/measurement/config/reporting/impression_qualification_filter_config.proto)
