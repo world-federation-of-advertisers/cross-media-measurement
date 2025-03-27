@@ -24,6 +24,7 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemsPublisher
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.securecomputation.service.internal.testing.WorkItemsServiceTest
 
@@ -33,9 +34,9 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
   @get:Rule
   val spannerDatabase = SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.SECURECOMPUTATION_CHANGELOG_PATH)
 
-  override fun initServices(queueMapping: QueueMapping, idGenerator: IdGenerator): Services {
+  override fun initServices(queueMapping: QueueMapping, idGenerator: IdGenerator, workItemPublisher: WorkItemsPublisher): Services {
     return Services(
-      SpannerWorkItemsService(spannerDatabase.databaseClient, queueMapping, idGenerator),
+      SpannerWorkItemsService(spannerDatabase.databaseClient, queueMapping, idGenerator, workItemPublisher),
       SpannerWorkItemAttemptsService(spannerDatabase.databaseClient, queueMapping, idGenerator)
     )
   }

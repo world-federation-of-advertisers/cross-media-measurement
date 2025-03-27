@@ -18,6 +18,7 @@ package org.wfanet.measurement.securecomputation.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Any
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -27,6 +28,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfa.measurement.queue.testing.testWork
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
@@ -47,6 +49,8 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkIt
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemsPublisher
+import org.wfanet.measurement.securecomputation.deploy.testing.FakeWorkItemsPublisher
 import org.wfanet.measurement.securecomputation.service.internal.Errors
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 
@@ -62,11 +66,14 @@ abstract class WorkItemAttemptsServiceTest {
   /** Initializes the service under test. */
   protected abstract fun initServices(
     queueMapping: QueueMapping,
-    idGenerator: IdGenerator
+    idGenerator: IdGenerator,
+    workItemPublisher: WorkItemsPublisher
   ): Services
 
-  private fun initServices(idGenerator: IdGenerator = IdGenerator.Default) =
-    initServices(TestConfig.QUEUE_MAPPING, idGenerator)
+  private fun initServices(idGenerator: IdGenerator = IdGenerator.Default): Services {
+    val workItemPublisher: WorkItemsPublisher = FakeWorkItemsPublisher()
+    return initServices(TestConfig.QUEUE_MAPPING, idGenerator, workItemPublisher)
+  }
 
   @Test
   fun `createWorkAttemptItem returns created WorkItemAttempt`() = runBlocking {
@@ -526,8 +533,14 @@ abstract class WorkItemAttemptsServiceTest {
       createWorkItemRequest {
         workItem = workItem {
           workItemResourceId = "work_item_resource_id"
-          queueResourceId = "queues/test_queue"
-
+          queueResourceId = "test-topid-id"
+          workItemParams = Any.pack(
+            testWork {
+              userName = "UserName"
+              userAge = "25"
+              userCountry = "US"
+            }
+          )
         }
       }
     )

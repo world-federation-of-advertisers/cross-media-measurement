@@ -17,7 +17,7 @@
 package org.wfanet.measurement.securecomputation.deploy.testing
 
 import com.google.protobuf.Message
-import org.wfanet.measurement.securecomputation.deploy.WorkItemsPublisher
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemsPublisher
 
 class FakeWorkItemsPublisher(): WorkItemsPublisher {
   override suspend fun publishMessage(queueName: String, message: Message) {

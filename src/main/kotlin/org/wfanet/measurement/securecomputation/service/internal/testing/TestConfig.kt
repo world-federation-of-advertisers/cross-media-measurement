@@ -26,7 +26,7 @@ object TestConfig {
       queuesConfig {
         queueInfos.add(
           queueInfo {
-            queueResourceId = "queues/test_queue"
+            queueResourceId = "test-topid-id"
           }
         )
       }

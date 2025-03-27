@@ -36,7 +36,6 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageToken
-import org.wfanet.measurement.securecomputation.deploy.WorkItemsPublisher
 import org.wfanet.measurement.securecomputation.service.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.WorkItemAlreadyExistsException
@@ -48,7 +47,6 @@ private const val MAX_PAGE_SIZE = 100
 
 class WorkItemsService(
   private val internalWorkItemsStub: InternalWorkItemsCoroutineStub,
-  private val workItemsPublisher: WorkItemsPublisher
 ) :
   WorkItemsCoroutineImplBase() {
 
@@ -71,24 +69,6 @@ class WorkItemsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val workItem = request.workItem
-    val topicId = workItem.queue
-
-    try {
-      workItemsPublisher.publishMessage(topicId, workItem.workItemParams)
-    } catch (e: Exception) {
-      throw when {
-        e.message?.contains("Topic id: $topicId does not exist") == true -> {
-          Status.NOT_FOUND.withDescription(e.message).asRuntimeException()
-        }
-
-        else -> {
-          Status.UNKNOWN.withDescription("An unknown error occurred: ${e.message}")
-            .asRuntimeException()
-        }
-      }
-    }
-
     val internalResponse: InternalWorkItem =
       try {
         internalWorkItemsStub.createWorkItem(
@@ -96,6 +76,7 @@ class WorkItemsService(
             internalWorkItem {
               queueResourceId = request.workItem.queue
               workItemResourceId = request.workItemId
+              workItemParams = request.workItem.workItemParams
             }
           }
         )
