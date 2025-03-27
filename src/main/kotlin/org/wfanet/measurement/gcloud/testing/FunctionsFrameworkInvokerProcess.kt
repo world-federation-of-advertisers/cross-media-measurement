@@ -41,18 +41,8 @@ import kotlinx.coroutines.yield
 import org.jetbrains.annotations.BlockingExecutor
 import org.wfanet.measurement.common.getRuntimePath
 
-/**
- * Wrapper for a Cloud Function binary process. Exposes a port where the process can receive data.
- * This class is used for starting a process that invokes Google Cloud Functions for tests.
- *
- * @param javaBinaryPath the runfiles-relative path of the binary that runs the Cloud Run Invoker
- * @param classTarget the class name that the invoker will run. This must be in the class path of
- *   the binary that will be run.
- * @param coroutineContext the context under which the process will run
- */
-class FunctionsFrameworkInvokerProcess(
-  private val javaBinaryPath: Path,
-  private val classTarget: String,
+/** Wrapper for the CloudFunction java_binary process. */
+class CloudFunctionProcess(
   private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
 ) : AutoCloseable {
   private val startMutex = Mutex()
@@ -64,9 +54,7 @@ class FunctionsFrameworkInvokerProcess(
   val started: Boolean
     get() = this::process.isInitialized
 
-  /*
-   * Returns the port the process is listening on.
-   */
+  /** Returns the port the process is listening on. */
   val port: Int
     get() {
       check(started) { "CloudFunction process not started" }

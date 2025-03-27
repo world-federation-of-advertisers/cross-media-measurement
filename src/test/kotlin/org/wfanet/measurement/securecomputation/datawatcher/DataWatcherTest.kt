@@ -56,7 +56,7 @@ class DataWatcherTest() {
       val dataWatcherConfig = dataWatcherConfig {
         sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
         this.controlPlaneConfig = controlPlaneConfig {
-          queueName = topicId
+          queue = topicId
           this.appConfig = Any.pack(appConfig)
         }
       }
@@ -90,7 +90,7 @@ class DataWatcherTest() {
       val dataWatcherConfig = dataWatcherConfig {
         sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
         this.controlPlaneConfig = controlPlaneConfig {
-          queueName = topicId
+          queue = topicId
           appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
         }
       }
