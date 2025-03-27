@@ -115,8 +115,8 @@ abstract class InvokeAbstractDataWatcherFunctionTest() {
           mapOf(
             "DATA_WATCHER_CONFIGS" to dataWatcherConfigs.toString(),
             "CONTROL_PLANE_PROJECT_ID" to projectId,
-            "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
-            "KINGDOM_CERT_HOST" to "localhost",
+            "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
+            "CONTROL_PLANE_CERT_HOST" to "localhost",
             "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.pem").toString(),
             "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.key").toString(),
             "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString(),

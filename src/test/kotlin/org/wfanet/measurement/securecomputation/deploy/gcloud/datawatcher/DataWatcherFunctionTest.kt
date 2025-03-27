@@ -85,8 +85,8 @@ class DataWatcherFunctionTest() {
         )
         .start()
     logger.info("Started gRPC server on port ${grpcServer.port}")
-    System.setProperty("KINGDOM_TARGET", "localhost:${grpcServer.port}")
-    System.setProperty("KINGDOM_CERT_HOST", "localhost")
+    System.setProperty("CONTROL_PLANE_TARGET", "localhost:${grpcServer.port}")
+    System.setProperty("CONTROL_PLANE_CERT_HOST", "localhost")
     System.setProperty("CERT_FILE_PATH", SECRETS_DIR.resolve("edp1_tls.pem").toString())
     System.setProperty("PRIVATE_KEY_FILE_PATH", SECRETS_DIR.resolve("edp1_tls.key").toString())
     System.setProperty(
