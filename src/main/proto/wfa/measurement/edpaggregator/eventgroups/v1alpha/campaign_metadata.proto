@@ -39,5 +39,6 @@ message CampaignMetadata {
 }
 
 message Campaigns {
-  repeated CampaignMetadata campaigns_metadata = 1;
+  string edp_name = 1;
+  repeated CampaignMetadata campaigns = 2;
 }

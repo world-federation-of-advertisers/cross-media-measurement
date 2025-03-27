@@ -18,39 +18,37 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
 
 import com.google.cloud.functions.CloudEventsFunction
 import com.google.events.cloud.storage.v1.StorageObjectData
+import com.google.protobuf.TextFormat
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
+import java.net.URI
 import java.util.logging.Logger
 import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
+import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSyncConfig
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.Campaigns
+import org.wfanet.measurement.storage.SelectedStorageClient
 
 /*
- * The EventGroupSyncFunction receives a CloudEvent, syncs the Kingdom's event groups and writes out a map of eventGroupReferenceId to Event Group resource name that an EDP can later consume.
+ * The EventGroupSyncFunction receives a CloudEvent, syncs the Kingdom's event groups and writes
+ * out a map of eventGroupReferenceId to Event Group resource name that an EDP can later consume.
  */
 open class EventGroupSyncFunction() : CloudEventsFunction {
 
   private val schema = "gs://"
-  private val logger: Logger = Logger.getLogger(this::class.java.name)
 
   override fun accept(event: CloudEvent) {
     logger.fine("Starting EventGroupSyncFunction")
     val configData: String = getPropertyValue("EVENT_GROUP_SYNC_CONFIG")
-    val publicChannel =
-      buildMutualTlsChannel(
-        getPropertyValue("KINGDOM_TARGET"),
-        getClientCerts(),
-        getPropertyValue("KINGDOM_CERT_HOST"),
-      )
-
-    val workItemsStub = EventGroupsCoroutineStub(publicChannel)
-    val eventGroupSync =
-      EventGroupSync(
-        eventGroupsStub = eventGroupsClient,
-        campaigns = campaigns,
-      )
+    val eventGroupSyncConfig: EventGroupSyncConfig =
+      EventGroupSyncConfig.newBuilder()
+        .apply { TextFormat.Parser.newBuilder().build().merge(configData, this) }
+        .build()
     val cloudEventData =
       requireNotNull(event.getData()) { "event must have data" }.toBytes().decodeToString()
     val data =
@@ -60,8 +58,32 @@ open class EventGroupSyncFunction() : CloudEventsFunction {
     val blobKey: String = data.getName()
     val bucket: String = data.getBucket()
     val path = "$schema$bucket/$blobKey"
-    logger.info("Receiving path $path")
-    runBlocking { dataWatcher.receivePath(path) }
+    check(path == eventGroupSyncConfig.campaignsBlobUri) {
+      "Cloud Function must be configured to monitor ${eventGroupSyncConfig.campaignsBlobUri}"
+    }
+    val campaigns = runBlocking {
+      Campaigns.parseFrom(
+        SelectedStorageClient(eventGroupSyncConfig.campaignsBlobUri)
+          .getBlob(getKey(eventGroupSyncConfig.campaignsBlobUri))!!
+          .read()
+          .flatten()
+      )
+    }
+    val publicChannel =
+      buildMutualTlsChannel(
+        getPropertyValue("KINGDOM_TARGET"),
+        getClientCerts(),
+        getPropertyValue("KINGDOM_CERT_HOST"),
+      )
+
+    val eventGroupsClient = EventGroupsCoroutineStub(publicChannel)
+    val eventGroupSync =
+      EventGroupSync(
+        edpName = campaigns.edpName,
+        eventGroupsStub = eventGroupsClient,
+        campaigns = campaigns.campaignsList,
+      )
+    runBlocking { eventGroupSync.sync() }
   }
 
   private fun getClientCerts(): SigningCerts {
@@ -75,4 +97,26 @@ open class EventGroupSyncFunction() : CloudEventsFunction {
   private fun getPropertyValue(propertyName: String): String {
     return System.getProperty(propertyName) ?: System.getenv(propertyName)
   }
+
+  // TODO: Move to common-jvm
+  private fun getKey(url: String): String {
+    val uri = URI.create(url)
+    return when (uri.scheme) {
+      "s3" -> {
+        throw IllegalArgumentException("S3 is not currently supported")
+      }
+      "gs" -> {
+        uri.path.removePrefix("/")
+      }
+      "file" -> {
+        val (_, key) = uri.path.removePrefix("/").split("/", limit = 2)
+        key
+      }
+      else -> {
+        throw IllegalArgumentException("Unsupported schema: ${uri.scheme}")
+      }
+    }
+  }
+
+  private val logger: Logger = Logger.getLogger(this::class.java.name)
 }
