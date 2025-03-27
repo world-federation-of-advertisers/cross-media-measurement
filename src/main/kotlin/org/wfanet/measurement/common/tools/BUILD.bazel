@@ -1,0 +1,23 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+)
+
+kt_jvm_library(
+    name = "open_id_provider",
+    srcs = ["OpenIdProvider.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+    ],
+)
+
+java_binary(
+    name = "OpenIdProvider",
+    main_class = "org.wfanet.measurement.common.tools.OpenIdProvider",
+    runtime_deps = [":open_id_provider"],
+)
