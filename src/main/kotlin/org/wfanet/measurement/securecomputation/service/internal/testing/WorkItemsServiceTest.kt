@@ -38,6 +38,9 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.securecomputation.service.internal.Errors
+import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.internal.securecomputation.controlplane.copy
@@ -211,8 +214,14 @@ abstract class WorkItemsServiceTest {
 
     val request = createWorkItemRequest {
       workItem = workItem {
-        workItemResourceId = "work_item_resource_id"
         queueResourceId = topicId
+        workItemParams = Any.pack(
+          testWork {
+            userName = "UserName"
+            userAge = "25"
+            userCountry = "US"
+          }
+        )
       }
     }
 
