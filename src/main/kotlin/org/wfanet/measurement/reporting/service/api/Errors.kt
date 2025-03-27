@@ -104,7 +104,7 @@ class MetricNotFoundException(name: String, cause: Throwable? = null) :
     mapOf(Errors.Metadata.METRIC to name),
     cause,
   )
-  
+
 class CampaignGroupInvalidException(reportingSet: String, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.CAMPAIGN_GROUP_INVALID,
