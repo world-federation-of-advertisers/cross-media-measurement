@@ -63,7 +63,7 @@ class InternalReportingServer : AbstractInternalReportingServer() {
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
   @CommandLine.Option(
-    names = ["--impression-qualification-filter-config"],
+    names = ["--impression-qualification-filter-config-file"],
     description =
       [
         "Path to file containing a ImpressionQualificationsFilterConfig protobuf message in text format"
