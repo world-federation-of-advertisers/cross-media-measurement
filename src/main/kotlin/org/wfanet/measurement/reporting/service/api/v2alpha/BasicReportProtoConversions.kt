@@ -21,6 +21,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
 import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasicReport
 import org.wfanet.measurement.internal.reporting.v2.EventFilter as InternalEventFilter
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField as InternalEventTemplateField
+import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilter as InternalImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec as InternalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec.MediaType as InternalMediaType
 import org.wfanet.measurement.internal.reporting.v2.MetricFrequencySpec as InternalMetricFrequencySpec
@@ -33,6 +34,7 @@ import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.EventFilter
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
+import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilter
@@ -46,6 +48,7 @@ import org.wfanet.measurement.reporting.v2alpha.ResultGroupKt.MetricMetadataKt.d
 import org.wfanet.measurement.reporting.v2alpha.basicReport
 import org.wfanet.measurement.reporting.v2alpha.eventFilter
 import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
+import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.reportingImpressionQualificationFilter
@@ -292,5 +295,25 @@ fun InternalBasicMetricSet.toBasicMetricSet(): BasicMetricSet {
     averageFrequency = source.averageFrequency
     impressions = source.impressions
     grps = source.grps
+  }
+}
+
+/**
+ * Converts the internal [InternalImpressionQualificationFilter] to the public
+ * [ImpressionQualificationFilter].
+ */
+fun InternalImpressionQualificationFilter.toImpressionQualificationFilter():
+  ImpressionQualificationFilter {
+  val source = this
+  return impressionQualificationFilter {
+    name = ImpressionQualificationFilterKey(source.externalImpressionQualificationFilterId).toName()
+    displayName = externalImpressionQualificationFilterId
+    filterSpecs +=
+      source.filterSpecsList.map { it ->
+        impressionQualificationFilterSpec {
+          mediaType = it.mediaType.toMediaType()
+          filters += it.filtersList.map { it -> it.toEventFilter() }
+        }
+      }
   }
 }
