@@ -13,10 +13,10 @@
 # limitations under the License.
 
 configMapGenerator:
-  - name: config-files
-    files:
-      - authority_key_identifier_to_principal_map.textproto
-      - encryption_key_pair_config.textproto
-      - metric_spec_config.textproto
-      - known_event_group_metadata_type_set.pb
-      - impression_qualification_filter_config.textproto
+- name: config-files
+  files:
+  - authority_key_identifier_to_principal_map.textproto
+  - encryption_key_pair_config.textproto
+  - metric_spec_config.textproto
+  - known_event_group_metadata_type_set.pb
+  - impression_qualification_filter_config.textproto
