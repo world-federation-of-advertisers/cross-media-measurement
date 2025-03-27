@@ -53,7 +53,7 @@ class DataWatcher(
             val request = createWorkItemRequest {
               this.workItemId = workItemId
               this.workItem = workItem {
-                queue = queueConfig.queueName
+                queue = queueConfig.queue
                 this.workItemParams = workItemParams
               }
             }

@@ -20,7 +20,8 @@ import "google/protobuf/any.proto";
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 
-option java_package = "org.wfanet.measurement.securecomputation";
+// (-- api-linter: core::0191::synonyms=disabled
+option java_package = "org.wfanet.measurement.securecomputation.datawatcher.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "DataWatcherConfigProto";
 
@@ -36,22 +37,30 @@ message DataWatcherConfig {
   // The path to watch
   string source_path_regex = 1;
 
-  message QueueConfig {
-    string queue_name = 1;
+  // The config used for control plane apps
+  message ControlPlaneConfig {
+    // The Control Plane queue that will execute this work item.
+    string queue = 1;
+    // Protobuf payload with application-specific config
+    // (-- api-linter: core::0146::synonyms=disabled
     google.protobuf.Any app_config = 2;
   }
-
-  message CloudFunctionConfig {
-    // TODO
+  // The config used for any Webhooks
+  message WebhookConfig {
+    // The endpoint to trigger to perform the Cloud Function
+    string endpoint_uri = 1;
+    // Json payload to send to endpoint of application-specific config.
+    google.protobuf.Struct app_config = 2;
   }
 
   oneof sink_config {
-    QueueConfig queue = 2;
-    CloudFunctionConfig cloud_function = 3;
+    ControlPlaneConfig control_plane_config = 2;
+    WebhookConfig cloud_function_config = 3;
   }
 }
 
+// The DataWatcher configuration
 message DataWatcherConfigs {
-
+  // All the configs that the DataWatcher will match
   repeated DataWatcherConfig configs = 1;
 }
