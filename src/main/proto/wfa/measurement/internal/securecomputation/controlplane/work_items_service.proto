@@ -63,8 +63,8 @@ message ListWorkItemsResponse {
 
 message ListWorkItemsPageToken {
   message After {
-    string work_item_resource_id = 1;
-    google.protobuf.Timestamp create_after = 2;
+    google.protobuf.Timestamp created_after = 1;
+    string work_item_resource_id = 2;
   }
   After after = 1;
 }

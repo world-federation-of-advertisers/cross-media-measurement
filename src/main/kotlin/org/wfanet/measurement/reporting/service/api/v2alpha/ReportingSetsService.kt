@@ -28,6 +28,7 @@ import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.internal.reporting.ErrorCode
 import org.wfanet.measurement.internal.reporting.v2.CreateReportingSetRequest as InternalCreateReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt as InternalReportingSetKt
@@ -35,6 +36,11 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.Reportin
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest as internalCreateReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
+import org.wfanet.measurement.reporting.service.api.CampaignGroupInvalidException
+import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
+import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
+import org.wfanet.measurement.reporting.service.api.ServiceException
+import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.CreateReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.GetReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
@@ -82,27 +88,48 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
       "Reporting set ID is invalid."
     }
 
-    val internalCreateReportingSetRequest: InternalCreateReportingSetRequest = request.toInternal()
+    val internalCreateReportingSetRequest: InternalCreateReportingSetRequest =
+      try {
+        request.toInternal()
+      } catch (e: ServiceException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
 
     return try {
       internalReportingSetsStub
         .createReportingSet(internalCreateReportingSetRequest)
         .toReportingSet()
     } catch (e: StatusException) {
-      throw when (e.status.code) {
-          Status.Code.ALREADY_EXISTS ->
-            Status.ALREADY_EXISTS.withDescription(
-              "ReportingSet with ID ${request.reportingSetId} already exists under ${request.parent}"
-            )
-          Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("Child ReportingSet not found.")
-          Status.Code.FAILED_PRECONDITION ->
-            Status.FAILED_PRECONDITION.withDescription(
-              "Unable to create ReportingSet. The measurement consumer not found."
-            )
-          else -> Status.UNKNOWN.withDescription("Unable to create ReportingSet.")
-        }
-        .withCause(e)
-        .asRuntimeException()
+      throw when (ReportingInternalException.getErrorCode(e)) {
+        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND ->
+          Status.NOT_FOUND.withCause(e).asRuntimeException()
+        ErrorCode.REPORTING_SET_ALREADY_EXISTS ->
+          Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
+        ErrorCode.REPORTING_SET_NOT_FOUND ->
+          Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
+        ErrorCode.CAMPAIGN_GROUP_INVALID ->
+          CampaignGroupInvalidException(request.reportingSet.campaignGroup, e)
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        ErrorCode.UNKNOWN_ERROR,
+        ErrorCode.MEASUREMENT_ALREADY_EXISTS,
+        ErrorCode.MEASUREMENT_NOT_FOUND,
+        ErrorCode.MEASUREMENT_CALCULATION_TIME_INTERVAL_NOT_FOUND,
+        ErrorCode.REPORT_NOT_FOUND,
+        ErrorCode.MEASUREMENT_STATE_INVALID,
+        ErrorCode.MEASUREMENT_CONSUMER_ALREADY_EXISTS,
+        ErrorCode.METRIC_NOT_FOUND,
+        ErrorCode.METRIC_ALREADY_EXISTS,
+        ErrorCode.REPORT_ALREADY_EXISTS,
+        ErrorCode.REPORT_SCHEDULE_ALREADY_EXISTS,
+        ErrorCode.REPORT_SCHEDULE_NOT_FOUND,
+        ErrorCode.REPORT_SCHEDULE_STATE_INVALID,
+        ErrorCode.REPORT_SCHEDULE_ITERATION_NOT_FOUND,
+        ErrorCode.REPORT_SCHEDULE_ITERATION_STATE_INVALID,
+        ErrorCode.METRIC_CALCULATION_SPEC_NOT_FOUND,
+        ErrorCode.METRIC_CALCULATION_SPEC_ALREADY_EXISTS,
+        ErrorCode.UNRECOGNIZED,
+        null -> Status.INTERNAL.withCause(e).asRuntimeException()
+      }
     }
   }
 
@@ -366,7 +393,13 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
     }
   }
 
-  /** Converts a [CreateReportingSetRequest] to an [InternalCreateReportingSetRequest]. */
+  /**
+   * Converts a [CreateReportingSetRequest] to an [InternalCreateReportingSetRequest].
+   *
+   * @throws InvalidFieldValueException
+   * @throws RequiredFieldNotSetException
+   * @throws CampaignGroupInvalidException
+   */
   private suspend fun CreateReportingSetRequest.toInternal(): InternalCreateReportingSetRequest {
     val source = this
     val cmmsMeasurementConsumerId =
@@ -374,6 +407,23 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
 
     val internalReportingSet = internalReportingSet {
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+      if (source.reportingSet.campaignGroup.isNotEmpty()) {
+        val campaignGroupKey =
+          ReportingSetKey.fromName(source.reportingSet.campaignGroup)
+            ?: throw InvalidFieldValueException("reporting_set.campaign_group")
+        if (campaignGroupKey.cmmsMeasurementConsumerId != cmmsMeasurementConsumerId) {
+          throw InvalidFieldValueException("reporting_set.campaign_group") { fieldName ->
+            "$fieldName must belong to the same MeasurementConsumer"
+          }
+        }
+        if (
+          campaignGroupKey.reportingSetId == source.reportingSetId &&
+            !source.reportingSet.hasPrimitive()
+        ) {
+          throw CampaignGroupInvalidException(source.reportingSet.campaignGroup)
+        }
+        this.externalCampaignGroupId = campaignGroupKey.reportingSetId
+      }
       displayName = source.reportingSet.displayName
       if (!source.reportingSet.filter.isNullOrBlank()) {
         filter = source.reportingSet.filter
@@ -394,9 +444,8 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
           weightedSubsetUnions +=
             compileCompositeReportingSet(source.reportingSet, cmmsMeasurementConsumerId)
         }
-        ReportingSet.ValueCase.VALUE_NOT_SET -> {
-          failGrpc(Status.INVALID_ARGUMENT) { "ReportingSet value type is not set." }
-        }
+        ReportingSet.ValueCase.VALUE_NOT_SET ->
+          throw RequiredFieldNotSetException("reporting_set.value")
       }
     }
 

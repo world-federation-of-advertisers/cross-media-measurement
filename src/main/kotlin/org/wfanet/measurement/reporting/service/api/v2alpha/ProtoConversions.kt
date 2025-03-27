@@ -803,7 +803,10 @@ fun InternalReportingSet.toReportingSet(): ReportingSet {
           reportingSetId = source.externalReportingSetId,
         )
         .toName()
-
+    if (source.externalCampaignGroupId.isNotEmpty()) {
+      campaignGroup =
+        ReportingSetKey(source.cmmsMeasurementConsumerId, source.externalCampaignGroupId).toName()
+    }
     displayName = source.displayName
     tags.putAll(source.details.tagsMap)
     filter = source.filter

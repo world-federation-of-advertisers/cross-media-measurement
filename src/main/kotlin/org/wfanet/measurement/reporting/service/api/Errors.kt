@@ -30,6 +30,7 @@ object Errors {
   enum class Reason {
     BASIC_REPORT_NOT_FOUND,
     METRIC_NOT_FOUND,
+    CAMPAIGN_GROUP_INVALID,
     REQUIRED_FIELD_NOT_SET,
     INVALID_FIELD_VALUE,
     INVALID_METRIC_STATE_TRANSITION,
@@ -41,6 +42,7 @@ object Errors {
     METRIC("metric"),
     METRIC_STATE("metricState"),
     NEW_METRIC_STATE("newMetricState"),
+    REPORTING_SET("reportingSet"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -100,6 +102,14 @@ class MetricNotFoundException(name: String, cause: Throwable? = null) :
     Errors.Reason.METRIC_NOT_FOUND,
     "Metric $name not found",
     mapOf(Errors.Metadata.METRIC to name),
+    cause,
+  )
+  
+class CampaignGroupInvalidException(reportingSet: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.CAMPAIGN_GROUP_INVALID,
+    "$reportingSet is not a valid Campaign Group",
+    mapOf(Errors.Metadata.REPORTING_SET to reportingSet),
     cause,
   )
 
