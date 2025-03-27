@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.config.access;
 
+import "google/protobuf/struct.proto";
+
 option java_package = "org.wfanet.measurement.config.access";
 option java_multiple_files = true;
 option java_outer_classname = "OpenIdProvidersConfigProto";
@@ -26,7 +28,7 @@ message OpenIdProvidersConfig {
 
   message ProviderConfig {
     // JSON Web Key Set (JWKS) for the provider.
-    string jwks = 1;
+    .google.protobuf.Struct jwks = 1;
   }
   // Map of issuer to `ProviderConfig`.
   map<string, ProviderConfig> provider_config_by_issuer = 2;

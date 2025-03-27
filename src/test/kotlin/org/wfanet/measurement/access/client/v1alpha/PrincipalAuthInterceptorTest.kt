@@ -17,6 +17,7 @@
 package org.wfanet.measurement.access.client.v1alpha
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.util.JsonFormat
 import io.grpc.Context
 import io.grpc.ServerInterceptors
 import io.grpc.Status
@@ -42,8 +43,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.config.access.OpenIdProvidersConfigKt
-import org.wfanet.measurement.config.access.openIdProvidersConfig
+import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 
 @RunWith(JUnit4::class)
 class PrincipalAuthInterceptorTest {
@@ -162,10 +162,22 @@ class PrincipalAuthInterceptorTest {
     private const val AUDIENCE = "dns:///api.example.com:8443"
     private val openIdProvider = OpenIdProvider(ISSUER)
 
-    private val PROVIDERS_CONFIG = openIdProvidersConfig {
-      audience = AUDIENCE
-      providerConfigByIssuer[ISSUER] =
-        OpenIdProvidersConfigKt.providerConfig { jwks = openIdProvider.providerConfig.jwks }
-    }
+    private val PROVIDERS_CONFIG_JSON =
+      """
+      {
+        "audience": "$AUDIENCE",
+        "providerConfigByIssuer": {
+          "$ISSUER": {
+            "jwks": ${openIdProvider.providerConfig.jwks}
+          }
+        }
+      }
+      """
+        .trimIndent()
+
+    private val PROVIDERS_CONFIG =
+      OpenIdProvidersConfig.newBuilder()
+        .apply { JsonFormat.parser().merge(PROVIDERS_CONFIG_JSON, this) }
+        .build()
   }
 }

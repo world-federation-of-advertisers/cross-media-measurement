@@ -7,6 +7,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:principal_auth_interceptor",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/io/grpc/health/v1:health_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",

@@ -1,0 +1,8 @@
+{
+  "audience": "reporting.halo-cmm.local",
+  "providerConfigByIssuer": {
+    "https://auth.halo-cmm.local": {
+      "jwks": {"keys":[{"kty":"EC","crv":"P-256","x":"EOr_D3rMdpQBHaB5geZtyoi3J7E_rRTm_lULVruEHLQ","y":"C6Dkeu2a6cgtX7Haw7_qU40K5mR_KuAAFGbk_9v8UVc","use":"sig","alg":"ES256","key_ops":["verify"],"kid":"WS6saA"}]}
+    }
+  }
+}
