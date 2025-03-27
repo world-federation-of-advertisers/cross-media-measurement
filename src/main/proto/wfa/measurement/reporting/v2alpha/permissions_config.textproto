@@ -151,3 +151,18 @@ permissions {
     protected_resource_types: "reporting.halo-cmm.org/ReportSchedule"
   }
 }
+
+# basicReports
+permissions {
+  key: "reporting.basicReports.get"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/BasicReport"
+  }
+}
+permissions {
+  key: "reporting.basicReports.list"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+  }
+}
