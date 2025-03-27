@@ -102,6 +102,8 @@ jobs:
         id: run-tests
         run: >
           bazel coverage 
+          --subcommands
+          --toolchain_resolution_debug='@bazel_tools//tools/cpp:toolchain_type'
           --nocache_test_results
           --combined_report=lcov 
           --experimental_split_coverage_postprocessing 
