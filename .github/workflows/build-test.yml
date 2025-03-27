@@ -104,7 +104,6 @@ jobs:
           --experimental_split_coverage_postprocessing 
           --experimental_fetch_all_coverage_outputs
           --collect_code_coverage
-          --remote_download_outputs=all 
           --nocache_test_results 
           --combined_report=lcov 
           --instrumentation_filter=//src/main/cc/.*,-@.* //src/test/cc/...
