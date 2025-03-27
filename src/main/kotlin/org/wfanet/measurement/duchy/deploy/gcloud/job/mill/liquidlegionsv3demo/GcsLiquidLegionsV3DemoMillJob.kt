@@ -6,7 +6,13 @@ import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import picocli.CommandLine
 
-class GcsLiquidLegionsV3DemoMillJob: Runnable {
+@CommandLine.Command(
+  name = "GcsLiquidLegionsV3DemoMillJob",
+  description = ["Liquid Legions V3 TEE demo mill job."],
+  mixinStandardHelpOptions = true,
+  showDefaultValues = true,
+)
+class GcsLiquidLegionsV3DemoMillJob : Runnable {
   @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
 
   override fun run() {

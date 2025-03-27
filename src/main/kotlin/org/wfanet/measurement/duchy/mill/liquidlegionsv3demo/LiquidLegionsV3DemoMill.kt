@@ -14,16 +14,17 @@ import java.util.Base64 // For decoding ciphertext
 import java.util.Date
 import org.wfanet.measurement.storage.StorageClient
 
-class LiquidLegionsV3DemoMill(
-  private val storageClient: StorageClient,
-) {
+class LiquidLegionsV3DemoMill(private val storageClient: StorageClient) {
   fun run() {
     val blobBucket = "demo-tee"
     val blobKey = "encrypted_edp_data"
-    val kmsKeyName = "projects/halo-cmm-dev/locations/us-central1/keyRings/tee-demo-key-ring/cryptoKeys/tee-demo-key-1"
-      // e.g., projects/.../locations/.../keyRings/.../cryptoKeys/...
-    val wifAudience = "https://iam.googleapis.com/projects/462363635192/locations/global/workloadIdentityPools/tee-demo-pool/providers/tee-demo-pool-provider"
-    // e.g., iam.googleapis.com/projects/[NUM]/locations/global/workloadIdentityPools/[POOL]/providers/[PROV]
+    val kmsKeyName =
+      "projects/halo-cmm-dev/locations/us-central1/keyRings/tee-demo-key-ring/cryptoKeys/tee-demo-key-1"
+    // e.g., projects/.../locations/.../keyRings/.../cryptoKeys/...
+    val wifAudience =
+      "https://iam.googleapis.com/projects/462363635192/locations/global/workloadIdentityPools/tee-demo-pool/providers/tee-demo-pool-provider"
+    // e.g.,
+    // iam.googleapis.com/projects/[NUM]/locations/global/workloadIdentityPools/[POOL]/providers/[PROV]
     val targetSaEmail = "tee-demo-decrypter@halo-cmm-dev.iam.gserviceaccount.com"
     // e.g., service-account@project-id.iam.gserviceaccount.com
     val tokenFilePath = "/run/container_launcher/attestation_verifier_claims_token"
