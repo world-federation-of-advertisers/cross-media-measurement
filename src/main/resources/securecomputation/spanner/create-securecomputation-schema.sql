@@ -27,7 +27,7 @@ START BATCH DDL;
 
 CREATE TABLE WorkItems (
     WorkItemId INT64 NOT NULL,
-    WorkItemResourceId INT64 NOT NULL,
+    WorkItemResourceId STRING(63) NOT NULL,
 
     QueueId INT64 NOT NULL,
 
@@ -46,13 +46,13 @@ CREATE UNIQUE INDEX WorkItemsByResourceId
 CREATE TABLE WorkItemAttempts (
     WorkItemId INT64 NOT NULL,
     WorkItemAttemptId INT64 NOT NULL,
-    WorkItemAttemptResourceId INT64 NOT NULL,
+    WorkItemAttemptResourceId STRING(63) NOT NULL,
 
     -- org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt.State
     -- Proto enum encoded as int
     State INT64 NOT NULL,
 
-    ErrorMessage STRING(MAX) NOT NULL,
+    ErrorMessage STRING(MAX),
 
     CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
     UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
