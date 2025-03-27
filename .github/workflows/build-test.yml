@@ -105,8 +105,8 @@ jobs:
           --experimental_fetch_all_coverage_outputs
           --collect_code_coverage
           --remote_download_outputs=all 
-          --strategy=CoverageReport=local
           --nocache_test_results 
+          --combined_report=lcov 
           --instrumentation_filter=//src/main/cc/.*,-@.* //src/test/cc/...
 
       - name: Upload Bazel testlogs
