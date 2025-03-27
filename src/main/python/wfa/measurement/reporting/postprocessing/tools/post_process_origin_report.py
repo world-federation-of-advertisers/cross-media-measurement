@@ -142,23 +142,23 @@ class ReportSummaryProcessor:
         for index in range(metric_report.get_number_of_periods()):
           entry = metric_report.get_cumulative_measurement(edp_combination,
                                                            index)
-          metric_name_to_value.update({entry.name: int(entry.value)})
+          metric_name_to_value.update({entry.name: round(entry.value)})
       for edp_combination in metric_report.get_whole_campaign_edp_combinations():
         entry = metric_report.get_whole_campaign_measurement(edp_combination)
-        metric_name_to_value.update({entry.name: int(entry.value)})
+        metric_name_to_value.update({entry.name: round(entry.value)})
       for edp_combination in metric_report.get_k_reach_edp_combinations():
         for frequency in range(1,
                                metric_report.get_number_of_frequencies() + 1):
           entry = metric_report.get_k_reach_measurement(edp_combination,
                                                         frequency)
-          metric_name_to_value.update({entry.name: int(entry.value)})
+          metric_name_to_value.update({entry.name: round(entry.value)})
       for edp_combination in metric_report.get_impression_edp_combinations():
         entry = metric_report.get_impression_measurement(edp_combination)
-        metric_name_to_value.update({entry.name: int(entry.value)})
+        metric_name_to_value.update({entry.name: round(entry.value)})
 
     # Updates difference measurements.
     for key, value in self._set_difference_map.items():
-      metric_name_to_value.update({key: int(
+      metric_name_to_value.update({key: round(
           metric_name_to_value[value[0]] - metric_name_to_value[value[1]])})
     return metric_name_to_value
 

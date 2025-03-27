@@ -199,11 +199,12 @@ class ReportProcessorTest {
       for (edpCombination in impression.keys.intersect(kreach.keys)) {
         val kreachWeightedSum =
           kreach[edpCombination]!!.entries.sumOf { (key, value) -> key * value }
+        val totalWeight = kreach[edpCombination]!!.entries.sumOf { (key, value) -> key }
         if (
           !fuzzyLessEqual(
             kreachWeightedSum.toDouble(),
             impression[edpCombination]!!.toDouble(),
-            TOLERANCE,
+            totalWeight*TOLERANCE,
           )
         ) {
           return false
