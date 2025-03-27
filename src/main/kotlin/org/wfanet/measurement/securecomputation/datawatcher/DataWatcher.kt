@@ -14,30 +14,32 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
+package org.wfanet.measurement.securecomputation.datawatcher
 
 import java.util.UUID
+import java.util.logging.Logger
 import kotlin.text.matches
 import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GooglePubSubWorkItemsService
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemConfig
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfig
 
 /*
- * The DataWatcher calls various sinks to with the data it has received.
- * @param workItemsService - the Google Pub Sub Sink to call
+ * Watcher to observe blob creation events and take the appropriate action for each.
+ * @param workItemsStub - the Google Pub Sub Sink to call
  * @param dataWatcherConfigs - a list of [DataWatcherConfig]
  */
 class DataWatcher(
-  private val workItemsService: GooglePubSubWorkItemsService,
+  private val workItemsStub: WorkItemsCoroutineStub,
   private val dataWatcherConfigs: List<DataWatcherConfig>,
 ) {
   suspend fun receivePath(path: String) {
     for (config in dataWatcherConfigs) {
       val regex = config.sourcePathRegex.toRegex()
       if (regex.matches(path)) {
+        logger.info("Matched path: $path")
         when (config.sinkConfigCase) {
           DataWatcherConfig.SinkConfigCase.CONTROL_PLANE_CONFIG -> {
             val queueConfig = config.controlPlaneConfig
@@ -55,7 +57,7 @@ class DataWatcher(
                 this.workItemParams = workItemParams
               }
             }
-            workItemsService.createWorkItem(request)
+            workItemsStub.createWorkItem(request)
           }
           DataWatcherConfig.SinkConfigCase.CLOUD_FUNCTION_CONFIG ->
             TODO("Cloud Function Sink not currently supported")
@@ -64,5 +66,9 @@ class DataWatcher(
         }
       }
     }
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

@@ -7,26 +7,12 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "data_watcher",
-    srcs = ["DataWatcher.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:google_pub_sub_work_items_service",
-        "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_items_service",
-        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_config_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/securecomputation/datawatcher/v1alpha:data_watcher_config_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-    ],
-)
-
-kt_jvm_library(
     name = "data_watcher_function",
     srcs = ["DataWatcherFunction.kt"],
     deps = [
-        ":data_watcher",
         "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",
-        "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:google_pub_sub_work_items_service",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_items_service",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:data_watcher",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/datawatcher/v1alpha:data_watcher_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
@@ -40,14 +26,5 @@ kt_jvm_library(
 java_binary(
     name = "DataWatcherFunction",
     main_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction",
-    runtime_deps = ["//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:data_watcher_function"],
-)
-
-java_binary(
-    name = "InvokeDataWatcherFunction",
-    main_class = "com.google.cloud.functions.invoker.runner.Invoker",
-    runtime_deps = [
-        ":DataWatcherFunction_deploy.jar",
-        "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",
-    ],
+    runtime_deps = [":data_watcher_function"],
 )

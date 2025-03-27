@@ -115,7 +115,9 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     val measurementConsumerId =
       (MeasurementConsumerReader(transactionContext)
           .getByCmmsId(requests[0].metric.cmmsMeasurementConsumerId)
-          ?: throw MeasurementConsumerNotFoundException())
+          ?: throw MeasurementConsumerNotFoundException(
+            requests[0].metric.cmmsMeasurementConsumerId
+          ))
         .measurementConsumerId
 
     // Request IDs take precedence

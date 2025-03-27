@@ -72,10 +72,7 @@ class PostgresReportingSetsService(
     } catch (e: ReportingSetAlreadyExistsException) {
       throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Reporting Set already exists")
     } catch (e: MeasurementConsumerNotFoundException) {
-      throw e.asStatusRuntimeException(
-        Status.Code.FAILED_PRECONDITION,
-        "Measurement Consumer not found",
-      )
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
   }
 
@@ -99,10 +96,6 @@ class PostgresReportingSetsService(
       } finally {
         readContext.close()
       }
-
-    if (reportingSets.size < request.externalReportingSetIdsList.size) {
-      failGrpc(Status.NOT_FOUND) { "Reporting Set not found" }
-    }
 
     return batchGetReportingSetsResponse { this.reportingSets += reportingSets }
   }

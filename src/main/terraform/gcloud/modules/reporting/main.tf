@@ -69,3 +69,11 @@ module "access" {
   spanner_instance      = var.spanner_instance
   spanner_database_name = var.access_spanner_database_name
 }
+
+resource "google_monitoring_dashboard" "dashboards" {
+  for_each        = toset(var.dashboard_json_files)
+
+  dashboard_json  = file("${path.module}/${each.value}")
+  project         = data.google_project.project.project_id
+}
+
