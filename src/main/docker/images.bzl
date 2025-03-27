@@ -157,6 +157,11 @@ GKE_IMAGES = [
         repository = _PREFIX + "/duchy/liquid-legions-v2-mill",
     ),
     struct(
+        name = "gcs_liquid_legions_v3_demo_mill_job_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/job/mill/liquidlegionsv3demo:gcs_liquid_legions_v3_demo_mill_job_image",
+        repository = _PREFIX + "/duchy/liquid-legions-v3-demo-mill",
+    ),
+    struct(
         name = "duchy_honest_majority_share_shuffle_mill_job_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/job/mill/shareshuffle:gcs_honest_majority_share_shuffle_mill_job_image",
         repository = _PREFIX + "/duchy/honest-majority-share-shuffle-mill",

@@ -1,0 +1,18 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "liquid_legions_v3_demo_mill",
+    srcs = ["LiquidLegionsV3DemoMill.kt"],
+    deps = [
+        "@maven//:com_google_auth_google_auth_library_credentials",
+        "@maven//:com_google_auth_google_auth_library_oauth2_http",
+        "@maven//:com_google_cloud_google_cloud_kms",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+    ],
+)
