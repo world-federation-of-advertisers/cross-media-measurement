@@ -101,9 +101,10 @@ jobs:
         id: run-tests
         run: >
           bazel coverage 
-          --collect_code_coverage
-          --nocache_test_results 
+          --nocache_test_results
           --combined_report=lcov 
+          --experimental_split_coverage_postprocessing 
+          --experimental_fetch_all_coverage_outputs
           --instrumentation_filter=//src/main/cc/.*,-@.* //src/test/cc/...
 
       - name: Upload Bazel testlogs
