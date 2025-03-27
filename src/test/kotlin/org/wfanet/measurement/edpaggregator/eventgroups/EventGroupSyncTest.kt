@@ -1,4 +1,4 @@
-package org.wfanet.measurement.securecomputation.eventgroups
+package org.wfanet.measurement.edpaggregator.eventgroups
 
 @RunWith(JUnit4::class)
 class EventGroupSyncTest {

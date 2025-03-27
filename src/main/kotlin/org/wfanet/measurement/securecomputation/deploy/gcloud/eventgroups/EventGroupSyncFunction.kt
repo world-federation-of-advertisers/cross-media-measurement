@@ -18,13 +18,11 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.eventgroups
 
 import com.google.cloud.functions.CloudEventsFunction
 import com.google.events.cloud.storage.v1.StorageObjectData
-import com.google.protobuf.TextFormat
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.securecomputation.eventgroups.EventGroupSync
-import org.wfanet.measurement.securecomputation.eventgroups.EventGroupMap
+import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 
 /*
  * The EventGroupSyncFunction receives a CloudEvent, syncs the Kingdom's event groups and writes out a map of eventGroupReferenceId to Event Group resource name that an EDP can later consume.

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.eventgroups
+package org.wfanet.measurement.edpaggregator.eventgroups
 
 import com.google.type.interval
 import io.grpc.StatusException
