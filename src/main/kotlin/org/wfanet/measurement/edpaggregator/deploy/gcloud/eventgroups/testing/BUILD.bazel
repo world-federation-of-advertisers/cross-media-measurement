@@ -1,0 +1,19 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_binary")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    ],
+)
+
+java_binary(
+    name = "InvokeEventGroupSyncFunction",
+    main_class = "com.google.cloud.functions.invoker.runner.Invoker",
+    runtime_deps = [
+        "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups:EventGroupSyncFunction_deploy.jar",
+    ],
+)

@@ -14,88 +14,83 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.deploy.gcloud.eventgroups
+package org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
 
-import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.Any
-import com.google.protobuf.Int32Value
-import com.google.protobuf.kotlin.toByteStringUtf8
-import com.google.protobuf.kotlin.unpack
+import com.google.protobuf.timestamp
+import com.google.type.interval
 import io.netty.handler.ssl.ClientAuth
+import java.io.File
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.logging.Logger
+import kotlin.io.path.Path
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
-import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.times
-import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as eventGroupCampaignMetadata
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.MediaType
+import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
+import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.gcloud.gcs.testing.GcsSubscribingStorageClient
-import com.google.cloud.functions.CloudEventsFunction
-import com.google.events.cloud.storage.v1.StorageObjectData
-import com.google.protobuf.TextFormat
-import com.google.protobuf.timestamp
-import com.google.protobuf.util.JsonFormat
-import io.cloudevents.CloudEvent
-import java.net.URI
-import java.util.logging.Logger
-import kotlin.io.path.Path
-import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.api.v2alpha.EventGroup
-import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
-import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
-import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSyncConfig
-import org.wfanet.measurement.edpaggregator.eventgroups.toEventGroup
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.Campaigns
-import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.edpaggregator.eventgroups.eventGroupSyncConfig
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.CampaignMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupMap
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.campaignMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.campaigns as protoCampaigns
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroupMap
+import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.CloudFunctionProcess
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
 class EventGroupSyncFunctionTest() {
-  private lateinit var storageClient: GcsStorageClient
   private lateinit var grpcServer: CommonServer
-
-  private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService {
-    onBlocking { updateEventGroup(any<UpdateEventGroupRequest>()) }
-      .thenAnswer { invocation -> invocation.getArgument<UpdateEventGroupRequest>(0).eventGroup }
-    onBlocking { createEventGroup(any<CreateEventGroupRequest>()) }
-      .thenAnswer { invocation -> invocation.getArgument<CreateEventGroupRequest>(0).eventGroup }
-    onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
-      .thenAnswer {
-        listEventGroupsResponse {
-          eventGroups += campaigns[0].toEventGroup()
-          eventGroups += campaigns[1].toEventGroup()
-          eventGroups +=
-            campaigns[2].toEventGroup().copy {
-              this.eventGroupMetadata = eventGroupMetadata {
-                this.adMetadata = adMetadata {
-                  this.campaignMetadata = eventGroupCampaignMetadata {
-                    brandName = "new-brand-name"
-                  }
-                }
-              }
-            }
-        }
-      }
-  }
+  private lateinit var functionProcess: CloudFunctionProcess
+  private val functionBinaryPath =
+    Paths.get(
+      "wfa_measurement_system",
+      "src",
+      "main",
+      "kotlin",
+      "org",
+      "wfanet",
+      "measurement",
+      "edpaggregator",
+      "deploy",
+      "gcloud",
+      "eventgroups",
+      "testing",
+      "InvokeEventGroupSyncFunction_deploy.jar",
+    )
+  private val gcfTarget =
+    "org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction"
 
   private val campaigns =
     listOf(
@@ -128,26 +123,55 @@ class EventGroupSyncFunctionTest() {
       },
     )
 
+  private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService {
+    onBlocking { updateEventGroup(any<UpdateEventGroupRequest>()) }
+      .thenAnswer { invocation -> invocation.getArgument<UpdateEventGroupRequest>(0).eventGroup }
+    onBlocking { createEventGroup(any<CreateEventGroupRequest>()) }
+      .thenAnswer { invocation ->
+        val eventGroup = invocation.getArgument<CreateEventGroupRequest>(0).eventGroup
+        eventGroup.copy { name = "resource-name-for-${eventGroup.eventGroupReferenceId}" }
+      }
+    onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
+      .thenAnswer {
+        listEventGroupsResponse {
+          eventGroups += campaigns[0].toEventGroup()
+          eventGroups += campaigns[1].toEventGroup()
+          eventGroups +=
+            campaigns[2].toEventGroup().copy {
+              this.eventGroupMetadata = eventGroupMetadata {
+                this.adMetadata = adMetadata {
+                  this.campaignMetadata = eventGroupCampaignMetadata {
+                    brandName = "new-brand-name"
+                  }
+                }
+              }
+            }
+        }
+      }
+  }
+
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(eventGroupsServiceMock) }
 
-  @Before
-  fun initStorageClient() {
-    val storage = LocalStorageHelper.getOptions().service
-    storageClient = GcsStorageClient(storage, BUCKET)
-  }
+  @Rule @JvmField val tempFolder = TemporaryFolder()
 
   @Before
   fun startInfra() {
-    /** Start gRPC server with mock Requisitions service */
+    /** Start gRPC server with mock EventGroups service */
     grpcServer =
       CommonServer.fromParameters(
-        verboseGrpcLogging = true,
-        certs = serverCerts,
-        clientAuth = ClientAuth.REQUIRE,
-        nameForLogging = "WorkItemsServer",
-        services = listOf(eventGroupsServiceMock.bindService()),
-      )
+          verboseGrpcLogging = true,
+          certs = serverCerts,
+          clientAuth = ClientAuth.REQUIRE,
+          nameForLogging = "EventGroupsServer",
+          services = listOf(eventGroupsServiceMock.bindService()),
+        )
         .start()
+    functionProcess =
+      CloudFunctionProcess(
+        functionBinaryPath = functionBinaryPath,
+        gcfTarget = gcfTarget,
+        logger = logger,
+      )
     logger.info("Started gRPC server on port ${grpcServer.port}")
     System.setProperty("KINGDOM_TARGET", "localhost:${grpcServer.port}")
     System.setProperty("KINGDOM_CERT_HOST", "localhost")
@@ -176,33 +200,86 @@ class EventGroupSyncFunctionTest() {
       mediaTypes += listOf("OTHER")
     }
     val testCampaigns = campaigns + newCampaign
-    val eventGroupSync = EventGroupSync("edp-name", eventGroupsStub, testCampaigns)
-    runBlocking { eventGroupSync.sync() }
-    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
-  }
-
-  @Test
-  fun `sync updatesExistingEventGroups`() {
-    val eventGroupSync = EventGroupSync("edp-name", eventGroupsStub, campaigns)
-    runBlocking { eventGroupSync.sync() }
-    verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
-  }
-
-  @Test
-  fun sync_returnsMapOfEventGroupReferenceIdsToEventGroups() {
-    runBlocking {
-      val eventGroupSync = EventGroupSync("edp-name", eventGroupsStub, campaigns)
-      val result = runBlocking { eventGroupSync.sync() }
-      assertThat(result)
-        .isEqualTo(
-          mapOf(
-            "reference-id-1" to "resource-name-for-reference-id-1",
-            "reference-id-2" to "resource-name-for-reference-id-2",
-            "reference-id-3" to "resource-name-for-reference-id-3",
-          )
-        )
+    val config = eventGroupSyncConfig {
+      campaignsBlobUri = "file:///some/path/campaigns-blob-uri"
+      eventGroupMapUri = "file:///some/other/path/event-groups-map-uri"
     }
+    File("${tempFolder.root}/some/path").mkdirs()
+    File("${tempFolder.root}/some/other/path").mkdirs()
+    val port = runBlocking {
+      functionProcess.start(
+        mapOf(
+          "FILE_STORAGE_ROOT" to tempFolder.root.toString(),
+          "GCS_PROJECT_ID" to "some-project-id",
+          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+          "KINGDOM_CERT_HOST" to "localhost",
+          "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.pem").toString(),
+          "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.key").toString(),
+          "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString(),
+        )
+      )
+    }
+
+    val url = "http://localhost:$port"
+    logger.info("Testing Cloud Function at: $url")
+
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+    runBlocking {
+      storageClient.writeBlob(
+        "some/path/campaigns-blob-uri",
+        flowOf(protoCampaigns { campaigns += testCampaigns }.toByteString()),
+      )
+    }
+
+    // In practice, the DataWatcher makes this HTTP call
+    val client = HttpClient.newHttpClient()
+    val getRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
+        .build()
+    val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
+    logger.info("Response status: ${getResponse.statusCode()}")
+    logger.info("Response body: ${getResponse.body()}")
+
+    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
+    val mappedData = runBlocking {
+      EventGroupMap.parseFrom(
+        storageClient.getBlob("some/other/path/event-groups-map-uri")!!.read().flatten()
+      )
+    }
+    assertThat(mappedData)
+      .isEqualTo(
+        eventGroupMap {
+          this.eventGroupMap.putAll(
+            mapOf(
+              "reference-id-1" to "resource-name-for-reference-id-1",
+              "reference-id-2" to "resource-name-for-reference-id-2",
+              "reference-id-3" to "resource-name-for-reference-id-3",
+              "reference-id-4" to "resource-name-for-reference-id-4",
+            )
+          )
+        }
+      )
   }
+
+  companion object {
+    private const val BUCKET = "test-bucket"
+    private val SECRETS_DIR: Path =
+      getRuntimePath(
+        Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+      )!!
+    private val serverCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
+        privateKeyFile = SECRETS_DIR.resolve("kingdom_tls.key").toFile(),
+        trustedCertCollectionFile = SECRETS_DIR.resolve("edp1_root.pem").toFile(),
+      )
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+  }
+}
 
 private fun CampaignMetadata.toEventGroup(): EventGroup {
   val campaign = this
@@ -223,20 +300,5 @@ private fun CampaignMetadata.toEventGroup(): EventGroup {
       startTime = campaign.startTime
       endTime = campaign.endTime
     }
-  }
-
-  companion object {
-    private const val BUCKET = "test-bucket"
-    private val SECRETS_DIR: Path =
-      getRuntimePath(
-        Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
-      )!!
-    private val serverCerts =
-      SigningCerts.fromPemFiles(
-        certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
-        privateKeyFile = SECRETS_DIR.resolve("kingdom_tls.key").toFile(),
-        trustedCertCollectionFile = SECRETS_DIR.resolve("edp1_root.pem").toFile(),
-      )
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

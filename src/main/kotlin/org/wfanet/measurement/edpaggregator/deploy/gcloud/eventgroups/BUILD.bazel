@@ -23,3 +23,9 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
     ],
 )
+
+java_binary(
+    name = "EventGroupSyncFunction",
+    main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction",
+    runtime_deps = [":event_group_sync_function"],
+)

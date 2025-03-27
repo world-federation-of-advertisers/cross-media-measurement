@@ -16,11 +16,12 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
 
-import com.google.cloud.functions.CloudEventsFunction
-import com.google.events.cloud.storage.v1.StorageObjectData
-import com.google.protobuf.TextFormat
+import com.google.cloud.functions.HttpFunction
+import com.google.cloud.functions.HttpRequest
+import com.google.cloud.functions.HttpResponse
+import com.google.gson.Gson
 import com.google.protobuf.util.JsonFormat
-import io.cloudevents.CloudEvent
+import java.io.File
 import java.net.URI
 import java.util.logging.Logger
 import kotlin.io.path.Path
@@ -32,46 +33,43 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSyncConfig
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.Campaigns
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroupMap
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 /*
- * The EventGroupSyncFunction receives a CloudEvent, syncs the Kingdom's event groups and writes
- * out a map of eventGroupReferenceId to Event Group resource name that an EDP can later consume.
+ * The EventGroupSyncFunction receives a HTTPRequest with EventGroupSyncConfig. It updates/registers
+ * EventGroups with the kingdom and outputs a map of the registered resource names.
  */
-open class EventGroupSyncFunction() : CloudEventsFunction {
+class EventGroupSyncFunction() : HttpFunction {
 
   private val schema = "gs://"
+  private val gson = Gson()
 
-  override fun accept(event: CloudEvent) {
+  override fun service(request: HttpRequest, response: HttpResponse) {
     logger.fine("Starting EventGroupSyncFunction")
-    val configData: String = getPropertyValue("EVENT_GROUP_SYNC_CONFIG")
-    val eventGroupSyncConfig: EventGroupSyncConfig =
+    val requestBody = request.getReader()
+    //    /val body = gson.fromJson(request.getReader(), JsonObject::class.java)
+    val eventGroupSyncConfig =
       EventGroupSyncConfig.newBuilder()
-        .apply { TextFormat.Parser.newBuilder().build().merge(configData, this) }
+        .apply { JsonFormat.parser().merge(requestBody, this) }
         .build()
-    val cloudEventData =
-      requireNotNull(event.getData()) { "event must have data" }.toBytes().decodeToString()
-    val data =
-      StorageObjectData.newBuilder()
-        .apply { JsonFormat.parser().merge(cloudEventData, this) }
-        .build()
-    val blobKey: String = data.getName()
-    val bucket: String = data.getBucket()
-    val path = "$schema$bucket/$blobKey"
-    check(path == eventGroupSyncConfig.campaignsBlobUri) {
-      "Cloud Function must be configured to monitor ${eventGroupSyncConfig.campaignsBlobUri}"
-    }
+    val inputStorageClient =
+      SelectedStorageClient(
+        url = eventGroupSyncConfig.campaignsBlobUri,
+        rootDirectory =
+          if (getPropertyValue("FILE_STORAGE_ROOT") != null)
+            File(getPropertyValue("FILE_STORAGE_ROOT")!!)
+          else null,
+        projectId = getPropertyValue("GCS_PROJECT_ID"),
+      )
     val campaigns = runBlocking {
       Campaigns.parseFrom(
-        SelectedStorageClient(eventGroupSyncConfig.campaignsBlobUri)
-          .getBlob(getKey(eventGroupSyncConfig.campaignsBlobUri))!!
-          .read()
-          .flatten()
+        inputStorageClient.getBlob(getKey(eventGroupSyncConfig.campaignsBlobUri))!!.read().flatten()
       )
     }
     val publicChannel =
       buildMutualTlsChannel(
-        getPropertyValue("KINGDOM_TARGET"),
+        getPropertyValue("KINGDOM_TARGET")!!,
         getClientCerts(),
         getPropertyValue("KINGDOM_CERT_HOST"),
       )
@@ -83,18 +81,32 @@ open class EventGroupSyncFunction() : CloudEventsFunction {
         eventGroupsStub = eventGroupsClient,
         campaigns = campaigns.campaignsList,
       )
-    runBlocking { eventGroupSync.sync() }
+    val mappedData = runBlocking { eventGroupSync.sync() }
+    runBlocking {
+      SelectedStorageClient(
+          url = eventGroupSyncConfig.eventGroupMapUri,
+          rootDirectory =
+            if (getPropertyValue("FILE_STORAGE_ROOT") != null)
+              File(getPropertyValue("FILE_STORAGE_ROOT")!!)
+            else null,
+          projectId = getPropertyValue("GCS_PROJECT_ID"),
+        )
+        .writeBlob(
+          getKey(eventGroupSyncConfig.eventGroupMapUri),
+          eventGroupMap { eventGroupMap.putAll(mappedData) }.toByteString(),
+        )
+    }
   }
 
   private fun getClientCerts(): SigningCerts {
     return SigningCerts.fromPemFiles(
-      certificateFile = Path(getPropertyValue("CERT_FILE_PATH")).toFile(),
-      privateKeyFile = Path(getPropertyValue("PRIVATE_KEY_FILE_PATH")).toFile(),
-      trustedCertCollectionFile = Path(getPropertyValue("CERT_COLLECTION_FILE_PATH")).toFile(),
+      certificateFile = Path(getPropertyValue("CERT_FILE_PATH")!!).toFile(),
+      privateKeyFile = Path(getPropertyValue("PRIVATE_KEY_FILE_PATH")!!).toFile(),
+      trustedCertCollectionFile = Path(getPropertyValue("CERT_COLLECTION_FILE_PATH")!!).toFile(),
     )
   }
 
-  private fun getPropertyValue(propertyName: String): String {
+  private fun getPropertyValue(propertyName: String): String? {
     return System.getProperty(propertyName) ?: System.getenv(propertyName)
   }
 
