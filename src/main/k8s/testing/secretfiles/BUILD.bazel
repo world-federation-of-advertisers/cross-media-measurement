@@ -8,6 +8,7 @@ package(
     default_visibility = [
         "//src/main/k8s:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/testing:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/access:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/api:__subpackages__",
@@ -15,6 +16,7 @@ package(
         "//src/test/kotlin/org/wfanet/measurement/kingdom/batch:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/reporting:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
         "//src/test/kotlin/org/wfanet/panelmatch/integration:__subpackages__",
     ],
 )
