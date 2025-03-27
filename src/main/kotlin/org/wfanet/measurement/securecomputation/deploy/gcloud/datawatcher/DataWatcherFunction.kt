@@ -31,7 +31,8 @@ import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfigs
 
 /*
- * The DataWatcherFunction receives a CloudEvent and calls the DataWatcher with the path and config.
+ * Cloud Function receives a CloudEvent. If the cloud event path matches config, it calls the
+ * DataWatcher with the path and config.
  */
 class DataWatcherFunction : CloudEventsFunction {
 
