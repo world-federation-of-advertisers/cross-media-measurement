@@ -100,18 +100,16 @@ jobs:
       - name: Run tests
         id: run-tests
         run: >
-          BAZEL_USE_LLVM_NATIVE_COVERAGE=1 GCOV=/usr/bin/llvm-profdata-14 BAZEL_LLVM_COV=/usr/bin/llvm-cov-14 
           bazel coverage 
-          --action_env=BAZEL_USE_LLVM_NATIVE_COVERAGE=1 --host_action_env=BAZEL_USE_LLVM_NATIVE_COVERAGE=1 
-          --action_env=GCOV=/usr/bin/llvm-profdata-14  --host_action_env=GCOV=/usr/bin/llvm-profdata-14 
-          --action_env=BAZEL_LLVM_COV=/usr/bin/llvm-cov-14 --host_action_env=BAZEL_LLVM_COV=/usr/bin/llvm-cov-14 
+          --action_env=BAZEL_USE_LLVM_NATIVE_COVERAGE=1
+          --action_env=GCOV=/usr/bin/llvm-profdata-14
+          --action_env=BAZEL_LLVM_COV=/usr/bin/llvm-cov-14
           --experimental_generate_llvm_lcov 
           --experimental_split_coverage_postprocessing 
           --experimental_fetch_all_coverage_outputs
           --collect_code_coverage
           --remote_download_outputs=all 
-          --strategy=CoverageReport=sandboxed,local
-          --strategy=TestRunner=remote,sandboxed,local
+          --strategy=CoverageReport=local
           --nocache_test_results 
           --combined_report=lcov 
           --instrumentation_filter=//src/main/cc/.*,-@.* //src/test/cc/...
