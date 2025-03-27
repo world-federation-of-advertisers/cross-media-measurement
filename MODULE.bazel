@@ -112,7 +112,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_cc",
-    version = "0.1.0",
+    version = "0.1.1",
 )
 bazel_dep(
     name = "rules_pkg",
@@ -228,6 +228,7 @@ maven.install(
         "com.google.cloud:google-cloud-security-private-ca",
         # TODO(googleapis/java-cloud-bom#5279): Remove when managed by BOM.
         "com.google.apis:google-api-services-storage:v1-rev20240706-2.0.0",
+        "com.google.cloud.functions.invoker:java-function-invoker:1.4.0",
 
         # AWS
         "software.amazon.awssdk:acmpca",

@@ -218,6 +218,7 @@ MESSAGE_LIBS = [
     "basic_report",
     "event_filter",
     "event_template_field",
+    "impression_qualification_filter",
     "impression_qualification_filter_spec",
     "metric_frequency_spec",
     "result_group",
@@ -267,10 +268,31 @@ proto_library(
 )
 
 proto_library(
+    name = "impression_qualification_filter_proto",
+    srcs = ["impression_qualification_filter.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [":impression_qualification_filter_spec_proto"],
+)
+
+proto_library(
     name = "impression_qualification_filter_spec_proto",
     srcs = ["impression_qualification_filter_spec.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [":event_filter_proto"],
+)
+
+proto_library(
+    name = "impression_qualification_filters_service_proto",
+    srcs = ["impression_qualification_filters_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":impression_qualification_filter_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "impression_qualification_filters_service_kt_jvm_grpc_proto",
+    deps = [":impression_qualification_filters_service_proto"],
 )
 
 proto_library(
@@ -347,6 +369,7 @@ proto_descriptor_set(
         ":basic_report_result_details_proto",
         ":event_filter_proto",
         ":event_template_field_proto",
+        ":impression_qualification_filter_proto",
         ":impression_qualification_filter_spec_proto",
         ":metric_frequency_spec_proto",
         ":reporting_impression_qualification_filter_proto",

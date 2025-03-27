@@ -51,3 +51,10 @@ variable "system_v1alpha_ip_address" {
   nullable    = true
   default     = null
 }
+
+variable "dashboard_json_files" {
+  description = "List of filenames of dashboard json templates"
+  type        = list(string)
+  nullable    = true
+  default     = ["duchy_dashboard.json.tmpl"]
+}
