@@ -35,6 +35,8 @@ import java.time.zone.ZoneRulesException
 import kotlin.math.min
 import kotlinx.coroutines.flow.asFlow
 import org.projectnessie.cel.Env
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -53,6 +55,7 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsResponse
 import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequest as InternalListReportSchedulesRequest
 import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequestKt
@@ -90,23 +93,14 @@ class ReportSchedulesService(
   private val internalReportingSetsStub: ReportingSetsCoroutineStub,
   private val dataProvidersStub: DataProvidersCoroutineStub,
   private val eventGroupsStub: EventGroupsCoroutineStub,
+  private val authorization: Authorization,
+  private val measurementConsumerConfigs: MeasurementConsumerConfigs,
 ) : ReportSchedulesCoroutineImplBase() {
   override suspend fun createReportSchedule(request: CreateReportScheduleRequest): ReportSchedule {
     val parentKey: MeasurementConsumerKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid."
       }
-
-    val principal: ReportingPrincipal = principalFromCurrentContext
-    when (principal) {
-      is MeasurementConsumerPrincipal -> {
-        if (parentKey != principal.resourceKey) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot create a ReportSchedule for another MeasurementConsumer."
-          }
-        }
-      }
-    }
 
     grpcRequire(request.hasReportSchedule()) { "report_schedule is not specified." }
     grpcRequire(request.reportScheduleId.matches(RESOURCE_ID_REGEX)) {
@@ -115,6 +109,16 @@ class ReportSchedulesService(
     if (request.requestId.isNotEmpty()) {
       grpcRequire(request.requestId.matches(REQUEST_ID_REGEX)) { "request_id is invalid." }
     }
+
+    authorization.check(request.parent, Permission.CREATE)
+
+    val measurementConsumerConfig =
+      measurementConsumerConfigs.configsMap[request.parent]
+        ?: throw Status.INTERNAL.withDescription(
+            "MeasurementConsumerConfig not found for ${request.parent}"
+          )
+          .asRuntimeException()
+    val apiAuthenticationKey: String = measurementConsumerConfig.apiKey
 
     val internalReportScheduleForRequest = request.reportSchedule.toInternal(parentKey)
 
@@ -134,7 +138,7 @@ class ReportSchedulesService(
       eventGroupKeys,
       dataProvidersStub,
       eventGroupsStub,
-      principal.config.apiKey,
+      apiAuthenticationKey,
     )
 
     val internalReportSchedule =
@@ -171,15 +175,7 @@ class ReportSchedulesService(
         "ReportSchedule name is either unspecified or invalid"
       }
 
-    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
-      is MeasurementConsumerPrincipal -> {
-        if (reportScheduleKey.parentKey != principal.resourceKey) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot stop ReportSchedule belonging to other MeasurementConsumers."
-          }
-        }
-      }
-    }
+    authorization.check(listOf(request.name, reportScheduleKey.parentKey.toName()), Permission.STOP)
 
     val internalReportSchedule =
       try {
@@ -210,15 +206,7 @@ class ReportSchedulesService(
         "ReportSchedule name is either unspecified or invalid"
       }
 
-    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
-      is MeasurementConsumerPrincipal -> {
-        if (reportScheduleKey.parentKey != principal.resourceKey) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot get ReportSchedule belonging to other MeasurementConsumers."
-          }
-        }
-      }
-    }
+    authorization.check(listOf(request.name, reportScheduleKey.parentKey.toName()), Permission.GET)
 
     val internalReportSchedule =
       try {
@@ -246,21 +234,12 @@ class ReportSchedulesService(
   override suspend fun listReportSchedules(
     request: ListReportSchedulesRequest
   ): ListReportSchedulesResponse {
-    val parentKey: MeasurementConsumerKey =
-      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
-        "Parent is either unspecified or invalid."
-      }
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+      "Parent is either unspecified or invalid."
+    }
     val listReportSchedulesPageToken = request.toListReportSchedulesPageToken()
 
-    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
-      is MeasurementConsumerPrincipal -> {
-        if (parentKey.measurementConsumerId != principal.resourceKey.measurementConsumerId) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot list ReportSchedules belonging to other MeasurementConsumers."
-          }
-        }
-      }
-    }
+    authorization.check(request.parent, Permission.LIST)
 
     val internalListReportSchedulesRequest: InternalListReportSchedulesRequest =
       listReportSchedulesPageToken.toListReportSchedulesRequest()
@@ -464,6 +443,14 @@ class ReportSchedulesService(
     }
   }
 
+  object Permission {
+    private const val TYPE = "reporting.reports"
+    const val GET = "$TYPE.get"
+    const val LIST = "$TYPE.list"
+    const val CREATE = "$TYPE.create"
+    const val STOP = "$TYPE.stop"
+  }
+
   companion object {
     private val ENV: Env = buildCelEnvironment(ReportSchedule.getDefaultInstance())
     private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
@@ -473,7 +460,6 @@ class ReportSchedulesService(
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 100
 
-    private const val BATCH_GET_METRIC_CALCULATION_SPECS_LIMIT = 100
     private const val BATCH_GET_REPORTING_SETS_LIMIT = 1000
 
     private fun filterReportSchedules(
