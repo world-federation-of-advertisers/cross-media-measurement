@@ -30,8 +30,8 @@ option java_outer_classname = "WorkItemAttemptProto";
 // An attempt is created whenever a worker receives a message and claims a new
 // attempt to execute the work.
 //
-// - When an attempt is created the `WorkItemAttempt.State` is set to `ACTIVE` and
-// the parent `WorkItem.State` is set to `RUNNING`.
+// - When an attempt is created the `WorkItemAttempt.State` is set to `ACTIVE`
+// and the parent `WorkItem.State` is set to `RUNNING`.
 // - Attempt creation will fail if the parent `WorkItem` has either `FAILED` or
 // `SUCCEEDED` as its state.
 // - On successful execution, both `WorkItemAttempt.State` and `WorkItem.State`

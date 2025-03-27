@@ -43,8 +43,8 @@ suspend fun AsyncDatabaseClient.ReadContext.workItemIdExists(workItemId: Long): 
 }
 
 /**
- * Buffers an update mutation for the WorkItems table.
- * Set as FAILED all the child WorkItemAttempts.
+ * Buffers an update mutation for the WorkItems table. Set as FAILED all the child WorkItemAttempts.
+ *
  * @return the updated `WorkItem.State`.
  */
 fun AsyncDatabaseClient.TransactionContext.failWorkItem(workItemId: Long): WorkItem.State {
@@ -59,9 +59,14 @@ fun AsyncDatabaseClient.TransactionContext.failWorkItem(workItemId: Long): WorkI
 
 /**
  * Buffers an insert mutation for the WorkItems table.
+ *
  * @return the resulting `State` of the `WorkItem` after insertion.
  */
-fun AsyncDatabaseClient.TransactionContext.insertWorkItem(workItemId: Long, workItemResourceId: String, queueId: Long): WorkItem.State {
+fun AsyncDatabaseClient.TransactionContext.insertWorkItem(
+  workItemId: Long,
+  workItemResourceId: String,
+  queueId: Long,
+): WorkItem.State {
   val state = WorkItem.State.QUEUED
   bufferInsertMutation("WorkItems") {
     set("WorkItemId").to(workItemId)
@@ -82,7 +87,7 @@ fun AsyncDatabaseClient.TransactionContext.insertWorkItem(workItemId: Long, work
  */
 suspend fun AsyncDatabaseClient.ReadContext.getWorkItemByResourceId(
   queueMapping: QueueMapping,
-  workItemResourceId: String
+  workItemResourceId: String,
 ): WorkItemResult {
   val sql = buildString {
     appendLine(WorkItems.BASE_SQL)
@@ -90,13 +95,14 @@ suspend fun AsyncDatabaseClient.ReadContext.getWorkItemByResourceId(
   }
   val row: Struct =
     executeQuery(
-      statement(sql) { bind("workItemResourceId").to(workItemResourceId) },
-      Options.tag("action=getWorkItemByResourceId"),
-    )
-    .singleOrNullIfEmpty() ?: throw WorkItemNotFoundException(workItemResourceId)
+        statement(sql) { bind("workItemResourceId").to(workItemResourceId) },
+        Options.tag("action=getWorkItemByResourceId"),
+      )
+      .singleOrNullIfEmpty() ?: throw WorkItemNotFoundException(workItemResourceId)
 
   val queueId = row.getLong("QueueId")
-  val queue = queueMapping.getQueueById(queueId) ?: throw QueueNotFoundForWorkItem(workItemResourceId)
+  val queue =
+    queueMapping.getQueueById(queueId) ?: throw QueueNotFoundForWorkItem(workItemResourceId)
 
   return WorkItems.buildWorkItemResult(row, queue)
 }
@@ -114,7 +120,9 @@ fun AsyncDatabaseClient.ReadContext.readWorkItems(
   val sql = buildString {
     appendLine(WorkItems.BASE_SQL)
     if (after != null) {
-      appendLine("WHERE (CreateTime > @createTime) OR (CreateTime = @createTime AND WorkItemResourceId > @afterWorkItemResourceId)")
+      appendLine(
+        "WHERE (CreateTime > @createTime) OR (CreateTime = @createTime AND WorkItemResourceId > @afterWorkItemResourceId)"
+      )
     }
     appendLine("ORDER BY CreateTime ASC, WorkItemResourceId ASC")
     appendLine("LIMIT @limit")
@@ -130,7 +138,9 @@ fun AsyncDatabaseClient.ReadContext.readWorkItems(
 
   return executeQuery(query, Options.tag("action=readWorkItems")).map { row ->
     val queueId = row.getLong("QueueId")
-    val queue = queueMapping.getQueueById(queueId) ?: throw QueueNotFoundForWorkItem(row.getString("WorkItemResourceId"))
+    val queue =
+      queueMapping.getQueueById(queueId)
+        ?: throw QueueNotFoundForWorkItem(row.getString("WorkItemResourceId"))
 
     WorkItems.buildWorkItemResult(row, queue)
   }
@@ -163,5 +173,4 @@ private object WorkItems {
       },
     )
   }
-
 }

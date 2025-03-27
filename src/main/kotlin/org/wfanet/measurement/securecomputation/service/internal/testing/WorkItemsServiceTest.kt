@@ -27,11 +27,9 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.securecomputation.service.internal.Errors
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageTokenKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse
@@ -39,6 +37,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
+import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest
@@ -49,6 +48,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkIt
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
+import org.wfanet.measurement.securecomputation.service.internal.Errors
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 
 @RunWith(JUnit4::class)
@@ -56,13 +56,13 @@ abstract class WorkItemsServiceTest {
   protected data class Services(
     /** Service under test. */
     val service: WorkItemsCoroutineImplBase,
-    val workItemAttemptsService: WorkItemAttemptsCoroutineImplBase
+    val workItemAttemptsService: WorkItemAttemptsCoroutineImplBase,
   )
 
   /** Initializes the service under test. */
   protected abstract fun initServices(
     queueMapping: QueueMapping,
-    idGenerator: IdGenerator
+    idGenerator: IdGenerator,
   ): Services
 
   private fun initServices(idGenerator: IdGenerator = IdGenerator.Default) =
@@ -84,12 +84,14 @@ abstract class WorkItemsServiceTest {
       .ignoringFields(
         WorkItem.CREATE_TIME_FIELD_NUMBER,
         WorkItem.UPDATE_TIME_FIELD_NUMBER,
-        WorkItem.WORK_ITEM_RESOURCE_ID_FIELD_NUMBER
+        WorkItem.WORK_ITEM_RESOURCE_ID_FIELD_NUMBER,
       )
-      .isEqualTo(request.workItem.copy {
-        state = WorkItem.State.QUEUED
-        workItemResourceId = "work_item_resource_id"
-      })
+      .isEqualTo(
+        request.workItem.copy {
+          state = WorkItem.State.QUEUED
+          workItemResourceId = "work_item_resource_id"
+        }
+      )
     assertThat(response.createTime.toInstant()).isGreaterThan(Instant.now().minusSeconds(10))
     assertThat(response.updateTime).isEqualTo(response.createTime)
   }
@@ -98,12 +100,11 @@ abstract class WorkItemsServiceTest {
   fun `createWorkItem throws INVALID_ARGUMENT if queueResourceId is missing`() = runBlocking {
     val services = initServices()
     val request = createWorkItemRequest {
-      workItem = workItem {
-        workItemResourceId = "work_item_resource_id"
-      }
+      workItem = workItem { workItemResourceId = "work_item_resource_id" }
     }
 
-    val exception = assertFailsWith<StatusRuntimeException> { services.service.createWorkItem(request) }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { services.service.createWorkItem(request) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -120,12 +121,11 @@ abstract class WorkItemsServiceTest {
   fun `createWorkItem throws INVALID_ARGUMENT if workItemResourceId is missing`() = runBlocking {
     val services = initServices()
     val request = createWorkItemRequest {
-      workItem = workItem {
-        queueResourceId = "queues/non_existing_queue"
-      }
+      workItem = workItem { queueResourceId = "queues/non_existing_queue" }
     }
 
-    val exception = assertFailsWith<StatusRuntimeException> { services.service.createWorkItem(request) }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { services.service.createWorkItem(request) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -148,7 +148,8 @@ abstract class WorkItemsServiceTest {
       }
     }
 
-    val exception = assertFailsWith<StatusRuntimeException> { services.service.createWorkItem(request) }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { services.service.createWorkItem(request) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.errorInfo)
@@ -172,9 +173,7 @@ abstract class WorkItemsServiceTest {
     }
 
     val createResponse: WorkItem = services.service.createWorkItem(request)
-    val getRequest = getWorkItemRequest {
-      workItemResourceId = createResponse.workItemResourceId
-    }
+    val getRequest = getWorkItemRequest { workItemResourceId = createResponse.workItemResourceId }
     val workItem = services.service.getWorkItem(getRequest)
 
     assertThat(createResponse).isEqualTo(workItem)
@@ -183,10 +182,10 @@ abstract class WorkItemsServiceTest {
   @Test
   fun `getWorkItem throws INVALID_ARGUMENT if workItemResourceId is missing`() = runBlocking {
     val services = initServices()
-    val request = getWorkItemRequest {
-    }
+    val request = getWorkItemRequest {}
 
-    val exception = assertFailsWith<StatusRuntimeException> { services.service.getWorkItem(request) }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { services.service.getWorkItem(request) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -202,11 +201,10 @@ abstract class WorkItemsServiceTest {
   @Test
   fun `getWorkItem throws NOT_FOUND when WorkItem not found`() = runBlocking {
     val services = initServices()
-    val request = getWorkItemRequest {
-      workItemResourceId = "123"
-    }
+    val request = getWorkItemRequest { workItemResourceId = "123" }
 
-    val exception = assertFailsWith<StatusRuntimeException> { services.service.getWorkItem(request) }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { services.service.getWorkItem(request) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.errorInfo)
@@ -239,35 +237,34 @@ abstract class WorkItemsServiceTest {
 
     services.workItemAttemptsService.createWorkItemAttempt(workItemAttemptRequest)
 
-    val failRequest = failWorkItemRequest {
-      workItemResourceId = createResponse.workItemResourceId
-    }
+    val failRequest = failWorkItemRequest { workItemResourceId = createResponse.workItemResourceId }
     val workItem = services.service.failWorkItem(failRequest)
 
     assertThat(workItem)
-      .ignoringFields(
-        WorkItem.UPDATE_TIME_FIELD_NUMBER,
-      )
-      .isEqualTo(createResponse.copy {
-        state = WorkItem.State.FAILED
-      })
+      .ignoringFields(WorkItem.UPDATE_TIME_FIELD_NUMBER)
+      .isEqualTo(createResponse.copy { state = WorkItem.State.FAILED })
 
     val listWorkItemAttemptsRequest = listWorkItemAttemptsRequest {
       workItemResourceId = workItem.workItemResourceId
     }
-    val listWorkItemAttemptsResponse = services.workItemAttemptsService.listWorkItemAttempts(listWorkItemAttemptsRequest)
+    val listWorkItemAttemptsResponse =
+      services.workItemAttemptsService.listWorkItemAttempts(listWorkItemAttemptsRequest)
 
-    assertThat(listWorkItemAttemptsResponse.workItemAttemptsList.all { it.state == WorkItemAttempt.State.FAILED })
+    assertThat(
+        listWorkItemAttemptsResponse.workItemAttemptsList.all {
+          it.state == WorkItemAttempt.State.FAILED
+        }
+      )
       .isTrue()
   }
 
   @Test
   fun `failWorkItem throws INVALID_ARGUMENT if workItemResourceId is missing`() = runBlocking {
     val services = initServices()
-    val failRequest = failWorkItemRequest {
-    }
+    val failRequest = failWorkItemRequest {}
 
-    val exception = assertFailsWith<StatusRuntimeException> { services.service.failWorkItem(failRequest) }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { services.service.failWorkItem(failRequest) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -285,7 +282,8 @@ abstract class WorkItemsServiceTest {
     val services = initServices()
     val workItems: List<WorkItem> = createWorkItems(services.service, 10)
 
-    val response: ListWorkItemsResponse = services.service.listWorkItems(ListWorkItemsRequest.getDefaultInstance())
+    val response: ListWorkItemsResponse =
+      services.service.listWorkItems(ListWorkItemsRequest.getDefaultInstance())
 
     assertThat(response).isEqualTo(listWorkItemsResponse { this.workItems += workItems })
   }
@@ -295,14 +293,14 @@ abstract class WorkItemsServiceTest {
     val services = initServices()
     val workItems: List<WorkItem> = createWorkItems(services.service, 10)
 
-    val response: ListWorkItemsResponse = services.service.listWorkItems(listWorkItemsRequest { pageSize = 10 })
+    val response: ListWorkItemsResponse =
+      services.service.listWorkItems(listWorkItemsRequest { pageSize = 10 })
 
     assertThat(response).isEqualTo(listWorkItemsResponse { this.workItems += workItems })
   }
 
   @Test
   fun `listWorkItems returns next page token when there are more results`() = runBlocking {
-
     val services = initServices()
     val workItems: List<WorkItem> = createWorkItems(services.service, 10)
 
@@ -313,10 +311,11 @@ abstract class WorkItemsServiceTest {
         listWorkItemsResponse {
           this.workItems += workItems.take(request.pageSize)
           nextPageToken = listWorkItemsPageToken {
-            after = ListWorkItemsPageTokenKt.after {
-              workItemResourceId = workItems.get(4).workItemResourceId
-              createdAfter = workItems.get(4).createTime
-            }
+            after =
+              ListWorkItemsPageTokenKt.after {
+                workItemResourceId = workItems.get(4).workItemResourceId
+                createdAfter = workItems.get(4).createTime
+              }
           }
         }
       )
@@ -330,10 +329,11 @@ abstract class WorkItemsServiceTest {
     val request = listWorkItemsRequest {
       pageSize = 2
       pageToken = listWorkItemsPageToken {
-        after = ListWorkItemsPageTokenKt.after {
-          workItemResourceId = workItems.get(4).workItemResourceId
-          createdAfter = workItems.get(4).createTime
-        }
+        after =
+          ListWorkItemsPageTokenKt.after {
+            workItemResourceId = workItems.get(4).workItemResourceId
+            createdAfter = workItems.get(4).createTime
+          }
       }
     }
     val response: ListWorkItemsResponse = services.service.listWorkItems(request)
@@ -342,10 +342,11 @@ abstract class WorkItemsServiceTest {
         listWorkItemsResponse {
           this.workItems += workItems.subList(5, 7)
           nextPageToken = listWorkItemsPageToken {
-            after = ListWorkItemsPageTokenKt.after {
-              workItemResourceId = workItems.get(6).workItemResourceId
-              createdAfter = workItems.get(6).createTime
-            }
+            after =
+              ListWorkItemsPageTokenKt.after {
+                workItemResourceId = workItems.get(6).workItemResourceId
+                createdAfter = workItems.get(6).createTime
+              }
           }
         }
       )
@@ -367,5 +368,4 @@ abstract class WorkItemsServiceTest {
       )
     }
   }
-
 }

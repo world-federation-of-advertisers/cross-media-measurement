@@ -18,26 +18,22 @@ package org.wfanet.measurement.securecomputation.service.internal
 
 import com.google.common.hash.Hashing
 import org.wfanet.measurement.config.securecomputation.QueuesConfig
-import org.wfanet.measurement.config.securecomputation.queuesConfig
 
 class QueueMapping(config: QueuesConfig) {
-  data class Queue(
-    val queueId: Long,
-    val queueResourceId: String,
-  )
+  data class Queue(val queueId: Long, val queueResourceId: String)
 
   /** Queues sorted by resource ID. */
   val queues: List<Queue> =
     buildList {
-      for (queue in config.queueInfosList) {
-        check(QUEUE_RESOURCE_ID_REGEX.matches(queue.queueResourceId)) {
-          "Invalid queue resource ID ${queue.queueResourceId}"
+        for (queue in config.queueInfosList) {
+          check(QUEUE_RESOURCE_ID_REGEX.matches(queue.queueResourceId)) {
+            "Invalid queue resource ID ${queue.queueResourceId}"
+          }
+          val queueId = fingerprint(queue.queueResourceId)
+          add(Queue(queueId, queue.queueResourceId))
         }
-        val queueId = fingerprint(queue.queueResourceId)
-        add(Queue(queueId, queue.queueResourceId))
       }
-
-    }.sortedBy { it.queueResourceId }
+      .sortedBy { it.queueResourceId }
 
   private val queuesById: Map<Long, Queue> =
     buildMap(queues.size) {
@@ -53,19 +49,17 @@ class QueueMapping(config: QueuesConfig) {
       }
     }
 
-  private val queuesByResourceId: Map<String, Queue> =
-    queues.associateBy { it.queueResourceId }
+  private val queuesByResourceId: Map<String, Queue> = queues.associateBy { it.queueResourceId }
 
   fun getQueueById(queueId: Long) = queuesById[queueId]
 
-  fun getQueueByResourceId(queueResourceId: String) =
-    queuesByResourceId[queueResourceId]
+  fun getQueueByResourceId(queueResourceId: String) = queuesByResourceId[queueResourceId]
 
   companion object {
     private fun fingerprint(input: String): Long =
       Hashing.farmHashFingerprint64().hashString(input, Charsets.UTF_8).asLong()
 
-    private val QUEUE_RESOURCE_ID_REGEX = Regex("^[a-zA-Z]([a-zA-Z0-9.-]{0,61}[a-zA-Z0-9])?(/[a-zA-Z0-9_-]+)*$")
-
+    private val QUEUE_RESOURCE_ID_REGEX =
+      Regex("^[a-zA-Z]([a-zA-Z0-9.-]{0,61}[a-zA-Z0-9])?(/[a-zA-Z0-9_-]+)*$")
   }
 }

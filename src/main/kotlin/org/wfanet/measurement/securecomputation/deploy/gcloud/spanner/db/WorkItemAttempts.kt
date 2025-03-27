@@ -37,33 +37,39 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAt
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptNotFoundException
 
-data class WorkItemAttemptResult(val workItemId: Long, val workItemAttemptId: Long, val workItemAttempt: WorkItemAttempt)
+data class WorkItemAttemptResult(
+  val workItemId: Long,
+  val workItemAttemptId: Long,
+  val workItemAttempt: WorkItemAttempt,
+)
 
 suspend fun AsyncDatabaseClient.ReadContext.workItemAttemptExists(
   workItemId: Long,
-  workItemAttemptId: Long
+  workItemAttemptId: Long,
 ): Boolean {
-  return readRow("WorkItemAttempts", Key.of(workItemId, workItemAttemptId), listOf("WorkItemId", "WorkItemAttemptId")) != null
+  return readRow(
+    "WorkItemAttempts",
+    Key.of(workItemId, workItemAttemptId),
+    listOf("WorkItemId", "WorkItemAttemptId"),
+  ) != null
 }
 
 /**
  * Buffers an insert mutation for the WorkItemAttempts table.
  *
  * @return a pair consisting of:
- * - The `attemptNumber` assigned to the newly inserted row.
- * - The resulting `State` of the `WorkItemAttempt` after insertion.
- * */
+ *     - The `attemptNumber` assigned to the newly inserted row.
+ *     - The resulting `State` of the `WorkItemAttempt` after insertion.
+ */
 suspend fun AsyncDatabaseClient.TransactionContext.insertWorkItemAttempt(
   workItemId: Long,
   workItemAttemptId: Long,
-  workItemAttemptResourceId: String
+  workItemAttemptResourceId: String,
 ): Pair<Int, WorkItemAttempt.State> {
 
-  val attemptNumber = read(
-    "WorkItemAttempts",
-    KeySet.prefixRange(Key.of(workItemId)),
-    listOf("WorkItemId")
-  ).count() + 1
+  val attemptNumber =
+    read("WorkItemAttempts", KeySet.prefixRange(Key.of(workItemId)), listOf("WorkItemId")).count() +
+      1
   val workItemAttemptState = WorkItemAttempt.State.ACTIVE
   bufferInsertMutation("WorkItemAttempts") {
     set("WorkItemId").to(workItemId)
@@ -84,36 +90,44 @@ suspend fun AsyncDatabaseClient.TransactionContext.insertWorkItemAttempt(
 /**
  * Reads a [WorkItemAttempt] by its [workItemResourceId] and [workItemAttemptResourceId].
  *
- * A [WorkItemAttemptResult] containing the associated work item ID,
- * work item attempt ID, and the retrieved [WorkItemAttempt].
+ * A [WorkItemAttemptResult] containing the associated work item ID, work item attempt ID, and the
+ * retrieved [WorkItemAttempt].
+ *
  * @throws WorkItemAttemptNotFoundException
  */
 suspend fun AsyncDatabaseClient.ReadContext.getWorkItemAttemptByResourceId(
   workItemResourceId: String,
-  workItemAttemptResourceId: String
+  workItemAttemptResourceId: String,
 ): WorkItemAttemptResult {
   val sql = buildString {
     appendLine(WorkItemAttempts.BASE_SQL)
-    appendLine("WHERE WorkItems.WorkItemResourceId = @workItemResourceId AND WorkItemAttempts.WorkItemAttemptResourceId = @workItemAttemptResourceId")
+    appendLine(
+      "WHERE WorkItems.WorkItemResourceId = @workItemResourceId AND WorkItemAttempts.WorkItemAttemptResourceId = @workItemAttemptResourceId"
+    )
   }
   val row: Struct =
     executeQuery(
-      statement(sql) {
-        bind("workItemResourceId").to(workItemResourceId)
-        bind("workItemAttemptResourceId").to(workItemAttemptResourceId)
-      },
-      Options.tag("action=getWorkItemAttemptByResourceId"),
-    )
-      .singleOrNullIfEmpty() ?: throw WorkItemAttemptNotFoundException(workItemResourceId, workItemAttemptResourceId)
+        statement(sql) {
+          bind("workItemResourceId").to(workItemResourceId)
+          bind("workItemAttemptResourceId").to(workItemAttemptResourceId)
+        },
+        Options.tag("action=getWorkItemAttemptByResourceId"),
+      )
+      .singleOrNullIfEmpty()
+      ?: throw WorkItemAttemptNotFoundException(workItemResourceId, workItemAttemptResourceId)
 
   return WorkItemAttempts.buildWorkItemAttemptResult(row)
 }
 
 /**
  * Buffers an update mutation for the WorkItemAttempts table.
+ *
  * @return the updated `WorkItemAttempt.State`.
  */
-fun AsyncDatabaseClient.TransactionContext.completeWorkItemAttempt(workItemId: Long, workItemAttemptId: Long): WorkItemAttempt.State {
+fun AsyncDatabaseClient.TransactionContext.completeWorkItemAttempt(
+  workItemId: Long,
+  workItemAttemptId: Long,
+): WorkItemAttempt.State {
   val state = WorkItemAttempt.State.SUCCEEDED
   bufferUpdateMutation("WorkItemAttempts") {
     set("WorkItemId").to(workItemId)
@@ -131,9 +145,13 @@ fun AsyncDatabaseClient.TransactionContext.completeWorkItemAttempt(workItemId: L
 
 /**
  * Buffers an update mutation for the WorkItemAttempts table.
+ *
  * @return the updated `WorkItemAttempt.State`.
  */
-fun AsyncDatabaseClient.TransactionContext.failWorkItemAttempt(workItemId: Long, workItemAttemptId: Long): WorkItemAttempt.State {
+fun AsyncDatabaseClient.TransactionContext.failWorkItemAttempt(
+  workItemId: Long,
+  workItemAttemptId: Long,
+): WorkItemAttempt.State {
   val state = WorkItemAttempt.State.FAILED
   bufferUpdateMutation("WorkItemAttempts") {
     set("WorkItemId").to(workItemId)
@@ -154,9 +172,11 @@ fun AsyncDatabaseClient.ReadContext.readWorkItemAttempts(
 ): Flow<WorkItemAttemptResult> {
   val sql = buildString {
     appendLine(WorkItemAttempts.BASE_SQL)
-    append("""
+    append(
+      """
       WHERE WorkItems.WorkItemResourceId = @workItemResourceId
-    """)
+    """
+    )
     if (after != null) {
       appendLine(
         """
@@ -164,12 +184,15 @@ fun AsyncDatabaseClient.ReadContext.readWorkItemAttempts(
           (WorkItemAttempts.CreateTime > @createTime) OR
           (WorkItemAttempts.CreateTime = @createTime AND WorkItemAttempts.WorkItemAttemptResourceId > @workItemAttemptResourceId)
         )
-        """.trimIndent()
+        """
+          .trimIndent()
       )
     }
-    appendLine("""
+    appendLine(
+      """
       ORDER BY WorkItemAttempts.CreateTime ASC, WorkItemAttempts.WorkItemId ASC, WorkItemAttempts.WorkItemAttemptResourceId ASC
-    """)
+    """
+    )
     appendLine("LIMIT @limit")
   }
   val query =
@@ -224,5 +247,4 @@ private object WorkItemAttempts {
       },
     )
   }
-
 }

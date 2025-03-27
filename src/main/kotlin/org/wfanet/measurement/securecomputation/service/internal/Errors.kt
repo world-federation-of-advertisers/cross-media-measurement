@@ -140,43 +140,62 @@ class WorkItemNotFoundException(workItemResourceId: String, cause: Throwable? = 
 class WorkItemAttemptNotFoundException(
   workItemResourceId: String,
   workItemAttemptResourceId: String,
-  cause: Throwable? = null) :
+  cause: Throwable? = null,
+) :
   ServiceException(
     Errors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
     "WorkItemAttempt with workItemResource ID $workItemResourceId and workItemAttemptResource ID $workItemAttemptResourceId not found",
     mapOf(
       Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId,
-      Errors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID to workItemAttemptResourceId
-
+      Errors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID to workItemAttemptResourceId,
     ),
     cause,
   )
 
 class WorkItemAlreadyExistsException(cause: Throwable? = null) :
-  ServiceException(Errors.Reason.WORK_ITEM_ALREADY_EXISTS, "WorkItem already exists", emptyMap(), cause)
+  ServiceException(
+    Errors.Reason.WORK_ITEM_ALREADY_EXISTS,
+    "WorkItem already exists",
+    emptyMap(),
+    cause,
+  )
 
 class WorkItemAttemptAlreadyExistsException(cause: Throwable? = null) :
-  ServiceException(Errors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS, "WorkItemAttempt already exists", emptyMap(), cause)
+  ServiceException(
+    Errors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+    "WorkItemAttempt already exists",
+    emptyMap(),
+    cause,
+  )
 
-class WorkItemInvalidStateException(workItemResourceId: String, workItemState: WorkItem.State, cause: Throwable? = null) :
+class WorkItemInvalidStateException(
+  workItemResourceId: String,
+  workItemState: WorkItem.State,
+  cause: Throwable? = null,
+) :
   ServiceException(
     Errors.Reason.INVALID_WORK_ITEM_STATE,
     "WorkItem with resource ID $workItemResourceId is in an invalid state for this operation",
     mapOf(
       Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId,
-      Errors.Metadata.WORK_ITEM_STATE to workItemState.name
+      Errors.Metadata.WORK_ITEM_STATE to workItemState.name,
     ),
     cause,
   )
 
-class WorkItemAttemptInvalidStateException(workItemResourceId: String, workItemAttemptResourceId: String, workItemAttemptState: WorkItemAttempt.State, cause: Throwable? = null) :
+class WorkItemAttemptInvalidStateException(
+  workItemResourceId: String,
+  workItemAttemptResourceId: String,
+  workItemAttemptState: WorkItemAttempt.State,
+  cause: Throwable? = null,
+) :
   ServiceException(
     Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE,
     "WorkItemAttempt with resource ID $workItemAttemptResourceId is in an invalid state for this operation",
     mapOf(
       Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId,
       Errors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID to workItemAttemptResourceId,
-      Errors.Metadata.WORK_ITEM_ATTEMPT_STATE to workItemAttemptState.name
+      Errors.Metadata.WORK_ITEM_ATTEMPT_STATE to workItemAttemptState.name,
     ),
     cause,
   )
