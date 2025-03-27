@@ -18,6 +18,7 @@ package wfa.measurement.internal.securecomputation.controlplane;
 
 import "google/api/field_behavior.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/any.proto";
 
 option java_package = "org.wfanet.measurement.internal.securecomputation.controlplane";
 option java_multiple_files = true;
@@ -29,6 +30,10 @@ message WorkItem {
 
   // The id representing a `Queue` into which this `WorkItem` must be enqueued.
   string queue_resource_id = 2;
+
+  // The parameters to be delivered to the TEE application.
+  google.protobuf.Any work_item_params = 3
+    [(google.api.field_behavior) = IMMUTABLE];
 
   // State of a `WorkItem`.
   enum State {

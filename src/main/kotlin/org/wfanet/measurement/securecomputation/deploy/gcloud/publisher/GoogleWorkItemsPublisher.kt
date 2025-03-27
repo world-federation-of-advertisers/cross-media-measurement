@@ -19,7 +19,7 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.publisher
 import com.google.protobuf.Message
 import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Publisher
-import org.wfanet.measurement.securecomputation.deploy.WorkItemsPublisher
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemsPublisher
 
 class GoogleWorkItemsPublisher(
   projectId: String,

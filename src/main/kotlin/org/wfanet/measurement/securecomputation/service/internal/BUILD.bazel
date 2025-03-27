@@ -29,3 +29,11 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/common:guava",
     ],
 )
+
+kt_jvm_library(
+    name = "work_items_publisher",
+    srcs = ["WorkItemsPublisher.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)

@@ -48,7 +48,6 @@ import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.stub
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.securecomputation.deploy.testing.FakeWorkItemsPublisher
 import org.wfanet.measurement.securecomputation.service.Errors
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
@@ -62,12 +61,10 @@ class WorkItemServiceTest {
   val grpcTestServer = GrpcTestServerRule { addService(internalServiceMock) }
 
   private lateinit var service: WorkItemsService
-  private lateinit var workItemPublisher: FakeWorkItemsPublisher
 
   @Before
   fun initService() {
-    workItemPublisher = FakeWorkItemsPublisher()
-    service = WorkItemsService(InternalWorkItemsCoroutineStub(grpcTestServer.channel), workItemPublisher)
+    service = WorkItemsService(InternalWorkItemsCoroutineStub(grpcTestServer.channel))
   }
 
   @Test
