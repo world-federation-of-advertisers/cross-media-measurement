@@ -23,6 +23,7 @@ import "google/protobuf/any.proto";
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "EventGroupProto";
+option go_package = "github.com/world-federation-of-advertisers/cross-media-measurement/reporting/apiv2alpha/reportingpb";
 
 // A grouping of events defined by a `DataProvider`. For example, a single
 // campaign or creative defined in a publisher's ad system.
