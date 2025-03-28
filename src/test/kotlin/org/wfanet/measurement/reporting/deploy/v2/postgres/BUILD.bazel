@@ -58,6 +58,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres:services",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:errors",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing/v2:testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
     ],
