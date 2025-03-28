@@ -77,11 +77,7 @@ class RequisitionFetcherFunctionTest {
 
     /** Start the RequisitionFetcherFunction process */
     functionProcess =
-      CloudFunctionProcess(
-        javaBinaryPath = FETCHER_BINARY_PATH,
-        classTarget = GCF_TARGET,
-        logger = logger,
-      )
+      CloudFunctionProcess(javaBinaryPath = FETCHER_BINARY_PATH, classTarget = GCF_TARGET)
     runBlocking {
       val port =
         functionProcess.start(

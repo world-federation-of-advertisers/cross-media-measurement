@@ -44,8 +44,8 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.gcloud.testing.CloudFunctionProcess
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.gcloud.testing.CloudFunctionProcess
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
@@ -99,12 +99,12 @@ class InvokeDataWatcherFunctionTest() {
     /** Start gRPC server with mock Requisitions service */
     grpcServer =
       CommonServer.fromParameters(
-        verboseGrpcLogging = true,
-        certs = serverCerts,
-        clientAuth = ClientAuth.REQUIRE,
-        nameForLogging = "WorkItemsServer",
-        services = listOf(workItemsServiceMock.bindService()),
-      )
+          verboseGrpcLogging = true,
+          certs = serverCerts,
+          clientAuth = ClientAuth.REQUIRE,
+          nameForLogging = "WorkItemsServer",
+          services = listOf(workItemsServiceMock.bindService()),
+        )
         .start()
     logger.info("Started gRPC server on port ${grpcServer.port}")
 
@@ -119,10 +119,7 @@ class InvokeDataWatcherFunctionTest() {
     }
     /** Start the DataWatcherFunction process */
     functionProcess =
-      CloudFunctionProcess(
-        javaBinaryPath = functionBinaryPath,
-        classTarget = gcfTarget,
-      )
+      CloudFunctionProcess(javaBinaryPath = functionBinaryPath, classTarget = gcfTarget)
     runBlocking {
       val port =
         functionProcess.start(
