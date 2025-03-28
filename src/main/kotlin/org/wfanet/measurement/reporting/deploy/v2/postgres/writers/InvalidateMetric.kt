@@ -59,8 +59,8 @@ class InvalidateMetric(private val request: InvalidateMetricRequest) : PostgresW
       throw InvalidMetricStateTransitionException(
         cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
         externalMetricId = request.externalMetricId,
-        metricState = Metric.State.FAILED.name,
-        newMetricState = Metric.State.INVALID.name,
+        metricState = Metric.State.FAILED,
+        newMetricState = Metric.State.INVALID,
       )
     }
 

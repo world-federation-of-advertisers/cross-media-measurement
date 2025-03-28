@@ -10378,8 +10378,8 @@ class MetricsServiceTest {
         InvalidMetricStateTransitionException(
             cmmsMeasurementConsumerId = measurementConsumerKey!!.measurementConsumerId,
             externalMetricId = metricKey.metricId,
-            metricState = InternalMetric.State.FAILED.name,
-            newMetricState = InternalMetric.State.INVALID.name,
+            metricState = InternalMetric.State.FAILED,
+            newMetricState = InternalMetric.State.INVALID,
           )
           .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       )

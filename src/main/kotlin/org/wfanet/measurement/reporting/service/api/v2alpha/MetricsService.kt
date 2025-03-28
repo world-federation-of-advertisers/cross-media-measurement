@@ -1260,8 +1260,8 @@ class MetricsService(
         InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION ->
           InvalidMetricStateTransitionException(
               request.name,
-              Metric.State.FAILED.name,
-              Metric.State.INVALID.name,
+              Metric.State.FAILED,
+              Metric.State.INVALID,
             )
             .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,

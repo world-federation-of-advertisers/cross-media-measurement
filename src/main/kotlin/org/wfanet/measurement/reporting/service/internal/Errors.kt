@@ -22,6 +22,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.internal.reporting.v2.Metric
 
 object Errors {
   const val DOMAIN = "internal.reporting.halo-cmm.org"
@@ -195,8 +196,8 @@ class MetricNotFoundException(
 class InvalidMetricStateTransitionException(
   cmmsMeasurementConsumerId: String,
   externalMetricId: String,
-  metricState: String,
-  newMetricState: String,
+  metricState: Metric.State,
+  newMetricState: Metric.State,
   cause: Throwable? = null,
 ) :
   ServiceException(
@@ -208,8 +209,8 @@ class InvalidMetricStateTransitionException(
     mapOf(
       Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
       Errors.Metadata.EXTERNAL_METRIC_ID to externalMetricId,
-      Errors.Metadata.METRIC_STATE to metricState,
-      Errors.Metadata.NEW_METRIC_STATE to newMetricState,
+      Errors.Metadata.METRIC_STATE to metricState.name,
+      Errors.Metadata.NEW_METRIC_STATE to newMetricState.name,
     ),
     cause,
   )
