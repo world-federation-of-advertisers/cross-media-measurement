@@ -25,6 +25,7 @@ import com.google.type.date
 import com.google.type.dateTime
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.nio.file.Paths
 import java.time.Clock
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
@@ -38,10 +39,13 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
+import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
@@ -74,6 +78,7 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementCo
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
 import org.wfanet.measurement.reporting.service.api.Errors
+import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsRequestKt
@@ -100,7 +105,13 @@ class BasicReportsServiceTest {
     val postgresDatabaseClient = postgresDatabaseProvider.createDatabase()
     val idGenerator = RandomIdGenerator(Clock.systemUTC(), Random(1))
 
-    addService(SpannerBasicReportsService(spannerDatabaseClient, postgresDatabaseClient))
+    addService(
+      SpannerBasicReportsService(
+        spannerDatabaseClient,
+        postgresDatabaseClient,
+        IMPRESSION_QUALIFICATION_FILTER_MAPPING,
+      )
+    )
     addService(PostgresMeasurementConsumersService(idGenerator, postgresDatabaseClient))
     addService(PostgresReportingSetsService(idGenerator, postgresDatabaseClient))
   }
@@ -1958,5 +1969,17 @@ class BasicReportsServiceTest {
             }
         }
     }
+
+    private val CONFIG_PATH =
+      Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+    private val IMPRESSION_QUALIFICATION_FILTER_CONFIG:
+      ImpressionQualificationFilterConfig by lazy {
+      val configFile =
+        getRuntimePath(CONFIG_PATH.resolve("impression_qualification_filter_config.textproto"))!!
+          .toFile()
+      parseTextProto(configFile, ImpressionQualificationFilterConfig.getDefaultInstance())
+    }
+    private val IMPRESSION_QUALIFICATION_FILTER_MAPPING =
+      ImpressionQualificationFilterMapping(IMPRESSION_QUALIFICATION_FILTER_CONFIG)
   }
 }

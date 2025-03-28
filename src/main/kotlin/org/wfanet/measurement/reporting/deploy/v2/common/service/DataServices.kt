@@ -65,7 +65,11 @@ object DataServices {
     impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
   ): Services {
     return Services(
-      SpannerBasicReportsService(spannerClient, postgresClient),
+      SpannerBasicReportsService(
+        spannerClient,
+        postgresClient,
+        impressionQualificationFilterMapping,
+      ),
       ImpressionQualificationFiltersService(impressionQualificationFilterMapping),
       PostgresMeasurementConsumersService(idGenerator, postgresClient),
       PostgresMeasurementsService(idGenerator, postgresClient),
