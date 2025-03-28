@@ -26,15 +26,9 @@ option java_package = "org.wfanet.measurement.securecomputation.datawatcher.v1al
 option java_multiple_files = true;
 option java_outer_classname = "DataWatcherConfigProto";
 
+// Individual application-specific config that maps a path of data to the
+// application sink and application config.
 message DataWatcherConfig {
-
-  message DiscoveredWork {
-    // The packed message
-    google.protobuf.Any config = 1;
-    // Path that matched the work
-    string path = 2;
-  }
-
   // The path to watch
   string source_path_regex = 1;
 
