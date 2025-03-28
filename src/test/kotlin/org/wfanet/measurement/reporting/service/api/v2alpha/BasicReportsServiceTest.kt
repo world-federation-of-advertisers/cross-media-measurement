@@ -140,7 +140,7 @@ class BasicReportsServiceTest {
     val cmmsDataProviderId = "1235"
     val reportingSetId = "4322"
     val basicReportId = "4321"
-    val impressionQualificationFilterId = "4323"
+    val impressionQualificationFilterId = "ami"
 
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId }
