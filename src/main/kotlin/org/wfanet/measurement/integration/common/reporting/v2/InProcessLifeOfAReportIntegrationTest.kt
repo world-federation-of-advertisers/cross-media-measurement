@@ -90,7 +90,7 @@ import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
-import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer
+import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.Metric
@@ -139,6 +139,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       ) -> InProcessDuchy.DuchyDependencies
     >,
   accessServicesFactory: AccessServicesFactory,
+  reportingDataServicesProviderRule: ProviderRule<Services>,
 ) {
   private val inProcessCmmsComponents: InProcessCmmsComponents =
     InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
@@ -155,8 +156,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       }
     }
   }
-
-  abstract val internalReportingServerServices: InternalReportingServer.Services
 
   private val reportingServerRule =
     object : TestRule {
@@ -189,7 +188,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         }
 
         return InProcessReportingServer(
-          internalReportingServerServices,
+          reportingDataServicesProviderRule.value,
           accessServicesFactory,
           inProcessCmmsComponents.kingdom.publicApiChannel,
           encryptionKeyPairConfig,
@@ -219,6 +218,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     chainRulesSequentially(
       inProcessCmmsComponents,
       inProcessCmmsComponentsStartup,
+      reportingDataServicesProviderRule,
       reportingServerRule,
     )
 

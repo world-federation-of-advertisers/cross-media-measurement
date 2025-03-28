@@ -23,11 +23,6 @@ objectSets: [ for objectSet in reporting {objectSet}]
 reporting: #Reporting & {
 	_secretName:         _reportingSecretName
 	_mcConfigSecretName: _reportingMcConfigSecretName
-	_imageSuffixes: {
-		"update-reporting-schema":            "reporting/v2/local-postgres-update-schema"
-		"postgres-internal-reporting-server": "reporting/v2/local-postgres-internal"
-	}
-
 	_postgresConfig: {
 		serviceName: "postgres"
 		password:    "$(POSTGRES_PASSWORD)"
@@ -59,8 +54,11 @@ reporting: #Reporting & {
 
 	deployments: {
 		"postgres-internal-reporting-server": {
-			_container: _envVars:             EnvVars
-			_updateSchemaContainer: _envVars: EnvVars
+			_container: _envVars:                     EnvVars
+			_updatePostgresSchemaContainer: _envVars: EnvVars
+			spec: template: spec: {
+				_dependencies: ["spanner-emulator"]
+			}
 		}
 		"reporting-v2alpha-public-api-server": {
 			spec: template: spec: {
