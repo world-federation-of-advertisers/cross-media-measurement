@@ -1,0 +1,91 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.securecomputation.metadata;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/securecomputation/metadata/requisition_metadata.proto";
+import "wfa/measurement/securecomputation/metadata/metadata_action.proto";
+
+
+option java_package = "org.wfanet.measurement.securecomputation.metadata";
+option java_multiple_files = true;
+option java_outer_classname = "ResourceMetadataServiceProto";
+
+
+service ResourceMetadataService {
+  rpc CreateRequisitionMetadata(CreateRequisitionMetadataRequest) returns (RequisitionMetadata);
+
+  rpc GetRequisitionMetadata(GetRequisitionMetadataRequest) returns (RequisitionMetadata);
+
+  rpc ListRequisitionsMetadata(ListRequisitionsMetadataRequest) returns (ListRequisitionsMetadataResponse);
+
+  rpc TransitionRequisitionMetadataState(TransitionRequisitionMetadataStateRequest) returns (RequisitionMetadata);
+}
+
+message CreateRequisitionMetadataRequest {
+  // Resource name of the `Requisition.
+  string name = 1 [
+    (google.api.resource_reference).type = "halo.wfanet.org/Requisition",
+    (google.api.field_behavior) = REQUIRED
+  ];
+  string storage_uri = 2;
+  MetadataState current_state = 3;
+  google.protobuf.Timestamp state_time = 4;
+  ActorType actor = 5;
+}
+
+message GetRequisitionMetadataRequest {
+  oneof lookup_key {
+    string requisition_name = 1 [
+      (google.api.resource_reference).type = "halo.wfanet.org/Requisition",
+      (google.api.field_behavior) = REQUIRED
+    ];
+    string storage_uri = 2;
+  }
+}
+
+message ListRequisitionsMetadataRequest {
+  // Resource key of the parent `DataProvider`.
+  string parent = 1 [
+    (google.api.resource_reference).type = "halo.wfanet.org/DataProvider",
+    (google.api.field_behavior) = REQUIRED
+  ];
+
+  message Filter {
+    string storage_uri= 1;
+    MetadataState current_state = 2;
+  }
+
+  Filter filter = 2;
+}
+
+message ListRequisitionsMetadataResponse {
+  repeated RequisitionMetadata requisition_metadata = 1;
+}
+
+message TransitionRequisitionMetadataStateRequest {
+  // Resource name of the `Requisition`.
+  string name = 1 [
+    (google.api.resource_reference).type = "halo.wfanet.org/Requisition",
+    (google.api.field_behavior) = REQUIRED
+  ];
+  ActorType actor_type = 2;
+  MetadataState new_state = 3;
+  google.protobuf.Timestamp state_time = 4;
+}
