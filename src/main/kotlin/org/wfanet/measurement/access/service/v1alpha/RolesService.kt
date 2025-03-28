@@ -20,6 +20,7 @@ import com.google.protobuf.Empty
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.IOException
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.access.service.EtagMismatchException
 import org.wfanet.measurement.access.service.InvalidFieldValueException
 import org.wfanet.measurement.access.service.PermissionKey
@@ -41,10 +42,12 @@ import org.wfanet.measurement.access.v1alpha.RolesGrpcKt
 import org.wfanet.measurement.access.v1alpha.UpdateRoleRequest
 import org.wfanet.measurement.access.v1alpha.listRolesResponse
 import org.wfanet.measurement.common.api.ResourceIds
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.internal.access.ListRolesPageToken as InternalListRolesPageToken
-import org.wfanet.measurement.internal.access.ListRolesResponse as InternalListRolesResponse
+import org.wfanet.measurement.internal.access.ListRolesPageToken
 import org.wfanet.measurement.internal.access.Role as InternalRole
 import org.wfanet.measurement.internal.access.RolesGrpcKt.RolesCoroutineStub as InternalRolesCoroutineStub
 import org.wfanet.measurement.internal.access.deleteRoleRequest as internalDeleteRoleRequest
@@ -113,20 +116,42 @@ class RolesService(private val internalRolesStub: InternalRolesCoroutineStub) :
         }
       }
 
-    val internalResponse: InternalListRolesResponse =
-      internalRolesStub.listRoles(
-        internalListRolesRequest {
-          pageSize = request.pageSize
-          if (internalPageToken != null) {
-            pageToken = internalPageToken
+    val pageSize =
+      if (request.pageSize == 0) {
+        DEFAULT_PAGE_SIZE
+      } else {
+        request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
+      }
+
+    val resourceLists =
+      internalRolesStub.listResources(pageSize, internalPageToken) { pageToken, remaining ->
+        val response =
+          listRoles(
+            internalListRolesRequest {
+              this.pageSize = remaining
+              if (pageToken != null) {
+                this.pageToken = pageToken
+              }
+            }
+          )
+        val nextPageToken =
+          if (response.hasNextPageToken()) {
+            response.nextPageToken
+          } else {
+            null
           }
-        }
-      )
+        ResourceList(response.rolesList, nextPageToken)
+      }
 
     return listRolesResponse {
-      roles += internalResponse.rolesList.map { it.toRole() }
-      if (internalResponse.hasNextPageToken()) {
-        nextPageToken = internalResponse.nextPageToken.toByteString().base64UrlEncode()
+      resourceLists.collect { resourceList ->
+        roles += resourceList.resources.map { it.toRole() }
+        val internalNextPageToken: InternalListRolesPageToken? = resourceList.nextPageToken
+        if (internalNextPageToken == null) {
+          clearNextPageToken()
+        } else {
+          nextPageToken = internalNextPageToken.toByteString().base64UrlEncode()
+        }
       }
     }
   }
@@ -290,5 +315,10 @@ class RolesService(private val internalRolesStub: InternalRolesCoroutineStub) :
     }
 
     return Empty.getDefaultInstance()
+  }
+
+  companion object {
+    private const val DEFAULT_PAGE_SIZE = 50
+    private const val MAX_PAGE_SIZE = 100
   }
 }
