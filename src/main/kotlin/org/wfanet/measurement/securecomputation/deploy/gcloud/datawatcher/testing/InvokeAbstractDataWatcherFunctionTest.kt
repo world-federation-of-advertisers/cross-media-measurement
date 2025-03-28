@@ -104,9 +104,9 @@ abstract class InvokeAbstractDataWatcherFunctionTest() {
     }
     /** Start the DataWatcherFunction process */
     functionProcess =
-      CloudFunctionProcess(
-        functionBinaryPath = functionBinaryPath,
-        gcfTarget = gcfTarget,
+      JavaBinaryProcess(
+        javaBinaryPath = functionBinaryPath,
+        classTarget = gcfTarget,
         logger = logger,
       )
     runBlocking {
