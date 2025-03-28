@@ -1,0 +1,17 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+kt_jvm_library(
+    name = "proto_util",
+    srcs = ["ProtoUtil.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+java_binary(
+    name = "ProtoUtil",
+    main_class = "org.wfanet.measurement.common.tools.ProtoUtil",
+    runtime_deps = [":proto_util"],
+)
