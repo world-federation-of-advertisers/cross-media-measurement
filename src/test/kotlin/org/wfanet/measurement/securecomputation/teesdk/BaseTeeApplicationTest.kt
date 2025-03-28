@@ -35,22 +35,24 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.mockito.kotlin.mock
 import org.wfa.measurement.queue.testing.TestWork
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsService
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsService
 
 class BaseTeeApplicationImpl(
   subscriptionId: String,
   queueSubscriber: QueueSubscriber,
   parser: Parser<WorkItem>,
-  workItemsService: WorkItemsService,
-  workItemAttemptsService: WorkItemAttemptsService
+  workItemsClient: WorkItemsCoroutineStub,
+  workItemAttemptsClient: WorkItemAttemptsCoroutineStub
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
     queueSubscriber = queueSubscriber,
     parser = parser,
-    workItemsService = workItemsService,
-    workItemAttemptsService = workItemAttemptsService
+    workItemsService = workItemsClient,
+    workItemAttemptsService = workItemAttemptsClient
   ) {
   val messageProcessed = CompletableDeferred<TestWork>()
 
@@ -89,8 +91,8 @@ class BaseTeeApplicationTest {
   fun `test processing protobuf message`() = runBlocking {
     val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
     val publisher = Publisher<WorkItem>(PROJECT_ID, emulatorClient)
-    val workItemsService: WorkItemsService = mock {}
-    val workItemAttemptsService: WorkItemAttemptsService = mock {}
+    val workItemsService: WorkItemsCoroutineStub = mock {}
+    val workItemAttemptsService: WorkItemAttemptsCoroutineStub = mock {}
     val app =
       BaseTeeApplicationImpl(
         subscriptionId = SUBSCRIPTION_ID,

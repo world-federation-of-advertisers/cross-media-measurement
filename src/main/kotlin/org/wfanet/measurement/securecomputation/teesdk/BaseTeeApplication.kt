@@ -26,8 +26,8 @@ import kotlinx.coroutines.channels.ReceiveChannel
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsService
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsService
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.completeWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemAttemptRequest
@@ -46,8 +46,8 @@ abstract class BaseTeeApplication(
   private val subscriptionId: String,
   private val queueSubscriber: QueueSubscriber,
   private val parser: Parser<WorkItem>,
-  private val workItemsService: WorkItemsService,
-  private val workItemAttemptsService: WorkItemAttemptsService
+  private val workItemsService: WorkItemsCoroutineStub,
+  private val workItemAttemptsService: WorkItemAttemptsCoroutineStub
 ) : AutoCloseable {
 
   /** Starts the TEE application by listening for messages on the specified queue. */
