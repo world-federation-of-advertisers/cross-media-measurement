@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.common.testing
+package org.wfanet.measurement.gcloud.testing
 
 import java.net.ServerSocket
 import java.nio.file.Files
@@ -35,21 +35,26 @@ import kotlinx.coroutines.yield
 import org.jetbrains.annotations.BlockingExecutor
 import org.wfanet.measurement.common.getRuntimePath
 
-/** Wrapper for a Java binary process. */
-class JavaBinaryProcess(
-  private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
+/**
+ * Wrapper for a Cloud Function binary process. Exposes a port where the process can receive data.
+ *
+ * @param javaBinaryPath - the run files relative path of the binary
+ * @param classTarget -the class that the invoker will run
+ * @param coroutineContext - the context under which the process will run
+ */
+class CloudFunctionProcess(
   private val javaBinaryPath: Path,
   private val classTarget: String,
-  private val logger: Logger,
+  private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
 ) : AutoCloseable {
   private val startMutex = Mutex()
   @Volatile private lateinit var process: Process
   private var localPort by Delegates.notNull<Int>()
-  /** Indicates whether the process has started. */
+  // Indicates whether the process has started.
   val started: Boolean
     get() = this::process.isInitialized
 
-  /** Returns the port the process is listening on. */
+  // Returns the port the process is listening on.
   val port: Int
     get() {
       check(started) { "CloudFunction process not started" }
@@ -69,7 +74,7 @@ class JavaBinaryProcess(
       return port
     }
     return startMutex.withLock {
-      /** Double-checked locking. */
+      // Double-checked locking.
       if (started) {
         return@withLock port
       }
@@ -86,7 +91,7 @@ class JavaBinaryProcess(
         val processBuilder =
           ProcessBuilder(
               runtimePath.toString(),
-              /** Add HTTP port configuration */
+              // Add HTTP port configuration
               "--port",
               localPort.toString(),
               "--target",
@@ -109,8 +114,7 @@ class JavaBinaryProcess(
               while (true) {
                 val line = reader.readLine() ?: break
                 logger.info("Process output: $line")
-                /** Check if the ready message is in the output */
-                /** Check if the ready message is in the output */
+                // Check if the ready message is in the output
                 if (line.contains(readyPattern)) {
                   isReady = true
                 }
@@ -151,5 +155,9 @@ class JavaBinaryProcess(
         Thread.currentThread().interrupt()
       }
     }
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
