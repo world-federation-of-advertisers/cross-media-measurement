@@ -54,6 +54,8 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicRep
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.service.internal.BasicReportAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
+import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterNotFoundException
 import org.wfanet.measurement.reporting.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
@@ -62,6 +64,7 @@ import org.wfanet.measurement.reporting.service.internal.RequiredFieldNotSetExce
 class SpannerBasicReportsService(
   private val spannerClient: AsyncDatabaseClient,
   private val postgresClient: DatabaseClient,
+  private val impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
   private val idGenerator: IdGenerator = IdGenerator.Default,
 ) : BasicReportsCoroutineImplBase() {
   override suspend fun getBasicReport(request: GetBasicReportRequest): BasicReport {
@@ -197,6 +200,8 @@ class SpannerBasicReportsService(
       validateBasicReport(request.basicReport)
     } catch (e: RequiredFieldNotSetException) {
       throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: ImpressionQualificationFilterNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
 
     val transactionRunner = spannerClient.readWriteTransaction()
@@ -267,6 +272,7 @@ class SpannerBasicReportsService(
    * Checks whether the basic report is valid.
    *
    * @throws RequiredFieldNotSetException
+   * @throws ImpressionQualificationFilterNotFoundException
    */
   private fun validateBasicReport(basicReport: BasicReport) {
     if (basicReport.cmmsMeasurementConsumerId.isEmpty()) {
@@ -287,6 +293,18 @@ class SpannerBasicReportsService(
 
     if (!basicReport.hasResultDetails()) {
       throw RequiredFieldNotSetException("result_details")
+    }
+
+    for (impressionQualificationFilter in basicReport.details.impressionQualificationFiltersList) {
+      if (
+        impressionQualificationFilterMapping.getImpressionQualificationByExternalId(
+          impressionQualificationFilter.externalImpressionQualificationFilterId
+        ) == null
+      ) {
+        throw ImpressionQualificationFilterNotFoundException(
+          impressionQualificationFilter.externalImpressionQualificationFilterId
+        )
+      }
     }
   }
 

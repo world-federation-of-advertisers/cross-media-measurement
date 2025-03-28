@@ -16,20 +16,25 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
 
+import java.nio.file.Paths
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
+import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
+import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.service.internal.testing.v2.BasicReportsServiceTest
 
 @RunWith(JUnit4::class)
@@ -43,7 +48,11 @@ class SpannerBasicReportsServiceTest : BasicReportsServiceTest<SpannerBasicRepor
     val spannerDatabaseClient = spannerDatabase.databaseClient
     val postgresDatabaseClient = postgresDatabaseProvider.createDatabase()
     return Services(
-      SpannerBasicReportsService(spannerDatabaseClient, postgresDatabaseClient),
+      SpannerBasicReportsService(
+        spannerDatabaseClient,
+        postgresDatabaseClient,
+        IMPRESSION_QUALIFICATION_FILTER_MAPPING,
+      ),
       PostgresMeasurementConsumersService(idGenerator, postgresDatabaseClient),
       PostgresReportingSetsService(idGenerator, postgresDatabaseClient),
     )
@@ -58,5 +67,17 @@ class SpannerBasicReportsServiceTest : BasicReportsServiceTest<SpannerBasicRepor
     @get:ClassRule
     @JvmStatic
     val ruleChain: TestRule = chainRulesSequentially(spannerEmulator, postgresDatabaseProvider)
+
+    private val CONFIG_PATH =
+      Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+    private val IMPRESSION_QUALIFICATION_FILTER_CONFIG:
+      ImpressionQualificationFilterConfig by lazy {
+      val configFile =
+        getRuntimePath(CONFIG_PATH.resolve("impression_qualification_filter_config.textproto"))!!
+          .toFile()
+      parseTextProto(configFile, ImpressionQualificationFilterConfig.getDefaultInstance())
+    }
+    private val IMPRESSION_QUALIFICATION_FILTER_MAPPING =
+      ImpressionQualificationFilterMapping(IMPRESSION_QUALIFICATION_FILTER_CONFIG)
   }
 }
