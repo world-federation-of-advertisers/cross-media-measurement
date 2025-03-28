@@ -1,0 +1,41 @@
+load("@rules_java//java:java_binary.bzl", "java_binary")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library", "kt_jvm_test")
+
+package(
+    default_testonly = True,
+)
+
+java_binary(
+    name = "InvokeRequisitionFetcherFunction",
+    main_class = "com.google.cloud.functions.invoker.runner.Invoker",
+    runtime_deps = [
+        "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar",
+    ],
+)
+
+kt_jvm_test(
+    name = "RequisitionFetcherFunctionTest",
+    size = "small",
+    timeout = "short",
+    srcs = ["RequisitionFetcherFunctionTest.kt"],
+    data = [
+        ":InvokeRequisitionFetcherFunction_deploy.jar",
+        "//src/main/k8s/testing/secretfiles:root_certs",
+        "//src/main/k8s/testing/secretfiles:secret_files",
+    ],
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunctionTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
+        "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
