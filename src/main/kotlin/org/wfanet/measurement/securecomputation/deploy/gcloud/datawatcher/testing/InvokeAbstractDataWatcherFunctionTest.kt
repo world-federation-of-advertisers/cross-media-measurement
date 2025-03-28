@@ -105,8 +105,8 @@ abstract class InvokeAbstractDataWatcherFunctionTest() {
     /** Start the DataWatcherFunction process */
     functionProcess =
       JavaBinaryProcess(
-        functionBinaryPath = functionBinaryPath,
-        gcfTarget = gcfTarget,
+        javaBinaryPath = functionBinaryPath,
+        classTarget = gcfTarget,
         logger = logger,
       )
     runBlocking {
