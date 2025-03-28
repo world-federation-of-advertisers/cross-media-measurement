@@ -126,7 +126,7 @@ class RolesService(private val internalRolesStub: InternalRolesCoroutineStub) :
     return listRolesResponse {
       roles += internalResponse.rolesList.map { it.toRole() }
       if (internalResponse.hasNextPageToken()) {
-        nextPageToken = internalResponse.nextPageToken.after.toByteString().base64UrlEncode()
+        nextPageToken = internalResponse.nextPageToken.toByteString().base64UrlEncode()
       }
     }
   }
