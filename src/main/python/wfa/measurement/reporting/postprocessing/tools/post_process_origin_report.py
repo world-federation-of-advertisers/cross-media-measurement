@@ -338,8 +338,9 @@ class ReportSummaryProcessor:
         logging.debug(
             f"Estimating the {measurement_policy} reach of {subset} from "
             f"{superset_measurement.name} and {difference_measurement.name}.")
-        # TODO(@ple13): Use the correct formula to find the standard deviation
-        # of the derived metric. (See https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/2136)
+        # TODO(world-federation-of-advertisers/cross-media-measurement#2136):
+        # Use the correct formula to find the standard deviation of the derived
+        # metric.
         derived_standard_deviation = max(difference_measurement.sigma,
                                          superset_measurement.sigma)
         subset_measurement = Measurement(
