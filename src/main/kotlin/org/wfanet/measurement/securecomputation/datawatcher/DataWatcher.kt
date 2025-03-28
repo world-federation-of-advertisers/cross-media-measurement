@@ -59,8 +59,8 @@ class DataWatcher(
             }
             workItemsStub.createWorkItem(request)
           }
-          DataWatcherConfig.SinkConfigCase.CLOUD_FUNCTION_CONFIG ->
-            TODO("Cloud Function Sink not currently supported")
+          DataWatcherConfig.SinkConfigCase.WEB_HOOK_CONFIG ->
+            TODO("Web Hook Sink not currently supported")
           DataWatcherConfig.SinkConfigCase.SINKCONFIG_NOT_SET ->
             error("Invalid sink config: ${config.sinkConfigCase}")
         }
