@@ -53,14 +53,8 @@ bazel_dep(
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.71.0",
+    version = "0.73.0",
     repo_name = "wfa_measurement_proto",
-)
-# Do not merge. Use 0.73.0 intead
-archive_override(
-    module_name = "cross-media-measurement-api",
-    strip_prefix = "cross-media-measurement-api-36788c776e7f13490abaee241d0ad9170a4e5c46",
-    urls = "https://github.com/world-federation-of-advertisers/cross-media-measurement-api/archive/36788c776e7f13490abaee241d0ad9170a4e5c46.tar.gz",
 )
 bazel_dep(
     name = "consent-signaling-client",
