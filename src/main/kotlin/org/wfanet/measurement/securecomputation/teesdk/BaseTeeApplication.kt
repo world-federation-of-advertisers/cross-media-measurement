@@ -17,12 +17,21 @@
 package org.wfanet.measurement.securecomputation.teesdk
 
 import com.google.protobuf.InvalidProtocolBufferException
-import com.google.protobuf.Message
 import com.google.protobuf.Parser
+import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
+import com.google.protobuf.Any
 import kotlinx.coroutines.channels.ReceiveChannel
 import org.wfanet.measurement.queue.QueueSubscriber
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.completeWorkItemAttemptRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemAttemptRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemAttemptRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemRequest
 
 /**
  * BaseTeeApplication is an abstract base class for TEE applications that automatically subscribes
@@ -33,10 +42,12 @@ import org.wfanet.measurement.queue.QueueSubscriber
  * @param queueSubscriber A client that manages connections and interactions with the queue.
  * @param parser [Parser] used to parse serialized queue messages into [T] instances.
  */
-abstract class BaseTeeApplication<T : Message>(
+abstract class BaseTeeApplication(
   private val subscriptionId: String,
   private val queueSubscriber: QueueSubscriber,
-  private val parser: Parser<T>,
+  private val parser: Parser<WorkItem>,
+  private val workItemsService: WorkItemsCoroutineStub,
+  private val workItemAttemptsService: WorkItemAttemptsCoroutineStub
 ) : AutoCloseable {
 
   /** Starts the TEE application by listening for messages on the specified queue. */
@@ -49,9 +60,9 @@ abstract class BaseTeeApplication<T : Message>(
    * If an error occurs during the message flow, it is logged and handling continues.
    */
   private suspend fun receiveAndProcessMessages() {
-    val messageChannel: ReceiveChannel<QueueSubscriber.QueueMessage<T>> =
+    val messageChannel: ReceiveChannel<QueueSubscriber.QueueMessage<WorkItem>> =
       queueSubscriber.subscribe(subscriptionId, parser)
-    for (message: QueueSubscriber.QueueMessage<T> in messageChannel) {
+    for (message: QueueSubscriber.QueueMessage<WorkItem> in messageChannel) {
       processMessage(message)
     }
   }
@@ -61,22 +72,72 @@ abstract class BaseTeeApplication<T : Message>(
    * If parsing fails, the message is negatively acknowledged and discarded. If processing fails,
    * the message is negatively acknowledged and optionally requeued.
    *
-   * @param queueMessage The raw message received from the queue.
+   * @param queueMessage The raw message received from the queue of type [WorkItem].
    */
-  private suspend fun processMessage(queueMessage: QueueSubscriber.QueueMessage<T>) {
+  private suspend fun processMessage(queueMessage: QueueSubscriber.QueueMessage<WorkItem>) {
+    val body = queueMessage.body
+
+    if (body.name.isNullOrEmpty()) {
+      logger.log(Level.SEVERE, "WorkItem name is empty. Cannot proceed.")
+      queueMessage.nack()
+      return
+    }
+    val workItemName = body.name
+    var workItemAttempt: WorkItemAttempt? = null
     try {
-      runWork(queueMessage.body)
+
+      val workItemAttemptId = UUID.randomUUID().toString()
+      workItemAttempt = createWorkItemAttempt(workItemName, workItemAttemptId)
+
+      runWork(queueMessage.body.workItemParams)
       queueMessage.ack()
+      completeWorkItemAttempt(workItemAttempt)
     } catch (e: InvalidProtocolBufferException) {
       logger.log(Level.SEVERE, e) { "Failed to parse protobuf message" }
       queueMessage.nack()
+      failWorkItem(workItemName)
     } catch (e: Exception) {
       logger.log(Level.SEVERE, e) { "Error processing message" }
       queueMessage.nack()
+      workItemAttempt?.let { failWorkItemAttempt(it, e) }
     }
   }
 
-  abstract suspend fun runWork(message: T)
+  private suspend fun createWorkItemAttempt(parent: String, workItemAttemptId: String) : WorkItemAttempt {
+    return workItemAttemptsService.createWorkItemAttempt(
+      createWorkItemAttemptRequest {
+        this.parent = parent
+        this.workItemAttemptId = workItemAttemptId
+      }
+    )
+  }
+
+  private suspend fun completeWorkItemAttempt(workItemAttempt: WorkItemAttempt) {
+    workItemAttemptsService.completeWorkItemAttempt(
+      completeWorkItemAttemptRequest {
+        this.name = workItemAttempt.name
+      }
+    )
+  }
+
+  private suspend fun failWorkItemAttempt(workItemAttempt: WorkItemAttempt, e: Exception) {
+    workItemAttemptsService.failWorkItemAttempt(
+      failWorkItemAttemptRequest {
+        this.name = workItemAttempt.name
+        this.errorMessage = e.message.toString()
+      }
+    )
+  }
+
+  private suspend fun failWorkItem(workItemName: String) {
+    workItemsService.failWorkItem(
+      failWorkItemRequest {
+        this.name = workItemName
+      }
+    )
+  }
+
+  abstract suspend fun runWork(message: Any)
 
   override fun close() {
     queueSubscriber.close()
