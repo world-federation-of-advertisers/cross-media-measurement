@@ -44,6 +44,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.testing.JavaBinaryProcess
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
@@ -51,7 +52,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfigKt.controlPlaneConfig
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.dataWatcherConfig
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.dataWatcherConfigs
-import org.wfanet.measurement.common.testing.JavaBinaryProcess
 
 @RunWith(JUnit4::class)
 abstract class InvokeAbstractDataWatcherFunctionTest() {

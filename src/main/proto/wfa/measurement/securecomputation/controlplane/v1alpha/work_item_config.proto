@@ -10,7 +10,8 @@ option java_outer_classname = "WorkItemConfigProto";
 
 // The config sent along with the WorkItem to the receiving application.
 message WorkItemConfig {
-  // The packed message for the work. Must be a known type for the receiver app type.
+  // The packed message for the work. Must be a known type for the receiver app
+  // type.
   // (-- api-linter: core::0146::any --)
   google.protobuf.Any config = 1;
   // The data path to process
