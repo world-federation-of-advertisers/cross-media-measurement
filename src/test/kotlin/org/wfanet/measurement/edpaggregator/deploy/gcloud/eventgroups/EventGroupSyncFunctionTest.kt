@@ -66,7 +66,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupMap
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.campaigns as protoCampaigns
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroupMap
-import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.CloudFunctionProcess
+import org.wfanet.measurement.gcloud.testing.CloudFunctionProcess
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
@@ -87,7 +87,7 @@ class EventGroupSyncFunctionTest() {
       "gcloud",
       "eventgroups",
       "testing",
-      "InvokeEventGroupSyncFunction_deploy.jar",
+      "InvokeEventGroupSyncFunction",
     )
   private val gcfTarget =
     "org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction"
@@ -167,20 +167,8 @@ class EventGroupSyncFunctionTest() {
         )
         .start()
     functionProcess =
-      CloudFunctionProcess(
-        functionBinaryPath = functionBinaryPath,
-        gcfTarget = gcfTarget,
-        logger = logger,
-      )
+      CloudFunctionProcess(javaBinaryPath = functionBinaryPath, classTarget = gcfTarget)
     logger.info("Started gRPC server on port ${grpcServer.port}")
-    System.setProperty("KINGDOM_TARGET", "localhost:${grpcServer.port}")
-    System.setProperty("KINGDOM_CERT_HOST", "localhost")
-    System.setProperty("CERT_FILE_PATH", SECRETS_DIR.resolve("edp1_tls.pem").toString())
-    System.setProperty("PRIVATE_KEY_FILE_PATH", SECRETS_DIR.resolve("edp1_tls.key").toString())
-    System.setProperty(
-      "CERT_COLLECTION_FILE_PATH",
-      SECRETS_DIR.resolve("kingdom_root.pem").toString(),
-    )
   }
 
   @After
@@ -213,6 +201,7 @@ class EventGroupSyncFunctionTest() {
           "GCS_PROJECT_ID" to "some-project-id",
           "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
           "KINGDOM_CERT_HOST" to "localhost",
+          "KINGDOM_SHUTDOWN_DURATION_SECONDS" to "3",
           "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.pem").toString(),
           "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.key").toString(),
           "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString(),

@@ -21,34 +21,39 @@ import com.google.events.cloud.storage.v1.StorageObjectData
 import com.google.protobuf.TextFormat
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
+import java.time.Duration
 import java.util.logging.Logger
 import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfigs
 
 /*
- * The DataWatcherFunction receives a CloudEvent and calls the DataWatcher with the path and config.
+ * Cloud Function receives a CloudEvent. If the cloud event path matches config, it calls the
+ * DataWatcher with the path and config.
  */
 class DataWatcherFunction : CloudEventsFunction {
-
-  private val schema = "gs://"
-  private val logger: Logger = Logger.getLogger(this::class.java.name)
 
   override fun accept(event: CloudEvent) {
     logger.fine("Starting DataWatcherFunction")
     val publicChannel =
       buildMutualTlsChannel(
-        getPropertyValue("CONTROL_PLANE_TARGET"),
-        getClientCerts(),
-        getPropertyValue("CONTROL_PLANE_CERT_HOST"),
-      )
+          System.getenv("CONTROL_PLANE_TARGET"),
+          getClientCerts(),
+          System.getenv("CONTROL_PLANE_CERT_HOST"),
+        )
+        .withShutdownTimeout(
+          Duration.ofSeconds(
+            System.getenv("CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS").toLong()
+          )
+        )
 
     val workItemsStub = WorkItemsCoroutineStub(publicChannel)
-    val configData: String = getPropertyValue("DATA_WATCHER_CONFIGS")
+    val configData: String = System.getenv("DATA_WATCHER_CONFIGS")
     val dataWatcherConfigs =
       DataWatcherConfigs.newBuilder()
         .apply { TextFormat.Parser.newBuilder().build().merge(configData, this) }
@@ -66,21 +71,21 @@ class DataWatcherFunction : CloudEventsFunction {
         .build()
     val blobKey: String = data.getName()
     val bucket: String = data.getBucket()
-    val path = "$schema$bucket/$blobKey"
+    val path = "$schema://$bucket/$blobKey"
     logger.info("Receiving path $path")
     runBlocking { dataWatcher.receivePath(path) }
-    publicChannel.shutdown()
   }
 
   private fun getClientCerts(): SigningCerts {
     return SigningCerts.fromPemFiles(
-      certificateFile = Path(getPropertyValue("CERT_FILE_PATH")).toFile(),
-      privateKeyFile = Path(getPropertyValue("PRIVATE_KEY_FILE_PATH")).toFile(),
-      trustedCertCollectionFile = Path(getPropertyValue("CERT_COLLECTION_FILE_PATH")).toFile(),
+      certificateFile = Path(System.getenv("CERT_FILE_PATH")).toFile(),
+      privateKeyFile = Path(System.getenv("PRIVATE_KEY_FILE_PATH")).toFile(),
+      trustedCertCollectionFile = Path(System.getenv("CERT_COLLECTION_FILE_PATH")).toFile(),
     )
   }
 
-  fun getPropertyValue(propertyName: String): String {
-    return System.getProperty(propertyName) ?: System.getenv(propertyName)
+  companion object {
+    private const val schema = "gs"
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

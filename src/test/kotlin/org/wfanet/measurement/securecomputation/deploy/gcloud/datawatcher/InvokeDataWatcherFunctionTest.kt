@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.testing
+package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
@@ -45,22 +45,37 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.gcloud.testing.CloudFunctionProcess
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfigKt.controlPlaneConfig
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.dataWatcherConfig
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.dataWatcherConfigs
-import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.CloudFunctionProcess
 
 @RunWith(JUnit4::class)
-abstract class InvokeAbstractDataWatcherFunctionTest() {
+class InvokeDataWatcherFunctionTest() {
 
-  abstract val functionBinaryPath: Path
-  abstract val gcfTarget: String
-  abstract val additionalFlags: Map<String, String>
-  abstract val projectId: String
-  abstract val topicId: String
+  val functionBinaryPath =
+    Paths.get(
+      "wfa_measurement_system",
+      "src",
+      "test",
+      "kotlin",
+      "org",
+      "wfanet",
+      "measurement",
+      "securecomputation",
+      "deploy",
+      "gcloud",
+      "datawatcher",
+      "InvokeDataWatcherFunction",
+    )
+  val gcfTarget =
+    "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction"
+  val additionalFlags = emptyMap<String, String>()
+  val projectId = "some-project-id"
+  val topicId = "some-topic-id"
 
   private lateinit var storageClient: GcsStorageClient
   private lateinit var grpcServer: CommonServer
@@ -97,18 +112,14 @@ abstract class InvokeAbstractDataWatcherFunctionTest() {
       configs += dataWatcherConfig {
         sourcePathRegex = "gs://$BUCKET/path-to-watch/(.*)"
         this.controlPlaneConfig = controlPlaneConfig {
-          queueName = topicId
+          queue = topicId
           appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
         }
       }
     }
     /** Start the DataWatcherFunction process */
     functionProcess =
-      CloudFunctionProcess(
-        functionBinaryPath = functionBinaryPath,
-        gcfTarget = gcfTarget,
-        logger = logger,
-      )
+      CloudFunctionProcess(javaBinaryPath = functionBinaryPath, classTarget = gcfTarget)
     runBlocking {
       val port =
         functionProcess.start(
@@ -117,6 +128,7 @@ abstract class InvokeAbstractDataWatcherFunctionTest() {
             "CONTROL_PLANE_PROJECT_ID" to projectId,
             "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
             "CONTROL_PLANE_CERT_HOST" to "localhost",
+            "CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
             "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.pem").toString(),
             "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.key").toString(),
             "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString(),

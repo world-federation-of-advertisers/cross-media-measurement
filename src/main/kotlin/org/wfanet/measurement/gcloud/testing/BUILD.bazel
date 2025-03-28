@@ -14,8 +14,6 @@ kt_jvm_library(
     name = "testing",
     srcs = ["CloudFunctionProcess.kt"],
     deps = [
-        "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
-        "@wfa_common_jvm//imports/java/com/google/events",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",

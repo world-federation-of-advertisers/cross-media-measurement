@@ -134,7 +134,7 @@ class EventGroupSync(
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private fun fetchEventGroups(): Flow<EventGroup> {
     return eventGroupsStub
-      .listResources { pageToken ->
+      .listResources { pageToken: String ->
         val response =
           try {
             eventGroupsStub.listEventGroups(

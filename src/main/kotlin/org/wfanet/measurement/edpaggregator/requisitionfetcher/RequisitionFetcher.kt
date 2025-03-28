@@ -63,7 +63,7 @@ class RequisitionFetcher(
     // a more efficient way to pull only the Requisitions that have not been stored in storage.
     val requisitions: Flow<Requisition> =
       requisitionsStub
-        .listResources { pageToken ->
+        .listResources { pageToken: String ->
           val request = listRequisitionsRequest {
             parent = dataProviderName
             filter = ListRequisitionsRequestKt.filter { states += Requisition.State.UNFULFILLED }

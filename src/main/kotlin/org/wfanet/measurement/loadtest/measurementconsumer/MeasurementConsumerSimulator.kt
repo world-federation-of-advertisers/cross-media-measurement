@@ -1255,7 +1255,7 @@ class MeasurementConsumerSimulator(
   private fun listEventGroups(measurementConsumer: String): Flow<EventGroup> {
     return eventGroupsClient
       .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-      .listResources { pageToken ->
+      .listResources { pageToken: String ->
         val response =
           try {
             listEventGroups(

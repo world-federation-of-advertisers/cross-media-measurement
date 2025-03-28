@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.deploy.gcloud.testing
+package org.wfanet.measurement.gcloud.testing
 
 import java.net.ServerSocket
 import java.nio.file.Files
@@ -35,20 +35,26 @@ import kotlinx.coroutines.yield
 import org.jetbrains.annotations.BlockingExecutor
 import org.wfanet.measurement.common.getRuntimePath
 
-/** Wrapper for the CloudFunction java_binary process. */
+/**
+ * Wrapper for a Cloud Function binary process. Exposes a port where the process can receive data.
+ *
+ * @param javaBinaryPath - the run files relative path of the binary
+ * @param classTarget -the class that the invoker will run
+ * @param coroutineContext - the context under which the process will run
+ */
 class CloudFunctionProcess(
+  private val javaBinaryPath: Path,
+  private val classTarget: String,
   private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
-  private val functionBinaryPath: Path,
-  private val gcfTarget: String,
-  private val logger: Logger,
 ) : AutoCloseable {
   private val startMutex = Mutex()
   @Volatile private lateinit var process: Process
   private var localPort by Delegates.notNull<Int>()
-  /** Indicates whether the process has started. */
+  // Indicates whether the process has started.
   val started: Boolean
     get() = this::process.isInitialized
-  /** Returns the port the process is listening on. */
+
+  // Returns the port the process is listening on.
   val port: Int
     get() {
       check(started) { "Cloud function process not started" }
@@ -68,7 +74,7 @@ class CloudFunctionProcess(
       return port
     }
     return startMutex.withLock {
-      /** Double-checked locking. */
+      // Double-checked locking.
       if (started) {
         return@withLock port
       }
@@ -77,21 +83,19 @@ class CloudFunctionProcess(
         // Open a socket on `port`. This should reduce the likelihood that the port
         // is in use. Additionally, this will allocate a port if `port` is 0.
         localPort = ServerSocket(0).use { it.localPort }
-        val runtimePath = getRuntimePath(functionBinaryPath)
+        val runtimePath = getRuntimePath(javaBinaryPath)
         check(runtimePath != null && Files.exists(runtimePath)) {
-          "$functionBinaryPath not found in runfiles"
+          "$javaBinaryPath not found in runfiles"
         }
 
         val processBuilder =
           ProcessBuilder(
-              "java",
-              "-jar",
               runtimePath.toString(),
-              /** Add HTTP port configuration */
+              // Add HTTP port configuration
               "--port",
               localPort.toString(),
               "--target",
-              gcfTarget,
+              classTarget,
             )
             .redirectErrorStream(true)
             .redirectOutput(ProcessBuilder.Redirect.PIPE)
@@ -110,8 +114,7 @@ class CloudFunctionProcess(
               while (true) {
                 val line = reader.readLine() ?: break
                 logger.info("Process output: $line")
-                /** Check if the ready message is in the output */
-                /** Check if the ready message is in the output */
+                // Check if the ready message is in the output
                 if (line.contains(readyPattern)) {
                   isReady = true
                 }
@@ -152,5 +155,9 @@ class CloudFunctionProcess(
         Thread.currentThread().interrupt()
       }
     }
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

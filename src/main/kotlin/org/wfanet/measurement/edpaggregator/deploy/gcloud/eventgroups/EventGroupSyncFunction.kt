@@ -30,25 +30,24 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSyncConfig
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.Campaigns
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroupMap
 import org.wfanet.measurement.storage.SelectedStorageClient
+import java.time.Duration
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 
 /*
- * The EventGroupSyncFunction receives a HTTPRequest with EventGroupSyncConfig. It updates/registers
+ * Cloud Run Function that receives a HTTPRequest with EventGroupSyncConfig. It updates/registers
  * EventGroups with the kingdom and writes a map of the registered resource names to storage.
  */
 class EventGroupSyncFunction() : HttpFunction {
 
-  private val schema = "gs://"
-  private val gson = Gson()
-
   override fun service(request: HttpRequest, response: HttpResponse) {
     logger.fine("Starting EventGroupSyncFunction")
     val requestBody = request.getReader()
-    //    /val body = gson.fromJson(request.getReader(), JsonObject::class.java)
     val eventGroupSyncConfig =
       EventGroupSyncConfig.newBuilder()
         .apply { JsonFormat.parser().merge(requestBody, this) }
@@ -57,10 +56,10 @@ class EventGroupSyncFunction() : HttpFunction {
       SelectedStorageClient(
         url = eventGroupSyncConfig.campaignsBlobUri,
         rootDirectory =
-          if (getPropertyValue("FILE_STORAGE_ROOT") != null)
-            File(getPropertyValue("FILE_STORAGE_ROOT")!!)
+          if (System.getenv("FILE_STORAGE_ROOT") != null)
+            File(System.getenv("FILE_STORAGE_ROOT"))
           else null,
-        projectId = getPropertyValue("GCS_PROJECT_ID"),
+        projectId = System.getenv("GCS_PROJECT_ID"),
       )
     val campaigns = runBlocking {
       Campaigns.parseFrom(
@@ -69,12 +68,16 @@ class EventGroupSyncFunction() : HttpFunction {
     }
     val publicChannel =
       buildMutualTlsChannel(
-        getPropertyValue("KINGDOM_TARGET")!!,
+        System.getenv("KINGDOM_TARGET"),
         getClientCerts(),
-        getPropertyValue("KINGDOM_CERT_HOST"),
-      )
+        System.getenv("KINGDOM_CERT_HOST"),
+      ).withShutdownTimeout(
+        Duration.ofSeconds(
+          System.getenv("KINGDOM_SHUTDOWN_DURATION_SECONDS").toLong()
+        ))
 
-    val eventGroupsClient = EventGroupsCoroutineStub(publicChannel)
+
+        val eventGroupsClient = EventGroupsCoroutineStub(publicChannel)
     val eventGroupSync =
       EventGroupSync(
         edpName = campaigns.edpName,
@@ -86,10 +89,10 @@ class EventGroupSyncFunction() : HttpFunction {
       SelectedStorageClient(
           url = eventGroupSyncConfig.eventGroupMapUri,
           rootDirectory =
-            if (getPropertyValue("FILE_STORAGE_ROOT") != null)
-              File(getPropertyValue("FILE_STORAGE_ROOT")!!)
+            if (System.getenv("FILE_STORAGE_ROOT") != null)
+              File(System.getenv("FILE_STORAGE_ROOT"))
             else null,
-          projectId = getPropertyValue("GCS_PROJECT_ID"),
+          projectId = System.getenv("GCS_PROJECT_ID"),
         )
         .writeBlob(
           getKey(eventGroupSyncConfig.eventGroupMapUri),
@@ -100,14 +103,10 @@ class EventGroupSyncFunction() : HttpFunction {
 
   private fun getClientCerts(): SigningCerts {
     return SigningCerts.fromPemFiles(
-      certificateFile = Path(getPropertyValue("CERT_FILE_PATH")!!).toFile(),
-      privateKeyFile = Path(getPropertyValue("PRIVATE_KEY_FILE_PATH")!!).toFile(),
-      trustedCertCollectionFile = Path(getPropertyValue("CERT_COLLECTION_FILE_PATH")!!).toFile(),
+      certificateFile = Path(System.getenv("CERT_FILE_PATH")).toFile(),
+      privateKeyFile = Path(System.getenv("PRIVATE_KEY_FILE_PATH")).toFile(),
+      trustedCertCollectionFile = Path(System.getenv("CERT_COLLECTION_FILE_PATH")).toFile(),
     )
-  }
-
-  private fun getPropertyValue(propertyName: String): String? {
-    return System.getProperty(propertyName) ?: System.getenv(propertyName)
   }
 
   // TODO: Move to common-jvm
