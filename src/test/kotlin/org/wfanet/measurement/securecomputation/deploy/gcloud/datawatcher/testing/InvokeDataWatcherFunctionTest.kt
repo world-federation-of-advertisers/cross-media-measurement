@@ -25,13 +25,6 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
 import java.nio.file.Path
 import java.nio.file.Paths
-import java.util.logging.Logger
-import kotlinx.coroutines.runBlocking
-import org.junit.After
-import org.junit.Before
-import org.junit.ClassRule
-import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
-import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 
 @RunWith(JUnit4::class)
 class InvokeDataWatcherFunctionTest() {
@@ -54,19 +47,7 @@ class InvokeDataWatcherFunctionTest() {
     )
   override val gcfTarget =
     "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction"
-  val additionalFlags = emptyMap<String, String>()
-  val projectId = "some-project-id"
-  val topicId = "some-topic-id"
-
-  private lateinit var storageClient: GcsStorageClient
-  private lateinit var grpcServer: CommonServer
-  /** Process for RequisitionFetcher Google cloud function. */
-  private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
-
-  private val workItemsServiceMock: WorkItemsCoroutineImplBase = mockService {
-    onBlocking { createWorkItem(any()) }.thenReturn(workItem { name = "some-work-item-name" })
-  }
-
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(workItemsServiceMock) }
-
+  override val additionalFlags = emptyMap<String, String>()
+  override val projectId = "some-project-id"
+  override val topicId = "some-topic-id"
 }
