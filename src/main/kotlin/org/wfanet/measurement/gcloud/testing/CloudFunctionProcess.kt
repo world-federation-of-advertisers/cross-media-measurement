@@ -57,7 +57,7 @@ class CloudFunctionProcess(
   // Returns the port the process is listening on.
   val port: Int
     get() {
-      check(started) { "CloudFunction process not started" }
+      check(started) { "Cloud function process not started" }
       return localPort
     }
 
