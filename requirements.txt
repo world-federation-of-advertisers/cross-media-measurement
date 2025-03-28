@@ -17,4 +17,7 @@ pandas~=2.2.2
 pytest~=8.3.2
 lxml~=5.3.0
 googleapis-common-protos~=1.65.0
+# Must be compatible with the protobuf version declared with bazel_dep in MODULE.bazel
+# See https://github.com/protocolbuffers/protobuf/blob/v29.3/python/google/protobuf/__init__.py#L10
+protobuf~=5.29.3
 black
