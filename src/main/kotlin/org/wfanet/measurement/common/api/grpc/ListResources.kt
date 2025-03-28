@@ -28,14 +28,17 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 
 /** A [List] of resources from a paginated List method. */
-data class ResourceList<T : Message>(
-  val resources: List<T>,
+data class ResourceList<R : Message, T>(
+  val resources: List<R>,
   /**
-   * A token that can be sent on subsequent requests to retrieve the next page. If empty, there are
-   * no subsequent pages.
+   * A token that can be sent on subsequent requests to retrieve the next page. If this is an empty
+   * page token, there are no subsequent pages.
+   *
+   * If [T] is [String], then the empty page token is `""`. If [T] is nullable, then the empty page
+   * token is `null`.
    */
-  val nextPageToken: String,
-) : List<T> by resources
+  val nextPageToken: T,
+) : List<R> by resources
 
 /**
  * Lists resources from a paginated List method on this stub.
@@ -43,10 +46,10 @@ data class ResourceList<T : Message>(
  * @param pageToken page token for initial request
  * @param list function which calls the appropriate List method on the stub
  */
-fun <T : Message, S : AbstractCoroutineStub<S>> S.listResources(
-  pageToken: String = "",
-  list: suspend S.(pageToken: String) -> ResourceList<T>,
-): Flow<ResourceList<T>> =
+inline fun <R : Message, reified T, S : AbstractCoroutineStub<S>> S.listResources(
+  pageToken: T = getEmptyPageToken(),
+  crossinline list: suspend S.(pageToken: T) -> ResourceList<R, T>,
+): Flow<ResourceList<R, T>> =
   listResources(Int.MAX_VALUE, pageToken) { nextPageToken, _ -> list(nextPageToken) }
 
 /**
@@ -57,12 +60,13 @@ fun <T : Message, S : AbstractCoroutineStub<S>> S.listResources(
  * @param list function which calls the appropriate List method on the stub, returning no more than
  *   the specified remaining number of resources
  */
-fun <T : Message, S : AbstractCoroutineStub<S>> S.listResources(
+inline fun <R : Message, reified T, S : AbstractCoroutineStub<S>> S.listResources(
   limit: Int,
-  pageToken: String = "",
-  list: suspend S.(pageToken: String, remaining: Int) -> ResourceList<T>,
-): Flow<ResourceList<T>> {
+  pageToken: T = getEmptyPageToken(),
+  crossinline list: suspend S.(pageToken: T, remaining: Int) -> ResourceList<R, T>,
+): Flow<ResourceList<R, T>> {
   require(limit > 0) { "limit must be positive" }
+  val emptyPageToken: T = getEmptyPageToken()
   return flow {
     var remaining: Int = limit
     var nextPageToken = pageToken
@@ -70,7 +74,7 @@ fun <T : Message, S : AbstractCoroutineStub<S>> S.listResources(
     while (true) {
       coroutineContext.ensureActive()
 
-      val resourceList: ResourceList<T> = list(nextPageToken, remaining)
+      val resourceList: ResourceList<R, T> = list(nextPageToken, remaining)
       require(resourceList.size <= remaining) {
         "List call must ensure that limit is not exceeded. " +
           "Returned ${resourceList.size} items when only $remaining were remaining"
@@ -79,7 +83,7 @@ fun <T : Message, S : AbstractCoroutineStub<S>> S.listResources(
 
       remaining -= resourceList.size
       nextPageToken = resourceList.nextPageToken
-      if (nextPageToken.isEmpty() || remaining == 0) {
+      if (nextPageToken == emptyPageToken || remaining == 0) {
         break
       }
     }
@@ -88,5 +92,16 @@ fun <T : Message, S : AbstractCoroutineStub<S>> S.listResources(
 
 /** @see [flattenConcat] */
 @ExperimentalCoroutinesApi // Overloads experimental `flattenConcat` function.
-fun <T : Message> Flow<ResourceList<T>>.flattenConcat(): Flow<T> =
+fun <R : Message, T> Flow<ResourceList<R, T>>.flattenConcat(): Flow<R> =
   map { it.asFlow() }.flattenConcat()
+
+@PublishedApi
+internal inline fun <reified T> getEmptyPageToken(): T {
+  return if (T::class == String::class) {
+    "" as T
+  } else if (null is T) { // T is nullable.
+    null as T
+  } else {
+    error("Unhandled page token type")
+  }
+}
