@@ -297,9 +297,10 @@ class SpannerBasicReportsService(
 
     for (impressionQualificationFilter in basicReport.details.impressionQualificationFiltersList) {
       if (
-        impressionQualificationFilterMapping.getImpressionQualificationByExternalId(
-          impressionQualificationFilter.externalImpressionQualificationFilterId
-        ) == null
+        impressionQualificationFilter.externalImpressionQualificationFilterId.isNotEmpty() &&
+          impressionQualificationFilterMapping.getImpressionQualificationByExternalId(
+            impressionQualificationFilter.externalImpressionQualificationFilterId
+          ) == null
       ) {
         throw ImpressionQualificationFilterNotFoundException(
           impressionQualificationFilter.externalImpressionQualificationFilterId

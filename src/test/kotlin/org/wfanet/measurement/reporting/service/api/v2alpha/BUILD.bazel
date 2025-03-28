@@ -321,6 +321,9 @@ kt_jvm_test(
 spanner_emulator_test(
     name = "BasicReportsServiceTest",
     srcs = ["BasicReportsServiceTest.kt"],
+    data = [
+        "//src/main/k8s/testing/secretfiles:impression_qualification_filter_config.textproto",
+    ],
     tags = [
         "cpu:2",
         "no-remote-exec",
