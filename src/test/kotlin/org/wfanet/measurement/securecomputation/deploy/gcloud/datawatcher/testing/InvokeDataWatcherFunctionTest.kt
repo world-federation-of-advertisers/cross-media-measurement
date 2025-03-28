@@ -33,7 +33,7 @@ class InvokeDataWatcherFunctionTest : InvokeAbstractDataWatcherFunctionTest() {
       "gcloud",
       "datawatcher",
       "testing",
-      "InvokeDataWatcherFunction_deploy.jar",
+      "InvokeDataWatcherFunction",
     )
   override val gcfTarget =
     "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction"

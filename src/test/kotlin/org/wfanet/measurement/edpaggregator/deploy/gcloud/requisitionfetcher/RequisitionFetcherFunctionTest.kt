@@ -144,7 +144,7 @@ class RequisitionFetcherFunctionTest {
         "deploy",
         "gcloud",
         "requisitionfetcher",
-        "InvokeRequisitionFetcherFunction_deploy.jar",
+        "InvokeRequisitionFetcherFunction",
       )
     private const val GCF_TARGET =
       "org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction"

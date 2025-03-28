@@ -85,8 +85,6 @@ class JavaBinaryProcess(
 
         val processBuilder =
           ProcessBuilder(
-              "java",
-              "-jar",
               runtimePath.toString(),
               /** Add HTTP port configuration */
               "--port",

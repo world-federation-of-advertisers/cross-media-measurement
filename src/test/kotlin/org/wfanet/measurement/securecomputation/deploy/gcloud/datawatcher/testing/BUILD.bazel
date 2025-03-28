@@ -8,7 +8,7 @@ package(
 kt_jvm_test(
     name = "InvokeDataWatcherFunctionTest",
     srcs = ["InvokeDataWatcherFunctionTest.kt"],
-    data = ["//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing:InvokeDataWatcherFunction_deploy.jar"],
+    data = ["//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing:InvokeDataWatcherFunction"],
     test_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.testing.InvokeDataWatcherFunctionTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:data_watcher",
