@@ -51,7 +51,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfigKt.controlPlaneConfig
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.dataWatcherConfig
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.dataWatcherConfigs
-import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.CloudFunctionProcess
+import org.wfanet.measurement.common.testing.JavaBinaryProcess
 
 @RunWith(JUnit4::class)
 abstract class InvokeAbstractDataWatcherFunctionTest() {
@@ -65,7 +65,7 @@ abstract class InvokeAbstractDataWatcherFunctionTest() {
   private lateinit var storageClient: GcsStorageClient
   private lateinit var grpcServer: CommonServer
   /** Process for RequisitionFetcher Google cloud function. */
-  private lateinit var functionProcess: CloudFunctionProcess
+  private lateinit var functionProcess: JavaBinaryProcess
 
   private val workItemsServiceMock: WorkItemsCoroutineImplBase = mockService {
     onBlocking { createWorkItem(any()) }.thenReturn(workItem { name = "some-work-item-name" })
@@ -104,7 +104,7 @@ abstract class InvokeAbstractDataWatcherFunctionTest() {
     }
     /** Start the DataWatcherFunction process */
     functionProcess =
-      CloudFunctionProcess(
+      JavaBinaryProcess(
         functionBinaryPath = functionBinaryPath,
         gcfTarget = gcfTarget,
         logger = logger,

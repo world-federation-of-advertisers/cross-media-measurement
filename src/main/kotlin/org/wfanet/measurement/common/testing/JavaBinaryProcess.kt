@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.deploy.gcloud.testing
+package org.wfanet.measurement.common.testing
 
 import java.net.ServerSocket
 import java.nio.file.Files
@@ -35,11 +35,11 @@ import kotlinx.coroutines.yield
 import org.jetbrains.annotations.BlockingExecutor
 import org.wfanet.measurement.common.getRuntimePath
 
-/** Wrapper for the CloudFunction java_binary process. */
-class CloudFunctionProcess(
+/** Wrapper for a Java binary process. */
+class JavaBinaryProcess(
   private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
-  private val functionBinaryPath: Path,
-  private val gcfTarget: String,
+  private val javaBinaryPath: Path,
+  private val classTarget: String,
   private val logger: Logger,
 ) : AutoCloseable {
   private val startMutex = Mutex()
@@ -78,9 +78,9 @@ class CloudFunctionProcess(
         // Open a socket on `port`. This should reduce the likelihood that the port
         // is in use. Additionally, this will allocate a port if `port` is 0.
         localPort = ServerSocket(0).use { it.localPort }
-        val runtimePath = getRuntimePath(functionBinaryPath)
+        val runtimePath = getRuntimePath(javaBinaryPath)
         check(runtimePath != null && Files.exists(runtimePath)) {
-          "$functionBinaryPath not found in runfiles"
+          "$javaBinaryPath not found in runfiles"
         }
 
         val processBuilder =
@@ -92,7 +92,7 @@ class CloudFunctionProcess(
               "--port",
               localPort.toString(),
               "--target",
-              gcfTarget,
+              classTarget,
             )
             .redirectErrorStream(true)
             .redirectOutput(ProcessBuilder.Redirect.PIPE)
