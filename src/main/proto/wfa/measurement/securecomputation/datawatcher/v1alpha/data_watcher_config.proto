@@ -19,7 +19,7 @@ package wfa.measurement.securecomputation.datawatcher.v1alpha;
 import "google/protobuf/any.proto";
 import "google/protobuf/struct.proto";
 
-// (-- api-linter: core::0191::synonyms=disabled
+// (-- api-linter: core::0191::java-package --)
 option java_package = "org.wfanet.measurement.securecomputation.datawatcher.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "DataWatcherConfigProto";
@@ -35,20 +35,22 @@ message DataWatcherConfig {
     // The Control Plane queue that will execute this work item.
     string queue = 1;
     // Protobuf payload with application-specific config
-    // (-- api-linter: core::0146::synonyms=disabled
+    // (-- api-linter: core::0146::any
     google.protobuf.Any app_config = 2;
   }
   // The config used for any Webhooks
   message WebhookConfig {
-    // The endpoint to trigger to perform the Cloud Function
+    // The endpoint to trigger.
     string endpoint_uri = 1;
     // Json payload to send to endpoint of application-specific config.
     google.protobuf.Struct app_config = 2;
   }
 
   oneof sink_config {
+    // The sink used to send event to the Control Plane.
     ControlPlaneConfig control_plane_config = 2;
-    WebhookConfig cloud_function_config = 3;
+    // The sink used to send events to a web hook.
+    WebhookConfig web_hook_config = 3;
   }
 }
 

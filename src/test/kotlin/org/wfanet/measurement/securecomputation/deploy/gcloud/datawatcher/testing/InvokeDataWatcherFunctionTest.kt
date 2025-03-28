@@ -17,11 +17,6 @@
 package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.testing
 
 import java.nio.file.Paths
-import kotlinx.coroutines.runBlocking
-import org.junit.Before
-import org.junit.ClassRule
-import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
-import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 
 class InvokeDataWatcherFunctionTest : InvokeAbstractDataWatcherFunctionTest() {
   override val functionBinaryPath =
@@ -45,5 +40,4 @@ class InvokeDataWatcherFunctionTest : InvokeAbstractDataWatcherFunctionTest() {
   override val additionalFlags = emptyMap<String, String>()
   override val projectId = "some-project-id"
   override val topicId = "some-topic-id"
-
 }
