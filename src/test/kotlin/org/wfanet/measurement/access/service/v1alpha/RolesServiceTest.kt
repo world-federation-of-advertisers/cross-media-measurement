@@ -169,13 +169,6 @@ class RolesServiceTest {
       permissionResourceIds += "books.list"
       etag = "response-etag"
     }
-    val internalBookWriterRole = internalRole {
-      roleResourceId = "bookWriter"
-      resourceTypes += "library.googleapis.com/Shelf"
-      permissionResourceIds += "books.get"
-      permissionResourceIds += "books.list"
-      etag = "response-etag"
-    }
     val internalListRolesResponse = internalListRolesResponse {
       roles += internalBookReaderRole
       nextPageToken = internalListRolesPageToken {
