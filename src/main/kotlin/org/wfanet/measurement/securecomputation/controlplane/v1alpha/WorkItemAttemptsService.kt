@@ -47,9 +47,6 @@ import org.wfanet.measurement.securecomputation.service.WorkItemNotFoundExceptio
 import org.wfanet.measurement.securecomputation.service.WorkItemAttemptNotFoundException
 import org.wfanet.measurement.securecomputation.service.WorkItemInvalidStateException
 
-private const val DEFAULT_PAGE_SIZE = 50
-private const val MAX_PAGE_SIZE = 100
-
 class WorkItemAttemptsService(private val internalWorkItemAttemptsStub: InternalWorkItemAttemptsCoroutineStub) :
   WorkItemAttemptsCoroutineImplBase() {
   override suspend fun createWorkItemAttempt(request: CreateWorkItemAttemptRequest): WorkItemAttempt {
@@ -83,7 +80,7 @@ class WorkItemAttemptsService(private val internalWorkItemAttemptsStub: Internal
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
           InternalErrors.Reason.WORK_ITEM_NOT_FOUND ->
-            WorkItemNotFoundException(parentKey.toName(), e).asStatusRuntimeException(e.status.code)
+            WorkItemNotFoundException(request.parent, e).asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS ->
             WorkItemAttemptAlreadyExistsException(request.workItemAttempt.name, e).asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.INVALID_WORK_ITEM_STATE ->
@@ -227,59 +224,49 @@ class WorkItemAttemptsService(private val internalWorkItemAttemptsStub: Internal
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val effectivePageSize = when {
+    val pageSize = when {
       request.pageSize == 0 -> DEFAULT_PAGE_SIZE
       request.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
       else -> request.pageSize
     }
 
-    val resourceFlow: Flow<ResourceList<WorkItemAttempt>> = internalWorkItemAttemptsStub.listResources(
-      limit = effectivePageSize,
-      pageToken = request.pageToken
-    ) { nextPageTokenStr: String, remaining: Int ->
-      val internalToken = if (nextPageTokenStr.isEmpty()) {
+    val internalPageToken: ListWorkItemAttemptsPageToken? =
+      if (request.pageToken.isEmpty()) {
         null
       } else {
         try {
-          ListWorkItemAttemptsPageToken.parseFrom(nextPageTokenStr.base64UrlDecode())
+          ListWorkItemAttemptsPageToken.parseFrom(request.pageToken.base64UrlDecode())
         } catch (e: IOException) {
           throw InvalidFieldValueException("page_token", e)
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
       }
 
-      val internalRequest = internalListWorkItemAttemptsRequest {
-        pageSize = remaining.coerceAtMost(MAX_PAGE_SIZE)
-        if (internalToken != null) {
-          pageToken = internalToken
-        }
-      }
 
-      val internalResponse = this.listWorkItemAttempts(internalRequest)
 
-      ResourceList(
-        resources = internalResponse.workItemAttemptsList.map { it.toWorkItemAttempt() },
-        nextPageToken = if (internalResponse.hasNextPageToken()) {
-          internalResponse.nextPageToken.after.toByteString().base64UrlEncode()
-        } else {
-          ""
+    val internalResponse: InternalListWorkItemAttemptsResponse = internalWorkItemAttemptsStub.listWorkItemAttempts(
+        internalListWorkItemAttemptsRequest {
+          this.pageSize = pageSize
+          if (internalPageToken != null) {
+            pageToken = internalPageToken
+          }
         }
       )
-    }
 
-    val allWorkItemAttempts = mutableListOf<WorkItemAttempt>()
-    var finalNextPageToken = ""
-    resourceFlow.collect { resourceList ->
-      allWorkItemAttempts.addAll(resourceList.resources)
-      finalNextPageToken = resourceList.nextPageToken
-    }
+
 
     return listWorkItemAttemptsResponse {
-      workItemAttempts += allWorkItemAttempts
-      if (finalNextPageToken.isNotEmpty()) {
-        nextPageToken = finalNextPageToken
+      workItemAttempts += internalResponse.workItemAttemptsList.map { it.toWorkItemAttempt() }
+      if (internalResponse.hasNextPageToken()) {
+        nextPageToken = internalResponse.nextPageToken.after.toByteString().base64UrlEncode()
       }
     }
+
+  }
+
+  companion object {
+    private const val DEFAULT_PAGE_SIZE = 50
+    private const val MAX_PAGE_SIZE = 100
   }
 
 }

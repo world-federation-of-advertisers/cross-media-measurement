@@ -42,9 +42,6 @@ import org.wfanet.measurement.securecomputation.service.WorkItemAlreadyExistsExc
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
 import org.wfanet.measurement.securecomputation.service.WorkItemNotFoundException
 
-private const val DEFAULT_PAGE_SIZE = 50
-private const val MAX_PAGE_SIZE = 100
-
 class WorkItemsService(
   private val internalWorkItemsStub: InternalWorkItemsCoroutineStub,
 ) :
@@ -151,51 +148,32 @@ class WorkItemsService(
       else -> request.pageSize
     }
 
-    val resourceFlow: Flow<ResourceList<WorkItem>> = internalWorkItemsStub.listResources(
-      limit = pageSize,
-      pageToken = request.pageToken
-    ) { nextPageTokenStr: String, remaining: Int ->
-      val internalToken = if (nextPageTokenStr.isEmpty()) {
+    val internalPageToken: ListWorkItemsPageToken? =
+      if (request.pageToken.isEmpty()) {
         null
       } else {
         try {
-          ListWorkItemsPageToken.parseFrom(nextPageTokenStr.base64UrlDecode())
+          ListWorkItemsPageToken.parseFrom(request.pageToken.base64UrlDecode())
         } catch (e: IOException) {
           throw InvalidFieldValueException("page_token", e)
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
       }
 
-      val internalRequest = internalListWorkItemsRequest {
-        this.pageSize = remaining.coerceAtMost(MAX_PAGE_SIZE)
-        if (internalToken != null) {
-          pageToken = internalToken
-        }
-      }
-
-      val internalResponse = this.listWorkItems(internalRequest)
-
-      ResourceList(
-        resources = internalResponse.workItemsList.map { it.toWorkItem() },
-        nextPageToken = if (internalResponse.hasNextPageToken()) {
-          internalResponse.nextPageToken.after.toByteString().base64UrlEncode()
-        } else {
-          ""
+    val internalResponse: InternalListWorkItemsResponse =
+      internalWorkItemsStub.listWorkItems(
+        internalListWorkItemsRequest {
+          this.pageSize = pageSize
+          if (internalPageToken != null) {
+            pageToken = internalPageToken
+          }
         }
       )
-    }
-
-    val allWorkItems = mutableListOf<WorkItem>()
-    var finalNextPageToken = ""
-    resourceFlow.collect { resourceList ->
-      allWorkItems.addAll(resourceList.resources)
-      finalNextPageToken = resourceList.nextPageToken
-    }
 
     return listWorkItemsResponse {
-      workItems += allWorkItems
-      if (finalNextPageToken.isNotEmpty()) {
-        nextPageToken = finalNextPageToken
+      workItems += internalResponse.workItemsList.map { it.toWorkItem() }
+      if (internalResponse.hasNextPageToken()) {
+        nextPageToken = internalResponse.nextPageToken.after.toByteString().base64UrlEncode()
       }
     }
   }
@@ -237,4 +215,10 @@ class WorkItemsService(
 
     return internalResponse.toWorkItem()
   }
+
+  companion object {
+    private const val DEFAULT_PAGE_SIZE = 50
+    private const val MAX_PAGE_SIZE = 100
+  }
+
 }
