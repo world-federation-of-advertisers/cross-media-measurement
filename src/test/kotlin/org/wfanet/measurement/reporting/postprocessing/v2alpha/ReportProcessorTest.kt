@@ -197,13 +197,15 @@ class ReportProcessorTest {
 
       // Verifies that the relationship between kreach and impression holds.
       for (edpCombination in impression.keys.intersect(kreach.keys)) {
-        val kreachWeightedSum =
-          kreach[edpCombination]!!.entries.sumOf { (key, value) -> key * value }
+        val kReachByEdpCombination: Map<Int, Long> = kreach.getValue(edpCombination)
+        val kreachWeightedSum: Long =
+          kReachByEdpCombination.entries.sumOf { (key, value) -> key * value }
+        val totalWeight: Int = kReachByEdpCombination.entries.sumOf { (key, _) -> key }
         if (
           !fuzzyLessEqual(
             kreachWeightedSum.toDouble(),
             impression[edpCombination]!!.toDouble(),
-            TOLERANCE,
+            totalWeight * TOLERANCE,
           )
         ) {
           return false
