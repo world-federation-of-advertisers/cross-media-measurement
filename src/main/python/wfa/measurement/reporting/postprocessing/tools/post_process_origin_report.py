@@ -14,15 +14,20 @@
 
 import json
 import sys
+from typing import FrozenSet
+
 from absl import app
 from absl import flags
 from absl import logging
+
 from noiseninja.noised_measurements import Measurement
+
 from report.report import MetricReport
 from report.report import Report
+
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_summary_pb2
-from typing import FrozenSet
+
 
 # This is a demo script that has the following assumptions :
 # 1. Impression results are not corrected.
