@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.testing
+package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
@@ -44,7 +44,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.testing.JavaBinaryProcess
+import org.wfanet.measurement.gcloud.testing.CloudFunctionProcess
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
@@ -54,18 +54,33 @@ import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.dataWatcherC
 import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.dataWatcherConfigs
 
 @RunWith(JUnit4::class)
-abstract class InvokeAbstractDataWatcherFunctionTest() {
+class InvokeDataWatcherFunctionTest() {
 
-  abstract val functionBinaryPath: Path
-  abstract val gcfTarget: String
-  abstract val additionalFlags: Map<String, String>
-  abstract val projectId: String
-  abstract val topicId: String
+  val functionBinaryPath =
+    Paths.get(
+      "wfa_measurement_system",
+      "src",
+      "test",
+      "kotlin",
+      "org",
+      "wfanet",
+      "measurement",
+      "securecomputation",
+      "deploy",
+      "gcloud",
+      "datawatcher",
+      "InvokeDataWatcherFunction",
+    )
+  val gcfTarget =
+    "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction"
+  val additionalFlags = emptyMap<String, String>()
+  val projectId = "some-project-id"
+  val topicId = "some-topic-id"
 
   private lateinit var storageClient: GcsStorageClient
   private lateinit var grpcServer: CommonServer
   /** Process for RequisitionFetcher Google cloud function. */
-  private lateinit var functionProcess: JavaBinaryProcess
+  private lateinit var functionProcess: CloudFunctionProcess
 
   private val workItemsServiceMock: WorkItemsCoroutineImplBase = mockService {
     onBlocking { createWorkItem(any()) }.thenReturn(workItem { name = "some-work-item-name" })
@@ -84,12 +99,12 @@ abstract class InvokeAbstractDataWatcherFunctionTest() {
     /** Start gRPC server with mock Requisitions service */
     grpcServer =
       CommonServer.fromParameters(
-          verboseGrpcLogging = true,
-          certs = serverCerts,
-          clientAuth = ClientAuth.REQUIRE,
-          nameForLogging = "WorkItemsServer",
-          services = listOf(workItemsServiceMock.bindService()),
-        )
+        verboseGrpcLogging = true,
+        certs = serverCerts,
+        clientAuth = ClientAuth.REQUIRE,
+        nameForLogging = "WorkItemsServer",
+        services = listOf(workItemsServiceMock.bindService()),
+      )
         .start()
     logger.info("Started gRPC server on port ${grpcServer.port}")
 
@@ -104,10 +119,9 @@ abstract class InvokeAbstractDataWatcherFunctionTest() {
     }
     /** Start the DataWatcherFunction process */
     functionProcess =
-      JavaBinaryProcess(
+      CloudFunctionProcess(
         javaBinaryPath = functionBinaryPath,
         classTarget = gcfTarget,
-        logger = logger,
       )
     runBlocking {
       val port =
@@ -117,6 +131,7 @@ abstract class InvokeAbstractDataWatcherFunctionTest() {
             "CONTROL_PLANE_PROJECT_ID" to projectId,
             "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
             "CONTROL_PLANE_CERT_HOST" to "localhost",
+            "CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
             "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.pem").toString(),
             "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.key").toString(),
             "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString(),
