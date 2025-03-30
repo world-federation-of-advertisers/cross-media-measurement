@@ -25,6 +25,7 @@ import org.junit.Before
 import org.junit.ClassRule
 import org.junit.Test
 import com.google.protobuf.Any
+import org.junit.Rule
 import org.wfa.measurement.queue.testing.testWork
 import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -33,12 +34,13 @@ import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
-import org.mockito.kotlin.mock
 import org.wfa.measurement.queue.testing.TestWork
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsService
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsService
 
 class BaseTeeApplicationImpl(
   subscriptionId: String,
@@ -51,8 +53,8 @@ class BaseTeeApplicationImpl(
     subscriptionId = subscriptionId,
     queueSubscriber = queueSubscriber,
     parser = parser,
-    workItemsService = workItemsClient,
-    workItemAttemptsService = workItemAttemptsClient
+    workItemsStub = workItemsClient,
+    workItemAttemptsStub = workItemAttemptsClient
   ) {
   val messageProcessed = CompletableDeferred<TestWork>()
 
@@ -65,6 +67,15 @@ class BaseTeeApplicationImpl(
 class BaseTeeApplicationTest {
 
   private lateinit var emulatorClient: GooglePubSubEmulatorClient
+
+  private val workItemsServiceMock = mockService<WorkItemsGrpcKt.WorkItemsCoroutineImplBase>()
+  private val workItemAttemptsServiceMock = mockService<WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase>()
+
+  @get:Rule
+  val grpcTestServer = GrpcTestServerRule {
+    addService(workItemsServiceMock)
+    addService(workItemAttemptsServiceMock)
+  }
 
   @Before
   fun setupPubSubResources() {
@@ -91,15 +102,15 @@ class BaseTeeApplicationTest {
   fun `test processing protobuf message`() = runBlocking {
     val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
     val publisher = Publisher<WorkItem>(PROJECT_ID, emulatorClient)
-    val workItemsService: WorkItemsCoroutineStub = mock {}
-    val workItemAttemptsService: WorkItemAttemptsCoroutineStub = mock {}
+    val workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel)
+    val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel)
     val app =
       BaseTeeApplicationImpl(
         subscriptionId = SUBSCRIPTION_ID,
         queueSubscriber = pubSubClient,
         parser = WorkItem.parser(),
-        workItemsService,
-        workItemAttemptsService
+        workItemsStub,
+        workItemAttemptsStub
       )
     val job = launch { app.run() }
 

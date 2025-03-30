@@ -22,6 +22,7 @@ import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
 import com.google.protobuf.Any
+import io.grpc.StatusRuntimeException
 import kotlinx.coroutines.channels.ReceiveChannel
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -46,8 +47,8 @@ abstract class BaseTeeApplication(
   private val subscriptionId: String,
   private val queueSubscriber: QueueSubscriber,
   private val parser: Parser<WorkItem>,
-  private val workItemsService: WorkItemsCoroutineStub,
-  private val workItemAttemptsService: WorkItemAttemptsCoroutineStub
+  private val workItemsStub: WorkItemsCoroutineStub,
+  private val workItemAttemptsStub: WorkItemAttemptsCoroutineStub
 ) : AutoCloseable {
 
   /** Starts the TEE application by listening for messages on the specified queue. */
@@ -75,66 +76,94 @@ abstract class BaseTeeApplication(
    * @param queueMessage The raw message received from the queue of type [WorkItem].
    */
   private suspend fun processMessage(queueMessage: QueueSubscriber.QueueMessage<WorkItem>) {
-    val body = queueMessage.body
+    val body: WorkItem = queueMessage.body
 
-    if (body.name.isNullOrEmpty()) {
+    if (body.name.isEmpty()) {
       logger.log(Level.SEVERE, "WorkItem name is empty. Cannot proceed.")
       queueMessage.nack()
       return
     }
     val workItemName = body.name
-    var workItemAttempt: WorkItemAttempt? = null
-    try {
-
+    val workItemAttempt: WorkItemAttempt = try {
       val workItemAttemptId = UUID.randomUUID().toString()
-      workItemAttempt = createWorkItemAttempt(workItemName, workItemAttemptId)
-
+      createWorkItemAttempt(workItemName, workItemAttemptId)
+    } catch (e: ControlPlaneApiException) {
+      return
+    }
+    try {
       runWork(queueMessage.body.workItemParams)
       queueMessage.ack()
-      completeWorkItemAttempt(workItemAttempt)
+      runCatching { completeWorkItemAttempt(workItemAttempt) }
+        .onFailure { error -> logger.log(Level.SEVERE, error) { "Failed to report work item attempt completed successfully" } }
     } catch (e: InvalidProtocolBufferException) {
       logger.log(Level.SEVERE, e) { "Failed to parse protobuf message" }
       queueMessage.nack()
-      failWorkItem(workItemName)
+      runCatching { failWorkItem(workItemName) }
+        .onFailure { error -> logger.log(Level.SEVERE, error) { "Failed to report work item failure" } }
     } catch (e: Exception) {
       logger.log(Level.SEVERE, e) { "Error processing message" }
       queueMessage.nack()
-      workItemAttempt?.let { failWorkItemAttempt(it, e) }
+      runCatching { failWorkItemAttempt(workItemAttempt, e) }
+        .onFailure { error -> logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" } }
     }
   }
 
   private suspend fun createWorkItemAttempt(parent: String, workItemAttemptId: String) : WorkItemAttempt {
-    return workItemAttemptsService.createWorkItemAttempt(
-      createWorkItemAttemptRequest {
-        this.parent = parent
-        this.workItemAttemptId = workItemAttemptId
-      }
-    )
+    try {
+      return workItemAttemptsStub.createWorkItemAttempt(
+        createWorkItemAttemptRequest {
+          this.parent = parent
+          this.workItemAttemptId = workItemAttemptId
+        }
+      )
+    } catch (e: StatusRuntimeException) {
+      val errorMessage = "Error creating WorkItemAttempt"
+      logger.severe("$errorMessage: $e")
+      throw ControlPlaneApiException("$errorMessage: ${e.message}")
+    }
   }
 
   private suspend fun completeWorkItemAttempt(workItemAttempt: WorkItemAttempt) {
-    workItemAttemptsService.completeWorkItemAttempt(
-      completeWorkItemAttemptRequest {
-        this.name = workItemAttempt.name
-      }
-    )
+    try {
+      workItemAttemptsStub.completeWorkItemAttempt(
+        completeWorkItemAttemptRequest {
+          this.name = workItemAttempt.name
+        }
+      )
+    } catch (e: StatusRuntimeException) {
+      val errorMessage = "Error setting WorkItemAttempt as succeeded"
+      logger.severe("$errorMessage: $e")
+      throw ControlPlaneApiException("$errorMessage: ${e.message}")
+    }
   }
 
   private suspend fun failWorkItemAttempt(workItemAttempt: WorkItemAttempt, e: Exception) {
-    workItemAttemptsService.failWorkItemAttempt(
-      failWorkItemAttemptRequest {
-        this.name = workItemAttempt.name
-        this.errorMessage = e.message.toString()
-      }
-    )
+    try {
+      workItemAttemptsStub.failWorkItemAttempt(
+        failWorkItemAttemptRequest {
+          this.name = workItemAttempt.name
+          this.errorMessage = e.message.toString()
+        }
+      )
+    } catch (e: StatusRuntimeException) {
+      val errorMessage = "Error setting WorkItemAttempt as failed"
+      logger.severe("$errorMessage: $e")
+      throw ControlPlaneApiException("$errorMessage: ${e.message}")
+    }
   }
 
   private suspend fun failWorkItem(workItemName: String) {
-    workItemsService.failWorkItem(
-      failWorkItemRequest {
-        this.name = workItemName
-      }
-    )
+    try {
+      workItemsStub.failWorkItem(
+        failWorkItemRequest {
+          this.name = workItemName
+        }
+      )
+    } catch (e: StatusRuntimeException) {
+      val errorMessage = "Error setting WorkItem as failed"
+      logger.severe("$errorMessage: $e")
+      throw ControlPlaneApiException("$errorMessage: ${e.message}")
+    }
   }
 
   abstract suspend fun runWork(message: Any)
