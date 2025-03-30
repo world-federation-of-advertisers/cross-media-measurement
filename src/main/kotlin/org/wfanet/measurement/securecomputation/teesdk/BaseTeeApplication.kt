@@ -89,6 +89,9 @@ abstract class BaseTeeApplication(
       createWorkItemAttempt(workItemName, workItemAttemptId)
     } catch (e: ControlPlaneApiException) {
       return
+    } catch (e: Exception) {
+      logger.severe("Unknown error creating a WorkItemAttempt: $e")
+      return
     }
     try {
       runWork(queueMessage.body.workItemParams)
