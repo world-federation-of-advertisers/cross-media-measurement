@@ -26,6 +26,9 @@ import org.junit.ClassRule
 import org.junit.Test
 import com.google.protobuf.Any
 import org.junit.Rule
+import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.stub
 import org.wfa.measurement.queue.testing.testWork
 import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -37,10 +40,11 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfa.measurement.queue.testing.TestWork
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt
-import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAttempt
 
 class BaseTeeApplicationImpl(
   subscriptionId: String,
@@ -68,8 +72,8 @@ class BaseTeeApplicationTest {
 
   private lateinit var emulatorClient: GooglePubSubEmulatorClient
 
-  private val workItemsServiceMock = mockService<WorkItemsGrpcKt.WorkItemsCoroutineImplBase>()
-  private val workItemAttemptsServiceMock = mockService<WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase>()
+  private val workItemsServiceMock = mockService<WorkItemsCoroutineImplBase>()
+  private val workItemAttemptsServiceMock = mockService<WorkItemAttemptsCoroutineImplBase>()
 
   @get:Rule
   val grpcTestServer = GrpcTestServerRule {
@@ -104,6 +108,26 @@ class BaseTeeApplicationTest {
     val publisher = Publisher<WorkItem>(PROJECT_ID, emulatorClient)
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel)
+
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    val testWorkItem = workItem {
+      name = "workItems/workItem"
+    }
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    workItemAttemptsServiceMock.stub {
+      onBlocking { completeWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    workItemAttemptsServiceMock.stub {
+      onBlocking { failWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    workItemsServiceMock.stub {
+      onBlocking { failWorkItem(any()) } doReturn testWorkItem
+    }
+
     val app =
       BaseTeeApplicationImpl(
         subscriptionId = SUBSCRIPTION_ID,
