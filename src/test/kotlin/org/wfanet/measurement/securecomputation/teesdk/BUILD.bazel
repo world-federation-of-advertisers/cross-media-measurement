@@ -9,7 +9,6 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplicationTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/teesdk:base_tee_application",
-        "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_item_attempts_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_attempts_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
