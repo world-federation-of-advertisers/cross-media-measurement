@@ -3,9 +3,15 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 package(default_visibility = ["//visibility:public"])
 
 kt_jvm_library(
+    name = "errors",
+    srcs = ["Errors.kt"],
+)
+
+kt_jvm_library(
     name = "base_tee_application",
     srcs = ["BaseTeeApplication.kt"],
     deps = [
+        ":errors",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_item_attempts_service",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_items_service",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
