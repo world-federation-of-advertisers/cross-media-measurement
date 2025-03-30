@@ -572,7 +572,14 @@ abstract class WorkItemAttemptsServiceTest {
       createWorkItemRequest {
         workItem = workItem {
           workItemResourceId = "work_item_resource_id"
-          queueResourceId = "queues/test_queue"
+          queueResourceId = "test-topid-id"
+          workItemParams = Any.pack(
+            testWork {
+              userName = "UserName"
+              userAge = "25"
+              userCountry = "US"
+            }
+          )
         }
       }
     )

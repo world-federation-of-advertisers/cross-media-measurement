@@ -54,6 +54,7 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundFo
 import org.wfanet.measurement.securecomputation.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemsPublisher
 
 class SpannerWorkItemsService(
   private val databaseClient: AsyncDatabaseClient,
