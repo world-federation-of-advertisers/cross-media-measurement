@@ -137,10 +137,10 @@ package k8s
 			_container: args: [
 						_reportingCertCollectionFileFlag,
 						_debugVerboseGrpcServerLoggingFlag,
-						_impressionQualificationFilterConfigFileFlag,
 						"--port=8443",
 						"--health-port=8080",
 						"--basic-reports-enabled=true",
+						_impressionQualificationFilterConfigFileFlag,
 			] + _postgresConfig.flags + _reportingSpannerConfig.flags + _tlsArgs
 
 			_updatePostgresSchemaContainer: Container=#Container & {
