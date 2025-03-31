@@ -48,6 +48,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
@@ -56,6 +57,15 @@ import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
+import org.mockito.kotlin.wheneverBlocking
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.testing.Authentication.withPrincipalAndScopes
+import org.wfanet.measurement.access.client.v1alpha.testing.PrincipalMatcher.Companion.hasPrincipal
+import org.wfanet.measurement.access.v1alpha.CheckPermissionsResponse
+import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
+import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
+import org.wfanet.measurement.access.v1alpha.copy
+import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.BatchCreateMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.BatchGetMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.Certificate
@@ -112,7 +122,6 @@ import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.unpack
-import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.Hashing
@@ -136,6 +145,7 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
+import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.metricSpecConfig
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
@@ -475,6 +485,10 @@ private val CONFIG = measurementConsumerConfig {
   apiKey = API_AUTHENTICATION_KEY
   signingCertificateName = MEASUREMENT_CONSUMERS.values.first().certificate
   signingPrivateKeyPath = "mc_cs_private.der"
+}
+
+private val MEASUREMENT_CONSUMER_CONFIGS = measurementConsumerConfigs {
+  configs[MEASUREMENT_CONSUMERS.values.first().name] = CONFIG
 }
 
 // InMemoryEncryptionKeyPairStore
@@ -2243,6 +2257,10 @@ val SUCCEEDED_POPULATION_METRIC =
 
 @RunWith(JUnit4::class)
 class MetricsServiceTest {
+  private val permissionsServiceMock: PermissionsGrpcKt.PermissionsCoroutineImplBase = mockService {
+    onBlocking { checkPermissions(any()) } doReturn CheckPermissionsResponse.getDefaultInstance()
+  }
+
   private val internalMetricsMock: MetricsCoroutineImplBase = mockService {
     onBlocking { createMetric(any()) }.thenReturn(INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC)
     onBlocking { batchCreateMetrics(any()) }
@@ -2259,13 +2277,26 @@ class MetricsServiceTest {
           INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC,
         )
       )
-    onBlocking { batchGetMetrics(any()) }
-      .thenReturn(
+
+    val internalPendingMetrics =
+      listOf(
+          INTERNAL_PENDING_INCREMENTAL_REACH_METRIC,
+          INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC,
+          INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC,
+        )
+        .associateBy { it.externalMetricId }
+    onBlocking { batchGetMetrics(any()) } doAnswer
+      { invocation ->
+        val request: InternalBatchGetMetricsRequest = invocation.getArgument(0)
         internalBatchGetMetricsResponse {
-          metrics += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC
-          metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
+          metrics +=
+            request.externalMetricIdsList.map {
+              internalPendingMetrics[it]
+                ?: throw Status.NOT_FOUND.withDescription("Metric with external ID $it not found")
+                  .asRuntimeException()
+            }
         }
-      )
+      }
   }
 
   private val internalReportingSetsMock:
@@ -2456,6 +2487,7 @@ class MetricsServiceTest {
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
+    addService(permissionsServiceMock)
     addService(internalMetricsMock)
     addService(internalReportingSetsMock)
     addService(internalMeasurementsMock)
@@ -2477,6 +2509,7 @@ class MetricsServiceTest {
     service =
       MetricsService(
         METRIC_SPEC_CONFIG,
+        MEASUREMENT_CONSUMER_CONFIGS,
         InternalReportingSetsGrpcKt.ReportingSetsCoroutineStub(grpcTestServerRule.channel),
         InternalMetricsGrpcKt.MetricsCoroutineStub(grpcTestServerRule.channel),
         variancesMock,
@@ -2485,6 +2518,7 @@ class MetricsServiceTest {
         MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
         CertificatesGrpcKt.CertificatesCoroutineStub(grpcTestServerRule.channel),
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
+        Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel)),
         ENCRYPTION_KEY_PAIR_STORE,
         randomMock,
         SECRETS_DIR,
@@ -2498,6 +2532,9 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric creates CMMS measurements for incremental reach`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
@@ -2505,9 +2542,7 @@ class MetricsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(request.parent, CONFIG) {
-        runBlocking { service.createMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
 
     val expected = PENDING_INCREMENTAL_REACH_METRIC
 
@@ -2628,6 +2663,7 @@ class MetricsServiceTest {
     val localService =
       MetricsService(
         METRIC_SPEC_CONFIG,
+        MEASUREMENT_CONSUMER_CONFIGS,
         InternalReportingSetsGrpcKt.ReportingSetsCoroutineStub(grpcTestServerRule.channel),
         InternalMetricsGrpcKt.MetricsCoroutineStub(grpcTestServerRule.channel),
         variancesMock,
@@ -2636,6 +2672,7 @@ class MetricsServiceTest {
         MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
         CertificatesGrpcKt.CertificatesCoroutineStub(grpcTestServerRule.channel),
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
+        Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel)),
         ENCRYPTION_KEY_PAIR_STORE,
         randomMock,
         SECRETS_DIR,
@@ -2754,16 +2791,15 @@ class MetricsServiceTest {
       state = InternalMetric.State.RUNNING
     }
 
-    runBlocking {
-      whenever(internalMetricsMock.createMetric(any()))
-        .thenReturn(internalPendingReachMetricWithSingleDataProviderParams)
-      whenever(measurementsMock.batchCreateMeasurements(any()))
-        .thenReturn(
-          batchCreateMeasurementsResponse {
-            measurements += pendingSingleDataProviderReachMeasurementWithSingleDataProviderParams
-          }
-        )
-    }
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    wheneverBlocking { internalMetricsMock.createMetric(any()) } doReturn
+      internalPendingReachMetricWithSingleDataProviderParams
+    wheneverBlocking { measurementsMock.batchCreateMeasurements(any()) } doReturn
+      batchCreateMeasurementsResponse {
+        measurements += pendingSingleDataProviderReachMeasurementWithSingleDataProviderParams
+      }
 
     val requestingReachMetricWithSingleDataProviderParams = metric {
       reportingSet = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.resourceName
@@ -2809,7 +2845,7 @@ class MetricsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(request.parent, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { localService.createMetric(request) }
       }
 
@@ -3015,15 +3051,17 @@ class MetricsServiceTest {
       state = InternalMetric.State.RUNNING
     }
 
-    runBlocking {
-      whenever(internalMetricsMock.createMetric(any())).thenReturn(internalPendingReachMetric)
-      whenever(measurementsMock.batchCreateMeasurements(any()))
-        .thenReturn(
-          batchCreateMeasurementsResponse {
-            measurements += pendingSingleDataProviderReachMeasurement
-          }
-        )
-    }
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    wheneverBlocking { internalMetricsMock.createMetric(any()) }
+      .thenReturn(internalPendingReachMetric)
+    wheneverBlocking { measurementsMock.batchCreateMeasurements(any()) }
+      .thenReturn(
+        batchCreateMeasurementsResponse {
+          measurements += pendingSingleDataProviderReachMeasurement
+        }
+      )
 
     val requestingReachMetric = metric {
       reportingSet = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.resourceName
@@ -3053,9 +3091,7 @@ class MetricsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(request.parent, CONFIG) {
-        runBlocking { service.createMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
 
     val pendingReachMetric =
       requestingReachMetric.copy {
@@ -3286,17 +3322,18 @@ class MetricsServiceTest {
       state = InternalMetric.State.RUNNING
     }
 
-    runBlocking {
-      whenever(internalMetricsMock.createMetric(any()))
-        .thenReturn(internalPendingReachAndFrequencyMetricWithSingleDataProviderParams)
-      whenever(measurementsMock.batchCreateMeasurements(any()))
-        .thenReturn(
-          batchCreateMeasurementsResponse {
-            measurements +=
-              pendingSingleDataProviderReachAndFrequencyMeasurementWithSingleDataProviderParams
-          }
-        )
-    }
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    wheneverBlocking { internalMetricsMock.createMetric(any()) }
+      .thenReturn(internalPendingReachAndFrequencyMetricWithSingleDataProviderParams)
+    wheneverBlocking { measurementsMock.batchCreateMeasurements(any()) }
+      .thenReturn(
+        batchCreateMeasurementsResponse {
+          measurements +=
+            pendingSingleDataProviderReachAndFrequencyMeasurementWithSingleDataProviderParams
+        }
+      )
 
     val requestingReachAndFrequencyMetricWithSingleDataProviderParams = metric {
       reportingSet = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.resourceName
@@ -3353,9 +3390,7 @@ class MetricsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(request.parent, CONFIG) {
-        runBlocking { service.createMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
 
     val pendingReachAndFrequencyMetricWithSingleDataProviderParams =
       requestingReachAndFrequencyMetricWithSingleDataProviderParams.copy {
@@ -3471,134 +3506,137 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `createMetric creates CMMS measurements for single pub rf when single edp params not set`() =
-    runBlocking {
-      whenever(internalMetricsMock.createMetric(any()))
-        .thenReturn(INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC)
-      whenever(measurementsMock.batchCreateMeasurements(any()))
-        .thenReturn(
-          batchCreateMeasurementsResponse {
-            measurements += PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT
-          }
-        )
-
-      val request = createMetricRequest {
-        parent = MEASUREMENT_CONSUMERS.values.first().name
-        metric = REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
-        metricId = METRIC_ID
-      }
-
-      val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
+  fun `createMetric creates CMMS measurements for single pub rf when single edp params not set`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    wheneverBlocking { internalMetricsMock.createMetric(any()) }
+      .thenReturn(INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC)
+    wheneverBlocking { measurementsMock.batchCreateMeasurements(any()) }
+      .thenReturn(
+        batchCreateMeasurementsResponse {
+          measurements += PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT
         }
+      )
 
-      val expected = PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
+      metricId = METRIC_ID
+    }
 
-      // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
-      verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
-        .ignoringRepeatedFieldOrder()
-        .isEqualTo(
-          internalCreateMetricRequest {
-            metric = INTERNAL_REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
-            externalMetricId = METRIC_ID
-          }
-        )
+    val result =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
 
-      // Verify proto argument of MeasurementsCoroutineImplBase::batchCreateMeasurements
-      val measurementsCaptor: KArgumentCaptor<BatchCreateMeasurementsRequest> = argumentCaptor()
-      verifyBlocking(measurementsMock, times(1)) {
-        batchCreateMeasurements(measurementsCaptor.capture())
-      }
-      val capturedMeasurementRequests = measurementsCaptor.allValues
-      assertThat(capturedMeasurementRequests)
-        .ignoringRepeatedFieldOrder()
-        .ignoringFieldDescriptors(MEASUREMENT_SPEC_FIELD, ENCRYPTED_REQUISITION_SPEC_FIELD)
-        .containsExactly(
-          batchCreateMeasurementsRequest {
+    val expected = PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
+
+    // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalCreateMetricRequest {
+          metric = INTERNAL_REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
+          externalMetricId = METRIC_ID
+        }
+      )
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::batchCreateMeasurements
+    val measurementsCaptor: KArgumentCaptor<BatchCreateMeasurementsRequest> = argumentCaptor()
+    verifyBlocking(measurementsMock, times(1)) {
+      batchCreateMeasurements(measurementsCaptor.capture())
+    }
+    val capturedMeasurementRequests = measurementsCaptor.allValues
+    assertThat(capturedMeasurementRequests)
+      .ignoringRepeatedFieldOrder()
+      .ignoringFieldDescriptors(MEASUREMENT_SPEC_FIELD, ENCRYPTED_REQUISITION_SPEC_FIELD)
+      .containsExactly(
+        batchCreateMeasurementsRequest {
+          parent = request.parent
+          requests += createMeasurementRequest {
             parent = request.parent
-            requests += createMeasurementRequest {
-              parent = request.parent
-              measurement = REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT
-              requestId =
-                INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT
-                  .cmmsCreateMeasurementRequestId
+            measurement = REQUESTING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT
+            requestId =
+              INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT
+                .cmmsCreateMeasurementRequestId
+          }
+        }
+      )
+
+    capturedMeasurementRequests.single().requestsList.forEach { createMeasurementRequest ->
+      verifyMeasurementSpec(
+        createMeasurementRequest.measurement.measurementSpec,
+        MEASUREMENT_CONSUMER_CERTIFICATE,
+        TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
+      )
+
+      val dataProvidersList =
+        createMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
+
+      val measurementSpec: MeasurementSpec =
+        createMeasurementRequest.measurement.measurementSpec.unpack()
+      assertThat(measurementSpec)
+        .isEqualTo(
+          SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT_SPEC.copy {
+            reportingMetadata = reportingMetadata {
+              report = CONTAINING_REPORT
+              metric =
+                MetricKey(
+                    INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
+                      .cmmsMeasurementConsumerId,
+                    INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.externalMetricId,
+                  )
+                  .toName()
             }
           }
         )
 
-      capturedMeasurementRequests.single().requestsList.forEach { createMeasurementRequest ->
-        verifyMeasurementSpec(
-          createMeasurementRequest.measurement.measurementSpec,
+      dataProvidersList.map { dataProviderEntry ->
+        val signedRequisitionSpec =
+          decryptRequisitionSpec(
+            dataProviderEntry.value.encryptedRequisitionSpec,
+            DATA_PROVIDER_PRIVATE_KEY_HANDLE,
+          )
+        val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
+        verifyRequisitionSpec(
+          signedRequisitionSpec,
+          requisitionSpec,
+          measurementSpec,
           MEASUREMENT_CONSUMER_CERTIFICATE,
           TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
         )
-
-        val dataProvidersList =
-          createMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
-
-        val measurementSpec: MeasurementSpec =
-          createMeasurementRequest.measurement.measurementSpec.unpack()
-        assertThat(measurementSpec)
-          .isEqualTo(
-            SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT_SPEC.copy {
-              reportingMetadata = reportingMetadata {
-                report = CONTAINING_REPORT
-                metric =
-                  MetricKey(
-                      INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
-                        .cmmsMeasurementConsumerId,
-                      INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.externalMetricId,
-                    )
-                    .toName()
-              }
-            }
-          )
-
-        dataProvidersList.map { dataProviderEntry ->
-          val signedRequisitionSpec =
-            decryptRequisitionSpec(
-              dataProviderEntry.value.encryptedRequisitionSpec,
-              DATA_PROVIDER_PRIVATE_KEY_HANDLE,
-            )
-          val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
-          verifyRequisitionSpec(
-            signedRequisitionSpec,
-            requisitionSpec,
-            measurementSpec,
-            MEASUREMENT_CONSUMER_CERTIFICATE,
-            TRUSTED_MEASUREMENT_CONSUMER_ISSUER,
-          )
-        }
       }
-
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
-      verifyProtoArgument(
-          internalMeasurementsMock,
-          InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds,
-        )
-        .ignoringRepeatedFieldOrder()
-        .isEqualTo(
-          batchSetCmmsMeasurementIdsRequest {
-            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-            this.measurementIds += measurementIds {
-              cmmsCreateMeasurementRequestId =
-                INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT
-                  .cmmsCreateMeasurementRequestId
-              cmmsMeasurementId =
-                INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.cmmsMeasurementId
-            }
-          }
-        )
-
-      assertThat(result).isEqualTo(expected)
     }
 
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds,
+      )
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        batchSetCmmsMeasurementIdsRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          this.measurementIds += measurementIds {
+            cmmsCreateMeasurementRequestId =
+              INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT
+                .cmmsCreateMeasurementRequestId
+            cmmsMeasurementId =
+              INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.cmmsMeasurementId
+          }
+        }
+      )
+
+    assertThat(result).isEqualTo(expected)
+  }
+
   @Test
-  fun `createMetric creates CMMS measurements for single pub impression metric`() = runBlocking {
-    whenever(internalMetricsMock.createMetric(any()))
+  fun `createMetric creates CMMS measurements for single pub impression metric`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    wheneverBlocking { internalMetricsMock.createMetric(any()) }
       .thenReturn(INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC)
-    whenever(measurementsMock.batchCreateMeasurements(any()))
+    wheneverBlocking { measurementsMock.batchCreateMeasurements(any()) }
       .thenReturn(
         batchCreateMeasurementsResponse {
           measurements += PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
@@ -3612,9 +3650,7 @@ class MetricsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.createMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
 
     val expected = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
 
@@ -3791,6 +3827,9 @@ class MetricsServiceTest {
           signMeasurementSpec(cmmsMeasurementSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
       }
 
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     whenever(internalMetricsMock.createMetric(any()))
       .thenReturn(internalPendingInitialSinglePublisherImpressionMetric)
     whenever(measurementsMock.batchCreateMeasurements(any()))
@@ -3824,9 +3863,7 @@ class MetricsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.createMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
 
     val expected =
       PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
@@ -3947,6 +3984,9 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric creates CMMS measurements for incremental reach with a request ID`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
@@ -3955,9 +3995,7 @@ class MetricsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.createMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
 
     val expected = PENDING_INCREMENTAL_REACH_METRIC
 
@@ -4126,6 +4164,9 @@ class MetricsServiceTest {
         details = InternalMetricKt.details { containingReport = CONTAINING_REPORT }
       }
 
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     whenever(
         internalReportingSetsMock.batchGetReportingSets(
           eq(
@@ -4140,7 +4181,6 @@ class MetricsServiceTest {
       .thenReturn(
         batchGetReportingSetsResponse { reportingSets += internalSinglePublisherReportingSet }
       )
-
     whenever(internalMetricsMock.createMetric(eq(internalCreateMetricRequest)))
       .thenReturn(internalPendingInitialSinglePublisherImpressionMetric)
 
@@ -4150,9 +4190,7 @@ class MetricsServiceTest {
       metricId = METRIC_ID
     }
 
-    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-      runBlocking { service.createMetric(request) }
-    }
+    withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
 
     // Verify proto argument of MeasurementsCoroutineImplBase::batchCreateMeasurements
     val measurementsCaptor: KArgumentCaptor<BatchCreateMeasurementsRequest> = argumentCaptor()
@@ -4192,6 +4230,9 @@ class MetricsServiceTest {
     val numberBatchReportingSets = expectedNumberBatchGetReportingSetsRequests - 1
     val numberInternalReportingSets = BATCH_GET_REPORTING_SETS_LIMIT * numberBatchReportingSets
 
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     whenever(internalReportingSetsMock.batchGetReportingSets(any()))
       .thenAnswer {
         val batchGetReportingSetsRequest = it.arguments[0] as BatchGetReportingSetsRequest
@@ -4247,9 +4288,7 @@ class MetricsServiceTest {
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
       metricId = METRIC_ID
     }
-    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-      runBlocking { service.createMetric(request) }
-    }
+    withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
 
     // Verify proto argument of internal ReportingSetsCoroutineImplBase::batchGetReportingSets
     val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
@@ -4289,6 +4328,9 @@ class MetricsServiceTest {
           }
       }
 
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     whenever(internalMetricsMock.createMetric(any()))
       .thenReturn(
         INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC.copy {
@@ -4311,9 +4353,7 @@ class MetricsServiceTest {
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
       metricId = METRIC_ID
     }
-    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-      runBlocking { service.createMetric(request) }
-    }
+    withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
 
     // Verify proto argument of cmms MeasurementsCoroutineImplBase::batchCreateMeasurements
     val batchCreateMeasurementsCaptor: KArgumentCaptor<BatchCreateMeasurementsRequest> =
@@ -4340,6 +4380,9 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric without request ID when the measurements are created already`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     whenever(internalMetricsMock.createMetric(any()))
       .thenReturn(INTERNAL_PENDING_INCREMENTAL_REACH_METRIC)
 
@@ -4350,9 +4393,7 @@ class MetricsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.createMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
 
     val expected = PENDING_INCREMENTAL_REACH_METRIC
 
@@ -4388,6 +4429,9 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric with request ID when the metric exists and in running state`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     whenever(internalMetricsMock.createMetric(any()))
       .thenReturn(INTERNAL_PENDING_INCREMENTAL_REACH_METRIC)
 
@@ -4399,9 +4443,7 @@ class MetricsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.createMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
 
     val expected = PENDING_INCREMENTAL_REACH_METRIC
 
@@ -4438,6 +4480,9 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric with request ID when the metric exists and in terminalstate`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     whenever(internalMetricsMock.createMetric(any()))
       .thenReturn(INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC)
 
@@ -4449,9 +4494,7 @@ class MetricsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.createMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
 
     val expected = SUCCEEDED_INCREMENTAL_REACH_METRIC
 
@@ -4514,55 +4557,23 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric throws PERMISSION_DENIED when MeasurementConsumer caller doesn't match`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
       metricId = METRIC_ID
     }
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.last().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Cannot create a Metric for another MeasurementConsumer.")
-  }
 
-  @Test
-  fun `createMetric throws PERMISSION_DENIED when metric doesn't belong to caller`() {
-    val request = createMetricRequest {
-      parent = MEASUREMENT_CONSUMERS.values.last().name
-      metric = REQUESTING_INCREMENTAL_REACH_METRIC
-      metricId = METRIC_ID
-    }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL.copy { name = "$name-wrong" }, SCOPES) {
           runBlocking { service.createMetric(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Cannot create a Metric for another MeasurementConsumer.")
-  }
 
-  @Test
-  fun `createMetric throws UNAUTHENTICATED when the caller is not MeasurementConsumer`() {
-    val request = createMetricRequest {
-      parent = MEASUREMENT_CONSUMERS.values.first().name
-      metric = REQUESTING_INCREMENTAL_REACH_METRIC
-      metricId = METRIC_ID
-    }
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDERS_LIST[0].name) {
-          runBlocking { service.createMetric(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("No ReportingPrincipal found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -4574,9 +4585,7 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("Parent is either unspecified or invalid.")
@@ -4584,6 +4593,9 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric throws INVALID_ARGUMENT when resource ID is unspecified`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
@@ -4591,15 +4603,16 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
   fun `createMetric throws INVALID_ARGUMENT when resource ID starts with number`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
@@ -4608,15 +4621,16 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
   fun `createMetric throws INVALID_ARGUMENT when resource ID is too long`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
@@ -4625,15 +4639,16 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
   fun `createMetric throws INVALID_ARGUMENT when resource ID contains invalid char`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
@@ -4642,9 +4657,7 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
@@ -4658,9 +4671,7 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("Metric is not specified.")
@@ -4668,6 +4679,9 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric throws INVALID_ARGUMENT when time interval in Metric is unspecified`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { clearTimeInterval() }
@@ -4676,9 +4690,7 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("Time interval in metric is not specified.")
@@ -4686,6 +4698,9 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric throws INVALID_ARGUMENT when TimeInterval startTime is unspecified`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric =
@@ -4698,15 +4713,16 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
   fun `createMetric throws INVALID_ARGUMENT when TimeInterval endTime is unspecified`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric =
@@ -4719,15 +4735,16 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
   fun `createMetric throws INVALID_ARGUMENT when TimeInterval endTime is before startTime`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric =
@@ -4749,15 +4766,16 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
   fun `createMetric throws INVALID_ARGUMENT when metric spec in Metric is unspecified`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { clearMetricSpec() }
@@ -4766,9 +4784,7 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("Metric spec in metric is not specified.")
@@ -4776,6 +4792,9 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric throws INVALID_ARGUMENT when privacy params is unspecified`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric =
@@ -4787,15 +4806,16 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
   fun `createMetric throws INVALID_ARGUMENT when vid sampling interval start is negative`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric =
@@ -4808,15 +4828,16 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
   fun `createMetric throws INVALID_ARGUMENT when vid sampling interval start is 1`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric =
@@ -4829,15 +4850,16 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
   fun `createMetric throws INVALID_ARGUMENT when vid sampling interval width is 0`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric =
@@ -4850,15 +4872,16 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
   fun `createMetric throws INVALID_ARGUMENT when vid sampling interval end is larger than 1`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric =
@@ -4877,9 +4900,7 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
@@ -4894,9 +4915,7 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
@@ -4913,17 +4932,14 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Invalid reporting set name ${metricWithInvalidReportingSet.reportingSet}.")
+    assertThat(exception).hasMessageThat().ignoringCase().contains("reporting_set")
   }
 
   @Test
-  fun `createMetric throws PERMISSION_DENIED when reporting set is not accessible to caller`() {
+  fun `createMetric throws INVALID_ARGUMENT when ReportingSet has different parent`() {
     val inaccessibleReportingSetName =
       ReportingSetKey(
           MEASUREMENT_CONSUMERS.keys.last().measurementConsumerId,
@@ -4940,17 +4956,17 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("No access to the reporting set [$inaccessibleReportingSetName].")
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("reporting_set")
   }
 
   @Test
   fun `createMetric throws INVALID_ARGUMENT when Frequency Histogram metric is computed on non-union-only set expression`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric =
@@ -4962,9 +4978,7 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
@@ -4972,6 +4986,9 @@ class MetricsServiceTest {
   @Test
   fun `createMetric throws FAILED_PRECONDITION when EDP cert is revoked`() = runBlocking {
     val dataProvider = DATA_PROVIDERS.values.first()
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     whenever(
         certificatesMock.getCertificate(
           eq(getCertificateRequest { name = dataProvider.certificate })
@@ -4992,9 +5009,7 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
 
     assertThat(exception).hasMessageThat().ignoringCase().contains("revoked")
@@ -5004,6 +5019,9 @@ class MetricsServiceTest {
   fun `createMetric throws FAILED_PRECONDITION when EDP public key signature is invalid`() =
     runBlocking {
       val dataProvider = DATA_PROVIDERS.values.first()
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
       whenever(
           dataProvidersMock.getDataProvider(eq(getDataProviderRequest { name = dataProvider.name }))
         )
@@ -5020,7 +5038,7 @@ class MetricsServiceTest {
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) {
             runBlocking { service.createMetric(request) }
           }
         }
@@ -5041,15 +5059,16 @@ class MetricsServiceTest {
       }
 
       assertFailsWith(Exception::class) {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     }
 
   @Test
   fun `createMetric throws exception when CMMS batchCreateMeasurements throws INVALID_ARGUMENT`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
       whenever(measurementsMock.batchCreateMeasurements(any()))
         .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
@@ -5061,7 +5080,7 @@ class MetricsServiceTest {
 
       val exception =
         assertFailsWith(Exception::class) {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) {
             runBlocking { service.createMetric(request) }
           }
         }
@@ -5081,14 +5100,15 @@ class MetricsServiceTest {
       }
 
       assertFailsWith(Exception::class) {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     }
 
   @Test
   fun `createMetric throws exception when getMeasurementConsumer throws NOT_FOUND`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     whenever(measurementConsumersMock.getMeasurementConsumer(any()))
       .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
 
@@ -5100,9 +5120,7 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith(Exception::class) {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.grpcStatusCode()).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.message).contains(MEASUREMENT_CONSUMERS.values.first().name)
@@ -5121,14 +5139,15 @@ class MetricsServiceTest {
     }
 
     assertFails {
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.createMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
     }
   }
 
   @Test
   fun `createMetric throws exception when getDataProvider throws exception`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     whenever(dataProvidersMock.getDataProvider(any()))
       .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
@@ -5140,15 +5159,16 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith(Exception::class) {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception).hasMessageThat().contains("dataProviders/")
   }
 
   @Test
-  fun `createMetric throws UNKNOWN when getCertificate throws UNKNOWN`() = runBlocking {
+  fun `createMetric throws INTERNAL when getCertificate throws unhandled status`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     whenever(certificatesMock.getCertificate(any()))
       .thenThrow(StatusRuntimeException(Status.UNKNOWN))
 
@@ -5160,17 +5180,18 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
     assertThat(exception).hasMessageThat().contains("certificates/")
   }
 
   @Test
   fun `createMetric throws FAILED_PRECONDITION when getCertificate throws NOT_FOUND`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
       whenever(certificatesMock.getCertificate(any()))
         .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
 
@@ -5182,7 +5203,7 @@ class MetricsServiceTest {
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) {
             runBlocking { service.createMetric(request) }
           }
         }
@@ -5192,6 +5213,9 @@ class MetricsServiceTest {
 
   @Test
   fun `batchCreateMetrics creates CMMS measurements`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = batchCreateMetricsRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       requests += createMetricRequest {
@@ -5207,7 +5231,7 @@ class MetricsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.batchCreateMetrics(request) }
       }
 
@@ -5376,6 +5400,9 @@ class MetricsServiceTest {
       }
     }
 
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     whenever(internalMetricsMock.batchCreateMetrics(any()))
       .thenReturn(
         internalBatchCreateMetricsResponse {
@@ -5385,7 +5412,7 @@ class MetricsServiceTest {
       )
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.batchCreateMetrics(request) }
       }
 
@@ -5439,35 +5466,40 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `batchCreateMetrics throws INVALID_ARGUMENT when number of requests exceeds limit`() =
-    runBlocking {
-      val request = batchCreateMetricsRequest {
-        parent = MEASUREMENT_CONSUMERS.values.first().name
+  fun `batchCreateMetrics throws INVALID_ARGUMENT when number of requests exceeds limit`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    val request = batchCreateMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
 
-        requests +=
-          List(MAX_BATCH_SIZE + 1) {
-            createMetricRequest {
-              parent = MEASUREMENT_CONSUMERS.values.first().name
-              metric = REQUESTING_INCREMENTAL_REACH_METRIC
-              metricId = "metric-id$it"
-            }
-          }
-      }
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-            runBlocking { service.batchCreateMetrics(request) }
+      requests +=
+        List(MAX_BATCH_SIZE + 1) {
+          createMetricRequest {
+            parent = MEASUREMENT_CONSUMERS.values.first().name
+            metric = REQUESTING_INCREMENTAL_REACH_METRIC
+            metricId = "metric-id$it"
           }
         }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.status.description)
-        .isEqualTo("At most $MAX_BATCH_SIZE requests can be supported in a batch.")
     }
 
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.batchCreateMetrics(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("At most $MAX_BATCH_SIZE requests can be supported in a batch.")
+  }
+
   @Test
-  fun `batchCreateMetrics throws INVALID_ARGUMENT when duplicate metric IDs`() = runBlocking {
+  fun `batchCreateMetrics throws INVALID_ARGUMENT when duplicate metric IDs`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     val request = batchCreateMetricsRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
 
@@ -5483,7 +5515,7 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.batchCreateMetrics(request) }
         }
       }
@@ -5493,12 +5525,13 @@ class MetricsServiceTest {
 
   @Test
   fun `listMetrics returns without a next page token when there is no previous page token`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
     val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.listMetrics(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
 
     val expected = listMetricsResponse {
       metrics += PENDING_INCREMENTAL_REACH_METRIC
@@ -5542,6 +5575,9 @@ class MetricsServiceTest {
   @Test
   fun `listMetrics returns with a next page token when there is no previous page token`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse { metrics += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC }
@@ -5554,9 +5590,7 @@ class MetricsServiceTest {
       }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.listMetrics(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
 
       val expected = listMetricsResponse {
         metrics += PENDING_INCREMENTAL_REACH_METRIC
@@ -5612,6 +5646,9 @@ class MetricsServiceTest {
   @Test
   fun `listMetrics returns without a next page token when there is a previous page token`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
       whenever(internalMetricsMock.streamMetrics(any()))
         .thenReturn(flowOf(INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC))
       whenever(internalMetricsMock.batchGetMetrics(any()))
@@ -5639,9 +5676,7 @@ class MetricsServiceTest {
       }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.listMetrics(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
 
       val expected = listMetricsResponse { metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC }
 
@@ -5683,6 +5718,9 @@ class MetricsServiceTest {
 
   @Test
   fun `listMetrics with page size replaced with a valid value and no previous page token`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
     val invalidPageSize = MAX_PAGE_SIZE * 2
 
     val request = listMetricsRequest {
@@ -5691,9 +5729,7 @@ class MetricsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.listMetrics(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
 
     val expected = listMetricsResponse {
       metrics += PENDING_INCREMENTAL_REACH_METRIC
@@ -5737,6 +5773,9 @@ class MetricsServiceTest {
   @Test
   fun `listMetrics with invalid page size replaced with the one in previous page token`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
       whenever(internalMetricsMock.streamMetrics(any()))
         .thenReturn(flowOf(INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC))
       whenever(internalMetricsMock.batchGetMetrics(any()))
@@ -5766,9 +5805,7 @@ class MetricsServiceTest {
       }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.listMetrics(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
 
       val expected = listMetricsResponse { metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC }
 
@@ -5811,6 +5848,9 @@ class MetricsServiceTest {
   @Test
   fun `listMetrics with a new page size replacing the old one in previous page token`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
       whenever(internalMetricsMock.streamMetrics(any()))
         .thenReturn(flowOf(INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC))
       whenever(internalMetricsMock.batchGetMetrics(any()))
@@ -5840,9 +5880,7 @@ class MetricsServiceTest {
       }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.listMetrics(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
 
       val expected = listMetricsResponse { metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC }
 
@@ -5893,6 +5931,9 @@ class MetricsServiceTest {
           PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
       )
 
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
     whenever(measurementsMock.batchGetMeasurements(any())).thenAnswer {
       val batchGetMeasurementsRequest = it.arguments[0] as BatchGetMeasurementsRequest
       batchGetMeasurementsResponse {
@@ -5900,7 +5941,6 @@ class MetricsServiceTest {
           batchGetMeasurementsRequest.namesList.map { name -> measurementsMap.getValue(name) }
       }
     }
-
     whenever(
         internalMetricsMock.batchGetMetrics(
           eq(
@@ -5937,9 +5977,7 @@ class MetricsServiceTest {
     val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.listMetrics(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
 
     val expected = listMetricsResponse {
       metrics += SUCCEEDED_INCREMENTAL_REACH_METRIC
@@ -5994,6 +6032,9 @@ class MetricsServiceTest {
 
   @Test
   fun `listMetrics returns succeeded metrics when the metrics are SUCCEEDED`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
     whenever(internalMetricsMock.streamMetrics(any()))
       .thenReturn(
         flowOf(
@@ -6012,9 +6053,7 @@ class MetricsServiceTest {
     val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.listMetrics(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
 
     val expected = listMetricsResponse {
       metrics += SUCCEEDED_INCREMENTAL_REACH_METRIC
@@ -6072,6 +6111,9 @@ class MetricsServiceTest {
             }
           },
       )
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
     whenever(measurementsMock.batchGetMeasurements(any())).thenAnswer {
       val batchGetMeasurementsRequest = it.arguments[0] as BatchGetMeasurementsRequest
       batchGetMeasurementsResponse {
@@ -6079,7 +6121,6 @@ class MetricsServiceTest {
           batchGetMeasurementsRequest.namesList.map { name -> measurementsMap.getValue(name) }
       }
     }
-
     whenever(
         internalMetricsMock.batchGetMetrics(
           eq(
@@ -6111,9 +6152,7 @@ class MetricsServiceTest {
     val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.listMetrics(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
 
     val expected = listMetricsResponse {
       metrics += PENDING_INCREMENTAL_REACH_METRIC
@@ -6182,43 +6221,36 @@ class MetricsServiceTest {
 
   @Test
   fun `listMetrics throws PERMISSION_DENIED when MeasurementConsumer caller doesn't match`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
     val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.last().name, CONFIG) {
-          runBlocking { service.listMetrics(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Cannot list Metrics belonging to other MeasurementConsumers.")
-  }
 
-  @Test
-  fun `listMetrics throws UNAUTHENTICATED when the caller is not MeasurementConsumer`() {
-    val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDERS.values.first().name) {
+        withPrincipalAndScopes(PRINCIPAL.copy { name = "$name-wrong" }, SCOPES) {
           runBlocking { service.listMetrics(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("No ReportingPrincipal found")
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
   fun `listMetrics throws INVALID_ARGUMENT when page size is less than 0`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
     val request = listMetricsRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       pageSize = -1
     }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.listMetrics(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("Page size cannot be less than 0.")
   }
@@ -6227,7 +6259,7 @@ class MetricsServiceTest {
   fun `listMetrics throws INVALID_ARGUMENT when parent is unspecified`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.listMetrics(ListMetricsRequest.getDefaultInstance()) }
         }
       }
@@ -6236,6 +6268,9 @@ class MetricsServiceTest {
 
   @Test
   fun `listMetrics throws INVALID_ARGUMENT when MC ID doesn't match one in page token`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
     val request = listMetricsRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       pageToken =
@@ -6252,9 +6287,7 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.listMetrics(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
@@ -6262,36 +6295,46 @@ class MetricsServiceTest {
   @Test
   fun `listMetrics throws Exception when the internal streamMetrics throws Exception`(): Unit =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
       whenever(internalMetricsMock.streamMetrics(any()))
         .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
       val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
-      assertFailsWith(Exception::class) {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.listMetrics(request) }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
         }
-      }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
     }
 
   @Test
   fun `listMetrics throws Exception when batchGetMeasurements throws Exception`(): Unit =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
       whenever(measurementsMock.batchGetMeasurements(any()))
         .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
-
       val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
-      assertFailsWith(Exception::class) {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.listMetrics(request) }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
         }
-      }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
     }
 
   @Test
   fun `listMetrics throws Exception when internal batchSetMeasurementResults throws Exception`() {
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
       whenever(measurementsMock.batchGetMeasurements(any())).thenAnswer {
         val batchGetMeasurementsRequest = it.arguments[0] as BatchGetMeasurementsRequest
         val measurementsMap =
@@ -6307,20 +6350,23 @@ class MetricsServiceTest {
       }
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
         .thenThrow(StatusRuntimeException(Status.UNKNOWN))
-
       val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
-      assertFailsWith(Exception::class) {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.listMetrics(request) }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
         }
-      }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
     }
   }
 
   @Test
-  fun `listMetrics throws Exception when internal batchSetMeasurementFailures throws Exception`() {
+  fun `listMetrics throws Exception when internal batchSetMeasurementFailures throws Exception`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
       whenever(measurementsMock.batchGetMeasurements(any()))
         .thenReturn(
           batchGetMeasurementsResponse {
@@ -6340,17 +6386,20 @@ class MetricsServiceTest {
 
       val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
-      assertFailsWith(Exception::class) {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.listMetrics(request) }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
         }
-      }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
     }
-  }
 
   @Test
   fun `listMetrics throws Exception when internal batchGetMetrics throws Exception`(): Unit =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
       whenever(measurementsMock.batchGetMeasurements(any())).thenAnswer {
         val batchGetMeasurementsRequest = it.arguments[0] as BatchGetMeasurementsRequest
         val measurementsMap =
@@ -6371,16 +6420,20 @@ class MetricsServiceTest {
 
       val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
-      assertFailsWith(Exception::class) {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.listMetrics(request) }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
         }
-      }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
     }
 
   @Test
   fun `listMetrics throws FAILED_PRECONDITION when the measurement public key is not valid`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
       whenever(measurementsMock.batchGetMeasurements(any())).thenAnswer {
         val batchGetMeasurementsRequest = it.arguments[0] as BatchGetMeasurementsRequest
         val measurementsMap =
@@ -6410,9 +6463,7 @@ class MetricsServiceTest {
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-            runBlocking { service.listMetrics(request) }
-          }
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
@@ -6423,6 +6474,9 @@ class MetricsServiceTest {
 
   @Test
   fun `listMetrics throws Exception when the getCertificate throws Exception`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
     whenever(measurementsMock.batchGetMeasurements(any())).thenAnswer {
       val batchGetMeasurementsRequest = it.arguments[0] as BatchGetMeasurementsRequest
       val measurementsMap =
@@ -6444,18 +6498,20 @@ class MetricsServiceTest {
     val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
     val exception =
-      assertFailsWith(Exception::class) {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.listMetrics(request) }
-        }
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
       }
 
+    assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
     assertThat(exception).hasMessageThat().contains(AGGREGATOR_CERTIFICATE.name)
   }
 
   @Test
   fun `getMetric returns the metric with SUCCEEDED when the metric has state STATE_UNSPECIFIED`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -6466,9 +6522,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
       val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
@@ -6584,6 +6638,9 @@ class MetricsServiceTest {
         state = InternalMetric.State.SUCCEEDED
       }
 
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -6601,9 +6658,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = metricName }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
       val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
@@ -6762,6 +6817,9 @@ class MetricsServiceTest {
         state = InternalMetric.State.SUCCEEDED
       }
 
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(internalBatchGetMetricsResponse { metrics += internalSucceededReachMetric })
 
@@ -6775,9 +6833,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = metricName }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
       val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
@@ -6854,6 +6910,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns the metric with SUCCEEDED when the metric is already succeeded`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse { metrics += INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC }
@@ -6862,9 +6921,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
       val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
@@ -6903,6 +6960,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns reach metric with statistics not set when measurement has no noise mechanism`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -6944,9 +7004,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
       val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
@@ -6994,6 +7052,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns reach metric without statistics when reach methodology is unspecified`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -7030,9 +7091,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
       val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
@@ -7080,6 +7139,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns reach metric without statistics when variance in custom methodology is unavailable`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -7128,9 +7190,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       assertThat(result)
         .isEqualTo(
@@ -7147,19 +7207,20 @@ class MetricsServiceTest {
   @Test
   fun `getMetric throws FAILED_PRECONDITION when measurements SUCCEEDED but EDP cert is revoked`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(measurementsMock.batchGetMeasurements(any())).thenAnswer {
         val batchGetMeasurementsRequest = it.arguments[0] as BatchGetMeasurementsRequest
         val measurementsMap =
-          mapOf(
-            SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.name to SUCCEEDED_UNION_ALL_REACH_MEASUREMENT,
-            SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name to
-              SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
-            PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name to
-              PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
-          )
+          listOf(SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT).associateBy { it.name }
         batchGetMeasurementsResponse {
           measurements +=
-            batchGetMeasurementsRequest.namesList.map { name -> measurementsMap.getValue(name) }
+            batchGetMeasurementsRequest.namesList.map { name ->
+              measurementsMap[name]
+                ?: throw Status.NOT_FOUND.withDescription("Measurement $name not found")
+                  .asRuntimeException()
+            }
         }
       }
 
@@ -7176,9 +7237,7 @@ class MetricsServiceTest {
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-            runBlocking { service.getMetric(request) }
-          }
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
         }
 
       assertThat(exception).hasMessageThat().ignoringCase().contains("revoked")
@@ -7187,6 +7246,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric throw StatusRuntimeException when variance type in custom methodology is unspecified`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(
           internalMetricsMock.batchGetMetrics(
             eq(
@@ -7247,9 +7309,7 @@ class MetricsServiceTest {
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-            runBlocking { service.getMetric(request) }
-          }
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
@@ -7259,6 +7319,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric throw StatusRuntimeException when unavailable variance has no reason specified`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(
           internalMetricsMock.batchGetMetrics(
             eq(
@@ -7326,9 +7389,7 @@ class MetricsServiceTest {
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-            runBlocking { service.getMetric(request) }
-          }
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
@@ -7338,6 +7399,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns failed metric for reach when it has measurement with two results`(): Unit =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -7377,9 +7441,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
 
       val response =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       assertThat(response.state).isEqualTo(Metric.State.FAILED)
       assertThat(response.result)
@@ -7389,6 +7451,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns failed metric when the succeeded measurement contains no result`(): Unit =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -7410,9 +7475,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
 
       val response =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       assertThat(response.state).isEqualTo(Metric.State.FAILED)
       assertThat(response.result)
@@ -7422,6 +7485,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns succeeded metric for reach metric when custom direct methodology has freq`():
     Unit = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
     whenever(internalMetricsMock.batchGetMetrics(any()))
       .thenReturn(
         internalBatchGetMetricsResponse {
@@ -7460,9 +7526,7 @@ class MetricsServiceTest {
     val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
 
     val response =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.getMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
     assertThat(response)
       .isEqualTo(
@@ -7483,6 +7547,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric calls batchSetMeasurementResults when request number is more than the limit`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       val weightedMeasurements =
         (0..BATCH_SET_MEASUREMENT_RESULTS_LIMIT).map { id ->
           weightedMeasurement {
@@ -7527,9 +7594,7 @@ class MetricsServiceTest {
 
       val request = getMetricRequest { name = PENDING_INCREMENTAL_REACH_METRIC.name }
 
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.getMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       // Verify proto argument of cmms MeasurementsCoroutineImplBase::batchGetMeasurements
       val batchGetMeasurementsCaptor: KArgumentCaptor<BatchGetMeasurementsRequest> =
@@ -7590,6 +7655,9 @@ class MetricsServiceTest {
             }
         }
 
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -7610,9 +7678,7 @@ class MetricsServiceTest {
 
       val request = getMetricRequest { name = PENDING_INCREMENTAL_REACH_METRIC.name }
 
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.getMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       // Verify proto argument of cmms MeasurementsCoroutineImplBase::batchGetMeasurements
       val batchGetMeasurementsCaptor: KArgumentCaptor<BatchGetMeasurementsRequest> =
@@ -7641,6 +7707,9 @@ class MetricsServiceTest {
 
   @Test
   fun `getMetric returns the metric with FAILED when the metric is already failed`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
     whenever(internalMetricsMock.batchGetMetrics(any()))
       .thenReturn(
         internalBatchGetMetricsResponse {
@@ -7651,9 +7720,7 @@ class MetricsServiceTest {
     val request = getMetricRequest { name = FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.getMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
     // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
     val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
@@ -7703,6 +7770,9 @@ class MetricsServiceTest {
 
   @Test
   fun `getMetric returns the metric with RUNNING when measurements are pending`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
     whenever(internalMetricsMock.batchGetMetrics(any()))
       .thenReturn(
         internalBatchGetMetricsResponse { metrics += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC }
@@ -7711,9 +7781,7 @@ class MetricsServiceTest {
     val request = getMetricRequest { name = PENDING_INCREMENTAL_REACH_METRIC.name }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.getMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
     // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
     val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
@@ -7752,8 +7820,19 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns frequency histogram metric with SUCCEEDED when measurements are updated to SUCCEEDED`() =
     runBlocking {
-      whenever(
-          internalMetricsMock.batchGetMetrics(
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+      doReturn(
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
+          },
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
+          },
+        )
+        .wheneverBlocking(internalMetricsMock) {
+          batchGetMetrics(
             eq(
               internalBatchGetMetricsRequest {
                 cmmsMeasurementConsumerId =
@@ -7763,16 +7842,7 @@ class MetricsServiceTest {
               }
             )
           )
-        )
-        .thenReturn(
-          internalBatchGetMetricsResponse {
-            metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
-          },
-          internalBatchGetMetricsResponse {
-            metrics += INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
-          },
-        )
-
+        }
       whenever(measurementsMock.batchGetMeasurements(any())).thenAnswer {
         val batchGetMeasurementsRequest = it.arguments[0] as BatchGetMeasurementsRequest
         val measurementsMap =
@@ -7792,9 +7862,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
@@ -7892,6 +7960,9 @@ class MetricsServiceTest {
         state = InternalMetric.State.SUCCEEDED
       }
 
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -7910,9 +7981,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = metricName }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
       val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
@@ -8066,6 +8135,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns reach frequency metric with statistics not set when reach lacks info for variance`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -8109,9 +8181,7 @@ class MetricsServiceTest {
       }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       assertThat(result)
         .isEqualTo(
@@ -8148,6 +8218,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns reach frequency metric with statistics not set when frequency noise mechanism is unspecified`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -8193,9 +8266,7 @@ class MetricsServiceTest {
       }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       assertThat(result)
         .isEqualTo(
@@ -8238,6 +8309,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns reach frequency metric without statistics when frequency methodology is unspecified`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -8280,9 +8354,7 @@ class MetricsServiceTest {
       }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       assertThat(result)
         .isEqualTo(
@@ -8325,6 +8397,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns reach frequency metric without statistics when variance in custom methodology is unavailable`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -8379,9 +8454,7 @@ class MetricsServiceTest {
       }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       assertThat(result)
         .isEqualTo(
@@ -8424,6 +8497,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns failed metric when metric contains measurement with two rf results`():
     Unit = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
     whenever(internalMetricsMock.batchGetMetrics(any()))
       .thenReturn(
         internalBatchGetMetricsResponse {
@@ -8470,9 +8546,7 @@ class MetricsServiceTest {
     val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name }
 
     val response =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.getMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
     assertThat(response.state).isEqualTo(Metric.State.FAILED)
     assertThat(response.result)
       .isEqualTo(
@@ -8485,6 +8559,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns succeeded metric for rf when custom direct methodology has scalar`():
     Unit = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
     whenever(internalMetricsMock.batchGetMetrics(any()))
       .thenReturn(
         internalBatchGetMetricsResponse {
@@ -8527,9 +8604,7 @@ class MetricsServiceTest {
     val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name }
 
     val response =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.getMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
     assertThat(response)
       .isEqualTo(
@@ -8564,6 +8639,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns duration metric with SUCCEEDED when measurements are updated to SUCCEEDED`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(
           internalMetricsMock.batchGetMetrics(
             eq(
@@ -8603,9 +8681,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
@@ -8641,6 +8717,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns succeeded duration metric without stats when 2 measurements`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(
           internalMetricsMock.batchGetMetrics(
             eq(
@@ -8680,9 +8759,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
 
       val response =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       assertThat(response)
         .isEqualTo(
@@ -8702,6 +8779,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns impression metric with SUCCEEDED when measurements are updated to SUCCEEDED`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(
           internalMetricsMock.batchGetMetrics(
             eq(
@@ -8742,9 +8822,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
@@ -8780,6 +8858,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns succeeded impression metric without stats when 2 measurements`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(
           internalMetricsMock.batchGetMetrics(
             eq(
@@ -8820,9 +8901,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
       val response =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       assertThat(response)
         .isEqualTo(
@@ -8840,6 +8919,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns impression metric with SUCCEEDED when measurements have custom frequency cap and are updated to SUCCEEDED`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(
           internalMetricsMock.batchGetMetrics(
             eq(
@@ -8880,9 +8962,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
@@ -8921,6 +9001,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns the metric with FAILED when measurements are updated to FAILED`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(
           internalMetricsMock.batchGetMetrics(
             eq(
@@ -8971,9 +9054,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
@@ -9021,6 +9102,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns reach frequency metric with SUCCEEDED when measurements are already SUCCEEDED`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -9031,9 +9115,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
       val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
@@ -9080,6 +9162,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns impression metric without statistics when set expression is not union-only`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -9103,9 +9188,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
       val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
@@ -9161,6 +9244,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns impression metric without statistics when noise mechanism is unspecified`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -9193,9 +9279,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       assertThat(result)
         .isEqualTo(
@@ -9211,6 +9295,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns impression metric without statistics when methodology is not set`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -9242,9 +9329,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       assertThat(result)
         .isEqualTo(
@@ -9260,6 +9345,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns impression metric without statistics when variance in custom methodology is unavailable`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -9303,9 +9391,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       assertThat(result)
         .isEqualTo(
@@ -9321,6 +9407,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns succeeded metric for impression when custom direct methodology has freq`():
     Unit = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
     whenever(internalMetricsMock.batchGetMetrics(any()))
       .thenReturn(
         internalBatchGetMetricsResponse {
@@ -9359,9 +9448,7 @@ class MetricsServiceTest {
     val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
     val response =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.getMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
     assertThat(response)
       .isEqualTo(
@@ -9375,6 +9462,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns duration metric with SUCCEEDED when measurements are already SUCCEEDED`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -9385,9 +9475,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
       val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
@@ -9434,6 +9522,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns duration metric without statistics when set expression is not union-only`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -9457,9 +9548,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       assertThat(result)
         .isEqualTo(
@@ -9476,6 +9565,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns duration metric without statistics when noise mechanism is unspecified`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -9509,9 +9601,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       assertThat(result)
         .isEqualTo(
@@ -9527,6 +9617,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns duration metric without statistics when methodology is not set`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -9560,9 +9653,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       assertThat(result)
         .isEqualTo(
@@ -9578,6 +9669,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric returns duration metric without statistics when variance in custom methodology is unavailable`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -9625,9 +9719,7 @@ class MetricsServiceTest {
       val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
       assertThat(result)
         .isEqualTo(
@@ -9643,6 +9735,9 @@ class MetricsServiceTest {
   @Test
   fun `getMetric return succeeded metric for dur metric when custom direct methodology has freq`():
     Unit = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
     whenever(internalMetricsMock.batchGetMetrics(any()))
       .thenReturn(
         internalBatchGetMetricsResponse {
@@ -9683,9 +9778,7 @@ class MetricsServiceTest {
     val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
 
     val response =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.getMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
     assertThat(response)
       .isEqualTo(
@@ -9702,20 +9795,21 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.getMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
   fun `getMetric throws PERMISSION_DENIED when MeasurementConsumer's identity does not match`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
     val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.last().name, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL.copy { name = "$name-wrong" }, SCOPES) {
           runBlocking { service.getMetric(request) }
         }
       }
@@ -9724,22 +9818,11 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `getMetric throws UNAUTHENTICATED when the caller is not a MeasurementConsumer`() {
-    val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDERS.values.first().name) {
-          runBlocking { service.getMetric(request) }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-  }
-
-  @Test
   fun `getMetric throws FAILED_PRECONDITION when the measurement public key is not valid`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(measurementsMock.batchGetMeasurements(any())).thenAnswer {
         val batchGetMeasurementsRequest = it.arguments[0] as BatchGetMeasurementsRequest
         val measurementsMap =
@@ -9767,9 +9850,7 @@ class MetricsServiceTest {
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-            runBlocking { service.getMetric(request) }
-          }
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
@@ -9781,8 +9862,19 @@ class MetricsServiceTest {
   @Test
   fun `getMetric throws UNKNOWN when variance in CustomMethodology in a measurement is not set`() =
     runBlocking {
-      whenever(
-          internalMetricsMock.batchGetMetrics(
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+      doReturn(
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
+          },
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
+          },
+        )
+        .wheneverBlocking(internalMetricsMock) {
+          batchGetMetrics(
             eq(
               internalBatchGetMetricsRequest {
                 cmmsMeasurementConsumerId =
@@ -9792,16 +9884,7 @@ class MetricsServiceTest {
               }
             )
           )
-        )
-        .thenReturn(
-          internalBatchGetMetricsResponse {
-            metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
-          },
-          internalBatchGetMetricsResponse {
-            metrics += INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
-          },
-        )
-
+        }
       whenever(measurementsMock.batchGetMeasurements(any())).thenAnswer {
         val batchGetMeasurementsRequest = it.arguments[0] as BatchGetMeasurementsRequest
         val measurementsMap =
@@ -9847,9 +9930,7 @@ class MetricsServiceTest {
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-            runBlocking { service.getMetric(request) }
-          }
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
         }
       assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
     }
@@ -9857,6 +9938,9 @@ class MetricsServiceTest {
   @Test
   fun `batchGetMetrics returns metrics with SUCCEEDED when the metric is already succeeded`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
           internalBatchGetMetricsResponse {
@@ -9872,7 +9956,7 @@ class MetricsServiceTest {
       }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.batchGetMetrics(request) }
         }
 
@@ -9920,6 +10004,9 @@ class MetricsServiceTest {
 
   @Test
   fun `batchGetMetrics returns metrics with RUNNING when measurements are pending`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
     val request = batchGetMetricsRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       names += PENDING_INCREMENTAL_REACH_METRIC.name
@@ -9927,9 +10014,7 @@ class MetricsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.batchGetMetrics(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.batchGetMetrics(request) } }
 
     // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
     val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
@@ -9975,6 +10060,9 @@ class MetricsServiceTest {
   @Test
   fun `batchGetMetrics returns metrics with SUCCEEDED when variance calculation fails`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       whenever(variancesMock.computeMetricVariance(any<ReachMetricVarianceParams>()))
         .thenThrow(IllegalArgumentException("Negative"))
 
@@ -9993,7 +10081,7 @@ class MetricsServiceTest {
       }
 
       val response =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.batchGetMetrics(request) }
         }
 
@@ -10046,6 +10134,9 @@ class MetricsServiceTest {
   @Test
   fun `batchGetMetrics throws INVALID_ARGUMENT when number of requests exceeds limit`() =
     runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
       val request = batchGetMetricsRequest {
         parent = MEASUREMENT_CONSUMERS.values.first().name
         names += List(MAX_BATCH_SIZE + 1) { "metric_name" }
@@ -10053,7 +10144,7 @@ class MetricsServiceTest {
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) {
             runBlocking { service.batchGetMetrics(request) }
           }
         }
@@ -10065,6 +10156,9 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric creates CMMS measurements for population`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
     whenever(internalMetricsMock.createMetric(any()))
       .thenReturn(INTERNAL_PENDING_INITIAL_POPULATION_METRIC)
     whenever(measurementsMock.batchCreateMeasurements(any()))
@@ -10078,9 +10172,7 @@ class MetricsServiceTest {
       metricId = METRIC_ID
     }
     val result =
-      withMeasurementConsumerPrincipal(request.parent, CONFIG) {
-        runBlocking { service.createMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
 
     val expected = PENDING_POPULATION_METRIC
 
@@ -10181,6 +10273,9 @@ class MetricsServiceTest {
 
   @Test
   fun `getMetric returns population metric`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
     whenever(internalMetricsMock.batchGetMetrics(any()))
       .thenReturn(
         internalBatchGetMetricsResponse { metrics += INTERNAL_SUCCEEDED_POPULATION_METRIC }
@@ -10189,9 +10284,7 @@ class MetricsServiceTest {
     val request = getMetricRequest { name = SUCCEEDED_POPULATION_METRIC.name }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-        runBlocking { service.getMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
     // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
     val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
@@ -10226,7 +10319,22 @@ class MetricsServiceTest {
     assertThat(result).isEqualTo(SUCCEEDED_POPULATION_METRIC)
   }
 
+  object PermissionName {
+    const val GET = "permissions/${MetricsService.Permission.GET}"
+    const val LIST = "permissions/${MetricsService.Permission.LIST}"
+    const val CREATE = "permissions/${MetricsService.Permission.CREATE}"
+  }
+
   companion object {
+    private val PRINCIPAL = principal { name = "principals/mc-user" }
+    private val ALL_PERMISSIONS =
+      setOf(
+        MetricsService.Permission.GET,
+        MetricsService.Permission.LIST,
+        MetricsService.Permission.CREATE,
+      )
+    private val SCOPES = ALL_PERMISSIONS
+
     private val MEASUREMENT_SPEC_FIELD =
       Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER)
     private val ENCRYPTED_REQUISITION_SPEC_FIELD =

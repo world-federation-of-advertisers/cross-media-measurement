@@ -84,7 +84,7 @@ class PostgresReportingSetsService(
     } catch (e: ReportingSetNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: ReportingSetAlreadyExistsException) {
-      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Reporting Set already exists")
+      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     } catch (e: CampaignGroupInvalidException) {

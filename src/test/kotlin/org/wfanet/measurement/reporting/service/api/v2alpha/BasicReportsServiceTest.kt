@@ -34,12 +34,22 @@ import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
+import org.mockito.kotlin.doAnswer
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.testing.Authentication.withPrincipalAndScopes
+import org.wfanet.measurement.access.client.v1alpha.testing.PrincipalMatcher.Companion.hasPrincipal
+import org.wfanet.measurement.access.v1alpha.CheckPermissionsRequest
+import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
+import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
+import org.wfanet.measurement.access.v1alpha.copy
+import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
@@ -95,11 +105,21 @@ class BasicReportsServiceTest {
   val spannerDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.REPORTING_CHANGELOG_PATH)
 
+  private val permissionsServiceMock: PermissionsGrpcKt.PermissionsCoroutineImplBase = mockService {
+    // Grant all permissions for PRINCIPAL.
+    onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doAnswer
+      { invocation ->
+        val request: CheckPermissionsRequest = invocation.getArgument(0)
+        checkPermissionsResponse { permissions += request.permissionsList }
+      }
+  }
+
   val grpcTestServerRule = GrpcTestServerRule {
     val spannerDatabaseClient = spannerDatabase.databaseClient
     val postgresDatabaseClient = postgresDatabaseProvider.createDatabase()
     val idGenerator = RandomIdGenerator(Clock.systemUTC(), Random(1))
 
+    addService(permissionsServiceMock)
     addService(SpannerBasicReportsService(spannerDatabaseClient, postgresDatabaseClient))
     addService(PostgresMeasurementConsumersService(idGenerator, postgresDatabaseClient))
     addService(PostgresReportingSetsService(idGenerator, postgresDatabaseClient))
@@ -108,6 +128,7 @@ class BasicReportsServiceTest {
   @get:Rule
   val serverRuleChain: TestRule = chainRulesSequentially(spannerDatabase, grpcTestServerRule)
 
+  private lateinit var authorization: Authorization
   private lateinit var measurementConsumersService: MeasurementConsumersCoroutineStub
   private lateinit var reportingSetsService: ReportingSetsCoroutineStub
   private lateinit var internalBasicReportsService: InternalBasicReportsCoroutineStub
@@ -119,8 +140,10 @@ class BasicReportsServiceTest {
     measurementConsumersService = MeasurementConsumersCoroutineStub(grpcTestServerRule.channel)
     reportingSetsService = ReportingSetsCoroutineStub(grpcTestServerRule.channel)
     internalBasicReportsService = InternalBasicReportsCoroutineStub(grpcTestServerRule.channel)
+    authorization =
+      Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel))
 
-    service = BasicReportsService(internalBasicReportsService)
+    service = BasicReportsService(internalBasicReportsService, authorization)
   }
 
   @Test
@@ -742,7 +765,8 @@ class BasicReportsServiceTest {
         )
         .toName()
     val request = getBasicReportRequest { name = basicReportName }
-    val getBasicReportResponse: BasicReport = service.getBasicReport(request)
+    val getBasicReportResponse: BasicReport =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.getBasicReport(request) }
 
     assertThat(getBasicReportResponse)
       .isEqualTo(
@@ -1406,7 +1430,10 @@ class BasicReportsServiceTest {
   @Test
   fun `getBasicReport throws NOT_FOUND when not found`() = runBlocking {
     val request = getBasicReportRequest { name = "measurementConsumers/abc/basicReports/def" }
-    val exception = assertFailsWith<StatusRuntimeException> { service.getBasicReport(request) }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.getBasicReport(request) }
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.errorInfo)
@@ -1418,6 +1445,21 @@ class BasicReportsServiceTest {
         }
       )
   }
+
+  @Test
+  fun `getBasicReport throws PERMISSION_DENIED when caller does not have permission`() =
+    runBlocking {
+      val request = getBasicReportRequest { name = "measurementConsumers/abc/basicReports/def" }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL.copy { name = "principals/other-mc-user" }, SCOPES) {
+            service.getBasicReport(request)
+          }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+      assertThat(exception).hasMessageThat().contains(BasicReportsService.Permission.GET)
+    }
 
   @Test
   fun `listBasicReports returns basic report when page size 1`(): Unit = runBlocking {
@@ -1458,12 +1500,14 @@ class BasicReportsServiceTest {
       )
 
     val listBasicReportsResponse =
-      service.listBasicReports(
-        listBasicReportsRequest {
-          parent = MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()
-          pageSize = 1
-        }
-      )
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        service.listBasicReports(
+          listBasicReportsRequest {
+            parent = MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()
+            pageSize = 1
+          }
+        )
+      }
 
     assertThat(listBasicReportsResponse.basicReportsList)
       .containsExactly(
@@ -1532,14 +1576,18 @@ class BasicReportsServiceTest {
         )
 
       val listBasicReportsResponse =
-        service.listBasicReports(
-          listBasicReportsRequest {
-            parent = MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()
-            filter =
-              ListBasicReportsRequestKt.filter { createTimeAfter = internalBasicReport.createTime }
-            pageSize = 1
-          }
-        )
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          service.listBasicReports(
+            listBasicReportsRequest {
+              parent = MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()
+              filter =
+                ListBasicReportsRequestKt.filter {
+                  createTimeAfter = internalBasicReport.createTime
+                }
+              pageSize = 1
+            }
+          )
+        }
 
       assertThat(listBasicReportsResponse.basicReportsList).hasSize(0)
       assertThat(listBasicReportsResponse.nextPageToken).isEmpty()
@@ -1587,11 +1635,13 @@ class BasicReportsServiceTest {
     }
 
     val listBasicReportsResponse =
-      service.listBasicReports(
-        listBasicReportsRequest {
-          parent = MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()
-        }
-      )
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        service.listBasicReports(
+          listBasicReportsRequest {
+            parent = MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()
+          }
+        )
+      }
 
     assertThat(listBasicReportsResponse.basicReportsList).hasSize(DEFAULT_PAGE_SIZE)
     assertThat(listBasicReportsResponse.nextPageToken).isEmpty()
@@ -1639,12 +1689,14 @@ class BasicReportsServiceTest {
     }
 
     val listBasicReportsResponse =
-      service.listBasicReports(
-        listBasicReportsRequest {
-          parent = MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()
-          pageSize = MAX_PAGE_SIZE + 1
-        }
-      )
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        service.listBasicReports(
+          listBasicReportsRequest {
+            parent = MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()
+            pageSize = MAX_PAGE_SIZE + 1
+          }
+        )
+      }
 
     assertThat(listBasicReportsResponse.basicReportsList).hasSize(MAX_PAGE_SIZE)
     assertThat(listBasicReportsResponse.nextPageToken).isEmpty()
@@ -1697,12 +1749,14 @@ class BasicReportsServiceTest {
     )
 
     val listBasicReportsResponse =
-      service.listBasicReports(
-        listBasicReportsRequest {
-          parent = MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()
-          pageSize = 1
-        }
-      )
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        service.listBasicReports(
+          listBasicReportsRequest {
+            parent = MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()
+            pageSize = 1
+          }
+        )
+      }
 
     assertThat(listBasicReportsResponse.basicReportsList)
       .containsExactly(
@@ -1790,23 +1844,27 @@ class BasicReportsServiceTest {
       )
 
     val nextPageToken =
-      service
-        .listBasicReports(
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        service
+          .listBasicReports(
+            listBasicReportsRequest {
+              parent = MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()
+              pageSize = 1
+            }
+          )
+          .nextPageToken
+      }
+
+    val listBasicReportsResponse =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        service.listBasicReports(
           listBasicReportsRequest {
             parent = MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()
             pageSize = 1
+            pageToken = nextPageToken
           }
         )
-        .nextPageToken
-
-    val listBasicReportsResponse =
-      service.listBasicReports(
-        listBasicReportsRequest {
-          parent = MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()
-          pageSize = 1
-          pageToken = nextPageToken
-        }
-      )
+      }
 
     assertThat(listBasicReportsResponse.basicReportsList)
       .containsExactly(
@@ -1836,6 +1894,23 @@ class BasicReportsServiceTest {
   }
 
   @Test
+  fun `listBasicReports throws PERMISSION_DENIED when caller does not have permission`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL.copy { name = "principals/other-mc-user" }, SCOPES) {
+          runBlocking {
+            service.listBasicReports(
+              listBasicReportsRequest { parent = "measurementConsumers/foo" }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception).hasMessageThat().contains(BasicReportsService.Permission.LIST)
+  }
+
+  @Test
   fun `listBasicReports throws INVALID_ARGUMENT when parent is missing`() = runBlocking {
     val request = listBasicReportsRequest { pageSize = 5 }
     val exception = assertFailsWith<StatusRuntimeException> { service.listBasicReports(request) }
@@ -1854,7 +1929,10 @@ class BasicReportsServiceTest {
   @Test
   fun `listBasicReports throws INVALID_ARGUMENT when parent is invalid`() = runBlocking {
     val request = listBasicReportsRequest { parent = "measurementConsumers" }
-    val exception = assertFailsWith<StatusRuntimeException> { service.listBasicReports(request) }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.listBasicReports(request) }
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -1893,7 +1971,10 @@ class BasicReportsServiceTest {
       pageSize = 5
       pageToken = "abc"
     }
-    val exception = assertFailsWith<StatusRuntimeException> { service.listBasicReports(request) }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.listBasicReports(request) }
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -1907,7 +1988,7 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `listBasicReports throws INVALID_ARGUMENT when request doesnt' match page token`() =
+  fun `listBasicReports throws INVALID_ARGUMENT when request doesn't match page token`() =
     runBlocking {
       val request = listBasicReportsRequest {
         parent = "measurementConsumers/abc"
@@ -1921,7 +2002,10 @@ class BasicReportsServiceTest {
             .toByteString()
             .base64UrlEncode()
       }
-      val exception = assertFailsWith<StatusRuntimeException> { service.listBasicReports(request) }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.listBasicReports(request) }
+        }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -1945,7 +2029,11 @@ class BasicReportsServiceTest {
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
 
-    val REPORTING_SET = reportingSet {
+    private val ALL_PERMISSIONS =
+      setOf(BasicReportsService.Permission.GET, BasicReportsService.Permission.LIST)
+    private val SCOPES = ALL_PERMISSIONS
+    private val PRINCIPAL = principal { name = "principals/mc-user" }
+    private val REPORTING_SET = reportingSet {
       displayName = "displayName"
       filter = "filter"
 
