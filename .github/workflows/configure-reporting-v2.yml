@@ -167,6 +167,11 @@ jobs:
           < src/main/k8s/local/open_id_providers_config.json \
           > "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_config_files/open_id_providers_config.json"
 
+    - name: Copy impression qualification filter config
+      run: >
+        cp src/main/k8s/testing/secretfiles/impression_qualification_filter.textproto
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_config_files/"
+
     - name: Write measurement consumer config
       env:
         MEASUREMENT_CONSUMER_CONFIG: ${{ secrets.MEASUREMENT_CONSUMER_CONFIG }}
