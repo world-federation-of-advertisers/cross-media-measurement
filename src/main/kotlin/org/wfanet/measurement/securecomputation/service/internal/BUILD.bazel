@@ -27,3 +27,12 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/common:guava",
     ],
 )
+
+kt_jvm_library(
+    name = "services",
+    srcs = ["Services.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_item_attempts_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_items_service_kt_jvm_grpc_proto",
+    ],
+)
