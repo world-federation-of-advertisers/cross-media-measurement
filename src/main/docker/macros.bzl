@@ -16,6 +16,7 @@
 
 load(
     "@wfa_common_jvm//build/rules_oci:defs.bzl",
+    _java_debug_image = "java_debug_image",
     _java_image = "java_image",
 )
 load("//build:variables.bzl", "MEASUREMENT_SYSTEM_REPO")
@@ -37,6 +38,33 @@ def java_image(
     tags = tags or []
 
     _java_image(
+        name = name,
+        binary = binary,
+        base = base,
+        labels = {"org.opencontainers.image.source": MEASUREMENT_SYSTEM_REPO},
+        cmd_args = args,
+        tags = tags + ["no-remote-cache"],
+        visibility = visibility,
+        **kwargs
+    )
+
+def java_debug_image(
+        name,
+        binary,
+        # buildifier: disable=unused-variable
+        main_class = None,
+        args = None,
+        base = None,
+        tags = None,
+        visibility = None,
+        **kwargs):
+    """Java container image.
+
+    This is a replacement for the java_image rule which sets common attrs.
+    """
+    tags = tags or []
+
+    _java_debug_image(
         name = name,
         binary = binary,
         base = base,
