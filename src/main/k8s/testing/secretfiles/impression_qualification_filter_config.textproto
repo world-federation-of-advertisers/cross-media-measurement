@@ -1,5 +1,5 @@
-# proto-file: impression_qualification_filter_config.proto
-# proto-message: wfa.measurement.config.reporting.ImpressionQualificationFilterConfig
+# proto-file: wfa/measurement/config/reporting/impression_qualification_filter_config.proto
+# proto-message: ImpressionQualificationFilterConfig
 
 # AMI
 impression_qualification_filters {
