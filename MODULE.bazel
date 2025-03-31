@@ -140,6 +140,7 @@ bazel_dep(
     name = "rules_python",
     version = "0.33.2",
 )
+# Must be compatible with the protobuf version declared in requirements.txt
 bazel_dep(
     name = "protobuf",
     version = "29.3",
@@ -307,6 +308,7 @@ python.toolchain(
     # See https://github.com/bazelbuild/rules_python/pull/713#issuecomment-1885628496
     ignore_root_user_error = True,
     python_version = "3.11",
+    configure_coverage_tool = True,
 )
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
