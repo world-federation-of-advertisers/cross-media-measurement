@@ -88,7 +88,7 @@ class EventGroupsService(
     val limit =
       if (request.pageSize > 0) request.pageSize.coerceAtMost(MAX_PAGE_SIZE) else DEFAULT_PAGE_SIZE
     val parent = parentKey.toName()
-    val eventGroupLists: Flow<ResourceList<EventGroup>> =
+    val eventGroupLists: Flow<ResourceList<EventGroup, String>> =
       cmmsEventGroupsStub.withAuthenticationKey(apiAuthenticationKey).listResources(
         limit,
         request.pageToken,

@@ -208,7 +208,7 @@ class MeasurementSystemProber(
       val eventGroup: EventGroup =
         eventGroupsStub
           .withAuthenticationKey(apiAuthenticationKey)
-          .listResources(1) { pageToken, remaining ->
+          .listResources(1) { pageToken: String, remaining: Int ->
             val request = listEventGroupsRequest {
               parent = measurementConsumerName
               filter = ListEventGroupsRequestKt.filter { dataProviders += dataProviderName }
@@ -250,36 +250,37 @@ class MeasurementSystemProber(
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun getLastUpdatedMeasurement(): Measurement? {
-    val measurements: Flow<ResourceList<Measurement>> =
-      measurementsStub.withAuthenticationKey(apiAuthenticationKey).listResources(1) {
-        pageToken,
-        remaining ->
-        val response: ListMeasurementsResponse =
-          try {
-            listMeasurements(
-              listMeasurementsRequest {
-                parent = measurementConsumerName
-                this.pageToken = pageToken
-                this.pageSize = remaining
-              }
-            )
-          } catch (e: StatusException) {
-            throw Exception(
-              "Unable to list measurements for measurement consumer $measurementConsumerName",
-              e,
-            )
-          }
-        ResourceList(response.measurementsList, response.nextPageToken)
-      }
+    val measurements: Flow<Measurement> =
+      measurementsStub
+        .withAuthenticationKey(apiAuthenticationKey)
+        .listResources(1) { pageToken: String, remaining: Int ->
+          val response: ListMeasurementsResponse =
+            try {
+              listMeasurements(
+                listMeasurementsRequest {
+                  parent = measurementConsumerName
+                  this.pageToken = pageToken
+                  this.pageSize = remaining
+                }
+              )
+            } catch (e: StatusException) {
+              throw Exception(
+                "Unable to list measurements for measurement consumer $measurementConsumerName",
+                e,
+              )
+            }
+          ResourceList(response.measurementsList, response.nextPageToken)
+        }
+        .flattenConcat()
 
-    return measurements.flattenConcat().singleOrNull()
+    return measurements.singleOrNull()
   }
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private fun getRequisitionsForMeasurement(measurementName: String): Flow<Requisition> {
     return requisitionsStub
       .withAuthenticationKey(apiAuthenticationKey)
-      .listResources { pageToken ->
+      .listResources { pageToken: String ->
         val response: ListRequisitionsResponse =
           try {
             listRequisitions(listRequisitionsRequest { this.pageToken = pageToken })
