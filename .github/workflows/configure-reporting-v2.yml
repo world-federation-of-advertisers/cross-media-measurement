@@ -169,7 +169,7 @@ jobs:
 
     - name: Copy impression qualification filter config
       run: >
-        cp src/main/k8s/testing/secretfiles/impression_qualification_filter.textproto
+        cp src/main/k8s/testing/secretfiles/impression_qualification_filter_config.textproto
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_config_files/"
 
     - name: Write measurement consumer config
