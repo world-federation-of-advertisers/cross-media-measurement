@@ -1,11 +1,11 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "TeeApplicationUtilsTest",
-    srcs = ["TeeApplicationUtilsTest.kt"],
-    test_class = "org.wfanet.measurement.securecomputation.teeapps.utils.TeeApplicationUtilsTest",
+    name = "EDPAggregatorUtilsTest",
+    srcs = ["EDPAggregatorUtilsTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.EDPAggregatorUtilsTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/securecomputation/teeapps/utils:TeeApplicationUtils",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:EDPAggregatorUtils",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",

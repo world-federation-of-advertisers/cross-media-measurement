@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.securecomputation.teeapps.utils
+package org.wfanet.measurement.edpaggregator
 
 import org.junit.Test
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
@@ -31,7 +31,7 @@ import com.google.protobuf.Any
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 
-class TeeApplicationUtilsTest {
+class EDPAggregatorUtilsTest {
   @Test
   fun `convertMessage should correctly map fields from source to target message`() {
     val originalMessage = demoBucket {
@@ -51,7 +51,7 @@ class TeeApplicationUtilsTest {
 
     val newMessageDescriptor = Person.getDescriptor()
 
-    val newMessage = TeeApplicationUtils.convertMessage(
+    val newMessage = EDPAggregatorUtils.convertMessage(
       originalMessage,
       newMessageDescriptor,
       fieldValueMap
@@ -88,7 +88,7 @@ class TeeApplicationUtilsTest {
 
     val newMessageDescriptor = Person.getDescriptor()
 
-    val newMessage = TeeApplicationUtils.convertMessage(
+    val newMessage = EDPAggregatorUtils.convertMessage(
       originalMessage,
       newMessageDescriptor,
       fieldValueMap
@@ -126,10 +126,10 @@ class TeeApplicationUtilsTest {
 
     val newMessageDescriptor = TestEvent.getDescriptor()
 
-    val newMessage = TeeApplicationUtils.convertMessage(
-            originalMessage,
-            newMessageDescriptor,
-            fieldValueMap
+    val newMessage = EDPAggregatorUtils.convertMessage(
+      originalMessage,
+      newMessageDescriptor,
+      fieldValueMap
     )
 
     val expectedMessage = testEvent {

@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.securecomputation.teeapps.utils
+package org.wfanet.measurement.edpaggregator
 
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.Message
 
-class TeeApplicationUtils {
+class EDPAggregatorUtils {
   companion object {
     /**
      * Converts a protobuf Message to a new DynamicMessage with a different structure,
@@ -190,3 +190,4 @@ class TeeApplicationUtils {
     }
   }
 }
+

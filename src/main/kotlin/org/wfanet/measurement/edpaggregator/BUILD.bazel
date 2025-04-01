@@ -2,13 +2,13 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(
     default_visibility = [
-        "//src/test/kotlin/org/wfanet/measurement/securecomputation/teeapps/utils:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
     ],
 )
 
 kt_jvm_library(
-    name = "TeeApplicationUtils",
-    srcs = ["TeeApplicationUtils.kt"],
+    name = "EDPAggregatorUtils",
+    srcs = ["EDPAggregatorUtils.kt"],
     deps = [
         "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
