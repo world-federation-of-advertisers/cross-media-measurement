@@ -19,7 +19,6 @@ package wfa.measurement.securecomputation.metadata;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/securecomputation/metadata/metadata_action.proto";
 
 option java_package = "org.wfanet.measurement.securecomputation.metadata";
 option java_multiple_files = true;
@@ -34,6 +33,18 @@ message RequisitionMetadata {
     (google.api.field_behavior) = IDENTIFIER
   ];
   string storage_uri = 3;
-  MetadataState current_state = 4;
+
+  // Enum for State
+  enum State {
+    STATE_UNDEFINED = 0;
+    FETCHED = 1;
+    STORED = 2;
+    QUEUED = 3;
+    PROCESSING = 4;
+    PROCESSED = 5;
+    DELETED = 6;
+  }
+
+  State current_state = 4;
   google.protobuf.Timestamp create_time = 5;
 }

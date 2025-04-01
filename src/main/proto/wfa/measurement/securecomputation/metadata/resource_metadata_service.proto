@@ -45,7 +45,7 @@ message CreateRequisitionMetadataRequest {
     (google.api.field_behavior) = REQUIRED
   ];
   string storage_uri = 2;
-  MetadataState current_state = 3;
+  RequisitionMetadata.State current_state = 3;
   google.protobuf.Timestamp state_time = 4;
   ActorType actor = 5;
 }
@@ -69,7 +69,7 @@ message ListRequisitionsMetadataRequest {
 
   message Filter {
     string storage_uri= 1;
-    MetadataState current_state = 2;
+    RequisitionMetadata.State current_state = 2;
   }
 
   Filter filter = 2;
@@ -86,6 +86,6 @@ message TransitionRequisitionMetadataStateRequest {
     (google.api.field_behavior) = REQUIRED
   ];
   ActorType actor_type = 2;
-  MetadataState new_state = 3;
+  RequisitionMetadata.State new_state = 3;
   google.protobuf.Timestamp state_time = 4;
 }

@@ -17,6 +17,8 @@ syntax = "proto3";
 package wfa.measurement.securecomputation.metadata;
 
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/securecomputation/metadata/requisition_metadata.proto";
+
 
 option java_package = "org.wfanet.measurement.securecomputation.metadata";
 option java_multiple_files = true;
@@ -29,23 +31,12 @@ enum ActorType {
   TEE_SDK = 2;
 }
 
-// Enum for MetadataState
-enum MetadataState {
-  METADATA_STATE_UNDEFINED = 0;
-  FETCHED = 1;
-  STORED = 2;
-  QUEUED = 3;
-  PROCESSING = 4;
-  PROCESSED = 5;
-  DELETED = 6;
-}
-
 message MetadataAction {
   string name = 1;
   string resource_name = 2;
   ActorType actor_type = 3;
-  MetadataState prior_state = 4;
-  MetadataState new_state = 5;
+  RequisitionMetadata.State prior_state = 4;
+  RequisitionMetadata.State new_state = 5;
   google.protobuf.Timestamp state_change_time = 6;
   google.protobuf.Timestamp create_time = 7;
 }
