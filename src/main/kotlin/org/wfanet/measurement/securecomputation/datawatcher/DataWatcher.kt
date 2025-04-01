@@ -32,6 +32,7 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
+
 class DataWatcher(
   private val workItemsService: GooglePubSubWorkItemsService,
   private val dataWatcherConfigs: List<DataWatcherConfig>

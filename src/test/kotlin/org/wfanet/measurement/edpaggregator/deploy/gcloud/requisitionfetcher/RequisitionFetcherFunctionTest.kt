@@ -41,7 +41,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.readByteString
-import org.wfanet.measurement.gcloud.testing.CloudFunctionProcess
+import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 
 /** Test class for the RequisitionFetcherFunction. */
 class RequisitionFetcherFunctionTest {
@@ -58,7 +58,7 @@ class RequisitionFetcherFunctionTest {
   private lateinit var grpcServer: CommonServer
 
   /** Process for RequisitionFetcher Google cloud function. */
-  private lateinit var functionProcess: CloudFunctionProcess
+  private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
 
   /** Sets up the infrastructure before each test. */
   @Before
@@ -77,7 +77,7 @@ class RequisitionFetcherFunctionTest {
 
     /** Start the RequisitionFetcherFunction process */
     functionProcess =
-      CloudFunctionProcess(javaBinaryPath = FETCHER_BINARY_PATH, classTarget = GCF_TARGET)
+      FunctionsFrameworkInvokerProcess(javaBinaryPath = FETCHER_BINARY_PATH, classTarget = GCF_TARGET)
     runBlocking {
       val port =
         functionProcess.start(
