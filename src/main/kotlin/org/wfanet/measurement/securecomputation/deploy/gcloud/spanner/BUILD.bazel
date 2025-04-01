@@ -20,3 +20,29 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )
+
+kt_jvm_library(
+    name = "internal_api_services",
+    srcs = ["InternalApiServices.kt"],
+    deps = [
+        ":services",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/publisher:google_work_item_publisher",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:queue_mapping",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:services",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:default_google_pub_sub_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)
+
+kt_jvm_library(
+    name = "internal_api_server",
+    srcs = ["InternalApiServer.kt"],
+    deps = [
+        ":internal_api_services",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:queue_mapping",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)
