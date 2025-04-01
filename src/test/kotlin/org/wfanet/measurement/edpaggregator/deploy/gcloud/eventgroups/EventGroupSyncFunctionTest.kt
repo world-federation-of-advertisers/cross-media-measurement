@@ -42,16 +42,16 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.EventGroup
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as eventGroupCampaignMetadata
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata
+import org.wfanet.measurement.api.v2alpha.EventGroup as ExternalEventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as externalCampaignMetadata
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata as externalAdMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
-import org.wfanet.measurement.api.v2alpha.MediaType
+import org.wfanet.measurement.api.v2alpha.MediaType as ExternalMediaType
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.copy
-import org.wfanet.measurement.api.v2alpha.eventGroup
-import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
+import org.wfanet.measurement.api.v2alpha.eventGroup as externalEventGroup
+import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as externalEventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.flatten
@@ -61,10 +61,13 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.edpaggregator.eventgroups.eventGroupSyncConfig
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.CampaignMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.EventGroupMetadataKt.AdMetadataKt.campaignMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.EventGroupMetadataKt.adMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupMap
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.campaigns as protoCampaigns
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroupMap
 import org.wfanet.measurement.gcloud.testing.CloudFunctionProcess
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -94,31 +97,55 @@ class EventGroupSyncFunctionTest() {
 
   private val campaigns =
     listOf(
-      campaignMetadata {
+      eventGroup {
         eventGroupReferenceId = "reference-id-1"
-        campaignName = "campaign-1"
-        measurementConsumerName = "measurement-consumer-1"
-        brandName = "brand-1"
-        startTime = timestamp { seconds = 200 }
-        endTime = timestamp { seconds = 300 }
+        measurementConsumer = "measurement-consumer-1"
+        this.eventGroupMetadata = eventGroupMetadata {
+          this.adMetadata = adMetadata {
+            this.campaignMetadata = campaignMetadata {
+              brand = "brand-1"
+              campaign = "campaign-1"
+            }
+          }
+        }
+        dataAvailabilityInterval = interval {
+          startTime = timestamp { seconds = 200 }
+          endTime = timestamp { seconds = 300 }
+        }
         mediaTypes += listOf("VIDEO", "DISPLAY")
       },
-      campaignMetadata {
+      eventGroup {
         eventGroupReferenceId = "reference-id-2"
-        campaignName = "campaign-2"
-        measurementConsumerName = "measurement-consumer-2"
-        brandName = "brand-2"
-        startTime = timestamp { seconds = 200 }
-        endTime = timestamp { seconds = 300 }
+        this.eventGroupMetadata = eventGroupMetadata {
+          this.adMetadata = adMetadata {
+            this.campaignMetadata = campaignMetadata {
+              brand = "brand-2"
+              campaign = "campaign-2"
+            }
+          }
+        }
+        measurementConsumer = "measurement-consumer-2"
+        dataAvailabilityInterval = interval {
+          startTime = timestamp { seconds = 200 }
+          endTime = timestamp { seconds = 300 }
+        }
         mediaTypes += listOf("OTHER")
       },
-      campaignMetadata {
+      eventGroup {
         eventGroupReferenceId = "reference-id-3"
-        campaignName = "campaign-2"
-        measurementConsumerName = "measurement-consumer-2"
-        brandName = "brand-2"
-        startTime = timestamp { seconds = 200 }
-        endTime = timestamp { seconds = 300 }
+        this.eventGroupMetadata = eventGroupMetadata {
+          this.adMetadata = adMetadata {
+            this.campaignMetadata = campaignMetadata {
+              brand = "brand-2"
+              campaign = "campaign-3"
+            }
+          }
+        }
+        measurementConsumer = "measurement-consumer-2"
+        dataAvailabilityInterval = interval {
+          startTime = timestamp { seconds = 200 }
+          endTime = timestamp { seconds = 300 }
+        }
         mediaTypes += listOf("OTHER")
       },
     )
@@ -138,11 +165,9 @@ class EventGroupSyncFunctionTest() {
           eventGroups += campaigns[1].toEventGroup()
           eventGroups +=
             campaigns[2].toEventGroup().copy {
-              this.eventGroupMetadata = eventGroupMetadata {
-                this.adMetadata = adMetadata {
-                  this.campaignMetadata = eventGroupCampaignMetadata {
-                    brandName = "new-brand-name"
-                  }
+              this.eventGroupMetadata = externalEventGroupMetadata {
+                this.adMetadata = externalAdMetadata {
+                  this.campaignMetadata = externalCampaignMetadata { brandName = "new-brand-name" }
                 }
               }
             }
@@ -178,13 +203,21 @@ class EventGroupSyncFunctionTest() {
 
   @Test
   fun `sync registersUnregisteredEventGroups`() {
-    val newCampaign = campaignMetadata {
+    val newCampaign = eventGroup {
       eventGroupReferenceId = "reference-id-4"
-      campaignName = "campaign-2"
-      measurementConsumerName = "measurement-consumer-2"
-      brandName = "brand-2"
-      startTime = timestamp { seconds = 200 }
-      endTime = timestamp { seconds = 300 }
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-2"
+            campaign = "campaign-2"
+          }
+        }
+      }
+      measurementConsumer = "measurement-consumer-2"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
       mediaTypes += listOf("OTHER")
     }
     val testCampaigns = campaigns + newCampaign
@@ -217,7 +250,7 @@ class EventGroupSyncFunctionTest() {
     runBlocking {
       storageClient.writeBlob(
         "some/path/campaigns-blob-uri",
-        flowOf(protoCampaigns { campaigns += testCampaigns }.toByteString()),
+        flowOf(protoCampaigns { eventGroups += testCampaigns }.toByteString()),
       )
     }
 
@@ -270,24 +303,21 @@ class EventGroupSyncFunctionTest() {
   }
 }
 
-private fun CampaignMetadata.toEventGroup(): EventGroup {
+private fun EventGroup.toEventGroup(): ExternalEventGroup {
   val campaign = this
-  return eventGroup {
+  return externalEventGroup {
     name = "resource-name-for-${campaign.eventGroupReferenceId}"
-    measurementConsumer = campaign.measurementConsumerName
+    measurementConsumer = campaign.measurementConsumer
     eventGroupReferenceId = campaign.eventGroupReferenceId
-    this.eventGroupMetadata = eventGroupMetadata {
-      this.adMetadata = adMetadata {
-        this.campaignMetadata = eventGroupCampaignMetadata {
-          brandName = campaign.brandName
-          campaignName = campaign.campaignName
+    this.eventGroupMetadata = externalEventGroupMetadata {
+      this.adMetadata = externalAdMetadata {
+        this.campaignMetadata = externalCampaignMetadata {
+          brandName = campaign.eventGroupMetadata.adMetadata.campaignMetadata.brand
+          campaignName = campaign.eventGroupMetadata.adMetadata.campaignMetadata.campaign
         }
       }
     }
-    mediaTypes += campaign.mediaTypesList.map { MediaType.valueOf(it) }
-    dataAvailabilityInterval = interval {
-      startTime = campaign.startTime
-      endTime = campaign.endTime
-    }
+    mediaTypes += campaign.mediaTypesList.map { ExternalMediaType.valueOf(it) }
+    dataAvailabilityInterval = campaign.dataAvailabilityInterval
   }
 }

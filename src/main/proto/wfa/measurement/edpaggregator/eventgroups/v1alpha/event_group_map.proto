@@ -20,6 +20,7 @@ option java_package = "org.wfanet.measurement.edpaggregator.eventgroups.v1alpha"
 option java_multiple_files = true;
 option java_outer_classname = "EventGroupMapProto";
 
+// Allows data providers to learn the EventGroup resource names for their campaigns
 message EventGroupMap {
   // A map from event_group_reference_id to the EventGroup resource name.
   map<string, string> event_group_map = 1;

@@ -12,17 +12,20 @@ package(default_visibility = [
 IMPORT_PREFIX = "/src/main/proto"
 
 proto_library(
-    name = "campaign_metadata_proto",
-    srcs = ["campaign_metadata.proto"],
+    name = "event_group_proto",
+    srcs = ["event_group.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
 
 kt_jvm_proto_library(
-    name = "campaign_metadata_kt_jvm_proto",
-    deps = [":campaign_metadata_proto"],
+    name = "event_group_kt_jvm_proto",
+    deps = [":event_group_proto"],
 )
 
 proto_library(

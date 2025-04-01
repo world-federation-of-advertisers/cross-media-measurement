@@ -19,10 +19,10 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
 import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
-import com.google.gson.Gson
 import com.google.protobuf.util.JsonFormat
 import java.io.File
 import java.net.URI
+import java.time.Duration
 import java.util.logging.Logger
 import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
@@ -36,18 +36,17 @@ import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSyncConfig
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.Campaigns
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroupMap
 import org.wfanet.measurement.storage.SelectedStorageClient
-import java.time.Duration
-import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import java.io.BufferedReader
 
 /*
- * Cloud Run Function that receives a HTTPRequest with EventGroupSyncConfig. It updates/registers
+ * Cloud Run Function that receives a [HTTPRequest] with EventGroupSyncConfig. It updates/registers
  * EventGroups with the kingdom and writes a map of the registered resource names to storage.
  */
 class EventGroupSyncFunction() : HttpFunction {
 
   override fun service(request: HttpRequest, response: HttpResponse) {
     logger.fine("Starting EventGroupSyncFunction")
-    val requestBody = request.getReader()
+    val requestBody: BufferedReader = request.getReader()!!
     val eventGroupSyncConfig =
       EventGroupSyncConfig.newBuilder()
         .apply { JsonFormat.parser().merge(requestBody, this) }
@@ -56,8 +55,7 @@ class EventGroupSyncFunction() : HttpFunction {
       SelectedStorageClient(
         url = eventGroupSyncConfig.campaignsBlobUri,
         rootDirectory =
-          if (System.getenv("FILE_STORAGE_ROOT") != null)
-            File(System.getenv("FILE_STORAGE_ROOT"))
+          if (System.getenv("FILE_STORAGE_ROOT") != null) File(System.getenv("FILE_STORAGE_ROOT"))
           else null,
         projectId = System.getenv("GCS_PROJECT_ID"),
       )
@@ -68,29 +66,27 @@ class EventGroupSyncFunction() : HttpFunction {
     }
     val publicChannel =
       buildMutualTlsChannel(
-        System.getenv("KINGDOM_TARGET"),
-        getClientCerts(),
-        System.getenv("KINGDOM_CERT_HOST"),
-      ).withShutdownTimeout(
-        Duration.ofSeconds(
-          System.getenv("KINGDOM_SHUTDOWN_DURATION_SECONDS").toLong()
-        ))
+          System.getenv("KINGDOM_TARGET"),
+          getClientCerts(),
+          System.getenv("KINGDOM_CERT_HOST"),
+        )
+        .withShutdownTimeout(
+          Duration.ofSeconds(System.getenv("KINGDOM_SHUTDOWN_DURATION_SECONDS")?.toLong() ?: KINGDOM_SHUTDOWN_DURATION_SECONDS)
+        )
 
-
-        val eventGroupsClient = EventGroupsCoroutineStub(publicChannel)
+    val eventGroupsClient = EventGroupsCoroutineStub(publicChannel)
     val eventGroupSync =
       EventGroupSync(
-        edpName = campaigns.edpName,
+        edpName = campaigns.dataProvider,
         eventGroupsStub = eventGroupsClient,
-        campaigns = campaigns.campaignsList,
+        eventGroups = campaigns.eventGroupsList,
       )
     val mappedData = runBlocking { eventGroupSync.sync() }
     runBlocking {
       SelectedStorageClient(
           url = eventGroupSyncConfig.eventGroupMapUri,
           rootDirectory =
-            if (System.getenv("FILE_STORAGE_ROOT") != null)
-              File(System.getenv("FILE_STORAGE_ROOT"))
+            if (System.getenv("FILE_STORAGE_ROOT") != null) File(System.getenv("FILE_STORAGE_ROOT"))
             else null,
           projectId = System.getenv("GCS_PROJECT_ID"),
         )
@@ -129,5 +125,8 @@ class EventGroupSyncFunction() : HttpFunction {
     }
   }
 
-  private val logger: Logger = Logger.getLogger(this::class.java.name)
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val KINGDOM_SHUTDOWN_DURATION_SECONDS: Long = 3L
+  }
 }

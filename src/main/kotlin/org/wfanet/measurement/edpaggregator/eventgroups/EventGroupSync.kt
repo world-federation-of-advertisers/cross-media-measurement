@@ -22,21 +22,21 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.api.v2alpha.EventGroup
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata
+import org.wfanet.measurement.api.v2alpha.EventGroup as ExternalEventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as externalCampaignMetadata
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata as externalAdMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.MediaType
+import org.wfanet.measurement.api.v2alpha.MediaType as ExternalMediaType
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.eventGroup
-import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
+import org.wfanet.measurement.api.v2alpha.eventGroup as externalEventGroup
+import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as externalEventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.CampaignMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 
 /*
  * Syncs event groups with kingdom.
@@ -47,55 +47,49 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.CampaignMetadata
 class EventGroupSync(
   private val edpName: String,
   private val eventGroupsStub: EventGroupsCoroutineStub,
-  private val campaigns: List<CampaignMetadata>,
+  private val eventGroups: List<EventGroup>,
 ) {
   suspend fun sync(): Map<String, String> {
-    val registeredEventGroups: Map<String, EventGroup> =
+    val syncedEventGroups: Map<String, ExternalEventGroup> =
       fetchEventGroups().toList().associateBy { it.eventGroupReferenceId }
     val eventGroupMap = mutableMapOf<String, String>()
-    for (campaign in campaigns) {
-      val eventGroup =
-        if (campaign.eventGroupReferenceId in registeredEventGroups) {
-          val existingEventGroup = registeredEventGroups[campaign.eventGroupReferenceId]!!
-          val syncedEventGroup =
+    for (eventGroup in eventGroups) {
+      val syncedEventGroup =
+        if (eventGroup.eventGroupReferenceId in syncedEventGroups) {
+          val existingEventGroup = syncedEventGroups[eventGroup.eventGroupReferenceId]!!
+          val updatedEventGroup =
             existingEventGroup.copy {
-              measurementConsumer = campaign.measurementConsumerName
-              eventGroupReferenceId = campaign.eventGroupReferenceId
-              this.eventGroupMetadata = eventGroupMetadata {
-                this.adMetadata = adMetadata {
-                  this.campaignMetadata = campaignMetadata {
-                    brandName = campaign.brandName
-                    campaignName = campaign.campaignName
+              measurementConsumer = eventGroup.measurementConsumer
+              eventGroupReferenceId = eventGroup.eventGroupReferenceId
+              this.eventGroupMetadata = externalEventGroupMetadata {
+                this.adMetadata = externalAdMetadata {
+                  this.campaignMetadata = externalCampaignMetadata {
+                    brandName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand
+                    campaignName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.campaign
                   }
                 }
               }
               mediaTypes.clear()
-              mediaTypes += campaign.mediaTypesList.map { MediaType.valueOf(it) }
-              dataAvailabilityInterval = interval {
-                startTime = campaign.startTime
-                endTime = campaign.endTime
-              }
+              mediaTypes += eventGroup.mediaTypesList.map { ExternalMediaType.valueOf(it) }
+              dataAvailabilityInterval = eventGroup.dataAvailabilityInterval
             }
-          if (!syncedEventGroup.equals(existingEventGroup)) {
+          if (!updatedEventGroup.equals(existingEventGroup)) {
             val request = updateEventGroupRequest {
-              eventGroup =
+              this.eventGroup =
                 existingEventGroup.copy {
-                  measurementConsumer = campaign.measurementConsumerName
-                  eventGroupReferenceId = campaign.eventGroupReferenceId
-                  this.eventGroupMetadata = eventGroupMetadata {
-                    this.adMetadata = adMetadata {
-                      this.campaignMetadata = campaignMetadata {
-                        brandName = campaign.brandName
-                        campaignName = campaign.campaignName
+                  measurementConsumer = eventGroup.measurementConsumer
+                  eventGroupReferenceId = eventGroup.eventGroupReferenceId
+                  this.eventGroupMetadata = externalEventGroupMetadata {
+                    this.adMetadata = externalAdMetadata {
+                      this.campaignMetadata = externalCampaignMetadata {
+                        brandName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand
+                        campaignName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.campaign
                       }
                     }
                   }
                   mediaTypes.clear()
-                  mediaTypes += campaign.mediaTypesList.map { MediaType.valueOf(it) }
-                  dataAvailabilityInterval = interval {
-                    startTime = campaign.startTime
-                    endTime = campaign.endTime
-                  }
+                  mediaTypes += eventGroup.mediaTypesList.map { ExternalMediaType.valueOf(it) }
+                  dataAvailabilityInterval = eventGroup.dataAvailabilityInterval
                 }
             }
             eventGroupsStub.updateEventGroup(request)
@@ -105,34 +99,31 @@ class EventGroupSync(
         } else {
           val request = createEventGroupRequest {
             parent = edpName
-            eventGroup = eventGroup {
-              measurementConsumer = campaign.measurementConsumerName
-              eventGroupReferenceId = campaign.eventGroupReferenceId
-              this.eventGroupMetadata = eventGroupMetadata {
-                this.adMetadata = adMetadata {
-                  this.campaignMetadata = campaignMetadata {
-                    brandName = campaign.brandName
-                    campaignName = campaign.campaignName
+            this.eventGroup = externalEventGroup {
+              measurementConsumer = eventGroup.measurementConsumer
+              eventGroupReferenceId = eventGroup.eventGroupReferenceId
+              this.eventGroupMetadata = externalEventGroupMetadata {
+                this.adMetadata = externalAdMetadata {
+                  this.campaignMetadata = externalCampaignMetadata {
+                    brandName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand
+                    campaignName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.campaign
                   }
                 }
               }
-              mediaTypes += campaign.mediaTypesList.map { MediaType.valueOf(it) }
-              dataAvailabilityInterval = interval {
-                startTime = campaign.startTime
-                endTime = campaign.endTime
-              }
+              mediaTypes += eventGroup.mediaTypesList.map { ExternalMediaType.valueOf(it) }
+              dataAvailabilityInterval = eventGroup.dataAvailabilityInterval
             }
           }
 
           eventGroupsStub.createEventGroup(request)
         }
-      eventGroupMap[campaign.eventGroupReferenceId] = eventGroup.name
+      eventGroupMap[syncedEventGroup.eventGroupReferenceId] = syncedEventGroup.name
     }
     return eventGroupMap
   }
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  private fun fetchEventGroups(): Flow<EventGroup> {
+  private fun fetchEventGroups(): Flow<ExternalEventGroup> {
     return eventGroupsStub
       .listResources { pageToken: String ->
         val response =
