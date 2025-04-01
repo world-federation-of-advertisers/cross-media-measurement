@@ -318,18 +318,15 @@ private object V2AlphaPublicApiServer {
             SecureRandom().asKotlinRandom(),
           )
           .withInterceptor(principalAuthInterceptor),
-      ) + buildList {
-        if (v2AlphaPublicServerFlags.initNewServices) {
-          // TODO(tristanvuong2021): change this once access PRs merged
-          add(
-            BasicReportsService(
-              InternalBasicReportsCoroutineStub(channel),
-              authorization,
+      ) +
+        buildList {
+          if (v2AlphaPublicServerFlags.initNewServices) {
+            add(
+              BasicReportsService(InternalBasicReportsCoroutineStub(channel), authorization)
+                .withInterceptor(principalAuthInterceptor)
             )
-              .withInterceptor(principalAuthInterceptor)
-          )
+          }
         }
-      }
 
     CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
     inProcessChannel.shutdown()
