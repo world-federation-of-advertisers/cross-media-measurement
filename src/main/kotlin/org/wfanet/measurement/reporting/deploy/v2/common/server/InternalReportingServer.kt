@@ -50,7 +50,8 @@ abstract class AbstractInternalReportingServer : Runnable {
 
   companion object {
     fun Services.toList(): List<BindableService> {
-      return Services::class.declaredMemberProperties.map { it.get(this) as BindableService }
+      return Services::class.declaredMemberProperties
+        .filterNotNull().map { it.get(this) as BindableService }
     }
   }
 }

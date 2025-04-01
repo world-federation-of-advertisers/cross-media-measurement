@@ -271,7 +271,7 @@ private object V2AlphaPublicApiServer {
             InternalBasicReportsCoroutineStub(channel),
             authorization,
           )
-            .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+            .withInterceptor(principalAuthInterceptor)
         )
       }
 
@@ -316,20 +316,19 @@ private object V2AlphaPublicApiServer {
             SecureRandom().asKotlinRandom(),
           )
           .withInterceptor(principalAuthInterceptor))
-        add(ReportSchedulesService(
-            InternalReportSchedulesCoroutineStub(channel),
-            InternalReportingSetsCoroutineStub(channel),
-            KingdomDataProvidersCoroutineStub(kingdomChannel),
-            KingdomEventGroupsCoroutineStub(kingdomChannel),
-            authorization,
-            measurementConsumerConfigs,
-          )
-          .withInterceptor(principalAuthInterceptor))
-        add(ReportScheduleIterationsService(
-            InternalReportScheduleIterationsCoroutineStub(channel),
-            authorization,
-          )
-                  .withInterceptor(principalAuthInterceptor))
+      add(ReportSchedulesService(
+          InternalReportSchedulesCoroutineStub(channel),
+          InternalReportingSetsCoroutineStub(channel),
+          KingdomDataProvidersCoroutineStub(kingdomChannel),
+          KingdomEventGroupsCoroutineStub(kingdomChannel),
+          authorization,
+          measurementConsumerConfigs,
+        )
+        .withInterceptor(principalAuthInterceptor))
+      add(ReportScheduleIterationsService(
+          InternalReportScheduleIterationsCoroutineStub(channel),
+          authorization,
+        ).withInterceptor(principalAuthInterceptor)
       )
       add(
         MetricCalculationSpecsService(
@@ -338,7 +337,7 @@ private object V2AlphaPublicApiServer {
             authorization,
             SecureRandom().asKotlinRandom(),
           )
-          .withInterceptor(principalAuthInterceptor))
+          .withInterceptor(principalAuthInterceptor)
       )
     }
 
