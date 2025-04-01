@@ -36,6 +36,20 @@ class LiquidLegionsV3DemoMill(private val storageClient: StorageClient) {
     println("- Token File Path: $tokenFilePath")
     println("---")
 
+    try {
+      // Sleep for a very long time (effectively forever)
+      // Long.MAX_VALUE milliseconds is roughly 292 million years.
+      Thread.sleep(Long.MAX_VALUE)
+    } catch (e: InterruptedException) {
+      // Handle thread interruption if necessary.
+      // For a simple sleep loop, often just logging and continuing is fine.
+      System.err.println("Main sleep thread interrupted: ${e.message}")
+      // Optionally re-interrupt the thread if needed by downstream logic
+      // Thread.currentThread().interrupt()
+      // Or break the loop if interruption means shutdown
+      // break
+    }
+
     // --- Step 0: Read ciphertext from GCS ---
     val ciphertextBase64 = ""
 
