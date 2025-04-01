@@ -39,7 +39,7 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSets
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportsService
 
 data class Services(
-  val basicReportsService: BasicReportsGrpcKt.BasicReportsCoroutineImplBase? = null,
+  val basicReportsService: BasicReportsGrpcKt.BasicReportsCoroutineImplBase?,
   val measurementConsumersService: MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase,
   val measurementsService: MeasurementsGrpcKt.MeasurementsCoroutineImplBase,
   val metricsService: MetricsGrpcKt.MetricsCoroutineImplBase,
