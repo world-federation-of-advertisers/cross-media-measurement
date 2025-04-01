@@ -33,12 +33,14 @@ object Errors {
     REQUIRED_FIELD_NOT_SET,
     INVALID_FIELD_VALUE,
     ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE,
+    IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
   }
 
   enum class Metadata(val key: String) {
     BASIC_REPORT("basicReport"),
     REPORTING_SET("reportingSet"),
-    FIELD_NAME("fieldName");
+    FIELD_NAME("fieldName"),
+    IMPRESSION_QUALIFICATION_FILTER("impressionQualificationFilter");
 
     companion object {
       private val METADATA_BY_KEY by lazy { entries.associateBy { it.key } }
@@ -133,3 +135,11 @@ class ArgumentChangedInRequestForNextPageException(
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
     cause,
   )
+
+class ImpressionQualificationFilterNotFoundException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+    "Impression Qualification Filter $name not found",
+    mapOf(Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER to name),
+    cause,
+  ) {}
