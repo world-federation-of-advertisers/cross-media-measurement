@@ -250,49 +250,67 @@ private object V2AlphaPublicApiServer {
 
     val services: List<ServerServiceDefinition> = buildList {
       if (v2AlphaPublicServerFlags.initNewServices) {
-        //TODO(tristanvuong2021): change this once access PRs merged
-        add(BasicReportsService(InternalBasicReportsCoroutineStub(channel))
-          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
+        // TODO(tristanvuong2021): change this once access PRs merged
+        add(
+          BasicReportsService(InternalBasicReportsCoroutineStub(channel))
+            .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+        )
       }
 
-      add(DataProvidersService(KingdomDataProvidersCoroutineStub(kingdomChannel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
-      add(EventGroupMetadataDescriptorsService(
-        KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
+      add(
+        DataProvidersService(KingdomDataProvidersCoroutineStub(kingdomChannel))
+          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
       )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
-      add(EventGroupsService(
-        KingdomEventGroupsCoroutineStub(kingdomChannel),
-        InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
-        celEnvCacheProvider,
+      add(
+        EventGroupMetadataDescriptorsService(
+            KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
+          )
+          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
       )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
+      add(
+        EventGroupsService(
+            KingdomEventGroupsCoroutineStub(kingdomChannel),
+            InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
+            celEnvCacheProvider,
+          )
+          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+      )
       add(metricsService.withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
-      add(ReportingSetsService(InternalReportingSetsCoroutineStub(channel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
-      add(ReportsService(
-        InternalReportsCoroutineStub(channel),
-        InternalMetricCalculationSpecsCoroutineStub(channel),
-        MetricsCoroutineStub(inProcessChannel),
-        metricSpecConfig,
-        SecureRandom().asKotlinRandom(),
+      add(
+        ReportingSetsService(InternalReportingSetsCoroutineStub(channel))
+          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
       )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
-      add(ReportSchedulesService(
-        InternalReportSchedulesCoroutineStub(channel),
-        InternalReportingSetsCoroutineStub(channel),
-        KingdomDataProvidersCoroutineStub(kingdomChannel),
-        KingdomEventGroupsCoroutineStub(kingdomChannel),
+      add(
+        ReportsService(
+            InternalReportsCoroutineStub(channel),
+            InternalMetricCalculationSpecsCoroutineStub(channel),
+            MetricsCoroutineStub(inProcessChannel),
+            metricSpecConfig,
+            SecureRandom().asKotlinRandom(),
+          )
+          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
       )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
-      add(ReportScheduleIterationsService(InternalReportScheduleIterationsCoroutineStub(channel))
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
-      add(MetricCalculationSpecsService(
-        InternalMetricCalculationSpecsCoroutineStub(channel),
-        metricSpecConfig,
-        SecureRandom().asKotlinRandom(),
+      add(
+        ReportSchedulesService(
+            InternalReportSchedulesCoroutineStub(channel),
+            InternalReportingSetsCoroutineStub(channel),
+            KingdomDataProvidersCoroutineStub(kingdomChannel),
+            KingdomEventGroupsCoroutineStub(kingdomChannel),
+          )
+          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
       )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
+      add(
+        ReportScheduleIterationsService(InternalReportScheduleIterationsCoroutineStub(channel))
+          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+      )
+      add(
+        MetricCalculationSpecsService(
+            InternalMetricCalculationSpecsCoroutineStub(channel),
+            metricSpecConfig,
+            SecureRandom().asKotlinRandom(),
+          )
+          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+      )
     }
 
     CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()

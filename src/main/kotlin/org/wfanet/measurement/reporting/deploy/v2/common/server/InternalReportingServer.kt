@@ -35,7 +35,6 @@ import picocli.CommandLine
 abstract class AbstractInternalReportingServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
 
-
   @CommandLine.Option(
     names = ["--init-new-services"],
     description = ["Initialize the new Phase 1 Service if set to true."],

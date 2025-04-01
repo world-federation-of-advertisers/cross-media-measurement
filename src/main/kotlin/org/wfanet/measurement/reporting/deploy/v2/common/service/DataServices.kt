@@ -67,14 +67,17 @@ object DataServices {
 
     return Services(
       basicReportsService = basicReportsService,
-      measurementConsumersService = PostgresMeasurementConsumersService(idGenerator, postgresClient),
+      measurementConsumersService =
+        PostgresMeasurementConsumersService(idGenerator, postgresClient),
       measurementsService = PostgresMeasurementsService(idGenerator, postgresClient),
       metricsService = PostgresMetricsService(idGenerator, postgresClient),
       reportingSetsService = PostgresReportingSetsService(idGenerator, postgresClient),
       reportsService = PostgresReportsService(idGenerator, postgresClient),
       reportSchedulesService = PostgresReportSchedulesService(idGenerator, postgresClient),
-      reportScheduleIterationsService = PostgresReportScheduleIterationsService(idGenerator, postgresClient),
-      metricCalculationSpecsService = PostgresMetricCalculationSpecsService(idGenerator, postgresClient),
+      reportScheduleIterationsService =
+        PostgresReportScheduleIterationsService(idGenerator, postgresClient),
+      metricCalculationSpecsService =
+        PostgresMetricCalculationSpecsService(idGenerator, postgresClient),
     )
   }
 }
