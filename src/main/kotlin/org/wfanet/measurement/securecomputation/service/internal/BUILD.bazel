@@ -31,8 +31,8 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "work_items_publisher",
-    srcs = ["WorkItemsPublisher.kt"],
+    name = "work_item_publisher",
+    srcs = ["WorkItemPublisher.kt"],
     deps = [
         "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],

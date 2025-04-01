@@ -14,13 +14,20 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.deploy.testing
+package org.wfanet.measurement.securecomputation.deploy.gcloud.publisher
 
 import com.google.protobuf.Message
-import org.wfanet.measurement.securecomputation.service.internal.WorkItemsPublisher
+import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
+import org.wfanet.measurement.gcloud.pubsub.Publisher
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 
-class FakeWorkItemsPublisher(): WorkItemsPublisher {
+class GoogleWorkItemPublisher(
+  projectId: String,
+  googlePubSubClient: GooglePubSubClient
+): WorkItemPublisher {
+
+  private val publisher: Publisher<Message> = Publisher(projectId, googlePubSubClient)
   override suspend fun publishMessage(queueName: String, message: Message) {
-    println("message published")
+    publisher.publishMessage(queueName, message)
   }
 }

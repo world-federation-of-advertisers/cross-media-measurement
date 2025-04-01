@@ -19,13 +19,13 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
-import com.google.protobuf.Any
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.generateNewId
+import org.wfanet.measurement.gcloud.pubsub.PublishFailedException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.securecomputation.controlplane.CreateWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemRequest
@@ -54,13 +54,13 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundFo
 import org.wfanet.measurement.securecomputation.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
-import org.wfanet.measurement.securecomputation.service.internal.WorkItemsPublisher
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 
 class SpannerWorkItemsService(
   private val databaseClient: AsyncDatabaseClient,
   private val queueMapping: QueueMapping,
   private val idGenerator: IdGenerator,
-  private val workItemsPublisher: WorkItemsPublisher
+  private val workItemPublisher: WorkItemPublisher
 ) : WorkItemsCoroutineImplBase() {
 
   override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
@@ -75,7 +75,7 @@ class SpannerWorkItemsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (request.workItem.workItemParams == Any.getDefaultInstance()) {
+    if (!request.workItem.hasWorkItemParams()) {
       throw RequiredFieldNotSetException("work_item_params")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
@@ -84,21 +84,6 @@ class SpannerWorkItemsService(
       getQueueByResourceId(request.workItem.queueResourceId)
     } catch (e: QueueNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-    }
-
-    try {
-      workItemsPublisher.publishMessage(request.workItem.queueResourceId, request.workItem.workItemParams)
-    } catch (e: Exception) {
-      throw when {
-        e.message?.contains("Topic id: ${request.workItem.queueResourceId} does not exist") == true -> {
-          Status.NOT_FOUND.withDescription(e.message).asRuntimeException()
-        }
-
-        else -> {
-          Status.UNKNOWN.withDescription("An unknown error occurred: ${e.message}")
-            .asRuntimeException()
-        }
-      }
     }
 
     val transactionRunner = databaseClient.readWriteTransaction(Options.tag("action=createWorkItem"))
@@ -130,7 +115,18 @@ class SpannerWorkItemsService(
       createTime = commitTimestamp
       updateTime = commitTimestamp
     }
+
+    try {
+      workItemPublisher.publishMessage(request.workItem.queueResourceId, request.workItem.workItemParams)
+    } catch (e: Exception) {
+      throw Status.INTERNAL
+        .withDescription(e.message)
+        .withCause(e)
+        .asRuntimeException()
+    }
+
     return result
+
   }
 
   override suspend fun getWorkItem(request: GetWorkItemRequest): WorkItem {

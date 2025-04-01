@@ -19,10 +19,12 @@ package org.wfanet.measurement.securecomputation.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
+import com.google.protobuf.Message
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
+import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -49,8 +51,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkIt
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
-import org.wfanet.measurement.securecomputation.service.internal.WorkItemsPublisher
-import org.wfanet.measurement.securecomputation.deploy.testing.FakeWorkItemsPublisher
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 import org.wfanet.measurement.securecomputation.service.internal.Errors
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 
@@ -67,12 +68,16 @@ abstract class WorkItemAttemptsServiceTest {
   protected abstract fun initServices(
     queueMapping: QueueMapping,
     idGenerator: IdGenerator,
-    workItemPublisher: WorkItemsPublisher
+    workItemPublisher: WorkItemPublisher
   ): Services
 
   private fun initServices(idGenerator: IdGenerator = IdGenerator.Default): Services {
-    val workItemPublisher: WorkItemsPublisher = FakeWorkItemsPublisher()
-    return initServices(TestConfig.QUEUE_MAPPING, idGenerator, workItemPublisher)
+    val fakePublisher = object : WorkItemPublisher {
+      override suspend fun publishMessage(queueName: String, message: Message) {
+        logger.info("message published")
+      }
+    }
+    return initServices(TestConfig.QUEUE_MAPPING, idGenerator, fakePublisher)
   }
 
   @Test
@@ -85,9 +90,9 @@ abstract class WorkItemAttemptsServiceTest {
         workItemAttemptResourceId = "work_item_attempt_resource_id"
       }
     }
-    val response = services.service.createWorkItemAttempt(request)
+    val workItemAttempt = services.service.createWorkItemAttempt(request)
 
-    assertThat(response)
+    assertThat(workItemAttempt)
       .ignoringFields(
         WorkItemAttempt.CREATE_TIME_FIELD_NUMBER,
         WorkItemAttempt.UPDATE_TIME_FIELD_NUMBER,
@@ -100,8 +105,14 @@ abstract class WorkItemAttemptsServiceTest {
           attemptNumber = 1
         }
       )
-    assertThat(response.createTime.toInstant()).isGreaterThan(Instant.now().minusSeconds(10))
-    assertThat(response.updateTime).isEqualTo(response.createTime)
+    assertThat(workItemAttempt.createTime.toInstant()).isGreaterThan(Instant.now().minusSeconds(10))
+    assertThat(workItemAttempt.updateTime).isEqualTo(workItemAttempt.createTime)
+
+    val getResponse = services.service.getWorkItemAttempt(getWorkItemAttemptRequest {
+      workItemResourceId = workItem.workItemResourceId
+      workItemAttemptResourceId = workItemAttempt.workItemAttemptResourceId
+    })
+    assertThat(getResponse).isEqualTo(workItemAttempt)
   }
 
   @Test
@@ -145,20 +156,6 @@ abstract class WorkItemAttemptsServiceTest {
           }
         )
     }
-
-  @Test
-  fun `getWorkItemAttempt returns WorkItemAttempt`() = runBlocking {
-    val services = initServices()
-    val workItem: WorkItem = createWorkItem(services.workItemsService)
-    val workItemAttempt =
-      createWorkItemAttempts(services.service, workItem.workItemResourceId, 1).get(0)
-    val request = getWorkItemAttemptRequest {
-      workItemResourceId = workItem.workItemResourceId
-      workItemAttemptResourceId = workItemAttempt.workItemAttemptResourceId
-    }
-    val response = services.service.getWorkItemAttempt(request)
-    assertThat(response).isEqualTo(workItemAttempt)
-  }
 
   @Test
   fun `getWorkItemAttempt throws INVALID_ARGUMENT if workItemResourceId is missing`() =
@@ -602,4 +599,10 @@ abstract class WorkItemAttemptsServiceTest {
       )
     }
   }
+
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+  }
+
 }

@@ -27,7 +27,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
 
 object Errors {
-  const val DOMAIN = "internal.securecomputation.halo-cmm.org"
+  const val DOMAIN = "internal.control-plane.secure-computation.halo-cmm.org"
 
   enum class Reason {
     REQUIRED_FIELD_NOT_SET,

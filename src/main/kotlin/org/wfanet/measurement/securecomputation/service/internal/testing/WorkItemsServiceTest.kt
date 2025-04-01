@@ -58,8 +58,8 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkIt
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
-import org.wfanet.measurement.securecomputation.service.internal.WorkItemsPublisher
-import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemsPublisher
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
+import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 
 @RunWith(JUnit4::class)
@@ -89,7 +89,7 @@ abstract class WorkItemsServiceTest {
       )
   }
 
-  private suspend fun deleteSubscriptoinAndTopic() {
+  private suspend fun deleteSubscriptionAndTopic() {
     googlePubSubClient.deleteSubscription(projectId, subscriptionId)
     googlePubSubClient.deleteTopic(projectId, topicId)
   }
@@ -98,11 +98,11 @@ abstract class WorkItemsServiceTest {
   protected abstract fun initServices(
     queueMapping: QueueMapping,
     idGenerator: IdGenerator,
-    workItemPublisher: WorkItemsPublisher
+    workItemPublisher: WorkItemPublisher
   ): Services
 
   private fun initServices(idGenerator: IdGenerator = IdGenerator.Default): Services {
-    val workItemPublisher: WorkItemsPublisher = GoogleWorkItemsPublisher(projectId, googlePubSubClient)
+    val workItemPublisher: WorkItemPublisher = GoogleWorkItemPublisher(projectId, googlePubSubClient)
     return initServices(TestConfig.QUEUE_MAPPING, idGenerator, workItemPublisher)
   }
 
@@ -128,14 +128,14 @@ abstract class WorkItemsServiceTest {
       }
     }
 
-    val response: WorkItem = services.service.createWorkItem(request)
+    val createResponse: WorkItem = services.service.createWorkItem(request)
 
-    assertThat(response)
+    assertThat(createResponse)
       .ignoringFields(
         WorkItem.CREATE_TIME_FIELD_NUMBER,
         WorkItem.UPDATE_TIME_FIELD_NUMBER,
         WorkItem.WORK_ITEM_RESOURCE_ID_FIELD_NUMBER,
-        WorkItem.WORK_ITEM_PARAMS_FIELD_NUMBER
+        WorkItem.WORK_ITEM_PARAMS_FIELD_NUMBER,
       )
       .isEqualTo(
         request.workItem.copy {
@@ -143,8 +143,8 @@ abstract class WorkItemsServiceTest {
           workItemResourceId = "work_item_resource_id"
         }
       )
-    assertThat(response.createTime.toInstant()).isGreaterThan(Instant.now().minusSeconds(10))
-    assertThat(response.updateTime).isEqualTo(response.createTime)
+    assertThat(createResponse.createTime.toInstant()).isGreaterThan(Instant.now().minusSeconds(10))
+    assertThat(createResponse.updateTime).isEqualTo(createResponse.createTime)
 
     val deferred = CompletableDeferred<String>()
     val subscriber =
@@ -167,7 +167,13 @@ abstract class WorkItemsServiceTest {
     subscriber.startAsync().awaitRunning()
     val result = deferred.await()
     assertThat(result).isEqualTo("UserName")
-    deleteSubscriptoinAndTopic()
+
+    val getRequest = getWorkItemRequest { workItemResourceId = createResponse.workItemResourceId }
+    val workItem = services.service.getWorkItem(getRequest)
+
+    assertThat(createResponse).isEqualTo(workItem)
+
+    deleteSubscriptionAndTopic()
   }
 
   @Test
@@ -193,7 +199,7 @@ abstract class WorkItemsServiceTest {
           metadata[Errors.Metadata.FIELD_NAME.key] = "queue_resource_id"
         }
       )
-    deleteSubscriptoinAndTopic()
+    deleteSubscriptionAndTopic()
   }
 
   @Test
@@ -221,7 +227,7 @@ abstract class WorkItemsServiceTest {
           metadata[Errors.Metadata.FIELD_NAME.key] = "work_item_params"
         }
       )
-    deleteSubscriptoinAndTopic()
+    deleteSubscriptionAndTopic()
   }
 
   @Test
@@ -256,7 +262,7 @@ abstract class WorkItemsServiceTest {
           metadata[Errors.Metadata.FIELD_NAME.key] = "work_item_resource_id"
         }
       )
-    deleteSubscriptoinAndTopic()
+    deleteSubscriptionAndTopic()
   }
 
   @Test
@@ -290,34 +296,35 @@ abstract class WorkItemsServiceTest {
       )
   }
 
-  @Test
-  fun `getWorkItem returns WorkItem`() = runBlocking {
-    val services = initServices()
-
-    googlePubSubClient.createTopic(projectId, topicId)
-    googlePubSubClient.createSubscription(projectId, subscriptionId, topicId)
-
-    val request = createWorkItemRequest {
-      workItem = workItem {
-        workItemResourceId = "work_item_resource_id"
-        queueResourceId = topicId
-        workItemParams = Any.pack(
-          testWork {
-            userName = "UserName"
-            userAge = "25"
-            userCountry = "US"
-          }
-        )
-      }
-    }
-
-    val createResponse: WorkItem = services.service.createWorkItem(request)
-    val getRequest = getWorkItemRequest { workItemResourceId = createResponse.workItemResourceId }
-    val workItem = services.service.getWorkItem(getRequest)
-
-    assertThat(createResponse).ignoringFields(WorkItem.WORK_ITEM_PARAMS_FIELD_NUMBER).isEqualTo(workItem)
-    deleteSubscriptoinAndTopic()
-  }
+//  @Test
+//  fun `getWorkItem returns WorkItem`() = runBlocking {
+//    val services = initServices()
+//
+//    googlePubSubClient.createTopic(projectId, topicId)
+//    googlePubSubClient.createSubscription(projectId, subscriptionId, topicId)
+//
+//    val request = createWorkItemRequest {
+//      workItem = workItem {
+//        workItemResourceId = "work_item_resource_id"
+//        queueResourceId = topicId
+//        workItemParams = Any.pack(
+//          testWork {
+//            userName = "UserName"
+//            userAge = "25"
+//            userCountry = "US"
+//          }
+//        )
+//      }
+//    }
+//
+//    val createResponse: WorkItem = services.service.createWorkItem(request)
+//    val getRequest = getWorkItemRequest { workItemResourceId = createResponse.workItemResourceId }
+//    val workItem = services.service.getWorkItem(getRequest)
+//
+////  assertThat(createResponse).ignoringFields(WorkItem.WORK_ITEM_PARAMS_FIELD_NUMBER).isEqualTo(workItem)
+//  assertThat(createResponse).isEqualTo(workItem)
+//    deleteSubscriptionAndTopic()
+//  }
 
   @Test
   fun `getWorkItem throws INVALID_ARGUMENT if workItemResourceId is missing`() = runBlocking {
@@ -446,7 +453,7 @@ abstract class WorkItemsServiceTest {
       services.service.listWorkItems(ListWorkItemsRequest.getDefaultInstance())
 
     assertThat(response).isEqualTo(listWorkItemsResponse { this.workItems += workItems })
-    deleteSubscriptoinAndTopic()
+    deleteSubscriptionAndTopic()
   }
 
   @Test
@@ -462,7 +469,7 @@ abstract class WorkItemsServiceTest {
       services.service.listWorkItems(listWorkItemsRequest { pageSize = 10 })
 
     assertThat(response).isEqualTo(listWorkItemsResponse { this.workItems += workItems })
-    deleteSubscriptoinAndTopic()
+    deleteSubscriptionAndTopic()
   }
 
   @Test
@@ -489,7 +496,7 @@ abstract class WorkItemsServiceTest {
           }
         }
       )
-    deleteSubscriptoinAndTopic()
+    deleteSubscriptionAndTopic()
   }
 
   @Test
@@ -526,7 +533,7 @@ abstract class WorkItemsServiceTest {
         }
       )
 
-    deleteSubscriptoinAndTopic()
+    deleteSubscriptionAndTopic()
   }
 
   private suspend fun createWorkItems(
