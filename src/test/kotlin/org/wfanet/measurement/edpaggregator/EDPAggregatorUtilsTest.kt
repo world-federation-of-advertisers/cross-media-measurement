@@ -64,7 +64,6 @@ class EDPAggregatorUtilsTest {
     val typeRegistry = TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
     assertThat(newMessage.descriptorForType).isEqualTo(expectedMessage.descriptorForType)
     assertThat(Any.pack(newMessage)).unpackingAnyUsing(typeRegistry, ExtensionRegistry.getEmptyRegistry()).isEqualTo(Any.pack(expectedMessage))
-    assertThat(newMessage.toByteString() == expectedMessage.toByteString())
   }
 
   @Test
@@ -102,7 +101,6 @@ class EDPAggregatorUtilsTest {
     val typeRegistry = TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
     assertThat(newMessage.descriptorForType).isEqualTo(expectedMessage.descriptorForType)
     assertThat(Any.pack(newMessage)).unpackingAnyUsing(typeRegistry, ExtensionRegistry.getEmptyRegistry()).isEqualTo(Any.pack(expectedMessage))
-    assertThat(newMessage.toByteString() == expectedMessage.toByteString())
   }
 
   @Test
@@ -142,6 +140,5 @@ class EDPAggregatorUtilsTest {
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
     assertThat(newMessage.descriptorForType).isEqualTo(expectedMessage.descriptorForType)
     assertThat(Any.pack(newMessage)).unpackingAnyUsing(typeRegistry, ExtensionRegistry.getEmptyRegistry()).isEqualTo(Any.pack(expectedMessage))
-    assertThat(newMessage.toByteString() == expectedMessage.toByteString())
   }
 }
