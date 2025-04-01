@@ -1,4 +1,6 @@
+load("@rules_java//java:defs.bzl", "java_binary")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("//src/main/docker:macros.bzl", "java_image")
 
 kt_jvm_library(
     name = "services",
@@ -45,4 +47,18 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
+)
+
+java_binary(
+    name = "InternalApiServer",
+    main_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServer",
+    visibility = ["//visibility:private"],
+    runtime_deps = [":internal_api_server"],
+)
+
+java_image(
+    name = "internal_api_server_image",
+    binary = ":InternalApiServer",
+    main_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServer",
+    visibility = ["//src:docker_image_deployment"],
 )
