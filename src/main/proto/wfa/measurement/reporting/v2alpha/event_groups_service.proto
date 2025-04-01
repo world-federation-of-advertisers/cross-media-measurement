@@ -25,6 +25,7 @@ import "wfa/measurement/reporting/v2alpha/event_group.proto";
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "EventGroupsServiceProto";
+option go_package = "github.com/world-federation-of-advertisers/cross-media-measurement/reporting/apiv2alpha/reportingpb";
 
 // Service for interacting with `EventGroup` resources.
 service EventGroups {
