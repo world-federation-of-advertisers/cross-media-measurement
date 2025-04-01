@@ -273,6 +273,11 @@ REPORTING_V2_COMMON_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:update_schema_image",
         repository = _PREFIX + "/reporting/v2/spanner-update-schema",
     ),
+    struct(
+        name = "reporting_grpc_gateway_image",
+        repository = _PREFIX + "/reporting/grpc-gateway",
+        image = "//src/main/go/reporting:grpc_gateway_image",
+    ),
 ]
 
 REPORTING_V2_LOCAL_IMAGES = [

@@ -53,6 +53,12 @@ package k8s
 		targetOption:          "--kingdom-api-target"
 		certificateHostOption: "--kingdom-api-cert-host"
 	}
+	_reportingApiTarget: #GrpcTarget & {
+		serviceName:           "reporting-v2alpha-public-api-server"
+		certificateHost:       "localhost"
+		targetOption:          "--reporting-public-api-target"
+		certificateHostOption: "--reporting-public-api-cert-host"
+	}
 
 	_imageSuffixes: [_=string]: string
 	_imageSuffixes: {
@@ -61,6 +67,7 @@ package k8s
 		"postgres-internal-reporting-server":  string | *"reporting/v2/internal-server"
 		"reporting-v2alpha-public-api-server": string | *"reporting/v2/v2alpha-public-api"
 		"report-scheduling":                   string | *"reporting/v2/report-scheduling"
+		"reporting-grpc-gateway":              string | *"reporting/grpc-gateway"
 		"update-access-schema":                string | *"access/update-schema"
 		"access-internal-api-server":          string | *"access/internal-api"
 		"access-public-api-server":            string | *"access/public-api"
@@ -94,20 +101,29 @@ package k8s
 	_debugVerboseGrpcClientLoggingFlag: "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
 	_debugVerboseGrpcServerLoggingFlag: "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
 
-	services: [Name=_]: #GrpcService & {
+	services: [Name=_]: #Service & {
 		metadata: {
 			_component: "reporting"
 			name:       Name
 		}
 	}
 	services: {
-		"postgres-internal-reporting-server": {}
-		"reporting-v2alpha-public-api-server": #ExternalService
-		"access-internal-api-server": {}
-		"access-public-api-server": #ExternalService
+		"postgres-internal-reporting-server":  #GrpcService
+		"reporting-v2alpha-public-api-server": #GrpcService & #ExternalService
+		"access-internal-api-server":          #GrpcService
+		"access-public-api-server":            #GrpcService & #ExternalService
+		"reporting-grpc-gateway":              #ExternalService & {
+			spec: {
+				ports: [{
+					port:        443
+					targetPort:  8443
+					appProtocol: "https"
+				}]
+			}
+		}
 	}
 
-	deployments: [Name=_]: #ServerDeployment & {
+	deployments: [Name=_]: #Deployment & {
 		_name:       Name
 		_secretName: Reporting._secretName
 		_system:     "reporting"
@@ -116,7 +132,7 @@ package k8s
 		}
 	}
 	deployments: {
-		"postgres-internal-reporting-server": {
+		"postgres-internal-reporting-server": #ServerDeployment & {
 			_container: args: [
 						_reportingCertCollectionFileFlag,
 						_debugVerboseGrpcServerLoggingFlag,
@@ -143,7 +159,7 @@ package k8s
 			}
 		}
 
-		"reporting-v2alpha-public-api-server": {
+		"reporting-v2alpha-public-api-server": #ServerDeployment & {
 			_container: args: [
 						_debugVerboseGrpcClientLoggingFlag,
 						_debugVerboseGrpcServerLoggingFlag,
@@ -175,7 +191,23 @@ package k8s
 			}
 		}
 
-		"access-internal-api-server": {
+		"reporting-grpc-gateway": {
+			_container: {
+				args: [
+					"--port=8443",
+					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
+				] + _tlsArgs + _reportingApiTarget.args
+				ports: [{
+					containerPort: 8443
+				}]
+			}
+
+			spec: template: spec: {
+				_dependencies: _ | *[_reportingApiTarget.serviceName]
+			}
+		}
+
+		"access-internal-api-server": #ServerDeployment & {
 			_container: args: [
 						_debugVerboseGrpcServerLoggingFlag,
 						_akidToPrincipalMapFileFlag,
@@ -202,7 +234,7 @@ package k8s
 			}
 		}
 
-		"access-public-api-server": {
+		"access-public-api-server": #ServerDeployment & {
 			_container: args: [
 						_debugVerboseGrpcClientLoggingFlag,
 						_debugVerboseGrpcServerLoggingFlag,
@@ -279,6 +311,16 @@ package k8s
 			_egresses: {
 				// Needs to call out to Kingdom.
 				any: {}
+			}
+		}
+		"reporting-grpc-gateway": {
+			_destinationMatchLabels: ["reporting-v2alpha-public-api-server-app"]
+			_ingresses: {
+				https: {
+					ports: [{
+						port: 8443
+					}]
+				}
 			}
 		}
 		"report-scheduling": {
