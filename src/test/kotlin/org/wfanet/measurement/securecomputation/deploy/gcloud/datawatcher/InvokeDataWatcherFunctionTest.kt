@@ -44,15 +44,14 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.gcloud.testing.CloudFunctionProcess
+import org.wfanet.measurement.config.securecomputation.DataWatcherConfigKt.controlPlaneConfig
+import org.wfanet.measurement.config.securecomputation.dataWatcherConfig
+import org.wfanet.measurement.config.securecomputation.dataWatcherConfigs
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
-import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfigKt.controlPlaneConfig
-import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.dataWatcherConfig
-import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.dataWatcherConfigs
-import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.CloudFunctionProcess
 
 @RunWith(JUnit4::class)
 class InvokeDataWatcherFunctionTest() {
@@ -81,7 +80,7 @@ class InvokeDataWatcherFunctionTest() {
   private lateinit var storageClient: GcsStorageClient
   private lateinit var grpcServer: CommonServer
   /** Process for RequisitionFetcher Google cloud function. */
-  private lateinit var functionProcess: CloudFunctionProcess
+  private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
 
   private val workItemsServiceMock: WorkItemsCoroutineImplBase = mockService {
     onBlocking { createWorkItem(any()) }.thenReturn(workItem { name = "some-work-item-name" })
@@ -120,10 +119,7 @@ class InvokeDataWatcherFunctionTest() {
     }
     /** Start the DataWatcherFunction process */
     functionProcess =
-      CloudFunctionProcess(
-        javaBinaryPath = functionBinaryPath,
-        classTarget = gcfTarget,
-      )
+      FunctionsFrameworkInvokerProcess(javaBinaryPath = functionBinaryPath, classTarget = gcfTarget)
     runBlocking {
       val port =
         functionProcess.start(
