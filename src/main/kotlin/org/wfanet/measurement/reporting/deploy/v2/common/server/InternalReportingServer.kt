@@ -35,6 +35,14 @@ import picocli.CommandLine
 abstract class AbstractInternalReportingServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
 
+
+  @CommandLine.Option(
+    names = ["--init-new-services"],
+    description = ["Initialize the new Phase 1 Service if set to true."],
+    required = false,
+  )
+  var initNewServices: Boolean = false
+
   protected suspend fun run(services: Services) {
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services.toList())
 
@@ -66,8 +74,7 @@ class InternalReportingServer : AbstractInternalReportingServer() {
 
     spannerFlags.usingSpanner { spanner ->
       val spannerClient = spanner.databaseClient
-
-      run(DataServices.create(idGenerator, postgresClient, spannerClient))
+      run(DataServices.create(idGenerator, postgresClient, spannerClient, initNewServices))
     }
   }
 }

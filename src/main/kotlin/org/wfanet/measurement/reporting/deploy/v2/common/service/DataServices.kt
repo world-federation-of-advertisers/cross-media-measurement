@@ -39,7 +39,7 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSets
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportsService
 
 data class Services(
-  val basicReportsService: BasicReportsGrpcKt.BasicReportsCoroutineImplBase,
+  val basicReportsService: BasicReportsGrpcKt.BasicReportsCoroutineImplBase? = null,
   val measurementConsumersService: MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase,
   val measurementsService: MeasurementsGrpcKt.MeasurementsCoroutineImplBase,
   val metricsService: MetricsGrpcKt.MetricsCoroutineImplBase,
@@ -58,17 +58,23 @@ object DataServices {
     idGenerator: IdGenerator,
     postgresClient: DatabaseClient,
     spannerClient: AsyncDatabaseClient,
+    initNewServices: Boolean,
   ): Services {
+    val basicReportsService: BasicReportsGrpcKt.BasicReportsCoroutineImplBase? =
+      if (initNewServices) {
+        SpannerBasicReportsService(spannerClient, postgresClient)
+      } else null
+
     return Services(
-      SpannerBasicReportsService(spannerClient, postgresClient),
-      PostgresMeasurementConsumersService(idGenerator, postgresClient),
-      PostgresMeasurementsService(idGenerator, postgresClient),
-      PostgresMetricsService(idGenerator, postgresClient),
-      PostgresReportingSetsService(idGenerator, postgresClient),
-      PostgresReportsService(idGenerator, postgresClient),
-      PostgresReportSchedulesService(idGenerator, postgresClient),
-      PostgresReportScheduleIterationsService(idGenerator, postgresClient),
-      PostgresMetricCalculationSpecsService(idGenerator, postgresClient),
+      basicReportsService = basicReportsService,
+      measurementConsumersService = PostgresMeasurementConsumersService(idGenerator, postgresClient),
+      measurementsService = PostgresMeasurementsService(idGenerator, postgresClient),
+      metricsService = PostgresMetricsService(idGenerator, postgresClient),
+      reportingSetsService = PostgresReportingSetsService(idGenerator, postgresClient),
+      reportsService = PostgresReportsService(idGenerator, postgresClient),
+      reportSchedulesService = PostgresReportSchedulesService(idGenerator, postgresClient),
+      reportScheduleIterationsService = PostgresReportScheduleIterationsService(idGenerator, postgresClient),
+      metricCalculationSpecsService = PostgresMetricCalculationSpecsService(idGenerator, postgresClient),
     )
   }
 }

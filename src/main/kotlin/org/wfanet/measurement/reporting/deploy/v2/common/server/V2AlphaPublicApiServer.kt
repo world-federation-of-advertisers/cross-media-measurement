@@ -56,6 +56,7 @@ import org.wfanet.measurement.common.instrumented
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
@@ -74,6 +75,7 @@ import org.wfanet.measurement.reporting.deploy.v2.common.V2AlphaFlags
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.AkidPrincipalLookup
+import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
@@ -246,47 +248,53 @@ private object V2AlphaPublicApiServer {
         .build()
         .withShutdownTimeout(Duration.ofSeconds(30))
 
-    val services: List<ServerServiceDefinition> =
-      listOf(
-        DataProvidersService(KingdomDataProvidersCoroutineStub(kingdomChannel))
-          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-        EventGroupMetadataDescriptorsService(
-            KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
-          )
-          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-        EventGroupsService(
-            KingdomEventGroupsCoroutineStub(kingdomChannel),
-            InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
-            celEnvCacheProvider,
-          )
-          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-        metricsService.withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-        ReportingSetsService(InternalReportingSetsCoroutineStub(channel))
-          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-        ReportsService(
-            InternalReportsCoroutineStub(channel),
-            InternalMetricCalculationSpecsCoroutineStub(channel),
-            MetricsCoroutineStub(inProcessChannel),
-            metricSpecConfig,
-            SecureRandom().asKotlinRandom(),
-          )
-          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-        ReportSchedulesService(
-            InternalReportSchedulesCoroutineStub(channel),
-            InternalReportingSetsCoroutineStub(channel),
-            KingdomDataProvidersCoroutineStub(kingdomChannel),
-            KingdomEventGroupsCoroutineStub(kingdomChannel),
-          )
-          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-        ReportScheduleIterationsService(InternalReportScheduleIterationsCoroutineStub(channel))
-          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-        MetricCalculationSpecsService(
-            InternalMetricCalculationSpecsCoroutineStub(channel),
-            metricSpecConfig,
-            SecureRandom().asKotlinRandom(),
-          )
-          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+    val services: List<ServerServiceDefinition> = buildList {
+      if (v2AlphaPublicServerFlags.initNewServices) {
+        //TODO(tristanvuong2021): change this once access PRs merged
+        add(BasicReportsService(InternalBasicReportsCoroutineStub(channel))
+          .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
+      }
+
+      add(DataProvidersService(KingdomDataProvidersCoroutineStub(kingdomChannel))
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
+      add(EventGroupMetadataDescriptorsService(
+        KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel)
       )
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
+      add(EventGroupsService(
+        KingdomEventGroupsCoroutineStub(kingdomChannel),
+        InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
+        celEnvCacheProvider,
+      )
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
+      add(metricsService.withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
+      add(ReportingSetsService(InternalReportingSetsCoroutineStub(channel))
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
+      add(ReportsService(
+        InternalReportsCoroutineStub(channel),
+        InternalMetricCalculationSpecsCoroutineStub(channel),
+        MetricsCoroutineStub(inProcessChannel),
+        metricSpecConfig,
+        SecureRandom().asKotlinRandom(),
+      )
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
+      add(ReportSchedulesService(
+        InternalReportSchedulesCoroutineStub(channel),
+        InternalReportingSetsCoroutineStub(channel),
+        KingdomDataProvidersCoroutineStub(kingdomChannel),
+        KingdomEventGroupsCoroutineStub(kingdomChannel),
+      )
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
+      add(ReportScheduleIterationsService(InternalReportScheduleIterationsCoroutineStub(channel))
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
+      add(MetricCalculationSpecsService(
+        InternalMetricCalculationSpecsCoroutineStub(channel),
+        metricSpecConfig,
+        SecureRandom().asKotlinRandom(),
+      )
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup))
+    }
+
     CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
     inProcessChannel.shutdown()
     inProcessServer.shutdown()
@@ -296,6 +304,13 @@ private object V2AlphaPublicApiServer {
   }
 
   class V2AlphaPublicServerFlags {
+    @CommandLine.Option(
+      names = ["--init-new-services"],
+      description = ["Initialize the new Phase 1 Service if set to true."],
+      required = false,
+    )
+    var initNewServices: Boolean = false
+
     @CommandLine.Option(
       names = ["--authority-key-identifier-to-principal-map-file"],
       description = ["File path to a AuthorityKeyToPrincipalMap textproto"],
