@@ -22,8 +22,10 @@ import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
 import com.google.protobuf.Any
+import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlinx.coroutines.channels.ReceiveChannel
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
@@ -33,6 +35,8 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.completeWor
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemRequest
+import org.wfanet.measurement.securecomputation.service.Errors
+import org.wfanet.measurement.securecomputation.service.ServiceException
 
 /**
  * BaseTeeApplication is an abstract base class for TEE applications that automatically subscribes
@@ -88,19 +92,17 @@ abstract class BaseTeeApplication(
       val workItemAttemptId = UUID.randomUUID().toString()
       createWorkItemAttempt(workItemName, workItemAttemptId)
     } catch (e: ControlPlaneApiException) {
-      return
-    } catch (e: Exception) {
-      logger.severe("Unknown error creating a WorkItemAttempt: $e")
+      logger.log(Level.WARNING, e) { "Error creating a WorkItemAttempt" }
       return
     }
     try {
       runWork(queueMessage.body.workItemParams)
-      queueMessage.ack()
       runCatching { completeWorkItemAttempt(workItemAttempt) }
-        .onFailure { error -> logger.log(Level.SEVERE, error) { "Failed to report work item attempt completed successfully" } }
+        .onFailure { error -> logger.log(Level.SEVERE, error) { "Failed to report work item attempt completed successfully" }
+        }
     } catch (e: InvalidProtocolBufferException) {
       logger.log(Level.SEVERE, e) { "Failed to parse protobuf message" }
-      queueMessage.nack()
+      queueMessage.ack()
       runCatching { failWorkItem(workItemName) }
         .onFailure { error -> logger.log(Level.SEVERE, error) { "Failed to report work item failure" } }
     } catch (e: Exception) {
@@ -120,9 +122,7 @@ abstract class BaseTeeApplication(
         }
       )
     } catch (e: StatusRuntimeException) {
-      val errorMessage = "Error creating WorkItemAttempt"
-      logger.severe("$errorMessage: $e")
-      throw ControlPlaneApiException("$errorMessage: ${e.message}")
+      throw ControlPlaneApiException("Failed to create WorkItemAttempt for parent: $parent", e)
     }
   }
 
@@ -134,9 +134,7 @@ abstract class BaseTeeApplication(
         }
       )
     } catch (e: StatusRuntimeException) {
-      val errorMessage = "Error setting WorkItemAttempt as succeeded"
-      logger.severe("$errorMessage: $e")
-      throw ControlPlaneApiException("$errorMessage: ${e.message}")
+      throw ControlPlaneApiException("Failed to set WorkItemAttempt ${workItemAttempt.name} as succeeded", e)
     }
   }
 
@@ -149,9 +147,7 @@ abstract class BaseTeeApplication(
         }
       )
     } catch (e: StatusRuntimeException) {
-      val errorMessage = "Error setting WorkItemAttempt as failed"
-      logger.severe("$errorMessage: $e")
-      throw ControlPlaneApiException("$errorMessage: ${e.message}")
+      throw ControlPlaneApiException("Failed to set WorkItemAttempt ${workItemAttempt.name} as failed", e)
     }
   }
 
@@ -163,9 +159,7 @@ abstract class BaseTeeApplication(
         }
       )
     } catch (e: StatusRuntimeException) {
-      val errorMessage = "Error setting WorkItem as failed"
-      logger.severe("$errorMessage: $e")
-      throw ControlPlaneApiException("$errorMessage: ${e.message}")
+      throw ControlPlaneApiException("Failed to set WorkItem $workItemName as failed". e)
     }
   }
 
