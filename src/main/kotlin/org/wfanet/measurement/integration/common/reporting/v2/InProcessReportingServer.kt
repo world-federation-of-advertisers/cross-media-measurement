@@ -33,8 +33,11 @@ import kotlinx.coroutines.runBlocking
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.withTrustedPrincipalAuthentication
 import org.wfanet.measurement.access.common.TlsClientPrincipalMapping
 import org.wfanet.measurement.access.service.internal.PermissionMapping
+import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as PublicKingdomCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as PublicKingdomDataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as PublicKingdomEventGroupMetadataDescriptorsCoroutineStub
@@ -75,7 +78,6 @@ import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairSto
 import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
-import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withMetadataPrincipalIdentities
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
@@ -209,28 +211,42 @@ class InProcessReportingServer(
           }
         }
 
+        val authorization = Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(accessChannel))
+
         METRIC_SPEC_CONFIG.validate()
         metricSpecConfig = METRIC_SPEC_CONFIG
 
         listOf(
-            DataProvidersService(publicKingdomDataProvidersClient)
-              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
-            EventGroupMetadataDescriptorsService(publicKingdomEventGroupMetadataDescriptorsClient)
-              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
+            DataProvidersService(
+                publicKingdomDataProvidersClient,
+                authorization,
+                measurementConsumerConfig.apiKey,
+              )
+              .withTrustedPrincipalAuthentication(),
+            EventGroupMetadataDescriptorsService(
+                publicKingdomEventGroupMetadataDescriptorsClient,
+                authorization,
+                measurementConsumerConfig.apiKey,
+              )
+              .withTrustedPrincipalAuthentication(),
             EventGroupsService(
                 publicKingdomEventGroupsClient,
-                encryptionKeyPairStore,
+                authorization,
                 celEnvCacheProvider.value,
+                measurementConsumerConfigs,
+                encryptionKeyPairStore,
               )
-              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
+              .withTrustedPrincipalAuthentication(),
             MetricCalculationSpecsService(
                 internalMetricCalculationSpecsClient,
                 METRIC_SPEC_CONFIG,
+                authorization,
                 SecureRandom().asKotlinRandom(),
               )
-              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
+              .withTrustedPrincipalAuthentication(),
             MetricsService(
                 METRIC_SPEC_CONFIG,
+                measurementConsumerConfigs,
                 internalReportingSetsClient,
                 internalMetricsClient,
                 VariancesImpl,
@@ -239,28 +255,30 @@ class InProcessReportingServer(
                 publicKingdomMeasurementsClient,
                 publicKingdomCertificatesClient,
                 publicKingdomMeasurementConsumersClient,
+                authorization,
                 encryptionKeyPairStore,
                 SecureRandom().asKotlinRandom(),
                 signingPrivateKeyDir,
                 trustedCertificates,
                 defaultVidModelLine = "",
-                measurementConsumerModelLines = mapOf(),
+                measurementConsumerModelLines = emptyMap(),
                 certificateCacheExpirationDuration = Duration.ofMinutes(60),
                 dataProviderCacheExpirationDuration = Duration.ofMinutes(60),
                 keyReaderContext = Dispatchers.IO,
                 cacheLoaderContext = Dispatchers.Default,
               )
-              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
-            ReportingSetsService(internalReportingSetsClient)
-              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
+              .withTrustedPrincipalAuthentication(),
+            ReportingSetsService(internalReportingSetsClient, authorization)
+              .withTrustedPrincipalAuthentication(),
             ReportsService(
                 internalReportsClient,
                 internalMetricCalculationSpecsClient,
                 PublicMetricsCoroutineStub(this@GrpcTestServerRule.channel),
                 METRIC_SPEC_CONFIG,
+                authorization,
                 SecureRandom().asKotlinRandom(),
               )
-              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
+              .withTrustedPrincipalAuthentication(),
           )
           .forEach { addService(it.withVerboseLogging(verboseGrpcLogging)) }
       }
