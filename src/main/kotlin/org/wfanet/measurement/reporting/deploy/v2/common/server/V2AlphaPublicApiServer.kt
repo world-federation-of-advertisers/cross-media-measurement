@@ -263,35 +263,20 @@ private object V2AlphaPublicApiServer {
         .build()
         .withShutdownTimeout(Duration.ofSeconds(30))
 
-    val services: List<ServerServiceDefinition> = buildList {
-      if (v2AlphaPublicServerFlags.initNewServices) {
-        // TODO(tristanvuong2021): change this once access PRs merged
-        add(
-          BasicReportsService(
-            InternalBasicReportsCoroutineStub(channel),
-            authorization,
-          )
-            .withInterceptor(principalAuthInterceptor)
-        )
-      }
-
-      add(
+    val services: List<ServerServiceDefinition> =
+      listOf(
         DataProvidersService(
             KingdomDataProvidersCoroutineStub(kingdomChannel),
             authorization,
             systemMeasurementConsumerConfig.apiKey,
           )
-          .withInterceptor(principalAuthInterceptor)
-      )
-      add(
+          .withInterceptor(principalAuthInterceptor),
         EventGroupMetadataDescriptorsService(
             KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel),
             authorization,
             systemMeasurementConsumerConfig.apiKey,
           )
           .withInterceptor(principalAuthInterceptor),
-      )
-      add(
         EventGroupsService(
             KingdomEventGroupsCoroutineStub(kingdomChannel),
             authorization,
@@ -300,13 +285,9 @@ private object V2AlphaPublicApiServer {
             InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
           )
           .withInterceptor(principalAuthInterceptor),
-      )
-      add(metricsService.withInterceptor(principalAuthInterceptor))
-      add(
-         ReportingSetsService(InternalReportingSetsCoroutineStub(channel), authorization)
-         .withInterceptor(principalAuthInterceptor)
-      )
-      add(
+        metricsService.withInterceptor(principalAuthInterceptor),
+        ReportingSetsService(InternalReportingSetsCoroutineStub(channel), authorization)
+          .withInterceptor(principalAuthInterceptor),
         ReportsService(
             InternalReportsCoroutineStub(channel),
             InternalMetricCalculationSpecsCoroutineStub(channel),
@@ -315,31 +296,40 @@ private object V2AlphaPublicApiServer {
             authorization,
             SecureRandom().asKotlinRandom(),
           )
-          .withInterceptor(principalAuthInterceptor))
-      add(ReportSchedulesService(
-          InternalReportSchedulesCoroutineStub(channel),
-          InternalReportingSetsCoroutineStub(channel),
-          KingdomDataProvidersCoroutineStub(kingdomChannel),
-          KingdomEventGroupsCoroutineStub(kingdomChannel),
-          authorization,
-          measurementConsumerConfigs,
-        )
-        .withInterceptor(principalAuthInterceptor))
-      add(ReportScheduleIterationsService(
-          InternalReportScheduleIterationsCoroutineStub(channel),
-          authorization,
-        ).withInterceptor(principalAuthInterceptor)
-      )
-      add(
+          .withInterceptor(principalAuthInterceptor),
+        ReportSchedulesService(
+            InternalReportSchedulesCoroutineStub(channel),
+            InternalReportingSetsCoroutineStub(channel),
+            KingdomDataProvidersCoroutineStub(kingdomChannel),
+            KingdomEventGroupsCoroutineStub(kingdomChannel),
+            authorization,
+            measurementConsumerConfigs,
+          )
+          .withInterceptor(principalAuthInterceptor),
+        ReportScheduleIterationsService(
+            InternalReportScheduleIterationsCoroutineStub(channel),
+            authorization,
+          )
+          .withInterceptor(principalAuthInterceptor),
         MetricCalculationSpecsService(
             InternalMetricCalculationSpecsCoroutineStub(channel),
             metricSpecConfig,
             authorization,
             SecureRandom().asKotlinRandom(),
           )
-          .withInterceptor(principalAuthInterceptor)
-      )
-    }
+          .withInterceptor(principalAuthInterceptor),
+      ) + buildList {
+        if (v2AlphaPublicServerFlags.initNewServices) {
+          // TODO(tristanvuong2021): change this once access PRs merged
+          add(
+            BasicReportsService(
+              InternalBasicReportsCoroutineStub(channel),
+              authorization,
+            )
+              .withInterceptor(principalAuthInterceptor)
+          )
+        }
+      }
 
     CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
     inProcessChannel.shutdown()
