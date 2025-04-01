@@ -119,7 +119,7 @@ of each container, and the JVM options of each container.
 
 ## Turning on the MC API Phase 1 services
 
-Pass in "--basic-reports-enabled=true" to both the public and the internal servers.
+Pass in "--basic-reports-enabled=true" to the internal server.
 
 ## Customize the K8s secrets
 
