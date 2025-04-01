@@ -49,6 +49,7 @@ class InternalReportingServicesProviderRule(
               RandomIdGenerator(Clock.systemUTC()),
               postgresDatabaseProvider.createDatabase(),
               spannerDatabase.databaseClient,
+              true,
             )
           base.evaluate()
         }
