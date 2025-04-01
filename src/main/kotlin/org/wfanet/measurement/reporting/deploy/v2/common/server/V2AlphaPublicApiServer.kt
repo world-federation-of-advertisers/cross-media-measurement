@@ -323,7 +323,7 @@ private object V2AlphaPublicApiServer {
           .withInterceptor(principalAuthInterceptor),
       ) +
         buildList {
-          if (v2AlphaPublicServerFlags.initNewServices) {
+          if (v2AlphaPublicServerFlags.basicReportsEnabled) {
             add(
               BasicReportsService(InternalBasicReportsCoroutineStub(channel), authorization)
                 .withInterceptor(principalAuthInterceptor)
@@ -341,11 +341,11 @@ private object V2AlphaPublicApiServer {
 
   class V2AlphaPublicServerFlags {
     @CommandLine.Option(
-      names = ["--init-new-services"],
-      description = ["Initialize the new Phase 1 Service if set to true."],
+      names = ["--basic-reports-enabled"],
+      description = ["Initialize the new Phase 1 Services if set to true."],
       required = false,
     )
-    var initNewServices: Boolean = false
+    var basicReportsEnabled: Boolean = false
 
     @CommandLine.Option(
       names = ["--authority-key-identifier-to-principal-map-file"],

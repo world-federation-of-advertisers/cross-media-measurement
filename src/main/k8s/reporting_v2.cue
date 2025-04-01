@@ -122,7 +122,7 @@ package k8s
 						_debugVerboseGrpcServerLoggingFlag,
 						"--port=8443",
 						"--health-port=8080",
-						"--init-new-services=true",
+						"--basic-reports-enabled=true",
 			] + _postgresConfig.flags + _reportingSpannerConfig.flags + _tlsArgs
 
 			_updatePostgresSchemaContainer: Container=#Container & {
@@ -160,7 +160,7 @@ package k8s
 						"--event-group-metadata-descriptor-cache-duration=1h",
 						"--certificate-cache-expiration-duration=\(_certificateCacheExpirationDuration)",
 						"--data-provider-cache-expiration-duration=\(_dataProviderCacheExpirationDuration)",
-						"--init-new-services=true",
+						"--basic-reports-enabled=true",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
 
 			spec: template: spec: {

@@ -58,10 +58,10 @@ object DataServices {
     idGenerator: IdGenerator,
     postgresClient: DatabaseClient,
     spannerClient: AsyncDatabaseClient,
-    initNewServices: Boolean,
+    basicReportsEnabled: Boolean,
   ): Services {
     val basicReportsService: BasicReportsGrpcKt.BasicReportsCoroutineImplBase? =
-      if (initNewServices) {
+      if (basicReportsEnabled) {
         SpannerBasicReportsService(spannerClient, postgresClient)
       } else null
 
