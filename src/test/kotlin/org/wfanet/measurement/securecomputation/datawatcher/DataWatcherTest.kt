@@ -29,12 +29,11 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.config.securecomputation.DataWatcherConfigKt.controlPlaneConfig
+import org.wfanet.measurement.config.securecomputation.dataWatcherConfig
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemConfig
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
-import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfigKt.controlPlaneConfig
-import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.dataWatcherConfig
 
 @RunWith(JUnit4::class)
 class DataWatcherTest() {
@@ -69,15 +68,10 @@ class DataWatcherTest() {
         createWorkItem(createWorkItemRequestCaptor.capture())
       }
       assertThat(createWorkItemRequestCaptor.allValues.single().workItem.queue).isEqualTo(topicId)
-      val workItemConfig =
-        createWorkItemRequestCaptor.allValues
-          .single()
-          .workItem
-          .workItemParams
-          .unpack(WorkItemConfig::class.java)
-      assertThat(workItemConfig.dataPath)
+      val workItemParams = createWorkItemRequestCaptor.allValues.single().workItem.workItemParams
+      assertThat(workItemParams.dataPath)
         .isEqualTo("test-schema://test-bucket/path-to-watch/some-data")
-      val workItemAppConfig = workItemConfig.config.unpack(Int32Value::class.java)
+      val workItemAppConfig = workItemParams.config.unpack(Int32Value::class.java)
       assertThat(workItemAppConfig).isEqualTo(appConfig)
     }
   }

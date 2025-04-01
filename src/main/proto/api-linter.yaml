@@ -15,7 +15,7 @@
 - included_paths:
   - 'wfa/measurement/reporting/**/*.proto'
   - 'wfa/measurement/system/**/*.proto'
-  - 'wfa/measurement/securecomputation/controlplane/**/*.proto'
+  - 'wfa/measurement/securecomputation/**/*.proto'
   disabled_rules:
   - 'core::0191::java-package'
   - 'core::0146::any'

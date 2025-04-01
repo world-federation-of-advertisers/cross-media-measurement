@@ -19,12 +19,11 @@ package org.wfanet.measurement.securecomputation.datawatcher
 import java.util.UUID
 import java.util.logging.Logger
 import kotlin.text.matches
-import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemConfig
-import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfig
 
 /*
  * Watcher to observe blob creation events and take the appropriate action for each.
@@ -44,12 +43,10 @@ class DataWatcher(
           DataWatcherConfig.SinkConfigCase.CONTROL_PLANE_CONFIG -> {
             val queueConfig = config.controlPlaneConfig
             val workItemId = UUID.randomUUID().toString()
-            val workItemParams =
-              workItemConfig {
-                  this.config = queueConfig.appConfig
-                  this.dataPath = path
-                }
-                .pack()
+            val workItemParams = workItemParams {
+              this.config = queueConfig.appConfig
+              this.dataPath = path
+            }
             val request = createWorkItemRequest {
               this.workItemId = workItemId
               this.workItem = workItem {

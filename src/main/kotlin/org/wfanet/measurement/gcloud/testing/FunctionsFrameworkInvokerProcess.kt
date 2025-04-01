@@ -27,7 +27,9 @@ import kotlin.properties.Delegates
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -38,11 +40,12 @@ import org.wfanet.measurement.common.getRuntimePath
 /**
  * Wrapper for a Cloud Function binary process. Exposes a port where the process can receive data.
  *
- * @param javaBinaryPath - the run files relative path of the binary
- * @param classTarget -the class that the invoker will run
- * @param coroutineContext - the context under which the process will run
+ * @param javaBinaryPath the runfiles-relative path of the binary that runs the Cloud Run Invoker
+ * @param classTarget the class that the invoker will run. This is the classpath that the Invoker
+ *   will run
+ * @param coroutineContext the context under which the process will run
  */
-class CloudFunctionProcess(
+class FunctionsFrameworkInvokerProcess(
   private val javaBinaryPath: Path,
   private val classTarget: String,
   private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
@@ -50,11 +53,15 @@ class CloudFunctionProcess(
   private val startMutex = Mutex()
   @Volatile private lateinit var process: Process
   private var localPort by Delegates.notNull<Int>()
-  // Indicates whether the process has started.
+  /*
+   * Indicates whether the process has started.
+   */
   val started: Boolean
     get() = this::process.isInitialized
 
-  // Returns the port the process is listening on.
+  /*
+   * Returns the port the process is listening on.
+   */
   val port: Int
     get() {
       check(started) { "CloudFunction process not started" }
@@ -109,23 +116,22 @@ class CloudFunctionProcess(
         var isReady = false
 
         // Start a thread to read output
-        Thread {
-            try {
-              while (true) {
-                val line = reader.readLine() ?: break
-                logger.info("Process output: $line")
-                // Check if the ready message is in the output
-                if (line.contains(readyPattern)) {
-                  isReady = true
-                }
-              }
-            } catch (e: Exception) {
-              if (process.isAlive) {
-                logger.log(Level.WARNING, "Error reading process output: ${e.message}")
+        CoroutineScope(Dispatchers.Default).launch {
+          try {
+            while (!isReady) {
+              val line = reader.readLine() ?: break
+              logger.info("Process output: $line")
+              // Check if the ready message is in the output
+              if (line.contains(readyPattern)) {
+                isReady = true
               }
             }
+          } catch (e: Exception) {
+            if (process.isAlive) {
+              logger.log(Level.WARNING, "Error reading process output: ${e.message}")
+            }
           }
-          .start()
+        }
 
         // Wait for the ready message or timeout
         val timeout: Duration = 10.seconds
