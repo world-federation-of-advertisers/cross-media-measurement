@@ -25,6 +25,27 @@ class ReportingApiServerFlags {
   lateinit var internalApiFlags: InternalApiFlags
     private set
 
+  @CommandLine.Option(
+    names = ["--access-api-target"],
+    description = ["gRPC target of the Access public API server"],
+    required = true,
+  )
+  lateinit var accessApiTarget: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--access-api-cert-host"],
+    description =
+      [
+        "Expected hostname (DNS-ID) in the Access public API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --access-api-target.",
+      ],
+    required = false,
+    defaultValue = CommandLine.Option.NULL_VALUE,
+  )
+  var accessApiCertHost: String? = null
+    private set
+
   @set:CommandLine.Option(
     names = ["--debug-verbose-grpc-client-logging"],
     description = ["Enables full gRPC request and response logging for outgoing gRPCs"],

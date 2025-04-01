@@ -28,18 +28,26 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.whenever
 import org.mockito.kotlin.wheneverBlocking
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.testing.Authentication.withPrincipalAndScopes
+import org.wfanet.measurement.access.client.v1alpha.testing.PrincipalMatcher.Companion.hasPrincipal
+import org.wfanet.measurement.access.v1alpha.CheckPermissionsResponse
+import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
+import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
+import org.wfanet.measurement.access.v1alpha.copy
+import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt as InternalReportingSetKt
@@ -69,8 +77,6 @@ import org.wfanet.measurement.reporting.v2alpha.reportingSet
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 private const val PAGE_SIZE = 2
-
-private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
 
 @RunWith(JUnit4::class)
 class ReportingSetsServiceTest {
@@ -110,17 +116,33 @@ class ReportingSetsServiceTest {
       }
   }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalReportingSetsMock) }
+  private val permissionsServiceMock: PermissionsGrpcKt.PermissionsCoroutineImplBase = mockService {
+    onBlocking { checkPermissions(any()) } doReturn CheckPermissionsResponse.getDefaultInstance()
+  }
+
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(internalReportingSetsMock)
+    addService(permissionsServiceMock)
+  }
 
   private lateinit var service: ReportingSetsService
 
   @Before
   fun initService() {
-    service = ReportingSetsService(ReportingSetsCoroutineStub(grpcTestServerRule.channel))
+    service =
+      ReportingSetsService(
+        ReportingSetsCoroutineStub(grpcTestServerRule.channel),
+        Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel)),
+      )
   }
 
   @Test
   fun `createReportingSet returns primitive reporting set`() = runBlocking {
+    permissionsServiceMock.stub {
+      onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doReturn
+        checkPermissionsResponse { permissions += PermissionName.CREATE_PRIMITIVE }
+    }
     whenever(internalReportingSetsMock.createReportingSet(any()))
       .thenReturn(INTERNAL_PRIMITIVE_REPORTING_SETS.first())
 
@@ -130,10 +152,8 @@ class ReportingSetsServiceTest {
       reportingSetId = "reporting-set-id"
     }
 
-    val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
-        runBlocking { service.createReportingSet(request) }
-      }
+    val result: ReportingSet =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createReportingSet(request) }
 
     val expected = PRIMITIVE_REPORTING_SETS.first()
 
@@ -157,6 +177,10 @@ class ReportingSetsServiceTest {
 
   @Test
   fun `createReportingSet returns reporting set when primitiveReportingSetBases are not unique`() {
+    permissionsServiceMock.stub {
+      onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doReturn
+        checkPermissionsResponse { permissions += PermissionName.CREATE_PRIMITIVE }
+    }
     val request = createReportingSetRequest {
       parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
       reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
@@ -164,7 +188,7 @@ class ReportingSetsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.createReportingSet(request) }
       }
 
@@ -264,6 +288,10 @@ class ReportingSetsServiceTest {
             }
         }
 
+      permissionsServiceMock.stub {
+        onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doReturn
+          checkPermissionsResponse { permissions += PermissionName.CREATE_PRIMITIVE }
+      }
       whenever(internalReportingSetsMock.batchGetReportingSets(any())).thenAnswer {
         val request = it.arguments[0] as BatchGetReportingSetsRequest
         batchGetReportingSetsResponse {
@@ -280,10 +308,8 @@ class ReportingSetsServiceTest {
         reportingSetId = "reporting-set-id"
       }
 
-      val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
-          runBlocking { service.createReportingSet(request) }
-        }
+      val result: ReportingSet =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createReportingSet(request) }
 
       verifyProtoArgument(
           internalReportingSetsMock,
@@ -302,6 +328,10 @@ class ReportingSetsServiceTest {
 
   @Test
   fun `createReportingSet returns ReportingSet when it is a Campaign Group`() = runBlocking {
+    permissionsServiceMock.stub {
+      onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doReturn
+        checkPermissionsResponse { permissions += PermissionName.CREATE_PRIMITIVE }
+    }
     val reportingSetResourceId = "reporting-set-id"
     val internalReportingSet =
       INTERNAL_PRIMITIVE_REPORTING_SETS.first().copy {
@@ -321,7 +351,7 @@ class ReportingSetsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(measurementConsumerKey.toName(), CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.createReportingSet(request) }
       }
 
@@ -366,6 +396,10 @@ class ReportingSetsServiceTest {
 
   @Test
   fun `createReportingSet throws PERMISSION_DENIED when MC caller doesn't match`() {
+    permissionsServiceMock.stub {
+      onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doReturn
+        checkPermissionsResponse { permissions += PermissionName.CREATE_COMPOSITE }
+    }
     val request = createReportingSetRequest {
       parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
       reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
@@ -374,29 +408,15 @@ class ReportingSetsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.last().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL.copy { name = "$name-wrong" }, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-  }
-
-  @Test
-  fun `createReportingSet throws UNAUTHENTICATED when caller is not MeasurementConsumer`() {
-    val request = createReportingSetRequest {
-      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
-      reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
-      reportingSetId = "reporting-set-id"
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_KEYS.first().toName()) {
-          runBlocking { service.createReportingSet(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("No ReportingPrincipal found")
+    assertThat(exception)
+      .hasMessageThat()
+      .ignoringCase()
+      .contains(ReportingSetsService.Permission.CREATE_COMPOSITE)
   }
 
   @Test
@@ -407,7 +427,7 @@ class ReportingSetsServiceTest {
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
@@ -422,7 +442,7 @@ class ReportingSetsServiceTest {
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
@@ -438,7 +458,7 @@ class ReportingSetsServiceTest {
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
@@ -454,7 +474,7 @@ class ReportingSetsServiceTest {
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
@@ -470,7 +490,7 @@ class ReportingSetsServiceTest {
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
@@ -485,7 +505,7 @@ class ReportingSetsServiceTest {
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
@@ -505,7 +525,7 @@ class ReportingSetsServiceTest {
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
@@ -525,7 +545,7 @@ class ReportingSetsServiceTest {
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
@@ -545,7 +565,7 @@ class ReportingSetsServiceTest {
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
@@ -565,7 +585,7 @@ class ReportingSetsServiceTest {
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
@@ -595,7 +615,7 @@ class ReportingSetsServiceTest {
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
@@ -604,8 +624,8 @@ class ReportingSetsServiceTest {
   }
 
   @Test
-  fun `createReportingSet throws PERMISSION_DENIED if caller can't access child reporting set`() {
-    val inaccessibleReportingSetName =
+  fun `createReportingSet throws INVALID_ARGUMENT if child ReportingSet has incorrect parent`() {
+    val reportingSetNameWithWrongParent =
       ReportingSetKey(
           MEASUREMENT_CONSUMER_KEYS.last().measurementConsumerId,
           ExternalId(400L).apiId.value,
@@ -622,7 +642,7 @@ class ReportingSetsServiceTest {
                 this.expression.copy {
                   lhs =
                     ReportingSetKt.SetExpressionKt.operand {
-                      reportingSet = inaccessibleReportingSetName
+                      reportingSet = reportingSetNameWithWrongParent
                     }
                 }
             }
@@ -631,35 +651,41 @@ class ReportingSetsServiceTest {
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description).contains(inaccessibleReportingSetName)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
-  fun `createReportingSet throws NOT_FOUND when child reporting cannot be found`() = runBlocking {
-    whenever(internalReportingSetsMock.batchGetReportingSets(any()))
-      .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
-    val request = createReportingSetRequest {
-      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
-      reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
-      reportingSetId = "reporting-set-id"
-    }
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
-          runBlocking { service.createReportingSet(request) }
-        }
+  fun `createReportingSet throws FAILED_PRECONDITION when child ReportingSet cannot be found`() =
+    runBlocking {
+      permissionsServiceMock.stub {
+        onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doReturn
+          checkPermissionsResponse { permissions += PermissionName.CREATE_COMPOSITE }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-  }
+      whenever(internalReportingSetsMock.batchGetReportingSets(any()))
+        .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
+      val request = createReportingSetRequest {
+        parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+        reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
+        reportingSetId = "reporting-set-id"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createReportingSet(request) }
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
 
   @Test
   fun `createReportingSet throws FAILED_PRECONDITION when child reporting cannot be found during creation`() =
     runBlocking {
+      permissionsServiceMock.stub {
+        onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doReturn
+          checkPermissionsResponse { permissions += PermissionName.CREATE_COMPOSITE }
+      }
       whenever(internalReportingSetsMock.createReportingSet(any()))
         .thenThrow(
           ReportingSetNotFoundException().asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
@@ -671,9 +697,7 @@ class ReportingSetsServiceTest {
       }
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
-            runBlocking { service.createReportingSet(request) }
-          }
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createReportingSet(request) }
         }
       assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     }
@@ -691,7 +715,7 @@ class ReportingSetsServiceTest {
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
@@ -712,7 +736,7 @@ class ReportingSetsServiceTest {
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
@@ -722,16 +746,24 @@ class ReportingSetsServiceTest {
 
   @Test
   fun `getReportingSet returns reporting set`() {
+    permissionsServiceMock.stub {
+      onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doReturn
+        checkPermissionsResponse { permissions += PermissionName.GET }
+    }
     val request = getReportingSetRequest { name = PRIMITIVE_REPORTING_SETS.first().name }
+
     val reportingSet =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
-        runBlocking { service.getReportingSet(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getReportingSet(request) } }
+
     assertThat(reportingSet).isEqualTo(PRIMITIVE_REPORTING_SETS.first())
   }
 
   @Test
   fun `getReportingSet returns ReportingSet with Campaign Group reference`() {
+    permissionsServiceMock.stub {
+      onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doReturn
+        checkPermissionsResponse { permissions += PermissionName.GET }
+    }
     val reportingSetKey = ReportingSetKey(MEASUREMENT_CONSUMER_KEYS.first(), "reporting-set-id")
     val reportingSetName = reportingSetKey.toName()
     val internalReportingSet =
@@ -743,7 +775,7 @@ class ReportingSetsServiceTest {
       .thenReturn(batchGetReportingSetsResponse { reportingSets += internalReportingSet })
 
     val response: ReportingSet =
-      withMeasurementConsumerPrincipal(reportingSetKey.parentKey.toName(), CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.getReportingSet(getReportingSetRequest { name = reportingSetName }) }
       }
 
@@ -760,15 +792,21 @@ class ReportingSetsServiceTest {
 
   @Test
   fun `getReportingSet throws NOT_FOUND when reporting set not found`() = runBlocking {
+    permissionsServiceMock.stub {
+      onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doReturn
+        checkPermissionsResponse { permissions += PermissionName.GET }
+    }
     whenever(internalReportingSetsMock.batchGetReportingSets(any()))
       .thenThrow(Status.NOT_FOUND.asRuntimeException())
     val request = getReportingSetRequest { name = PRIMITIVE_REPORTING_SETS.first().name }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.getReportingSet(request) }
         }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
@@ -782,33 +820,26 @@ class ReportingSetsServiceTest {
 
   @Test
   fun `getReportingSet throws PERMISSION_DENIED when MeasurementConsumer caller doesn't match`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
     val request = getReportingSetRequest { name = PRIMITIVE_REPORTING_SETS.first().name }
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.last().toName(), CONFIG) {
-          runBlocking { service.getReportingSet(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-  }
 
-  @Test
-  fun `getReportingSet throws UNAUTHENTICATED when the caller is not MeasurementConsumer`() {
-    val request = getReportingSetRequest { name = PRIMITIVE_REPORTING_SETS.first().name }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_KEYS.first().toName()) {
+        withPrincipalAndScopes(PRINCIPAL.copy { name = "$name-wrong" }, SCOPES) {
           runBlocking { service.getReportingSet(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
   fun `getReportingSet throws INVALID_ARGUMENT when name is unspecified`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.getReportingSet(GetReportingSetRequest.getDefaultInstance()) }
         }
       }
@@ -817,10 +848,13 @@ class ReportingSetsServiceTest {
 
   @Test
   fun `listReportingSets returns without a next page token when there is no previous page token`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
     val request = listReportingSetsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listReportingSets(request) }
       }
 
@@ -845,13 +879,16 @@ class ReportingSetsServiceTest {
 
   @Test
   fun `listReportingSets returns with a next page token when there is no previous page token`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
     val request = listReportingSetsRequest {
       parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
       pageSize = PAGE_SIZE
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listReportingSets(request) }
       }
 
@@ -890,6 +927,9 @@ class ReportingSetsServiceTest {
 
   @Test
   fun `listReportingSets returns without a next page token when there is a previous page token`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
     val request = listReportingSetsRequest {
       parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
       pageSize = PAGE_SIZE
@@ -908,7 +948,7 @@ class ReportingSetsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listReportingSets(request) }
       }
 
@@ -937,6 +977,9 @@ class ReportingSetsServiceTest {
 
   @Test
   fun `listReportingSets with page size replaced with a valid value and no previous page token`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
     val invalidPageSize = MAX_PAGE_SIZE * 2
     val request = listReportingSetsRequest {
       parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
@@ -944,7 +987,7 @@ class ReportingSetsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listReportingSets(request) }
       }
 
@@ -969,6 +1012,9 @@ class ReportingSetsServiceTest {
 
   @Test
   fun `listReportingSets with invalid page size replaced with the one in previous page token`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
     val invalidPageSize = MAX_PAGE_SIZE * 2
     val previousPageSize = PAGE_SIZE
     val request = listReportingSetsRequest {
@@ -989,7 +1035,7 @@ class ReportingSetsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listReportingSets(request) }
       }
 
@@ -1018,6 +1064,9 @@ class ReportingSetsServiceTest {
 
   @Test
   fun `listReportingSets with page size replacing the one in previous page token`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
     val newPageSize = PAGE_SIZE
     val previousPageSize = 1
     val request = listReportingSetsRequest {
@@ -1038,7 +1087,7 @@ class ReportingSetsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listReportingSets(request) }
       }
 
@@ -1078,26 +1127,11 @@ class ReportingSetsServiceTest {
     val request = listReportingSetsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.last().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL.copy { name = "$name-wrong" }, SCOPES) {
           runBlocking { service.listReportingSets(request) }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Cannot list ReportingSets belonging to other MeasurementConsumers.")
-  }
-
-  @Test
-  fun `listReportingSets throws UNAUTHENTICATED when the caller is not MeasurementConsumer`() {
-    val request = listReportingSetsRequest { parent = MEASUREMENT_CONSUMER_KEYS.first().toName() }
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_KEYS.first().toName()) {
-          runBlocking { service.listReportingSets(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("No ReportingPrincipal found")
   }
 
   @Test
@@ -1108,7 +1142,7 @@ class ReportingSetsServiceTest {
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.listReportingSets(request) }
         }
       }
@@ -1120,7 +1154,7 @@ class ReportingSetsServiceTest {
   fun `listReportingSets throws INVALID_ARGUMENT when parent is unspecified`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.listReportingSets(ListReportingSetsRequest.getDefaultInstance()) }
         }
       }
@@ -1146,15 +1180,30 @@ class ReportingSetsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.listReportingSets(request) }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
+  object PermissionName {
+    const val GET = "permissions/${ReportingSetsService.Permission.GET}"
+    const val LIST = "permissions/${ReportingSetsService.Permission.LIST}"
+    const val CREATE_PRIMITIVE = "permissions/${ReportingSetsService.Permission.CREATE_PRIMITIVE}"
+    const val CREATE_COMPOSITE = "permissions/${ReportingSetsService.Permission.CREATE_COMPOSITE}"
+  }
+
   companion object {
-    private val CONFIG = measurementConsumerConfig { apiKey = API_AUTHENTICATION_KEY }
+    private val PRINCIPAL = principal { name = "principals/mc-user" }
+    private val ALL_PERMISSIONS =
+      setOf(
+        ReportingSetsService.Permission.GET,
+        ReportingSetsService.Permission.LIST,
+        ReportingSetsService.Permission.CREATE_PRIMITIVE,
+        ReportingSetsService.Permission.CREATE_COMPOSITE,
+      )
+    private val SCOPES = ALL_PERMISSIONS
 
     // Measurement consumers
     private val MEASUREMENT_CONSUMER_KEYS: List<MeasurementConsumerKey> =
