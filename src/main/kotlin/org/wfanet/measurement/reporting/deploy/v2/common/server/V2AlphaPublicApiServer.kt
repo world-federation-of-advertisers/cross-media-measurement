@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.deploy.v2.common.server
 
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
+import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
 import io.grpc.Server
 import io.grpc.ServerServiceDefinition
@@ -155,8 +156,10 @@ private object V2AlphaPublicApiServer {
         .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
     val authorization = Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(accessChannel))
 
-    // TODO(@SanjayVas): Load this from command-line option.
-    val openIdProvidersConfig = OpenIdProvidersConfig.getDefaultInstance()
+    val openIdProvidersConfig =
+      v2AlphaPublicServerFlags.openIdProvidersConfigFile.bufferedReader().use { reader ->
+        OpenIdProvidersConfig.newBuilder().also { JsonFormat.parser().merge(reader, it) }.build()
+      }
     val principalAuthInterceptor =
       PrincipalAuthInterceptor(
         openIdProvidersConfig,
@@ -350,6 +353,14 @@ private object V2AlphaPublicApiServer {
       required = true,
     )
     lateinit var authorityKeyIdentifierToPrincipalMapFile: File
+      private set
+
+    @CommandLine.Option(
+      names = ["--open-id-providers-config-file"],
+      description = ["File path to OpenIdProvidersConfig in ProtoJSON format"],
+      required = true,
+    )
+    lateinit var openIdProvidersConfigFile: File
       private set
 
     @CommandLine.Option(
