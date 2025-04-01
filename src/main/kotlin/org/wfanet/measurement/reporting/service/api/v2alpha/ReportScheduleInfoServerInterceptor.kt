@@ -28,8 +28,7 @@ import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
+import org.wfanet.measurement.common.grpc.withContext
 
 /**
  * Extracts a name from the gRPC [Metadata] and adds it to the gRPC [Context].
@@ -99,34 +98,12 @@ class ReportScheduleInfoServerInterceptor : ServerInterceptor {
       get() = REPORT_SCHEDULE_INFO_CONTEXT_KEY.get()
 
     /** Executes [block] with the resource name installed in a new [Context]. */
-    fun <T> withReportScheduleInfo(info: ReportScheduleInfo, block: () -> T): T {
-      return Context.current().withReportScheduleInfo(info).call(block)
-    }
-
-    /**
-     * Executes [block] with the [ReportScheduleInfo] and [MeasurementConsumerPrincipal] installed
-     * in a new [Context].
-     */
-    fun <T> withReportScheduleInfoAndMeasurementConsumerPrincipal(
-      info: ReportScheduleInfo,
-      measurementConsumerName: String,
-      config: MeasurementConsumerConfig,
-      block: () -> T,
-    ): T {
-      val measurementConsumerPrincipal =
-        MeasurementConsumerPrincipal(
-          MeasurementConsumerKey.fromName(measurementConsumerName)!!,
-          config,
-        )
-
-      return Context.current()
-        .withPrincipal(measurementConsumerPrincipal)
-        .withReportScheduleInfo(info)
-        .call(block)
+    inline fun <T> withReportScheduleInfo(info: ReportScheduleInfo, block: () -> T): T {
+      return withContext(Context.current().withReportScheduleInfo(info)) { block() }
     }
 
     /** Adds the [ReportScheduleInfo] to the receiver and returns the new [Context]. */
-    private fun Context.withReportScheduleInfo(info: ReportScheduleInfo): Context {
+    fun Context.withReportScheduleInfo(info: ReportScheduleInfo): Context {
       return withValue(REPORT_SCHEDULE_INFO_CONTEXT_KEY, info)
     }
   }
