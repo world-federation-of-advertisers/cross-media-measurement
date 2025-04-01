@@ -25,7 +25,6 @@ import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.generateNewId
-import org.wfanet.measurement.gcloud.pubsub.PublishFailedException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.securecomputation.controlplane.CreateWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemRequest
