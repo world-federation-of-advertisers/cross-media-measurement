@@ -47,7 +47,7 @@ controlPlane: #ControlPlane & {
     _spannerConfig: database: "control-plane"
 
     serviceAccounts: {
-		"\(#ControlPlaneApiServiceAccount)": #WorkloadIdentityServiceAccount & {
+		"\(#InternalControlPlaneServerServiceAccount)": #WorkloadIdentityServiceAccount & {
 			_iamServiceAccountName: "control-plane-internal"
 		}
 	}
