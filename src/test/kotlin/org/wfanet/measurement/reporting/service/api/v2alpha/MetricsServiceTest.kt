@@ -6585,9 +6585,7 @@ class MetricsServiceTest {
     val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
 
     val result =
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        runBlocking { service.getMetric(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
     // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
     val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
@@ -10448,8 +10446,8 @@ class MetricsServiceTest {
     whenever(internalMetricsMock.invalidateMetric(any()))
       .thenThrow(
         MetricNotFoundException(
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
-          externalMetricId = metricKey.metricId,
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
+            externalMetricId = metricKey.metricId,
           )
           .asStatusRuntimeException(Status.Code.NOT_FOUND)
       )
