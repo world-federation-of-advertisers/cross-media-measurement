@@ -91,7 +91,6 @@ package k8s
 
             spec: template: spec: {
                 _mounts: {
-                    "config-files":  #ConfigMapMount
                     "control-plane-config": #ConfigMapMount
                 }
                 _initContainers: {
@@ -145,7 +144,7 @@ package k8s
     }
     configMaps: "control-plane-config": {
         data: {
-            "queue_config.textproto": #PermissionsConfig
+            "queue_config.textproto": #QueuesConfig
         }
     }
 

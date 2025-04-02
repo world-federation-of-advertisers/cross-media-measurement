@@ -121,3 +121,28 @@ cue_library(
         ":config",
     ],
 )
+
+cue_string_field(
+    name = "queues_config_cue",
+    srcs = ["//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:queues_config.textproto"],
+    identifier = "#QueuesConfig",
+    package = "k8s",
+    visibility = ["//visibility:private"],
+)
+
+cue_library(
+    name = "queues_config",
+    srcs = [":queues_config_cue"],
+    visibility = ["//visibility:private"],
+)
+
+cue_library(
+    name = "control_plane",
+    srcs = ["control_plane.cue"],
+    deps = [
+        ":base",
+        ":config",
+        ":queues_config",
+        ":spanner",
+    ],
+)
