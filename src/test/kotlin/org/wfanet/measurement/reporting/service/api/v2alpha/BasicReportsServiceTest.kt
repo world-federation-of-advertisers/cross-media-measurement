@@ -25,7 +25,6 @@ import com.google.type.date
 import com.google.type.dateTime
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import java.nio.file.Paths
 import java.time.Clock
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
@@ -48,14 +47,16 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
-import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.impressionQualificationFilter
+import org.wfanet.measurement.config.reporting.impressionQualificationFilterConfig
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
@@ -125,7 +126,6 @@ class BasicReportsServiceTest {
     val idGenerator = RandomIdGenerator(Clock.systemUTC(), Random(1))
 
     addService(permissionsServiceMock)
-    addService(SpannerBasicReportsService(spannerDatabaseClient, postgresDatabaseClient))
     addService(
       SpannerBasicReportsService(
         spannerDatabaseClient,
@@ -2059,15 +2059,61 @@ class BasicReportsServiceTest {
         }
     }
 
-    private val CONFIG_PATH =
-      Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
-    private val IMPRESSION_QUALIFICATION_FILTER_CONFIG:
-      ImpressionQualificationFilterConfig by lazy {
-      val configFile =
-        getRuntimePath(CONFIG_PATH.resolve("impression_qualification_filter_config.textproto"))!!
-          .toFile()
-      parseTextProto(configFile, ImpressionQualificationFilterConfig.getDefaultInstance())
+    private val AMI_IQF = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "ami"
+      impressionQualificationFilterId = 1
+      filterSpecs +=
+        ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
+          mediaType = ImpressionQualificationFilterSpec.MediaType.VIDEO
+        }
+      filterSpecs +=
+        ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
+          mediaType = ImpressionQualificationFilterSpec.MediaType.DISPLAY
+        }
+      filterSpecs +=
+        ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
+          mediaType = ImpressionQualificationFilterSpec.MediaType.OTHER
+        }
     }
+
+    private val MRC_IQF = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "mrc"
+      impressionQualificationFilterId = 2
+      filterSpecs +=
+        ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
+          mediaType = ImpressionQualificationFilterSpec.MediaType.DISPLAY
+          filters +=
+            ImpressionQualificationFilterConfigKt.eventFilter {
+              terms +=
+                ImpressionQualificationFilterConfigKt.eventTemplateField {
+                  path = "banner_ad.viewable_fraction_1_second"
+                  value = fieldValue { floatValue = 0.5F }
+                }
+            }
+        }
+      filterSpecs +=
+        ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
+          mediaType = ImpressionQualificationFilterSpec.MediaType.VIDEO
+          filters +=
+            ImpressionQualificationFilterConfigKt.eventFilter {
+              terms +=
+                ImpressionQualificationFilterConfigKt.eventTemplateField {
+                  path = "video.viewable_fraction_1_second"
+                  value = fieldValue { floatValue = 1.0F }
+                }
+            }
+        }
+      filterSpecs +=
+        ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
+          mediaType = ImpressionQualificationFilterSpec.MediaType.OTHER
+        }
+    }
+
+    private val IMPRESSION_QUALIFICATION_FILTER_CONFIG = impressionQualificationFilterConfig {
+      impressionQualificationFilters += AMI_IQF
+      impressionQualificationFilters += MRC_IQF
+    }
+
     private val IMPRESSION_QUALIFICATION_FILTER_MAPPING =
       ImpressionQualificationFilterMapping(IMPRESSION_QUALIFICATION_FILTER_CONFIG)
   }
