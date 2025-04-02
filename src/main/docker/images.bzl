@@ -311,9 +311,9 @@ CONTROL_PLANE_GKE_IMAGES = [
         repository = _PREFIX + "/secure-computation/control-plane-internal-server",
     ),
     struct(
-        name = "securecomputation_update_schema_image",
+        name = "gcloud_control_plane_update_schema_image",
         image = "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/tools:update_schema_image",
-        repository = _PREFIX + "/securecomputation/update-schema",
+        repository = _PREFIX + "/control-plane/update-schema",
     ),
 ]
 
