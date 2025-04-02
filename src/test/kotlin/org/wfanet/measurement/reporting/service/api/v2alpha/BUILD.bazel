@@ -321,9 +321,6 @@ kt_jvm_test(
 spanner_emulator_test(
     name = "BasicReportsServiceTest",
     srcs = ["BasicReportsServiceTest.kt"],
-    data = [
-        "//src/main/k8s/testing/secretfiles:impression_qualification_filter_config.textproto",
-    ],
     tags = [
         "cpu:2",
         "no-remote-exec",
@@ -343,6 +340,7 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:errors",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:basic_reports_service",
         "//src/main/proto/wfa/measurement/access/v1alpha:permissions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/config/reporting:impression_qualification_filter_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:page_token_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
