@@ -93,7 +93,7 @@ class SpannerWorkItemsService(
           val workItemId: Long = idGenerator.generateNewId { id -> txn.workItemIdExists(id) }
 
           val state =
-            txn.insertWorkItem(workItemId, request.workItem.workItemResourceId, queue.queueId)
+            txn.insertWorkItem(workItemId, request.workItem.workItemResourceId, queue.queueId, request.workItem.workItemParams)
 
           request.workItem.copy { this.state = state }
         }
@@ -107,10 +107,7 @@ class SpannerWorkItemsService(
       }
 
     val commitTimestamp = transactionRunner.getCommitTimestamp().toProto()
-    val result = workItem {
-      queueResourceId = workItem.queueResourceId
-      workItemResourceId = workItem.workItemResourceId
-      state = workItem.state
+    val result = workItem.copy {
       createTime = commitTimestamp
       updateTime = commitTimestamp
     }

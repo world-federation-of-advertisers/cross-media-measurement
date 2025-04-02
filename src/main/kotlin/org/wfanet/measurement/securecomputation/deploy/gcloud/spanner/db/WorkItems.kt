@@ -22,6 +22,8 @@ import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import com.google.protobuf.Any
+import com.google.cloud.ByteArray
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -66,13 +68,17 @@ fun AsyncDatabaseClient.TransactionContext.insertWorkItem(
   workItemId: Long,
   workItemResourceId: String,
   queueId: Long,
+  workItemParams: Any,
 ): WorkItem.State {
   val state = WorkItem.State.QUEUED
+  val serializedParams: ByteArray = ByteArray.copyFrom(workItemParams.toByteArray())
+  val value = Value.bytes(serializedParams)
   bufferInsertMutation("WorkItems") {
     set("WorkItemId").to(workItemId)
     set("WorkItemResourceId").to(workItemResourceId)
     set("QueueId").to(queueId)
     set("State").to(state)
+    set("WorkItemParams").to(value)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
@@ -154,6 +160,7 @@ private object WorkItems {
       WorkItemResourceId,
       QueueId,
       State,
+      WorkItemParams,
       CreateTime,
       UpdateTime,
     FROM
@@ -162,12 +169,17 @@ private object WorkItems {
       .trimIndent()
 
   fun buildWorkItemResult(row: Struct, queue: QueueMapping.Queue): WorkItemResult {
+
+    val workItemParamsBytes = row.getBytes("WorkItemParams")
+    val workItemParams = Any.parseFrom(workItemParamsBytes.toByteArray())
+
     return WorkItemResult(
       row.getLong("WorkItemId"),
       workItem {
         workItemResourceId = row.getString("WorkItemResourceId")
         queueResourceId = queue.queueResourceId
         state = row.getProtoEnum("State", WorkItem.State::forNumber)
+        this.workItemParams = workItemParams
         createTime = row.getTimestamp("CreateTime").toProto()
         updateTime = row.getTimestamp("UpdateTime").toProto()
       },

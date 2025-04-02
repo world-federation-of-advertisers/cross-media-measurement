@@ -135,7 +135,6 @@ abstract class WorkItemsServiceTest {
         WorkItem.CREATE_TIME_FIELD_NUMBER,
         WorkItem.UPDATE_TIME_FIELD_NUMBER,
         WorkItem.WORK_ITEM_RESOURCE_ID_FIELD_NUMBER,
-        WorkItem.WORK_ITEM_PARAMS_FIELD_NUMBER,
       )
       .isEqualTo(
         request.workItem.copy {
@@ -296,36 +295,6 @@ abstract class WorkItemsServiceTest {
       )
   }
 
-//  @Test
-//  fun `getWorkItem returns WorkItem`() = runBlocking {
-//    val services = initServices()
-//
-//    googlePubSubClient.createTopic(projectId, topicId)
-//    googlePubSubClient.createSubscription(projectId, subscriptionId, topicId)
-//
-//    val request = createWorkItemRequest {
-//      workItem = workItem {
-//        workItemResourceId = "work_item_resource_id"
-//        queueResourceId = topicId
-//        workItemParams = Any.pack(
-//          testWork {
-//            userName = "UserName"
-//            userAge = "25"
-//            userCountry = "US"
-//          }
-//        )
-//      }
-//    }
-//
-//    val createResponse: WorkItem = services.service.createWorkItem(request)
-//    val getRequest = getWorkItemRequest { workItemResourceId = createResponse.workItemResourceId }
-//    val workItem = services.service.getWorkItem(getRequest)
-//
-////  assertThat(createResponse).ignoringFields(WorkItem.WORK_ITEM_PARAMS_FIELD_NUMBER).isEqualTo(workItem)
-//  assertThat(createResponse).isEqualTo(workItem)
-//    deleteSubscriptionAndTopic()
-//  }
-
   @Test
   fun `getWorkItem throws INVALID_ARGUMENT if workItemResourceId is missing`() = runBlocking {
     val services = initServices()
@@ -401,7 +370,6 @@ abstract class WorkItemsServiceTest {
     assertThat(workItem)
       .ignoringFields(
         WorkItem.UPDATE_TIME_FIELD_NUMBER,
-        WorkItem.WORK_ITEM_PARAMS_FIELD_NUMBER
       )
       .isEqualTo(createResponse.copy {
         state = WorkItem.State.FAILED
