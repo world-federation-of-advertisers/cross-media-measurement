@@ -57,20 +57,18 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
   enum class Index(internal val sql: String) {
     NONE(""),
     CREATE_REQUEST_ID("@{FORCE_INDEX=MeasurementsByCreateRequestId}"),
+    CONTINUATION_TOKEN("@{FORCE_INDEX=MeasurementsByContinuationToken}"),
   }
 
-  override val baseSql: String
-    get() = BASE_SQL
-
-  private val BASE_SQL =
+  override val baseSql: String =
     """
-      @{spanner_emulator.disable_query_null_filtered_index_check=true}
-      WITH FilteredMeasurements AS (
-        SELECT *
-        FROM
-          Measurements${measurementsIndex.sql}
-          JOIN MeasurementConsumers USING (MeasurementConsumerId)
-      """
+    @{spanner_emulator.disable_query_null_filtered_index_check=true}
+    WITH FilteredMeasurements AS (
+      SELECT *
+      FROM
+        Measurements${measurementsIndex.sql}
+        JOIN MeasurementConsumers USING (MeasurementConsumerId)
+    """
       .trimIndent()
 
   private var filled = false

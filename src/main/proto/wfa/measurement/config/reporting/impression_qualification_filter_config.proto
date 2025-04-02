@@ -1,0 +1,102 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.config.reporting;
+
+option java_package = "org.wfanet.measurement.config.reporting";
+option java_multiple_files = true;
+option java_outer_classname = "ImpressionQualificationFilterConfigProto";
+
+// The configuration that contains pre-defined impression qualification filters
+message ImpressionQualificationFilterConfig {
+  message ImpressionQualificationFilter {
+    // External IQF id
+    string external_impression_qualification_filter_id = 1;
+    // Internal IQF id used for all references from the DB
+    int64 impression_qualification_filter_id = 2;
+    // Specifies the filter criteria for each MediaType.
+    //
+    // There may be at most one spec per MediaType.
+    repeated ImpressionQualificationFilterSpec filter_specs = 3;
+  }
+
+  // Specifies IQF criteria for a MediaType
+  //
+  // If particular filter values are not applicable to the media they
+  // are applied to it is an error (e.g. DISPLAY cannot be filtered by
+  // percent completion)
+  message ImpressionQualificationFilterSpec {
+    // MediaType is used to designate how various artifacts
+    // should be interpreted for reporting.
+    enum MediaType {
+      // Default value. Unused.
+      MEDIA_TYPE_UNSPECIFIED = 0;
+      // Interpret a set of artifacts as Video
+      VIDEO = 1;
+      // Interpret a set of artifacts as Display
+      DISPLAY = 2;
+      // Interpret as set of artifacts as Other
+      OTHER = 3;
+    }
+    MediaType media_type = 1;
+
+    // A conjunction of filters.
+    //
+    // Event Template fields that are used by any filter Terms must be
+    // tagged as an impression qualifier and applicable to the provided
+    // media_type.
+    repeated EventFilter filters = 2;
+  }
+
+  // Event filter criteria
+  message EventFilter {
+    // A disjunction of terms that define the filter criteria.
+    //
+    // A current limitation is that the number of terms must be exactly one.
+    repeated EventTemplateField terms = 1;
+  }
+
+  // A representation of an event template field with its value
+  message EventTemplateField {
+    // A field path with respect to the local market Event message
+    // with `.` as the traversal operator.
+    //
+    // For example, if the Event message had an event template `common` with
+    // a field `age_group` then the field path would be `common.age_group`.
+    string path = 1;
+
+    // The value of the event template field
+    message FieldValue {
+      // Value type selector.
+      oneof selector {
+        // The field value as a string
+        string string_value = 1;
+        // The field value as a stringified enum value. This is the symbol
+        // associated with the enum value, not a stringification of its integer
+        // value. For example, for MediaType.VIDEO we expect "VIDEO" not "1"
+        string enum_value = 2;
+        // The field value as a Boolean
+        bool bool_value = 3;
+        // The field value as a Float
+        float float_value = 4;
+      }
+    }
+    // The value of the field
+    FieldValue value = 2;
+  }
+
+  repeated ImpressionQualificationFilter impression_qualification_filters = 1;
+}

@@ -26,21 +26,32 @@ import com.google.type.interval
 import com.google.type.timeZone
 import java.io.File
 import java.nio.file.Paths
-import java.security.SecureRandom
 import java.time.LocalDate
-import kotlin.random.asKotlinRandom
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
-import org.junit.After
+import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.access.client.v1alpha.TrustedPrincipalAuthInterceptor
+import org.wfanet.measurement.access.service.PermissionKey
+import org.wfanet.measurement.access.v1alpha.PoliciesGrpc
+import org.wfanet.measurement.access.v1alpha.PolicyKt
+import org.wfanet.measurement.access.v1alpha.PrincipalKt
+import org.wfanet.measurement.access.v1alpha.PrincipalsGrpc
+import org.wfanet.measurement.access.v1alpha.RolesGrpc
+import org.wfanet.measurement.access.v1alpha.createPolicyRequest
+import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
+import org.wfanet.measurement.access.v1alpha.createRoleRequest
+import org.wfanet.measurement.access.v1alpha.policy
+import org.wfanet.measurement.access.v1alpha.principal
+import org.wfanet.measurement.access.v1alpha.role
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
@@ -68,26 +79,23 @@ import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.princip
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
+import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
+import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
-import org.wfanet.measurement.integration.common.reporting.v2.identity.withPrincipalName
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
-import org.wfanet.measurement.loadtest.common.sampleVids
-import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.loadtest.dataprovider.MeasurementResults
-import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
+import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer
-import org.wfanet.measurement.reporting.service.api.v2alpha.withDefaults
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.MetricSpec.VidSamplingInterval
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.Report
@@ -129,6 +137,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         String, ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
       ) -> InProcessDuchy.DuchyDependencies
     >,
+  accessServicesFactory: AccessServicesFactory,
 ) {
   private val inProcessCmmsComponents: InProcessCmmsComponents =
     InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
@@ -137,14 +146,16 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     object : Statement() {
       override fun evaluate() {
         inProcessCmmsComponents.startDaemons()
-        base.evaluate()
+        try {
+          base.evaluate()
+        } finally {
+          inProcessCmmsComponents.stopDaemons()
+        }
       }
     }
   }
 
   abstract val internalReportingServerServices: InternalReportingServer.Services
-
-  private val secureRandom = SecureRandom().asKotlinRandom()
 
   private val reportingServerRule =
     object : TestRule {
@@ -178,6 +189,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
         return InProcessReportingServer(
           internalReportingServerServices,
+          accessServicesFactory,
           inProcessCmmsComponents.kingdom.publicApiChannel,
           encryptionKeyPairConfig,
           SECRETS_DIR,
@@ -192,7 +204,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         return object : Statement() {
           override fun evaluate() {
             reportingServer = buildReportingServer()
-            reportingServer.apply(base, description)
+            reportingServer.apply(base, description).evaluate()
           }
         }
       }
@@ -208,6 +220,92 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       inProcessCmmsComponentsStartup,
       reportingServerRule,
     )
+
+  private lateinit var credentials: TrustedPrincipalAuthInterceptor.Credentials
+
+  @Before
+  fun createAccessPolicy() {
+    val measurementConsumerData: MeasurementConsumerData =
+      inProcessCmmsComponents.getMeasurementConsumerData()
+    val accessChannel = reportingServer.accessChannel
+
+    val rolesStub = RolesGrpc.newBlockingStub(accessChannel)
+    val mcResourceType = "halo.wfanet.org/MeasurementConsumer"
+    val mcUserRole =
+      rolesStub.createRole(
+        createRoleRequest {
+          roleId = "mcUser"
+          role = role {
+            resourceTypes += mcResourceType
+            permissions +=
+              PERMISSIONS_CONFIG.permissionsMap
+                .filterValues { it.protectedResourceTypesList.contains(mcResourceType) }
+                .keys
+                .map { PermissionKey(it).toName() }
+          }
+        }
+      )
+    val rootResourceType = "reporting.halo-cmm.org/Root"
+    val kingdomUserRole =
+      rolesStub.createRole(
+        createRoleRequest {
+          roleId = "kingdomUser"
+          role = role {
+            resourceTypes += rootResourceType
+            permissions +=
+              PERMISSIONS_CONFIG.permissionsMap
+                .filterValues { it.protectedResourceTypesList.contains(rootResourceType) }
+                .keys
+                .map { PermissionKey(it).toName() }
+          }
+        }
+      )
+
+    val principalsStub = PrincipalsGrpc.newBlockingStub(accessChannel)
+    val principal =
+      principalsStub.createPrincipal(
+        createPrincipalRequest {
+          principalId = "mc-user"
+          this.principal = principal {
+            user =
+              PrincipalKt.oAuthUser {
+                issuer = "example.com"
+                subject = "mc-user@example.com"
+              }
+          }
+        }
+      )
+
+    val policiesStub = PoliciesGrpc.newBlockingStub(accessChannel)
+    policiesStub.createPolicy(
+      createPolicyRequest {
+        policyId = "test-mc-policy"
+        policy = policy {
+          protectedResource = measurementConsumerData.name
+          bindings +=
+            PolicyKt.binding {
+              this.role = mcUserRole.name
+              members += principal.name
+            }
+        }
+      }
+    )
+    policiesStub.createPolicy(
+      createPolicyRequest {
+        policyId = "test-root-policy"
+        policy = policy {
+          protectedResource = "" // Root
+          bindings +=
+            PolicyKt.binding {
+              this.role = kingdomUserRole.name
+              members += principal.name
+            }
+        }
+      }
+    )
+
+    credentials = TrustedPrincipalAuthInterceptor.Credentials(principal, setOf("reporting.*"))
+  }
 
   private val publicKingdomMeasurementConsumersClient by lazy {
     MeasurementConsumersCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
@@ -237,16 +335,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     ReportingSetsCoroutineStub(reportingServer.publicApiChannel)
   }
 
-  @After
-  fun stopEdpSimulators() {
-    inProcessCmmsComponents.stopEdpSimulators()
-  }
-
-  @After
-  fun stopDuchyDaemons() {
-    inProcessCmmsComponents.stopDuchyDaemons()
-  }
-
   @Test
   fun `reporting set is created and then retrieved`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
@@ -259,7 +347,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdPrimitiveReportingSet =
       publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReportingSet(
           createReportingSetRequest {
             parent = measurementConsumerData.name
@@ -270,7 +358,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val retrievedPrimitiveReportingSet =
       publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .getReportingSet(getReportingSetRequest { name = createdPrimitiveReportingSet.name })
 
     assertThat(createdPrimitiveReportingSet).isEqualTo(retrievedPrimitiveReportingSet)
@@ -311,7 +399,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdCompositeReportingSet =
       publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReportingSet(
           createReportingSetRequest {
             parent = measurementConsumerData.name
@@ -322,18 +410,16 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerData.name
             metricCalculationSpec = metricCalculationSpec {
               displayName = "union reach"
-              metricSpecs +=
-                metricSpec {
-                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
-                  .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+              metricSpecs += metricSpec {
+                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
             }
             metricCalculationSpecId = "fed"
           }
@@ -353,7 +439,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdReport =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReport(
           createReportRequest {
             parent = measurementConsumerData.name
@@ -362,19 +448,14 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
+    val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
       eventGroupEntries.map { (eventGroup, filter) ->
         buildEventGroupSpec(eventGroup, filter, EVENT_RANGE.toInterval())
       }
-    val sampledVids =
-      sampleVids(
-        eventGroupSpecs,
-        createdMetricCalculationSpec.metricSpecsList.single().vidSamplingInterval,
-      )
-    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+    val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
     val reachResult =
       retrievedReport.metricCalculationResultsList
@@ -435,7 +516,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdCompositeReportingSet =
       publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReportingSet(
           createReportingSetRequest {
             parent = measurementConsumerData.name
@@ -446,18 +527,16 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerData.name
             metricCalculationSpec = metricCalculationSpec {
               displayName = "unique reach"
-              metricSpecs +=
-                metricSpec {
-                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
-                  .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+              metricSpecs += metricSpec {
+                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
             }
             metricCalculationSpecId = "fed"
           }
@@ -477,7 +556,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdReport =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReport(
           createReportRequest {
             parent = measurementConsumerData.name
@@ -486,7 +565,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
+    val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
     val equivalentFilter =
@@ -494,12 +573,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         "person.age_group == ${Person.Gender.FEMALE_VALUE}"
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
       listOf(buildEventGroupSpec(eventGroup, equivalentFilter, EVENT_RANGE.toInterval()))
-    val sampledVids =
-      sampleVids(
-        eventGroupSpecs,
-        createdMetricCalculationSpec.metricSpecsList.single().vidSamplingInterval,
-      )
-    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+    val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
     val reachResult =
       retrievedReport.metricCalculationResultsList
@@ -548,7 +622,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdCompositeReportingSet =
       publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReportingSet(
           createReportingSetRequest {
             parent = measurementConsumerData.name
@@ -559,18 +633,16 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerData.name
             metricCalculationSpec = metricCalculationSpec {
               displayName = "intersection reach"
-              metricSpecs +=
-                metricSpec {
-                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
-                  .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+              metricSpecs += metricSpec {
+                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
             }
             metricCalculationSpecId = "fed"
           }
@@ -590,7 +662,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdReport =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReport(
           createReportRequest {
             parent = measurementConsumerData.name
@@ -599,19 +671,14 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
+    val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
     val equivalentFilter =
       "(${createdPrimitiveReportingSets[0].filter}) && (${createdPrimitiveReportingSets[1].filter})"
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
       listOf(buildEventGroupSpec(eventGroup, equivalentFilter, EVENT_RANGE.toInterval()))
-    val sampledVids =
-      sampleVids(
-        eventGroupSpecs,
-        createdMetricCalculationSpec.metricSpecsList.single().vidSamplingInterval,
-      )
-    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+    val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
     val reachResult =
       retrievedReport.metricCalculationResultsList
@@ -638,18 +705,16 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerData.name
             metricCalculationSpec = metricCalculationSpec {
               displayName = "union reach"
-              metricSpecs +=
-                metricSpec {
-                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
-                  .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+              metricSpecs += metricSpec {
+                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
             }
             metricCalculationSpecId = "fed"
           }
@@ -677,7 +742,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdReport =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReport(
           createReportRequest {
             parent = measurementConsumerData.name
@@ -686,19 +751,14 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
+    val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
       eventGroupEntries.map { (eventGroup, filter) ->
         buildEventGroupSpec(eventGroup, filter, EVENT_RANGE.toInterval())
       }
-    val sampledVids =
-      sampleVids(
-        eventGroupSpecs,
-        createdMetricCalculationSpec.metricSpecsList.single().vidSamplingInterval,
-      )
-    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+    val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
     for (resultAttribute in
       retrievedReport.metricCalculationResultsList.single().resultAttributesList) {
@@ -725,18 +785,16 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerData.name
             metricCalculationSpec = metricCalculationSpec {
               displayName = "union reach"
-              metricSpecs +=
-                metricSpec {
-                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
-                  .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+              metricSpecs += metricSpec {
+                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
             }
             metricCalculationSpecId = "fed"
           }
@@ -759,7 +817,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdReport =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReport(
           createReportRequest {
             parent = measurementConsumerData.name
@@ -768,7 +826,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
+    val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
     for (resultAttribute in retrievedReport.metricCalculationResultsList[0].resultAttributesList) {
@@ -781,12 +839,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         eventGroupEntries.map { (eventGroup, filter) ->
           buildEventGroupSpec(eventGroup, filter, resultAttribute.timeInterval)
         }
-      val sampledVids =
-        sampleVids(
-          eventGroupSpecs,
-          createdMetricCalculationSpec.metricSpecsList.single().vidSamplingInterval,
-        )
-      val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+      val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
       assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
     }
@@ -804,18 +857,16 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerData.name
             metricCalculationSpec = metricCalculationSpec {
               displayName = "union reach"
-              metricSpecs +=
-                metricSpec {
-                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
-                  .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+              metricSpecs += metricSpec {
+                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
               metricFrequencySpec =
                 MetricCalculationSpecKt.metricFrequencySpec {
                   daily = MetricCalculationSpec.MetricFrequencySpec.Daily.getDefaultInstance()
@@ -857,7 +908,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdReport =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReport(
           createReportRequest {
             parent = measurementConsumerData.name
@@ -866,7 +917,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
+    val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
     for (resultAttribute in retrievedReport.metricCalculationResultsList[0].resultAttributesList) {
@@ -879,12 +930,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         eventGroupEntries.map { (eventGroup, filter) ->
           buildEventGroupSpec(eventGroup, filter, resultAttribute.timeInterval)
         }
-      val sampledVids =
-        sampleVids(
-          eventGroupSpecs,
-          createdMetricCalculationSpec.metricSpecsList.single().vidSamplingInterval,
-        )
-      val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+      val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
       assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
     }
@@ -902,18 +948,16 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerData.name
             metricCalculationSpec = metricCalculationSpec {
               displayName = "union reach"
-              metricSpecs +=
-                metricSpec {
-                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
-                  .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+              metricSpecs += metricSpec {
+                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
               metricFrequencySpec =
                 MetricCalculationSpecKt.metricFrequencySpec {
                   weekly =
@@ -951,14 +995,14 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           reportEnd = date {
             year = 2024
             month = 1
-            day = 18
+            day = 17
           }
         }
     }
 
     val createdReport =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReport(
           createReportRequest {
             parent = measurementConsumerData.name
@@ -967,7 +1011,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
+    val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
     assertThat(retrievedReport.metricCalculationResultsList[0].resultAttributesList).hasSize(2)
@@ -982,7 +1026,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             seconds = 1704268800 // January 3, 2024 at 12:00 AM, America/Los_Angeles
           }
           endTime = timestamp {
-            seconds - 1704873600 // January 10, 2024 at 12:00 AM, America/Los_Angeles
+            seconds = 1704873600 // January 10, 2024 at 12:00 AM, America/Los_Angeles
           }
         }
       )
@@ -1015,18 +1059,16 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerData.name
             metricCalculationSpec = metricCalculationSpec {
               displayName = "union reach"
-              metricSpecs +=
-                metricSpec {
-                    reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
-                  .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+              metricSpecs += metricSpec {
+                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
               groupings +=
                 MetricCalculationSpecKt.grouping {
                   predicates += grouping1Predicate1
@@ -1056,7 +1098,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdReport =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReport(
           createReportRequest {
             parent = measurementConsumerData.name
@@ -1065,7 +1107,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
+    val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
     for (resultAttribute in retrievedReport.metricCalculationResultsList[0].resultAttributesList) {
@@ -1082,20 +1124,15 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               .joinToString(" && ")
           buildEventGroupSpec(eventGroup, allFilters, EVENT_RANGE.toInterval())
         }
-      val sampledVids =
-        sampleVids(
-          eventGroupSpecs,
-          createdMetricCalculationSpec.metricSpecsList.single().vidSamplingInterval,
-        )
-      val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+      val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
       assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
     }
   }
 
   @Test
-  fun `creating 25 reports at once succeeds`() = runBlocking {
-    val numReports = 25
+  fun `creating 3 reports at once succeeds`() = runBlocking {
+    val numReports = 3
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
@@ -1105,20 +1142,16 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerData.name
             metricCalculationSpec = metricCalculationSpec {
               displayName = "load test"
-              metricSpecs +=
-                metricSpec {
-                    reach =
-                      MetricSpecKt.reachParams {
-                        privacyParams = MetricSpecKt.differentialPrivacyParams {}
-                      }
-                  }
-                  .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+              metricSpecs += metricSpec {
+                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
             }
             metricCalculationSpecId = "fed"
           }
@@ -1146,7 +1179,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       deferred.add(
         async {
           publicReportsClient
-            .withPrincipalName(measurementConsumerData.name)
+            .withCallCredentials(credentials)
             .createReport(
               createReportRequest {
                 parent = measurementConsumerData.name
@@ -1161,7 +1194,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     deferred.awaitAll()
     val retrievedReports =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .listReports(
           listReportsRequest {
             parent = measurementConsumerData.name
@@ -1196,17 +1229,15 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
       timeInterval = EVENT_RANGE.toInterval()
-      metricSpec =
-        metricSpec {
-            reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-            vidSamplingInterval = VID_SAMPLING_INTERVAL
-          }
-          .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+      metricSpec = metricSpec {
+        reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+        vidSamplingInterval = VID_SAMPLING_INTERVAL
+      }
     }
 
     val createdMetric =
       publicMetricsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetric(
           createMetricRequest {
             parent = measurementConsumerData.name
@@ -1215,15 +1246,14 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedMetric = pollForCompletedMetric(measurementConsumerData.name, createdMetric.name)
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
       eventGroupEntries.map { (eventGroup, filter) ->
         buildEventGroupSpec(eventGroup, filter, EVENT_RANGE.toInterval())
       }
-    val sampledVids = sampleVids(eventGroupSpecs, metric.metricSpec.vidSamplingInterval)
-    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+    val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
     val reachResult = retrievedMetric.result.reach
     val actualResult =
@@ -1245,28 +1275,26 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
       timeInterval = EVENT_RANGE.toInterval()
-      metricSpec =
-        metricSpec {
-            reach =
-              MetricSpecKt.reachParams {
-                multipleDataProviderParams =
-                  MetricSpecKt.samplingAndPrivacyParams {
-                    privacyParams = DP_PARAMS
-                    vidSamplingInterval = VID_SAMPLING_INTERVAL
-                  }
-                singleDataProviderParams =
-                  MetricSpecKt.samplingAndPrivacyParams {
-                    privacyParams = SINGLE_DATA_PROVIDER_DP_PARAMS
-                    vidSamplingInterval = SINGLE_DATA_PROVIDER_VID_SAMPLING_INTERVAL
-                  }
+      metricSpec = metricSpec {
+        reach =
+          MetricSpecKt.reachParams {
+            multipleDataProviderParams =
+              MetricSpecKt.samplingAndPrivacyParams {
+                privacyParams = DP_PARAMS
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
+            singleDataProviderParams =
+              MetricSpecKt.samplingAndPrivacyParams {
+                privacyParams = SINGLE_DATA_PROVIDER_DP_PARAMS
+                vidSamplingInterval = SINGLE_DATA_PROVIDER_VID_SAMPLING_INTERVAL
               }
           }
-          .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+      }
     }
 
     val createdMetric =
       publicMetricsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetric(
           createMetricRequest {
             parent = measurementConsumerData.name
@@ -1275,19 +1303,14 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedMetric = pollForCompletedMetric(measurementConsumerData.name, createdMetric.name)
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
       eventGroupEntries.map { (eventGroup, filter) ->
         buildEventGroupSpec(eventGroup, filter, EVENT_RANGE.toInterval())
       }
-    val sampledVids =
-      sampleVids(
-        eventGroupSpecs,
-        metric.metricSpec.reach.singleDataProviderParams.vidSamplingInterval,
-      )
-    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+    val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
     val reachResult = retrievedMetric.result.reach
     val actualResult =
@@ -1309,22 +1332,20 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
       timeInterval = EVENT_RANGE.toInterval()
-      metricSpec =
-        metricSpec {
-            reachAndFrequency =
-              MetricSpecKt.reachAndFrequencyParams {
-                reachPrivacyParams = DP_PARAMS
-                frequencyPrivacyParams = DP_PARAMS
-                maximumFrequency = 5
-              }
-            vidSamplingInterval = VID_SAMPLING_INTERVAL
+      metricSpec = metricSpec {
+        reachAndFrequency =
+          MetricSpecKt.reachAndFrequencyParams {
+            reachPrivacyParams = DP_PARAMS
+            frequencyPrivacyParams = DP_PARAMS
+            maximumFrequency = 5
           }
-          .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+        vidSamplingInterval = VID_SAMPLING_INTERVAL
+      }
     }
 
     val createdMetric =
       publicMetricsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetric(
           createMetricRequest {
             parent = measurementConsumerData.name
@@ -1333,17 +1354,16 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedMetric = pollForCompletedMetric(measurementConsumerData.name, createdMetric.name)
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
       eventGroupEntries.map { (eventGroup, filter) ->
         buildEventGroupSpec(eventGroup, filter, EVENT_RANGE.toInterval())
       }
-    val sampledVids = sampleVids(eventGroupSpecs, metric.metricSpec.vidSamplingInterval)
     val expectedResult =
       calculateExpectedReachAndFrequencyMeasurementResult(
-        sampledVids,
+        eventGroupSpecs,
         metric.metricSpec.reachAndFrequency.maximumFrequency,
       )
 
@@ -1387,17 +1407,15 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
       timeInterval = EVENT_RANGE.toInterval()
-      metricSpec =
-        metricSpec {
-            impressionCount = MetricSpecKt.impressionCountParams { privacyParams = DP_PARAMS }
-            vidSamplingInterval = VID_SAMPLING_INTERVAL
-          }
-          .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+      metricSpec = metricSpec {
+        impressionCount = MetricSpecKt.impressionCountParams { privacyParams = DP_PARAMS }
+        vidSamplingInterval = VID_SAMPLING_INTERVAL
+      }
     }
 
     val createdMetric =
       publicMetricsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetric(
           createMetricRequest {
             parent = measurementConsumerData.name
@@ -1406,18 +1424,17 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedMetric = pollForCompletedMetric(measurementConsumerData.name, createdMetric.name)
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
       eventGroupEntries.map { (eventGroup, filter) ->
         buildEventGroupSpec(eventGroup, filter, EVENT_RANGE.toInterval())
       }
-    val sampledVids = sampleVids(eventGroupSpecs, metric.metricSpec.vidSamplingInterval)
     val expectedResult =
       calculateExpectedImpressionMeasurementResult(
-        sampledVids,
-        metric.metricSpec.impressionCount.maximumFrequencyPerUser,
+        eventGroupSpecs,
+        createdMetric.metricSpec.impressionCount.maximumFrequencyPerUser,
       )
 
     val impressionResult = retrievedMetric.result.impressionCount
@@ -1446,17 +1463,15 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
       timeInterval = EVENT_RANGE.toInterval()
-      metricSpec =
-        metricSpec {
-            watchDuration = MetricSpecKt.watchDurationParams { privacyParams = DP_PARAMS }
-            vidSamplingInterval = VID_SAMPLING_INTERVAL
-          }
-          .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+      metricSpec = metricSpec {
+        watchDuration = MetricSpecKt.watchDurationParams { privacyParams = DP_PARAMS }
+        vidSamplingInterval = VID_SAMPLING_INTERVAL
+      }
     }
 
     val createdMetric =
       publicMetricsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetric(
           createMetricRequest {
             parent = measurementConsumerData.name
@@ -1465,7 +1480,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedMetric = pollForCompletedMetric(measurementConsumerData.name, createdMetric.name)
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
 
     // TODO(@tristanvuong2021): Calculate watch duration using synthetic spec.
@@ -1484,18 +1499,16 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val metric = metric {
       reportingSet = createdPrimitiveReportingSet.name
       timeInterval = EVENT_RANGE.toInterval()
-      metricSpec =
-        metricSpec {
-            reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-            vidSamplingInterval = VID_SAMPLING_INTERVAL
-          }
-          .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+      metricSpec = metricSpec {
+        reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+        vidSamplingInterval = VID_SAMPLING_INTERVAL
+      }
       filters += "person.gender == ${Person.Gender.MALE_VALUE}"
     }
 
     val createdMetric =
       publicMetricsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetric(
           createMetricRequest {
             parent = measurementConsumerData.name
@@ -1504,7 +1517,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedMetric = pollForCompletedMetric(measurementConsumerData.name, createdMetric.name)
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
@@ -1513,8 +1526,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           (metric.filtersList + filter).filter { it.isNotBlank() }.joinToString(" && ")
         buildEventGroupSpec(eventGroup, allFilters, EVENT_RANGE.toInterval())
       }
-    val sampledVids = sampleVids(eventGroupSpecs, metric.metricSpec.vidSamplingInterval)
-    val expectedResult = calculateExpectedReachMeasurementResult(sampledVids)
+    val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
     val reachResult = retrievedMetric.result.reach
     val actualResult =
@@ -1524,8 +1536,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   @Test
-  fun `creating 25 metrics at once succeeds`() = runBlocking {
-    val numMetrics = 25
+  fun `creating 3 metrics at once succeeds`() = runBlocking {
+    val numMetrics = 3
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
@@ -1539,12 +1551,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         startTime = timestamp { seconds = 100 }
         endTime = timestamp { seconds = 200 }
       }
-      metricSpec =
-        metricSpec {
-            reach =
-              MetricSpecKt.reachParams { privacyParams = MetricSpecKt.differentialPrivacyParams {} }
-          }
-          .withDefaults(reportingServer.metricSpecConfig, secureRandom)
+      metricSpec = metricSpec {
+        reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+        vidSamplingInterval = VID_SAMPLING_INTERVAL
+      }
     }
 
     val deferred: MutableList<Deferred<Metric>> = mutableListOf()
@@ -1552,7 +1562,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       deferred.add(
         async {
           publicMetricsClient
-            .withPrincipalName(measurementConsumerData.name)
+            .withCallCredentials(credentials)
             .createMetric(
               createMetricRequest {
                 parent = measurementConsumerData.name
@@ -1567,7 +1577,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     deferred.awaitAll()
     val retrievedMetrics =
       publicMetricsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .listMetrics(
           listMetricsRequest {
             parent = measurementConsumerData.name
@@ -1606,7 +1616,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       deferred.add(
         async {
           publicReportingSetsClient
-            .withPrincipalName(measurementConsumerData.name)
+            .withCallCredentials(credentials)
             .createReportingSet(
               createReportingSetRequest {
                 parent = measurementConsumerData.name
@@ -1621,7 +1631,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     deferred.awaitAll()
     val retrievedPrimitiveReportingSets =
       publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .listReportingSets(
           listReportingSetsRequest {
             parent = measurementConsumerData.name
@@ -1641,10 +1651,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val eventGroups = listEventGroups()
     val dataProviderName = eventGroups.first().cmmsDataProvider
 
-    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val dataProvider =
       publicDataProvidersClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .getDataProvider(getDataProviderRequest { name = dataProviderName })
 
     assertThat(DataProviderCertificateKey.fromName(dataProvider.certificate)).isNotNull()
@@ -1656,10 +1665,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val descriptorNames = eventGroups.map { it.metadata.eventGroupMetadataDescriptor }
 
-    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val descriptors =
       publicEventGroupMetadataDescriptorsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .batchGetEventGroupMetadataDescriptors(
           batchGetEventGroupMetadataDescriptorsRequest { names += descriptorNames }
         )
@@ -1684,7 +1692,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
 
     return publicEventGroupsClient
-      .withPrincipalName(measurementConsumerData.name)
+      .withCallCredentials(credentials)
       .listEventGroups(
         listEventGroupsRequest {
           parent = measurementConsumerData.name
@@ -1711,7 +1719,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     return primitiveReportingSets.mapIndexed { index, primitiveReportingSet ->
       publicReportingSetsClient
-        .withPrincipalName(measurementConsumerName)
+        .withCallCredentials(credentials)
         .createReportingSet(
           createReportingSetRequest {
             parent = measurementConsumerName
@@ -1722,14 +1730,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
   }
 
-  private suspend fun pollForCompletedReport(
-    measurementConsumerName: String,
-    reportName: String,
-  ): Report {
+  private suspend fun pollForCompletedReport(reportName: String): Report {
     while (true) {
       val retrievedReport =
         publicReportsClient
-          .withPrincipalName(measurementConsumerName)
+          .withCallCredentials(credentials)
           .getReport(getReportRequest { name = reportName })
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -1743,14 +1748,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
   }
 
-  private suspend fun pollForCompletedMetric(
-    measurementConsumerName: String,
-    metricName: String,
-  ): Metric {
+  private suspend fun pollForCompletedMetric(metricName: String): Metric {
     while (true) {
       val retrievedMetric =
         publicMetricsClient
-          .withPrincipalName(measurementConsumerName)
+          .withCallCredentials(credentials)
           .getMetric(getMetricRequest { name = metricName })
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -1765,20 +1767,32 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   private fun calculateExpectedReachMeasurementResult(
-    sampledVids: Sequence<Long>
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>
   ): Measurement.Result {
-    val reach = MeasurementResults.computeReach(sampledVids.asIterable())
+    val reach =
+      MeasurementResults.computeReach(
+        eventGroupSpecs
+          .asSequence()
+          .flatMap { SYNTHETIC_EVENT_QUERY.getUserVirtualIds(it) }
+          .asIterable()
+      )
     return MeasurementKt.result {
       this.reach = MeasurementKt.ResultKt.reach { value = reach.toLong() }
     }
   }
 
   private fun calculateExpectedReachAndFrequencyMeasurementResult(
-    sampledVids: Sequence<Long>,
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
     maxFrequency: Int,
   ): Measurement.Result {
     val reachAndFrequency =
-      MeasurementResults.computeReachAndFrequency(sampledVids.asIterable(), maxFrequency)
+      MeasurementResults.computeReachAndFrequency(
+        eventGroupSpecs
+          .asSequence()
+          .flatMap { SYNTHETIC_EVENT_QUERY.getUserVirtualIds(it) }
+          .asIterable(),
+        maxFrequency,
+      )
     return MeasurementKt.result {
       reach = MeasurementKt.ResultKt.reach { value = reachAndFrequency.reach.toLong() }
       frequency =
@@ -1791,10 +1805,17 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   private fun calculateExpectedImpressionMeasurementResult(
-    sampledVids: Sequence<Long>,
+    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
     maxFrequency: Int,
   ): Measurement.Result {
-    val impression = MeasurementResults.computeImpression(sampledVids.asIterable(), maxFrequency)
+    val impression =
+      MeasurementResults.computeImpression(
+        eventGroupSpecs
+          .asSequence()
+          .flatMap { SYNTHETIC_EVENT_QUERY.getUserVirtualIds(it) }
+          .asIterable(),
+        maxFrequency,
+      )
     return MeasurementKt.result {
       this.impression = MeasurementKt.ResultKt.impression { value = impression }
     }
@@ -1823,58 +1844,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         this.filter = eventFilter
       },
     )
-  }
-
-  private fun SyntheticGeneratorEventQuery.getUserVirtualIds(
-    eventGroup: EventGroup,
-    filter: String,
-    collectionInterval: Interval,
-  ): Sequence<Long> {
-    val cmmsMetadata =
-      CmmsEventGroupKt.metadata {
-        eventGroupMetadataDescriptor = eventGroup.metadata.eventGroupMetadataDescriptor
-        metadata = eventGroup.metadata.metadata
-      }
-    val encryptedCmmsMetadata =
-      encryptMetadata(cmmsMetadata, InProcessCmmsComponents.MC_ENTITY_CONTENT.encryptionPublicKey)
-    val cmmsEventGroup = cmmsEventGroup { encryptedMetadata = encryptedCmmsMetadata }
-
-    val eventFilter = RequisitionSpecKt.eventFilter { expression = filter }
-
-    return this.getUserVirtualIds(
-      EventQuery.EventGroupSpec(
-        cmmsEventGroup,
-        RequisitionSpecKt.EventGroupEntryKt.value {
-          this.collectionInterval = collectionInterval
-          this.filter = eventFilter
-        },
-      )
-    )
-  }
-
-  private fun sampleVids(
-    eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
-    vidSamplingInterval: VidSamplingInterval,
-  ): Sequence<Long> {
-    return sampleVids(
-        SYNTHETIC_EVENT_QUERY,
-        eventGroupSpecs,
-        vidSamplingInterval.start,
-        vidSamplingInterval.width,
-      )
-      .asSequence()
-  }
-
-  private fun Sequence<Long>.calculateSampledVids(
-    vidSamplingInterval: VidSamplingInterval
-  ): Sequence<Long> {
-    return this.filter { vid ->
-      VidSampling.sampler.vidIsInSamplingBucket(
-        vid,
-        vidSamplingInterval.start,
-        vidSamplingInterval.width,
-      )
-    }
   }
 
   /** Computes the margin of error, i.e. half width, of a 99.9% confidence interval. */

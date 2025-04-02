@@ -191,6 +191,7 @@ abstract class MillBase(
   }
 
   private var computationsServerReady = false
+
   /**
    * Claim the next available work item and process it.
    *

@@ -18,6 +18,7 @@ package wfa.measurement.securecomputation.controlplane.v1alpha;
 
 import "google/api/client.proto";
 import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
 import "wfa/measurement/securecomputation/controlplane/v1alpha/work_item.proto";
 
 option java_package = "org.wfanet.measurement.securecomputation.controlplane.v1alpha";
@@ -34,6 +35,21 @@ service WorkItems {
   rpc CreateWorkItem(CreateWorkItemRequest) returns (WorkItem) {
     option (google.api.method_signature) = "work_item,work_item_id";
   }
+
+  // Returns a `WorkItem`.
+  rpc GetWorkItem(GetWorkItemRequest) returns (WorkItem) {
+    option (google.api.method_signature) = "name";
+  }
+
+  // List `WorkItem`s.
+  rpc ListWorkItems(ListWorkItemsRequest) returns (ListWorkItemsResponse) {}
+
+  // Set the `WorkItem` status to FAILED, in case of a non-retriable error.
+  //
+  // Set `WorkItemAttempt`s as FAILED.
+  rpc FailWorkItem(FailWorkItemRequest) returns (WorkItem) {
+    option (google.api.method_signature) = "name";
+  }
 }
 
 // Request message for `CreateWorkItem` method.
@@ -47,4 +63,50 @@ message CreateWorkItemRequest {
 
   // The `WorkItem` to create.
   WorkItem work_item = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for `GetWorkItem` method.
+message GetWorkItemRequest {
+  // Resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type =
+        "control-plane.secure-computation.halo-cmm.org/WorkItem"
+  ];
+}
+
+// Request message for `ListWorkItems` method.
+message ListWorkItemsRequest {
+  // The maximum number of reports to return. The service may return fewer than
+  // this value.
+  // If unspecified, at most 50 work items will be returned.
+  // The maximum value is 1000; values above 1000 will be coerced to 1000.
+  int32 page_size = 1 [(google.api.field_behavior) = OPTIONAL];
+
+  // A page token, received from a previous `ListWorkItems` call.
+  // Provide this to retrieve the subsequent page.
+  //
+  // When paginating, all other parameters provided to `ListWorkItems` must
+  // match the call that provided the page token.
+  string page_token = 2 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Response message for `ListWorkItems` method.
+message ListWorkItemsResponse {
+  // `WorkItem`s ordered by `create_time`, descending.
+  repeated WorkItem work_items = 1;
+
+  // A token, which can be sent as `page_token` to retrieve the next page.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2;
+}
+
+// Request message for `FailWorkItem` method.
+message FailWorkItemRequest {
+  // Resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type =
+        "control-plane.secure-computation.halo-cmm.org/WorkItem"
+  ];
 }

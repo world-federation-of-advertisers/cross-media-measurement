@@ -47,7 +47,7 @@ object Errors {
     RESOURCE_TYPE_NOT_FOUND_IN_PERMISSION,
     REQUIRED_FIELD_NOT_SET,
     INVALID_FIELD_VALUE,
-    ETAG_MISMATCH
+    ETAG_MISMATCH,
   }
 
   enum class Metadata(val key: String) {

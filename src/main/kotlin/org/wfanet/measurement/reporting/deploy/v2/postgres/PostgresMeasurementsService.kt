@@ -50,7 +50,7 @@ class PostgresMeasurementsService(
       SetCmmsMeasurementIds(request).execute(client, idGenerator)
       return Empty.getDefaultInstance()
     } catch (e: MeasurementConsumerNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found")
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: MeasurementNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found")
     }
@@ -69,7 +69,7 @@ class PostgresMeasurementsService(
       SetMeasurementResults(request).execute(client, idGenerator)
       return Empty.getDefaultInstance()
     } catch (e: MeasurementConsumerNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found")
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: MeasurementNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found")
     }
@@ -88,7 +88,7 @@ class PostgresMeasurementsService(
       SetMeasurementFailures(request).execute(client, idGenerator)
       return Empty.getDefaultInstance()
     } catch (e: MeasurementConsumerNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found")
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: MeasurementNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Measurement not found")
     }

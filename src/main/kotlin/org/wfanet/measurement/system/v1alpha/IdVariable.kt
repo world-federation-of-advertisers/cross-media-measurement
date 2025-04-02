@@ -20,7 +20,7 @@ internal enum class IdVariable {
   COMPUTATION,
   COMPUTATION_LOG_ENTRY,
   DUCHY,
-  REQUISITION
+  REQUISITION,
 }
 
 internal fun ResourceNameParser.assembleName(idMap: Map<IdVariable, String>): String {

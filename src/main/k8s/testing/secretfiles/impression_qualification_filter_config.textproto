@@ -1,0 +1,48 @@
+# proto-file: impression_qualification_filter_config.proto
+# proto-message: wfa.measurement.config.reporting.ImpressionQualificationFilterConfig
+
+# AMI
+impression_qualification_filters {
+  external_impression_qualification_filter_id: "ami"
+  impression_qualification_filter_id: 1
+  filter_specs {
+    media_type: VIDEO
+    filters: []
+  }
+  filter_specs {
+    media_type: DISPLAY
+    filters: []
+  }
+  filter_specs {
+    media_type: OTHER
+    filters: []
+  }
+}
+
+# MRC
+impression_qualification_filters {
+  external_impression_qualification_filter_id: "mrc"
+  impression_qualification_filter_id: 2
+  filter_specs {
+    media_type: DISPLAY
+    filters: {
+      terms: {
+        path: "banner_ad.viewable_fraction_1_second"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+  }
+  filter_specs {
+    media_type: VIDEO
+    filters: {
+      terms: {
+        path: "video.viewable_fraction_1_second"
+        value: {
+          float_value: 1.0
+        }
+      }
+    }
+  }
+}

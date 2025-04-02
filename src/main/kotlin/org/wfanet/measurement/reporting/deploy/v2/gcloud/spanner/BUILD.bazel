@@ -1,0 +1,30 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/service:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:__pkg__",
+    ],
+)
+
+kt_jvm_library(
+    name = "basic_reports_service",
+    srcs = ["SpannerBasicReportsService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/db:basic_reports",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/db:measurement_consumers",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/readers",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:internal_exception",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_reports_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)

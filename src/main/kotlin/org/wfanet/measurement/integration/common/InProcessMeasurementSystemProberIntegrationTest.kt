@@ -138,10 +138,10 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
   private suspend fun listMeasurements(): List<Measurement> {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
 
-    val measurementLists: Flow<ResourceList<Measurement>> =
+    val measurements: Flow<Measurement> =
       publicMeasurementsClient
         .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .listResources { pageToken ->
+        .listResources<Measurement, String, MeasurementsCoroutineStub> { pageToken ->
           val response =
             try {
               listMeasurements(
@@ -158,8 +158,9 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
             }
           ResourceList(response.measurementsList, response.nextPageToken)
         }
+        .flattenConcat()
 
-    return measurementLists.flattenConcat().toList()
+    return measurements.toList()
   }
 
   companion object {

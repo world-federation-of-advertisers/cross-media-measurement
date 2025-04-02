@@ -1,0 +1,35 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "PrincipalAuthInterceptorTest",
+    srcs = ["PrincipalAuthInterceptorTest.kt"],
+    test_class = "org.wfanet.measurement.access.client.v1alpha.PrincipalAuthInterceptorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:principal_auth_interceptor",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/io/grpc/health/v1:health_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "AuthorizationTest",
+    srcs = ["AuthorizationTest.kt"],
+    test_class = "org.wfanet.measurement.access.client.v1alpha.AuthorizationTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:authorization",
+        "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha/testing:authentication",
+        "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha/testing:protected_resource_matcher",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)

@@ -298,6 +298,29 @@ class MetricSpecDefaultsTest {
   }
 
   @Test
+  fun `MetricSpecConfig validate does not throw exception with valid config`() {
+    METRIC_SPEC_CONFIG.validate()
+  }
+
+  @Test
+  fun `MetricSpecConfig validate does not throw exception with valid random start`() {
+    val vidSamplingInterval =
+      MetricSpecConfigKt.vidSamplingInterval {
+        randomStart = MetricSpecConfigKt.VidSamplingIntervalKt.randomStart { width = 0.27F }
+      }
+    val metricSpecConfig =
+      METRIC_SPEC_CONFIG.copy {
+        reachParams =
+          reachParams.copy {
+            multipleDataProviderParams =
+              multipleDataProviderParams.copy { this.vidSamplingInterval = vidSamplingInterval }
+          }
+      }
+
+    metricSpecConfig.validate()
+  }
+
+  @Test
   fun `buildMetricSpec builds a reach metric spec when no field is filled in privacy_params`() {
     val result = LEGACY_EMPTY_REACH_METRIC_SPEC.withDefaults(METRIC_SPEC_CONFIG, randomMock)
     val expected = metricSpec {

@@ -347,7 +347,7 @@ class EdpSimulator(
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun getEventGroupByReferenceId(eventGroupReferenceId: String): EventGroup? {
     return eventGroupsStub
-      .listResources { pageToken ->
+      .listResources { pageToken: String ->
         val response =
           try {
             listEventGroups(

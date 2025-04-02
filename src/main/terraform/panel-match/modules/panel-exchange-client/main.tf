@@ -16,22 +16,22 @@ module "aws_eks_cluster" {
   source = "../eks"
 
   availability_zones_count = var.availability_zones_count
-  project = var.project
-  vpc_cidr = var.vpc_cidr
-  subnet_cidr_bits = var.subnet_cidr_bits
+  project                  = var.project
+  vpc_cidr                 = var.vpc_cidr
+  subnet_cidr_bits         = var.subnet_cidr_bits
 }
 
 module "docker_config" {
   source = "../eks_config"
 
-  use_test_secrets = var.use_test_secrets
-  image_name = var.image_name
-  build_target_name = var.build_target_name
-  manifest_name = var.manifest_name
-  repository_name = var.repository_name
-  path_to_secrets = var.path_to_secrets
+  use_test_secrets         = var.use_test_secrets
+  image_name               = var.image_name
+  build_target_name        = var.build_target_name
+  manifest_name            = var.manifest_name
+  repository_name          = var.repository_name
+  path_to_secrets          = var.path_to_secrets
   k8s_account_service_name = var.k8s_account_service_name
-  cluster_name = module.aws_eks_cluster.cluster_name
-  kms_key_id = aws_kms_key.k8s_key.key_id
-  ca_arn = aws_acmpca_certificate_authority.root_ca.arn
+  cluster_name             = module.aws_eks_cluster.cluster_name
+  kms_key_id               = aws_kms_key.k8s_key.key_id
+  ca_arn                   = aws_acmpca_certificate_authority.root_ca.arn
 }

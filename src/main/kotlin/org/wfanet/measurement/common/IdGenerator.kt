@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.access.service.internal
+package org.wfanet.measurement.common
 
 import kotlin.random.Random
 

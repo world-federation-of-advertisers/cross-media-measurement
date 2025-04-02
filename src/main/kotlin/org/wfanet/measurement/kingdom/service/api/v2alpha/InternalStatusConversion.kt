@@ -16,13 +16,10 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import com.google.protobuf.Any as ProtoAny
 import com.google.rpc.errorInfo
-import com.google.rpc.status
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
-import io.grpc.protobuf.StatusProto
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeKey
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
@@ -48,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.ModelRolloutKey
 import org.wfanet.measurement.api.v2alpha.ModelShardKey
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.PopulationKey
+import org.wfanet.measurement.common.grpc.asRuntimeException
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
@@ -57,6 +55,8 @@ import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasuremen
 import org.wfanet.measurement.internal.kingdom.ModelLine as InternalModelLine
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 
+private const val DOMAIN = "halo.wfanet.org"
+
 /**
  * Converts this [Status] to a [StatusRuntimeException] with details from [internalApiException].
  * This may replace the error info and description...
@@ -65,13 +65,14 @@ fun Status.toExternalStatusRuntimeException(
   internalApiException: StatusException
 ): StatusRuntimeException {
   val errorInfo = internalApiException.errorInfo
-
   if (errorInfo == null || errorInfo.domain != ErrorCode.getDescriptor().fullName) {
-    return this.asRuntimeException()
+    return withCause(internalApiException).asRuntimeException()
   }
+
   var errorMessage = this.description ?: "Unknown exception."
+  val errorCode = ErrorCode.valueOf(errorInfo.reason)
   val metadataMap = buildMap {
-    when (ErrorCode.valueOf(errorInfo.reason)) {
+    when (errorCode) {
       ErrorCode.MEASUREMENT_NOT_FOUND -> {
         val measurementName =
           MeasurementKey(
@@ -702,10 +703,13 @@ fun Status.toExternalStatusRuntimeException(
     }
   }
 
-  val statusProto = status {
-    code = this@toExternalStatusRuntimeException.code.value()
-    message = errorMessage
-    details += ProtoAny.pack(errorInfo { metadata.putAll(metadataMap) })
-  }
-  return StatusProto.toStatusRuntimeException(statusProto)
+  return withCause(internalApiException)
+    .withDescription(errorMessage)
+    .asRuntimeException(
+      errorInfo {
+        domain = DOMAIN
+        reason = errorCode.name
+        metadata.putAll(metadataMap)
+      }
+    )
 }

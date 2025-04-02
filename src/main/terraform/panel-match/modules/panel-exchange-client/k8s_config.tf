@@ -80,7 +80,7 @@ sed -i -E 's|path_to_secrets=".*"|path_to_secrets="${var.path_to_secrets}"|' cer
   # build and push the Docker image to ECR
   provisioner "local-exec" {
     working_dir = "../../../"
-    command = "bazel run src/main/docker/${var.image_name} -c opt --define container_registry=${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com"
+    command     = "bazel run src/main/docker/${var.image_name} -c opt --define container_registry=${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com"
   }
 
   # create a k8s service account
@@ -90,7 +90,7 @@ sed -i -E 's|path_to_secrets=".*"|path_to_secrets="${var.path_to_secrets}"|' cer
 
   # build and apply secrets
   provisioner "local-exec" {
-    command = <<EOF
+    command     = <<EOF
 str=$(kubectl apply -k ${var.path_to_secrets})
 
 regex="(certs-and-configs-\S*)"

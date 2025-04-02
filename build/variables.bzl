@@ -59,6 +59,9 @@ TEST_K8S_SETTINGS = struct(
     db_secret_name = "$(k8s_db_secret_name)",
     mc_config_secret_name = "$(k8s_mc_config_secret_name)",
     grafana_secret_name = "$(k8s_grafana_secret_name)",
+    pdp_name = "$(pdp_name)",
+    pdp_cert_name = "$(pdp_cert_name)",
+    population_resource_name = "$(population_resource_name)",
 )
 
 GCLOUD_SETTINGS = struct(

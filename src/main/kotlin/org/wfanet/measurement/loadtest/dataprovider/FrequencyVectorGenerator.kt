@@ -31,6 +31,7 @@ class FrequencyVectorGenerator(
   init {
     sortedNormalizedHashValues = vidToIndexMap.values.toList().map { it.value }.sorted()
   }
+
   /** Generates a frequency vector for the specified [eventGroupSpecs]. */
   fun generate(eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>): IntArray {
     require(vidToIndexMap.isNotEmpty()) { "The VID to index map not be empty." }

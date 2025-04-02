@@ -18,6 +18,7 @@ package org.wfanet.measurement.access.deploy.gcloud.spanner.db
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Mutation
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.toList
@@ -54,7 +55,11 @@ suspend fun AsyncDatabaseClient.ReadContext.getPolicyByResourceId(
     appendLine("WHERE PolicyResourceId = @policyResourceId")
   }
   val rows: List<Struct> =
-    executeQuery(statement(sql) { bind("policyResourceId").to(policyResourceId) }).toList()
+    executeQuery(
+        statement(sql) { bind("policyResourceId").to(policyResourceId) },
+        Options.tag("action=getPolicyByResourceId"),
+      )
+      .toList()
 
   if (rows.isEmpty()) {
     throw PolicyNotFoundException(policyResourceId)
@@ -76,7 +81,10 @@ suspend fun AsyncDatabaseClient.ReadContext.getPolicyByProtectedResourceName(
     appendLine("WHERE ProtectedResourceName = @protectedResourceName")
   }
   val rows: List<Struct> =
-    executeQuery(statement(sql) { bind("protectedResourceName").to(protectedResourceName) })
+    executeQuery(
+        statement(sql) { bind("protectedResourceName").to(protectedResourceName) },
+        Options.tag("action=getPolicyByProtectedResourceName"),
+      )
       .toList()
 
   if (rows.isEmpty()) {

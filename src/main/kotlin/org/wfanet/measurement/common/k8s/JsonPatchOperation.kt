@@ -30,6 +30,7 @@ private constructor(
   companion object {
     /** Creates a "replace" operation. */
     fun replace(path: String, value: Any) = Replace(path, value)
+
     /** Creates an "add" operation. */
     fun add(path: String, value: Any) = Add(path, value)
   }

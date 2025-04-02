@@ -19,7 +19,6 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "pkg_mkdirs")
 load("@rules_pkg//pkg:pkg.bzl", "pkg_tar")
 load(
     "@rules_pkg//pkg:providers.bzl",
-    "PackageArtifactInfo",
     "PackageFilegroupInfo",
 )
 load("@wfa_common_jvm//build:defs.bzl", "to_label")
@@ -27,7 +26,7 @@ load("@wfa_common_jvm//build:defs.bzl", "to_label")
 KustomizationDirInfo = provider(
     doc = "Information about a Kustomization dir.",
     fields = {
-        "archive": "PackageArtifactInfo containing Kustomization dir TAR",
+        "archive": "File of the Kustomization dir tar archive",
         "path": "String path of Kustomization dir within the archive",
     },
 )
@@ -41,7 +40,7 @@ def _k8s_apply_impl(ctx):
 
     if KustomizationDirInfo in src:
         dir_info = src[KustomizationDirInfo]
-        archive_file = dir_info.archive.file
+        archive_file = dir_info.archive
 
         commands.extend([
             "tar -xf {archive}".format(archive = archive_file.short_path),
@@ -93,11 +92,15 @@ def _kustomization_dir_impl(ctx):
     if len(ctx.attr.srcs) != 1:
         fail("Expecting exactly one pkg_filegroup in srcs")
     filegroup = ctx.attr.srcs[0]
-    archive_info = ctx.attr.archive[PackageArtifactInfo]
+
+    # Since pkg_tar no longer provides a rule-specific provider, we just have to
+    # assume that the first File is the archive.
+    # See https://github.com/bazelbuild/rules_pkg/issues/396
+    archive = ctx.attr.archive[DefaultInfo].files.to_list()[0]
 
     return [
         KustomizationDirInfo(
-            archive = archive_info,
+            archive = archive,
             path = ctx.attr.path,
         ),
         filegroup[PackageFilegroupInfo],
@@ -114,7 +117,7 @@ _kustomization_dir = rule(
         ),
         "archive": attr.label(
             doc = "pkg_tar archive this dir",
-            providers = [PackageArtifactInfo],
+            providers = [DefaultInfo],
             mandatory = True,
         ),
         "path": attr.string(
@@ -285,7 +288,7 @@ def _k8s_kustomize_impl(ctx):
     if len(ctx.attr.srcs) != 1:
         fail("Expecting exactly one kustomization_dir in srcs")
     dir_info = ctx.attr.srcs[0][KustomizationDirInfo]
-    archive_file = dir_info.archive.file
+    archive_file = dir_info.archive
 
     name = ctx.label.name
     config_file = ctx.actions.declare_file(name + ".yaml")

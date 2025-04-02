@@ -1017,7 +1017,7 @@ class RequisitionsServiceTest {
               ExternalId(EXTERNAL_DATA_PROVIDER_ID),
               ExternalId(EXTERNAL_REQUISITION_ID),
             )
-            .asStatusRuntimeException(Status.Code.NOT_FOUND, "Requisition not found.")
+            .asStatusRuntimeException(Status.Code.NOT_FOUND)
         )
     }
     val exception =
@@ -1109,7 +1109,7 @@ class RequisitionsServiceTest {
               ExternalId(EXTERNAL_DATA_PROVIDER_ID),
               ExternalId(EXTERNAL_REQUISITION_ID),
             )
-            .asStatusRuntimeException(Status.Code.NOT_FOUND, "Requisition not found.")
+            .asStatusRuntimeException(Status.Code.NOT_FOUND)
         )
     }
     val exception =

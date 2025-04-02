@@ -70,3 +70,12 @@ resource "google_compute_address" "system_v1alpha" {
   name    = "${var.name}-duchy-system-v1alpha"
   address = var.system_v1alpha_ip_address
 }
+
+resource "google_monitoring_dashboard" "dashboards" {
+  for_each        = toset(var.dashboard_json_files)
+
+  dashboard_json  = templatefile("${path.module}/${each.value}", {
+    duchy_name = var.name
+  })
+}
+

@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Timestamps
+import com.google.rpc.errorInfo
 import com.google.type.Interval
 import com.google.type.date
 import com.google.type.dateTime
@@ -36,6 +37,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt
@@ -74,6 +76,7 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.internal.reporting.v2.report
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals
+import org.wfanet.measurement.reporting.service.internal.Errors
 
 private const val MAX_BATCH_SIZE = 1000
 
@@ -1343,7 +1346,15 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception.message).contains("Measurement Consumer")
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND.name
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+            baseReport.cmmsMeasurementConsumerId + "2"
+        }
+      )
   }
 
   @Test

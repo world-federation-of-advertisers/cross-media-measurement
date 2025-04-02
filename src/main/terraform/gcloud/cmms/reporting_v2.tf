@@ -27,8 +27,8 @@ module "reporting_v2_default_node_pool" {
   name            = "default"
   cluster         = module.reporting_v2_cluster.cluster
   service_account = module.common.cluster_service_account
-  machine_type    = "e2-small"
-  max_node_count  = 8
+  machine_type    = "e2-custom-2-4096"
+  max_node_count  = 4
 }
 
 module "reporting_v2" {

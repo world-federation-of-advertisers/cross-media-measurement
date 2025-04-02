@@ -20,6 +20,9 @@ proto_library(
     name = "measurement_consumer_config_proto",
     srcs = ["measurement_consumer_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
 )
 
 kt_jvm_proto_library(
@@ -37,4 +40,15 @@ proto_library(
 kt_jvm_proto_library(
     name = "metric_spec_config_kt_jvm_proto",
     deps = [":metric_spec_config_proto"],
+)
+
+proto_library(
+    name = "impression_qualification_filter_config_proto",
+    srcs = ["impression_qualification_filter_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "impression_qualification_filter_config_kt_jvm_proto",
+    deps = [":impression_qualification_filter_config_proto"],
 )

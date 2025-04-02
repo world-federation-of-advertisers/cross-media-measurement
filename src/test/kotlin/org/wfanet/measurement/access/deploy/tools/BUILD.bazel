@@ -1,0 +1,33 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+filegroup(
+    name = "textproto_files",
+    srcs = glob(["*.textproto"]),
+)
+
+kt_jvm_test(
+    name = "AccessTest",
+    srcs = ["AccessTest.kt"],
+    data = [
+        "textproto_files",
+        "//src/main/k8s/testing/secretfiles:root_certs",
+        "//src/main/k8s/testing/secretfiles:secret_files",
+    ],
+    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
+    test_class = "org.wfanet.measurement.access.deploy.tools.AccessTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/tools:access",
+        "//src/main/proto/wfa/measurement/access/v1alpha:permissions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/access/v1alpha:policies_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/access/v1alpha:principals_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/access/v1alpha:roles_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/io/grpc/netty",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)

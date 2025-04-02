@@ -17,9 +17,9 @@
 package org.wfanet.measurement.access.deploy.gcloud.spanner
 
 import org.wfanet.measurement.access.common.TlsClientPrincipalMapping
-import org.wfanet.measurement.access.service.internal.IdGenerator
 import org.wfanet.measurement.access.service.internal.PermissionMapping
 import org.wfanet.measurement.access.service.internal.Services
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 
 object InternalApiServices {

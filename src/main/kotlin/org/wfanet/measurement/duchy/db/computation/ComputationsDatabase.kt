@@ -262,7 +262,7 @@ enum class AfterTransition {
    * done on the computation at this time. Examples for when to set this include the computation
    * finished or input from another source is required before continuing.
    */
-  DO_NOT_ADD_TO_QUEUE
+  DO_NOT_ADD_TO_QUEUE,
 }
 
 /**
@@ -281,5 +281,5 @@ enum class EndComputationReason {
    * The computation was canceled. There were not known issues when it was ended, but results will
    * not be obtained.
    */
-  CANCELED
+  CANCELED,
 }

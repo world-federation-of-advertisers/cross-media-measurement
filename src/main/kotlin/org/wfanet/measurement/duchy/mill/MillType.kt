@@ -25,7 +25,7 @@ import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSket
 
 enum class MillType {
   LIQUID_LEGIONS_V2,
-  HONEST_MAJORITY_SHARE_SHUFFLE
+  HONEST_MAJORITY_SHARE_SHUFFLE,
 }
 
 val ComputationType.millType: MillType

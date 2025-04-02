@@ -1,0 +1,39 @@
+load(
+    "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl",
+    "spanner_emulator_test",
+)
+
+spanner_emulator_test(
+    name = "SecurecomputationSchemaTest",
+    srcs = ["SecurecomputationSchemaTest.kt"],
+    test_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.SecurecomputationSchemaTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/testing:schemata",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
+
+spanner_emulator_test(
+    name = "SpannerWorkItemAttemptsServiceTest",
+    srcs = ["SpannerWorkItemAttemptsServiceTest.kt"],
+    test_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.SpannerWorkItemAttemptsServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:services",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/testing:schemata",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal/testing:work_item_attempts_service_test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
+
+spanner_emulator_test(
+    name = "SpannerWorkItemsServiceTest",
+    srcs = ["SpannerWorkItemsServiceTest.kt"],
+    test_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.SpannerWorkItemsServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:services",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/testing:schemata",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal/testing:work_items_service_test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)

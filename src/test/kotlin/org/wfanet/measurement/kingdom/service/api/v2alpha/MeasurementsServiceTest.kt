@@ -180,6 +180,7 @@ private const val DUCHY_NAME = "duchies/AAAAAAAAAHs"
 private const val DUCHY_CERTIFICATE_NAME = "$DUCHY_NAME/certificates/AAAAAAAAAHs"
 private val DATA_PROVIDER_NONCE_HASH: ByteString =
   HexString("97F76220FEB39EE6F262B1F0C8D40F221285EEDE105748AE98F7DC241198D69F").bytes
+private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(100).toProtoTime()
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 private val CREATED_AFTER: Timestamp = Instant.ofEpochSecond(0).toProtoTime()
 private val CREATED_BEFORE: Timestamp = Instant.now().toProtoTime()
@@ -374,6 +375,7 @@ class MeasurementsServiceTest {
           this.measurement =
             internalMeasurement.copy {
               clearExternalMeasurementId()
+              clearCreateTime()
               clearUpdateTime()
             }
           requestId = request.requestId
@@ -425,6 +427,7 @@ class MeasurementsServiceTest {
           this.measurement =
             internalMeasurement.copy {
               clearExternalMeasurementId()
+              clearCreateTime()
               clearUpdateTime()
             }
         }
@@ -518,6 +521,7 @@ class MeasurementsServiceTest {
           this.measurement =
             internalMeasurement.copy {
               clearExternalMeasurementId()
+              clearCreateTime()
               clearUpdateTime()
 
               details =
@@ -599,6 +603,7 @@ class MeasurementsServiceTest {
           this.measurement =
             internalMeasurement.copy {
               clearExternalMeasurementId()
+              clearCreateTime()
               clearUpdateTime()
 
               details =
@@ -680,6 +685,7 @@ class MeasurementsServiceTest {
           this.measurement =
             internalMeasurement.copy {
               clearExternalMeasurementId()
+              clearCreateTime()
               clearUpdateTime()
 
               details =
@@ -771,6 +777,7 @@ class MeasurementsServiceTest {
           this.measurement =
             internalMeasurement.copy {
               clearExternalMeasurementId()
+              clearCreateTime()
               clearUpdateTime()
 
               details =
@@ -829,6 +836,7 @@ class MeasurementsServiceTest {
           this.measurement =
             INTERNAL_MEASUREMENT.copy {
               clearExternalMeasurementId()
+              clearCreateTime()
               clearUpdateTime()
               results.clear()
               details =
@@ -2070,6 +2078,7 @@ class MeasurementsServiceTest {
     val internalMeasurement =
       INTERNAL_MEASUREMENT.copy {
         clearExternalMeasurementId()
+        clearCreateTime()
         clearUpdateTime()
         details = details.copy { clearFailure() }
         results.clear()
@@ -2112,6 +2121,7 @@ class MeasurementsServiceTest {
     val internalMeasurement =
       INTERNAL_MEASUREMENT.copy {
         clearExternalMeasurementId()
+        clearCreateTime()
         clearUpdateTime()
         details = details.copy { clearFailure() }
         results.clear()
@@ -3001,6 +3011,8 @@ class MeasurementsServiceTest {
         certificate = DUCHY_CERTIFICATE_NAME
         encryptedResult = ENCRYPTED_RESULT
       }
+      createTime = CREATE_TIME
+      updateTime = UPDATE_TIME
     }
 
     private val INTERNAL_MEASUREMENT = internalMeasurement {
@@ -3012,6 +3024,7 @@ class MeasurementsServiceTest {
           MeasurementConsumerCertificateKey.fromName(MEASUREMENT.measurementConsumerCertificate)!!
             .certificateId
         )
+      createTime = CREATE_TIME
       updateTime = UPDATE_TIME
       dataProviders.putAll(
         MEASUREMENT.dataProvidersList.associateBy(

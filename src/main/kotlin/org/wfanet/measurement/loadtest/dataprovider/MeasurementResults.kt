@@ -29,11 +29,11 @@ object MeasurementResults {
    * Computes reach and frequency using the "deterministic count distinct" methodology and the
    * "deterministic distribution" methodology.
    */
-  fun computeReachAndFrequency(sampledVids: Iterable<Long>, maxFrequency: Int): ReachAndFrequency {
-    val eventsPerVid: Map<Long, Int> = sampledVids.groupingBy { it }.eachCount()
+  fun computeReachAndFrequency(filteredVids: Iterable<Long>, maxFrequency: Int): ReachAndFrequency {
+    val eventsPerVid: Map<Long, Int> = filteredVids.groupingBy { it }.eachCount()
     val reach: Int = eventsPerVid.keys.size
 
-    // If the sampled VIDs is empty, set the distribution with all 0s up to maxFrequency.
+    // If the filtered VIDs is empty, set the distribution with all 0s up to maxFrequency.
     if (reach == 0) {
       return ReachAndFrequency(reach, (1..maxFrequency).associateWith { 0.0 })
     }
@@ -51,13 +51,13 @@ object MeasurementResults {
   }
 
   /** Computes reach using the "deterministic count distinct" methodology. */
-  fun computeReach(sampledVids: Iterable<Long>): Int {
-    return sampledVids.distinct().size
+  fun computeReach(filteredVids: Iterable<Long>): Int {
+    return filteredVids.distinct().size
   }
 
   /** Computes impression using the "deterministic count" methodology. */
-  fun computeImpression(sampledVids: Iterable<Long>, maxFrequency: Int): Long {
-    val eventsPerVid: Map<Long, Int> = sampledVids.groupingBy { it }.eachCount()
+  fun computeImpression(filteredVids: Iterable<Long>, maxFrequency: Int): Long {
+    val eventsPerVid: Map<Long, Int> = filteredVids.groupingBy { it }.eachCount()
     // Cap each count at `maxFrequency`.
     return eventsPerVid.values.sumOf { count -> count.coerceAtMost(maxFrequency).toLong() }
   }

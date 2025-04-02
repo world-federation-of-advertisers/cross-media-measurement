@@ -18,10 +18,10 @@ package wfa.measurement.internal.reporting.v2;
 
 import "google/protobuf/duration.proto";
 import "google/type/interval.proto";
-import "wfa/measurement/internal/reporting/v2/reporting_set.proto";
-import "wfa/measurement/internal/reporting/v2/noise_mechanism.proto";
-import "wfa/measurement/internal/reporting/v2/mpc_protocol.proto";
 import "wfa/measurement/internal/reporting/v2/direct_computation.proto";
+import "wfa/measurement/internal/reporting/v2/mpc_protocol.proto";
+import "wfa/measurement/internal/reporting/v2/noise_mechanism.proto";
+import "wfa/measurement/internal/reporting/v2/reporting_set.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;

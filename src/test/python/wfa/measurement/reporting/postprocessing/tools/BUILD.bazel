@@ -1,3 +1,4 @@
+load("@pip//:requirements.bzl", "requirement")
 load("@rules_python//python:defs.bzl", "py_test")
 
 py_test(
@@ -7,6 +8,7 @@ py_test(
     deps = [
         "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_summary_py_pb2",
         "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_origin_report",
+        requirement("protobuf"),
     ],
 )
 

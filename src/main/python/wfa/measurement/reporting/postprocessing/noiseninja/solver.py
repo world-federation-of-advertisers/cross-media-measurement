@@ -13,13 +13,18 @@
 # limitations under the License.
 
 import numpy as np
-
-from absl import logging
-from noiseninja.noised_measurements import SetMeasurementsSpec
-from qpsolvers import solve_problem, Problem, Solution
 from threading import Semaphore
 
-SOLVER = "highs"
+from absl import logging
+
+from qpsolvers import Problem
+from qpsolvers import Solution
+from qpsolvers import solve_problem
+
+from noiseninja.noised_measurements import SetMeasurementsSpec
+
+HIGHS_SOLVER = "highs"
+OSQP_SOLVER = "osqp"
 MAX_ATTEMPTS = 10
 SEMAPHORE = Semaphore()
 
@@ -43,10 +48,14 @@ class Solver:
         set_measurement_spec)
     self.num_variables = len(variable_index_by_set_id)
     self._init_qp(self.num_variables)
+    self._add_equals(set_measurement_spec, variable_index_by_set_id)
+    self._add_weighted_sum_upperbounds(set_measurement_spec,
+                                       variable_index_by_set_id)
     self._add_covers(set_measurement_spec, variable_index_by_set_id)
     self._add_subsets(set_measurement_spec, variable_index_by_set_id)
     self._add_measurement_targets(set_measurement_spec,
                                   variable_index_by_set_id)
+    self._add_lower_bounds()
     self._init_base_value(set_measurement_spec, variable_index_by_set_id)
 
     self.variable_map = dict(
@@ -103,6 +112,26 @@ class Solver:
     self.A = []
     self.b = []
 
+  def _add_equals(self, set_measurement_spec: SetMeasurementsSpec,
+      variable_index_by_set_id: dict[int, int]):
+    logging.info("Adding equal set constraints.")
+    for equal_set in set_measurement_spec.get_equal_sets():
+      variables = np.zeros(self.num_variables)
+      variables[variable_index_by_set_id[equal_set[0]]] = 1
+      variables.put([variable_index_by_set_id[i] for i in equal_set[1]], -1)
+      self._add_eq_term(variables, 0)
+
+  def _add_weighted_sum_upperbounds(self,
+      set_measurement_spec: SetMeasurementsSpec,
+      variable_index_by_set_id: dict[int, int]):
+    logging.info("Adding weighted sum upperbound constraints.")
+    for key, value in set_measurement_spec.get_weighted_sum_upperbound_sets().items():
+      variables = np.zeros(self.num_variables)
+      variables[variable_index_by_set_id[key]] = -1
+      for entry in value:
+        variables[variable_index_by_set_id[entry[0]]] = entry[1]
+      self._add_gt_term(variables)
+
   def _add_subsets(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
     logging.info("Adding subset constraints.")
@@ -121,6 +150,14 @@ class Solver:
             list(variable_index_by_set_id[i] for i in cover),
             variable_index_by_set_id[measured_set])
 
+  # Enforces that all the variables are non-negative.
+  def _add_lower_bounds(self):
+    logging.info("Adding lower bounds constraints.")
+    for i in range(self.num_variables):
+      variables = np.zeros(self.num_variables)
+      variables[i] = -1
+      self._add_gt_term(variables)
+
   def _add_cover_set_constraint(self, cover_variables: set[int],
       set_variable: int):
     variables = np.zeros(self.num_variables)
@@ -128,11 +165,6 @@ class Solver:
     variables[set_variable] = 1
     self._add_gt_term(variables)
 
-  def _is_feasible(self, vector: np.array) -> bool:
-    for i, g in enumerate(self.G):
-      if np.dot(vector, g) > self.h[i][0]:
-        return False
-    return True
 
   def _add_parent_gt_child_term(self, parent: int, child: int):
     variables = np.zeros(self.num_variables)
@@ -154,13 +186,11 @@ class Solver:
     self.G.append(variables)
     self.h.append([0])
 
-  def _solve(self):
-    x0 = np.random.randn(self.num_variables)
-    return self._solve_with_initial_value(x0)
-
-  def _solve_with_initial_value(self, x0) -> Solution:
+  def _solve_with_initial_value(self, solver_name: str,
+      initial_values: np.array) -> Solution:
     problem = self._problem()
-    solution = solve_problem(problem, solver=SOLVER, verbose=False)
+    solution = solve_problem(problem, solver=solver_name,
+                             initvals=initial_values, verbose=False)
     return solution
 
   def _problem(self):
@@ -174,34 +204,39 @@ class Solver:
           self.P, self.q, np.array(self.G), np.array(self.h))
     return problem
 
-  def solve(self) -> Solution:
+  def _solve(self, solver_name: str) -> Solution:
     logging.info("Solving the quadratic program.")
     attempt_count = 0
-    if self._is_feasible(self.base_value):
-      logging.info(
-          "The set measurement spec is feasible."
-      )
-      solution = Solution(x=self.base_value,
-                          found=True,
-                          extras={'status': 'trivial'},
-                          problem=self._problem())
-    else:
-      logging.info(
-          "Solving the quadratic program with the HIGHS solver."
-      )
-      while attempt_count < MAX_ATTEMPTS:
-        logging.info(f"Attempt {attempt_count + 1}.")
-        # TODO: check if qpsolvers is thread safe,
-        #  and remove this semaphore.
-        SEMAPHORE.acquire()
-        solution = self._solve()
-        SEMAPHORE.release()
+    while attempt_count < MAX_ATTEMPTS:
+      # The solver is not thread-safe in general. Synchronization mechanism is
+      # needed when it is called concurrently (e.g. in a report processing
+      # server).
+      SEMAPHORE.acquire()
+      solution = self._solve_with_initial_value(solver_name, self.base_value)
+      SEMAPHORE.release()
 
-        if solution.found:
-          break
-        else:
-          attempt_count += 1
+      if solution.found:
+        break
+      else:
+        attempt_count += 1
+    return solution
 
+  def solve(self) -> Solution:
+    logging.info(
+        "Solving the quadratic program with the HIGHS solver."
+    )
+    solution = self._solve(HIGHS_SOLVER)
+
+    # If the highs solver does not converge, switch to the osqp solver which
+    # is more robust. However, OSQP in general is less accurate than HIGHS
+    # (See https://web.stanford.edu/~boyd/papers/pdf/osqp.pdf).
+    if not solution.found:
+      logging.info(
+          "Switching to OSQP solver as HIGHS solver failed to converge."
+      )
+      solution = self._solve(OSQP_SOLVER)
+
+    # Raise the exception when both solvers do not converge.
     if not solution.found:
       raise SolutionNotFoundError(solution)
 

@@ -87,7 +87,7 @@ enum class FakeProtocolStages {
   E,
   X,
   Y,
-  Z
+  Z,
 }
 
 enum class FakeProtocol {

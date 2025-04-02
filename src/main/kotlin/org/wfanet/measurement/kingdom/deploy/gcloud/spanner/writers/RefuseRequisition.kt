@@ -110,23 +110,17 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
   }
 
   private suspend fun TransactionScope.readRequisition(): RequisitionReader.Result {
-    val externalDataProviderId = request.externalDataProviderId
-    val externalRequisitionId = request.externalRequisitionId
+    val externalDataProviderId = ExternalId(request.externalDataProviderId)
+    val externalRequisitionId = ExternalId(request.externalRequisitionId)
 
-    val readResult: RequisitionReader.Result =
-      RequisitionReader()
-        .readByExternalDataProviderId(
-          transactionContext,
-          externalDataProviderId = externalDataProviderId,
-          externalRequisitionId = externalRequisitionId,
-        )
-        ?: throw RequisitionNotFoundByDataProviderException(
-          ExternalId(externalDataProviderId),
-          ExternalId(externalRequisitionId),
-        ) {
-          "Requisition with external DataProvider ID $externalDataProviderId and external " +
-            "Requisition ID $externalRequisitionId not found"
-        }
-    return readResult
+    return RequisitionReader.readByExternalDataProviderId(
+      transactionContext,
+      externalDataProviderId = externalDataProviderId,
+      externalRequisitionId = externalRequisitionId,
+    )
+      ?: throw RequisitionNotFoundByDataProviderException(
+        externalDataProviderId,
+        externalRequisitionId,
+      )
   }
 }

@@ -53,7 +53,7 @@ resource "null_resource" "configure_cluster" {
 
   # login to Docker on AWS
   provisioner "local-exec" {
-     command = "aws ecr get-login-password --region ${data.aws_region.current.name} | docker login --username AWS --password-stdin ${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com"
+    command = "aws ecr get-login-password --region ${data.aws_region.current.name} | docker login --username AWS --password-stdin ${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com"
   }
 
   # update the CUE file to have the right AWS KMS key and CA arn
@@ -68,7 +68,7 @@ sed -i 's|"--certificate-authority-arn="|"--certificate-authority-arn=${var.ca_a
   # build and push the Docker image to ECR
   provisioner "local-exec" {
     working_dir = "../../../"
-    command = "bazel run src/main/docker/${var.image_name} -c opt --define container_registry=${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com"
+    command     = "bazel run src/main/docker/${var.image_name} -c opt --define container_registry=${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com"
   }
 
   # create a k8s service account
@@ -78,7 +78,7 @@ sed -i 's|"--certificate-authority-arn="|"--certificate-authority-arn=${var.ca_a
 
   # build and apply secrets
   provisioner "local-exec" {
-    command = <<EOF
+    command     = <<EOF
 if [[ var.use_test_secrets -eq 1 ]]
 then
   str=$(kubectl apply -k ${var.path_to_secrets})

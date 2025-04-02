@@ -1,6 +1,7 @@
 # Duchy
 
-This illustrates how to configure the infrastructure for a Duchy in a AWS Account.
+This illustrates how to configure the infrastructure for a Duchy in a AWS
+Account.
 
 Note that this configuration is not optimized and may not be suitable for
 production loads.
@@ -21,10 +22,13 @@ production loads.
     *   Default node pool
     *   Spot VM node pool
     *   Kubernetes service account for internal server and storage
-*   AWS [EKS cluster-addons](../../modules/eks-cluster-addons) with following addons:
-    *   aws-load-balancer-controller addon that help assign elastic IP to load balancers
+*   AWS [EKS cluster-addons](../../modules/eks-cluster-addons) with following
+    addons:
+    *   aws-load-balancer-controller addon that help assign elastic IP to load
+        balancers
 
 ## Preconditions
 
 *   The account running Terraform has permissions to manage the above resources.
-*   Local setup refer to [Authentication and Configuration](https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication-and-configuration)
+*   Local setup refer to
+    [Authentication and Configuration](https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication-and-configuration)

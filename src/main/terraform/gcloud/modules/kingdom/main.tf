@@ -380,12 +380,20 @@ module "kingdom_operational_metrics" {
 
 resource "google_bigquery_dataset_iam_member" "bigquery_writer" {
   dataset_id = google_bigquery_dataset.operational_metrics.dataset_id
-  role    = "roles/bigquery.dataEditor"
-  member  = module.kingdom_operational_metrics.iam_service_account.member
+  role       = "roles/bigquery.dataEditor"
+  member     = module.kingdom_operational_metrics.iam_service_account.member
 }
 
 resource "google_project_iam_member" "bigquery_job_user" {
   project = data.google_project.project.project_id
   role    = "roles/bigquery.jobUser"
   member  = module.kingdom_operational_metrics.iam_service_account.member
+}
+
+
+resource "google_monitoring_dashboard" "dashboards" {
+  for_each        = toset(var.dashboard_json_files)
+
+  dashboard_json  = file("${path.module}/${each.value}")
+  project         = data.google_project.project.project_id
 }

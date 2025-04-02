@@ -40,3 +40,14 @@ variable "system_v1alpha_ip_address" {
   nullable    = true
   default     = null
 }
+
+variable "dashboard_json_files" {
+  description = "List of filenames of dashboard json or templates"
+  type        = list(string)
+  nullable    = true
+  default     = [
+    "kingdom_dashboard_1.json",
+    "kingdom_dashboard_2.json",
+    "kingdom_dashboard_3.json",
+  ]
+}

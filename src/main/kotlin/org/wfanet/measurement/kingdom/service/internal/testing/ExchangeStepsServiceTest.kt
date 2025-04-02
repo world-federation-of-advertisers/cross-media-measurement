@@ -376,10 +376,9 @@ abstract class ExchangeStepsServiceTest {
   }
 
   @Test
-  fun `claimReadyExchangeStepRequest without any step`() =
-    runBlocking {
-      // TODO(yunyeng): Add test once underlying services complete.
-    }
+  fun `claimReadyExchangeStepRequest without any step`() = runBlocking {
+    // TODO(yunyeng): Add test once underlying services complete.
+  }
 
   @Test
   fun `claimReadyExchangeStep creates multiple Exchanges`() = runBlocking {

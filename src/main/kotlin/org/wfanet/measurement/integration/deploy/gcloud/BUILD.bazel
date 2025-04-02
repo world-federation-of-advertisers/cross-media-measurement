@@ -40,3 +40,18 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )
+
+kt_jvm_library(
+    name = "spanner_access_services_factory",
+    srcs = ["SpannerAccessServicesFactory.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/common:tls_client_principal_mapping",
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner:internal_api_services",
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner/testing:schemata",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:permission_mapping",
+        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:services",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:access_services_factory",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)

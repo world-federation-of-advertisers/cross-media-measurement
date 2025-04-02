@@ -24,12 +24,15 @@ import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet.SetExpression
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
+import org.wfanet.measurement.reporting.service.internal.CampaignGroupInvalidException
+import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 private typealias Translate = (row: ResultRow) -> Unit
 
@@ -51,6 +54,8 @@ class ReportingSetReader(private val readContext: ReadContext) {
     val cmmsMeasurementConsumerId: String,
     val reportingSetId: InternalId,
     val externalReportingSetId: String,
+    val campaignGroupId: InternalId?,
+    val externalCampaignGroupId: String?,
     val displayName: String?,
     val filter: String?,
     val setExpressionId: InternalId?,
@@ -93,6 +98,8 @@ class ReportingSetReader(private val readContext: ReadContext) {
       CmmsMeasurementConsumerId,
       ReportingSets.MeasurementConsumerId AS ReportingSetsMeasurementConsumerId,
       ReportingSets.ReportingSetId,
+      ReportingSets.CampaignGroupId,
+      CampaignGroupReportingSets.ExternalReportingSetId AS ExternalCampaignGroupId,
       ReportingSets.ExternalReportingSetId AS RootExternalReportingSetId,
       ReportingSets.SetExpressionId AS RootSetExpressionId,
       ReportingSets.DisplayName,
@@ -130,9 +137,17 @@ class ReportingSetReader(private val readContext: ReadContext) {
       AND SetExpressions.LeftHandReportingSetId = LeftHandReportingSets.ReportingSetId
     LEFT JOIN ReportingSets AS RightHandReportingSets ON SetExpressions.MeasurementConsumerId = RightHandReportingSets.MeasurementConsumerId
       AND SetExpressions.RightHandReportingSetId = RightHandReportingSets.ReportingSetId
+    LEFT JOIN ReportingSets AS CampaignGroupReportingSets ON
+      ReportingSets.MeasurementConsumerId = CampaignGroupReportingSets.MeasurementConsumerId
+      AND ReportingSets.CampaignGroupId = CampaignGroupReportingSets.CampaignGroupId
     """
       .trimIndent()
 
+  /**
+   * Reads multiple ReportingSets using a single query.
+   *
+   * @throws [ReportingSetNotFoundException] if any ReportingSet not found.
+   */
   fun batchGetReportingSets(request: BatchGetReportingSetsRequest): Flow<Result> {
     val sql =
       StringBuilder(
@@ -172,7 +187,8 @@ class ReportingSetReader(private val readContext: ReadContext) {
       val reportingSetInfoMap = buildResultMap(statement)
 
       for (reportingSetId in request.externalReportingSetIdsList) {
-        val reportingSetInfo = reportingSetInfoMap[reportingSetId] ?: continue
+        val reportingSetInfo =
+          reportingSetInfoMap[reportingSetId] ?: throw ReportingSetNotFoundException()
 
         val reportingSet = reportingSetInfo.buildReportingSet()
 
@@ -239,6 +255,9 @@ class ReportingSetReader(private val readContext: ReadContext) {
     return reportingSet {
       cmmsMeasurementConsumerId = reportingSetInfo.cmmsMeasurementConsumerId
       externalReportingSetId = reportingSetInfo.externalReportingSetId
+      if (reportingSetInfo.externalCampaignGroupId != null) {
+        externalCampaignGroupId = reportingSetInfo.externalCampaignGroupId
+      }
       if (reportingSetInfo.displayName != null) {
         displayName = reportingSetInfo.displayName
       }
@@ -308,6 +327,8 @@ class ReportingSetReader(private val readContext: ReadContext) {
       val cmmsMeasurementConsumerId: String = row["CmmsMeasurementConsumerId"]
       val reportingSetId: InternalId = row["ReportingSetId"]
       val externalReportingSetId: String = row["RootExternalReportingSetId"]
+      val campaignGroupId: InternalId? = row["CampaignGroupId"]
+      val externalCampaignGroupId: String? = row["ExternalCampaignGroupId"]
       val rootSetExpressionId: InternalId? = row["RootSetExpressionId"]
       val displayName: String? = row["DisplayName"]
       val reportingSetFilter: String? = row["ReportingSetFilter"]
@@ -335,6 +356,8 @@ class ReportingSetReader(private val readContext: ReadContext) {
             cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
             reportingSetId = reportingSetId,
             externalReportingSetId = externalReportingSetId,
+            campaignGroupId = campaignGroupId,
+            externalCampaignGroupId = externalCampaignGroupId,
             displayName = displayName,
             filter = reportingSetFilter,
             setExpressionId = rootSetExpressionId,
@@ -485,5 +508,52 @@ class ReportingSetReader(private val readContext: ReadContext) {
         row["ExternalReportingSetId"],
       )
     }
+  }
+
+  /**
+   * Reads a ReportingSet that is a Campaign Group.
+   *
+   * @return the IDs for the ReportingSet, or `null` if not found
+   * @throws CampaignGroupInvalidException if the ReportingSet is not a Campaign Group
+   */
+  suspend fun readCampaignGroup(
+    measurementConsumerId: InternalId,
+    externalReportingSetId: String,
+  ): ReportingSetIds? {
+    return readContext
+      .executeQuery(
+        boundStatement(
+          """
+          SELECT
+            ReportingSetId,
+            ExternalReportingSetId,
+            CampaignGroupId,
+            CmmsMeasurementConsumerId
+          FROM
+            ReportingSets
+            JOIN MeasurementConsumers USING (MeasurementConsumerId)
+          WHERE
+            MeasurementConsumerId = $1
+            AND ExternalReportingSetId = $2
+          """
+            .trimIndent()
+        ) {
+          bind("$1", measurementConsumerId)
+          bind("$2", externalReportingSetId)
+        }
+      )
+      .consume { row ->
+        val reportingSetId: InternalId = row["ReportingSetId"]
+        val campaignGroupId: InternalId? = row["CampaignGroupId"]
+        if (campaignGroupId != reportingSetId) {
+          throw CampaignGroupInvalidException(
+            row["CmmsMeasurementConsumerId"],
+            externalReportingSetId,
+          )
+        }
+
+        ReportingSetIds(measurementConsumerId, reportingSetId, externalReportingSetId)
+      }
+      .singleOrNullIfEmpty()
   }
 }

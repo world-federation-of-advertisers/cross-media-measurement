@@ -221,8 +221,6 @@ fun MetricSpecConfig.VidSamplingInterval.validate() {
       throw IllegalArgumentException(
         "VidSamplingInterval.RandomStart.width must be greater than 0 and less than or equal to 1."
       )
-    } else {
-      throw IllegalArgumentException("VidSamplingInterval.RandomStart.width is missing.")
     }
   } else {
     throw IllegalArgumentException("VidSamplingInterval.start is missing")

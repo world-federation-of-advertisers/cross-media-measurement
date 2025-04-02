@@ -1,14 +1,14 @@
 # Terraform
 
-Using Terraform to configure infrastructure for CMMS components in a AWS
-Cloud Project.
+Using Terraform to configure infrastructure for CMMS components in a AWS Cloud
+Project.
 
 ## Examples
 
-This repository contains [examples](../../src/main/terraform/aws/examples)
-for configuring CMMS components using custom
-[modules](../../src/main/terraform/aws/modules). These can be used directly
-by copying the [parent directory](../../src/main/terraform/aws) and adding a
+This repository contains [examples](../../src/main/terraform/aws/examples) for
+configuring CMMS components using custom
+[modules](../../src/main/terraform/aws/modules). These can be used directly by
+copying the [parent directory](../../src/main/terraform/aws) and adding a
 backend configuring in the desired example directory.
 
 ## Backend configuration

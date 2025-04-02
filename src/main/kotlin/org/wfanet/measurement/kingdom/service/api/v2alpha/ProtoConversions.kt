@@ -965,6 +965,8 @@ fun InternalMeasurement.toMeasurement(): Measurement {
         message = source.details.failure.message
       }
     }
+    createTime = source.createTime
+    updateTime = source.updateTime
   }
 }
 

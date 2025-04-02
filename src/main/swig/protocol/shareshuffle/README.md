@@ -1,10 +1,10 @@
 # Honest Majority Share Shuffle Utility Java Library
 
-The HonestMajorityShareShuffleUtility java class is auto-generated from
-the honest_majority_share_shuffle_utility.swig definition. The
-implementation of the methods is written in c++ and the source codes are under
-src/main/cc/wfa/measurement/internal/duchy/protocol/share_shuffle/crypto. We 
-create a swig wrapper on the library and call into the library via JNI in our 
+The HonestMajorityShareShuffleUtility java class is auto-generated from the
+honest_majority_share_shuffle_utility.swig definition. The implementation of the
+methods is written in c++ and the source codes are under
+src/main/cc/wfa/measurement/internal/duchy/protocol/share_shuffle/crypto. We
+create a swig wrapper on the library and call into the library via JNI in our
 java code.
 
 ## Possible errors when using the JNI java library.

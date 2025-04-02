@@ -68,7 +68,8 @@ class PrivacyBudgetPostgresSchemaTest {
         0.01
       );
       """
-      val selectSql = """
+      val selectSql =
+        """
       SELECT Gender, Rho from PrivacyBucketAcdpCharges
       """
       statement.execute(SCHEMA)

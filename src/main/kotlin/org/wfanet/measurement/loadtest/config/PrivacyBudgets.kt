@@ -41,6 +41,7 @@ class TestPrivacyBucketMapper : PrivacyBucketMapper {
         e,
       )
     }
+
   /** To not charge any buckets, [privacyBucketGroup] is ignored and set to be not filterable. */
   override fun toEventMessage(privacyBucketGroup: PrivacyBucketGroup): Message {
     return loadTestEvent { privacy = privacy { filterable = false } }

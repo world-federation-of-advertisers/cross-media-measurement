@@ -25,6 +25,13 @@ message ReportingSet {
   string cmms_measurement_consumer_id = 1;
   string external_reporting_set_id = 2;
 
+  // External `ReportingSet` ID of the Campaign Group to which this
+  // `ReportingSet` belongs. Immutable.
+  //
+  // If the value is the same as `external_reporting_set_id`, then this
+  // `ReportingSet` is a Campaign Group.
+  string external_campaign_group_id = 9;
+
   string display_name = 3;
   string filter = 4;
 

@@ -19,6 +19,7 @@ package org.wfanet.measurement.access.deploy.gcloud.spanner.db
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
@@ -69,8 +70,11 @@ suspend fun AsyncDatabaseClient.ReadContext.getRoleByResourceId(
     """
       .trimIndent()
   val row: Struct =
-    executeQuery(statement(sql) { bind("roleResourceId").to(roleResourceId) }).singleOrNullIfEmpty()
-      ?: throw RoleNotFoundException(roleResourceId)
+    executeQuery(
+        statement(sql) { bind("roleResourceId").to(roleResourceId) },
+        Options.tag("action=getRoleByResourceId"),
+      )
+      .singleOrNullIfEmpty() ?: throw RoleNotFoundException(roleResourceId)
 
   val permissionResourceIds =
     row.getLongList("PermissionIds").map {
@@ -188,7 +192,7 @@ fun AsyncDatabaseClient.ReadContext.readRoles(
       bind("limit").to(limit.toLong())
     }
 
-  return executeQuery(query).map { row ->
+  return executeQuery(query, Options.tag("action=readRoles")).map { row ->
     val roleResourceId = row.getString("RoleResourceId")
     val permissionResourceIds =
       row.getLongList("PermissionIds").map {

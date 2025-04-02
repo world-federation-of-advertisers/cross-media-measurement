@@ -26,7 +26,7 @@ kt_jvm_library(
     deps = [
         ":test_config",
         "//src/main/kotlin/org/wfanet/measurement/access/service/internal:errors",
-        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:id_generator",
+        "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
         "//src/main/proto/wfa/measurement/internal/access:principals_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
@@ -44,7 +44,7 @@ kt_jvm_library(
     deps = [
         ":test_config",
         "//src/main/kotlin/org/wfanet/measurement/access/service/internal:errors",
-        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:id_generator",
+        "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
         "//src/main/proto/wfa/measurement/internal/access:permissions_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/access:policies_service_kt_jvm_grpc_proto",
@@ -64,8 +64,8 @@ kt_jvm_library(
     deps = [
         ":test_config",
         "//src/main/kotlin/org/wfanet/measurement/access/service/internal:errors",
-        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:id_generator",
         "//src/main/kotlin/org/wfanet/measurement/access/service/internal:permission_mapping",
+        "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
         "//src/main/proto/wfa/measurement/internal/access:roles_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
@@ -84,8 +84,8 @@ kt_jvm_library(
         ":test_config",
         "//src/main/kotlin/org/wfanet/measurement/access/common:tls_client_principal_mapping",
         "//src/main/kotlin/org/wfanet/measurement/access/service/internal:errors",
-        "//src/main/kotlin/org/wfanet/measurement/access/service/internal:id_generator",
         "//src/main/kotlin/org/wfanet/measurement/access/service/internal:permission_mapping",
+        "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
         "//src/main/proto/wfa/measurement/internal/access:policies_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/access:principals_service_kt_jvm_grpc_proto",

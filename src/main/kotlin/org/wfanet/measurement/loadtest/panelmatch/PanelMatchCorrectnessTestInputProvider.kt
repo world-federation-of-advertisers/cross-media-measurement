@@ -35,7 +35,7 @@ object PanelMatchCorrectnessTestInputProvider {
   enum class TestType {
     DOUBLE_BLIND,
     MINI_EXCHANGE,
-    FULL_WITH_PREPROCESSING
+    FULL_WITH_PREPROCESSING,
   }
 
   fun getInitialDataProviderInputsForTestType(testType: TestType): Map<String, ByteString> {

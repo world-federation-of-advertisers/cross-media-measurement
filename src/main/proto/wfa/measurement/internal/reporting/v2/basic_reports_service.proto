@@ -1,0 +1,90 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.v2;
+
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/reporting/v2/basic_report.proto";
+
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
+option java_multiple_files = true;
+
+// Internal service for persistence of Basic Report entities.
+service BasicReports {
+  // Error reasons:
+  // * `REPORTING_SET_NOT_FOUND`
+  // * `IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND`
+  // * `BASIC_REPORT_ALREADY_EXISTS`
+  rpc InsertBasicReport(InsertBasicReportRequest) returns (BasicReport);
+
+  // Error reasons:
+  // * `BASIC_REPORT_NOT_FOUND`
+  rpc GetBasicReport(GetBasicReportRequest) returns (BasicReport);
+
+  // Ordered by `create_time` ascending, `external_basic_report_id` ascending.
+  rpc ListBasicReports(ListBasicReportsRequest)
+      returns (ListBasicReportsResponse);
+}
+
+message InsertBasicReportRequest {
+  BasicReport basic_report = 1;
+}
+
+message GetBasicReportRequest {
+  // Ex: If a `BasicReport` has the name
+  // "measurementconsumers/abc/basicreports/abcd", then the
+  // `MeasurementConsumer` ID is "abc" and the `BasicReport` ID is "abcd".
+  string cmms_measurement_consumer_id = 1;
+  string external_basic_report_id = 2;
+}
+
+message ListBasicReportsPageToken {
+  string cmms_measurement_consumer_id = 1;
+
+  message Filter {
+    google.protobuf.Timestamp create_time_after = 1;
+  }
+  Filter filter = 2;
+
+  message PreviousPageEnd {
+    google.protobuf.Timestamp create_time = 1;
+    string external_basic_report_id = 2;
+  }
+  PreviousPageEnd last_basic_report = 3;
+}
+
+message ListBasicReportsRequest {
+  message Filter {
+    // `MeasurementConsumer` ID from the CMMS public API. Required.
+    string cmms_measurement_consumer_id = 1;
+
+    // Any `BasicReport` created after this time, exclusive, will be included.
+    //
+    // Ignored if `page_token` is set.
+    google.protobuf.Timestamp create_time_after = 2;
+  }
+  Filter filter = 1;
+  // The maximum number of basic reports to return. The service may return fewer
+  // than this value. If unspecified, at most 10 basic reports will be returned.
+  // The maximum value is 25; values above 25 will be coerced to 25.
+  int32 page_size = 2;
+  ListBasicReportsPageToken page_token = 3;
+}
+
+message ListBasicReportsResponse {
+  repeated BasicReport basic_reports = 1;
+  ListBasicReportsPageToken next_page_token = 2;
+}

@@ -26,6 +26,7 @@ data class PrivacyBudgetAcdpBalanceEntry(
   val privacyBucketGroup: PrivacyBucketGroup,
   val acdpCharge: AcdpCharge,
 )
+
 /**
  * Representation of a single query that resulted in multiple charges in the privacy budget ledger
  * backing store. These entries only exists for replays, and is a list of timestamped transactions.
@@ -36,6 +37,7 @@ data class PrivacyBudgetLedgerEntry(
   val isRefund: Boolean,
   val createTime: Instant,
 )
+
 /** Manages the persistence of privacy budget data. */
 interface PrivacyBudgetLedgerBackingStore : AutoCloseable {
   /**

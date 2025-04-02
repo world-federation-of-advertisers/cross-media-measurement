@@ -214,7 +214,7 @@ class DynamicClipping(
   /** Dynamic Clipping only supports impression and duration measurements */
   enum class MeasurementType {
     IMPRESSION,
-    DURATION
+    DURATION,
   }
 
   /**

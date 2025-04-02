@@ -25,53 +25,53 @@ data "aws_partition" "current" {}
 # EKS vars
 variable "availability_zones_count" {
   description = "The number of AZs."
-  type = number
-  default = 2
+  type        = number
+  default     = 2
 }
 
 variable "project" {
   description = "Name to be used on all the resources asan identifier."
-  type = string
-  default = "tftest"
+  type        = string
+  default     = "tftest"
 }
 
 variable "vpc_cidr" {
   description = "The CIDR block for the VPC. Default is valid, but should be overridden."
-  type = string
-  default = "10.0.0.0/16"
+  type        = string
+  default     = "10.0.0.0/16"
 }
 
 variable "subnet_cidr_bits" {
   description = "The number of subnet bits for the CIDR."
-  type = number
-  default = 8
+  type        = number
+  default     = 8
 }
 
 # EKS config vars
 variable "use_test_secrets" {
   description = "Whether or not to use the test secrets. They should not be used outside of testing purposes."
-  type = bool
-  default = false
+  type        = bool
+  default     = false
 }
 
 variable "image_name" {
   description = "The name of the image to build, push, and deploy."
-  type = string
+  type        = string
 }
 
 variable "build_target_name" {
   description = "The name of the bazel target to run."
-  type = string
+  type        = string
 }
 
 variable "manifest_name" {
   description = "The name of the manifest to apply."
-  type = string
+  type        = string
 }
 
 variable "repository_name" {
   description = "The name of the respository you want to create."
-  type = string
+  type        = string
 }
 
 variable "path_to_secrets" {
@@ -83,7 +83,7 @@ variable "k8s_account_service_name" {
 }
 
 variable "path_to_cue" {
-  type = string
+  type    = string
   default = "../k8s/dev/example_mp_daemon_aws.cue"
 }
 

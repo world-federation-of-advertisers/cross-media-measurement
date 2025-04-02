@@ -28,6 +28,9 @@ option java_outer_classname = "PermissionsServiceProto";
 // Service for interacting with `Permission` resources.
 service Permissions {
   // Gets a `Permission` by resource name.
+  //
+  // Error reasons:
+  // * `PERMISSION_NOT_FOUND`
   rpc GetPermission(GetPermissionRequest) returns (Permission) {
     option (google.api.method_signature) = "name";
   }
@@ -41,6 +44,10 @@ service Permissions {
   // for a given operation on the protected resource. If the `Permission`s that
   // the `Principal` has is a strict subset of the required `Permission`s, then
   // the operation should not be permitted.
+  //
+  // Error reasons:
+  // * `PRINCIPAL_NOT_FOUND`
+  // * `PERMISSION_NOT_FOUND`
   rpc CheckPermissions(CheckPermissionsRequest)
       returns (CheckPermissionsResponse);
 }

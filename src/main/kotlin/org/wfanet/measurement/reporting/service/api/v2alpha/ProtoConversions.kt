@@ -802,7 +802,10 @@ fun InternalReportingSet.toReportingSet(): ReportingSet {
           reportingSetId = source.externalReportingSetId,
         )
         .toName()
-
+    if (source.externalCampaignGroupId.isNotEmpty()) {
+      campaignGroup =
+        ReportingSetKey(source.cmmsMeasurementConsumerId, source.externalCampaignGroupId).toName()
+    }
     displayName = source.displayName
     tags.putAll(source.details.tagsMap)
     filter = source.filter
@@ -959,6 +962,7 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
   measurementConsumerKey: MeasurementConsumerKey,
   externalReportingSetId: String,
   filter: String,
+  containingReportResourceName: String,
 ): CreateMetricRequest {
   val source = this
   return createMetricRequest {
@@ -970,6 +974,7 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
       timeInterval = source.details.timeInterval
       metricSpec = source.details.metricSpec.toMetricSpec()
       filters += (source.details.groupingPredicatesList + filter).filter { it.isNotBlank() }
+      containingReport = containingReportResourceName
     }
     requestId = source.createMetricRequestId
     metricId = "a" + source.createMetricRequestId

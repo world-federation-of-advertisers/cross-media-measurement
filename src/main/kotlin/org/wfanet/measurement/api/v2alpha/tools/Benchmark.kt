@@ -320,6 +320,7 @@ class Benchmark(
     // The measurement result that was obtained.
     lateinit var result: Measurement.Result
   }
+
   /** List of tasks that have been submitted to the Kingdom. */
   private val taskList: MutableList<MeasurementTask> = Collections.synchronizedList(mutableListOf())
 

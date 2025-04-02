@@ -402,7 +402,7 @@ class PrincipalsServiceTest {
                     subject = "user1@example.com"
                   }
               }
-              principalId = "678"
+              principalId = "123"
             }
           )
         }
@@ -531,7 +531,7 @@ class PrincipalsServiceTest {
   fun `deletePrincipal throws INVALID_FIELD_VALUE when name is malformed`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.deletePrincipal(deletePrincipalRequest { name = "principles/user-1" })
+        service.deletePrincipal(deletePrincipalRequest { name = "user-1" })
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)

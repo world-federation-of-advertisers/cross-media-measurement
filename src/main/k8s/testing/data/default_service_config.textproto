@@ -2,9 +2,9 @@
 # proto-message: ServiceConfig
 
 method_config: {
-  name: { }
+  name: {}
   # Default timeout for all services
   timeout: {
-  seconds: 30
+    seconds: 30
   }
 }
