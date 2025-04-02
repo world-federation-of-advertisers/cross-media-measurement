@@ -10550,9 +10550,9 @@ class MetricsServiceTest {
         }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)  
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
- 
+
   object PermissionName {
     const val GET = "permissions/${MetricsService.Permission.GET}"
     const val LIST = "permissions/${MetricsService.Permission.LIST}"

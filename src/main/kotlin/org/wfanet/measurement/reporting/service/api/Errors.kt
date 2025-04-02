@@ -166,7 +166,7 @@ class InvalidMetricStateTransitionException(
     ),
     cause,
   )
-  
+
 class ImpressionQualificationFilterNotFoundException(name: String, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
