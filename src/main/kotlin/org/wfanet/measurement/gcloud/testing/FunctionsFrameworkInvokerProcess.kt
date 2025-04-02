@@ -39,10 +39,10 @@ import org.wfanet.measurement.common.getRuntimePath
 
 /**
  * Wrapper for a Cloud Function binary process. Exposes a port where the process can receive data.
+ * This class is used for starting a process that invokes Google Cloud Functions for tests.
  *
  * @param javaBinaryPath the runfiles-relative path of the binary that runs the Cloud Run Invoker
- * @param classTarget the class that the invoker will run. This is the classpath that the Invoker
- *   will run
+ * @param classTarget the class name that the invoker will run. This must be in the class path of the binary that will be run.
  * @param coroutineContext the context under which the process will run
  */
 class FunctionsFrameworkInvokerProcess(
@@ -115,8 +115,6 @@ class FunctionsFrameworkInvokerProcess(
         val readyPattern = "Serving function..."
         var isReady = false
 
-        // Start a thread to read output
-        CoroutineScope(Dispatchers.Default).launch {
           try {
             while (!isReady) {
               val line = reader.readLine() ?: break
@@ -131,7 +129,6 @@ class FunctionsFrameworkInvokerProcess(
               logger.log(Level.WARNING, "Error reading process output: ${e.message}")
             }
           }
-        }
 
         // Wait for the ready message or timeout
         val timeout: Duration = 10.seconds
