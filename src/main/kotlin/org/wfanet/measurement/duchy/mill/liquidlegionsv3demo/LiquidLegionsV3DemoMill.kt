@@ -4,6 +4,8 @@ import com.google.auth.oauth2.AccessToken
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.kms.v1.KeyManagementServiceClient
 import com.google.cloud.kms.v1.KeyManagementServiceSettings
+import com.google.cloud.storage.BlobId
+import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.ByteString
 import java.io.File // For reading the token file
 import java.net.HttpURLConnection
@@ -12,9 +14,8 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.Base64 // For decoding ciphertext
 import java.util.Date
-import org.wfanet.measurement.storage.StorageClient
 
-class LiquidLegionsV3DemoMill(private val storageClient: StorageClient) {
+class LiquidLegionsV3DemoMill() {
   fun run() {
     val blobBucket = "demo-tee"
     val blobKey = "encrypted_edp_data"
@@ -36,22 +37,14 @@ class LiquidLegionsV3DemoMill(private val storageClient: StorageClient) {
     println("- Token File Path: $tokenFilePath")
     println("---")
 
-    try {
-      // Sleep for a very long time (effectively forever)
-      // Long.MAX_VALUE milliseconds is roughly 292 million years.
-      Thread.sleep(Long.MAX_VALUE)
-    } catch (e: InterruptedException) {
-      // Handle thread interruption if necessary.
-      // For a simple sleep loop, often just logging and continuing is fine.
-      System.err.println("Main sleep thread interrupted: ${e.message}")
-      // Optionally re-interrupt the thread if needed by downstream logic
-      // Thread.currentThread().interrupt()
-      // Or break the loop if interruption means shutdown
-      // break
-    }
-
     // --- Step 0: Read ciphertext from GCS ---
-    val ciphertextBase64 = ""
+
+    val storage = StorageOptions.getDefaultInstance().service
+    println("GCS client initialized successfully.")
+    val blobId = BlobId.of(blobBucket, blobKey)
+    val blob = storage.get(blobId)
+    val ciphertextBase64 = blob.getContent()
+    println("ciphertext:$ciphertextBase64")
 
     // --- Step 1: Read OIDC Attestation Token from File ---
     println("Reading OIDC token from file: $tokenFilePath")

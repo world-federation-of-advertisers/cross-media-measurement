@@ -13,6 +13,7 @@ kt_jvm_library(
         "@maven//:com_google_auth_google_auth_library_credentials",
         "@maven//:com_google_auth_google_auth_library_oauth2_http",
         "@maven//:com_google_cloud_google_cloud_kms",
+        "@maven//:com_google_cloud_google_cloud_storage",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
 )

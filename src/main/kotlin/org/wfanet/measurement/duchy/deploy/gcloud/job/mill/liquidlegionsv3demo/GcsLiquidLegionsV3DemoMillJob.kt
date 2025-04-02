@@ -17,7 +17,7 @@ class GcsLiquidLegionsV3DemoMillJob : Runnable {
 
   override fun run() {
     val gcsStorageClient = GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags))
-    LiquidLegionsV3DemoMill(gcsStorageClient).run()
+    LiquidLegionsV3DemoMill().run()
   }
 }
 
