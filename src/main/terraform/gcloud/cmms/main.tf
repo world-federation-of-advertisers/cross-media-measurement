@@ -23,6 +23,7 @@ locals {
   duchy_names               = toset(["aggregator", "worker1", "worker2"])
   reporting_cluster_name    = "reporting"
   reporting_v2_cluster_name = "reporting-v2"
+  control_plane_cluster_name = "control-plane"
   simulators_cluster_name   = "simulators"
 
   cluster_location        = var.cluster_location == null ? data.google_client_config.default.zone : var.cluster_location
