@@ -74,9 +74,13 @@ class InternalReportingServer : AbstractInternalReportingServer() {
 
     val postgresClient = PostgresDatabaseClient.fromFlags(postgresFlags)
 
-    spannerFlags.usingSpanner { spanner ->
-      val spannerClient = spanner.databaseClient
-      run(DataServices.create(idGenerator, postgresClient, spannerClient, basicReportsEnabled))
+    if (basicReportsEnabled) {
+      spannerFlags.usingSpanner { spanner ->
+        val spannerClient = spanner.databaseClient
+        run(DataServices.create(idGenerator, postgresClient, spannerClient))
+      }
+    } else {
+      run(DataServices.create(idGenerator, postgresClient, null))
     }
   }
 }

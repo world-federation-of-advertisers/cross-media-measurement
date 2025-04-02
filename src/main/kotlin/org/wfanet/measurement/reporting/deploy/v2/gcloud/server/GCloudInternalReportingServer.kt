@@ -47,10 +47,13 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
     val factory = PostgresConnectionFactories.buildConnectionFactory(gCloudPostgresFlags)
     val postgresClient = PostgresDatabaseClient.fromConnectionFactory(factory)
 
-    spannerFlags.usingSpanner { spanner ->
-      val spannerClient = spanner.databaseClient
-
-      run(DataServices.create(idGenerator, postgresClient, spannerClient, basicReportsEnabled))
+    if (basicReportsEnabled) {
+      spannerFlags.usingSpanner { spanner ->
+        val spannerClient = spanner.databaseClient
+        run(DataServices.create(idGenerator, postgresClient, spannerClient))
+      }
+    } else {
+      run(DataServices.create(idGenerator, postgresClient, null))
     }
   }
 }

@@ -57,11 +57,10 @@ object DataServices {
   fun create(
     idGenerator: IdGenerator,
     postgresClient: DatabaseClient,
-    spannerClient: AsyncDatabaseClient,
-    basicReportsEnabled: Boolean,
+    spannerClient: AsyncDatabaseClient?,
   ): Services {
     val basicReportsService: BasicReportsGrpcKt.BasicReportsCoroutineImplBase? =
-      if (basicReportsEnabled) {
+      if (spannerClient != null) {
         SpannerBasicReportsService(spannerClient, postgresClient)
       } else null
 
