@@ -33,6 +33,7 @@ import org.wfanet.measurement.internal.reporting.v2.BatchCreateMetricsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricsResponse
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest
+import org.wfanet.measurement.internal.reporting.v2.InvalidateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.Metric
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineImplBase
@@ -41,10 +42,13 @@ import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsResponse
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MetricReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateMetrics
+import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.InvalidateMetric
+import org.wfanet.measurement.reporting.service.internal.InvalidMetricStateTransitionException
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.MetricAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.MetricNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
+import org.wfanet.measurement.reporting.service.internal.RequiredFieldNotSetException
 
 private const val MAX_BATCH_SIZE = 1000
 
@@ -130,16 +134,27 @@ class PostgresMetricsService(
           .map { it.metric }
           .withSerializableErrorRetries()
           .toList()
-      } catch (e: MetricNotFoundException) {
-        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Metric not found")
       } catch (e: IllegalStateException) {
         failGrpc(Status.NOT_FOUND) { "Metric not found" }
       } finally {
         readContext.close()
       }
 
-    if (metrics.size < request.externalMetricIdsList.size) {
-      failGrpc(Status.NOT_FOUND) { "Metric not found" }
+    val metricIdSet =
+      buildSet<String> {
+        for (metric in metrics) {
+          add(metric.externalMetricId)
+        }
+      }
+
+    for (metricId in request.externalMetricIdsList) {
+      if (!metricIdSet.contains(metricId)) {
+        throw MetricNotFoundException(
+            cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
+            externalMetricId = metricId,
+          )
+          .asStatusRuntimeException(Status.Code.NOT_FOUND)
+      }
     }
 
     return batchGetMetricsResponse { this.metrics += metrics }
@@ -162,6 +177,26 @@ class PostgresMetricsService(
       } finally {
         readContext.close()
       }
+    }
+  }
+
+  override suspend fun invalidateMetric(request: InvalidateMetricRequest): Metric {
+    if (request.cmmsMeasurementConsumerId.isEmpty()) {
+      throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.externalMetricId.isEmpty()) {
+      throw RequiredFieldNotSetException("external_metric_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    try {
+      return InvalidateMetric(request).execute(client, idGenerator)
+    } catch (e: MetricNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: InvalidMetricStateTransitionException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
   }
 }

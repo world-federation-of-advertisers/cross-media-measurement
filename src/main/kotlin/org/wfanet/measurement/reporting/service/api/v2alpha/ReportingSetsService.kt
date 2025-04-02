@@ -127,7 +127,6 @@ class ReportingSetsService(
         ErrorCode.REPORT_NOT_FOUND,
         ErrorCode.MEASUREMENT_STATE_INVALID,
         ErrorCode.MEASUREMENT_CONSUMER_ALREADY_EXISTS,
-        ErrorCode.METRIC_NOT_FOUND,
         ErrorCode.METRIC_ALREADY_EXISTS,
         ErrorCode.REPORT_ALREADY_EXISTS,
         ErrorCode.REPORT_SCHEDULE_ALREADY_EXISTS,
