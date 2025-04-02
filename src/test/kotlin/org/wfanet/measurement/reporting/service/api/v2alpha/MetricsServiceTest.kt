@@ -6572,6 +6572,10 @@ class MetricsServiceTest {
 
   @Test
   fun `getMetric returns the metric with INVALID when metric has state INVALID`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+
     val invalidatedMetric =
       INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy { state = InternalMetric.State.INVALID }
 
@@ -6581,7 +6585,7 @@ class MetricsServiceTest {
     val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.getMetric(request) }
       }
 
@@ -10399,6 +10403,10 @@ class MetricsServiceTest {
 
   @Test
   fun `invalidateMetric returns Metric with state INVALID`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+
     whenever(internalMetricsMock.invalidateMetric(any()))
       .thenReturn(
         INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
@@ -10430,14 +10438,18 @@ class MetricsServiceTest {
 
   @Test
   fun `invalidateMetric throws FAILED_PRECONDITION when metric FAILED`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+
     val measurementConsumerKey =
       MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMERS.values.first().name)
     val metricKey = MetricKey(measurementConsumerKey!!, "aaa")
     whenever(internalMetricsMock.invalidateMetric(any()))
       .thenThrow(
         MetricNotFoundException(
-            cmmsMeasurementConsumerId = measurementConsumerKey!!.measurementConsumerId,
-            externalMetricId = metricKey.metricId,
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
+          externalMetricId = metricKey.metricId,
           )
           .asStatusRuntimeException(Status.Code.NOT_FOUND)
       )
@@ -10463,13 +10475,17 @@ class MetricsServiceTest {
   }
 
   fun `invalidateMetric throws NOT_FOUND when metric not found`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+
     val measurementConsumerKey =
       MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMERS.values.first().name)
     val metricKey = MetricKey(measurementConsumerKey!!, "aaa")
     whenever(internalMetricsMock.invalidateMetric(any()))
       .thenThrow(
         InvalidMetricStateTransitionException(
-            cmmsMeasurementConsumerId = measurementConsumerKey!!.measurementConsumerId,
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
             externalMetricId = metricKey.metricId,
             metricState = InternalMetric.State.FAILED,
             newMetricState = InternalMetric.State.INVALID,
