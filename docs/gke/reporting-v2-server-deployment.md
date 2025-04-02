@@ -119,9 +119,9 @@ of each container, and the JVM options of each container.
 
 ## Turning on the MC API Phase 1 services
 
-Pass in "--basic-reports-enabled=true" to the internal server. If this is not
-passed in, then all spanner flags are optional, otherwise "--spanner-project",
-"--spanner-instance", and '--spanner-database' are all required.
+Pass in "--basic-reports-enabled=true" to the internal server. If this is
+passed in, then "--spanner-project", "--spanner-instance", and 
+'--spanner-database' are all required as well.
 
 ## Customize the K8s secrets
 
