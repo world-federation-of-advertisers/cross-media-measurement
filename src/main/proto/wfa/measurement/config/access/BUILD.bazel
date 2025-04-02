@@ -22,6 +22,9 @@ kt_jvm_proto_library(
 proto_library(
     name = "open_id_providers_config_proto",
     srcs = ["open_id_providers_config.proto"],
+    deps = [
+        "@com_google_protobuf//:struct_proto",
+    ],
 )
 
 kt_jvm_proto_library(

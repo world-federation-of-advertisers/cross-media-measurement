@@ -96,6 +96,7 @@ reporting: #Reporting & {
 
 	services: {
 		"reporting-v2alpha-public-api-server": _ipAddressName: _publicApiAddressName
+		"reporting-grpc-gateway": _ipAddressName:              _publicApiAddressName
 		"access-public-api-server": _ipAddressName:            _accessPublicApiAddressName
 	}
 }

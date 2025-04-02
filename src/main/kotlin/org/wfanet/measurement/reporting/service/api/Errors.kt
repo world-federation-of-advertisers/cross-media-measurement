@@ -36,6 +36,7 @@ object Errors {
     INVALID_FIELD_VALUE,
     INVALID_METRIC_STATE_TRANSITION,
     ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE,
+    IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
   }
 
   enum class Metadata(val key: String) {
@@ -44,7 +45,8 @@ object Errors {
     METRIC_STATE("metricState"),
     NEW_METRIC_STATE("newMetricState"),
     REPORTING_SET("reportingSet"),
-    FIELD_NAME("fieldName");
+    FIELD_NAME("fieldName"),
+    IMPRESSION_QUALIFICATION_FILTER("impressionQualificationFilter");
 
     companion object {
       private val METADATA_BY_KEY by lazy { entries.associateBy { it.key } }
@@ -164,3 +166,11 @@ class InvalidMetricStateTransitionException(
     ),
     cause,
   )
+  
+class ImpressionQualificationFilterNotFoundException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+    "Impression Qualification Filter $name not found",
+    mapOf(Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER to name),
+    cause,
+  ) {}
