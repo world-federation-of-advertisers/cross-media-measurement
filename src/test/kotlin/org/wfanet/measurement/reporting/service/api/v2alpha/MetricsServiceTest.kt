@@ -10409,7 +10409,7 @@ class MetricsServiceTest {
     val request = invalidateMetricRequest { name = FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.invalidateMetric(request) }
       }
 
@@ -10446,7 +10446,7 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.invalidateMetric(request) }
         }
       }
@@ -10481,7 +10481,7 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.invalidateMetric(request) }
         }
       }
@@ -10505,7 +10505,7 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.invalidateMetric(request) }
         }
       }
@@ -10529,7 +10529,7 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.last().name, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.invalidateMetric(request) }
         }
       }
