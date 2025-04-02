@@ -29,6 +29,7 @@ import org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilte
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.reporting.service.internal.Errors
 import org.wfanet.measurement.reporting.v2alpha.GetImpressionQualificationFilterRequest
 import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineImplBase
@@ -70,6 +71,8 @@ class ImpressionQualificationFiltersService(
             ImpressionQualificationFilterNotFoundException(request.name, e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
+          InternalErrors.Reason.METRIC_NOT_FOUND,
+          InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
           InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
           InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
@@ -120,6 +123,8 @@ class ImpressionQualificationFiltersService(
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
           InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
+          InternalErrors.Reason.METRIC_NOT_FOUND,
+          InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
           InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,

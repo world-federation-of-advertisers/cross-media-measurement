@@ -1292,15 +1292,8 @@ class MetricsService(
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
-      is MeasurementConsumerPrincipal -> {
-        if (metricKey.parentKey != principal.resourceKey) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot invalidate a Metric belonging to another MeasurementConsumer."
-          }
-        }
-      }
-    }
+    val measurementConsumerName: String = metricKey.parentKey.toName()
+    authorization.check(measurementConsumerName, Permission.CREATE)
 
     try {
       return internalMetricsStub

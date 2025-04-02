@@ -891,7 +891,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdCompositeReportingSet =
       publicReportingSetsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReportingSet(
           createReportingSetRequest {
             parent = measurementConsumerData.name
@@ -902,7 +902,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createMetricCalculationSpec(
           createMetricCalculationSpecRequest {
             parent = measurementConsumerData.name
@@ -931,7 +931,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val createdReport =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .createReport(
           createReportRequest {
             parent = measurementConsumerData.name
@@ -940,11 +940,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val retrievedReport = pollForCompletedReport(measurementConsumerData.name, createdReport.name)
+    val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
     publicMetricsClient
-      .withPrincipalName(measurementConsumerData.name)
+      .withCallCredentials(credentials)
       .invalidateMetric(
         invalidateMetricRequest {
           name = retrievedReport.metricCalculationResultsList[0].resultAttributesList[0].metric
@@ -953,7 +953,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val failedReport =
       publicReportsClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .getReport(getReportRequest { name = retrievedReport.name })
     assertThat(failedReport.state).isEqualTo(Report.State.FAILED)
   }

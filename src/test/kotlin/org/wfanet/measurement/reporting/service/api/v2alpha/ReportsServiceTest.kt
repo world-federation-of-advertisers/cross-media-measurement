@@ -3422,9 +3422,7 @@ class ReportsServiceTest {
     val request = getReportRequest { name = PENDING_REACH_REPORT.name }
 
     val report =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_KEYS.first().toName(), CONFIG) {
-        runBlocking { service.getReport(request) }
-      }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getReport(request) } }
 
     assertThat(report)
       .isEqualTo(

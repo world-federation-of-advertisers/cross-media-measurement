@@ -10537,22 +10537,6 @@ class MetricsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
-  @Test
-  fun `invalidateMetric throws UNAUTHENTICATED when the caller is not a MeasurementConsumer`() {
-    val request = invalidateMetricRequest {
-      name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDERS.values.first().name) {
-          runBlocking { service.invalidateMetric(request) }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-  }
-
   object PermissionName {
     const val GET = "permissions/${MetricsService.Permission.GET}"
     const val LIST = "permissions/${MetricsService.Permission.LIST}"
