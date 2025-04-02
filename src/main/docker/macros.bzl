@@ -41,7 +41,10 @@ def java_image(
         name = name,
         binary = binary,
         base = base,
-        labels = {"org.opencontainers.image.source": MEASUREMENT_SYSTEM_REPO},
+        labels = {
+            "org.opencontainers.image.source": MEASUREMENT_SYSTEM_REPO,
+            "tee.launch_policy.allow_cmd_override": "true",
+        },
         cmd_args = args,
         tags = tags + ["no-remote-cache"],
         visibility = visibility,
@@ -68,7 +71,10 @@ def java_debug_image(
         name = name,
         binary = binary,
         base = base,
-        labels = {"org.opencontainers.image.source": MEASUREMENT_SYSTEM_REPO},
+        labels = {
+            "org.opencontainers.image.source": MEASUREMENT_SYSTEM_REPO,
+            "tee.launch_policy.allow_cmd_override": "true",
+        },
         cmd_args = args,
         tags = tags + ["no-remote-cache"],
         visibility = visibility,
