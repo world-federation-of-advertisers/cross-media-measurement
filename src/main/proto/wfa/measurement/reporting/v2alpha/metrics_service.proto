@@ -73,6 +73,14 @@ service Metrics {
       body: "*"
     };
   }
+
+  // Invalidates the `Metric` with the specified resource key.
+  rpc InvalidateMetric(InvalidateMetricRequest) returns (Metric) {
+    option (google.api.http) = {
+      post: "/v2alpha/{name=measurementConsumers/*/metrics/*}"
+    };
+    option (google.api.method_signature) = "name";
+  }
 }
 
 // Request message for `GetMetric` method.
@@ -191,4 +199,14 @@ message BatchCreateMetricsRequest {
 message BatchCreateMetricsResponse {
   // Metrics created.
   repeated Metric metrics = 1;
+}
+
+// Request message for `InvalidateMetric` method.
+message InvalidateMetricRequest {
+  // The name of the metric to invalidate.
+  // Format: measurementConsumers/{measurement_consumer}/metrics/{metric}
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "reporting.halo-cmm.org/Metric" }
+  ];
 }

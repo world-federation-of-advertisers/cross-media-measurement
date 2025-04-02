@@ -3404,6 +3404,48 @@ class ReportsServiceTest {
   }
 
   @Test
+  fun `getReport returns the report with INVALID when any metric INVALID`() = runBlocking {
+    val invalidatedReachMetric = RUNNING_REACH_METRIC.copy { state = Metric.State.INVALID }
+
+    whenever(
+        metricsMock.batchGetMetrics(
+          eq(
+            batchGetMetricsRequest {
+              parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+              names += invalidatedReachMetric.name
+            }
+          )
+        )
+      )
+      .thenReturn(batchGetMetricsResponse { metrics += invalidatedReachMetric })
+
+    val request = getReportRequest { name = PENDING_REACH_REPORT.name }
+
+    val report =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getReport(request) } }
+
+    assertThat(report)
+      .isEqualTo(
+        PENDING_REACH_REPORT.copy {
+          state = Report.State.FAILED
+          metricCalculationResults +=
+            ReportKt.metricCalculationResult {
+              metricCalculationSpec = REACH_METRIC_CALCULATION_SPEC_NAME
+              displayName = INTERNAL_REACH_METRIC_CALCULATION_SPEC.details.displayName
+              reportingSet = SUCCEEDED_REACH_METRIC.reportingSet
+              resultAttributes +=
+                ReportKt.MetricCalculationResultKt.resultAttribute {
+                  metric = invalidatedReachMetric.name
+                  metricSpec = invalidatedReachMetric.metricSpec
+                  timeInterval = invalidatedReachMetric.timeInterval
+                  state = Metric.State.INVALID
+                }
+            }
+        }
+      )
+  }
+
+  @Test
   fun `getReport returns the report with RUNNING when metric is pending`(): Unit = runBlocking {
     val request = getReportRequest { name = PENDING_REACH_REPORT.name }
 

@@ -150,6 +150,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresR
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
+import org.wfanet.measurement.internal.reporting.v2.invalidateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.metric as internalMetric
 import org.wfanet.measurement.measurementconsumer.stats.CustomDirectFrequencyMethodology
@@ -179,13 +180,19 @@ import org.wfanet.measurement.measurementconsumer.stats.WeightedImpressionMeasur
 import org.wfanet.measurement.measurementconsumer.stats.WeightedReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.WeightedWatchDurationMeasurementVarianceParams
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
+import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
+import org.wfanet.measurement.reporting.service.api.InvalidMetricStateTransitionException
+import org.wfanet.measurement.reporting.service.api.MetricNotFoundException
+import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
+import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.GetMetricRequest
+import org.wfanet.measurement.reporting.v2alpha.InvalidateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsRequest
@@ -1274,6 +1281,51 @@ class MetricsService(
     }
   }
 
+  override suspend fun invalidateMetric(request: InvalidateMetricRequest): Metric {
+    if (request.name.isEmpty()) {
+      throw RequiredFieldNotSetException("name")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val metricKey =
+      MetricKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("name")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    val measurementConsumerName: String = metricKey.parentKey.toName()
+    authorization.check(measurementConsumerName, Permission.CREATE)
+
+    try {
+      return internalMetricsStub
+        .invalidateMetric(
+          invalidateMetricRequest {
+            cmmsMeasurementConsumerId = metricKey.cmmsMeasurementConsumerId
+            externalMetricId = metricKey.metricId
+          }
+        )
+        .toMetric(variances)
+    } catch (e: StatusException) {
+      throw when (InternalErrors.getReason(e)) {
+        InternalErrors.Reason.METRIC_NOT_FOUND ->
+          MetricNotFoundException(request.name, e).asStatusRuntimeException(Status.Code.NOT_FOUND)
+        InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION ->
+          InvalidMetricStateTransitionException(
+              request.name,
+              Metric.State.FAILED,
+              Metric.State.INVALID,
+            )
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
+        InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
+        InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+        InternalErrors.Reason.INVALID_FIELD_VALUE,
+        InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
+        InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+        null -> Status.INTERNAL.withCause(e).asRuntimeException()
+      }
+    }
+  }
+
   /**
    * Gets a batch of [InternalMetric]s.
    *
@@ -1699,7 +1751,8 @@ class MetricsService(
       for (state in metricsByState.keys) {
         when (state) {
           InternalMetric.State.SUCCEEDED,
-          InternalMetric.State.FAILED ->
+          InternalMetric.State.FAILED,
+          InternalMetric.State.INVALID ->
             addAll(metricsByState.getValue(state).map { it.toMetric(variances) })
           InternalMetric.State.RUNNING -> {
             if (anyMeasurementUpdated) {
@@ -1796,7 +1849,8 @@ class MetricsService(
             }
           }
         }
-        Metric.State.FAILED -> {
+        Metric.State.FAILED,
+        Metric.State.INVALID -> {
           result = metricResult {
             cmmsMeasurements +=
               source.weightedMeasurementsList.map {

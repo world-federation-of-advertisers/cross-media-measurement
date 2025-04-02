@@ -858,7 +858,7 @@ private fun inferReportState(metrics: Collection<Metric>): Report.State {
   val metricStates = metrics.map { it.state }
   return if (metricStates.all { it == Metric.State.SUCCEEDED }) {
     Report.State.SUCCEEDED
-  } else if (metricStates.any { it == Metric.State.FAILED }) {
+  } else if (metricStates.any { it == Metric.State.FAILED || it == Metric.State.INVALID }) {
     Report.State.FAILED
   } else {
     Report.State.RUNNING

@@ -111,6 +111,7 @@ import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.getMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportingSetRequest
+import org.wfanet.measurement.reporting.v2alpha.invalidateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.listMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
@@ -843,6 +844,118 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
       assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
     }
+  }
+
+  @Test
+  fun `report with invalidated Metric has state FAILED`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroup = eventGroups.first()
+    val eventGroupEntries: List<Pair<EventGroup, String>> =
+      listOf(
+        eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
+        eventGroup to "person.age_group == ${Person.Gender.MALE_VALUE}",
+      )
+    val createdPrimitiveReportingSets: List<ReportingSet> =
+      createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name)
+
+    val compositeReportingSet = reportingSet {
+      displayName = "composite"
+      composite =
+        ReportingSetKt.composite {
+          expression =
+            ReportingSetKt.setExpression {
+              operation = ReportingSet.SetExpression.Operation.DIFFERENCE
+              lhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  expression =
+                    ReportingSetKt.setExpression {
+                      operation = ReportingSet.SetExpression.Operation.UNION
+                      lhs =
+                        ReportingSetKt.SetExpressionKt.operand {
+                          reportingSet = createdPrimitiveReportingSets[0].name
+                        }
+                      rhs =
+                        ReportingSetKt.SetExpressionKt.operand {
+                          reportingSet = createdPrimitiveReportingSets[1].name
+                        }
+                    }
+                }
+              rhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  reportingSet = createdPrimitiveReportingSets[1].name
+                }
+            }
+        }
+    }
+
+    val createdCompositeReportingSet =
+      publicReportingSetsClient
+        .withCallCredentials(credentials)
+        .createReportingSet(
+          createReportingSetRequest {
+            parent = measurementConsumerData.name
+            reportingSet = compositeReportingSet
+            reportingSetId = "def"
+          }
+        )
+
+    val createdMetricCalculationSpec =
+      publicMetricCalculationSpecsClient
+        .withCallCredentials(credentials)
+        .createMetricCalculationSpec(
+          createMetricCalculationSpecRequest {
+            parent = measurementConsumerData.name
+            metricCalculationSpec = metricCalculationSpec {
+              displayName = "unique reach"
+              metricSpecs += metricSpec {
+                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                vidSamplingInterval = VID_SAMPLING_INTERVAL
+              }
+            }
+            metricCalculationSpecId = "fed"
+          }
+        )
+
+    val report = report {
+      reportingMetricEntries +=
+        ReportKt.reportingMetricEntry {
+          key = createdCompositeReportingSet.name
+          value =
+            ReportKt.reportingMetricCalculationSpec {
+              metricCalculationSpecs += createdMetricCalculationSpec.name
+            }
+        }
+      timeIntervals = timeIntervals { timeIntervals += EVENT_RANGE.toInterval() }
+    }
+
+    val createdReport =
+      publicReportsClient
+        .withCallCredentials(credentials)
+        .createReport(
+          createReportRequest {
+            parent = measurementConsumerData.name
+            this.report = report
+            reportId = "report"
+          }
+        )
+
+    val retrievedReport = pollForCompletedReport(createdReport.name)
+    assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+
+    publicMetricsClient
+      .withCallCredentials(credentials)
+      .invalidateMetric(
+        invalidateMetricRequest {
+          name = retrievedReport.metricCalculationResultsList[0].resultAttributesList[0].metric
+        }
+      )
+
+    val failedReport =
+      publicReportsClient
+        .withCallCredentials(credentials)
+        .getReport(getReportRequest { name = retrievedReport.name })
+    assertThat(failedReport.state).isEqualTo(Report.State.FAILED)
   }
 
   @Test
@@ -1758,7 +1871,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (retrievedMetric.state) {
         Metric.State.SUCCEEDED,
-        Metric.State.FAILED -> return retrievedMetric
+        Metric.State.FAILED,
+        Metric.State.INVALID -> return retrievedMetric
         Metric.State.RUNNING,
         Metric.State.UNRECOGNIZED,
         Metric.State.STATE_UNSPECIFIED -> delay(5000)
