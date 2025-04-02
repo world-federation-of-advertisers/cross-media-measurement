@@ -43,6 +43,15 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "spanner_flags",
+    srcs = ["SpannerFlags.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)
+
+kt_jvm_library(
     name = "v2alpha_flags",
     srcs = ["V2AlphaFlags.kt"],
     deps = [

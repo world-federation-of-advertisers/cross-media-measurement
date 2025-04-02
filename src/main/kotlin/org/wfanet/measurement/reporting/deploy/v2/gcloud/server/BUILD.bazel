@@ -7,6 +7,7 @@ kt_jvm_library(
     srcs = ["GCloudInternalReportingServer.kt"],
     runtime_deps = ["@wfa_common_jvm//imports/java/com/google/cloud/sql/postgres:r2dbc"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:spanner_flags",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:internal_reporting_server",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/service:services",
         "@wfa_common_jvm//imports/java/io/r2dbc",

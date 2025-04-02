@@ -23,10 +23,10 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.gcloud.postgres.PostgresConnectionFactories
 import org.wfanet.measurement.gcloud.postgres.PostgresFlags as GCloudPostgresFlags
-import org.wfanet.measurement.gcloud.spanner.SpannerFlags
-import org.wfanet.measurement.gcloud.spanner.usingSpanner
+import org.wfanet.measurement.reporting.deploy.v2.common.SpannerFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.server.AbstractInternalReportingServer
 import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
+import org.wfanet.measurement.reporting.deploy.v2.common.usingSpanner
 import picocli.CommandLine
 
 /** Implementation of [AbstractInternalReportingServer] using Google Cloud Postgres. */
@@ -48,6 +48,13 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
     val postgresClient = PostgresDatabaseClient.fromConnectionFactory(factory)
 
     if (basicReportsEnabled) {
+      if (spannerFlags.projectName.isEmpty() || spannerFlags.instanceName.isEmpty() || spannerFlags.databaseName.isEmpty()) {
+        throw CommandLine.MissingParameterException(
+          spec.commandLine(), spec.args(),
+          "--spanner-project, --spanner-instance, and --spanner-database are all required if --basic-reports-enabled is set to true"
+        )
+      }
+
       spannerFlags.usingSpanner { spanner ->
         val spannerClient = spanner.databaseClient
         run(DataServices.create(idGenerator, postgresClient, spannerClient))

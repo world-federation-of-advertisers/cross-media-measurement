@@ -26,13 +26,16 @@ import org.wfanet.measurement.common.db.postgres.PostgresFlags
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.gcloud.spanner.SpannerFlags
-import org.wfanet.measurement.gcloud.spanner.usingSpanner
+import org.wfanet.measurement.reporting.deploy.v2.common.SpannerFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
+import org.wfanet.measurement.reporting.deploy.v2.common.usingSpanner
 import picocli.CommandLine
+import picocli.CommandLine.MissingParameterException
 
 abstract class AbstractInternalReportingServer : Runnable {
+  @CommandLine.Spec lateinit var spec : CommandLine.Model.CommandSpec
+
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
 
   @CommandLine.Option(
@@ -75,6 +78,11 @@ class InternalReportingServer : AbstractInternalReportingServer() {
     val postgresClient = PostgresDatabaseClient.fromFlags(postgresFlags)
 
     if (basicReportsEnabled) {
+      if (spannerFlags.projectName.isEmpty() || spannerFlags.instanceName.isEmpty() || spannerFlags.databaseName.isEmpty()) {
+        throw MissingParameterException(spec.commandLine(), spec.args(),
+                                        "--spanner-project, --spanner-instance, and --spanner-database are all required if --basic-reports-enabled is set to true")
+      }
+
       spannerFlags.usingSpanner { spanner ->
         val spannerClient = spanner.databaseClient
         run(DataServices.create(idGenerator, postgresClient, spannerClient))
