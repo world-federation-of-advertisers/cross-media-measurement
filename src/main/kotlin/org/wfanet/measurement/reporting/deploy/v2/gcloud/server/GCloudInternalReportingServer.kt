@@ -48,10 +48,15 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
     val postgresClient = PostgresDatabaseClient.fromConnectionFactory(factory)
 
     if (basicReportsEnabled) {
-      if (spannerFlags.projectName.isEmpty() || spannerFlags.instanceName.isEmpty() || spannerFlags.databaseName.isEmpty()) {
+      if (
+        spannerFlags.projectName.isEmpty() ||
+          spannerFlags.instanceName.isEmpty() ||
+          spannerFlags.databaseName.isEmpty()
+      ) {
         throw CommandLine.MissingParameterException(
-          spec.commandLine(), spec.args(),
-          "--spanner-project, --spanner-instance, and --spanner-database are all required if --basic-reports-enabled is set to true"
+          spec.commandLine(),
+          spec.args(),
+          "--spanner-project, --spanner-instance, and --spanner-database are all required if --basic-reports-enabled is set to true",
         )
       }
 

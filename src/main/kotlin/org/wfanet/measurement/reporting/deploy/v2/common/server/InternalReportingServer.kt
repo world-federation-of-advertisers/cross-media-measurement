@@ -34,7 +34,7 @@ import picocli.CommandLine
 import picocli.CommandLine.MissingParameterException
 
 abstract class AbstractInternalReportingServer : Runnable {
-  @CommandLine.Spec lateinit var spec : CommandLine.Model.CommandSpec
+  @CommandLine.Spec lateinit var spec: CommandLine.Model.CommandSpec
 
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
 
@@ -78,9 +78,16 @@ class InternalReportingServer : AbstractInternalReportingServer() {
     val postgresClient = PostgresDatabaseClient.fromFlags(postgresFlags)
 
     if (basicReportsEnabled) {
-      if (spannerFlags.projectName.isEmpty() || spannerFlags.instanceName.isEmpty() || spannerFlags.databaseName.isEmpty()) {
-        throw MissingParameterException(spec.commandLine(), spec.args(),
-                                        "--spanner-project, --spanner-instance, and --spanner-database are all required if --basic-reports-enabled is set to true")
+      if (
+        spannerFlags.projectName.isEmpty() ||
+          spannerFlags.instanceName.isEmpty() ||
+          spannerFlags.databaseName.isEmpty()
+      ) {
+        throw MissingParameterException(
+          spec.commandLine(),
+          spec.args(),
+          "--spanner-project, --spanner-instance, and --spanner-database are all required if --basic-reports-enabled is set to true",
+        )
       }
 
       spannerFlags.usingSpanner { spanner ->
