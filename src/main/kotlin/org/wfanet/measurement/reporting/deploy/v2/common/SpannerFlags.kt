@@ -21,13 +21,14 @@ import org.wfanet.measurement.gcloud.spanner.SpannerDatabaseConnector
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import picocli.CommandLine
 
-/** Common command-line flags for connecting to a single Spanner database.
+/**
+ * Common command-line flags for connecting to a single Spanner database.
  *
  * Copy of [org.wfanet.measurement.gcloud.spanner.SpannerFlags] except there are no required
  * options.
  *
  * TODO(tristanvuong2021): This should share a common interface with the original one.
- * */
+ */
 class SpannerFlags {
   @CommandLine.Option(
     names = ["--spanner-project"],
@@ -81,7 +82,8 @@ class SpannerFlags {
 }
 
 /** Builds a [SpannerDatabaseConnector] from these flags. */
-private fun org.wfanet.measurement.reporting.deploy.v2.common.SpannerFlags.toSpannerDatabaseConnector(): SpannerDatabaseConnector {
+private fun org.wfanet.measurement.reporting.deploy.v2.common.SpannerFlags
+  .toSpannerDatabaseConnector(): SpannerDatabaseConnector {
   return SpannerDatabaseConnector(
     projectName = projectName,
     instanceName = instanceName,

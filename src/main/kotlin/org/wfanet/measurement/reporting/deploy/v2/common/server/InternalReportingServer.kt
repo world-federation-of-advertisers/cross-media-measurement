@@ -40,7 +40,10 @@ abstract class AbstractInternalReportingServer : Runnable {
 
   @CommandLine.Option(
     names = ["--basic-reports-enabled"],
-    description = ["Whether the BasicReports service is enabled. This includes services it exclusively depends on."],
+    description =
+      [
+        "Whether the BasicReports service is enabled. This includes services it exclusively depends on."
+      ],
     required = false,
   )
   var basicReportsEnabled: Boolean = false
@@ -53,9 +56,9 @@ abstract class AbstractInternalReportingServer : Runnable {
 
   companion object {
     fun Services.toList(): List<BindableService> {
-      return Services::class
-        .declaredMemberProperties
-        .mapNotNull { it.get(this) as BindableService? }
+      return Services::class.declaredMemberProperties.mapNotNull {
+        it.get(this) as BindableService?
+      }
     }
   }
 }
