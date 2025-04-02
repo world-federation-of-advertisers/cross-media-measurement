@@ -98,18 +98,36 @@ abstract class BaseTeeApplication(
     try {
       runWork(queueMessage.body.workItemParams)
       runCatching { completeWorkItemAttempt(workItemAttempt) }
-        .onFailure { error -> logger.log(Level.SEVERE, error) { "Failed to report work item attempt completed successfully" }
+        .onFailure { error ->
+          when(error) {
+            is StatusRuntimeException -> {
+              if (error.status.code == Status.Code.FAILED_PRECONDITION &&
+                error.errorInfo?.reason == Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name &&
+                error.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key) == WorkItemAttempt.State.SUCCEEDED.name) {
+                queueMessage.ack()
+                return@processMessage
+              } else {
+                logger.log(Level.SEVERE, error) { "Failed to report work item as completed" }
+                queueMessage.nack()
+                return@processMessage
+              }
+            }
+          }
         }
+      queueMessage.ack()
     } catch (e: InvalidProtocolBufferException) {
       logger.log(Level.SEVERE, e) { "Failed to parse protobuf message" }
-      queueMessage.ack()
       runCatching { failWorkItem(workItemName) }
-        .onFailure { error -> logger.log(Level.SEVERE, error) { "Failed to report work item failure" } }
+        .onFailure { error ->
+          logger.log(Level.SEVERE, error) { "Failed to report work item failure" }
+          queueMessage.nack()
+        }
+      queueMessage.ack()
     } catch (e: Exception) {
       logger.log(Level.SEVERE, e) { "Error processing message" }
-      queueMessage.nack()
       runCatching { failWorkItemAttempt(workItemAttempt, e) }
         .onFailure { error -> logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" } }
+      queueMessage.nack()
     }
   }
 
