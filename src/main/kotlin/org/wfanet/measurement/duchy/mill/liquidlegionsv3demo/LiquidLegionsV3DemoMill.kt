@@ -10,7 +10,6 @@ import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.ByteString
 import java.io.ByteArrayInputStream // To create InputStream from String
 import java.nio.charset.StandardCharsets
-import java.util.Base64
 
 class LiquidLegionsV3DemoMill() {
   fun run() {
@@ -42,8 +41,8 @@ class LiquidLegionsV3DemoMill() {
     println("GCS client initialized successfully.")
     val blobId = BlobId.of(blobBucket, blobKey)
     val blob = storage.get(blobId)
-    val ciphertextBase64 = blob.getContent()
-    println("ciphertext length:${ciphertextBase64.size}") // Use size for byte array
+    val ciphertextBytes = blob.getContent()
+    println("ciphertext length:${ciphertextBytes.size}") // Use size for byte array
 
     // --- NEW Steps 1-4: Configure Credentials using JSON ---
 
@@ -92,16 +91,6 @@ class LiquidLegionsV3DemoMill() {
       KeyManagementServiceClient.create(kmsSettings).use { kmsClient ->
         println("KMS client initialized successfully with external account credentials.")
         println("Attempting decryption using key: $kmsKeyName")
-
-        val ciphertextBytes = try {
-          Base64.getDecoder().decode(ciphertextBase64)
-        } catch (e: IllegalArgumentException) {
-          throw RuntimeException("Invalid Base64 format for ciphertext.", e)
-        }
-        if (ciphertextBytes.isEmpty()) {
-          throw RuntimeException("Decoded ciphertext is empty.")
-        }
-        println("Decoded ciphertext: ${ciphertextBytes.size} bytes.")
 
         val decryptRequest = DecryptRequest.newBuilder()
           .setName(kmsKeyName)
