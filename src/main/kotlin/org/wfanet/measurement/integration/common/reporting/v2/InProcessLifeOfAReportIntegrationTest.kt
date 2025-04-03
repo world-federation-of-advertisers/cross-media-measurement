@@ -2049,8 +2049,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val retrievedPublicBasicReport =
       publicBasicReportsClient
         .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = basicReportKey.toName() }
-      )
+        .getBasicReport(getBasicReportRequest { name = basicReportKey.toName() })
 
     assertThat(retrievedPublicBasicReport)
       .isEqualTo(
