@@ -23,22 +23,30 @@ import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.reporting.v2alpha.Metric
 
 object Errors {
   const val DOMAIN = "reporting.halo-cmm.org"
 
   enum class Reason {
     BASIC_REPORT_NOT_FOUND,
+    METRIC_NOT_FOUND,
     CAMPAIGN_GROUP_INVALID,
     REQUIRED_FIELD_NOT_SET,
     INVALID_FIELD_VALUE,
+    INVALID_METRIC_STATE_TRANSITION,
     ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE,
+    IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
   }
 
   enum class Metadata(val key: String) {
     BASIC_REPORT("basicReport"),
+    METRIC("metric"),
+    METRIC_STATE("metricState"),
+    NEW_METRIC_STATE("newMetricState"),
     REPORTING_SET("reportingSet"),
-    FIELD_NAME("fieldName");
+    FIELD_NAME("fieldName"),
+    IMPRESSION_QUALIFICATION_FILTER("impressionQualificationFilter");
 
     companion object {
       private val METADATA_BY_KEY by lazy { entries.associateBy { it.key } }
@@ -92,6 +100,14 @@ class BasicReportNotFoundException(name: String, cause: Throwable? = null) :
     cause,
   )
 
+class MetricNotFoundException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.METRIC_NOT_FOUND,
+    "Metric $name not found",
+    mapOf(Errors.Metadata.METRIC to name),
+    cause,
+  )
+
 class CampaignGroupInvalidException(reportingSet: String, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.CAMPAIGN_GROUP_INVALID,
@@ -133,3 +149,28 @@ class ArgumentChangedInRequestForNextPageException(
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
     cause,
   )
+
+class InvalidMetricStateTransitionException(
+  name: String,
+  metricState: Metric.State,
+  newMetricState: Metric.State,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.INVALID_METRIC_STATE_TRANSITION,
+    "Metric $name cannot be transitioned from $metricState to $newMetricState",
+    mapOf(
+      Errors.Metadata.METRIC to name,
+      Errors.Metadata.METRIC_STATE to metricState.name,
+      Errors.Metadata.NEW_METRIC_STATE to newMetricState.name,
+    ),
+    cause,
+  )
+
+class ImpressionQualificationFilterNotFoundException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+    "Impression Qualification Filter $name not found",
+    mapOf(Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER to name),
+    cause,
+  ) {}

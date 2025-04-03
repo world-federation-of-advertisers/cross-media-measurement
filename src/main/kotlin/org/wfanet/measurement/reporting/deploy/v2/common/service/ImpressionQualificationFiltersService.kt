@@ -91,7 +91,7 @@ class ImpressionQualificationFiltersService(
 
     return listImpressionQualificationFiltersResponse {
       this.impressionQualificationFilters += impressionQualificationFilters
-      if (toIndex < impressionQualificationFilters.size) {
+      if (toIndex < mappingImpressionQualificationFilters.size) {
         nextPageToken = listImpressionQualificationFiltersPageToken {
           after =
             ListImpressionQualificationFiltersPageTokenKt.after {

@@ -147,7 +147,7 @@ class InvokeDataWatcherFunctionTest() {
 
   /** Tests the DataWatcherFunction as a local process. */
   @Test
-  fun `verify DataWatcherFunction returns a 200`() {
+  fun `verify DataWatcherFunction returns a 200 and creates work item`() {
     val url = "http://localhost:${functionProcess.port}"
     logger.info("Testing Cloud Function at: $url")
 

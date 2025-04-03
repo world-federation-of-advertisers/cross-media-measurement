@@ -16,9 +16,14 @@
 
 package org.wfanet.measurement.securecomputation.datawatcher
 
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse.BodyHandlers
 import java.util.UUID
 import java.util.logging.Logger
 import kotlin.text.matches
+import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
@@ -56,8 +61,19 @@ class DataWatcher(
             }
             workItemsStub.createWorkItem(request)
           }
-          DataWatcherConfig.SinkConfigCase.WEB_HOOK_CONFIG ->
-            TODO("Web Hook Sink not currently supported")
+          DataWatcherConfig.SinkConfigCase.WEBHOOK_CONFIG -> {
+            val webhookConfig = config.webhookConfig
+            val client = HttpClient.newHttpClient()
+            val request =
+              HttpRequest.newBuilder()
+                .uri(URI.create(webhookConfig.endpointUri))
+                .POST(HttpRequest.BodyPublishers.ofString(webhookConfig.appConfig.toJson()))
+                .build()
+            val response = client.send(request, BodyHandlers.ofString())
+            logger.info("Response status: ${response.statusCode()}")
+            logger.info("Response body: ${response.body()}")
+            check(response.statusCode() == 200)
+          }
           DataWatcherConfig.SinkConfigCase.SINKCONFIG_NOT_SET ->
             error("Invalid sink config: ${config.sinkConfigCase}")
         }

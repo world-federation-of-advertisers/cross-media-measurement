@@ -48,7 +48,7 @@ message DataWatcherConfig {
     // The sink used to send event to the Control Plane.
     ControlPlaneConfig control_plane_config = 2;
     // The sink used to send events to a web hook.
-    WebhookConfig web_hook_config = 3;
+    WebhookConfig webhook_config = 3;
   }
 }
 

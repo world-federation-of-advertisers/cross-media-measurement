@@ -1,0 +1,26 @@
+# proto-file: wfa/measurement/config/securecomputation/data_watcher_config.proto
+# proto-message: wfa.measurement.config.securecomputation.DataWatcherConfig
+configs {
+  source_path_regex: "gs://test-bucket/control-plane-sink-path-to-watch/(.*)"
+  control_plane_config {
+    queue: "some-topic-id"
+    app_config {
+      type_url: "type.googleapis.com/google.protobuf.Int32Value"
+      value: "\b\005"
+    }
+  }
+}
+configs {
+  source_path_regex: "gs://test-bucket/webhook-sink-path-to-watch/(.*)"
+  webhook_config {
+    endpoint_uri: "http://localhost:9999"
+    app_config {
+      fields {
+        key: "some-key"
+        value {
+          string_value: "some-value"
+        }
+      }
+    }
+  }
+}

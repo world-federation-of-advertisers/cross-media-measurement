@@ -44,6 +44,9 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.projectnessie.cel.Env
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.check
+import org.wfanet.measurement.access.client.v1alpha.withForwardedTrustedCredentials
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
@@ -67,7 +70,6 @@ import org.wfanet.measurement.internal.reporting.v2.createReportRequest as inter
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
-import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withPrincipalName
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.reportScheduleInfoFromCurrentContext
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsResponse
@@ -105,6 +107,7 @@ class ReportsService(
   private val internalMetricCalculationSpecsStub: MetricCalculationSpecsCoroutineStub,
   private val metricsStub: MetricsCoroutineStub,
   private val metricSpecConfig: MetricSpecConfig,
+  private val authorization: Authorization,
   private val secureRandom: Random,
 ) : ReportsCoroutineImplBase() {
   private data class CreateReportInfo(
@@ -115,22 +118,12 @@ class ReportsService(
   )
 
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
-    val parentKey: MeasurementConsumerKey =
-      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
-        "Parent is either unspecified or invalid."
-      }
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+      "Parent is either unspecified or invalid."
+    }
     val listReportsPageToken = request.toListReportsPageToken()
 
-    val principal: ReportingPrincipal = principalFromCurrentContext
-    when (principal) {
-      is MeasurementConsumerPrincipal -> {
-        if (parentKey != principal.resourceKey) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot list Reports belonging to other MeasurementConsumers."
-          }
-        }
-      }
-    }
+    authorization.check(request.parent, Permission.LIST)
 
     val streamInternalReportsRequest: StreamReportsRequest =
       listReportsPageToken.toStreamReportsRequest()
@@ -197,7 +190,7 @@ class ReportsService(
     }
 
     val callRpc: suspend (List<String>) -> BatchGetMetricsResponse = { items ->
-      batchGetMetrics(principal.resourceKey.toName(), items)
+      batchGetMetrics(request.parent, items)
     }
     val externalIdToMetricMap: Map<String, Metric> = buildMap {
       submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
@@ -230,17 +223,9 @@ class ReportsService(
       grpcRequireNotNull(ReportKey.fromName(request.name)) {
         "Report name is either unspecified or invalid"
       }
+    val parent: String = reportKey.parentKey.toName()
 
-    val principal: ReportingPrincipal = principalFromCurrentContext
-    when (principal) {
-      is MeasurementConsumerPrincipal -> {
-        if (reportKey.parentKey != principal.resourceKey) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot get Report belonging to other MeasurementConsumers."
-          }
-        }
-      }
-    }
+    authorization.check(listOf(request.name, parent), Permission.GET)
 
     val internalReport =
       try {
@@ -287,7 +272,7 @@ class ReportsService(
     }
 
     val callRpc: suspend (List<String>) -> BatchGetMetricsResponse = { items ->
-      batchGetMetrics(principal.resourceKey.toName(), items)
+      batchGetMetrics(parent, items)
     }
     val externalIdToMetricMap: Map<String, Metric> = buildMap {
       submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
@@ -310,7 +295,7 @@ class ReportsService(
   ): BatchGetMetricsResponse {
     return try {
       metricsStub
-        .withPrincipalName(parent)
+        .withForwardedTrustedCredentials()
         .batchGetMetrics(
           batchGetMetricsRequest {
             this.parent = parent
@@ -336,18 +321,6 @@ class ReportsService(
         "Parent is either unspecified or invalid."
       }
 
-    val principal: ReportingPrincipal = principalFromCurrentContext
-
-    when (principal) {
-      is MeasurementConsumerPrincipal -> {
-        if (parentKey != principal.resourceKey) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot create a Report for another MeasurementConsumer."
-          }
-        }
-      }
-    }
-
     grpcRequire(request.hasReport()) { "Report is not specified." }
     grpcRequire(request.reportId.matches(RESOURCE_ID_REGEX)) { "Report ID is invalid." }
 
@@ -367,6 +340,8 @@ class ReportsService(
           key.metricCalculationSpecId
         }
       }
+
+    authorization.check(request.parent, Permission.CREATE)
 
     val externalIdToMetricCalculationSpecMap: Map<String, InternalMetricCalculationSpec> =
       createExternalIdToMetricCalculationSpecMap(
@@ -426,7 +401,7 @@ class ReportsService(
           metricCalculationSpecReportingMetrics ->
           metricCalculationSpecReportingMetrics.reportingMetricsList.asFlow().map {
             it.toCreateMetricRequest(
-              principal.resourceKey,
+              parentKey,
               entry.key,
               externalIdToMetricCalculationSpecMap
                 .getValue(metricCalculationSpecReportingMetrics.externalMetricCalculationSpecId)
@@ -627,7 +602,7 @@ class ReportsService(
   ): BatchCreateMetricsResponse {
     return try {
       metricsStub
-        .withPrincipalName(parent)
+        .withForwardedTrustedCredentials()
         .batchCreateMetrics(
           batchCreateMetricsRequest {
             this.parent = parent
@@ -862,6 +837,12 @@ class ReportsService(
     }
   }
 
+  object Permission {
+    const val GET = "reporting.reports.get"
+    const val LIST = "reporting.reports.list"
+    const val CREATE = "reporting.reports.create"
+  }
+
   companion object {
     private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
     private val ENV: Env = buildCelEnvironment(Report.getDefaultInstance())
@@ -877,7 +858,7 @@ private fun inferReportState(metrics: Collection<Metric>): Report.State {
   val metricStates = metrics.map { it.state }
   return if (metricStates.all { it == Metric.State.SUCCEEDED }) {
     Report.State.SUCCEEDED
-  } else if (metricStates.any { it == Metric.State.FAILED }) {
+  } else if (metricStates.any { it == Metric.State.FAILED || it == Metric.State.INVALID }) {
     Report.State.FAILED
   } else {
     Report.State.RUNNING
@@ -1026,7 +1007,7 @@ private fun generateTimeIntervals(
       generateTimeIntervals(
         offsetDateTime,
         reportEndDateTime.toOffsetDateTime(),
-        checkNotNull(frequencySpec),
+        frequencySpec,
         trailingWindow,
       )
     }
@@ -1049,7 +1030,7 @@ private fun generateTimeIntervals(
       generateTimeIntervals(
         zonedDateTime,
         reportEndDateTime.toZonedDateTime(),
-        checkNotNull(frequencySpec),
+        frequencySpec,
         trailingWindow,
       )
     }

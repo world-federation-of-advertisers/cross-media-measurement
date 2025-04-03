@@ -17,8 +17,16 @@
 package org.wfanet.measurement.securecomputation.datawatcher
 
 import com.google.common.truth.Truth.assertThat
+import com.google.gson.Gson
 import com.google.protobuf.Any
 import com.google.protobuf.Int32Value
+import com.google.protobuf.Struct
+import com.google.protobuf.Value
+import com.sun.net.httpserver.HttpExchange
+import com.sun.net.httpserver.HttpHandler
+import com.sun.net.httpserver.HttpServer
+import java.net.InetSocketAddress
+import java.net.ServerSocket
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -30,6 +38,7 @@ import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfigKt.controlPlaneConfig
+import org.wfanet.measurement.config.securecomputation.DataWatcherConfigKt.webhookConfig
 import org.wfanet.measurement.config.securecomputation.dataWatcherConfig
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
@@ -47,7 +56,7 @@ class DataWatcherTest() {
   }
 
   @Test
-  fun `creates WorkItem when path matches`() {
+  fun `sends to control plane sink when path matches`() {
     runBlocking {
       val topicId = "test-topic-id"
       val appConfig = Int32Value.newBuilder().setValue(5).build()
@@ -77,6 +86,38 @@ class DataWatcherTest() {
   }
 
   @Test
+  fun `sends to webhook sink when path matches`() {
+    runBlocking {
+      val appConfig =
+        Struct.newBuilder()
+          .putFields("some-key", Value.newBuilder().setStringValue("some-value").build())
+          .build()
+      val localPort = ServerSocket(0).use { it.localPort }
+      val dataWatcherConfig = dataWatcherConfig {
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        this.webhookConfig = webhookConfig {
+          endpointUri = "http://localhost:$localPort"
+          this.appConfig = appConfig
+        }
+      }
+      val server = TestServer()
+      server.start(localPort)
+
+      val dataWatcher = DataWatcher(workItemsStub, listOf(dataWatcherConfig))
+
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data")
+      val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsServiceMock, times(0)) {
+        createWorkItem(createWorkItemRequestCaptor.capture())
+      }
+      val gson = Gson()
+      assertThat(gson.fromJson(server.getLastRequest(), Map::class.java))
+        .isEqualTo(mapOf("some-key" to "some-value"))
+      server.stop()
+    }
+  }
+
+  @Test
   fun `does not create WorkItem with path does not match`() {
     runBlocking {
       val topicId = "test-topic-id"
@@ -96,6 +137,42 @@ class DataWatcherTest() {
       verifyBlocking(workItemsServiceMock, times(0)) {
         createWorkItem(createWorkItemRequestCaptor.capture())
       }
+    }
+  }
+}
+
+private class TestServer() {
+  private lateinit var handler: ServerHandler
+  private lateinit var httpServer: HttpServer
+
+  fun start(port: Int): HttpServer {
+    httpServer = HttpServer.create(InetSocketAddress(port), 0)
+    handler = ServerHandler()
+    httpServer.createContext("/", handler)
+    httpServer.setExecutor(null)
+    httpServer.start()
+    return httpServer
+  }
+
+  fun stop() {
+    httpServer.stop(0)
+  }
+
+  fun getLastRequest(): String {
+    return handler.requestBody
+  }
+
+  class ServerHandler : HttpHandler {
+    lateinit var requestBody: String
+
+    override fun handle(t: HttpExchange) {
+      val requestBodyBytes = t.requestBody.readBytes()
+      requestBody = requestBodyBytes.toString(Charsets.UTF_8)
+      val response = "Success"
+      t.sendResponseHeaders(200, response.length.toLong())
+      val os = t.responseBody
+      os.write(response.toByteArray())
+      os.close()
     }
   }
 }
