@@ -1,189 +1,138 @@
 package org.wfanet.measurement.duchy.mill.liquidlegionsv3demo
 
-import com.google.auth.oauth2.AccessToken
-import com.google.auth.oauth2.GoogleCredentials
+// Keep necessary imports
+import com.google.auth.oauth2.GoogleCredentials // Use this!
+import com.google.cloud.kms.v1.DecryptRequest
 import com.google.cloud.kms.v1.KeyManagementServiceClient
 import com.google.cloud.kms.v1.KeyManagementServiceSettings
 import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.ByteString
-import java.io.File // For reading the token file
-import java.net.HttpURLConnection
-import java.net.URL
-import java.net.URLEncoder
+import java.io.ByteArrayInputStream // To create InputStream from String
 import java.nio.charset.StandardCharsets
-import java.util.Base64 // For decoding ciphertext
-import java.util.Date
+import java.util.Base64
 
 class LiquidLegionsV3DemoMill() {
   fun run() {
+    // --- Keep your existing variable definitions ---
     val blobBucket = "demo-tee"
     val blobKey = "encrypted_edp_data"
     val kmsKeyName =
       "projects/halo-cmm-dev/locations/us-central1/keyRings/tee-demo-key-ring/cryptoKeys/tee-demo-key-1"
-    // e.g., projects/.../locations/.../keyRings/.../cryptoKeys/...
-    val wifAudience =
+    // WIF Provider Resource Name (Corrected Format)
+    val wifProviderResourceName =
       "//iam.googleapis.com/projects/462363635192/locations/global/workloadIdentityPools/tee-demo-pool/providers/tee-demo-pool-provider"
-    // e.g.,
-    // iam.googleapis.com/projects/[NUM]/locations/global/workloadIdentityPools/[POOL]/providers/[PROV]
     val targetSaEmail = "tee-demo-decrypter@halo-cmm-dev.iam.gserviceaccount.com"
-    // e.g., service-account@project-id.iam.gserviceaccount.com
-    val tokenFilePath = "/run/container_launcher/attestation_verifier_claims_token"
+    val oidcTokenFilePath = "/run/container_launcher/attestation_verifier_claims_token" // Needed by JSON config
 
     println("Configuration:")
     println("- KMS Key Name: $kmsKeyName")
-    println("- WIF Audience: $wifAudience")
+    println("- WIF Provider: $wifProviderResourceName")
     println("- Target SA Email: $targetSaEmail")
-    println("- Token File Path: $tokenFilePath")
+    println("- OIDC Token File Path: $oidcTokenFilePath")
     println("---")
 
-    // --- Step 0: Read ciphertext from GCS ---
 
+    // --- Step 0: Read ciphertext from GCS (No change needed here) ---
+    // Note: If the default GCS client needs specific credentials,
+    // you might need to initialize it similarly to the KMS client below.
+    // However, often the default client might pick up credentials differently
+    // depending on the environment. Let's assume default works for GCS for now.
     val storage = StorageOptions.getDefaultInstance().service
     println("GCS client initialized successfully.")
     val blobId = BlobId.of(blobBucket, blobKey)
     val blob = storage.get(blobId)
     val ciphertextBase64 = blob.getContent()
-    println("ciphertext:$ciphertextBase64")
+    println("ciphertext length:${ciphertextBase64.size}") // Use size for byte array
 
-    // --- Step 1: Read OIDC Attestation Token from File ---
-    println("Reading OIDC token from file: $tokenFilePath")
-    val oidcToken = File(tokenFilePath).readText(StandardCharsets.UTF_8).trim()
-    if (oidcToken.isEmpty()) {
-      throw RuntimeException("Token file is empty: $tokenFilePath")
+    // --- NEW Steps 1-4: Configure Credentials using JSON ---
+
+    // 1. Define the credential configuration JSON (similar to the Go code)
+    //    This JSON tells the Google Auth Library how to perform WIF + Impersonation.
+    val credentialConfigJson = """
+      {
+        "type": "external_account",
+        "audience": "$wifProviderResourceName",
+        "subject_token_type": "urn:ietf:params:oauth:token-type:id_token",
+        "token_url": "https://sts.googleapis.com/v1/token",
+        "credential_source": {
+          "file": "$oidcTokenFilePath"
+        },
+        "service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/$targetSaEmail:generateAccessToken"
+      }
+      """.trimIndent()
+
+    println("Using External Account JSON configuration.")
+    // println(credentialConfigJson) // Uncomment to debug the generated JSON
+
+    // 2. Create GoogleCredentials from the JSON configuration
+    val credentials = try {
+      GoogleCredentials.fromStream(
+        ByteArrayInputStream(credentialConfigJson.toByteArray(StandardCharsets.UTF_8))
+      )
+      // Optionally add scopes if needed, though often inferred or added during impersonation
+      // .createScoped("https://www.googleapis.com/auth/cloud-platform")
+    } catch (e: Exception) {
+      println("Error creating GoogleCredentials from JSON: ${e.message}")
+      throw RuntimeException("Failed to create GoogleCredentials", e)
     }
-    println("Successfully read OIDC token (${oidcToken.length} chars).")
-    println("oidcToken:\n$oidcToken")
 
-    // --- Step 2: Exchange OIDC Token via STS for a Federated Token ---
-    println("Exchanging OIDC token for federated token via STS...")
-    val federatedToken = exchangeToken(oidcToken, wifAudience)
-    println("Federated token obtained (length: ${federatedToken.length}).")
+    println("GoogleCredentials created successfully (library will handle token exchanges).")
 
-    // --- Step 3: Impersonate Target Service Account via IAM Credentials API ---
-    println("Impersonating service account: $targetSaEmail")
-    val saAccessToken = impersonateServiceAccount(federatedToken, targetSaEmail)
-    println("Obtained access token for service account (length: ${saAccessToken.length}).")
-
-    // --- Step 4: Build GoogleCredentials from the SA Access Token ---
-    // Here we assume a 1-hour lifetime; in a production system, parse the expiration from the IAM
-    // response.
-    val expiration = Date(System.currentTimeMillis() + 3600 * 1000)
-    val credentials = GoogleCredentials.create(AccessToken(saAccessToken, expiration))
-    println("GoogleCredentials created using impersonated SA token.")
 
     // --- Step 5: Initialize KMS Client with these Credentials and Decrypt Data ---
+    //    (Your existing KMS client init code is correct, just ensure it uses the 'credentials' object)
     val kmsSettings =
-      KeyManagementServiceSettings.newBuilder().setCredentialsProvider { credentials }.build()
+      KeyManagementServiceSettings.newBuilder()
+        .setCredentialsProvider { credentials } // Pass the credentials object here
+        .build()
 
-    KeyManagementServiceClient.create(kmsSettings).use { kmsClient ->
-      println("KMS client initialized successfully.")
-      println("Attempting decryption using key: $kmsKeyName")
+    // Use try-with-resources for automatic closing (idiomatic Java/Kotlin)
+    try {
+      KeyManagementServiceClient.create(kmsSettings).use { kmsClient ->
+        println("KMS client initialized successfully with external account credentials.")
+        println("Attempting decryption using key: $kmsKeyName")
 
-      // Decode the Base64 ciphertext
-      val ciphertextBytes =
-        try {
+        val ciphertextBytes = try {
           Base64.getDecoder().decode(ciphertextBase64)
         } catch (e: IllegalArgumentException) {
-          throw RuntimeException(
-            "Invalid Base64 format for CIPHERTEXT_BASE64 environment variable.",
-            e,
-          )
+          throw RuntimeException("Invalid Base64 format for ciphertext.", e)
         }
-      if (ciphertextBytes.isEmpty()) {
-        throw RuntimeException(
-          "Decoded ciphertext is empty. Check CIPHERTEXT_BASE64 environment variable."
-        )
-      }
-      println("Decoded ciphertext: ${ciphertextBytes.size} bytes.")
+        if (ciphertextBytes.isEmpty()) {
+          throw RuntimeException("Decoded ciphertext is empty.")
+        }
+        println("Decoded ciphertext: ${ciphertextBytes.size} bytes.")
 
-      val decryptResponse = kmsClient.decrypt(kmsKeyName, ByteString.copyFrom(ciphertextBytes))
-      val decryptedData = decryptResponse.plaintext.toString(StandardCharsets.UTF_8)
-      println("Decryption successful!")
-      println("--- DECRYPTED DATA ---")
-      println(decryptedData)
-      println("--- END DECRYPTED DATA ---")
+        val decryptRequest = DecryptRequest.newBuilder()
+          .setName(kmsKeyName)
+          .setCiphertext(ByteString.copyFrom(ciphertextBytes))
+          .build()
+
+        // ---> The library handles auth automatically when this call is made <---
+        val decryptResponse = kmsClient.decrypt(decryptRequest)
+        val decryptedData = decryptResponse.plaintext.toStringUtf8() // Use toStringUtf8()
+
+        println("Decryption successful!")
+        println("--- DECRYPTED DATA ---")
+        println(decryptedData)
+        println("--- END DECRYPTED DATA ---")
+      } // kmsClient is automatically closed here
+    } catch (e: Exception) {
+      println("Error during KMS client creation or decryption: ${e.message}")
+      // Log the stack trace for more details during debugging
+      e.printStackTrace()
+      throw RuntimeException("KMS operation failed", e)
     }
+
+
+    // --- Step 6: Write results to GCS (No change needed here, assuming default storage client works) ---
+    // ... (your existing code for writing results) ...
+    // You *might* need to initialize storageClient with the same credentials if default doesn't work:
+    // val storage = StorageOptions.newBuilder().setCredentials(credentials).build().service
+    // ... rest of write logic ...
   }
 
-  /**
-   * Exchanges the provided OIDC token for a federated access token using the Google STS endpoint.
-   */
-  fun exchangeToken(oidcToken: String, audience: String): String {
-    val url = URL("https://sts.googleapis.com/v1/token")
-    // Build form parameters for token exchange
-    val params =
-      mapOf(
-        "grant_type" to "urn:ietf:params:oauth:grant-type:token-exchange",
-        "subject_token_type" to "urn:ietf:params:oauth:token-type:id_token",
-        "subject_token" to oidcToken,
-        "audience" to audience,
-        "scope" to "https://www.googleapis.com/auth/cloud-platform",
-        "requested_token_type" to "urn:ietf:params:oauth:token-type:access_token",
-      )
-    val postData =
-      params.entries.joinToString("&") {
-        "${URLEncoder.encode(it.key, "UTF-8")}=${URLEncoder.encode(it.value, "UTF-8")}"
-      }
-
-    with(url.openConnection() as HttpURLConnection) {
-      requestMethod = "POST"
-      doOutput = true
-      setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-      outputStream.use { os -> os.write(postData.toByteArray(StandardCharsets.UTF_8)) }
-      if (responseCode != HttpURLConnection.HTTP_OK) {
-        val errorBody = try {
-          errorStream?.bufferedReader()?.readText() ?: "No error body."
-        } catch (e: Exception) {
-          "Failed to read error body: ${e.message}"
-        }
-        throw RuntimeException("STS token exchange failed with HTTP code $responseCode. Response body: $errorBody")
-      }
-      val response = inputStream.bufferedReader().readText()
-      // Extract the access token from the JSON response (a simple regex-based extraction)
-      val tokenRegex = """"access_token"\s*:\s*"([^"]+)"""".toRegex()
-      val matchResult =
-        tokenRegex.find(response)
-          ?: throw RuntimeException("access_token not found in STS response: $response")
-      return matchResult.groupValues[1]
-    }
-  }
-
-  /**
-   * Impersonates the target service account by calling the IAM Credentials API. Uses the federated
-   * token as the source credential.
-   */
-  fun impersonateServiceAccount(federatedToken: String, targetSaEmail: String): String {
-    val url =
-      URL(
-        "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/$targetSaEmail:generateAccessToken"
-      )
-    // Construct the JSON body for the impersonation request.
-    val jsonBody =
-      """
-        {
-            "scope": ["https://www.googleapis.com/auth/cloud-platform"],
-            "lifetime": "3600s"
-        }
-    """
-        .trimIndent()
-
-    with(url.openConnection() as HttpURLConnection) {
-      requestMethod = "POST"
-      doOutput = true
-      setRequestProperty("Content-Type", "application/json")
-      setRequestProperty("Authorization", "Bearer $federatedToken")
-      outputStream.use { os -> os.write(jsonBody.toByteArray(StandardCharsets.UTF_8)) }
-      if (responseCode != HttpURLConnection.HTTP_OK) {
-        throw RuntimeException("Service account impersonation failed with HTTP code $responseCode")
-      }
-      val response = inputStream.bufferedReader().readText()
-      // Extract the access token from the response JSON.
-      val tokenRegex = """"accessToken"\s*:\s*"([^"]+)"""".toRegex()
-      val matchResult =
-        tokenRegex.find(response)
-          ?: throw RuntimeException("accessToken not found in impersonation response: $response")
-      return matchResult.groupValues[1]
-    }
-  }
+  // --- DELETE Manual Token Exchange Functions ---
+  // fun exchangeToken(...) can be removed
+  // fun impersonateServiceAccount(...) can be removed
 }
