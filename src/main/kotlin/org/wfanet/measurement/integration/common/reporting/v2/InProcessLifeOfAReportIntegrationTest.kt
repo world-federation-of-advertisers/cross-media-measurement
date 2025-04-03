@@ -87,7 +87,6 @@ import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
-import org.wfanet.measurement.integration.common.reporting.v2.identity.withPrincipalName
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as InternalEventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec as InternalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt as InternalResultGroupKt
@@ -98,7 +97,6 @@ import org.wfanet.measurement.internal.reporting.v2.eventFilter as internalEvent
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField as internalEventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilterSpec as internalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.insertBasicReportRequest
-import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as internalMetricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
@@ -1851,7 +1849,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val dataProvider =
       publicDataProvidersClient
-        .withPrincipalName(measurementConsumerData.name)
+        .withCallCredentials(credentials)
         .getDataProvider(getDataProviderRequest { name = eventGroup.cmmsDataProvider })
 
     val createdPrimitiveReportingSet: ReportingSet =
@@ -2049,8 +2047,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       )
 
     val retrievedPublicBasicReport =
-      publicBasicReportsClient.getBasicReport(
-        getBasicReportRequest { name = basicReportKey.toName() }
+      publicBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = basicReportKey.toName() }
       )
 
     assertThat(retrievedPublicBasicReport)
