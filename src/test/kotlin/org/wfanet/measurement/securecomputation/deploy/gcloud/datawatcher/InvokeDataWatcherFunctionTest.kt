@@ -124,7 +124,22 @@ class InvokeDataWatcherFunctionTest() {
       val port =
         functionProcess.start(
           mapOf(
-            "DATA_WATCHER_CONFIGS" to dataWatcherConfigs.toString(),
+            "DATA_WATCHER_CONFIG_RUN_TIME_PATH" to
+              Paths.get(
+                  "wfa_measurement_system",
+                  "src",
+                  "test",
+                  "kotlin",
+                  "org",
+                  "wfanet",
+                  "measurement",
+                  "securecomputation",
+                  "deploy",
+                  "gcloud",
+                  "datawatcher",
+                  "data_watcher_config.textproto",
+                )
+                .toString(),
             "CONTROL_PLANE_PROJECT_ID" to projectId,
             "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
             "CONTROL_PLANE_CERT_HOST" to "localhost",
@@ -160,7 +175,7 @@ class InvokeDataWatcherFunctionTest() {
         "kind": "storage#object",
         "md5Hash": "...",
         "metageneration": "1",
-        "name": "path-to-watch/some-blob",
+        "name": "control-plane-sink-path-to-watch/some-blob",
         "size": "352",
         "storageClass": "MULTI_REGIONAL",
         "timeCreated": "2020-04-23T07:38:57.230Z",
@@ -178,7 +193,7 @@ class InvokeDataWatcherFunctionTest() {
         .header("ce-time", "2020-01-02T12:34:56.789Z")
         .header("ce-type", "google.cloud.storage.object.v1.finalized")
         .header("ce-source", "//storage.googleapis.com/projects/_/buckets/$BUCKET")
-        .header("ce-subject", "objects/path-to-watch/some-blob")
+        .header("ce-subject", "objects/control-plane-sink-path-to-watch/some-blob")
         .POST(HttpRequest.BodyPublishers.ofString(jsonData))
         .build()
     val getResponse = client.send(getRequest, BodyHandlers.ofString())
