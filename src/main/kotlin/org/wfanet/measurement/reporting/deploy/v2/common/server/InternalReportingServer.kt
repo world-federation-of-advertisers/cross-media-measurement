@@ -30,8 +30,6 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.reporting.deploy.v2.common.SpannerFlags
-import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.deploy.v2.common.usingSpanner
@@ -118,7 +116,14 @@ class InternalReportingServer : AbstractInternalReportingServer() {
 
       spannerFlags.usingSpanner { spanner ->
         val spannerClient = spanner.databaseClient
-        run(DataServices.create(idGenerator, postgresClient, spannerClient, impressionQualificationFilterMapping))
+        run(
+          DataServices.create(
+            idGenerator,
+            postgresClient,
+            spannerClient,
+            impressionQualificationFilterMapping,
+          )
+        )
       }
     } else {
       run(DataServices.create(idGenerator, postgresClient, null, null))
