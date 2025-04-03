@@ -210,7 +210,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `getBasicReport throws NOT_FOUND when externalBasicReportId not found`(): Unit = runBlocking {
+  fun `getBasicReport throws NOT_FOUND when basic report not found`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )

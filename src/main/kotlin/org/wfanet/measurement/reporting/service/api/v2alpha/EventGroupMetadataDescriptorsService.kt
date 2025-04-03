@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.api.v2alpha.BatchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.BatchGetEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -28,17 +30,14 @@ import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.api.ResourceKey
 
 class EventGroupMetadataDescriptorsService(
-  private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub
+  private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
+  private val authorization: Authorization,
+  private val apiAuthenticationKey: String,
 ) : EventGroupMetadataDescriptorsCoroutineImplBase() {
   override suspend fun getEventGroupMetadataDescriptor(
     request: GetEventGroupMetadataDescriptorRequest
   ): EventGroupMetadataDescriptor {
-    val principal: ReportingPrincipal = principalFromCurrentContext
-    when (principal) {
-      is MeasurementConsumerPrincipal -> {}
-    }
-
-    val apiAuthenticationKey: String = principal.config.apiKey
+    authorization.check(Authorization.ROOT_RESOURCE_NAME, GET_DESCRIPTOR_PERMISSIONS)
 
     return eventGroupMetadataDescriptorsStub
       .withAuthenticationKey(apiAuthenticationKey)
@@ -48,12 +47,7 @@ class EventGroupMetadataDescriptorsService(
   override suspend fun batchGetEventGroupMetadataDescriptors(
     request: BatchGetEventGroupMetadataDescriptorsRequest
   ): BatchGetEventGroupMetadataDescriptorsResponse {
-    val principal: ReportingPrincipal = principalFromCurrentContext
-    when (principal) {
-      is MeasurementConsumerPrincipal -> {}
-    }
-
-    val apiAuthenticationKey: String = principal.config.apiKey
+    authorization.check(Authorization.ROOT_RESOURCE_NAME, GET_DESCRIPTOR_PERMISSIONS)
 
     return eventGroupMetadataDescriptorsStub
       .withAuthenticationKey(apiAuthenticationKey)
@@ -63,5 +57,10 @@ class EventGroupMetadataDescriptorsService(
           names += request.namesList
         }
       )
+  }
+
+  companion object {
+    private const val GET_DESCRIPTOR_PERMISSION = "reporting.eventGroupMetadataDescriptors.get"
+    val GET_DESCRIPTOR_PERMISSIONS = setOf(GET_DESCRIPTOR_PERMISSION)
   }
 }

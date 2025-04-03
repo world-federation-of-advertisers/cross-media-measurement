@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-import math
 import sys
 from typing import FrozenSet
 
@@ -28,6 +27,7 @@ from report.report import Report
 
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_summary_pb2
+
 
 # This is a demo script that has the following assumptions :
 # 1. Impression results are not corrected.
@@ -142,23 +142,23 @@ class ReportSummaryProcessor:
         for index in range(metric_report.get_number_of_periods()):
           entry = metric_report.get_cumulative_measurement(edp_combination,
                                                            index)
-          metric_name_to_value.update({entry.name: int(entry.value)})
+          metric_name_to_value.update({entry.name: round(entry.value)})
       for edp_combination in metric_report.get_whole_campaign_edp_combinations():
         entry = metric_report.get_whole_campaign_measurement(edp_combination)
-        metric_name_to_value.update({entry.name: int(entry.value)})
+        metric_name_to_value.update({entry.name: round(entry.value)})
       for edp_combination in metric_report.get_k_reach_edp_combinations():
         for frequency in range(1,
                                metric_report.get_number_of_frequencies() + 1):
           entry = metric_report.get_k_reach_measurement(edp_combination,
                                                         frequency)
-          metric_name_to_value.update({entry.name: int(entry.value)})
+          metric_name_to_value.update({entry.name: round(entry.value)})
       for edp_combination in metric_report.get_impression_edp_combinations():
         entry = metric_report.get_impression_measurement(edp_combination)
-        metric_name_to_value.update({entry.name: int(entry.value)})
+        metric_name_to_value.update({entry.name: round(entry.value)})
 
     # Updates difference measurements.
     for key, value in self._set_difference_map.items():
-      metric_name_to_value.update({key: int(
+      metric_name_to_value.update({key: round(
           metric_name_to_value[value[0]] - metric_name_to_value[value[1]])})
     return metric_name_to_value
 
@@ -334,17 +334,18 @@ class ReportSummaryProcessor:
         ]
       else:
         # Add the measurement of the edp_comb that is derived from the
-        # incremental_reach(A) and reach(A U subset). As
-        # std(incremental_reach(A) = sqrt(std(rach(A U subset))^2 +
-        # std(reach(subset))^2), we have: std(reach(subset)) =
-        # sqrt(std(incremental_reach(A))^2 - std(reach(A U subset))^2).
+        # incremental_reach(A) and reach(A U subset).
         logging.debug(
             f"Estimating the {measurement_policy} reach of {subset} from "
             f"{superset_measurement.name} and {difference_measurement.name}.")
+        # TODO(world-federation-of-advertisers/cross-media-measurement#2136):
+        # Use the correct formula to find the standard deviation of the derived
+        # metric.
+        derived_standard_deviation = max(difference_measurement.sigma,
+                                         superset_measurement.sigma)
         subset_measurement = Measurement(
             superset_measurement.value - difference_measurement.value,
-            math.sqrt(
-                difference_measurement.sigma ** 2 - superset_measurement.sigma ** 2),
+            derived_standard_deviation,
             "union/" + measurement_policy + "/" + "_".join(sorted(subset))
         )
         self._whole_campaign_measurements[measurement_policy][

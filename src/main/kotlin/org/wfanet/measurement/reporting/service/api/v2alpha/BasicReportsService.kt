@@ -20,6 +20,8 @@ import com.google.longrunning.Operation
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import io.grpc.StatusException
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -45,8 +47,10 @@ import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.listBasicReportsResponse
 
-class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoroutineStub) :
-  BasicReportsCoroutineImplBase() {
+class BasicReportsService(
+  private val internalBasicReportsStub: BasicReportsCoroutineStub,
+  private val authorization: Authorization,
+) : BasicReportsCoroutineImplBase() {
 
   override suspend fun createBasicReport(request: CreateBasicReportRequest): Operation {
     // TODO(@tristanvuong2021): Will be implemented for phase 2
@@ -63,6 +67,8 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
       BasicReportKey.fromName(request.name)
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    authorization.check(listOf(request.name, measurementConsumerKey.toName()), Permission.GET)
 
     val internalBasicReport: InternalBasicReport =
       try {
@@ -81,6 +87,9 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
           InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.METRIC_NOT_FOUND,
+          InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
+          InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -101,6 +110,8 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    authorization.check(request.parent, Permission.LIST)
+
     val internalListBasicReportsResponse =
       try {
         val internalRequest: InternalListBasicReportsRequest = request.toInternal()
@@ -117,6 +128,9 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
           InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
           InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.METRIC_NOT_FOUND,
+          InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
+          InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -197,6 +211,12 @@ class BasicReportsService(private val internalBasicReportsStub: BasicReportsCoro
         pageSize = finalPageSize
       }
     }
+  }
+
+  object Permission {
+    private const val TYPE = "reporting.basicReports"
+    const val GET = "$TYPE.get"
+    const val LIST = "$TYPE.list"
   }
 
   companion object {

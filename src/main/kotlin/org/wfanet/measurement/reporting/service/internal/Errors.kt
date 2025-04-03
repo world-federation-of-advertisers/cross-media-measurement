@@ -22,6 +22,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.internal.reporting.v2.Metric
 
 object Errors {
   const val DOMAIN = "internal.reporting.halo-cmm.org"
@@ -29,14 +30,21 @@ object Errors {
   enum class Reason {
     MEASUREMENT_CONSUMER_NOT_FOUND,
     BASIC_REPORT_NOT_FOUND,
+    METRIC_NOT_FOUND,
     BASIC_REPORT_ALREADY_EXISTS,
     REQUIRED_FIELD_NOT_SET,
+    IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+    INVALID_METRIC_STATE_TRANSITION,
     INVALID_FIELD_VALUE,
   }
 
   enum class Metadata(val key: String) {
     CMMS_MEASUREMENT_CONSUMER_ID("cmmsMeasurementConsumerId"),
     EXTERNAL_BASIC_REPORT_ID("externalBasicReportId"),
+    IMPRESSION_QUALIFICATION_FILTER_ID("impressionQualificationFilterId"),
+    EXTERNAL_METRIC_ID("externalMetricId"),
+    METRIC_STATE("metricState"),
+    NEW_METRIC_STATE("newMetricState"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -147,6 +155,17 @@ class RequiredFieldNotSetException(fieldName: String, cause: Throwable? = null) 
     cause,
   )
 
+class ImpressionQualificationFilterNotFoundException(
+  impressionQualificationFilterId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+    "Impression Qualification Filter with ID $impressionQualificationFilterId not found",
+    mapOf(Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER_ID to impressionQualificationFilterId),
+    cause,
+  )
+
 class InvalidFieldValueException(
   fieldName: String,
   cause: Throwable? = null,
@@ -156,5 +175,42 @@ class InvalidFieldValueException(
     Errors.Reason.INVALID_FIELD_VALUE,
     buildMessage(fieldName),
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
+    cause,
+  )
+
+class MetricNotFoundException(
+  cmmsMeasurementConsumerId: String,
+  externalMetricId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.METRIC_NOT_FOUND,
+    "Metric with cmms measurement consumer ID $cmmsMeasurementConsumerId and external ID $externalMetricId not found",
+    mapOf(
+      Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
+      Errors.Metadata.EXTERNAL_METRIC_ID to externalMetricId,
+    ),
+    cause,
+  )
+
+class InvalidMetricStateTransitionException(
+  cmmsMeasurementConsumerId: String,
+  externalMetricId: String,
+  metricState: Metric.State,
+  newMetricState: Metric.State,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.INVALID_METRIC_STATE_TRANSITION,
+    """
+      Metric with cmms measurement consumer ID $cmmsMeasurementConsumerId and external ID
+      $externalMetricId cannot be transitioned from $metricState to $newMetricState
+    """,
+    mapOf(
+      Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
+      Errors.Metadata.EXTERNAL_METRIC_ID to externalMetricId,
+      Errors.Metadata.METRIC_STATE to metricState.name,
+      Errors.Metadata.NEW_METRIC_STATE to newMetricState.name,
+    ),
     cause,
   )

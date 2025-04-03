@@ -169,13 +169,6 @@ class RolesServiceTest {
       permissionResourceIds += "books.list"
       etag = "response-etag"
     }
-    val internalBookWriterRole = internalRole {
-      roleResourceId = "bookWriter"
-      resourceTypes += "library.googleapis.com/Shelf"
-      permissionResourceIds += "books.get"
-      permissionResourceIds += "books.list"
-      etag = "response-etag"
-    }
     val internalListRolesResponse = internalListRolesResponse {
       roles += internalBookReaderRole
       nextPageToken = internalListRolesPageToken {
@@ -192,8 +185,7 @@ class RolesServiceTest {
       .isEqualTo(
         listRolesResponse {
           roles += internalBookReaderRole.toRole()
-          nextPageToken =
-            internalListRolesResponse.nextPageToken.after.toByteString().base64UrlEncode()
+          nextPageToken = internalListRolesResponse.nextPageToken.toByteString().base64UrlEncode()
         }
       )
   }

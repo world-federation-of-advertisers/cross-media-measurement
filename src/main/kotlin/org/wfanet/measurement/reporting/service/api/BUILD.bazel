@@ -40,6 +40,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:errors",
         "//src/main/proto/google/rpc:error_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:metric_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
     ],
 )
