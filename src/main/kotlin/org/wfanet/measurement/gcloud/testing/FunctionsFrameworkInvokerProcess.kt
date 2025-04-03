@@ -27,9 +27,7 @@ import kotlin.properties.Delegates
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -42,7 +40,8 @@ import org.wfanet.measurement.common.getRuntimePath
  * This class is used for starting a process that invokes Google Cloud Functions for tests.
  *
  * @param javaBinaryPath the runfiles-relative path of the binary that runs the Cloud Run Invoker
- * @param classTarget the class name that the invoker will run. This must be in the class path of the binary that will be run.
+ * @param classTarget the class name that the invoker will run. This must be in the class path of
+ *   the binary that will be run.
  * @param coroutineContext the context under which the process will run
  */
 class FunctionsFrameworkInvokerProcess(
@@ -115,20 +114,20 @@ class FunctionsFrameworkInvokerProcess(
         val readyPattern = "Serving function..."
         var isReady = false
 
-          try {
-            while (!isReady) {
-              val line = reader.readLine() ?: break
-              logger.info("Process output: $line")
-              // Check if the ready message is in the output
-              if (line.contains(readyPattern)) {
-                isReady = true
-              }
-            }
-          } catch (e: Exception) {
-            if (process.isAlive) {
-              logger.log(Level.WARNING, "Error reading process output: ${e.message}")
+        try {
+          while (!isReady) {
+            val line = reader.readLine() ?: break
+            logger.info("Process output: $line")
+            // Check if the ready message is in the output
+            if (line.contains(readyPattern)) {
+              isReady = true
             }
           }
+        } catch (e: Exception) {
+          if (process.isAlive) {
+            logger.log(Level.WARNING, "Error reading process output: ${e.message}")
+          }
+        }
 
         // Wait for the ready message or timeout
         val timeout: Duration = 10.seconds

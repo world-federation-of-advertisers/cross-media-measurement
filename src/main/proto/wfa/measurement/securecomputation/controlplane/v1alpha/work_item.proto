@@ -30,11 +30,9 @@ message WorkItem {
   // The config sent along with the WorkItem to the receiving application.
   message WorkItemParams {
     // The config expected by the queue for the type of data in the data path.
-    google.protobuf.Any config = 1
-      [(google.api.field_behavior) = IMMUTABLE];
+    google.protobuf.Any config = 1 [(google.api.field_behavior) = IMMUTABLE];
     // The data path to process
-    string data_path = 2
-      [(google.api.field_behavior) = IMMUTABLE];
+    string data_path = 2 [(google.api.field_behavior) = IMMUTABLE];
   }
 
   option (google.api.resource) = {
@@ -56,8 +54,7 @@ message WorkItem {
     }
   ];
   // The parameters to be delivered to the TEE application.
-  WorkItemParams work_item_params = 3
-      [(google.api.field_behavior) = IMMUTABLE];
+  WorkItemParams work_item_params = 3 [(google.api.field_behavior) = IMMUTABLE];
 
   // State of a `WorkItem`.
   enum State {
@@ -83,9 +80,9 @@ message WorkItem {
 
   // Create time.
   google.protobuf.Timestamp create_time = 5
-      [(google.api.field_behavior) = OUTPUT_ONLY];
+  [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Update time.
   google.protobuf.Timestamp update_time = 6
-      [(google.api.field_behavior) = OUTPUT_ONLY];
+  [(google.api.field_behavior) = OUTPUT_ONLY];
 }
