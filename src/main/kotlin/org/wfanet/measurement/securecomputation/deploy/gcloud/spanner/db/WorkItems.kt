@@ -71,14 +71,12 @@ fun AsyncDatabaseClient.TransactionContext.insertWorkItem(
   workItemParams: Any,
 ): WorkItem.State {
   val state = WorkItem.State.QUEUED
-  val serializedParams: ByteArray = ByteArray.copyFrom(workItemParams.toByteArray())
-  val value = Value.bytes(serializedParams)
   bufferInsertMutation("WorkItems") {
     set("WorkItemId").to(workItemId)
     set("WorkItemResourceId").to(workItemResourceId)
     set("QueueId").to(queueId)
     set("State").to(state)
-    set("WorkItemParams").to(value)
+    set("WorkItemParams").to(workItemParams)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
@@ -170,8 +168,6 @@ private object WorkItems {
 
   fun buildWorkItemResult(row: Struct, queue: QueueMapping.Queue): WorkItemResult {
 
-    val workItemParamsBytes = row.getBytes("WorkItemParams")
-    val workItemParams = Any.parseFrom(workItemParamsBytes.toByteArray())
 
     return WorkItemResult(
       row.getLong("WorkItemId"),
@@ -179,7 +175,7 @@ private object WorkItems {
         workItemResourceId = row.getString("WorkItemResourceId")
         queueResourceId = queue.queueResourceId
         state = row.getProtoEnum("State", WorkItem.State::forNumber)
-        this.workItemParams = workItemParams
+        workItemParams = row.getProtoMessage("WorkItemParams", Any.getDefaultInstance())
         createTime = row.getTimestamp("CreateTime").toProto()
         updateTime = row.getTimestamp("UpdateTime").toProto()
       },

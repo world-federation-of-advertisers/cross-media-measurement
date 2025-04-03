@@ -92,7 +92,7 @@ class SpannerWorkItemsService(
         transactionRunner.run { txn ->
           val workItemId: Long = idGenerator.generateNewId { id -> txn.workItemIdExists(id) }
 
-          val state =
+          val state: WorkItem.State =
             txn.insertWorkItem(workItemId, request.workItem.workItemResourceId, queue.queueId, request.workItem.workItemParams)
 
           request.workItem.copy { this.state = state }
@@ -116,7 +116,6 @@ class SpannerWorkItemsService(
       workItemPublisher.publishMessage(request.workItem.queueResourceId, request.workItem.workItemParams)
     } catch (e: Exception) {
       throw Status.INTERNAL
-        .withDescription(e.message)
         .withCause(e)
         .asRuntimeException()
     }
