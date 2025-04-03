@@ -156,13 +156,13 @@ package k8s
 			}
 
 			spec: template: spec: {
-				_mounts: {
-					"config-files": #ConfigMapMount
-				}
 				_initContainers: {
 					"update-reporting-postgres-schema": _updatePostgresSchemaContainer
 					"update-reporting-spanner-schema":  _updateSpannerSchemaContainer
-			  }
+				}
+			  _mounts: {
+					"config-files": #ConfigMapMount
+				}
 			}
 		}
 
