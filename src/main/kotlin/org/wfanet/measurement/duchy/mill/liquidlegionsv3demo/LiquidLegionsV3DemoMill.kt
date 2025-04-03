@@ -23,7 +23,7 @@ class LiquidLegionsV3DemoMill() {
       "projects/halo-cmm-dev/locations/us-central1/keyRings/tee-demo-key-ring/cryptoKeys/tee-demo-key-1"
     // e.g., projects/.../locations/.../keyRings/.../cryptoKeys/...
     val wifAudience =
-      "https://iam.googleapis.com/projects/462363635192/locations/global/workloadIdentityPools/tee-demo-pool/providers/tee-demo-pool-provider"
+      "//iam.googleapis.com/projects/462363635192/locations/global/workloadIdentityPools/tee-demo-pool/providers/tee-demo-pool-provider"
     // e.g.,
     // iam.googleapis.com/projects/[NUM]/locations/global/workloadIdentityPools/[POOL]/providers/[PROV]
     val targetSaEmail = "tee-demo-decrypter@halo-cmm-dev.iam.gserviceaccount.com"
@@ -53,6 +53,7 @@ class LiquidLegionsV3DemoMill() {
       throw RuntimeException("Token file is empty: $tokenFilePath")
     }
     println("Successfully read OIDC token (${oidcToken.length} chars).")
+    println("oidcToken:\n$oidcToken")
 
     // --- Step 2: Exchange OIDC Token via STS for a Federated Token ---
     println("Exchanging OIDC token for federated token via STS...")
@@ -131,7 +132,12 @@ class LiquidLegionsV3DemoMill() {
       setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
       outputStream.use { os -> os.write(postData.toByteArray(StandardCharsets.UTF_8)) }
       if (responseCode != HttpURLConnection.HTTP_OK) {
-        throw RuntimeException("STS token exchange failed with HTTP code $responseCode")
+        val errorBody = try {
+          errorStream?.bufferedReader()?.readText() ?: "No error body."
+        } catch (e: Exception) {
+          "Failed to read error body: ${e.message}"
+        }
+        throw RuntimeException("STS token exchange failed with HTTP code $responseCode. Response body: $errorBody")
       }
       val response = inputStream.bufferedReader().readText()
       // Extract the access token from the JSON response (a simple regex-based extraction)
