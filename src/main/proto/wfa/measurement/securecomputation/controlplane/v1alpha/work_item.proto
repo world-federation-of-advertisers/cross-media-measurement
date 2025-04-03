@@ -27,20 +27,6 @@ option java_outer_classname = "WorkItemProto";
 
 // Resource representing a work item.
 message WorkItem {
-  // Used as the config for items sent from the DataWatcher
-  message DataPathDetails {
-    // The config sent by the data watcher.
-    google.protobuf.Any config = 1 [(google.api.field_behavior) = IMMUTABLE];
-    // The data path to process
-    string data_path = 2
-      [(google.api.field_behavior) = IMMUTABLE];
-  }
-  // The config sent along with the WorkItem to the receiving application.
-  message WorkItemParams {
-    // The config expected by the queue.
-    google.protobuf.Any config = 1 [(google.api.field_behavior) = IMMUTABLE];
-  }
-
   option (google.api.resource) = {
     type: "control-plane.secure-computation.halo-cmm.org/WorkItem"
     pattern: "workItems/{work_item}"
@@ -59,24 +45,15 @@ message WorkItem {
       type: "control-plane.secure-computation.halo-cmm.org/Queue"
     }
   ];
-  // Parameters for the [WorkItem]
-  message WorkItemParams {
-    // Queue-specific parameters for this [WorkItem].
-    //
-    // The [type_url][google.protobuf.Any.type_url] must match the one in the configuration for this [Queue]
-    google.protobuf.Any app_params = 1 [(google.api.field_behavior) = IMMUTABLE];
-    // Parameters for a data path work item.
-    message DataPathParams {
-      // The data path to process
-      string data_path = 1 [(google.api.field_behavior) = REQUIRED];
-    }
-    // The data path params for this [WorkItem]
-    DataPathParams data_path_params = 2 [(google.api.field_behavior) = IMMUTABLE];
-
+  // Used as the [WorkItemParams] for items sent from the DataWatcher
+  message DataPathDetails {
+    // The config sent by the data watcher.
+    google.protobuf.Any config = 1 [(google.api.field_behavior) = IMMUTABLE];
+    // The data path to process
+    string data_path = 2 [(google.api.field_behavior) = IMMUTABLE];
   }
   // The parameters to be delivered to the TEE application.
-  WorkItemParams work_item_params = 3
-      [(google.api.field_behavior) = IMMUTABLE];
+  google.protobuf.Any work_item_params = 3 [(google.api.field_behavior) = IMMUTABLE];
 
   // State of a `WorkItem`.
   enum State {
