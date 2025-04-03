@@ -161,7 +161,7 @@ package k8s
 				}
 				_initContainers: {
 					"update-reporting-postgres-schema": _updatePostgresSchemaContainer
-				  "update-reporting-spanner-schema":  _updateSpannerSchemaContainer
+					"update-reporting-spanner-schema":  _updateSpannerSchemaContainer
 				}
 			}
 		}
