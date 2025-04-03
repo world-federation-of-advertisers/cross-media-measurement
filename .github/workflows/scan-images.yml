@@ -83,9 +83,9 @@ jobs:
           - duchy/aws-postgres-internal-server
           - panel-exchange/forwarded-storage-daemon
           - prober/measurement-system-prober
-          - secure-computation/control-plane-api-v1alpha
+          - secure-computation/control-plane-public-api
           - secure-computation/control-plane-internal-server
-          - control-plane/update-schema
+          - secure-computation/control-plane-update-schema
     steps:
       - name: Get SARIF file path
         id: get-sarif-file-path

@@ -19,12 +19,12 @@ package k8s
     _verboseGrpcServerLogging: bool | *false
 	_verboseGrpcClientLogging: bool | *false
 
-    _controlPlaneSpannerConfig: #SpannerConfig & {
+    _spannerConfig: #SpannerConfig & {
 		database: "control-plane"
 	}
 
-	_controlPlaneInternalApiTarget: #GrpcTarget & {
-        serviceName:           "control-plane-internal-api-server"
+	_secureComputationControlPlaneInternalApiTarget: #GrpcTarget & {
+        serviceName:           "secure-computation-control-plane-internal-api-server"
         certificateHost:       "localhost"
         targetOption:          "--control-plane-internal-api-target"
         certificateHostOption: "--control-plane-internal-api-cert-host"
@@ -32,9 +32,9 @@ package k8s
 
     _imageSuffixes: [_=string]: string
     _imageSuffixes: {
-        "control_plane_v1alpha_public_api_server_image":    string | *"secure-computation/control-plane-api-v1alpha"
-        "gcloud_control_plane_internal_api_server_image":   string | *"secure-computation/control-plane-internal-server"
-        "gcloud_control_plane_update_schema_image":         string | *"control-plane/update-schema"
+        "secure-computation-control_plane_public_api_server_image":    string | *"secure-computation/control-plane-public-api"
+        "gcloud_secure_computation_control_plane_internal_api_server_image":   string | *"secure-computation/control-plane-internal-server"
+        "gcloud_control_plane_update_schema_image":         string | *"secure-computation/control-plane-update-schema"
     }
     _imageConfigs: [_=string]: #ImageConfig
     _imageConfigs: {
@@ -61,8 +61,8 @@ package k8s
     }
 
     services: {
-        "control-plane-internal-api-server": {}
-        "control-plane-public-api-server": #ExternalService
+        "secure-computation-control-plane-internal-api-server": {}
+        "secure-computation-control-plane-public-api-server": #ExternalService
     }
 
     deployments: [Name=_]: #ServerDeployment & {
@@ -74,18 +74,18 @@ package k8s
         }
     }
     deployments: {
-        "control-plane-internal-api-server": {
+        "secure-computation-control-plane-internal-api-server": {
             _container: args: [
                         _debugVerboseGrpcServerLoggingFlag,
                         "--cert-collection-file=/var/run/secrets/files/control_plane_root.pem",
                         "--tls-cert-file=/var/run/secrets/files/control_plane_tls.pem",
                         "--tls-key-file=/var/run/secrets/files/control_plane_tls.key",
                         "--queue-config=/etc/\(#AppName)/securecomputation-config/queue_config.textproto",
-            ] + _controlPlaneSpannerConfig.flags
+            ] + _spannerConfig.flags
 
             _updateSchemaContainer: Container=#Container & {
                 image:            _images[Container.name]
-                args:             _controlPlaneSpannerConfig.flags
+                args:             _spannerConfig.flags
                 imagePullPolicy?: _container.imagePullPolicy
             }
 
@@ -99,16 +99,16 @@ package k8s
             }
         }
 
-        "control-plane-public-api-server": {
+        "secure-computation-control-plane-public-api-server": {
             _container: args: [
                         _debugVerboseGrpcClientLoggingFlag,
                         _debugVerboseGrpcServerLoggingFlag,
                         "--cert-collection-file=/var/run/secrets/files/control_plane_root.pem",
                         "--tls-cert-file=/var/run/secrets/files/control_plane_tls.pem",
                         "--tls-key-file=/var/run/secrets/files/control_plane_tls.key",
-            ] + _controlPlaneInternalApiTarget.args
+            ] + _secureComputationControlPlaneInternalApiTarget.args
             spec: template: spec: {
-                _dependencies: ["control-plane-internal-api-server"]
+                _dependencies: ["secure-computation-control-plane-internal-api-server"]
             }
         }
 
@@ -120,15 +120,15 @@ package k8s
     }
 
     networkPolicies: {
-        "control-plane-internal-api-server": {
-            _sourceMatchLabels: ["control-plane-public-api-server-app"]
+        "secure-computation-control-plane-internal-api-server": {
+            _sourceMatchLabels: ["secure-computation-control-plane-public-api-server-app"]
             _egresses: {
                 // Needs to call out to Spanner.
                 any: {}
             }
         }
-        "control-plane-public-api-server": {
-            _destinationMatchLabels: ["control-plane-internal-api-server-app"]
+        "secure-computation-control-plane-public-api-server": {
+            _destinationMatchLabels: ["secure-computation-control-plane-internal-api-server-app"]
             _ingresses: {
                 gRpc: {
                     ports: [{
