@@ -23,6 +23,7 @@ import "wfa/measurement/reporting/v2alpha/impression_qualification_filter_spec.p
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ReportingImpressionQualificationFilterProto";
+option go_package = "github.com/world-federation-of-advertisers/cross-media-measurement/reporting/apiv2alpha/reportingpb";
 
 // An impression qualification filter for reporting that allows either a named
 // filter or a custom filter.

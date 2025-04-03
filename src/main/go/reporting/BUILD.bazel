@@ -1,0 +1,39 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_oci//oci:defs.bzl", "oci_image")
+load("@rules_pkg//pkg:pkg.bzl", "pkg_tar")
+load("//build:variables.bzl", "MEASUREMENT_SYSTEM_REPO")
+
+go_library(
+    name = "grpcgateway",
+    srcs = ["grpcgateway.go"],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:cmmspb_go_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reportingpb_go_grpc_proto",
+        "@com_github_golang_glog//:glog",
+        "@grpc_ecosystem_grpc_gateway//runtime",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//grpclog",
+    ],
+)
+
+go_binary(
+    name = "grpc_gateway",
+    embed = [":grpcgateway"],
+)
+
+pkg_tar(
+    name = "grpc_gateway_layer",
+    srcs = [":grpc_gateway"],
+)
+
+oci_image(
+    name = "grpc_gateway_image",
+    base = "@go_image_base",
+    entrypoint = ["/grpc_gateway"],
+    labels = {
+        "org.opencontainers.image.source": MEASUREMENT_SYSTEM_REPO,
+    },
+    tars = [":grpc_gateway_layer"],
+    visibility = ["//src:docker_image_deployment"],
+)

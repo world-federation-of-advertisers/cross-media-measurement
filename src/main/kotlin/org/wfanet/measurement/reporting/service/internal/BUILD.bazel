@@ -5,6 +5,7 @@ package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing/v2:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/v2:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:__subpackages__",
 ])
 
 kt_jvm_library(
@@ -26,6 +27,7 @@ kt_jvm_library(
     srcs = ["Errors.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
     ],
 )

@@ -14,14 +14,12 @@
 
 syntax = "proto3";
 
-// (-- api-linter: core::0191::proto-package=disabled --)
-package wfa.measurement.securecomputation.datawatcher.v1alpha;
+package wfa.measurement.config.securecomputation;
 
 import "google/protobuf/any.proto";
 import "google/protobuf/struct.proto";
 
-// (-- api-linter: core::0191::java-package=disabled --)
-option java_package = "org.wfanet.measurement.securecomputation.datawatcher.v1alpha";
+option java_package = "org.wfanet.measurement.config.securecomputation";
 option java_multiple_files = true;
 option java_outer_classname = "DataWatcherConfigProto";
 
@@ -36,7 +34,6 @@ message DataWatcherConfig {
     // The Control Plane queue that will execute this work item.
     string queue = 1;
     // Protobuf payload with application-specific config
-    // (-- api-linter: core::0146::any=disabled --)
     google.protobuf.Any app_config = 2;
   }
   // The config used for any Webhooks
@@ -51,7 +48,7 @@ message DataWatcherConfig {
     // The sink used to send event to the Control Plane.
     ControlPlaneConfig control_plane_config = 2;
     // The sink used to send events to a web hook.
-    WebhookConfig web_hook_config = 3;
+    WebhookConfig webhook_config = 3;
   }
 }
 

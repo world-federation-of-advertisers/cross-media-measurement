@@ -69,13 +69,13 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupMap
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.campaigns as protoCampaigns
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroupMap
-import org.wfanet.measurement.gcloud.testing.CloudFunctionProcess
+import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
 class EventGroupSyncFunctionTest() {
   private lateinit var grpcServer: CommonServer
-  private lateinit var functionProcess: CloudFunctionProcess
+  private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
   private val functionBinaryPath =
     Paths.get(
       "wfa_measurement_system",
@@ -192,7 +192,7 @@ class EventGroupSyncFunctionTest() {
         )
         .start()
     functionProcess =
-      CloudFunctionProcess(javaBinaryPath = functionBinaryPath, classTarget = gcfTarget)
+      FunctionsFrameworkInvokerProcess(javaBinaryPath = functionBinaryPath, classTarget = gcfTarget)
     logger.info("Started gRPC server on port ${grpcServer.port}")
   }
 

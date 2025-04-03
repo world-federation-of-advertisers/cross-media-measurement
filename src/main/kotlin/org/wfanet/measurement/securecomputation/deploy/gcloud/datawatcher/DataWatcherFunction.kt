@@ -28,9 +28,9 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.config.securecomputation.DataWatcherConfigs
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
-import org.wfanet.measurement.securecomputation.datawatcher.v1alpha.DataWatcherConfigs
 
 /*
  * Cloud Function receives a CloudEvent. If the cloud event path matches config, it calls the
@@ -48,7 +48,8 @@ class DataWatcherFunction : CloudEventsFunction {
         )
         .withShutdownTimeout(
           Duration.ofSeconds(
-            System.getenv("CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS").toLong()
+            System.getenv("CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLong()
+              ?: DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS
           )
         )
 
@@ -71,7 +72,7 @@ class DataWatcherFunction : CloudEventsFunction {
         .build()
     val blobKey: String = data.getName()
     val bucket: String = data.getBucket()
-    val path = "$schema://$bucket/$blobKey"
+    val path = "$scheme://$bucket/$blobKey"
     logger.info("Receiving path $path")
     runBlocking { dataWatcher.receivePath(path) }
   }
@@ -85,7 +86,8 @@ class DataWatcherFunction : CloudEventsFunction {
   }
 
   companion object {
-    private const val schema = "gs"
+    private const val scheme = "gs"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
   }
 }
