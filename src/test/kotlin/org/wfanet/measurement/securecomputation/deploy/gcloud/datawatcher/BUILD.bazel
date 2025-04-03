@@ -20,6 +20,7 @@ kt_jvm_test(
     srcs = ["InvokeDataWatcherFunctionTest.kt"],
     data = [
         ":InvokeDataWatcherFunction",
+        ":config",
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],
@@ -49,4 +50,9 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub/testing:google_pub_sub_emulator_provider",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/queue:queue_subscriber",
     ],
+)
+
+filegroup(
+    name = "config",
+    srcs = ["data_watcher_config.textproto"],
 )
