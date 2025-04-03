@@ -18,7 +18,6 @@ package org.wfanet.measurement.reporting.deploy.v2.common
 
 import java.time.Duration
 import org.wfanet.measurement.gcloud.spanner.SpannerDatabaseConnector
-import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import picocli.CommandLine
 
 /**
@@ -82,8 +81,7 @@ class SpannerFlags {
 }
 
 /** Builds a [SpannerDatabaseConnector] from these flags. */
-private fun org.wfanet.measurement.reporting.deploy.v2.common.SpannerFlags
-  .toSpannerDatabaseConnector(): SpannerDatabaseConnector {
+private fun SpannerFlags.toSpannerDatabaseConnector(): SpannerDatabaseConnector {
   return SpannerDatabaseConnector(
     projectName = projectName,
     instanceName = instanceName,
@@ -97,7 +95,7 @@ private fun org.wfanet.measurement.reporting.deploy.v2.common.SpannerFlags
  * Executes [block] with a [SpannerDatabaseConnector] resource once it's ready, ensuring that the
  * resource is closed.
  */
-suspend fun <R> org.wfanet.measurement.reporting.deploy.v2.common.SpannerFlags.usingSpanner(
+suspend fun <R> SpannerFlags.usingSpanner(
   block: suspend (spanner: SpannerDatabaseConnector) -> R
 ): R {
   return toSpannerDatabaseConnector().usingSpanner(block)
