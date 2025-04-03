@@ -90,17 +90,16 @@ package k8s
 		"--tls-cert-file=/var/run/secrets/files/reporting_tls.pem",
 		"--tls-key-file=/var/run/secrets/files/reporting_tls.key",
 	]
-	_reportingCertCollectionFileFlag:             "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
-	_akidToPrincipalMapFileFlag:                  "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_principal_map.textproto"
-	_measurementConsumerConfigFileFlag:           "--measurement-consumer-config-file=/var/run/secrets/files/config/mc/measurement_consumer_config.textproto"
-	_signingPrivateKeyStoreDirFlag:               "--signing-private-key-store-dir=/var/run/secrets/files"
-	_encryptionKeyPairDirFlag:                    "--key-pair-dir=/var/run/secrets/files"
-	_encryptionKeyPairConfigFileFlag:             "--key-pair-config-file=/etc/\(#AppName)/config-files/encryption_key_pair_config.textproto"
-	_metricSpecConfigFileFlag:                    "--metric-spec-config-file=/etc/\(#AppName)/config-files/metric_spec_config.textproto"
-	_impressionQualificationFilterConfigFileFlag: "--impression-qualification-filter-config-file=/etc/\(#AppName)/config-files/impression_qualification_filter_config.textproto"
-	_knownEventGroupMetadataTypeFlag:             "--known-event-group-metadata-type=/etc/\(#AppName)/config-files/known_event_group_metadata_type_set.pb"
-	_debugVerboseGrpcClientLoggingFlag:           "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
-	_debugVerboseGrpcServerLoggingFlag:           "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
+	_reportingCertCollectionFileFlag:   "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
+	_akidToPrincipalMapFileFlag:        "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_principal_map.textproto"
+	_measurementConsumerConfigFileFlag: "--measurement-consumer-config-file=/var/run/secrets/files/config/mc/measurement_consumer_config.textproto"
+	_signingPrivateKeyStoreDirFlag:     "--signing-private-key-store-dir=/var/run/secrets/files"
+	_encryptionKeyPairDirFlag:          "--key-pair-dir=/var/run/secrets/files"
+	_encryptionKeyPairConfigFileFlag:   "--key-pair-config-file=/etc/\(#AppName)/config-files/encryption_key_pair_config.textproto"
+	_metricSpecConfigFileFlag:          "--metric-spec-config-file=/etc/\(#AppName)/config-files/metric_spec_config.textproto"
+	_knownEventGroupMetadataTypeFlag:   "--known-event-group-metadata-type=/etc/\(#AppName)/config-files/known_event_group_metadata_type_set.pb"
+	_debugVerboseGrpcClientLoggingFlag: "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
+	_debugVerboseGrpcServerLoggingFlag: "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
 
 	services: [Name=_]: #Service & {
 		metadata: {
@@ -140,7 +139,6 @@ package k8s
 						"--port=8443",
 						"--health-port=8080",
 						"--basic-reports-enabled=true",
-						_impressionQualificationFilterConfigFileFlag,
 			] + _postgresConfig.flags + _reportingSpannerConfig.flags + _tlsArgs
 
 			_updatePostgresSchemaContainer: Container=#Container & {
@@ -155,14 +153,9 @@ package k8s
 				imagePullPolicy?: _container.imagePullPolicy
 			}
 
-			spec: template: spec: {
-				_mounts: {
-					"config-files": #ConfigMapMount
-				}
-				_initContainers: {
-					"update-reporting-postgres-schema": _updatePostgresSchemaContainer
- 					"update-reporting-spanner-schema":  _updateSpannerSchemaContainer
- 				}
+			spec: template: spec: _initContainers: {
+				"update-reporting-postgres-schema": _updatePostgresSchemaContainer
+				"update-reporting-spanner-schema":  _updateSpannerSchemaContainer
 			}
 		}
 
