@@ -23,8 +23,10 @@ import java.net.http.HttpResponse.BodyHandlers
 import java.util.UUID
 import java.util.logging.Logger
 import kotlin.text.matches
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.dataPathDetails
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
@@ -49,8 +51,12 @@ class DataWatcher(
             val queueConfig = config.controlPlaneConfig
             val workItemId = UUID.randomUUID().toString()
             val workItemParams = workItemParams {
-              this.config = queueConfig.appConfig
-              this.dataPath = path
+              this.config =
+                dataPathDetails {
+                    this.config = queueConfig.appConfig
+                    this.dataPath = path
+                  }
+                  .pack()
             }
             val request = createWorkItemRequest {
               this.workItemId = workItemId

@@ -18,16 +18,18 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 
 import com.google.cloud.functions.CloudEventsFunction
 import com.google.events.cloud.storage.v1.StorageObjectData
-import com.google.protobuf.TextFormat
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
+import java.nio.file.Paths
 import java.time.Duration
 import java.util.logging.Logger
 import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfigs
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
@@ -54,11 +56,12 @@ class DataWatcherFunction : CloudEventsFunction {
         )
 
     val workItemsStub = WorkItemsCoroutineStub(publicChannel)
-    val configData: String = System.getenv("DATA_WATCHER_CONFIGS")
+    val configDataRunTimePath = Paths.get(System.getenv("DATA_WATCHER_CONFIG_RUN_TIME_PATH"))
     val dataWatcherConfigs =
-      DataWatcherConfigs.newBuilder()
-        .apply { TextFormat.Parser.newBuilder().build().merge(configData, this) }
-        .build()
+      parseTextProto(
+        checkNotNull(getRuntimePath(configDataRunTimePath)).toFile(),
+        DataWatcherConfigs.getDefaultInstance(),
+      )
     val dataWatcher =
       DataWatcher(
         workItemsStub = workItemsStub,
