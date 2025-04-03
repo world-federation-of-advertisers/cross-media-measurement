@@ -160,9 +160,9 @@ package k8s
 					"config-files": #ConfigMapMount
 				}
 				_initContainers: {
-							"update-reporting-postgres-schema": _updatePostgresSchemaContainer
-							"update-reporting-spanner-schema":  _updateSpannerSchemaContainer
-						}
+					"update-reporting-postgres-schema": _updatePostgresSchemaContainer
+ 					"update-reporting-spanner-schema":  _updateSpannerSchemaContainer
+ 				}
 			}
 		}
 
