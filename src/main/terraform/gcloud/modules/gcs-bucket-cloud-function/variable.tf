@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-variable "cloud_function_service_account_email" {
-  description = "Email of an existing service account to use."
+variable "cloud_function_service_account_name" {
+  description = "IAM `google_service_account.name`."
   type        = string
   nullable    = false
 }
@@ -47,3 +47,10 @@ variable "docker_repository" {
   type        = string
   nullable    = false
 }
+
+variable "entry_point" {
+  description = "The name of the function (as defined in source code) that will be executed."
+  type        = string
+  nullable    = false
+}
+

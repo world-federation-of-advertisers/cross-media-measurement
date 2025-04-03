@@ -29,6 +29,7 @@ locals {
   cluster_location        = var.cluster_location == null ? data.google_client_config.default.zone : var.cluster_location
   key_ring_location       = var.key_ring_location == null ? data.google_client_config.default.region : var.key_ring_location
   storage_bucket_location = var.storage_bucket_location == null ? data.google_client_config.default.region : var.storage_bucket_location
+  secure_computation_storage_bucket_location = var.secure_computation_storage_bucket_location == null ? data.google_client_config.default.region : var.secure_computation_storage_bucket_location
 }
 
 provider "google" {}

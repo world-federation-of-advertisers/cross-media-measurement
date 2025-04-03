@@ -63,6 +63,12 @@ variable "storage_bucket_name" {
   nullable    = false
 }
 
+variable "secure_computation_storage_bucket_name" {
+  description = "Name of Google Cloud Storage bucket for secure computation."
+  type        = string
+  nullable    = false
+}
+
 variable "storage_bucket_location" {
   description = "Location of the Google Cloud Storage bucket. Defaults to provider region."
   type        = string
@@ -87,5 +93,23 @@ variable "postgres_password" {
   description = "Password for postgres user."
   type        = string
   sensitive   = true
+  nullable    = false
+}
+
+variable "data_watcher_cloud_function_service_account_name" {
+  description = "IAM `google_service_account.name`."
+  type        = string
+  nullable    = false
+}
+
+variable "data_watcher_cloud_function_name" {
+  description = "The cloud function name."
+  type        = string
+  default     = "Data Watcher"
+}
+
+variable "data_watcher_entry_point" {
+  description = "The name of the function (as defined in source code) that will be executed."
+  type        = string
   nullable    = false
 }
