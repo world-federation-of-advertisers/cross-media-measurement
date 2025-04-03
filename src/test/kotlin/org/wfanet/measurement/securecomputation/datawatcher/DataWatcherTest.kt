@@ -32,6 +32,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfigKt.controlPlaneConfig
 import org.wfanet.measurement.config.securecomputation.dataWatcherConfig
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.DataPathDetails
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 
@@ -69,9 +70,10 @@ class DataWatcherTest() {
       }
       assertThat(createWorkItemRequestCaptor.allValues.single().workItem.queue).isEqualTo(topicId)
       val workItemParams = createWorkItemRequestCaptor.allValues.single().workItem.workItemParams
-      assertThat(workItemParams.dataPath)
+      assertThat(workItemParams.config.unpack<DataPathDetails>().dataPath)
         .isEqualTo("test-schema://test-bucket/path-to-watch/some-data")
-      val workItemAppConfig = workItemParams.config.unpack(Int32Value::class.java)
+      val workItemAppConfig =
+        workItemParams.config.unpack<DataPathDetails>().config.unpack<Int32Value>()
       assertThat(workItemAppConfig).isEqualTo(appConfig)
     }
   }

@@ -27,12 +27,17 @@ option java_outer_classname = "WorkItemProto";
 
 // Resource representing a work item.
 message WorkItem {
-  // The config sent along with the WorkItem to the receiving application.
-  message WorkItemParams {
-    // The config expected by the queue for the type of data in the data path.
+  // Used as the config for items sent from the DataWatcher
+  message DataPathDetails {
+    // The config sent by the data watcher.
     google.protobuf.Any config = 1 [(google.api.field_behavior) = IMMUTABLE];
     // The data path to process
     string data_path = 2 [(google.api.field_behavior) = IMMUTABLE];
+  }
+  // The config sent along with the WorkItem to the receiving application.
+  message WorkItemParams {
+    // The config expected by the queue.
+    google.protobuf.Any config = 1 [(google.api.field_behavior) = IMMUTABLE];
   }
 
   option (google.api.resource) = {
