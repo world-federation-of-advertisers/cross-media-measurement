@@ -80,9 +80,9 @@ message WorkItem {
 
   // Create time.
   google.protobuf.Timestamp create_time = 5
-  [(google.api.field_behavior) = OUTPUT_ONLY];
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Update time.
   google.protobuf.Timestamp update_time = 6
-  [(google.api.field_behavior) = OUTPUT_ONLY];
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }
