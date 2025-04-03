@@ -140,6 +140,7 @@ import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.getMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportingSetRequest
+import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.invalidateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
@@ -2228,6 +2229,27 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
 
           createTime = createdInternalBasicReport.createTime
+        }
+      )
+  }
+
+  @Test
+  fun `getImpressionQualificationFilter retrives ImpressionQualificationFitler`() = runBlocking {
+    val response =
+      publicImpressionQualificationFiltersClient
+        .withCallCredentials(credentials)
+        .getImpressionQualificationFilter(
+          getImpressionQualificationFilterRequest { name = "impressionQualificationFilters/ami" }
+        )
+
+    assertThat(response)
+      .isEqualTo(
+        impressionQualificationFilter {
+          name = "impressionQualificationFilters/ami"
+          displayName = "ami"
+          filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
+          filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
+          filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
         }
       )
   }
