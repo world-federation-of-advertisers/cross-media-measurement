@@ -79,11 +79,15 @@ class DataWatcherTest() {
         createWorkItem(createWorkItemRequestCaptor.capture())
       }
       assertThat(createWorkItemRequestCaptor.allValues.single().workItem.queue).isEqualTo(topicId)
-      val workItemParams = createWorkItemRequestCaptor.allValues.single().workItem.workItemParams
-      assertThat(workItemParams.config.unpack<DataPathDetails>().dataPath)
+      val workItemParams =
+        createWorkItemRequestCaptor.allValues
+          .single()
+          .workItem
+          .workItemParams
+          .unpack<DataPathDetails>()
+      assertThat(workItemParams.dataPath)
         .isEqualTo("test-schema://test-bucket/path-to-watch/some-data")
-      val workItemAppConfig =
-        workItemParams.config.unpack<DataPathDetails>().config.unpack<Int32Value>()
+      val workItemAppConfig = workItemParams.config.unpack<Int32Value>()
       assertThat(workItemAppConfig).isEqualTo(appConfig)
     }
   }
