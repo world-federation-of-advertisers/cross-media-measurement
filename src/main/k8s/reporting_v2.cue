@@ -97,8 +97,8 @@ package k8s
 	_encryptionKeyPairDirFlag:                    "--key-pair-dir=/var/run/secrets/files"
 	_encryptionKeyPairConfigFileFlag:             "--key-pair-config-file=/etc/\(#AppName)/config-files/encryption_key_pair_config.textproto"
 	_metricSpecConfigFileFlag:                    "--metric-spec-config-file=/etc/\(#AppName)/config-files/metric_spec_config.textproto"
-	_knownEventGroupMetadataTypeFlag:             "--known-event-group-metadata-type=/etc/\(#AppName)/config-files/known_event_group_metadata_type_set.pb"
 	_impressionQualificationFilterConfigFileFlag: "--impression-qualification-filter-config-file=/etc/\(#AppName)/config-files/impression_qualification_filter_config.textproto"
+	_knownEventGroupMetadataTypeFlag:             "--known-event-group-metadata-type=/etc/\(#AppName)/config-files/known_event_group_metadata_type_set.pb"
 	_debugVerboseGrpcClientLoggingFlag:           "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
 	_debugVerboseGrpcServerLoggingFlag:           "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
 
@@ -156,13 +156,13 @@ package k8s
 			}
 
 			spec: template: spec: {
+				_mounts: {
+					"config-files":  #ConfigMapMount
+				}
 				_initContainers: {
-					"update-reporting-postgres-schema": _updatePostgresSchemaContainer
-					"update-reporting-spanner-schema":  _updateSpannerSchemaContainer
-				}
-			  _mounts: {
-					"config-files": #ConfigMapMount
-				}
+				  "update-reporting-postgres-schema": _updatePostgresSchemaContainer
+				  "update-reporting-spanner-schema":  _updateSpannerSchemaContainer
+			  }
 			}
 		}
 
@@ -191,7 +191,6 @@ package k8s
 						volume: secret: secretName: Reporting._mcConfigSecretName
 						volumeMount: mountPath: "/var/run/secrets/files/config/mc/"
 					}
-
 					"config-files": #ConfigMapMount
 				}
 				_dependencies: _ | *["postgres-internal-reporting-server", "access-public-api-server"]
