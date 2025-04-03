@@ -44,9 +44,7 @@ def java_image(
         labels = {
             "org.opencontainers.image.source": MEASUREMENT_SYSTEM_REPO,
             "tee.launch_policy.allow_cmd_override": "true",
-            "tee.launch_policy.allow_capabilities": "true",
         },
-        user = "0:0",
         cmd_args = args,
         tags = tags + ["no-remote-cache"],
         visibility = visibility,
@@ -76,11 +74,9 @@ def java_debug_image(
         labels = {
             "org.opencontainers.image.source": MEASUREMENT_SYSTEM_REPO,
             "tee.launch_policy.allow_cmd_override": "true",
-            "tee.launch_policy.allow_capabilities": "true",
         },
         cmd_args = args,
         tags = tags + ["no-remote-cache"],
         visibility = visibility,
-        user = "0:0",
         **kwargs
     )
