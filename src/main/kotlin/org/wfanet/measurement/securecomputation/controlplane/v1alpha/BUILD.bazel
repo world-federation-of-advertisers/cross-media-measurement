@@ -1,4 +1,6 @@
+load("@rules_java//java:defs.bzl", "java_binary")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("//src/main/docker:macros.bzl", "java_image")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -22,4 +24,19 @@ kt_jvm_library(
         ":work_items_service",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:publisher",
     ],
+)
+
+java_binary(
+    name = "GooglePubSubWorkItemsService",
+    main_class = "org.wfanet.measurement.securecomputation.controlplane.v1alpha.GooglePubSubWorkItemsServiceKt",
+    runtime_deps = [
+        ":google_pub_sub_work_items_service",
+    ],
+)
+
+java_image(
+    name = "google_pub_sub_work_items_service_image",
+    binary = ":GooglePubSubWorkItemsService",
+    main_class = "org.wfanet.measurement.securecomputation.controlplane.v1alpha.GooglePubSubWorkItemsServiceKt",
+    visibility = ["//src:docker_image_deployment"],
 )
