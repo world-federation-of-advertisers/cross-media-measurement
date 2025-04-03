@@ -84,7 +84,14 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
 
       spannerFlags.usingSpanner { spanner ->
         val spannerClient = spanner.databaseClient
-        run(DataServices.create(idGenerator, postgresClient, spannerClient, impressionQualificationFilterMapping))
+        run(
+          DataServices.create(
+            idGenerator,
+            postgresClient,
+            spannerClient,
+            impressionQualificationFilterMapping,
+          )
+        )
       }
     } else {
       run(DataServices.create(idGenerator, postgresClient, null, null))
