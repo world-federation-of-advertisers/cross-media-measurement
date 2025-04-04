@@ -32,10 +32,8 @@ import picocli.CommandLine
 
 @CommandLine.Command(name = InternalApiServer.SERVER_NAME)
 class InternalApiServer : Runnable {
-  @CommandLine.Mixin
-  private lateinit var serverFlags: CommonServer.Flags
-  @CommandLine.Mixin
-  private lateinit var spannerFlags: SpannerFlags
+  @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
+  @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
   @CommandLine.Option(
     names = ["--queue-config"],
@@ -52,8 +50,7 @@ class InternalApiServer : Runnable {
   private lateinit var googleProjectId: String
 
   override fun run() {
-    val queuesConfig =
-      parseTextProto(queuesConfigFile, QueuesConfig.getDefaultInstance())
+    val queuesConfig = parseTextProto(queuesConfigFile, QueuesConfig.getDefaultInstance())
     val queueMapping = QueueMapping(queuesConfig)
 
     runBlocking {
@@ -68,11 +65,9 @@ class InternalApiServer : Runnable {
         server.start().blockUntilShutdown()
       }
     }
-
   }
 
   companion object {
     const val SERVER_NAME = "ControlPlaneInternalApiServer"
   }
-
 }

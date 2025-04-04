@@ -18,8 +18,8 @@ package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
 import io.grpc.BindableService
 import io.grpc.Channel
-import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt as InternalWorkItemsGrpcKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt as InternalWorkItemAttemptsGrpcKt
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt as InternalWorkItemsGrpcKt
 
 data class Services(
   val workItems: WorkItemsGrpcKt.WorkItemsCoroutineImplBase,
@@ -29,8 +29,7 @@ data class Services(
 
   companion object {
     fun build(internalApiChannel: Channel): Services {
-      val internalWorkItemsStub =
-        InternalWorkItemsGrpcKt.WorkItemsCoroutineStub(internalApiChannel)
+      val internalWorkItemsStub = InternalWorkItemsGrpcKt.WorkItemsCoroutineStub(internalApiChannel)
       val internalWorkItemAttemptsStub =
         InternalWorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(internalApiChannel)
 

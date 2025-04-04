@@ -17,8 +17,8 @@
 package org.wfanet.measurement.securecomputation.deploy.common.server
 
 import io.grpc.BindableService
-import kotlin.properties.Delegates
 import java.time.Duration
+import kotlin.properties.Delegates
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
@@ -30,7 +30,7 @@ import picocli.CommandLine
 
 private const val SERVER_NAME = "ControlPlaneApiServer"
 
- @CommandLine.Command(name = SERVER_NAME)
+@CommandLine.Command(name = SERVER_NAME)
 class PublicApiServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
 
