@@ -1,87 +1,70 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
-    package(default_visibility = ["//visibility:public"])
+package(default_visibility = ["//visibility:public"])
 
-        kt_jvm_library(
-            name = "work_items_service", srcs = ["WorkItemsService.kt"],
-            deps =
-                [
-                  ":resource_conversion",
-                  "//src/main/kotlin/org/wfanet/measurement/common/"
-                  "api:resource_ids",
-                  "//src/main/kotlin/org/wfanet/measurement/common/api/"
-                  "grpc:list_resources",
-                  "//src/main/kotlin/org/wfanet/measurement/securecomputation/"
-                  "service:errors",
-                  "//src/main/kotlin/org/wfanet/measurement/securecomputation/"
-                  "service:resource_key",
-                  "//src/main/kotlin/org/wfanet/measurement/securecomputation/"
-                  "service/internal:errors",
-                  "//src/main/proto/wfa/measurement/internal/securecomputation/"
-                  "controlplane:work_item_kt_jvm_proto",
-                  "//src/main/proto/wfa/measurement/internal/securecomputation/"
-                  "controlplane:work_items_service_kt_jvm_grpc_proto",
-                  "//src/main/proto/wfa/measurement/securecomputation/"
-                  "controlplane/v1alpha:work_item_kt_jvm_proto",
-                  "//src/main/proto/wfa/measurement/securecomputation/"
-                  "controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
-                  "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/"
-                  "common",
-                  "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/"
-                  "common/grpc",
-                  "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/"
-                  "common/identity",
-                ], )
+kt_jvm_library(
+    name = "work_items_service",
+    srcs = ["WorkItemsService.kt"],
+    deps = [
+        ":resource_conversion",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_ids",
+        "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:errors",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:errors",
+        "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_item_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_items_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)
 
-            kt_jvm_library(
-                name = "work_item_attempts_service",
-                srcs = ["WorkItemAttemptsService.kt"],
-                deps =
-                    [
-                      ":resource_conversion",
-                      "//src/main/kotlin/org/wfanet/measurement/common/"
-                      "api:resource_ids",
-                      "//src/main/kotlin/org/wfanet/measurement/common/api/"
-                      "grpc:list_resources",
-                      "//src/main/kotlin/org/wfanet/measurement/"
-                      "securecomputation/service:errors",
-                      "//src/main/kotlin/org/wfanet/measurement/"
-                      "securecomputation/service:resource_key",
-                      "//src/main/kotlin/org/wfanet/measurement/"
-                      "securecomputation/service/internal:errors",
-                      "//src/main/proto/wfa/measurement/internal/"
-                      "securecomputation/"
-                      "controlplane:work_item_attempt_kt_jvm_proto",
-                      "//src/main/proto/wfa/measurement/internal/"
-                      "securecomputation/"
-                      "controlplane:work_item_attempts_service_kt_jvm_grpc_"
-                      "proto",
-                      "//src/main/proto/wfa/measurement/securecomputation/"
-                      "controlplane/v1alpha:work_item_attempt_kt_jvm_proto",
-                      "//src/main/proto/wfa/measurement/securecomputation/"
-                      "controlplane/"
-                      "v1alpha:work_item_attempts_service_kt_jvm_grpc_proto",
-                      "@wfa_common_jvm//imports/java/com/google/protobuf",
-                      "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/"
-                      "common",
-                      "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/"
-                      "common/grpc",
-                      "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/"
-                      "common/identity",
-                    ], )
+kt_jvm_library(
+    name = "work_item_attempts_service",
+    srcs = ["WorkItemAttemptsService.kt"],
+    deps =
+        [
+            ":resource_conversion",
+            "//src/main/kotlin/org/wfanet/measurement/common/api:resource_ids",
+            "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
+            "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:errors",
+            "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:resource_key",
+            "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:errors",
+            "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_item_attempt_kt_jvm_proto",
+            "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_item_attempts_service_kt_jvm_grpc_proto",
+            "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_attempt_kt_jvm_proto",
+            "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_attempts_service_kt_jvm_grpc_proto",
+            "@wfa_common_jvm//imports/java/com/google/protobuf",
+            "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+            "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+            "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        ],
+)
 
-                kt_jvm_library(
-                    name = "resource_conversion",
-                    srcs = ["ResourceConversion.kt"], deps = [
-                      "//src/main/kotlin/org/wfanet/measurement/"
-                      "securecomputation/service:resource_key",
-                      "//src/main/proto/wfa/measurement/internal/"
-                      "securecomputation/"
-                      "controlplane:work_item_attempt_kt_jvm_proto",
-                      "//src/main/proto/wfa/measurement/internal/"
-                      "securecomputation/controlplane:work_item_kt_jvm_proto",
-                      "//src/main/proto/wfa/measurement/securecomputation/"
-                      "controlplane/v1alpha:work_item_attempt_kt_jvm_proto",
-                      "//src/main/proto/wfa/measurement/securecomputation/"
-                      "controlplane/v1alpha:work_item_kt_jvm_proto",
-                    ], )
+kt_jvm_library(
+    name = "resource_conversion",
+    srcs = ["ResourceConversion.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:resource_key",
+        "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_item_attempt_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_item_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_attempt_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "services",
+    srcs = ["Services.kt"],
+    deps = [
+        ":work_item_attempts_service",
+        ":work_items_service",
+        "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_item_attempts_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_items_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_attempts_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
+    ],
+)

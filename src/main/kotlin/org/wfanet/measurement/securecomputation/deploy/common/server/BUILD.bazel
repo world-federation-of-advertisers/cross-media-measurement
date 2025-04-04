@@ -1,29 +1,28 @@
-load("@rules_java//java:defs.bzl",
-     "java_binary") load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl",
-                         "kt_jvm_library") load("//src/main/docker:macros.bzl",
-                                                "java_image")
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("//src/main/docker:macros.bzl", "java_image")
 
-    kt_jvm_library(
-        name = "public_api_server", srcs = ["PublicApiServer.kt"],
-        deps =
-            [
-              "//src/main/kotlin/org/wfanet/measurement/securecomputation/"
-              "controlplane/v1alpha:services",
-              "@wfa_common_jvm//imports/java/picocli",
-              "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-              "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/"
-              "grpc",
-            ], )
+kt_jvm_library(
+    name = "public_api_server",
+    srcs = ["PublicApiServer.kt"],
+    deps =
+        [
+            "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:services",
+            "@wfa_common_jvm//imports/java/picocli",
+            "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+            "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        ],
+)
 
-        java_binary(name = "PublicApiServer",
-                    main_class =
-                        "org.wfanet.measurement.securecomputation.deploy."
-                        "common.server.PublicApiServer",
-                    runtime_deps = [":public_api_server"], )
+java_binary(
+    name = "PublicApiServer",
+    main_class = "org.wfanet.measurement.securecomputation.deploy.common.server.PublicApiServer",
+    runtime_deps = [":public_api_server"],
+)
 
-            java_image(name = "public_api_server_image",
-                       binary = ":PublicApiServer",
-                       main_class =
-                           "org.wfanet.measurement.securecomputation.deploy."
-                           "common.server.PublicApiServer",
-                       visibility = ["//src:docker_image_deployment"], )
+java_image(
+    name = "public_api_server_image",
+    binary = ":PublicApiServer",
+    main_class = "org.wfanet.measurement.securecomputation.deploy.common.server.PublicApiServer",
+    visibility = ["//src:docker_image_deployment"],
+)
