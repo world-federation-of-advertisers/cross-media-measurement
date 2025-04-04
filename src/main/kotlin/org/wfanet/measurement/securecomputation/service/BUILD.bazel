@@ -1,0 +1,32 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation/service:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "resource_key",
+    srcs = ["IdVariable.kt"] + glob(["*Key.kt"]),
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "errors",
+    srcs = ["Errors.kt"],
+    deps = [
+        ":resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:errors",
+        "//src/main/proto/google/rpc:error_details_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+    ],
+)

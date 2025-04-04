@@ -14,13 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.service.internal.testing
+package org.wfanet.measurement.securecomputation.teesdk
 
-import org.wfanet.measurement.config.securecomputation.QueuesConfigKt.queueInfo
-import org.wfanet.measurement.config.securecomputation.queuesConfig
-import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
-
-object TestConfig {
-  val QUEUE_MAPPING =
-    QueueMapping(queuesConfig { queueInfos.add(queueInfo { queueResourceId = "test-topid-id" }) })
-}
+class ControlPlaneApiException(message: String, cause: Throwable? = null) :
+  Exception(message, cause)

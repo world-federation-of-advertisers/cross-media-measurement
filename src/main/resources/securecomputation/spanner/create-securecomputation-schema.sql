@@ -35,6 +35,8 @@ CREATE TABLE WorkItems (
     -- Proto enum encoded as int
     State INT64 NOT NULL,
 
+    WorkItemParams BYTES(MAX),
+
     CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
     UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 
