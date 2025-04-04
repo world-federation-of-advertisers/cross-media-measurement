@@ -13,8 +13,8 @@ proto_library(
 )
 
 proto_library(
-    name = "post_processing_result_proto",
-    srcs = ["post_processing_result.proto"],
+    name = "report_post_processor_result_proto",
+    srcs = ["report_post_processor_result.proto"],
 )
 
 kt_jvm_proto_library(
@@ -23,8 +23,8 @@ kt_jvm_proto_library(
 )
 
 kt_jvm_proto_library(
-    name = "post_processing_result_kt_jvm_proto",
-    deps = [":post_processing_result_proto"],
+    name = "report_post_processor_result_kt_jvm_proto",
+    deps = [":report_post_processor_result_proto"],
 )
 
 py_proto_library(
@@ -33,6 +33,6 @@ py_proto_library(
 )
 
 py_proto_library(
-    name = "post_processing_result_py_pb2",
-    deps = [":post_processing_result_proto"],
+    name = "report_post_processor_result_py_pb2",
+    deps = [":report_post_processor_result_proto"],
 )

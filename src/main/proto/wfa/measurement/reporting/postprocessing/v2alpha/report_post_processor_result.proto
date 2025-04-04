@@ -1,0 +1,57 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.postprocessing.v2alpha;
+
+option java_package = "org.wfanet.measurement.reporting.postprocessing.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ReportPostProcessorResultProto";
+
+// The outcome of the QP solver process after attempting noise correction.
+enum ReportPostProcessingErrorCode {
+  // Default value, indicating status was not explicitly set or is unknown.
+  REPORT_POST_PROCESSING_ERROR_CODE_UNSPECIFIED = 0;
+
+  // No feasible or optimal solution satisfying constraints was found.
+  SOLUTION_NOT_FOUND = 1;
+
+  // HIGHS solver found a solution meeting the required tolerance (e.g., primal
+  // residual is smaller than the TOLERANCE).
+  SOLUTION_FOUND_WITH_HIGHS = 2;
+
+  // OSQP solver found a solution meeting the required tolerance (after HIGHS
+  // solver failed).
+  SOLUTION_FOUND_WITH_OSQP = 3;
+
+  // HIGHS solver converged to a solution, but it did not meet the required
+  // tolerance (e.g., primal residual >= TOLERANCE).
+  PARTIAL_SOLUTION_FOUND_WITH_HIGHS = 4;
+
+  // OSQP solver converged to a solution, but it did not meet the required
+  // tolerance.
+  PARTIAL_SOLUTION_FOUND_WITH_OSQP = 5;
+}
+
+message ReportPostProcessorStatus {
+  ReportPostProcessorErrorCode error_code = 1;
+  double primal_equality_residual = 2;
+  double primal_inequality_residual = 3;
+}
+
+message ReportPostProcessorResult {
+  ReportPostProcessorStatus status = 1;
+  map<string, int64> updated_measurements = 2;
+}

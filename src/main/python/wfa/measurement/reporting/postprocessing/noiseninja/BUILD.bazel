@@ -7,7 +7,7 @@ py_library(
     imports = ["../"],
     visibility = ["//visibility:public"],
     deps = [
-        "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:post_processing_result_py_pb2",
+        "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_post_processor_result_py_pb2",
         requirement("absl-py"),
         requirement("highspy"),
         requirement("numpy"),
