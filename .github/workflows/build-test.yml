@@ -99,7 +99,7 @@ jobs:
 
       - name: Run tests
         id: run-tests
-        run: bazel test -- //... -//src/test/python/... -//src/test/cc/...
+        run: bazel test //...
 
       - name: Run tests with coverage
         id: run-coverage

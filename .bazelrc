@@ -9,11 +9,11 @@ build --repo_env='CC=clang'
 # Configuration for running CC coverage locally
 # See https://github.com/bazelbuild/bazel/blob/106903d38f6d41b5eb1f100698f257184bea47a3/src/test/shell/bazel/bazel_coverage_cc_test_llvm.sh#L59
 # and https://github.com/bazelbuild/bazel/commit/21b5eb627d78c09d47c4de957e9e6b56a9ae6fad
-common --repo_env=BAZEL_LLVM_COV=/usr/bin/llvm-cov
-common --repo_env=BAZEL_LLVM_PROFDATA=/usr/bin/llvm-profdata
-common --repo_env=BAZEL_USE_LLVM_NATIVE_COVERAGE=1
-common --repo_env=GCOV=/usr/bin/llvm-profdata
-common --experimental_generate_llvm_lcov
+common:llvm-cov --repo_env=BAZEL_LLVM_COV=llvm-cov
+common:llvm-cov --repo_env=BAZEL_LLVM_PROFDATA=llvm-profdata
+common:llvm-cov --repo_env=BAZEL_USE_LLVM_NATIVE_COVERAGE=1
+common:llvm-cov --repo_env=GCOV=llvm-profdata
+common:llvm-cov --experimental_generate_llvm_lcov
 
 # Configuration for coverage reports
 coverage --combined_report=lcov
