@@ -63,9 +63,34 @@ resource "postgresql_grant" "db" {
   }
 }
 
+resource "google_spanner_database" "reporting" {
+  instance         = var.spanner_instance.name
+  name             = var.reporting_spanner_database_name
+  database_dialect = "GOOGLE_STANDARD_SQL"
+}
+
+resource "google_spanner_database_iam_member" "reporting_internal" {
+  instance = google_spanner_database.reporting.instance
+  database = google_spanner_database.reporting.name
+  role     = "roles/spanner.databaseUser"
+  member   = module.reporting_internal.iam_service_account.member
+
+  lifecycle {
+    replace_triggered_by = [google_spanner_database.reporting.id]
+  }
+}
+
 module "access" {
   source = "../access"
 
   spanner_instance      = var.spanner_instance
   spanner_database_name = var.access_spanner_database_name
 }
+
+resource "google_monitoring_dashboard" "dashboards" {
+  for_each        = toset(var.dashboard_json_files)
+
+  dashboard_json  = file("${path.module}/${each.value}")
+  project         = data.google_project.project.project_id
+}
+

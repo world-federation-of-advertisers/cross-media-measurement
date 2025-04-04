@@ -20,18 +20,21 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Durations
+import com.google.rpc.errorInfo
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt
@@ -58,12 +61,14 @@ import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRe
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
+import org.wfanet.measurement.internal.reporting.v2.invalidateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metric
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
+import org.wfanet.measurement.reporting.service.internal.Errors
 
 private const val CMMS_MEASUREMENT_CONSUMER_ID = "1234"
 private const val MAX_BATCH_SIZE = 1000
@@ -1286,7 +1291,15 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception.message).contains("Measurement Consumer")
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND.name
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+            CMMS_MEASUREMENT_CONSUMER_ID + "2"
+        }
+      )
   }
 
   @Test
@@ -3042,7 +3055,15 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.message).contains("not found")
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.METRIC_NOT_FOUND.name
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] = CMMS_MEASUREMENT_CONSUMER_ID
+          metadata[Errors.Metadata.EXTERNAL_METRIC_ID.key] = "1L"
+        }
+      )
   }
 
   @Test
@@ -3268,6 +3289,212 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { service.streamMetrics(streamMetricsRequest {}) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `invalidateMetric sets the state to INVALID`(): Unit = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+
+    val createMetricRequest =
+      createCreateMetricRequest(
+        CMMS_MEASUREMENT_CONSUMER_ID,
+        reportingSetsService,
+        "externalMetricId1",
+      )
+
+    val createdMetric = service.createMetric(createMetricRequest)
+
+    assertThat(createdMetric.state).isEqualTo(Metric.State.RUNNING)
+
+    val invalidatedMetric =
+      service.invalidateMetric(
+        invalidateMetricRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalMetricId = createdMetric.externalMetricId
+        }
+      )
+
+    assertThat(invalidatedMetric)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(createdMetric.copy { state = Metric.State.INVALID })
+
+    val retrievedMetric =
+      service
+        .streamMetrics(
+          streamMetricsRequest {
+            filter =
+              StreamMetricsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              }
+          }
+        )
+        .first()
+
+    assertThat(retrievedMetric)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(createdMetric.copy { state = Metric.State.INVALID })
+  }
+
+  @Test
+  fun `invalidateMetric throws NOT_FOUND when metric not found`(): Unit = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.invalidateMetric(
+          invalidateMetricRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalMetricId = "1L"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.METRIC_NOT_FOUND.name
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] = CMMS_MEASUREMENT_CONSUMER_ID
+          metadata[Errors.Metadata.EXTERNAL_METRIC_ID.key] = "1L"
+        }
+      )
+  }
+
+  @Test
+  fun `invalidateMetric throws FAILED_PRECONDITION when metric FAILED`(): Unit = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+
+    val createMetricRequest =
+      createCreateMetricRequest(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService).copy {
+        val source = this
+        metric =
+          source.metric.copy {
+            weightedMeasurements +=
+              MetricKt.weightedMeasurement {
+                weight = 2
+                binaryRepresentation = 1
+                measurement = measurement {
+                  cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                  cmmsCreateMeasurementRequestId = "1234"
+                  timeInterval = interval {
+                    startTime = timestamp { seconds = 10 }
+                    endTime = timestamp { seconds = 100 }
+                  }
+                  primitiveReportingSetBases +=
+                    ReportingSetKt.primitiveReportingSetBasis {
+                      externalReportingSetId = source.metric.externalReportingSetId
+                    }
+                }
+              }
+            weightedMeasurements +=
+              MetricKt.weightedMeasurement {
+                weight = 3
+                binaryRepresentation = 2
+                measurement = measurement {
+                  cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                  cmmsCreateMeasurementRequestId = "1235"
+                  timeInterval = interval {
+                    startTime = timestamp { seconds = 10 }
+                    endTime = timestamp { seconds = 100 }
+                  }
+                  primitiveReportingSetBases +=
+                    ReportingSetKt.primitiveReportingSetBasis {
+                      externalReportingSetId = source.metric.externalReportingSetId
+                    }
+                }
+              }
+          }
+      }
+    val createdMetric = service.createMetric(createMetricRequest)
+
+    val suffix = "-1"
+    val batchSetCmmsMeasurementIdsRequest = batchSetCmmsMeasurementIdsRequest {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      createdMetric.weightedMeasurementsList.forEach {
+        measurementIds +=
+          BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+            cmmsCreateMeasurementRequestId = it.measurement.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = it.measurement.cmmsCreateMeasurementRequestId + suffix
+          }
+      }
+    }
+    measurementsService.batchSetCmmsMeasurementIds(batchSetCmmsMeasurementIdsRequest)
+
+    val batchSetMeasurementFailuresRequest = batchSetMeasurementFailuresRequest {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      measurementFailures +=
+        BatchSetMeasurementFailuresRequestKt.measurementFailure {
+          cmmsMeasurementId =
+            createdMetric.weightedMeasurementsList
+              .first()
+              .measurement
+              .cmmsCreateMeasurementRequestId + suffix
+          failure = MeasurementKt.failure { message = "failure" }
+        }
+    }
+    measurementsService.batchSetMeasurementFailures(batchSetMeasurementFailuresRequest)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.invalidateMetric(
+          invalidateMetricRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalMetricId = createdMetric.externalMetricId
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_METRIC_STATE_TRANSITION.name
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] = CMMS_MEASUREMENT_CONSUMER_ID
+          metadata[Errors.Metadata.EXTERNAL_METRIC_ID.key] = createdMetric.externalMetricId
+          metadata[Errors.Metadata.METRIC_STATE.key] = Metric.State.FAILED.name
+          metadata[Errors.Metadata.NEW_METRIC_STATE.key] = Metric.State.INVALID.name
+        }
+      )
+  }
+
+  @Test
+  fun `invalidateMetric throws INVALID_ARGUMENT when missing mc id`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.invalidateMetric(invalidateMetricRequest { externalMetricId = "1L" })
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "cmms_measurement_consumer_id"
+        }
+      )
+  }
+
+  @Test
+  fun `invalidateMetric throws INVALID_ARGUMENT when missing metric id`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.invalidateMetric(
+          invalidateMetricRequest { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "external_metric_id"
+        }
+      )
   }
 
   companion object {

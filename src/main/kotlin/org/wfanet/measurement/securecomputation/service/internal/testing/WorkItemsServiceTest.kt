@@ -18,12 +18,16 @@ package org.wfanet.measurement.securecomputation.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+<<<<<<< HEAD
 import com.google.protobuf.Any
+=======
+>>>>>>> main
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
 import kotlin.test.assertFailsWith
+<<<<<<< HEAD
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -39,6 +43,15 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
+=======
+import kotlinx.coroutines.runBlocking
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.common.toInstant
+>>>>>>> main
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageTokenKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse

@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.service.internal.testing.v2
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -28,6 +29,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -42,6 +44,7 @@ import org.wfanet.measurement.internal.reporting.v2.getMetricCalculationSpecRequ
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
+import org.wfanet.measurement.reporting.service.internal.Errors
 
 @RunWith(JUnit4::class)
 abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCoroutineImplBase> {
@@ -156,7 +159,15 @@ abstract class MetricCalculationSpecsServiceTest<T : MetricCalculationSpecsCorou
       assertFailsWith<StatusRuntimeException> { service.createMetricCalculationSpec(request) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception.message).contains("Measurement Consumer")
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND.name
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+            metricCalculationSpec.cmmsMeasurementConsumerId
+        }
+      )
   }
 
   @Test

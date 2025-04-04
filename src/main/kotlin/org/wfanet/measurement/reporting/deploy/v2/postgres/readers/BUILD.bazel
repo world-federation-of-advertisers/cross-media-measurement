@@ -1,6 +1,7 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres:__subpackages__",
 ])
 
@@ -8,6 +9,8 @@ kt_jvm_library(
     name = "readers",
     srcs = glob(["*.kt"]),
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:flows",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:errors",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:internal_exception",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:measurement_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_calculation_specs_service_kt_jvm_grpc_proto",

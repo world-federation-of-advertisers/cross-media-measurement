@@ -25,6 +25,7 @@ import "wfa/measurement/reporting/v2alpha/metric_calculation_spec.proto";
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "MetricCalculationSpecsServiceProto";
+option go_package = "github.com/world-federation-of-advertisers/cross-media-measurement/reporting/apiv2alpha/reportingpb";
 
 // Service for interacting with `MetricCalculationSpec` resources.
 service MetricCalculationSpecs {
@@ -33,9 +34,9 @@ service MetricCalculationSpecs {
       returns (MetricCalculationSpec) {
     option (google.api.http) = {
       post: "/v2alpha/{parent=measurementConsumers/*}/metricCalculationSpecs"
-      body: "metricCalculationSpec"
+      body: "metric_calculation_spec"
     };
-    option (google.api.method_signature) = "parent,metricCalculationSpec";
+    option (google.api.method_signature) = "parent,metric_calculation_spec";
   }
 
   // Returns the `MetricCalculationSpec` with the specified resource key.
