@@ -20,6 +20,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
 import com.google.protobuf.util.Durations
 import io.grpc.Channel
+import io.grpc.ServerInterceptors
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.File
@@ -64,6 +65,7 @@ import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.InProcessAccess
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub as InternalImpressionQualificationFiltersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
@@ -80,6 +82,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
+import org.wfanet.measurement.reporting.service.api.v2alpha.ImpressionQualificationFiltersService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
@@ -132,6 +135,10 @@ class InProcessReportingServer(
   private val internalReportsClient by lazy { InternalReportsCoroutineStub(internalApiChannel) }
 
   val internalBasicReportsClient by lazy { InternalBasicReportsCoroutineStub(internalApiChannel) }
+
+  private val internalImpressionQualificationFiltersClient by lazy {
+    InternalImpressionQualificationFiltersCoroutineStub(internalApiChannel)
+  }
 
   private val internalReportingServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
@@ -285,6 +292,13 @@ class InProcessReportingServer(
               .withTrustedPrincipalAuthentication(),
             BasicReportsService(internalBasicReportsClient, authorization)
               .withTrustedPrincipalAuthentication(),
+            ServerInterceptors.interceptForward(
+              ImpressionQualificationFiltersService(
+                  internalImpressionQualificationFiltersClient,
+                  authorization,
+                )
+                .withTrustedPrincipalAuthentication()
+            ),
           )
           .forEach { addService(it.withVerboseLogging(verboseGrpcLogging)) }
       }
