@@ -3,10 +3,11 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 kt_jvm_library(
     name = "services",
     srcs = glob(["*Service.kt"]),
-    visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
-        "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
-    ],
+    visibility =
+        [
+            "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
+            "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
+        ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/db",
