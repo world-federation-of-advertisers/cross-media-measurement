@@ -290,12 +290,12 @@ package k8s
 	networkPolicies: {
 		"postgres-internal-reporting-server": {
 			_ingresses: {
-        gRpc: {
-          ports: [{
-            port: #GrpcPort
-          }]
-        }
-      }
+				gRpc: {
+					ports: [{
+						port: #GrpcPort
+					}]
+				}
+			}
 			_egresses: {
 				// Needs to call out to Postgres and Spanner.
 				any: {}

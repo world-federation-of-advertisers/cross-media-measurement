@@ -17,6 +17,8 @@
 package org.wfanet.measurement.loadtest.reporting
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth
+import com.google.protobuf.timestamp
 import com.google.type.DayOfWeek
 import com.google.type.date
 import com.google.type.dateTime
@@ -26,14 +28,13 @@ import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.time.delay
 import org.wfanet.measurement.api.v2alpha.DataProvider
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.coerceAtMost
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
-import com.google.protobuf.timestamp
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as InternalEventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec as InternalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt as InternalResultGroupKt
@@ -48,7 +49,6 @@ import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as inter
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
 import org.wfanet.measurement.internal.reporting.v2.resultGroup as internalResultGroup
-import com.google.common.truth.extensions.proto.ProtoTruth
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupKey
@@ -179,9 +179,9 @@ class ReportingUserSimulator(
         } ?: listEventGroups().first()
 
     val dataProvider =
-      dataProvidersClient
-        .getDataProvider(getDataProviderRequest { name = eventGroup.cmmsDataProvider })
-
+      dataProvidersClient.getDataProvider(
+        getDataProviderRequest { name = eventGroup.cmmsDataProvider }
+      )
 
     val createdPrimitiveReportingSet = createPrimitiveReportingSet(eventGroup, runId)
 
@@ -192,7 +192,7 @@ class ReportingUserSimulator(
     val basicReportKey =
       BasicReportKey(
         cmmsMeasurementConsumerId =
-        MeasurementConsumerKey.fromName(measurementConsumerName)!!.measurementConsumerId,
+          MeasurementConsumerKey.fromName(measurementConsumerName)!!.measurementConsumerId,
         basicReportId = "basicReport-$runId",
       )
 
@@ -371,19 +371,14 @@ class ReportingUserSimulator(
       }
     }
 
-    val createdInternalBasicReport = internalBasicReportsClient.insertBasicReport(
-      insertBasicReportRequest {
-        basicReport = internalBasicReport
-      }
-    )
+    val createdInternalBasicReport =
+      internalBasicReportsClient.insertBasicReport(
+        insertBasicReportRequest { basicReport = internalBasicReport }
+      )
 
     val retrievedBasicReport =
       try {
-        basicReportsClient.getBasicReport(
-          getBasicReportRequest {
-            name = basicReportKey.toName()
-          }
-        )
+        basicReportsClient.getBasicReport(getBasicReportRequest { name = basicReportKey.toName() })
       } catch (e: StatusException) {
         throw Exception("Error retrieving Basic Report", e)
       }
