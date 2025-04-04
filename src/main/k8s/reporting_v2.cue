@@ -23,7 +23,10 @@ package k8s
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
 
-	_postgresConfig:      #PostgresConfig
+	_postgresConfig:         #PostgresConfig
+	_reportingSpannerConfig: #SpannerConfig & {
+		database: "reporting"
+	}
 	_accessSpannerConfig: #SpannerConfig & {
 		database: "access"
 	}
@@ -50,13 +53,21 @@ package k8s
 		targetOption:          "--kingdom-api-target"
 		certificateHostOption: "--kingdom-api-cert-host"
 	}
+	_reportingApiTarget: #GrpcTarget & {
+		serviceName:           "reporting-v2alpha-public-api-server"
+		certificateHost:       "localhost"
+		targetOption:          "--reporting-public-api-target"
+		certificateHostOption: "--reporting-public-api-cert-host"
+	}
 
 	_imageSuffixes: [_=string]: string
 	_imageSuffixes: {
-		"update-reporting-schema":             string | *"reporting/v2/postgres-update-schema"
-		"postgres-internal-reporting-server":  string | *"reporting/v2/postgres-internal-server"
+		"update-reporting-spanner-schema":     string | *"reporting/v2/spanner-update-schema"
+		"update-reporting-postgres-schema":    string | *"reporting/v2/postgres-update-schema"
+		"postgres-internal-reporting-server":  string | *"reporting/v2/internal-server"
 		"reporting-v2alpha-public-api-server": string | *"reporting/v2/v2alpha-public-api"
 		"report-scheduling":                   string | *"reporting/v2/report-scheduling"
+		"reporting-grpc-gateway":              string | *"reporting/grpc-gateway"
 		"update-access-schema":                string | *"access/update-schema"
 		"access-internal-api-server":          string | *"access/internal-api"
 		"access-public-api-server":            string | *"access/public-api"
@@ -90,20 +101,29 @@ package k8s
 	_debugVerboseGrpcClientLoggingFlag: "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
 	_debugVerboseGrpcServerLoggingFlag: "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
 
-	services: [Name=_]: #GrpcService & {
+	services: [Name=_]: #Service & {
 		metadata: {
 			_component: "reporting"
 			name:       Name
 		}
 	}
 	services: {
-		"postgres-internal-reporting-server": {}
-		"reporting-v2alpha-public-api-server": #ExternalService
-		"access-internal-api-server": {}
-		"access-public-api-server": #ExternalService
+		"postgres-internal-reporting-server":  #GrpcService
+		"reporting-v2alpha-public-api-server": #GrpcService & #ExternalService
+		"access-internal-api-server":          #GrpcService
+		"access-public-api-server":            #GrpcService & #ExternalService
+		"reporting-grpc-gateway":              #ExternalService & {
+			spec: {
+				ports: [{
+					port:        443
+					targetPort:  8443
+					appProtocol: "https"
+				}]
+			}
+		}
 	}
 
-	deployments: [Name=_]: #ServerDeployment & {
+	deployments: [Name=_]: #Deployment & {
 		_name:       Name
 		_secretName: Reporting._secretName
 		_system:     "reporting"
@@ -112,26 +132,34 @@ package k8s
 		}
 	}
 	deployments: {
-		"postgres-internal-reporting-server": {
+		"postgres-internal-reporting-server": #ServerDeployment & {
 			_container: args: [
 						_reportingCertCollectionFileFlag,
 						_debugVerboseGrpcServerLoggingFlag,
 						"--port=8443",
 						"--health-port=8080",
-			] + _postgresConfig.flags + _tlsArgs
+						"--basic-reports-enabled=true",
+			] + _postgresConfig.flags + _reportingSpannerConfig.flags + _tlsArgs
 
-			_updateSchemaContainer: Container=#Container & {
+			_updatePostgresSchemaContainer: Container=#Container & {
 				image:            _images[Container.name]
 				args:             _postgresConfig.flags
 				imagePullPolicy?: _container.imagePullPolicy
 			}
 
+			_updateSpannerSchemaContainer: Container=#Container & {
+				image:            _images[Container.name]
+				args:             _reportingSpannerConfig.flags
+				imagePullPolicy?: _container.imagePullPolicy
+			}
+
 			spec: template: spec: _initContainers: {
-				"update-reporting-schema": _updateSchemaContainer
+				"update-reporting-postgres-schema": _updatePostgresSchemaContainer
+				"update-reporting-spanner-schema":  _updateSpannerSchemaContainer
 			}
 		}
 
-		"reporting-v2alpha-public-api-server": {
+		"reporting-v2alpha-public-api-server": #ServerDeployment & {
 			_container: args: [
 						_debugVerboseGrpcClientLoggingFlag,
 						_debugVerboseGrpcServerLoggingFlag,
@@ -143,8 +171,8 @@ package k8s
 						_encryptionKeyPairConfigFileFlag,
 						_metricSpecConfigFileFlag,
 						_knownEventGroupMetadataTypeFlag,
-						"--port=8443",
-						"--health-port=8080",
+						"--open-id-providers-config-file=/etc/\(#AppName)/config-files/open_id_providers_config.json",
+						"--require-client-auth=false",
 						"--event-group-metadata-descriptor-cache-duration=1h",
 						"--certificate-cache-expiration-duration=\(_certificateCacheExpirationDuration)",
 						"--data-provider-cache-expiration-duration=\(_dataProviderCacheExpirationDuration)",
@@ -162,7 +190,23 @@ package k8s
 			}
 		}
 
-		"access-internal-api-server": {
+		"reporting-grpc-gateway": {
+			_container: {
+				args: [
+					"--port=8443",
+					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
+				] + _tlsArgs + _reportingApiTarget.args
+				ports: [{
+					containerPort: 8443
+				}]
+			}
+
+			spec: template: spec: {
+				_dependencies: _ | *[_reportingApiTarget.serviceName]
+			}
+		}
+
+		"access-internal-api-server": #ServerDeployment & {
 			_container: args: [
 						_debugVerboseGrpcServerLoggingFlag,
 						_akidToPrincipalMapFileFlag,
@@ -189,7 +233,7 @@ package k8s
 			}
 		}
 
-		"access-public-api-server": {
+		"access-public-api-server": #ServerDeployment & {
 			_container: args: [
 						_debugVerboseGrpcClientLoggingFlag,
 						_debugVerboseGrpcServerLoggingFlag,
@@ -250,7 +294,7 @@ package k8s
 				"report-scheduling-app",
 			]
 			_egresses: {
-				// Needs to call out to Postgres server.
+				// Needs to call out to Postgres and Spanner.
 				any: {}
 			}
 		}
@@ -266,6 +310,16 @@ package k8s
 			_egresses: {
 				// Needs to call out to Kingdom.
 				any: {}
+			}
+		}
+		"reporting-grpc-gateway": {
+			_destinationMatchLabels: ["reporting-v2alpha-public-api-server-app"]
+			_ingresses: {
+				https: {
+					ports: [{
+						port: 8443
+					}]
+				}
 			}
 		}
 		"report-scheduling": {

@@ -13,26 +13,34 @@ free to use whichever you prefer.
 ### What are we creating/deploying?
 
 -   1 Cloud SQL managed PostgreSQL database
+-   2 Cloud Spanner databases
+    -   `access`
+    -   `reporting`
 -   1 GKE cluster
-    -   1 Kubernetes secret
+    -   3 Kubernetes secret
         -   `certs-and-configs`
+        -   `signing`
+        -   `mc-config`
     -   1 Kubernetes configmap
         -   `config-files`
-    -   2 Kubernetes services
+    -   5 Kubernetes services
         -   `postgres-internal-reporting-server` (Cluster IP)
         -   `reporting-v2alpha-public-api-server` (External load balancer)
+        -   `reporting-grpc-gateway` (External load balancer)
         -   `access-internal-api-server` (Cluster IP)
         -   `access-public-api-server` (External load balancer)
-    -   4 Kubernetes deployments
+    -   5 Kubernetes deployments
         -   `postgres-internal-reporting-server-deployment`
         -   `reporting-v2alpha-public-api-server-deployment`
+        -   `reporting-grpc-gateway`
         -   `access-internal-api-server`
         -   `access-public-api-server`
     -   1 Kubernetes cron job
         -   `report-scheduling`
-    -   6 Kubernetes network policies
+    -   7 Kubernetes network policies
         -   `postgres-internal-reporting-server-network-policy`
         -   `reporting-v2alpha-public-api-server-network-policy`
+        -   `reporting-grpc-gateway-network-policy`
         -   `report-scheduling-network-policy`
         -   `access-internal-api-server-network-policy`
         -   `access-public-api-server-network-policy`
@@ -108,6 +116,12 @@ Extract the generated archive to some directory.
 You can customize this generated object configuration with your own settings
 such as the number of replicas per deployment, the memory and CPU requirements
 of each container, and the JVM options of each container.
+
+## Turning on the MC API Phase 1 services
+
+Pass in "--basic-reports-enabled=true" to the internal server. If this is
+passed in, then "--spanner-project", "--spanner-instance", and 
+'--spanner-database' are all required as well.
 
 ## Customize the K8s secrets
 
@@ -221,6 +235,8 @@ configuration uses one named `config-files`.
 
 *   `authority_key_identifier_to_principal_map.textproto`
     *   [`AuthorityKeyToPrincipalMap`](../../src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto)
+*   `open_id_providers_config.json`
+    *   [`OpenIdProvidersConfig`](../../src/main/proto/wfa/measurement/config/access/open_id_providers_config.proto)
 *   `encryption_key_pair_config.textproto`
     *   [`EncryptionKeyPairConfig`](../../src/main/proto/wfa/measurement/config/reporting/encryption_key_pair_config.proto)
 *   `metric_spec_config.textproto`
@@ -317,6 +333,13 @@ for an example.
     recreating the IAM service account for DB access. Apparently there's a
     glitch with Cloud SQL that this sometimes resolves.
 
+### Authentication
+
+The default configuration supports both client certificates (mTLS) and RFC 9068
+OAuth 2.0 access tokens. For testing purposes, you can use the
+[OpenIdProvider tool](../../src/main/kotlin/org/wfanet/measurement/common/tools)
+to generate access tokens.
+
 ### Manual testing via CLI
 
 The
@@ -327,7 +350,8 @@ API.
 ### HTTP/REST
 
 The public API is a set of gRPC services following the
-[API Improvement Proposals](https://google.aip.dev/). These can be exposed as an
-HTTP REST API using the
-[gRPC Gateway](https://github.com/grpc-ecosystem/grpc-gateway). The service
-definitions include the appropriate protobuf annotations for this purpose.
+[API Improvement Proposals](https://google.aip.dev/). The
+`reporting-grpc-gateway` Service exposes a
+[gRPC-Gateway](https://grpc-ecosystem.github.io/grpc-gateway/) instance
+providing a RESTful HTTP interface. You can call this using any HTTP client
+using an access token for authentication.

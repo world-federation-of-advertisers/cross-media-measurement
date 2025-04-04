@@ -77,7 +77,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     val measurementConsumerId =
       (MeasurementConsumerReader(transactionContext)
           .getByCmmsId(request.report.cmmsMeasurementConsumerId)
-          ?: throw MeasurementConsumerNotFoundException())
+          ?: throw MeasurementConsumerNotFoundException(request.report.cmmsMeasurementConsumerId))
         .measurementConsumerId
 
     val createReportRequestId = request.requestId
@@ -189,6 +189,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
             val oldValue: MetricReader.ReportingMetric? = get(key)
             if (
               it.state != Metric.State.FAILED &&
+                it.state != Metric.State.INVALID &&
                 (oldValue == null || it.createTime.isAfter(oldValue.createTime))
             ) {
               put(key, it)

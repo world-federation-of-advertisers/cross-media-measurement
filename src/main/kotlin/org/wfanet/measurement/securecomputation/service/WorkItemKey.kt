@@ -33,4 +33,3 @@ class WorkItemKey(val workItemId: String) : ResourceKey {
     }
   }
 }
-

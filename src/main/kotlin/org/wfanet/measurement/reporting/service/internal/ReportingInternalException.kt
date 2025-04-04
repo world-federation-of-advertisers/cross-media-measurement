@@ -14,44 +14,65 @@
 
 package org.wfanet.measurement.reporting.service.internal
 
-import com.google.protobuf.Any
+import com.google.rpc.ErrorInfo
 import com.google.rpc.errorInfo
-import com.google.rpc.status
 import io.grpc.Status
+import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
-import io.grpc.protobuf.StatusProto
+import org.wfanet.measurement.common.grpc.Errors
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.internal.reporting.ErrorCode
 
 /** TODO(tristanvuong2021): Add context when each of these exceptions are thrown. */
 sealed class ReportingInternalException : Exception {
   val code: ErrorCode
   protected abstract val context: Map<String, String>
+  override val message: String
+    get() = super.message!!
 
-  constructor(code: ErrorCode) : super() {
+  constructor(code: ErrorCode, message: String) : super(message) {
     this.code = code
   }
 
-  constructor(code: ErrorCode, buildMessage: () -> String) : super(buildMessage()) {
-    this.code = code
-  }
+  constructor(code: ErrorCode, buildMessage: () -> String) : this(code, buildMessage())
 
   fun asStatusRuntimeException(
     statusCode: Status.Code,
-    message: String = this.message!!,
+    message: String = this.message,
   ): StatusRuntimeException {
-    val statusProto = status {
-      code = statusCode.value()
-      this.message = message
-      details +=
-        Any.pack(
-          errorInfo {
-            reason = this@ReportingInternalException.code.toString()
-            domain = ErrorCode.getDescriptor().fullName
-            metadata.putAll(context)
-          }
-        )
+    return Errors.buildStatusRuntimeException(
+      statusCode,
+      message,
+      errorInfo {
+        domain = DOMAIN
+        reason = this@ReportingInternalException.code.name
+        metadata.putAll(context)
+      },
+    )
+  }
+
+  companion object {
+    val DOMAIN = ErrorCode.getDescriptor().fullName
+
+    /**
+     * Returns the [ErrorCode] extracted from [exception], or `null` if [exception] is not this type
+     * of error.
+     */
+    fun getErrorCode(exception: StatusException): ErrorCode? {
+      val errorInfo: ErrorInfo = exception.errorInfo ?: return null
+      return getErrorCode(errorInfo)
     }
-    return StatusProto.toStatusRuntimeException(statusProto)
+
+    /**
+     * Returns the [ErrorCode] extracted from [errorInfo], or `null` if [errorInfo] is not this type
+     * of error.
+     */
+    fun getErrorCode(errorInfo: ErrorInfo): ErrorCode? {
+      if (errorInfo.domain != DOMAIN) {
+        return null
+      }
+      return ErrorCode.valueOf(errorInfo.reason)
+    }
   }
 }
 
@@ -111,16 +132,26 @@ class ReportNotFoundException(provideDescription: () -> String = { "Report not f
     get() = emptyMap<String, String>()
 }
 
+class CampaignGroupInvalidException(
+  val cmmsMeasurementConsumerId: String,
+  val externalReportingSetId: String,
+) :
+  ReportingInternalException(
+    ErrorCode.CAMPAIGN_GROUP_INVALID,
+    "ReportingSet with CMMS MeasurementConsumer ID $cmmsMeasurementConsumerId and " +
+      "external ReportingSet ID $externalReportingSetId is not a valid Campaign Group",
+  ) {
+  override val context: Map<String, String>
+    get() =
+      mapOf(
+        "cmmsMeasurementConsumerId" to cmmsMeasurementConsumerId,
+        "externalReportingSetId" to externalReportingSetId,
+      )
+}
+
 class MeasurementStateInvalidException(
   provideDescription: () -> String = { "Measurement state invalid" }
 ) : ReportingInternalException(ErrorCode.MEASUREMENT_STATE_INVALID, provideDescription) {
-  override val context
-    get() = emptyMap<String, String>()
-}
-
-class MeasurementConsumerNotFoundException(
-  provideDescription: () -> String = { "Measurement Consumer not found" }
-) : ReportingInternalException(ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND, provideDescription) {
   override val context
     get() = emptyMap<String, String>()
 }
@@ -129,12 +160,6 @@ class MeasurementConsumerAlreadyExistsException(
   provideDescription: () -> String = { "Measurement Consumer already exists" }
 ) : ReportingInternalException(ErrorCode.MEASUREMENT_CONSUMER_ALREADY_EXISTS, provideDescription) {
   override val context
-    get() = emptyMap<String, String>()
-}
-
-class MetricNotFoundException(provideDescription: () -> String = { "Metric not found" }) :
-  ReportingInternalException(ErrorCode.METRIC_NOT_FOUND, provideDescription) {
-  override val context: Map<String, String>
     get() = emptyMap<String, String>()
 }
 
