@@ -3,7 +3,7 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 package(
     default_testonly = True,
-    default_visibility = ["//visibility:private"],
+    default_visibility = ["//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__"],
 )
 
 java_binary(
