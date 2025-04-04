@@ -112,16 +112,5 @@ class LiquidLegionsV3DemoMill() {
       e.printStackTrace()
       throw RuntimeException("KMS operation failed", e)
     }
-
-
-    // --- Step 6: Write results to GCS (No change needed here, assuming default storage client works) ---
-    // ... (your existing code for writing results) ...
-    // You *might* need to initialize storageClient with the same credentials if default doesn't work:
-    // val storage = StorageOptions.newBuilder().setCredentials(credentials).build().service
-    // ... rest of write logic ...
   }
-
-  // --- DELETE Manual Token Exchange Functions ---
-  // fun exchangeToken(...) can be removed
-  // fun impersonateServiceAccount(...) can be removed
 }
