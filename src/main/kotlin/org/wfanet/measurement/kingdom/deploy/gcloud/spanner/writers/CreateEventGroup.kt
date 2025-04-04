@@ -19,6 +19,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.to
 import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
@@ -85,6 +86,14 @@ class CreateEventGroup(private val request: CreateEventGroupRequest) :
         set("EventGroupDetails").to(request.eventGroup.details)
       }
       set("State").toInt64(EventGroup.State.ACTIVE)
+    }
+
+    for (mediaType in request.eventGroup.mediaTypesList) {
+      transactionContext.bufferInsertMutation("EventGroupMediaTypes") {
+        set("DataProviderId").to(dataProviderId)
+        set("EventGroupId").to(internalEventGroupId)
+        set("MediaType").to(mediaType)
+      }
     }
 
     return request.eventGroup.copy {

@@ -36,9 +36,13 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroup
+import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.EventGroupMetadataKt.AdMetadataKt.campaignMetadata
+import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.EventGroupMetadataKt.adMetadata
+import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.eventGroupMetadata
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.MediaType
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest
@@ -58,6 +62,14 @@ private const val PROVIDED_EVENT_GROUP_ID = "ProvidedEventGroupId"
 private val DETAILS = eventGroupDetails {
   apiVersion = Version.V2_ALPHA.string
   encryptedMetadata = ByteString.copyFromUtf8("somedata")
+  metadata = eventGroupMetadata {
+    adMetadata = adMetadata {
+      campaignMetadata = campaignMetadata {
+        brandName = "Blammo!"
+        campaignName = "Log: Better Than Bad"
+      }
+    }
+  }
 }
 
 @RunWith(JUnit4::class)
@@ -198,6 +210,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         this.externalDataProviderId = externalDataProviderId
         this.externalMeasurementConsumerId = externalMeasurementConsumerId
         providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+        mediaTypes += MediaType.VIDEO
         details = DETAILS
       }
     }
@@ -214,7 +227,15 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     assertThat(response.externalEventGroupId).isNotEqualTo(0)
     assertThat(response.createTime.seconds).isGreaterThan(0)
     assertThat(response.updateTime).isEqualTo(response.createTime)
-    assertThat(response.state).isEqualTo(EventGroup.State.ACTIVE)
+    assertThat(response)
+      .isEqualTo(
+        eventGroupsService.getEventGroup(
+          getEventGroupRequest {
+            this.externalDataProviderId = externalDataProviderId
+            externalEventGroupId = response.externalEventGroupId
+          }
+        )
+      )
   }
 
   @Test
@@ -341,38 +362,41 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       population
         .createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
-
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
-
-    val createdEventGroup =
+    val eventGroup: EventGroup =
       eventGroupsService.createEventGroup(
         createEventGroupRequest {
           eventGroup = eventGroup {
             this.externalDataProviderId = externalDataProviderId
             this.externalMeasurementConsumerId = externalMeasurementConsumerId
             providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+            mediaTypes += MediaType.VIDEO
           }
         }
       )
+    val request = updateEventGroupRequest {
+      this.eventGroup =
+        eventGroup.copy {
+          details = eventGroupDetails { encryptedMetadata = ByteString.copyFromUtf8("metadata") }
+          mediaTypes.clear()
+          mediaTypes += MediaType.DISPLAY
+        }
+    }
 
-    val modifyEventGroup =
-      createdEventGroup.copy {
-        details = eventGroupDetails { encryptedMetadata = ByteString.copyFromUtf8("metadata") }
-      }
+    val response: EventGroup = eventGroupsService.updateEventGroup(request)
 
-    val updatedEventGroup =
-      eventGroupsService.updateEventGroup(updateEventGroupRequest { eventGroup = modifyEventGroup })
-
-    assertThat(updatedEventGroup)
+    assertThat(response)
+      .ignoringFields(EventGroup.UPDATE_TIME_FIELD_NUMBER)
+      .isEqualTo(request.eventGroup)
+    assertThat(response)
       .isEqualTo(
-        createdEventGroup
-          .toBuilder()
-          .also {
-            it.updateTime = updatedEventGroup.updateTime
-            it.details = updatedEventGroup.details
+        eventGroupsService.getEventGroup(
+          getEventGroupRequest {
+            this.externalDataProviderId = eventGroup.externalDataProviderId
+            externalEventGroupId = eventGroup.externalEventGroupId
           }
-          .build()
+        )
       )
   }
 
@@ -410,35 +434,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
           }
           .build()
       )
-  }
-
-  @Test
-  fun `getEventGroup returns EventGroup by DataProvider`() = runBlocking {
-    val externalMeasurementConsumerId =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
-        .externalMeasurementConsumerId
-    val externalDataProviderId =
-      population.createDataProvider(dataProvidersService).externalDataProviderId
-    val eventGroup =
-      eventGroupsService.createEventGroup(
-        createEventGroupRequest {
-          eventGroup = eventGroup {
-            this.externalDataProviderId = externalDataProviderId
-            this.externalMeasurementConsumerId = externalMeasurementConsumerId
-          }
-        }
-      )
-
-    val response =
-      eventGroupsService.getEventGroup(
-        getEventGroupRequest {
-          this.externalDataProviderId = externalDataProviderId
-          externalEventGroupId = eventGroup.externalEventGroupId
-        }
-      )
-
-    assertThat(response).isEqualTo(eventGroup)
   }
 
   @Test
