@@ -14,13 +14,19 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.service.internal.testing
+package org.wfanet.measurement.securecomputation.service
 
-import org.wfanet.measurement.config.securecomputation.QueuesConfigKt.queueInfo
-import org.wfanet.measurement.config.securecomputation.queuesConfig
-import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
+import org.wfanet.measurement.common.ResourceNameParser
 
-object TestConfig {
-  val QUEUE_MAPPING =
-    QueueMapping(queuesConfig { queueInfos.add(queueInfo { queueResourceId = "test-topid-id" }) })
+internal enum class IdVariable {
+  WORK_ITEM,
+  WORK_ITEM_ATTEMPT,
+}
+
+internal fun ResourceNameParser.assembleName(idMap: Map<IdVariable, String>): String {
+  return assembleName(idMap.mapKeys { it.key.name.lowercase() })
+}
+
+internal fun ResourceNameParser.parseIdVars(resourceName: String): Map<IdVariable, String>? {
+  return parseIdSegments(resourceName)?.mapKeys { IdVariable.valueOf(it.key.uppercase()) }
 }

@@ -18,18 +18,27 @@ package org.wfanet.measurement.securecomputation.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Any
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
+import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.threeten.bp.Duration
+import org.wfa.measurement.queue.testing.TestWork
+import org.wfa.measurement.queue.testing.testWork
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
+import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageTokenKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse
@@ -48,39 +57,80 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkIt
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
+import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
 import org.wfanet.measurement.securecomputation.service.internal.Errors
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 
 @RunWith(JUnit4::class)
 abstract class WorkItemsServiceTest {
+
+  @Rule @JvmField val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
+
+  private val projectId = "test-project-id"
+  private val topicId = "test-topid-id"
+  private val workItemId = "test-work-item-1"
+  private val subscriptionId = "test-subscription-id"
+  private lateinit var googlePubSubClient: GooglePubSubEmulatorClient
+
   protected data class Services(
     /** Service under test. */
     val service: WorkItemsCoroutineImplBase,
     val workItemAttemptsService: WorkItemAttemptsCoroutineImplBase,
   )
 
+  @Before
+  fun createGooglePubSubEmulator() {
+    googlePubSubClient =
+      GooglePubSubEmulatorClient(
+        host = pubSubEmulatorProvider.host,
+        port = pubSubEmulatorProvider.port,
+      )
+  }
+
+  private suspend fun deleteSubscriptionAndTopic() {
+    googlePubSubClient.deleteSubscription(projectId, subscriptionId)
+    googlePubSubClient.deleteTopic(projectId, topicId)
+  }
+
   /** Initializes the service under test. */
   protected abstract fun initServices(
     queueMapping: QueueMapping,
     idGenerator: IdGenerator,
+    workItemPublisher: WorkItemPublisher,
   ): Services
 
-  private fun initServices(idGenerator: IdGenerator = IdGenerator.Default) =
-    initServices(TestConfig.QUEUE_MAPPING, idGenerator)
+  private fun initServices(idGenerator: IdGenerator = IdGenerator.Default): Services {
+    val workItemPublisher: WorkItemPublisher =
+      GoogleWorkItemPublisher(projectId, googlePubSubClient)
+    return initServices(TestConfig.QUEUE_MAPPING, idGenerator, workItemPublisher)
+  }
 
   @Test
   fun `createWorkItem returns created WorkItem`() = runBlocking {
     val services = initServices()
+
+    googlePubSubClient.createTopic(projectId, topicId)
+    googlePubSubClient.createSubscription(projectId, subscriptionId, topicId)
+
     val request = createWorkItemRequest {
       workItem = workItem {
         workItemResourceId = "work_item_resource_id"
-        queueResourceId = "queues/test_queue"
+        queueResourceId = topicId
+        workItemParams =
+          Any.pack(
+            testWork {
+              userName = "UserName"
+              userAge = "25"
+              userCountry = "US"
+            }
+          )
       }
     }
 
-    val response: WorkItem = services.service.createWorkItem(request)
+    val createResponse: WorkItem = services.service.createWorkItem(request)
 
-    assertThat(response)
+    assertThat(createResponse)
       .ignoringFields(
         WorkItem.CREATE_TIME_FIELD_NUMBER,
         WorkItem.UPDATE_TIME_FIELD_NUMBER,
@@ -92,13 +142,46 @@ abstract class WorkItemsServiceTest {
           workItemResourceId = "work_item_resource_id"
         }
       )
-    assertThat(response.createTime.toInstant()).isGreaterThan(Instant.now().minusSeconds(10))
-    assertThat(response.updateTime).isEqualTo(response.createTime)
+    assertThat(createResponse.createTime.toInstant()).isGreaterThan(Instant.now().minusSeconds(10))
+    assertThat(createResponse.updateTime).isEqualTo(createResponse.createTime)
+
+    val deferred = CompletableDeferred<String>()
+    val subscriber =
+      googlePubSubClient.buildSubscriber(
+        projectId = projectId,
+        subscriptionId = "test-subscription-id",
+        ackExtensionPeriod = Duration.ofHours(6),
+      ) { message, consumer ->
+        try {
+
+          val anyMessage = Any.parseFrom(message.data.toByteArray())
+          val testWork = anyMessage.unpack(TestWork::class.java)
+          deferred.complete(testWork.userName)
+          consumer.ack()
+        } catch (e: Exception) {
+          consumer.nack()
+        }
+      }
+
+    subscriber.startAsync().awaitRunning()
+    val result = deferred.await()
+    assertThat(result).isEqualTo("UserName")
+
+    val getRequest = getWorkItemRequest { workItemResourceId = createResponse.workItemResourceId }
+    val workItem = services.service.getWorkItem(getRequest)
+
+    assertThat(createResponse).isEqualTo(workItem)
+
+    deleteSubscriptionAndTopic()
   }
 
   @Test
   fun `createWorkItem throws INVALID_ARGUMENT if queueResourceId is missing`() = runBlocking {
     val services = initServices()
+
+    googlePubSubClient.createTopic(projectId, topicId)
+    googlePubSubClient.createSubscription(projectId, subscriptionId, topicId)
+
     val request = createWorkItemRequest {
       workItem = workItem { workItemResourceId = "work_item_resource_id" }
     }
@@ -115,13 +198,57 @@ abstract class WorkItemsServiceTest {
           metadata[Errors.Metadata.FIELD_NAME.key] = "queue_resource_id"
         }
       )
+    deleteSubscriptionAndTopic()
+  }
+
+  @Test
+  fun `createWorkItem throws INVALID_ARGUMENT if workItemParams is missing`() = runBlocking {
+    val services = initServices()
+
+    googlePubSubClient.createTopic(projectId, topicId)
+    googlePubSubClient.createSubscription(projectId, subscriptionId, topicId)
+
+    val request = createWorkItemRequest {
+      workItem = workItem {
+        workItemResourceId = "work_item_resource_id"
+        queueResourceId = topicId
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { services.service.createWorkItem(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "work_item_params"
+        }
+      )
+    deleteSubscriptionAndTopic()
   }
 
   @Test
   fun `createWorkItem throws INVALID_ARGUMENT if workItemResourceId is missing`() = runBlocking {
     val services = initServices()
+
+    googlePubSubClient.createTopic(projectId, topicId)
+    googlePubSubClient.createSubscription(projectId, subscriptionId, topicId)
+
     val request = createWorkItemRequest {
-      workItem = workItem { queueResourceId = "queues/non_existing_queue" }
+      workItem = workItem {
+        queueResourceId = topicId
+        workItemParams =
+          Any.pack(
+            testWork {
+              userName = "UserName"
+              userAge = "25"
+              userCountry = "US"
+            }
+          )
+      }
     }
 
     val exception =
@@ -136,6 +263,7 @@ abstract class WorkItemsServiceTest {
           metadata[Errors.Metadata.FIELD_NAME.key] = "work_item_resource_id"
         }
       )
+    deleteSubscriptionAndTopic()
   }
 
   @Test
@@ -144,7 +272,15 @@ abstract class WorkItemsServiceTest {
     val request = createWorkItemRequest {
       workItem = workItem {
         workItemResourceId = "work_item_resource_id"
-        queueResourceId = "queues/non_existing_queue"
+        workItemParams =
+          Any.pack(
+            testWork {
+              userName = "UserName"
+              userAge = "25"
+              userCountry = "US"
+            }
+          )
+        queueResourceId = "non_existing_queue"
       }
     }
 
@@ -157,26 +293,9 @@ abstract class WorkItemsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.QUEUE_NOT_FOUND.name
-          metadata[Errors.Metadata.QUEUE_RESOURCE_ID.key] = "queues/non_existing_queue"
+          metadata[Errors.Metadata.QUEUE_RESOURCE_ID.key] = "non_existing_queue"
         }
       )
-  }
-
-  @Test
-  fun `getWorkItem returns WorkItem`() = runBlocking {
-    val services = initServices()
-    val request = createWorkItemRequest {
-      workItem = workItem {
-        workItemResourceId = "work_item_resource_id"
-        queueResourceId = "queues/test_queue"
-      }
-    }
-
-    val createResponse: WorkItem = services.service.createWorkItem(request)
-    val getRequest = getWorkItemRequest { workItemResourceId = createResponse.workItemResourceId }
-    val workItem = services.service.getWorkItem(getRequest)
-
-    assertThat(createResponse).isEqualTo(workItem)
   }
 
   @Test
@@ -220,10 +339,22 @@ abstract class WorkItemsServiceTest {
   @Test
   fun `failWorkItem returns WorkItem with updated state`() = runBlocking {
     val services = initServices()
+
+    googlePubSubClient.createTopic(projectId, topicId)
+    googlePubSubClient.createSubscription(projectId, subscriptionId, topicId)
+
     val request = createWorkItemRequest {
       workItem = workItem {
         workItemResourceId = "work_item_resource_id"
-        queueResourceId = "queues/test_queue"
+        queueResourceId = topicId
+        workItemParams =
+          Any.pack(
+            testWork {
+              userName = "UserName"
+              userAge = "25"
+              userCountry = "US"
+            }
+          )
       }
     }
 
@@ -280,28 +411,42 @@ abstract class WorkItemsServiceTest {
   @Test
   fun `listWorkItems returns workItems ordered by create time`() = runBlocking {
     val services = initServices()
+
+    googlePubSubClient.createTopic(projectId, topicId)
+    googlePubSubClient.createSubscription(projectId, subscriptionId, topicId)
+
     val workItems: List<WorkItem> = createWorkItems(services.service, 10)
 
     val response: ListWorkItemsResponse =
       services.service.listWorkItems(ListWorkItemsRequest.getDefaultInstance())
 
     assertThat(response).isEqualTo(listWorkItemsResponse { this.workItems += workItems })
+    deleteSubscriptionAndTopic()
   }
 
   @Test
   fun `listWorkItems returns workItems when page size is specified`() = runBlocking {
     val services = initServices()
+
+    googlePubSubClient.createTopic(projectId, topicId)
+    googlePubSubClient.createSubscription(projectId, subscriptionId, topicId)
+
     val workItems: List<WorkItem> = createWorkItems(services.service, 10)
 
     val response: ListWorkItemsResponse =
       services.service.listWorkItems(listWorkItemsRequest { pageSize = 10 })
 
     assertThat(response).isEqualTo(listWorkItemsResponse { this.workItems += workItems })
+    deleteSubscriptionAndTopic()
   }
 
   @Test
   fun `listWorkItems returns next page token when there are more results`() = runBlocking {
     val services = initServices()
+
+    googlePubSubClient.createTopic(projectId, topicId)
+    googlePubSubClient.createSubscription(projectId, subscriptionId, topicId)
+
     val workItems: List<WorkItem> = createWorkItems(services.service, 10)
 
     val request = listWorkItemsRequest { pageSize = 5 }
@@ -319,11 +464,16 @@ abstract class WorkItemsServiceTest {
           }
         }
       )
+    deleteSubscriptionAndTopic()
   }
 
   @Test
   fun `listWorkItems returns results after page token`() = runBlocking {
     val services = initServices()
+
+    googlePubSubClient.createTopic(projectId, topicId)
+    googlePubSubClient.createSubscription(projectId, subscriptionId, topicId)
+
     val workItems: List<WorkItem> = createWorkItems(services.service, 10)
 
     val request = listWorkItemsRequest {
@@ -350,6 +500,8 @@ abstract class WorkItemsServiceTest {
           }
         }
       )
+
+    deleteSubscriptionAndTopic()
   }
 
   private suspend fun createWorkItems(
@@ -362,7 +514,15 @@ abstract class WorkItemsServiceTest {
         createWorkItemRequest {
           workItem = workItem {
             this.workItemResourceId = workItemResourceId
-            queueResourceId = "queues/test_queue"
+            queueResourceId = topicId
+            workItemParams =
+              Any.pack(
+                testWork {
+                  userName = "UserName"
+                  userAge = "25"
+                  userCountry = "US"
+                }
+              )
           }
         }
       )

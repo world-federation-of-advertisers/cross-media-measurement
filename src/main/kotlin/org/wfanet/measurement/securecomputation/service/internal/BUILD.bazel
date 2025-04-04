@@ -2,8 +2,10 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(
     default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:__subpackages__",
     ],
 )
 
@@ -25,5 +27,13 @@ kt_jvm_library(
     deps = [
         "//src/main/proto/wfa/measurement/config/securecomputation:queues_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common:guava",
+    ],
+)
+
+kt_jvm_library(
+    name = "work_item_publisher",
+    srcs = ["WorkItemPublisher.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )
