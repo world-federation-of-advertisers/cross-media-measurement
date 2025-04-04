@@ -20,10 +20,9 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
+import com.google.protobuf.Any
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import com.google.protobuf.Any
-import com.google.cloud.ByteArray
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -167,7 +166,6 @@ private object WorkItems {
       .trimIndent()
 
   fun buildWorkItemResult(row: Struct, queue: QueueMapping.Queue): WorkItemResult {
-
 
     return WorkItemResult(
       row.getLong("WorkItemId"),

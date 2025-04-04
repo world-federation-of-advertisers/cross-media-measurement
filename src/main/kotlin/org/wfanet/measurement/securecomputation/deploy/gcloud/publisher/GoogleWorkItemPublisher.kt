@@ -21,12 +21,11 @@ import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 
-class GoogleWorkItemPublisher(
-  projectId: String,
-  googlePubSubClient: GooglePubSubClient
-): WorkItemPublisher {
+class GoogleWorkItemPublisher(projectId: String, googlePubSubClient: GooglePubSubClient) :
+  WorkItemPublisher {
 
   private val publisher: Publisher<Message> = Publisher(projectId, googlePubSubClient)
+
   override suspend fun publishMessage(queueName: String, message: Message) {
     publisher.publishMessage(queueName, message)
   }

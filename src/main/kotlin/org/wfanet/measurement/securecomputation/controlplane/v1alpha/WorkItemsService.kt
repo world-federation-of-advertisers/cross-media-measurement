@@ -17,34 +17,29 @@
 package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
 import io.grpc.Status
-import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineStub as InternalWorkItemsCoroutineStub
 import io.grpc.StatusException
-import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
-import org.wfanet.measurement.internal.securecomputation.controlplane.workItem as internalWorkItem
-import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest as internalCreateWorkItemRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemRequest as internalGetWorkItemRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest as internalFailWorkItemRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsRequest as internalListWorkItemsRequest
-import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse as InternalListWorkItemsResponse
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
-import org.wfanet.measurement.securecomputation.service.internal.Errors as InternalErrors
 import java.io.IOException
-import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.api.ResourceIds
-import org.wfanet.measurement.common.api.grpc.ResourceList
-import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageToken
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse as InternalListWorkItemsResponse
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineStub as InternalWorkItemsCoroutineStub
+import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest as internalCreateWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest as internalFailWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemRequest as internalGetWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsRequest as internalListWorkItemsRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.workItem as internalWorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.service.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.WorkItemAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
 import org.wfanet.measurement.securecomputation.service.WorkItemNotFoundException
+import org.wfanet.measurement.securecomputation.service.internal.Errors as InternalErrors
 
-class WorkItemsService(
-  private val internalWorkItemsStub: InternalWorkItemsCoroutineStub,
-) :
+class WorkItemsService(private val internalWorkItemsStub: InternalWorkItemsCoroutineStub) :
   WorkItemsCoroutineImplBase() {
 
   override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
@@ -80,7 +75,8 @@ class WorkItemsService(
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS ->
-            WorkItemAlreadyExistsException(request.workItem.name, e).asStatusRuntimeException(e.status.code)
+            WorkItemAlreadyExistsException(request.workItem.name, e)
+              .asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.QUEUE_NOT_FOUND,
@@ -111,9 +107,7 @@ class WorkItemsService(
     val internalResponse: InternalWorkItem =
       try {
         internalWorkItemsStub.getWorkItem(
-          internalGetWorkItemRequest {
-            workItemResourceId = key.workItemId
-          }
+          internalGetWorkItemRequest { workItemResourceId = key.workItemId }
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
@@ -133,7 +127,6 @@ class WorkItemsService(
       }
 
     return internalResponse.toWorkItem()
-
   }
 
   override suspend fun listWorkItems(request: ListWorkItemsRequest): ListWorkItemsResponse {
@@ -142,11 +135,12 @@ class WorkItemsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val pageSize = when {
-      request.pageSize == 0 -> DEFAULT_PAGE_SIZE
-      request.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
-      else -> request.pageSize
-    }
+    val pageSize =
+      when {
+        request.pageSize == 0 -> DEFAULT_PAGE_SIZE
+        request.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
+        else -> request.pageSize
+      }
 
     val internalPageToken: ListWorkItemsPageToken? =
       if (request.pageToken.isEmpty()) {
@@ -192,9 +186,7 @@ class WorkItemsService(
     val internalResponse: InternalWorkItem =
       try {
         internalWorkItemsStub.failWorkItem(
-          internalFailWorkItemRequest {
-            workItemResourceId = key.workItemId
-          }
+          internalFailWorkItemRequest { workItemResourceId = key.workItemId }
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
@@ -220,5 +212,4 @@ class WorkItemsService(
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 100
   }
-
 }

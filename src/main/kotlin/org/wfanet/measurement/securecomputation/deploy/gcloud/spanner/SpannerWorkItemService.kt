@@ -59,7 +59,7 @@ class SpannerWorkItemsService(
   private val databaseClient: AsyncDatabaseClient,
   private val queueMapping: QueueMapping,
   private val idGenerator: IdGenerator,
-  private val workItemPublisher: WorkItemPublisher
+  private val workItemPublisher: WorkItemPublisher,
 ) : WorkItemsCoroutineImplBase() {
 
   override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
@@ -79,13 +79,15 @@ class SpannerWorkItemsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val queue = try {
-      getQueueByResourceId(request.workItem.queueResourceId)
-    } catch (e: QueueNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-    }
+    val queue =
+      try {
+        getQueueByResourceId(request.workItem.queueResourceId)
+      } catch (e: QueueNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      }
 
-    val transactionRunner = databaseClient.readWriteTransaction(Options.tag("action=createWorkItem"))
+    val transactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=createWorkItem"))
 
     val workItem =
       try {
@@ -93,7 +95,12 @@ class SpannerWorkItemsService(
           val workItemId: Long = idGenerator.generateNewId { id -> txn.workItemIdExists(id) }
 
           val state: WorkItem.State =
-            txn.insertWorkItem(workItemId, request.workItem.workItemResourceId, queue.queueId, request.workItem.workItemParams)
+            txn.insertWorkItem(
+              workItemId,
+              request.workItem.workItemResourceId,
+              queue.queueId,
+              request.workItem.workItemParams,
+            )
 
           request.workItem.copy { this.state = state }
         }
@@ -107,21 +114,22 @@ class SpannerWorkItemsService(
       }
 
     val commitTimestamp = transactionRunner.getCommitTimestamp().toProto()
-    val result = workItem.copy {
-      createTime = commitTimestamp
-      updateTime = commitTimestamp
-    }
+    val result =
+      workItem.copy {
+        createTime = commitTimestamp
+        updateTime = commitTimestamp
+      }
 
     try {
-      workItemPublisher.publishMessage(request.workItem.queueResourceId, request.workItem.workItemParams)
+      workItemPublisher.publishMessage(
+        request.workItem.queueResourceId,
+        request.workItem.workItemParams,
+      )
     } catch (e: Exception) {
-      throw Status.INTERNAL
-        .withCause(e)
-        .asRuntimeException()
+      throw Status.INTERNAL.withCause(e).asRuntimeException()
     }
 
     return result
-
   }
 
   override suspend fun getWorkItem(request: GetWorkItemRequest): WorkItem {
