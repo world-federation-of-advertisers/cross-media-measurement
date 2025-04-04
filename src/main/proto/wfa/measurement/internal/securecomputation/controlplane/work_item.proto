@@ -33,11 +33,7 @@ message WorkItem {
 
   // The parameters to be delivered to the TEE application.
   google.protobuf.Any work_item_params = 3
-<<<<<<< HEAD
-    [(google.api.field_behavior) = IMMUTABLE];
-=======
       [(google.api.field_behavior) = IMMUTABLE];
->>>>>>> main
 
   // State of a `WorkItem`.
   enum State {

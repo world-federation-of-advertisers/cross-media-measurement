@@ -177,7 +177,7 @@ abstract class BaseTeeApplication(
         }
       )
     } catch (e: StatusRuntimeException) {
-      throw ControlPlaneApiException("Failed to set WorkItem $workItemName as failed". e)
+      throw ControlPlaneApiException("Failed to set WorkItem $workItemName as failed", e)
     }
   }
 
