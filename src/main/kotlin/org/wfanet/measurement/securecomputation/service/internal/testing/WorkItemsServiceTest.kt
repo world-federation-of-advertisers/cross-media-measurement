@@ -217,7 +217,6 @@ abstract class WorkItemsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> { services.service.createWorkItem(request) }
-
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
       .isEqualTo(

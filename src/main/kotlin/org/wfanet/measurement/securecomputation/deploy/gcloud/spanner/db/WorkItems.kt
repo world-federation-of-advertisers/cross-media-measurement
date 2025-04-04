@@ -166,7 +166,6 @@ private object WorkItems {
       .trimIndent()
 
   fun buildWorkItemResult(row: Struct, queue: QueueMapping.Queue): WorkItemResult {
-
     return WorkItemResult(
       row.getLong("WorkItemId"),
       workItem {
