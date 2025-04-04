@@ -43,6 +43,13 @@ variable "spanner_instance" {
   nullable = false
 }
 
+variable "reporting_spanner_database_name" {
+  description = "Name of the Spanner database for Reporting."
+  type        = string
+  default     = "reporting"
+  nullable    = false
+}
+
 variable "access_spanner_database_name" {
   description = "Name of the Spanner database for Access."
   type        = string
@@ -50,4 +57,12 @@ variable "access_spanner_database_name" {
   nullable    = false
 }
 
-
+variable "dashboard_json_files" {
+  description = "List of filenames of dashboard json or templates"
+  type        = list(string)
+  nullable    = true
+  default     = [
+    "reporting_dashboard_1.json",
+    "reporting_dashboard_2.json",
+  ]
+}

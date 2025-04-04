@@ -70,6 +70,6 @@ fun InternalWorkItemAttempt.toWorkItemAttempt(): WorkItemAttempt {
     attemptNumber = source.attemptNumber
     errorMessage = source.errorMessage
     createTime = source.createTime
-    updateTime= source.updateTime
+    updateTime = source.updateTime
   }
 }

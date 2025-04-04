@@ -22,6 +22,7 @@ import "google/api/resource.proto";
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ReportingSetProto";
+option go_package = "github.com/world-federation-of-advertisers/cross-media-measurement/reporting/apiv2alpha/reportingpb";
 
 // The resource name of a reporting set.
 message ReportingSet {
@@ -37,6 +38,18 @@ message ReportingSet {
 
   // Human-readable name for display purposes.
   string display_name = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // Resource name of the Campaign Group `ReportingSet` to which this
+  // `ReportingSet` belongs.
+  //
+  // If the value is the same as `name`, then this `ReportingSet` is a Campaign
+  // Group.
+  string campaign_group = 6 [
+    (google.api.resource_reference).type =
+        "reporting.halo-cmm.org/ReportingSet",
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 
   // A map of arbitrary key-value pairs to support tagging of ReportingSets
   // for upstream use by UIs and other rich clients.

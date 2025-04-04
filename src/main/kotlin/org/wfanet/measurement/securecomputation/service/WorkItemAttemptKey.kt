@@ -23,21 +23,23 @@ import org.wfanet.measurement.common.api.ResourceKey
 class WorkItemAttemptKey(val workItemId: String, val workItemAttemptId: String) : ChildResourceKey {
 
   override fun toName(): String {
-    return parser.assembleName(mapOf(
-      IdVariable.WORK_ITEM to workItemId,
-      IdVariable.WORK_ITEM_ATTEMPT to workItemAttemptId
-    ))
+    return parser.assembleName(
+      mapOf(IdVariable.WORK_ITEM to workItemId, IdVariable.WORK_ITEM_ATTEMPT to workItemAttemptId)
+    )
   }
 
-   override val parentKey = WorkItemKey(workItemId)
+  override val parentKey = WorkItemKey(workItemId)
 
   companion object : ResourceKey.Factory<WorkItemAttemptKey> {
-    private val parser = ResourceNameParser("workItems/{work_item}/workItemAttempts/{work_item_attempt}")
+    private val parser =
+      ResourceNameParser("workItems/{work_item}/workItemAttempts/{work_item_attempt}")
 
     override fun fromName(resourceName: String): WorkItemAttemptKey? {
       val idVars: Map<IdVariable, String> = parser.parseIdVars(resourceName) ?: return null
-      return WorkItemAttemptKey(idVars.getValue(IdVariable.WORK_ITEM), idVars.getValue(IdVariable.WORK_ITEM_ATTEMPT))
+      return WorkItemAttemptKey(
+        idVars.getValue(IdVariable.WORK_ITEM),
+        idVars.getValue(IdVariable.WORK_ITEM_ATTEMPT),
+      )
     }
   }
-
 }

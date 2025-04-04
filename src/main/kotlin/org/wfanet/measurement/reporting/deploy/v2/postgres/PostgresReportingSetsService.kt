@@ -36,6 +36,7 @@ import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReportingSet
+import org.wfanet.measurement.reporting.service.internal.CampaignGroupInvalidException
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
@@ -47,9 +48,22 @@ class PostgresReportingSetsService(
   private val client: DatabaseClient,
 ) : ReportingSetsCoroutineImplBase() {
   override suspend fun createReportingSet(request: CreateReportingSetRequest): ReportingSet {
-    grpcRequire(request.externalReportingSetId.isNotEmpty()) {
-      "External reporting set ID is not set."
+    val externalReportingSetId = request.externalReportingSetId
+    grpcRequire(externalReportingSetId.isNotEmpty()) { "External reporting set ID is not set." }
+
+    if (request.reportingSet.externalCampaignGroupId.isNotEmpty()) {
+      val externalCampaignGroupId = request.reportingSet.externalCampaignGroupId
+      if (externalCampaignGroupId == externalReportingSetId) {
+        if (!request.reportingSet.hasPrimitive()) {
+          throw CampaignGroupInvalidException(
+              request.reportingSet.cmmsMeasurementConsumerId,
+              externalCampaignGroupId,
+            )
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+      }
     }
+
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (request.reportingSet.valueCase) {
       ReportingSet.ValueCase.PRIMITIVE -> {}
@@ -68,14 +82,13 @@ class PostgresReportingSetsService(
     return try {
       CreateReportingSet(request).execute(client, idGenerator)
     } catch (e: ReportingSetNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Reporting Set not found")
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: ReportingSetAlreadyExistsException) {
-      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Reporting Set already exists")
+      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
     } catch (e: MeasurementConsumerNotFoundException) {
-      throw e.asStatusRuntimeException(
-        Status.Code.FAILED_PRECONDITION,
-        "Measurement Consumer not found",
-      )
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: CampaignGroupInvalidException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
   }
 
@@ -99,10 +112,6 @@ class PostgresReportingSetsService(
       } finally {
         readContext.close()
       }
-
-    if (reportingSets.size < request.externalReportingSetIdsList.size) {
-      failGrpc(Status.NOT_FOUND) { "Reporting Set not found" }
-    }
 
     return batchGetReportingSetsResponse { this.reportingSets += reportingSets }
   }

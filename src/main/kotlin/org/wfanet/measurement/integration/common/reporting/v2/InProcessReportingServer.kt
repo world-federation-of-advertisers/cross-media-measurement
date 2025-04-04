@@ -33,8 +33,11 @@ import kotlinx.coroutines.runBlocking
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.withTrustedPrincipalAuthentication
 import org.wfanet.measurement.access.common.TlsClientPrincipalMapping
 import org.wfanet.measurement.access.service.internal.PermissionMapping
+import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as PublicKingdomCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as PublicKingdomDataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as PublicKingdomEventGroupMetadataDescriptorsCoroutineStub
@@ -60,6 +63,7 @@ import org.wfanet.measurement.config.reporting.metricSpecConfig
 import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.InProcessAccess
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
+import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
@@ -68,14 +72,14 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.Reportin
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
-import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer
-import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer.Companion.toList
+import org.wfanet.measurement.reporting.deploy.v2.common.server.AbstractInternalReportingServer.Companion.toList
+import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
+import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
-import org.wfanet.measurement.reporting.service.api.v2alpha.MetadataPrincipalServerInterceptor.Companion.withMetadataPrincipalIdentities
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
@@ -86,7 +90,7 @@ import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineSt
 
 /** TestRule that starts and stops all Reporting Server gRPC services. */
 class InProcessReportingServer(
-  private val internalReportingServerServices: InternalReportingServer.Services,
+  private val internalReportingServerServices: Services,
   private val accessServicesFactory: AccessServicesFactory,
   kingdomPublicApiChannel: Channel,
   private val encryptionKeyPairConfig: EncryptionKeyPairConfig,
@@ -126,6 +130,8 @@ class InProcessReportingServer(
     InternalReportingSetsCoroutineStub(internalApiChannel)
   }
   private val internalReportsClient by lazy { InternalReportsCoroutineStub(internalApiChannel) }
+
+  val internalBasicReportsClient by lazy { InternalBasicReportsCoroutineStub(internalApiChannel) }
 
   private val internalReportingServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
@@ -209,28 +215,42 @@ class InProcessReportingServer(
           }
         }
 
+        val authorization = Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(accessChannel))
+
         METRIC_SPEC_CONFIG.validate()
         metricSpecConfig = METRIC_SPEC_CONFIG
 
         listOf(
-            DataProvidersService(publicKingdomDataProvidersClient)
-              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
-            EventGroupMetadataDescriptorsService(publicKingdomEventGroupMetadataDescriptorsClient)
-              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
+            DataProvidersService(
+                publicKingdomDataProvidersClient,
+                authorization,
+                measurementConsumerConfig.apiKey,
+              )
+              .withTrustedPrincipalAuthentication(),
+            EventGroupMetadataDescriptorsService(
+                publicKingdomEventGroupMetadataDescriptorsClient,
+                authorization,
+                measurementConsumerConfig.apiKey,
+              )
+              .withTrustedPrincipalAuthentication(),
             EventGroupsService(
                 publicKingdomEventGroupsClient,
-                encryptionKeyPairStore,
+                authorization,
                 celEnvCacheProvider.value,
+                measurementConsumerConfigs,
+                encryptionKeyPairStore,
               )
-              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
+              .withTrustedPrincipalAuthentication(),
             MetricCalculationSpecsService(
                 internalMetricCalculationSpecsClient,
                 METRIC_SPEC_CONFIG,
+                authorization,
                 SecureRandom().asKotlinRandom(),
               )
-              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
+              .withTrustedPrincipalAuthentication(),
             MetricsService(
                 METRIC_SPEC_CONFIG,
+                measurementConsumerConfigs,
                 internalReportingSetsClient,
                 internalMetricsClient,
                 VariancesImpl,
@@ -239,28 +259,32 @@ class InProcessReportingServer(
                 publicKingdomMeasurementsClient,
                 publicKingdomCertificatesClient,
                 publicKingdomMeasurementConsumersClient,
+                authorization,
                 encryptionKeyPairStore,
                 SecureRandom().asKotlinRandom(),
                 signingPrivateKeyDir,
                 trustedCertificates,
                 defaultVidModelLine = "",
-                measurementConsumerModelLines = mapOf(),
+                measurementConsumerModelLines = emptyMap(),
                 certificateCacheExpirationDuration = Duration.ofMinutes(60),
                 dataProviderCacheExpirationDuration = Duration.ofMinutes(60),
                 keyReaderContext = Dispatchers.IO,
                 cacheLoaderContext = Dispatchers.Default,
               )
-              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
-            ReportingSetsService(internalReportingSetsClient)
-              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
+              .withTrustedPrincipalAuthentication(),
+            ReportingSetsService(internalReportingSetsClient, authorization)
+              .withTrustedPrincipalAuthentication(),
             ReportsService(
                 internalReportsClient,
                 internalMetricCalculationSpecsClient,
                 PublicMetricsCoroutineStub(this@GrpcTestServerRule.channel),
                 METRIC_SPEC_CONFIG,
+                authorization,
                 SecureRandom().asKotlinRandom(),
               )
-              .withMetadataPrincipalIdentities(measurementConsumerConfigs),
+              .withTrustedPrincipalAuthentication(),
+            BasicReportsService(internalBasicReportsClient, authorization)
+              .withTrustedPrincipalAuthentication(),
           )
           .forEach { addService(it.withVerboseLogging(verboseGrpcLogging)) }
       }

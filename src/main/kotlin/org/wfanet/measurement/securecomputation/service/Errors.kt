@@ -20,8 +20,8 @@ import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
-import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.securecomputation.service.internal.Errors as InternalErrors
 
 object Errors {
@@ -43,7 +43,7 @@ object Errors {
     WORK_ITEM_ATTEMPT("workItem"),
     WORK_ITEM_ATTEMPT_STATE("workItemAttemptState"),
     WORK_ITEM_STATE("workItemState"),
-    FIELD_NAME("fieldName");
+    FIELD_NAME("fieldName"),
   }
 }
 
@@ -152,26 +152,29 @@ class WorkItemInvalidStateException(name: String, workItemState: String, cause: 
     override fun fromInternal(
       internalMetadata: Map<InternalErrors.Metadata, String>,
       cause: Throwable,
-    ):WorkItemInvalidStateException {
+    ): WorkItemInvalidStateException {
 
-      val workItemKey = WorkItemKey(
-        internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_RESOURCE_ID),
-      )
+      val workItemKey =
+        WorkItemKey(internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_RESOURCE_ID))
       return WorkItemInvalidStateException(
         workItemKey.toName(),
-        internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_STATE)
+        internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_STATE),
       )
     }
   }
 }
 
-class WorkItemAttemptInvalidStateException(name: String, workItemAttemptState: String, cause: Throwable? = null) :
+class WorkItemAttemptInvalidStateException(
+  name: String,
+  workItemAttemptState: String,
+  cause: Throwable? = null,
+) :
   ServiceException(
     reason,
     "WorkItemAttempt $name is in an invalid state for this operation",
     mapOf(
       Errors.Metadata.WORK_ITEM_ATTEMPT to name,
-      Errors.Metadata.WORK_ITEM_ATTEMPT_STATE to workItemAttemptState
+      Errors.Metadata.WORK_ITEM_ATTEMPT_STATE to workItemAttemptState,
     ),
     cause,
   ) {
@@ -182,15 +185,16 @@ class WorkItemAttemptInvalidStateException(name: String, workItemAttemptState: S
     override fun fromInternal(
       internalMetadata: Map<InternalErrors.Metadata, String>,
       cause: Throwable,
-    ):WorkItemAttemptInvalidStateException {
+    ): WorkItemAttemptInvalidStateException {
 
-      val workItemAttemptKey = WorkItemAttemptKey(
-        internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_RESOURCE_ID),
-        internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID)
-      )
+      val workItemAttemptKey =
+        WorkItemAttemptKey(
+          internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_RESOURCE_ID),
+          internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID),
+        )
       return WorkItemAttemptInvalidStateException(
         workItemAttemptKey.toName(),
-        internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_ATTEMPT_STATE)
+        internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_ATTEMPT_STATE),
       )
     }
   }

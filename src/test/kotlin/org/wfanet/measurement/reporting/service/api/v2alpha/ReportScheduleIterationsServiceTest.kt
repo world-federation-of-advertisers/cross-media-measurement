@@ -29,16 +29,23 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.whenever
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
+import org.wfanet.measurement.access.client.v1alpha.Authorization
+import org.wfanet.measurement.access.client.v1alpha.testing.Authentication.withPrincipalAndScopes
+import org.wfanet.measurement.access.client.v1alpha.testing.PrincipalMatcher.Companion.hasPrincipal
+import org.wfanet.measurement.access.v1alpha.CheckPermissionsRequest
+import org.wfanet.measurement.access.v1alpha.CheckPermissionsResponse
+import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
+import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
+import org.wfanet.measurement.access.v1alpha.copy
+import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.internal.reporting.v2.ListReportScheduleIterationsRequestKt as InternalListReportScheduleIterationsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIteration as InternalReportScheduleIteration
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineImplBase
@@ -73,8 +80,22 @@ class ReportScheduleIterationsServiceTest {
         )
     }
 
+  private val permissionsServiceMock: PermissionsGrpcKt.PermissionsCoroutineImplBase = mockService {
+    onBlocking { checkPermissions(any()) } doReturn CheckPermissionsResponse.getDefaultInstance()
+
+    // Grant all permissions to PRINCIPAL.
+    onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doAnswer
+      { invocation ->
+        val request: CheckPermissionsRequest = invocation.getArgument(0)
+        checkPermissionsResponse { permissions += request.permissionsList }
+      }
+  }
+
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { addService(internalReportScheduleIterationsMock) }
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(internalReportScheduleIterationsMock)
+    addService(permissionsServiceMock)
+  }
 
   private lateinit var service: ReportScheduleIterationsService
 
@@ -82,7 +103,8 @@ class ReportScheduleIterationsServiceTest {
   fun initService() {
     service =
       ReportScheduleIterationsService(
-        ReportScheduleIterationsCoroutineStub(grpcTestServerRule.channel)
+        ReportScheduleIterationsCoroutineStub(grpcTestServerRule.channel),
+        Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel)),
       )
   }
 
@@ -104,7 +126,7 @@ class ReportScheduleIterationsServiceTest {
     val request = getReportScheduleIterationRequest { name = REPORT_SCHEDULE_ITERATION_NAME }
 
     val reportScheduleIteration =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.getReportScheduleIteration(request) }
       }
 
@@ -132,7 +154,7 @@ class ReportScheduleIterationsServiceTest {
     val request = getReportScheduleIterationRequest { name = REPORT_SCHEDULE_ITERATION_NAME }
 
     val reportScheduleIteration =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.getReportScheduleIteration(request) }
       }
 
@@ -161,7 +183,7 @@ class ReportScheduleIterationsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.getReportScheduleIteration(request) }
         }
       }
@@ -178,7 +200,7 @@ class ReportScheduleIterationsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.getReportScheduleIteration(request) }
         }
       }
@@ -193,27 +215,15 @@ class ReportScheduleIterationsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME + 1, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL.copy { name = "principals/mc-2-user" }, SCOPES) {
           runBlocking { service.getReportScheduleIteration(request) }
         }
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.message).contains("other MeasurementConsumers")
-  }
-
-  @Test
-  fun `getReportScheduleIteration throws UNAUTHENTICATED when the caller is not a MC`() {
-    val request = getReportScheduleIterationRequest { name = REPORT_SCHEDULE_ITERATION_NAME }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DataProviderKey(ExternalId(550L).apiId.value).toName()) {
-          runBlocking { service.getReportScheduleIteration(request) }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains(ReportScheduleIterationsService.GET_REPORT_SCHEDULE_PERMISSION)
   }
 
   @Test
@@ -225,7 +235,7 @@ class ReportScheduleIterationsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listReportScheduleIterations(request) }
       }
 
@@ -275,7 +285,7 @@ class ReportScheduleIterationsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listReportScheduleIterations(request) }
       }
 
@@ -325,7 +335,7 @@ class ReportScheduleIterationsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listReportScheduleIterations(request) }
       }
 
@@ -362,7 +372,7 @@ class ReportScheduleIterationsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listReportScheduleIterations(request) }
       }
 
@@ -413,7 +423,7 @@ class ReportScheduleIterationsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listReportScheduleIterations(request) }
       }
 
@@ -446,7 +456,7 @@ class ReportScheduleIterationsServiceTest {
     val request = listReportScheduleIterationsRequest { parent = REPORT_SCHEDULE_NAME }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listReportScheduleIterations(request) }
       }
 
@@ -497,7 +507,7 @@ class ReportScheduleIterationsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listReportScheduleIterations(request) }
       }
 
@@ -535,7 +545,7 @@ class ReportScheduleIterationsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.listReportScheduleIterations(request) }
       }
 
@@ -570,7 +580,7 @@ class ReportScheduleIterationsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.listReportScheduleIterations(request) }
         }
       }
@@ -594,32 +604,20 @@ class ReportScheduleIterationsServiceTest {
   @Test
   fun `listReportScheduleIterations throws PERMISSION_DENIED when MC caller doesn't match`() {
     val request = listReportScheduleIterationsRequest {
-      parent = "${MEASUREMENT_CONSUMER_NAME + 1}/reportSchedules/$REPORT_SCHEDULE_ID"
+      parent = "$MEASUREMENT_CONSUMER_NAME/reportSchedules/$REPORT_SCHEDULE_ID"
     }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL.copy { name = "principals/mc-2-user" }, SCOPES) {
           runBlocking { service.listReportScheduleIterations(request) }
         }
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.message).contains("other MeasurementConsumers")
-  }
-
-  @Test
-  fun `listReportScheduleIterations throws UNAUTHENTICATED when the caller is not MC`() {
-    val request = listReportScheduleIterationsRequest { parent = REPORT_SCHEDULE_NAME }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DataProviderKey(ExternalId(550L).apiId.value).toName()) {
-          runBlocking { service.listReportScheduleIterations(request) }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains(ReportScheduleIterationsService.GET_REPORT_SCHEDULE_PERMISSION)
   }
 
   @Test
@@ -631,7 +629,7 @@ class ReportScheduleIterationsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.listReportScheduleIterations(request) }
         }
       }
@@ -646,7 +644,7 @@ class ReportScheduleIterationsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.listReportScheduleIterations(request) }
         }
       }
@@ -681,7 +679,7 @@ class ReportScheduleIterationsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.listReportScheduleIterations(request) }
         }
       }
@@ -716,7 +714,7 @@ class ReportScheduleIterationsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.listReportScheduleIterations(request) }
         }
       }
@@ -735,7 +733,7 @@ class ReportScheduleIterationsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.listReportScheduleIterations(request) }
         }
       }
@@ -748,12 +746,12 @@ class ReportScheduleIterationsServiceTest {
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 1000
 
+    private val PRINCIPAL = principal { name = "principals/mc-user" }
+    private val SCOPES = setOf("*")
+
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "A123"
     private const val MEASUREMENT_CONSUMER_NAME =
       "measurementConsumers/$CMMS_MEASUREMENT_CONSUMER_ID"
-
-    private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
-    private val CONFIG = measurementConsumerConfig { apiKey = API_AUTHENTICATION_KEY }
 
     private const val REPORT_SCHEDULE_ID = "B123"
     private const val REPORT_SCHEDULE_NAME =
