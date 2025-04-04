@@ -1,0 +1,7 @@
+steps:
+  - name: 'gcr.io/cloud-builders/bazel'
+    args: ['build', '//src/<path_to_datawatcher_binary_here>/:<data_watcher_target>']
+artifacts:
+  objects:
+    location: 'gs://${CLOUD_FUNCTIONS_STORAGE}/artifacts'
+    paths: ['bazel-bin/<data_watcher_target>']
