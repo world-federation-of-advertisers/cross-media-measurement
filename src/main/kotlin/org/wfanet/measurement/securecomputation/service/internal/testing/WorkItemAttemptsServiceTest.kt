@@ -608,5 +608,4 @@ abstract class WorkItemAttemptsServiceTest {
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
-
 }
