@@ -63,9 +63,10 @@ class WorkItemAttemptsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val parentKey = WorkItemKey.fromName(request.parent)
-      ?: throw InvalidFieldValueException("parent")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    val parentKey =
+      WorkItemKey.fromName(request.parent)
+        ?: throw InvalidFieldValueException("parent")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     val internalResponse: InternalWorkItemAttempt =
       try {

@@ -16,4 +16,5 @@
 
 package org.wfanet.measurement.securecomputation.teesdk
 
-class ControlPlaneApiException(message: String, cause: Throwable? = null) : Exception(message, cause)
+class ControlPlaneApiException(message: String, cause: Throwable? = null) :
+  Exception(message, cause)

@@ -16,14 +16,14 @@
 
 package org.wfanet.measurement.securecomputation.teesdk
 
+import com.google.protobuf.Any
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Parser
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
-import com.google.protobuf.Any
-import io.grpc.Status
-import io.grpc.StatusRuntimeException
 import kotlinx.coroutines.channels.ReceiveChannel
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -36,7 +36,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemRequest
 import org.wfanet.measurement.securecomputation.service.Errors
-import org.wfanet.measurement.securecomputation.service.ServiceException
 
 /**
  * BaseTeeApplication is an abstract base class for TEE applications that automatically subscribes
@@ -52,7 +51,7 @@ abstract class BaseTeeApplication(
   private val queueSubscriber: QueueSubscriber,
   private val parser: Parser<WorkItem>,
   private val workItemsStub: WorkItemsCoroutineStub,
-  private val workItemAttemptsStub: WorkItemAttemptsCoroutineStub
+  private val workItemAttemptsStub: WorkItemAttemptsCoroutineStub,
 ) : AutoCloseable {
 
   /** Starts the TEE application by listening for messages on the specified queue. */
@@ -88,22 +87,26 @@ abstract class BaseTeeApplication(
       return
     }
     val workItemName = body.name
-    val workItemAttempt: WorkItemAttempt = try {
-      val workItemAttemptId = UUID.randomUUID().toString()
-      createWorkItemAttempt(workItemName, workItemAttemptId)
-    } catch (e: ControlPlaneApiException) {
-      logger.log(Level.WARNING, e) { "Error creating a WorkItemAttempt" }
-      return
-    }
+    val workItemAttempt: WorkItemAttempt =
+      try {
+        val workItemAttemptId = UUID.randomUUID().toString()
+        createWorkItemAttempt(workItemName, workItemAttemptId)
+      } catch (e: ControlPlaneApiException) {
+        logger.log(Level.WARNING, e) { "Error creating a WorkItemAttempt" }
+        return
+      }
     try {
       runWork(queueMessage.body.workItemParams)
       runCatching { completeWorkItemAttempt(workItemAttempt) }
         .onFailure { error ->
-          when(error) {
+          when (error) {
             is StatusRuntimeException -> {
-              if (error.status.code == Status.Code.FAILED_PRECONDITION &&
-                error.errorInfo?.reason == Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name &&
-                error.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key) == WorkItemAttempt.State.SUCCEEDED.name) {
+              if (
+                error.status.code == Status.Code.FAILED_PRECONDITION &&
+                  error.errorInfo?.reason == Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name &&
+                  error.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key) ==
+                    WorkItemAttempt.State.SUCCEEDED.name
+              ) {
                 queueMessage.ack()
                 return@processMessage
               } else {
@@ -126,12 +129,17 @@ abstract class BaseTeeApplication(
     } catch (e: Exception) {
       logger.log(Level.SEVERE, e) { "Error processing message" }
       runCatching { failWorkItemAttempt(workItemAttempt, e) }
-        .onFailure { error -> logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" } }
+        .onFailure { error ->
+          logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
+        }
       queueMessage.nack()
     }
   }
 
-  private suspend fun createWorkItemAttempt(parent: String, workItemAttemptId: String) : WorkItemAttempt {
+  private suspend fun createWorkItemAttempt(
+    parent: String,
+    workItemAttemptId: String,
+  ): WorkItemAttempt {
     try {
       return workItemAttemptsStub.createWorkItemAttempt(
         createWorkItemAttemptRequest {
@@ -147,12 +155,13 @@ abstract class BaseTeeApplication(
   private suspend fun completeWorkItemAttempt(workItemAttempt: WorkItemAttempt) {
     try {
       workItemAttemptsStub.completeWorkItemAttempt(
-        completeWorkItemAttemptRequest {
-          this.name = workItemAttempt.name
-        }
+        completeWorkItemAttemptRequest { this.name = workItemAttempt.name }
       )
     } catch (e: StatusRuntimeException) {
-      throw ControlPlaneApiException("Failed to set WorkItemAttempt ${workItemAttempt.name} as succeeded", e)
+      throw ControlPlaneApiException(
+        "Failed to set WorkItemAttempt ${workItemAttempt.name} as succeeded",
+        e,
+      )
     }
   }
 
@@ -165,17 +174,16 @@ abstract class BaseTeeApplication(
         }
       )
     } catch (e: StatusRuntimeException) {
-      throw ControlPlaneApiException("Failed to set WorkItemAttempt ${workItemAttempt.name} as failed", e)
+      throw ControlPlaneApiException(
+        "Failed to set WorkItemAttempt ${workItemAttempt.name} as failed",
+        e,
+      )
     }
   }
 
   private suspend fun failWorkItem(workItemName: String) {
     try {
-      workItemsStub.failWorkItem(
-        failWorkItemRequest {
-          this.name = workItemName
-        }
-      )
+      workItemsStub.failWorkItem(failWorkItemRequest { this.name = workItemName })
     } catch (e: StatusRuntimeException) {
       throw ControlPlaneApiException("Failed to set WorkItem $workItemName as failed", e)
     }

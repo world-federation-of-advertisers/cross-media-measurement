@@ -139,10 +139,7 @@ class WorkItemInvalidStateException(name: String, workItemState: String, cause: 
   ServiceException(
     reason,
     "WorkItem $name is in an invalid state for this operation",
-    mapOf(
-      Errors.Metadata.WORK_ITEM to name,
-      Errors.Metadata.WORK_ITEM_STATE to workItemState
-    ),
+    mapOf(Errors.Metadata.WORK_ITEM to name, Errors.Metadata.WORK_ITEM_STATE to workItemState),
     cause,
   ) {
   companion object : Factory<WorkItemInvalidStateException>() {
@@ -199,4 +196,3 @@ class WorkItemAttemptInvalidStateException(
     }
   }
 }
-

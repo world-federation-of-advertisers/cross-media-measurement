@@ -65,8 +65,7 @@ import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublish
 @RunWith(JUnit4::class)
 abstract class WorkItemsServiceTest {
 
-  @Rule
-  @JvmField val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
+  @Rule @JvmField val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
 
   private val projectId = "test-project-id"
   private val topicId = "test-topid-id"

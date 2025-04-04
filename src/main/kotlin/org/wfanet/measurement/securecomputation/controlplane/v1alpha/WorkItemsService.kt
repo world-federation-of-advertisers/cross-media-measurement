@@ -212,5 +212,4 @@ class WorkItemsService(private val internalWorkItemsStub: InternalWorkItemsCorou
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 100
   }
-
 }
