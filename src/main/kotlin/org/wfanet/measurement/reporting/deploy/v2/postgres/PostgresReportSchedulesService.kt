@@ -58,10 +58,7 @@ class PostgresReportSchedulesService(
     } catch (e: MetricCalculationSpecNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Metric Calculation Spec not found.")
     } catch (e: MeasurementConsumerNotFoundException) {
-      throw e.asStatusRuntimeException(
-        Status.Code.FAILED_PRECONDITION,
-        "Measurement Consumer not found.",
-      )
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: ReportScheduleAlreadyExistsException) {
       throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Report Schedule already exists")
     }

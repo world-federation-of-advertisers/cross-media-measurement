@@ -45,6 +45,8 @@ message EventTemplateField {
       string enum_value = 2 [(google.api.field_behavior) = IMMUTABLE];
       // The field value as a Boolean
       bool bool_value = 3 [(google.api.field_behavior) = IMMUTABLE];
+      // The field value as a Float
+      float float_value = 4 [(google.api.field_behavior) = IMMUTABLE];
     }
   }
   // The value of the field

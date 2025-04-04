@@ -34,3 +34,8 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
+
+kt_jvm_library(
+    name = "id_generator",
+    srcs = ["IdGenerator.kt"],
+)

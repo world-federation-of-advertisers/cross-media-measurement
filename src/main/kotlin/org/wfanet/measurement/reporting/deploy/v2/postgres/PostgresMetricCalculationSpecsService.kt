@@ -59,10 +59,7 @@ class PostgresMetricCalculationSpecsService(
         "Metric Calculation Spec already exists",
       )
     } catch (e: MeasurementConsumerNotFoundException) {
-      throw e.asStatusRuntimeException(
-        Status.Code.FAILED_PRECONDITION,
-        "Measurement Consumer not found",
-      )
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
   }
 

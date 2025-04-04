@@ -79,4 +79,7 @@ enum ErrorCode {
 
   /** Metric Calculation Spec with same IDs already exists. */
   METRIC_CALCULATION_SPEC_ALREADY_EXISTS = 19;
+
+  /** ReportingSet is not a valid Campaign Group. */
+  CAMPAIGN_GROUP_INVALID = 20;
 }

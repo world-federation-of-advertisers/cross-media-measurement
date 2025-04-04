@@ -190,7 +190,7 @@ class PermissionsServiceTest {
         listPermissionsResponse {
           permissions += internalBooksGetPermission.toPermission()
           nextPageToken =
-            internalListPermissionsResponse.nextPageToken.after.toByteString().base64UrlEncode()
+            internalListPermissionsResponse.nextPageToken.toByteString().base64UrlEncode()
         }
       )
   }

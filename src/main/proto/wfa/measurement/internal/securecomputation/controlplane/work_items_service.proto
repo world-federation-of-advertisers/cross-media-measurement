@@ -1,0 +1,74 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.securecomputation.controlplane;
+
+import "wfa/measurement/internal/securecomputation/controlplane/work_item.proto";
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.wfanet.measurement.internal.securecomputation.controlplane";
+option java_multiple_files = true;
+option java_outer_classname = "WorkItemsServiceProto";
+
+// Internal service for persistence of `WorkItem` entities.
+service WorkItems {
+  rpc CreateWorkItem(CreateWorkItemRequest) returns (WorkItem);
+
+  rpc GetWorkItem(GetWorkItemRequest) returns (WorkItem);
+
+  // Response ordered by `create_time`, ascending.
+  rpc ListWorkItems(ListWorkItemsRequest) returns (ListWorkItemsResponse);
+
+  rpc FailWorkItem(FailWorkItemRequest) returns (WorkItem);
+}
+
+message CreateWorkItemRequest {
+  WorkItem work_item = 1;
+}
+
+message GetWorkItemRequest {
+  string work_item_resource_id = 1;
+}
+
+message ListWorkItemsRequest {
+  // The maximum number of results to return.
+  //
+  // If unspecified, at most 50 results will be returned. The maximum value is
+  // 100; values above this will be coerced to the maximum value.
+  int32 page_size = 1;
+  ListWorkItemsPageToken page_token = 2;
+}
+
+message ListWorkItemsResponse {
+  repeated WorkItem work_items = 1;
+
+  // Token for requesting subsequent pages.
+  //
+  // If not specified, there are no more results.
+  ListWorkItemsPageToken next_page_token = 2;
+}
+
+message ListWorkItemsPageToken {
+  message After {
+    google.protobuf.Timestamp created_after = 1;
+    string work_item_resource_id = 2;
+  }
+  After after = 1;
+}
+
+message FailWorkItemRequest {
+  string work_item_resource_id = 1;
+}

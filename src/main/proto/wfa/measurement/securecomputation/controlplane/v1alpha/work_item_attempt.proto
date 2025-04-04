@@ -1,0 +1,89 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.securecomputation.controlplane.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.wfanet.measurement.securecomputation.controlplane.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "WorkItemAttemptProto";
+
+// Resource representing a work item attempt.
+//
+// Each `WorkItem` resource can have multiple `WorkItemAttempt`s.
+// An attempt is created whenever a worker receives a message and claims a new
+// attempt to execute the work.
+//
+// - When an attempt is created the `WorkItemAttempt.State` is set to `ACTIVE`
+// and the parent `WorkItem.State` is set to `RUNNING`.
+// - Attempt creation will fail if the parent `WorkItem` has either `FAILED` or
+// `SUCCEEDED` as its state.
+// - On successful execution, both `WorkItemAttempt.State` and `WorkItem.State`
+// are set to `SUCCEED`.
+// - If an exception occurs during execution, only `WorkItemAttempt.State` is
+// set to `FAILED`, and a new attempt is made.
+// - If a non-retriable error occurs, both `WorkItemAttempt.State` and
+// `WorkItem.State` are marked as `FAILED`, preventing further attempts.
+message WorkItemAttempt {
+  option (google.api.resource) = {
+    type: "control-plane.secure-computation.halo-cmm.org/WorkItemAttempt"
+    pattern: "workItems/{work_item}/workItemAttempts/{work_item_attempt}"
+    singular: "workItemAttempt"
+    plural: "workItemAttempts"
+  };
+
+  // Resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // State of a `WorkItemAttempt`.
+  enum State {
+    // Default value if state is omitted.
+    STATE_UNSPECIFIED = 0;
+
+    // A `WorkItemAttempt` is in progress for this `WorkItem`.
+    ACTIVE = 1;
+
+    // The `WorkItem` has been successfully processed.
+    SUCCEEDED = 2;
+
+    // The subscriber failed to process the `WorkItem`.
+    FAILED = 3;
+  }
+
+  // State of this `WorkItemAttempt`.
+  State state = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The attempt number for processing this `WorkItem`.
+  int32 attempt_number = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Error messages recorded by the worker in case of failure for this
+  // `WorkItemAttempt`.
+  string error_message = 4 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.field_behavior) = OPTIONAL
+  ];
+
+  // Create time.
+  google.protobuf.Timestamp create_time = 5
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Update time.
+  google.protobuf.Timestamp update_time = 6
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+}

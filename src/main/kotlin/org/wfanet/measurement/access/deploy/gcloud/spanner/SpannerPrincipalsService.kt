@@ -17,6 +17,7 @@
 package org.wfanet.measurement.access.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.ErrorCode
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.ByteString
 import com.google.protobuf.Empty
@@ -30,14 +31,14 @@ import org.wfanet.measurement.access.deploy.gcloud.spanner.db.getPrincipalIdByRe
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.insertPrincipal
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.insertUserPrincipal
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.principalExists
-import org.wfanet.measurement.access.service.internal.IdGenerator
 import org.wfanet.measurement.access.service.internal.PrincipalAlreadyExistsException
 import org.wfanet.measurement.access.service.internal.PrincipalNotFoundException
 import org.wfanet.measurement.access.service.internal.PrincipalNotFoundForTlsClientException
 import org.wfanet.measurement.access.service.internal.PrincipalNotFoundForUserException
 import org.wfanet.measurement.access.service.internal.PrincipalTypeNotSupportedException
 import org.wfanet.measurement.access.service.internal.RequiredFieldNotSetException
-import org.wfanet.measurement.access.service.internal.generateNewId
+import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.access.CreateUserPrincipalRequest
 import org.wfanet.measurement.internal.access.DeletePrincipalRequest
@@ -69,7 +70,8 @@ class SpannerPrincipalsService(
   }
 
   override suspend fun createUserPrincipal(request: CreateUserPrincipalRequest): Principal {
-    val runner: AsyncDatabaseClient.TransactionRunner = databaseClient.readWriteTransaction()
+    val runner: AsyncDatabaseClient.TransactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=createUserPrincipal"))
     try {
       runner.run { txn ->
         val principalId: Long = idGenerator.generateNewId { id -> txn.principalExists(id) }
@@ -107,7 +109,7 @@ class SpannerPrincipalsService(
     }
 
     try {
-      databaseClient.readWriteTransaction().run { txn ->
+      databaseClient.readWriteTransaction(Options.tag("action=deletePrincipal")).run { txn ->
         val principalId: Long = txn.getPrincipalIdByResourceId(request.principalResourceId)
         txn.deletePrincipal(principalId)
       }
