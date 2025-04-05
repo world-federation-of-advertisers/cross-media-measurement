@@ -78,3 +78,6 @@ databaseChangeLog:
 - include:
     file: null-filter-measurements-by-continuation-token.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-event-group-media-types.sql
+    relativeToChangeLogFile: true

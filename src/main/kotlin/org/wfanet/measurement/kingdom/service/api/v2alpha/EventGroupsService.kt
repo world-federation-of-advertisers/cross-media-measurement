@@ -33,6 +33,8 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadata
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsPageToken
@@ -43,9 +45,11 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
+import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.packedValue
@@ -64,8 +68,11 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest as InternalCreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
+import org.wfanet.measurement.internal.kingdom.EventGroupDetails
+import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub as InternalEventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest as InternalGetEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.MediaType as InternalMediaType
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt as InternalStreamEventGroupsRequests
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest as internalCreateEventGroupRequest
@@ -467,6 +474,7 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
     measurementConsumer =
       MeasurementConsumerKey(externalIdToApiId(externalMeasurementConsumerId)).toName()
     eventGroupReferenceId = providedEventGroupId
+    this.mediaTypes += mediaTypesList.map { it.toMediaType() }
     if (hasDetails()) {
       val apiVersion = Version.fromString(details.apiVersion)
       if (!details.measurementConsumerPublicKey.isEmpty) {
@@ -492,6 +500,9 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
           eventTemplate { type = event.fullyQualifiedType }
         }
       )
+      if (details.hasMetadata()) {
+        eventGroupMetadata = details.metadata.toEventGroupMetadata()
+      }
       if (!details.encryptedMetadata.isEmpty) {
         encryptedMetadata = encryptedMessage {
           ciphertext = details.encryptedMetadata
@@ -509,6 +520,37 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
       }
     }
     state = this@toEventGroup.state.toV2Alpha()
+  }
+}
+
+private fun InternalMediaType.toMediaType(): MediaType {
+  return when (this) {
+    InternalMediaType.VIDEO -> MediaType.VIDEO
+    InternalMediaType.DISPLAY -> MediaType.DISPLAY
+    InternalMediaType.OTHER -> MediaType.OTHER
+    InternalMediaType.MEDIA_TYPE_UNSPECIFIED -> MediaType.MEDIA_TYPE_UNSPECIFIED
+    InternalMediaType.UNRECOGNIZED -> error("MediaType unrecognized")
+  }
+}
+
+private fun EventGroupDetails.EventGroupMetadata.toEventGroupMetadata(): EventGroupMetadata {
+  val source = this
+  return eventGroupMetadata {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
+    when (source.metadataCase) {
+      EventGroupDetails.EventGroupMetadata.MetadataCase.AD_METADATA -> {
+        adMetadata =
+          EventGroupMetadataKt.adMetadata {
+            campaignMetadata =
+              EventGroupMetadataKt.AdMetadataKt.campaignMetadata {
+                brandName = source.adMetadata.campaignMetadata.brandName
+                campaignName = source.adMetadata.campaignMetadata.campaignName
+              }
+          }
+      }
+      EventGroupDetails.EventGroupMetadata.MetadataCase.METADATA_NOT_SET ->
+        error("metadata not set")
+    }
   }
 }
 
@@ -531,6 +573,7 @@ private fun EventGroup.toInternal(
     externalMeasurementConsumerId = apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
 
     providedEventGroupId = source.eventGroupReferenceId
+    mediaTypes += source.mediaTypesList.map { it.toInternal() }
     details = eventGroupDetails {
       apiVersion = Version.V2_ALPHA.string
       // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop reading this
@@ -552,6 +595,9 @@ private fun EventGroup.toInternal(
           internalEventTemplate { fullyQualifiedType = event.type }
         }
       )
+      if (source.hasEventGroupMetadata()) {
+        metadata = source.eventGroupMetadata.toInternal()
+      }
       if (source.hasEncryptedMetadata()) {
         encryptedMetadata = source.encryptedMetadata.ciphertext
       } else if (!source.serializedEncryptedMetadata.isEmpty) {
@@ -562,6 +608,36 @@ private fun EventGroup.toInternal(
       if (source.hasDataAvailabilityInterval()) {
         dataAvailabilityInterval = source.dataAvailabilityInterval
       }
+    }
+  }
+}
+
+private fun MediaType.toInternal(): InternalMediaType {
+  return when (this) {
+    MediaType.VIDEO -> InternalMediaType.VIDEO
+    MediaType.DISPLAY -> InternalMediaType.DISPLAY
+    MediaType.OTHER -> InternalMediaType.OTHER
+    MediaType.MEDIA_TYPE_UNSPECIFIED -> InternalMediaType.MEDIA_TYPE_UNSPECIFIED
+    MediaType.UNRECOGNIZED -> error("Media type unrecognized")
+  }
+}
+
+private fun EventGroupMetadata.toInternal(): EventGroupDetails.EventGroupMetadata {
+  val source = this
+  return EventGroupDetailsKt.eventGroupMetadata {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
+    when (source.selectorCase) {
+      EventGroupMetadata.SelectorCase.AD_METADATA -> {
+        adMetadata =
+          EventGroupDetailsKt.EventGroupMetadataKt.adMetadata {
+            campaignMetadata =
+              EventGroupDetailsKt.EventGroupMetadataKt.AdMetadataKt.campaignMetadata {
+                brandName = source.adMetadata.campaignMetadata.brandName
+                campaignName = source.adMetadata.campaignMetadata.campaignName
+              }
+          }
+      }
+      EventGroupMetadata.SelectorCase.SELECTOR_NOT_SET -> error("metadata not set")
     }
   }
 }
