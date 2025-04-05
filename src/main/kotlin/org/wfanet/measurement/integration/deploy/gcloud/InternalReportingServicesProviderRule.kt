@@ -27,10 +27,12 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemata.REPORTING_CHANGELOG_PATH
+import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 
 class InternalReportingServicesProviderRule(
   emulatorDatabaseAdmin: SpannerDatabaseAdmin,
   private val postgresDatabaseProvider: PostgresDatabaseProviderRule,
+  private val impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
 ) : ProviderRule<Services> {
   private val spannerDatabase =
     SpannerEmulatorDatabaseRule(emulatorDatabaseAdmin, REPORTING_CHANGELOG_PATH)
@@ -49,6 +51,7 @@ class InternalReportingServicesProviderRule(
               RandomIdGenerator(Clock.systemUTC()),
               postgresDatabaseProvider.createDatabase(),
               spannerDatabase.databaseClient,
+              impressionQualificationFilterMapping,
             )
           base.evaluate()
         }
