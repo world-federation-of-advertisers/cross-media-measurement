@@ -37,11 +37,13 @@ import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
+import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
+import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt
 
@@ -129,6 +131,15 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           .also { channels.add(it) }
           .withDefaultDeadline(RPC_DEADLINE_DURATION)
 
+      val internalApiChannel =
+        buildMutualTlsChannel(
+            TEST_CONFIG.reportingPublicApiTarget,
+            REPORTING_SIGNING_CERTS,
+            TEST_CONFIG.reportingPublicApiCertHost,
+          )
+          .also { channels.add(it) }
+          .withDefaultDeadline(RPC_DEADLINE_DURATION)
+
       return ReportingUserSimulator(
         measurementConsumerName = TEST_CONFIG.measurementConsumer,
         dataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
@@ -143,6 +154,9 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         metricCalculationSpecsClient =
           MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub(publicApiChannel),
         reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
+        basicReportsClient = BasicReportsGrpcKt.BasicReportsCoroutineStub(publicApiChannel),
+        internalBasicReportsClient =
+          InternalBasicReportsGrpcKt.BasicReportsCoroutineStub(internalApiChannel),
       )
     }
 
