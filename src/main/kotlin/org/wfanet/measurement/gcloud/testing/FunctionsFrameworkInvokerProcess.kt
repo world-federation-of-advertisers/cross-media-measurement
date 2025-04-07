@@ -30,7 +30,10 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -119,20 +122,13 @@ class FunctionsFrameworkInvokerProcess(
         val readyPattern = "Serving function..."
         var isReady = false
 
-        // Start a thread to read output
-        CoroutineScope(Dispatchers.Default).launch {
-          try {
-            while (!isReady) {
-              val line = reader.readLine() ?: break
-              logger.info("Process output: $line")
-              // Check if the ready message is in the output
-              if (line.contains(readyPattern)) {
-                isReady = true
-              }
-            }
-          } catch (e: Exception) {
-            if (process.isAlive) {
-              logger.log(Level.WARNING, "Error reading process output: ${e.message}")
+        try {
+          while (!isReady) {
+            val line = (reader as BufferedReader).readLine() ?: break
+            logger.info("Process output: $line")
+            // Check if the ready message is in the output
+            if (line.contains(readyPattern)) {
+              isReady = true
             }
           }
         }
