@@ -296,35 +296,35 @@ REPORTING_V2_GKE_IMAGES = [
     ),
 ]
 
-CONTROL_PLANE_COMMON_IMAGES = [
+SECURE_COMPUTATION_COMMON_IMAGES = [
     struct(
-        name = "control_plane_public_api_server_image",
+        name = "secure_computation_public_api_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/common/server:public_api_server_image",
-        repository = _PREFIX + "/secure-computation/control-plane-public-api",
+        repository = _PREFIX + "/secure-computation/public-api",
     ),
 ]
 
-CONTROL_PLANE_GKE_IMAGES = [
+SECURE_COMPUTATION_GKE_IMAGES = [
     struct(
-        name = "gcloud_control_plane_internal_api_server_image",
+        name = "gcloud_secure_computation_internal_api_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:internal_api_server_image",
-        repository = _PREFIX + "/secure-computation/control-plane-internal-server",
+        repository = _PREFIX + "/secure-computation/internal-server",
     ),
     struct(
-        name = "gcloud_control_plane_update_schema_image",
+        name = "gcloud_secure_computation_update_schema_image",
         image = "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/tools:update_schema_image",
-        repository = _PREFIX + "/secure-computation/control-plane-update-schema",
+        repository = _PREFIX + "/secure-computation/update-schema",
     ),
 ]
 
-ALL_GKE_IMAGES = COMMON_IMAGES + GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_GKE_IMAGES + CONTROL_PLANE_COMMON_IMAGES + CONTROL_PLANE_GKE_IMAGES
+ALL_GKE_IMAGES = COMMON_IMAGES + GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_GKE_IMAGES + SECURE_COMPUTATION_COMMON_IMAGES + SECURE_COMPUTATION_GKE_IMAGES
 
 ALL_LOCAL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_LOCAL_IMAGES
 
-ALL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_LOCAL_IMAGES + REPORTING_V2_GKE_IMAGES + EKS_IMAGES + CONTROL_PLANE_COMMON_IMAGES + CONTROL_PLANE_GKE_IMAGES
+ALL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_LOCAL_IMAGES + REPORTING_V2_GKE_IMAGES + EKS_IMAGES + SECURE_COMPUTATION_COMMON_IMAGES + SECURE_COMPUTATION_GKE_IMAGES
 
 ALL_REPORTING_GKE_IMAGES = REPORTING_V2_COMMON_IMAGES + REPORTING_V2_GKE_IMAGES
 
-ALL_CONTROL_PLANE_GKE_IMAGES = CONTROL_PLANE_COMMON_IMAGES + CONTROL_PLANE_GKE_IMAGES
+ALL_SECURE_COMPUTATION_GKE_IMAGES = SECURE_COMPUTATION_COMMON_IMAGES + SECURE_COMPUTATION_GKE_IMAGES
 
 ALL_EKS_IMAGES = COMMON_IMAGES + EKS_IMAGES

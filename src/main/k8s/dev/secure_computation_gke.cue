@@ -14,11 +14,11 @@
 
 package k8s
 
-_controlPlaneSecretName:     string @tag("secret_name")
-_publicApiAddressName:      "control-plane-public"
+_secureComputationSecretName:     string @tag("secret_name")
+_publicApiAddressName:      "secure-computation-public"
 
 // Name of K8s service account for the ControlPlane internal API server.
-#InternalControlPlaneServerServiceAccount: "internal-control-plan-server"
+#InternalSecureComputationServerServiceAccount: "internal-secure-computation-server"
 
 #PublicServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
@@ -32,39 +32,39 @@ _publicApiAddressName:      "control-plane-public"
 
 objectSets: [
 	defaultNetworkPolicies,
-	controlPlane.serviceAccounts,
-	controlPlane.configMaps,
-	controlPlane.deployments,
-	controlPlane.services,
-	controlPlane.networkPolicies,
+	secureComputation.serviceAccounts,
+	secureComputation.configMaps,
+	secureComputation.deployments,
+	secureComputation.services,
+	secureComputation.networkPolicies,
 ]
 
-controlPlane: #ControlPlane & {
+secureComputation: #SecureComputation & {
 
-    _secretName:         _controlPlaneSecretName
+    _secretName:         _secureComputationSecretName
     _verboseGrpcServerLogging: true
 
-    _spannerConfig: database: "control-plane"
+    _spannerConfig: database: "secure-computation"
 
     serviceAccounts: {
-		"\(#InternalControlPlaneServerServiceAccount)": #WorkloadIdentityServiceAccount & {
-			_iamServiceAccountName: "control-plane-internal"
+		"\(#InternalSecureComputationServerServiceAccount)": #WorkloadIdentityServiceAccount & {
+			_iamServiceAccountName: "secure-computation-internal"
 		}
 	}
 
 	configMaps: "java": #JavaConfigMap
 
     deployments: {
-        "control-plane-internal-api-server": {
+        "secure-computation-internal-api-server": {
             spec: template: spec: #ServiceAccountPodSpec & {
-                serviceAccountName: #InternalControlPlaneServerServiceAccount
+                serviceAccountName: #InternalSecureComputationServerServiceAccount
             }
         }
-        "control-plane-public-api-server": {
+        "secure-computation-public-api-server": {
             _container: resources: #PublicServerResourceRequirements
         }
     }
     services: {
-        "control-plane-public-api-server": _ipAddressName: _publicApiAddressName
+        "secure-computation-public-api-server": _ipAddressName: _publicApiAddressName
     }
 }

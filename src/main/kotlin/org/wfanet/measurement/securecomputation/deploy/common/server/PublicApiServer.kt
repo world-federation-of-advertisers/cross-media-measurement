@@ -35,14 +35,14 @@ class PublicApiServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
 
   @CommandLine.Option(
-    names = ["--control-plane-internal-api-target"],
+    names = ["--secure-computation-control-plane-internal-api-target"],
     description = ["gRPC target of the Access internal API server"],
     required = true,
   )
   private lateinit var internalApiTarget: String
 
   @CommandLine.Option(
-    names = ["--control-plane-internal-api-cert-host"],
+    names = ["--secure-computation-control-plane-internal-api-cert-host"],
     description =
       [
         "Expected hostname (DNS-ID) in the ControlPlane internal API server's TLS certificate.",

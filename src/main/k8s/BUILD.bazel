@@ -137,8 +137,8 @@ cue_library(
 )
 
 cue_library(
-    name = "secure_computation_control_plane",
-    srcs = ["secure_computation_control_plane.cue"],
+    name = "secure_computation",
+    srcs = ["secure_computation.cue"],
     deps = [
         ":base",
         ":config",

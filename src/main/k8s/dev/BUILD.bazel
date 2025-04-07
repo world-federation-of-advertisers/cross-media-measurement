@@ -500,8 +500,8 @@ cue_dump(
 )
 
 cue_dump(
-    name = "secure_computation_control_plane_gke",
-    srcs = ["secure_computation_control_plane_gke.cue"],
+    name = "secure_computation_gke",
+    srcs = ["secure_computation_gke.cue"],
     cue_tags = {
         "secret_name": SIGNING_SECRET_NAME,
         "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
@@ -514,24 +514,24 @@ cue_dump(
     deps = [
         ":base_gke",
         ":config_gke",
-        "//src/main/k8s:secure_computation_control_plane",
+        "//src/main/k8s:secure_computation",
     ],
 )
 
 kustomization_dir(
-    name = "secure_computation_control_plane_secrets",
+    name = "secure_computation_secrets",
 )
 
 kustomization_dir(
-    name = "secure_computation_control_plane",
+    name = "secure_computation",
     testonly = True,
     srcs = [
         "resource_requirements.yaml",
-        ":secure_computation_control_plane_gke",
+        ":secure_computation_gke",
     ],
     generate_kustomization = True,
     tags = ["manual"],
     deps = [
-        ":secure_computation_control_plane_secrets",
+        ":secure_computation_secrets",
     ],
 )

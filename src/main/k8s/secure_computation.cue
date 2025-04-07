@@ -14,27 +14,27 @@
 
 package k8s
 
-#ControlPlane: {
+#SecureComputation: {
 
     _verboseGrpcServerLogging: bool | *false
 	_verboseGrpcClientLogging: bool | *false
 
     _spannerConfig: #SpannerConfig & {
-		database: "control-plane"
+		database: "secure-computation"
 	}
 
-	_secureComputationControlPlaneInternalApiTarget: #GrpcTarget & {
-        serviceName:           "secure-computation-control-plane-internal-api-server"
+	_secureComputationInternalApiTarget: #GrpcTarget & {
+        serviceName:           "secure-computation-internal-api-server"
         certificateHost:       "localhost"
-        targetOption:          "--control-plane-internal-api-target"
-        certificateHostOption: "--control-plane-internal-api-cert-host"
+        targetOption:          "--secure-computation-internal-api-target"
+        certificateHostOption: "--secure-computation-internal-api-cert-host"
     }
 
     _imageSuffixes: [_=string]: string
     _imageSuffixes: {
-        "secure-computation-control_plane_public_api_server_image":    string | *"secure-computation/control-plane-public-api"
-        "gcloud_secure_computation_control_plane_internal_api_server_image":   string | *"secure-computation/control-plane-internal-server"
-        "gcloud_control_plane_update_schema_image":         string | *"secure-computation/control-plane-update-schema"
+        "secure-computation-public-api-server":    string | *"secure-computation/public-api"
+        "secure-computation-internal-api-server":   string | *"secure-computation/internal-server"
+        "update-secure-computation-schema":         string | *"secure-computation/update-schema"
     }
     _imageConfigs: [_=string]: #ImageConfig
     _imageConfigs: {
@@ -55,31 +55,31 @@ package k8s
 
     services: [Name=_]: #GrpcService & {
         metadata: {
-            _component: "control-plane"
+            _component: "secure-computation"
             name:       Name
         }
     }
 
     services: {
-        "secure-computation-control-plane-internal-api-server": {}
-        "secure-computation-control-plane-public-api-server": #ExternalService
+        "secure-computation-internal-api-server": {}
+        "secure-computation-public-api-server": #ExternalService
     }
 
     deployments: [Name=_]: #ServerDeployment & {
         _name:       Name
-        _secretName: ControlPlane._secretName
-        _system:     "control-plane"
+        _secretName: SecureComputation._secretName
+        _system:     "secure-computation"
         _container: {
             image: _images[_name]
         }
     }
     deployments: {
-        "secure-computation-control-plane-internal-api-server": {
+        "secure-computation-internal-api-server": {
             _container: args: [
                         _debugVerboseGrpcServerLoggingFlag,
-                        "--cert-collection-file=/var/run/secrets/files/control_plane_root.pem",
-                        "--tls-cert-file=/var/run/secrets/files/control_plane_tls.pem",
-                        "--tls-key-file=/var/run/secrets/files/control_plane_tls.key",
+                        "--cert-collection-file=/var/run/secrets/files/secure_computation_root.pem",
+                        "--tls-cert-file=/var/run/secrets/files/secure_computation_tls.pem",
+                        "--tls-key-file=/var/run/secrets/files/secure_computation_tls.key",
                         "--queue-config=/etc/\(#AppName)/securecomputation-config/queue_config.textproto",
             ] + _spannerConfig.flags
 
@@ -91,24 +91,24 @@ package k8s
 
             spec: template: spec: {
                 _mounts: {
-                    "control-plane-config": #ConfigMapMount
+                    "secure-computation-config": #ConfigMapMount
                 }
                 _initContainers: {
-                    "update-control-plane-schema": _updateSchemaContainer
+                    "update-secure-computation-schema": _updateSchemaContainer
                 }
             }
         }
 
-        "secure-computation-control-plane-public-api-server": {
+        "secure-computation-public-api-server": {
             _container: args: [
                         _debugVerboseGrpcClientLoggingFlag,
                         _debugVerboseGrpcServerLoggingFlag,
-                        "--cert-collection-file=/var/run/secrets/files/control_plane_root.pem",
-                        "--tls-cert-file=/var/run/secrets/files/control_plane_tls.pem",
-                        "--tls-key-file=/var/run/secrets/files/control_plane_tls.key",
-            ] + _secureComputationControlPlaneInternalApiTarget.args
+                        "--cert-collection-file=/var/run/secrets/files/secure_computation_root.pem",
+                        "--tls-cert-file=/var/run/secrets/files/secure_computation_tls.pem",
+                        "--tls-key-file=/var/run/secrets/files/secure_computation_tls.key",
+            ] + _secureComputationInternalApiTarget.args
             spec: template: spec: {
-                _dependencies: ["secure-computation-control-plane-internal-api-server"]
+                _dependencies: ["secure-computation-internal-api-server"]
             }
         }
 
@@ -120,15 +120,15 @@ package k8s
     }
 
     networkPolicies: {
-        "secure-computation-control-plane-internal-api-server": {
-            _sourceMatchLabels: ["secure-computation-control-plane-public-api-server-app"]
+        "secure-computation-internal-api-server": {
+            _sourceMatchLabels: ["secure-computation-public-api-server-app"]
             _egresses: {
                 // Needs to call out to Spanner.
                 any: {}
             }
         }
-        "secure-computation-control-plane-public-api-server": {
-            _destinationMatchLabels: ["secure-computation-control-plane-internal-api-server-app"]
+        "secure-computation-public-api-server": {
+            _destinationMatchLabels: ["secure-computation-internal-api-server-app"]
             _ingresses: {
                 gRpc: {
                     ports: [{
@@ -142,7 +142,7 @@ package k8s
     configMaps: [Name=string]: #ConfigMap & {
         metadata: name: Name
     }
-    configMaps: "control-plane-config": {
+    configMaps: "secure-computation-config": {
         data: {
             "queue_config.textproto": #QueuesConfig
         }
