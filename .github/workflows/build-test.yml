@@ -99,11 +99,11 @@ jobs:
 
       - name: Run tests
         id: run-tests
-        run: bazel test -- //... -//src/test/python/...
+        run: bazel test //...
 
       - name: Run tests with coverage
         id: run-coverage
-        run: bazel coverage --experimental_split_coverage_postprocessing --experimental_fetch_all_coverage_outputs --remote_download_outputs=all --strategy=CoverageReport=local --combined_report=lcov --instrumentation_filter="//src/main/python/.*,-@.*" //src/test/python/...
+        run: bazel coverage --experimental_split_coverage_postprocessing --experimental_fetch_all_coverage_outputs --instrumentation_filter=//src/main/python/.*,//src/main/cc/.*,-@.* //src/test/python/... //src/test/cc/...
 
       - name: Export bazel output path
         run: echo "BAZEL_OUTPUT_PATH=$(bazel info output_path)" >> $GITHUB_ENV
