@@ -32,7 +32,8 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfigKt.controlPlaneConfig
 import org.wfanet.measurement.config.securecomputation.dataWatcherConfig
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.DataPathDetails
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams.DataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 
@@ -51,13 +52,13 @@ class DataWatcherTest() {
   fun `creates WorkItem when path matches`() {
     runBlocking {
       val topicId = "test-topic-id"
-      val appConfig = Int32Value.newBuilder().setValue(5).build()
+      val appParams = Int32Value.newBuilder().setValue(5).build()
 
       val dataWatcherConfig = dataWatcherConfig {
         sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
-        this.controlPlaneConfig = controlPlaneConfig {
+        this.controlPlaneQueueSink = controlPlaneQueueSink {
           queue = topicId
-          this.appConfig = Any.pack(appConfig)
+          this.appParams = Any.pack(appParams)
         }
       }
 
@@ -74,11 +75,11 @@ class DataWatcherTest() {
           .single()
           .workItem
           .workItemParams
-          .unpack<DataPathDetails>()
-      assertThat(workItemParams.dataPath)
+          .unpack<WorkItemParams>()
+      assertThat(workItemParams.dataPathParams.dataPath)
         .isEqualTo("test-schema://test-bucket/path-to-watch/some-data")
-      val workItemAppConfig = workItemParams.config.unpack<Int32Value>()
-      assertThat(workItemAppConfig).isEqualTo(appConfig)
+      val workItemAppConfig = workItemParams.appParams.unpack<Int32Value>()
+      assertThat(workItemAppConfig).isEqualTo(appParams)
     }
   }
 
@@ -89,9 +90,9 @@ class DataWatcherTest() {
 
       val dataWatcherConfig = dataWatcherConfig {
         sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
-        this.controlPlaneConfig = controlPlaneConfig {
+        this.controlPlaneQueueSink = controlPlaneQueueSink {
           queue = topicId
-          appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
+          appParams = Any.pack(Int32Value.newBuilder().setValue(5).build())
         }
       }
 

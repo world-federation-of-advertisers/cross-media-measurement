@@ -2,9 +2,9 @@
 # proto-message: wfa.measurement.config.securecomputation.DataWatcherConfig
 configs {
   source_path_regex: "gs://test-bucket/control-plane-sink-path-to-watch/(.*)"
-  control_plane_config {
+  control_plane_queue_sink {
     queue: "some-topic-id"
-    app_config {
+    app_params {
       type_url: "type.googleapis.com/google.protobuf.Int32Value"
       value: "\b\005"
     }
@@ -12,9 +12,9 @@ configs {
 }
 configs {
   source_path_regex: "gs://test-bucket/webhook-sink-path-to-watch/(.*)"
-  webhook_config {
+  http_endpoints_sink {
     endpoint_uri: "http://localhost:9999"
-    app_config {
+    app_params {
       fields {
         key: "some-key"
         value {
