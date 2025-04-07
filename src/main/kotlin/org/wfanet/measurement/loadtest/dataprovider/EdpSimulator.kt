@@ -37,6 +37,7 @@ import kotlin.random.Random
 import kotlin.random.asJavaRandom
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emitAll
@@ -181,6 +182,7 @@ class EdpSimulator(
   private val logSketchDetails: Boolean = false,
   private val health: SettableHealth = SettableHealth(),
   private val blockingCoroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
+  private val targetQps: Double = 0.0,
 ) :
   RequisitionFulfiller(edpData, certificatesStub, requisitionsStub, throttler, trustedCertificates),
   Health by health {
@@ -569,6 +571,7 @@ class EdpSimulator(
     }
 
     for (requisition in requisitions) {
+      val requisitionStartTime = System.currentTimeMillis()
       try {
         logger.info("Processing requisition ${requisition.name}...")
 
@@ -773,6 +776,16 @@ class EdpSimulator(
         }
 
         refuseRequisition(requisition.name, e.justification, e.message)
+      }
+      val requisitionEndTime = System.currentTimeMillis()
+      val elapsedMs = requisitionEndTime - requisitionStartTime
+      logger.log(Level.INFO) { "Elapsed time for ${requisition.name} is $elapsedMs ms" }
+
+      if (targetQps > 0) {
+        val targetElapsedMs: Long = (1.0 / targetQps * 1000 - elapsedMs).toLong()
+        if (targetElapsedMs > 0) {
+          delay(targetElapsedMs)
+        }
       }
     }
   }
@@ -1239,14 +1252,16 @@ class EdpSimulator(
     )
 
     logger.info("Calculating direct reach and frequency...")
-    val measurementResult =
-      buildDirectMeasurementResult(
-        directProtocol,
-        measurementSpec,
-        sampleVids(eventGroupSpecs, measurementSpec.vidSamplingInterval),
-      )
+    //    val measurementResult =
+    //      buildDirectMeasurementResult(
+    //        directProtocol,
+    //        measurementSpec,
+    //        sampleVids(eventGroupSpecs, measurementSpec.vidSamplingInterval),
+    //      )
+    val fakeMeasurementResult = Measurement.Result.getDefaultInstance()
 
-    fulfillDirectMeasurement(requisition, measurementSpec, nonce, measurementResult)
+    //      fulfillDirectMeasurement(requisition, measurementSpec, nonce, measurementResult)
+    fulfillDirectMeasurement(requisition, measurementSpec, nonce, fakeMeasurementResult)
   }
 
   /**

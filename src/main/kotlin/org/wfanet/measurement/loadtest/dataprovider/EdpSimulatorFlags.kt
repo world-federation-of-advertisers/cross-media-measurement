@@ -131,4 +131,12 @@ class EdpSimulatorFlags {
   )
   var healthFile: File? = null
     private set
+
+  @CommandLine.Option(
+    names = ["--target-qps"],
+    description = ["Target QPS for fulfillment calls"],
+    required = false,
+  )
+  var targetQps: Double = 0.0
+    private set
 }
