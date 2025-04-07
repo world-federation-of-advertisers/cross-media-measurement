@@ -16,10 +16,12 @@
 
 package org.wfanet.measurement.edpaggregator.eventgroups
 
-import com.google.type.interval
 import io.grpc.StatusException
+import java.time.Clock
+import java.time.Duration
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.EventGroup as ExternalEventGroup
@@ -36,7 +38,11 @@ import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 
 /*
  * Syncs event groups with kingdom.
@@ -47,13 +53,15 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 class EventGroupSync(
   private val edpName: String,
   private val eventGroupsStub: EventGroupsCoroutineStub,
-  private val eventGroups: List<EventGroup>,
+  private val eventGroups: Flow<EventGroup>,
+  private val throttler: Throttler =
+    MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
 ) {
-  suspend fun sync(): Map<String, String> {
+
+  suspend fun sync(): Flow<MappedEventGroup> = flow {
     val syncedEventGroups: Map<String, ExternalEventGroup> =
       fetchEventGroups().toList().associateBy { it.eventGroupReferenceId }
-    val eventGroupMap = mutableMapOf<String, String>()
-    for (eventGroup in eventGroups) {
+    eventGroups.collect { eventGroup: EventGroup ->
       val syncedEventGroup =
         if (eventGroup.eventGroupReferenceId in syncedEventGroups) {
           val existingEventGroup = syncedEventGroups[eventGroup.eventGroupReferenceId]!!
@@ -65,7 +73,8 @@ class EventGroupSync(
                 this.adMetadata = externalAdMetadata {
                   this.campaignMetadata = externalCampaignMetadata {
                     brandName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand
-                    campaignName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.campaign
+                    campaignName =
+                      eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.campaign
                   }
                 }
               }
@@ -83,7 +92,8 @@ class EventGroupSync(
                     this.adMetadata = externalAdMetadata {
                       this.campaignMetadata = externalCampaignMetadata {
                         brandName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand
-                        campaignName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.campaign
+                        campaignName =
+                          eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.campaign
                       }
                     }
                   }
@@ -92,7 +102,7 @@ class EventGroupSync(
                   dataAvailabilityInterval = eventGroup.dataAvailabilityInterval
                 }
             }
-            eventGroupsStub.updateEventGroup(request)
+            throttler.onReady { eventGroupsStub.updateEventGroup(request) }
           } else {
             existingEventGroup
           }
@@ -106,7 +116,8 @@ class EventGroupSync(
                 this.adMetadata = externalAdMetadata {
                   this.campaignMetadata = externalCampaignMetadata {
                     brandName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand
-                    campaignName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.campaign
+                    campaignName =
+                      eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.campaign
                   }
                 }
               }
@@ -114,12 +125,15 @@ class EventGroupSync(
               dataAvailabilityInterval = eventGroup.dataAvailabilityInterval
             }
           }
-
-          eventGroupsStub.createEventGroup(request)
+          throttler.onReady { eventGroupsStub.createEventGroup(request) }
         }
-      eventGroupMap[syncedEventGroup.eventGroupReferenceId] = syncedEventGroup.name
+      emit(
+        mappedEventGroup {
+          eventGroupReferenceId = syncedEventGroup.eventGroupReferenceId
+          eventGroupResourceName = syncedEventGroup.name
+        }
+      )
     }
-    return eventGroupMap
   }
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
@@ -128,12 +142,14 @@ class EventGroupSync(
       .listResources { pageToken: String ->
         val response =
           try {
-            eventGroupsStub.listEventGroups(
-              listEventGroupsRequest {
-                parent = edpName
-                this.pageToken = pageToken
-              }
-            )
+            throttler.onReady {
+              eventGroupsStub.listEventGroups(
+                listEventGroupsRequest {
+                  parent = edpName
+                  this.pageToken = pageToken
+                }
+              )
+            }
           } catch (e: StatusException) {
             throw Exception("Error listing EventGroups", e)
           }

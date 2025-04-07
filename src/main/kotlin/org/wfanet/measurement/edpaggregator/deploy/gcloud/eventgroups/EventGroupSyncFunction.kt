@@ -20,23 +20,22 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.protobuf.util.JsonFormat
+import java.io.BufferedReader
 import java.io.File
-import java.net.URI
 import java.time.Duration
 import java.util.logging.Logger
 import kotlin.io.path.Path
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSyncConfig
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.Campaigns
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroupMap
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
+import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import java.io.BufferedReader
 
 /*
  * Cloud Run Function that receives a [HTTPRequest] with EventGroupSyncConfig. It updates/registers
@@ -51,20 +50,6 @@ class EventGroupSyncFunction() : HttpFunction {
       EventGroupSyncConfig.newBuilder()
         .apply { JsonFormat.parser().merge(requestBody, this) }
         .build()
-    val blobUri = SelectedStorageClient.parseBlobUri(eventGroupSyncConfig.campaignsBlobUri)
-    val inputStorageClient =
-      SelectedStorageClient(
-        blobUri = blobUri,
-        rootDirectory =
-          if (System.getenv("FILE_STORAGE_ROOT") != null) File(System.getenv("FILE_STORAGE_ROOT"))
-          else null,
-        projectId = System.getenv("GCS_PROJECT_ID"),
-      )
-    val campaigns = runBlocking {
-      Campaigns.parseFrom(
-        inputStorageClient.getBlob(blobUri.key)!!.read().flatten()
-      )
-    }
     val publicChannel =
       buildMutualTlsChannel(
           System.getenv("KINGDOM_TARGET"),
@@ -72,29 +57,51 @@ class EventGroupSyncFunction() : HttpFunction {
           System.getenv("KINGDOM_CERT_HOST"),
         )
         .withShutdownTimeout(
-          Duration.ofSeconds(System.getenv("KINGDOM_SHUTDOWN_DURATION_SECONDS")?.toLong() ?: KINGDOM_SHUTDOWN_DURATION_SECONDS)
+          Duration.ofSeconds(
+            System.getenv("KINGDOM_SHUTDOWN_DURATION_SECONDS")?.toLong()
+              ?: KINGDOM_SHUTDOWN_DURATION_SECONDS
+          )
         )
 
     val eventGroupsClient = EventGroupsCoroutineStub(publicChannel)
+    val eventGroups = runBlocking {
+      val eventGroupsBlobUri =
+        SelectedStorageClient.parseBlobUri(eventGroupSyncConfig.eventGroupsBlobUri)
+      MesosRecordIoStorageClient(
+          SelectedStorageClient(
+            blobUri = eventGroupsBlobUri,
+            rootDirectory =
+              if (System.getenv("FILE_STORAGE_ROOT") != null)
+                File(System.getenv("FILE_STORAGE_ROOT"))
+              else null,
+            projectId = System.getenv("GCS_PROJECT_ID"),
+          )
+        )
+        .getBlob(eventGroupsBlobUri.key)!!
+        .read()
+        .map { EventGroup.parseFrom(it) }
+    }
     val eventGroupSync =
       EventGroupSync(
-        edpName = campaigns.dataProvider,
+        edpName = eventGroupSyncConfig.dataProvider,
         eventGroupsStub = eventGroupsClient,
-        eventGroups = campaigns.eventGroupsList,
+        eventGroups = eventGroups,
       )
     val mappedData = runBlocking { eventGroupSync.sync() }
     runBlocking {
-      SelectedStorageClient(
-          url = eventGroupSyncConfig.eventGroupMapUri,
-          rootDirectory =
-            if (System.getenv("FILE_STORAGE_ROOT") != null) File(System.getenv("FILE_STORAGE_ROOT"))
-            else null,
-          projectId = System.getenv("GCS_PROJECT_ID"),
+      val mappedDataBlobUri =
+        SelectedStorageClient.parseBlobUri(eventGroupSyncConfig.eventGroupMapUri)
+      MesosRecordIoStorageClient(
+          SelectedStorageClient(
+            blobUri = mappedDataBlobUri,
+            rootDirectory =
+              if (System.getenv("FILE_STORAGE_ROOT") != null)
+                File(System.getenv("FILE_STORAGE_ROOT"))
+              else null,
+            projectId = System.getenv("GCS_PROJECT_ID"),
+          )
         )
-        .writeBlob(
-          blobUri.key,
-          eventGroupMap { eventGroupMap.putAll(mappedData) }.toByteString(),
-        )
+        .writeBlob(mappedDataBlobUri.key, mappedData.map { it.toByteString() })
     }
   }
 

@@ -21,7 +21,9 @@ option java_multiple_files = true;
 option java_outer_classname = "EventGroupMapProto";
 
 // Allows data providers to learn the EventGroup resource names for their campaigns
-message EventGroupMap {
+message MappedEventGroup {
   // A map from event_group_reference_id to the EventGroup resource name.
-  map<string, string> event_group_map = 1;
+  string event_group_reference_id = 1;
+  // The name of the [EventGroup] in an external system.
+  string event_group_resource_name = 2;
 }

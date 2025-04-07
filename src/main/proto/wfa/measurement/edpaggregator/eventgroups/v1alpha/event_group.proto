@@ -86,11 +86,3 @@ message EventGroup {
   // The MediaTypes of the events entailed by this `EventGroup`
   repeated string media_types = 5;
 }
-
-// The information needed to register and maintain a set of `EventGroup`s
-message Campaigns {
-  // Resource name referencing the `DataProvider` in an external system, provided out-of-band.
-  string data_provider = 1;
-  // The list of event groups for a `DataProvider`
-  repeated EventGroup event_groups = 2;
-}

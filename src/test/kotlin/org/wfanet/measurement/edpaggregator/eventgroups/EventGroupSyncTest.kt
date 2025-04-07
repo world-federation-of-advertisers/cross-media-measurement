@@ -19,6 +19,9 @@ package org.wfanet.measurement.edpaggregator.eventgroups
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.timestamp
 import com.google.type.interval
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -154,26 +157,26 @@ class EventGroupSyncTest {
       mediaTypes += listOf("OTHER")
     }
     val testCampaigns = campaigns + newCampaign
-    val eventGroupSync = EventGroupSync("edp-name", eventGroupsStub, testCampaigns)
-    runBlocking { eventGroupSync.sync() }
+    val eventGroupSync = EventGroupSync("edp-name", eventGroupsStub, testCampaigns.asFlow())
+    runBlocking { eventGroupSync.sync().collect() }
     verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
   }
 
   @Test
   fun `sync updatesExistingEventGroups`() {
-    val eventGroupSync = EventGroupSync("edp-name", eventGroupsStub, campaigns)
-    runBlocking { eventGroupSync.sync() }
+    val eventGroupSync = EventGroupSync("edp-name", eventGroupsStub, campaigns.asFlow())
+    runBlocking { eventGroupSync.sync().collect() }
     verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
   }
 
   @Test
   fun sync_returnsMapOfEventGroupReferenceIdsToEventGroups() {
     runBlocking {
-      val eventGroupSync = EventGroupSync("edp-name", eventGroupsStub, campaigns)
+      val eventGroupSync = EventGroupSync("edp-name", eventGroupsStub, campaigns.asFlow())
       val result = runBlocking { eventGroupSync.sync() }
-      assertThat(result)
+      assertThat(result.toList().map { it.eventGroupReferenceId to it.eventGroupResourceName })
         .isEqualTo(
-          mapOf(
+          listOf(
             "reference-id-1" to "resource-name-for-reference-id-1",
             "reference-id-2" to "resource-name-for-reference-id-2",
             "reference-id-3" to "resource-name-for-reference-id-3",

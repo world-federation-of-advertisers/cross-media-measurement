@@ -21,8 +21,10 @@ option java_multiple_files = true;
 option java_outer_classname = "EventGroupSyncConfigProto";
 
 message EventGroupSyncConfig {
-  // Contains serialized campaign_metadata. Only DataProviders should have write access.
-  string campaigns_blob_uri = 1;
+  // Resource name referencing the `DataProvider` in an external system, provided out-of-band.
+  string data_provider = 1;
+  // The blob uri for the event groups stored in Mesos RecordIo
+  string event_groups_blob_uri = 2;
   // Contains serialized event_group_info. Only the EventGroupSyncFunction should have write access.
-  string event_group_map_uri = 2;
+  string event_group_map_uri = 3;
 }

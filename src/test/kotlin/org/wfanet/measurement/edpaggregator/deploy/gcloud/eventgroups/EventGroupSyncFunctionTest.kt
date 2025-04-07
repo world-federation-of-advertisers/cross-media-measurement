@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.netty.handler.ssl.ClientAuth
@@ -29,7 +30,9 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.logging.Logger
 import kotlin.io.path.Path
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -54,7 +57,6 @@ import org.wfanet.measurement.api.v2alpha.eventGroup as externalEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as externalEventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -65,11 +67,10 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.EventGroupMetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.EventGroupMetadataKt.adMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.eventGroupMetadata
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupMap
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.campaigns as protoCampaigns
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroupMap
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
+import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
@@ -222,7 +223,8 @@ class EventGroupSyncFunctionTest() {
     }
     val testCampaigns = campaigns + newCampaign
     val config = eventGroupSyncConfig {
-      campaignsBlobUri = "file:///some/path/campaigns-blob-uri"
+      dataProvider = "some-data-provider"
+      eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri"
       eventGroupMapUri = "file:///some/other/path/event-groups-map-uri"
     }
     File("${tempFolder.root}/some/path").mkdirs()
@@ -248,10 +250,8 @@ class EventGroupSyncFunctionTest() {
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
 
     runBlocking {
-      storageClient.writeBlob(
-        "some/path/campaigns-blob-uri",
-        flowOf(protoCampaigns { eventGroups += testCampaigns }.toByteString()),
-      )
+      MesosRecordIoStorageClient(storageClient)
+        .writeBlob("some/path/campaigns-blob-uri", testCampaigns.map { it.toByteString() }.asFlow())
     }
 
     // In practice, the DataWatcher makes this HTTP call
@@ -268,22 +268,21 @@ class EventGroupSyncFunctionTest() {
     verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
     verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
     val mappedData = runBlocking {
-      EventGroupMap.parseFrom(
-        storageClient.getBlob("some/other/path/event-groups-map-uri")!!.read().flatten()
-      )
+      MesosRecordIoStorageClient(storageClient)
+        .getBlob("some/other/path/event-groups-map-uri")!!
+        .read()
+        .map { MappedEventGroup.parseFrom(it) }
+        .toList()
+        .map { it.eventGroupReferenceId to it.eventGroupResourceName }
     }
     assertThat(mappedData)
       .isEqualTo(
-        eventGroupMap {
-          this.eventGroupMap.putAll(
-            mapOf(
-              "reference-id-1" to "resource-name-for-reference-id-1",
-              "reference-id-2" to "resource-name-for-reference-id-2",
-              "reference-id-3" to "resource-name-for-reference-id-3",
-              "reference-id-4" to "resource-name-for-reference-id-4",
-            )
-          )
-        }
+        listOf(
+          "reference-id-1" to "resource-name-for-reference-id-1",
+          "reference-id-2" to "resource-name-for-reference-id-2",
+          "reference-id-3" to "resource-name-for-reference-id-3",
+          "reference-id-4" to "resource-name-for-reference-id-4",
+        )
       )
   }
 
