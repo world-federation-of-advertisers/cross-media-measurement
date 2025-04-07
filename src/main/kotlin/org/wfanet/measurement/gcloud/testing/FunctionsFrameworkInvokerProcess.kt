@@ -69,7 +69,7 @@ class FunctionsFrameworkInvokerProcess(
    */
   val port: Int
     get() {
-      check(started) { "CloudFunction process not started" }
+      check(started) { "Cloud function process not started" }
       return localPort
     }
 
