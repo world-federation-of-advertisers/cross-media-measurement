@@ -26,7 +26,8 @@ import kotlin.text.matches
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.dataPathDetails
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
@@ -46,13 +47,13 @@ class DataWatcher(
       if (regex.matches(path)) {
         logger.info("Matched path: $path")
         when (config.sinkConfigCase) {
-          DataWatcherConfig.SinkConfigCase.CONTROL_PLANE_CONFIG -> {
-            val queueConfig = config.controlPlaneConfig
+          DataWatcherConfig.SinkConfigCase.CONTROL_PLANE_QUEUE_SINK -> {
+            val queueConfig = config.controlPlaneQueueSink
             val workItemId = UUID.randomUUID().toString()
             val workItemParams =
-              dataPathDetails {
-                  this.config = queueConfig.appConfig
-                  this.dataPath = path
+              workItemParams {
+                  appParams = queueConfig.appParams
+                  this.dataPathParams = dataPathParams { this.dataPath = path }
                 }
                 .pack()
             val request = createWorkItemRequest {
@@ -64,13 +65,13 @@ class DataWatcher(
             }
             workItemsStub.createWorkItem(request)
           }
-          DataWatcherConfig.SinkConfigCase.WEBHOOK_CONFIG -> {
-            val webhookConfig = config.webhookConfig
+          DataWatcherConfig.SinkConfigCase.HTTP_ENDPOINTS_SINK -> {
+            val httpEndpointConfig = config.httpEndpointsSink
             val client = HttpClient.newHttpClient()
             val request =
               HttpRequest.newBuilder()
-                .uri(URI.create(webhookConfig.endpointUri))
-                .POST(HttpRequest.BodyPublishers.ofString(webhookConfig.appConfig.toJson()))
+                .uri(URI.create(httpEndpointConfig.endpointUri))
+                .POST(HttpRequest.BodyPublishers.ofString(httpEndpointConfig.appParams.toJson()))
                 .build()
             val response = client.send(request, BodyHandlers.ofString())
             logger.info("Response status: ${response.statusCode()}")
