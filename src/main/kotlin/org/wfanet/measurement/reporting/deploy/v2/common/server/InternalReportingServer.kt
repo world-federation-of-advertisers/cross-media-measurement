@@ -85,7 +85,7 @@ class InternalReportingServer : AbstractInternalReportingServer() {
       ],
     required = true,
   )
-  private lateinit var impressionQualificationFilterConfigFile: File
+  private var impressionQualificationFilterConfigFile: File? = null
 
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
@@ -97,18 +97,19 @@ class InternalReportingServer : AbstractInternalReportingServer() {
       if (
         spannerFlags.projectName.isEmpty() ||
           spannerFlags.instanceName.isEmpty() ||
-          spannerFlags.databaseName.isEmpty()
+          spannerFlags.databaseName.isEmpty() ||
+          impressionQualificationFilterConfigFile == null
       ) {
         throw MissingParameterException(
           spec.commandLine(),
           spec.args(),
-          "--spanner-project, --spanner-instance, and --spanner-database are all required if --basic-reports-enabled is set to true",
+          "--spanner-project, --spanner-instance, --spanner-database, and --impression-qualification-filter-config-file are all required if --basic-reports-enabled is set to true",
         )
       }
 
       val impressionQualificationFilterConfig =
         parseTextProto(
-          impressionQualificationFilterConfigFile,
+          impressionQualificationFilterConfigFile!!,
           ImpressionQualificationFilterConfig.getDefaultInstance(),
         )
       val impressionQualificationFilterMapping =
