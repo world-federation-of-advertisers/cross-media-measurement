@@ -80,7 +80,7 @@ package k8s
                         "--cert-collection-file=/var/run/secrets/files/secure_computation_root.pem",
                         "--tls-cert-file=/var/run/secrets/files/secure_computation_tls.pem",
                         "--tls-key-file=/var/run/secrets/files/secure_computation_tls.key",
-                        "--queue-config=/etc/\(#AppName)/securecomputation-config/queue_config.textproto",
+                        "--queue-config=/etc/\(#AppName)/config-files/queue_config.textproto",
             ] + _spannerConfig.flags
 
             _updateSchemaContainer: Container=#Container & {
@@ -91,7 +91,7 @@ package k8s
 
             spec: template: spec: {
                 _mounts: {
-                    "secure-computation-config": #ConfigMapMount
+                    "config-files": #ConfigMapMount
                 }
                 _initContainers: {
                     "update-secure-computation-schema": _updateSchemaContainer
@@ -141,11 +141,6 @@ package k8s
 
     configMaps: [Name=string]: #ConfigMap & {
         metadata: name: Name
-    }
-    configMaps: "secure-computation-config": {
-        data: {
-            "queue_config.textproto": #QueuesConfig
-        }
     }
 
 	serviceAccounts: [Name=string]: #ServiceAccount & {

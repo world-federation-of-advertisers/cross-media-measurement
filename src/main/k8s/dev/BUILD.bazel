@@ -519,6 +519,15 @@ cue_dump(
 )
 
 kustomization_dir(
+    name = "secure_computation_config_files",
+    testonly = True,
+    srcs = [
+        "secure_computation_config_files_kustomization.yaml",
+    ],
+    renames = {"secure_computation_config_files_kustomization.yaml": "kustomization.yaml"},
+)
+
+kustomization_dir(
     name = "secure_computation_secrets",
 )
 
@@ -532,6 +541,7 @@ kustomization_dir(
     generate_kustomization = True,
     tags = ["manual"],
     deps = [
+        ":secure_computation_config_files",
         ":secure_computation_secrets",
     ],
 )
