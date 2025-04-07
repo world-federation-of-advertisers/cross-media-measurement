@@ -18,8 +18,6 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.Any
-import com.google.protobuf.Int32Value
 import io.netty.handler.ssl.ClientAuth
 import java.net.URI
 import java.net.http.HttpClient
@@ -40,13 +38,10 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.getJarResourceFile
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.config.securecomputation.DataWatcherConfigKt.controlPlaneConfig
-import org.wfanet.measurement.config.securecomputation.dataWatcherConfig
-import org.wfanet.measurement.config.securecomputation.dataWatcherConfigs
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
@@ -60,7 +55,7 @@ class InvokeDataWatcherFunctionTest() {
     Paths.get(
       "wfa_measurement_system",
       "src",
-      "test",
+      "main",
       "kotlin",
       "org",
       "wfanet",
@@ -69,6 +64,7 @@ class InvokeDataWatcherFunctionTest() {
       "deploy",
       "gcloud",
       "datawatcher",
+      "testing",
       "InvokeDataWatcherFunction",
     )
   val gcfTarget =
@@ -107,16 +103,6 @@ class InvokeDataWatcherFunctionTest() {
         )
         .start()
     logger.info("Started gRPC server on port ${grpcServer.port}")
-
-    val dataWatcherConfigs = dataWatcherConfigs {
-      configs += dataWatcherConfig {
-        sourcePathRegex = "gs://$BUCKET/path-to-watch/(.*)"
-        this.controlPlaneConfig = controlPlaneConfig {
-          queue = topicId
-          appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
-        }
-      }
-    }
     /** Start the DataWatcherFunction process */
     functionProcess =
       FunctionsFrameworkInvokerProcess(javaBinaryPath = functionBinaryPath, classTarget = gcfTarget)
@@ -124,11 +110,9 @@ class InvokeDataWatcherFunctionTest() {
       val port =
         functionProcess.start(
           mapOf(
-            "DATA_WATCHER_CONFIG_RUN_TIME_PATH" to
+            "DATA_WATCHER_CONFIG_RESOURCE_PATH" to
               Paths.get(
-                  "wfa_measurement_system",
-                  "src",
-                  "test",
+                  "main",
                   "kotlin",
                   "org",
                   "wfanet",
@@ -137,6 +121,7 @@ class InvokeDataWatcherFunctionTest() {
                   "deploy",
                   "gcloud",
                   "datawatcher",
+                  "testing",
                   "data_watcher_config.textproto",
                 )
                 .toString(),
@@ -144,9 +129,9 @@ class InvokeDataWatcherFunctionTest() {
             "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
             "CONTROL_PLANE_CERT_HOST" to "localhost",
             "CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
-            "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.pem").toString(),
-            "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp1_tls.key").toString(),
-            "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString(),
+            "CERT_FILE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.pem").toString(),
+            "PRIVATE_KEY_FILE_PATH" to JAR_SECRETS_DIR.resolve("edp1_tls.key").toString(),
+            "CERT_COLLECTION_FILE_PATH" to JAR_SECRETS_DIR.resolve("kingdom_root.pem").toString(),
           ) + additionalFlags
         )
       logger.info("Started DataWatcher process on port $port")
@@ -211,15 +196,17 @@ class InvokeDataWatcherFunctionTest() {
 
   companion object {
     private const val BUCKET = "test-bucket"
-    private val SECRETS_DIR: Path =
-      getRuntimePath(
-        Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
-      )!!
+    private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
+    private val SECRETS_DIR: Path = Paths.get("src", "main", "k8s", "testing", "secretfiles")
+    private val JAR_SECRETS_DIR: Path = Paths.get("main", "k8s", "testing", "secretfiles")
     private val serverCerts =
       SigningCerts.fromPemFiles(
-        certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
-        privateKeyFile = SECRETS_DIR.resolve("kingdom_tls.key").toFile(),
-        trustedCertCollectionFile = SECRETS_DIR.resolve("edp1_root.pem").toFile(),
+        certificateFile =
+          CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.pem").toString())!!,
+        privateKeyFile =
+          CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("kingdom_tls.key").toString())!!,
+        trustedCertCollectionFile =
+          CLASS_LOADER.getJarResourceFile(SECRETS_DIR.resolve("edp1_root.pem").toString())!!,
       )
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }

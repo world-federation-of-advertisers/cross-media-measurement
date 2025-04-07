@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.gcloud.testing
 
+import java.io.BufferedReader
 import java.net.ServerSocket
 import java.nio.file.Files
 import java.nio.file.Path
@@ -28,9 +29,14 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.jetbrains.annotations.BlockingExecutor
 import org.wfanet.measurement.common.getRuntimePath
@@ -66,6 +72,8 @@ class FunctionsFrameworkInvokerProcess(
       check(started) { "Cloud function process not started" }
       return localPort
     }
+
+  private lateinit var reader: Readable
 
   /**
    * Starts the CloudFunction process if it has not already been started.
@@ -110,13 +118,13 @@ class FunctionsFrameworkInvokerProcess(
         processBuilder.environment().putAll(env)
         // Start the process
         process = processBuilder.start()
-        val reader = process.inputStream.bufferedReader()
+        reader = process.inputStream.bufferedReader()
         val readyPattern = "Serving function..."
         var isReady = false
 
         try {
           while (!isReady) {
-            val line = reader.readLine() ?: break
+            val line = (reader as BufferedReader).readLine() ?: break
             logger.info("Process output: $line")
             // Check if the ready message is in the output
             if (line.contains(readyPattern)) {
@@ -146,6 +154,26 @@ class FunctionsFrameworkInvokerProcess(
 
   /** Closes the process if it has been started. */
   override fun close() {
+    // Print all the logs
+    runBlocking {
+      val channel = Channel<String>()
+      val job = async {
+        var line: String? = (reader as BufferedReader).readLine()
+        while (!line.isNullOrEmpty()) {
+          channel.send(line)
+          line = (reader as BufferedReader).readLine()
+        }
+        channel.close()
+      }
+      try {
+        withTimeout(1000L) { job.await() }
+      } catch (e: TimeoutCancellationException) {
+        // Handle timeout
+        job.cancel()
+        channel.close()
+        (reader as BufferedReader).close() // Close the underlying reader
+      }
+    }
     if (started) {
       process.destroy()
       try {

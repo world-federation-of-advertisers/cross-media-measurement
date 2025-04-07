@@ -30,25 +30,25 @@ message DataWatcherConfig {
   string source_path_regex = 1;
 
   // The config used for control plane apps
-  message ControlPlaneConfig {
+  message ControlPlaneQueueSink {
     // The Control Plane queue that will execute this work item.
     string queue = 1;
-    // Protobuf payload with application-specific config
-    google.protobuf.Any app_config = 2;
+    // Params passed to TEE Apps
+    google.protobuf.Any app_params = 2;
   }
   // The config used for any Webhooks
-  message WebhookConfig {
+  message HttpEndpointsSink {
     // The endpoint to trigger.
     string endpoint_uri = 1;
     // Json payload to send to endpoint of application-specific config.
-    google.protobuf.Struct app_config = 2;
+    google.protobuf.Struct app_params = 2;
   }
 
   oneof sink_config {
     // The sink used to send event to the Control Plane.
-    ControlPlaneConfig control_plane_config = 2;
+    ControlPlaneQueueSink control_plane_queue_sink = 2;
     // The sink used to send events to a web hook.
-    WebhookConfig webhook_config = 3;
+    HttpEndpointsSink http_endpoints_sink = 3;
   }
 }
 

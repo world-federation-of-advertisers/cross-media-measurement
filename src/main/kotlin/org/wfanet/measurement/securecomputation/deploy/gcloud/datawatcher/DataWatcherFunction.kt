@@ -20,13 +20,11 @@ import com.google.cloud.functions.CloudEventsFunction
 import com.google.events.cloud.storage.v1.StorageObjectData
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
-import java.nio.file.Paths
 import java.time.Duration
 import java.util.logging.Logger
-import kotlin.io.path.Path
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.getJarResourceFile
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.parseTextProto
@@ -56,12 +54,11 @@ class DataWatcherFunction : CloudEventsFunction {
         )
 
     val workItemsStub = WorkItemsCoroutineStub(publicChannel)
-    val configDataRunTimePath = Paths.get(System.getenv("DATA_WATCHER_CONFIG_RUN_TIME_PATH"))
-    val dataWatcherConfigs =
-      parseTextProto(
-        checkNotNull(getRuntimePath(configDataRunTimePath)).toFile(),
-        DataWatcherConfigs.getDefaultInstance(),
+    val config =
+      checkNotNull(
+        CLASS_LOADER.getJarResourceFile(System.getenv("DATA_WATCHER_CONFIG_RESOURCE_PATH"))
       )
+    val dataWatcherConfigs = parseTextProto(config, DataWatcherConfigs.getDefaultInstance())
     val dataWatcher =
       DataWatcher(
         workItemsStub = workItemsStub,
@@ -82,9 +79,12 @@ class DataWatcherFunction : CloudEventsFunction {
 
   private fun getClientCerts(): SigningCerts {
     return SigningCerts.fromPemFiles(
-      certificateFile = Path(System.getenv("CERT_FILE_PATH")).toFile(),
-      privateKeyFile = Path(System.getenv("PRIVATE_KEY_FILE_PATH")).toFile(),
-      trustedCertCollectionFile = Path(System.getenv("CERT_COLLECTION_FILE_PATH")).toFile(),
+      certificateFile =
+        checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_FILE_PATH"))),
+      privateKeyFile =
+        checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("PRIVATE_KEY_FILE_PATH"))),
+      trustedCertCollectionFile =
+        checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_COLLECTION_FILE_PATH"))),
     )
   }
 
@@ -92,5 +92,6 @@ class DataWatcherFunction : CloudEventsFunction {
     private const val scheme = "gs"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
+    private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
   }
 }
