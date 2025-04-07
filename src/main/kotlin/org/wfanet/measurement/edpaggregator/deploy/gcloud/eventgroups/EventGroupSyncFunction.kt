@@ -46,14 +46,15 @@ class EventGroupSyncFunction() : HttpFunction {
 
   override fun service(request: HttpRequest, response: HttpResponse) {
     logger.fine("Starting EventGroupSyncFunction")
-    val requestBody: BufferedReader = request.getReader()!!
+    val requestBody: BufferedReader = request.getReader()
     val eventGroupSyncConfig =
       EventGroupSyncConfig.newBuilder()
         .apply { JsonFormat.parser().merge(requestBody, this) }
         .build()
+    val blobUri = SelectedStorageClient.parseBlobUri(eventGroupSyncConfig.campaignsBlobUri)
     val inputStorageClient =
       SelectedStorageClient(
-        url = eventGroupSyncConfig.campaignsBlobUri,
+        blobUri = blobUri,
         rootDirectory =
           if (System.getenv("FILE_STORAGE_ROOT") != null) File(System.getenv("FILE_STORAGE_ROOT"))
           else null,
@@ -61,7 +62,7 @@ class EventGroupSyncFunction() : HttpFunction {
       )
     val campaigns = runBlocking {
       Campaigns.parseFrom(
-        inputStorageClient.getBlob(getKey(eventGroupSyncConfig.campaignsBlobUri))!!.read().flatten()
+        inputStorageClient.getBlob(blobUri.key)!!.read().flatten()
       )
     }
     val publicChannel =
@@ -91,7 +92,7 @@ class EventGroupSyncFunction() : HttpFunction {
           projectId = System.getenv("GCS_PROJECT_ID"),
         )
         .writeBlob(
-          getKey(eventGroupSyncConfig.eventGroupMapUri),
+          blobUri.key,
           eventGroupMap { eventGroupMap.putAll(mappedData) }.toByteString(),
         )
     }
@@ -103,26 +104,6 @@ class EventGroupSyncFunction() : HttpFunction {
       privateKeyFile = Path(System.getenv("PRIVATE_KEY_FILE_PATH")).toFile(),
       trustedCertCollectionFile = Path(System.getenv("CERT_COLLECTION_FILE_PATH")).toFile(),
     )
-  }
-
-  // TODO: Move to common-jvm
-  private fun getKey(url: String): String {
-    val uri = URI.create(url)
-    return when (uri.scheme) {
-      "s3" -> {
-        throw IllegalArgumentException("S3 is not currently supported")
-      }
-      "gs" -> {
-        uri.path.removePrefix("/")
-      }
-      "file" -> {
-        val (_, key) = uri.path.removePrefix("/").split("/", limit = 2)
-        key
-      }
-      else -> {
-        throw IllegalArgumentException("Unsupported schema: ${uri.scheme}")
-      }
-    }
   }
 
   companion object {
