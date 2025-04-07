@@ -26,4 +26,6 @@ module "data_watcher" {
     cloud_function_service_account_name = var.data_watcher_cloud_function_service_account_name
     cloud_function_name                 = var.data_watcher_cloud_function_name
     entry_point                         = var.data_watcher_entry_point
+    cloud_function_source_bucket        = var.cloud_function_source_bucket
+    cloud_function_source_object        = var.data_watcher_source_object
 }

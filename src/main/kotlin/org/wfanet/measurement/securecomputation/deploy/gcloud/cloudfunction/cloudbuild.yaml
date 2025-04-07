@@ -1,7 +1,8 @@
 steps:
   - name: 'gcr.io/cloud-builders/bazel'
-    args: ['build', '//src/<path_to_datawatcher_binary_here>/:<data_watcher_target>']
+    args: ['build', '//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud:data_watcher_function']
+
 artifacts:
   objects:
-    location: 'gs://${CLOUD_FUNCTIONS_STORAGE}/artifacts'
-    paths: ['bazel-bin/<data_watcher_target>']
+    location: 'gs://${CLOUD_BUILD_BUCKET_NAME}/artifacts/data_watcher/${COMMIT_SHA}'
+    paths: ['bazel-bin/src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/data_watcher_function.jar']

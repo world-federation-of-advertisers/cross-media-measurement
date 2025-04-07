@@ -113,3 +113,15 @@ variable "data_watcher_entry_point" {
   type        = string
   nullable    = false
 }
+
+variable "cloud_function_source_bucket" {
+  description = "Cloud Storage containing the source code."
+  type        = string
+  nullable    = false
+}
+
+variable "data_watcher_source_object" {
+  description = "Cloud Storage object containing the Data Watcher source code."
+  type        = string
+  nullable    = false
+}

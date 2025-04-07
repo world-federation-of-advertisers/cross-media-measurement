@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: "Configure Control Plane for Secure Computation"
+name: "Configure Secure Computation"
 
 on:
   workflow_call:
@@ -28,6 +28,10 @@ on:
         description: "Apply the new configuration"
         type: boolean
         required: true
+    outputs:
+      build-path:
+        description: "Path of the build on GCS"
+        value: ${{ jobs.update-secure-computation.outputs.build-path }}
   workflow_dispatch:
     inputs:
       environment:
@@ -51,20 +55,42 @@ permissions:
   id-token: write
 
 env:
-  KUSTOMIZATION_PATH: "k8s/secure_computation_control_plane"
+  KUSTOMIZATION_PATH: "k8s/secure_computation"
 
 jobs:
-  update-secure-computation-control-plane:
+  update-secure-computation:
     runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
+    outputs:
+      build-path: ${{ steps.set-output.outputs.build-path }}
     steps:
     - uses: actions/checkout@v4
-
     - name: Authenticate to Google Cloud
       uses: google-github-actions/auth@v2
       with:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-        service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
+        service_account: ${{ vars.CLOUD_FUNCTIONS_SERVICE_ACCOUNT }}
+
+    - name: Setup gcloud CLI
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ env.GCLOUD_PROJECT }}
+
+    - name: Get short SHA
+      id: short-sha
+      run: echo "value=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+    - name: Trigger Cloud Build for Data Watcher
+      env:
+        BUCKET_NAME: ${{ env.CLOUD_BUILD_BUCKET_NAME }}
+      run: |
+        gcloud builds submit --config=/src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/cloudfunction/cloudbuild.yaml . \
+          --substitutions=CLOUD_BUILD_BUCKET_NAME=${BUCKET_NAME}
+
+    - name: Set build path output for Data Watcher
+      id: set-data-watcher-output
+      run: |
+        echo "build-path=data_watcher/${{ steps.short-sha.outputs.value }}/deployable_zip.zip" >> "$GITHUB_OUTPUT"
 
     - name: Write auth.bazelrc
       env:
@@ -95,13 +121,13 @@ jobs:
     - name: Get GKE cluster credentials
       uses: google-github-actions/get-gke-credentials@v2
       with:
-        cluster_name: secure-computation-control-plane
+        cluster_name: secure-computation
         location: ${{ vars.GCLOUD_ZONE }}
 
     - name: Generate archives
       run: >
         bazelisk build
-        //src/main/k8s/dev:secure_computation_control_plane.tar
+        //src/main/k8s/dev:secure_computation.tar
         //src/main/k8s/testing/secretfiles:archive
 
     - name: Make Kustomization dir
@@ -109,21 +135,21 @@ jobs:
 
     - name: Extract Kustomization archive
       run: >
-        tar -xf "$BAZEL_BIN/src/main/k8s/dev/secure_computation_control_plane.tar"
+        tar -xf "$BAZEL_BIN/src/main/k8s/dev/secure_computation.tar"
         -C "$KUSTOMIZATION_PATH"
 
     - name: Extract secret files archive
       run: >
         tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/archive.tar"
-        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/secure_computation_control_plane_secrets"
+        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/secure_computation_secrets"
 
     - name: Copy secret generator
       run: >
-        cp src/main/k8s/testing/secretfiles/secure_computation_control_plane_secrets_kustomization.yaml
-        "$KUSTOMIZATION_PATH/src/main/k8s/dev/secure_computation_control_plane_secrets/kustomization.yaml"
+        cp src/main/k8s/testing/secretfiles/secure_computation_secrets_kustomization.yaml
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/secure_computation_secrets/kustomization.yaml"
 
     - name: Export KUSTOMIZE_PATH
-      run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/secure_computation_control_plane" >> $GITHUB_ENV
+      run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/secure_computation" >> $GITHUB_ENV
 
     - name: kubectl diff
       id: kubectl-diff

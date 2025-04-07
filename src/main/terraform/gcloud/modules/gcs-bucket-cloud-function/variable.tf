@@ -30,26 +30,20 @@ variable "trigger_bucket_name" {
   nullable    = false
 }
 
-variable "docker_registry" {
-  description = "Docker Registry to use."
-  type        = string
-  nullable    = false
-  default     = "ARTIFACT_REGISTRY"
-
-  validation {
-    condition     = contains(["ARTIFACT_REGISTRY", "CONTAINER_REGISTRY"], var.docker_registry)
-    error_message = "The docker_registry must be either 'ARTIFACT_REGISTRY' or 'CONTAINER_REGISTRY'."
-  }
-}
-
-variable "docker_repository" {
-  description = "The full image path."
-  type        = string
-  nullable    = false
-}
-
 variable "entry_point" {
   description = "The name of the function (as defined in source code) that will be executed."
+  type        = string
+  nullable    = false
+}
+
+variable "cloud_function_source_bucket" {
+  description = "Cloud Storage containing the source code."
+  type        = string
+  nullable    = false
+}
+
+variable "cloud_function_source_object" {
+  description = "Cloud Storage object containing the source code."
   type        = string
   nullable    = false
 }

@@ -28,8 +28,23 @@ resource "google_cloudfunctions2_function" "cloud_function" {
   name        = var.cloud_function_name
   entry_point = var.entry_point
 
-  docker_registry   = var.docker_registry
-  docker_repository = var.docker_repository
+  build_config {
+    runtime     = "java17"
+    entry_point = "org.wfanet.measurement.securecomputation.DataWatcherFunction"
+
+    source {
+      storage_source {
+        bucket = var.cloud_function_source_bucket
+        object = var.cloud_function_source_object
+      }
+    }
+  }
+
+  service_config {
+    available_memory = "256M"
+    timeout_seconds  = 60
+    service_account_email = google_service_account.cloud_function_service_account.email
+  }
 
   event_trigger {
     event_type            = "google.cloud.storage.object.v1.finalized"

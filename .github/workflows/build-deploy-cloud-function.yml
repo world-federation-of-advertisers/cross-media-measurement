@@ -12,13 +12,60 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Build and Deploy Cloud Functions
+name: "Build cloud functions"
 
 on:
   workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+    outputs:
+      build-path-data-watcher:
+        description: "GCS path to the data watcher build"
+        value: ${{ jobs.build-cloud-functions.outputs.build-path-data-watcher }}
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "GitHub-managed environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - qa
+          - head
+
 jobs:
-  build-and-deploy:
+  build-cloud-functions:
     runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
+    outputs:
+      build-path-data-watcher: ${{ steps.set-build-paths.outputs.build-path-data-watcher }}
     steps:
       - uses: actions/checkout@v4
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.CLOUD_FUNCTIONS_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud CLI
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ env.GCLOUD_PROJECT }}
+
+      - name: Get short SHA
+        id: short-sha
+        run: echo "value=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger Cloud Build for Data Watcher
+        env:
+          BUCKET_NAME: ${{ vars.CLOUD_BUILD_BUCKET_NAME }}
+        run: |
+          gcloud builds submit --config=/src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/cloudfunction/cloudbuild.yaml . \
+            --substitutions=CLOUD_BUILD_BUCKET_NAME=${BUCKET_NAME}, COMMIT_SHA=${{ steps.short-sha.outputs.value }}
+
+      - name: Set build paths output for Cloud Functions
+        id: set-build-paths
+        run: |
+          echo "build-path-data-watcher=artifacts/data_watcher/${{ steps.short-sha.outputs.value }}/data_watcher_function.jar" >> "$GITHUB_OUTPUT"
