@@ -5,7 +5,6 @@ kt_jvm_library(
     srcs = ["DataServices.kt"],
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud/reporting:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/server:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
