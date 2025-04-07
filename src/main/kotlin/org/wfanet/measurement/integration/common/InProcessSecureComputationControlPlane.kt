@@ -31,15 +31,14 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 
 /** TestRule that starts and stops all Control Plane gRPC services. */
-class InProcessControlPlane(
+class InProcessSecureComputationControlPlane(
   workItemPublisher: WorkItemPublisher,
   databaseClient: AsyncDatabaseClient,
   queueMapping: QueueMapping,
   val verboseGrpcLogging: Boolean = true,
 ) : TestRule {
-  private val internalServices by lazy {
+  private val internalServices =
     InternalApiServices.build(workItemPublisher, databaseClient, queueMapping)
-  }
 
   private val internalApiServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
@@ -57,10 +56,9 @@ class InProcessControlPlane(
         .forEach { addService(it) }
     }
 
-  private val internalWorkItemsClient by lazy { InternalWorkItemsCoroutineStub(internalApiChannel) }
-  private val internalWorkItemAttemptsClient by lazy {
+  private val internalWorkItemsClient = InternalWorkItemsCoroutineStub(internalApiChannel)
+  private val internalWorkItemAttemptsClient =
     InternalWorkItemAttemptsCoroutineStub(internalApiChannel)
-  }
 
   /** Provides a gRPC channel to the Control Plane's public API. */
   val publicApiChannel: Channel

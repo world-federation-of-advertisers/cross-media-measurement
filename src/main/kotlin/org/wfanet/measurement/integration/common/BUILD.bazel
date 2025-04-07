@@ -94,9 +94,9 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "in_process_control_plane",
+    name = "in_process_secure_computation_control_plane",
     srcs = [
-        "InProcessControlPlane.kt",
+        "InProcessSecureComputationControlPlane.kt",
     ],
     visibility = ["//visibility:public"],
     deps = [
