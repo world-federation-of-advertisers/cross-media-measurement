@@ -14,12 +14,12 @@
 
 syntax = "proto3";
 
-package wfa.measurement.securecomputation.impressions;
+package wfa.measurement.edpaggregator;
 
 import "google/protobuf/any.proto";
 import "google/protobuf/timestamp.proto";
 
-option java_package = "org.wfanet.measurement.securecomputation.v1alpha.impressions";
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "LabeledImpressionProto";
 
@@ -33,4 +33,7 @@ message LabeledImpression {
 
   // Map of message type URL to converted impression to event template message.
   map<string, google.protobuf.Any> event_template_map = 3;
+
+  // Impression event group reference id
+  string event_group_reference_id = 4;
 }
