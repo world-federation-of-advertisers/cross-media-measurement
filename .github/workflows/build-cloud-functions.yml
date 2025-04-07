@@ -15,6 +15,7 @@
 name: "Build cloud functions"
 
 on:
+  workflow_dispatch:
   workflow_call:
     inputs:
       environment:
@@ -24,21 +25,10 @@ on:
       build-path-data-watcher:
         description: "GCS path to the data watcher build"
         value: ${{ jobs.build-cloud-functions.outputs.build-path-data-watcher }}
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: "GitHub-managed environment"
-        required: true
-        type: choice
-        options:
-          - dev
-          - qa
-          - head
 
 jobs:
   build-cloud-functions:
     runs-on: ubuntu-22.04
-    environment: ${{ inputs.environment }}
     outputs:
       build-path-data-watcher: ${{ steps.set-build-paths.outputs.build-path-data-watcher }}
     steps:

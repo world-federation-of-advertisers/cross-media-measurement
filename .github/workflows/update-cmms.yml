@@ -66,12 +66,17 @@ jobs:
       image-repo-prefix: ${{ github.repository_owner }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
 
+  build-cloud-functions:
+    uses: ./.github/workflows/build-cloud-functions.yml
+
   terraform:
     uses: ./.github/workflows/terraform-cmms.yml
+    needs: [build-cloud-functions]
     secrets: inherit
     with:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
+      build-path-data-watcher: ${{ needs.build-cloud-functions.outputs.build-path-data-watcher }}
 
   update-kingdom:
     uses: ./.github/workflows/configure-kingdom.yml
