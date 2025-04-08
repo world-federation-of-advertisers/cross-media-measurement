@@ -50,6 +50,7 @@ import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
+import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportKt.reportingInterval
@@ -62,6 +63,7 @@ import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.getMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
+import org.wfanet.measurement.reporting.v2alpha.invalidateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
@@ -1458,6 +1460,33 @@ class EventGroupMetadataDescriptorsCommand : Runnable {
 }
 
 @CommandLine.Command(
+  name = "metrics",
+  sortOptions = false,
+  subcommands = [CommandLine.HelpCommand::class, InvalidateMetric::class],
+)
+class MetricsCommand : Runnable {
+  @CommandLine.ParentCommand lateinit var parent: Reporting
+
+  val metricStub: MetricsCoroutineStub by lazy { MetricsCoroutineStub(parent.channel) }
+
+  override fun run() {}
+}
+
+@CommandLine.Command(name = "invalidate", description = ["Invalidate metric"])
+class InvalidateMetric : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: MetricsCommand
+
+  @CommandLine.Parameters(description = ["The name of the metric to invalidate"])
+  private lateinit var metricName: String
+
+  override fun run() {
+    val request = invalidateMetricRequest { name = metricName }
+    val response = runBlocking { parent.metricStub.invalidateMetric(request) }
+    println(response)
+  }
+}
+
+@CommandLine.Command(
   name = "reporting",
   description = ["Reporting CLI tool"],
   sortOptions = false,
@@ -1467,6 +1496,7 @@ class EventGroupMetadataDescriptorsCommand : Runnable {
       ReportingSetsCommand::class,
       ReportsCommand::class,
       MetricCalculationSpecsCommand::class,
+      MetricsCommand::class,
       EventGroupsCommand::class,
       DataProvidersCommand::class,
       EventGroupMetadataDescriptorsCommand::class,
