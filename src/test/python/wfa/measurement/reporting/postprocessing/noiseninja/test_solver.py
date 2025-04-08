@@ -13,13 +13,15 @@
 # limitations under the License.
 
 import unittest
+from unittest.mock import MagicMock
+
+from qpsolvers import Solution
+
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from noiseninja.solver import Solver
-from qpsolvers import Solution
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_post_processor_result_pb2
-from unittest.mock import MagicMock
 
 ReportPostProcessorErrorCode = report_post_processor_result_pb2.ReportPostProcessorErrorCode
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
