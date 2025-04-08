@@ -1,0 +1,58 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+
+syntax = "proto3";
+
+
+package wfa.measurement.securecomputation.resultsfulfiller;
+
+
+option java_package = "org.wfanet.measurement.securecomputation.resultsfulfiller";
+option java_multiple_files = true;
+option java_outer_classname = "ResultsFulfillerConfigProto";
+
+
+// Resource representing the config used for the results fulfiller tee app
+message ResultsFulfillerConfig {
+  // gRPC target of Kingdom public API server.
+  string kingdom_public_api_target = 1;
+  // Expected hostname (DNS-ID) in the Kingdom public API server's TLS
+  // certificate.
+  string kingdom_public_api_cert_host = 2;
+
+  // Path to the client certificate file
+  string client_cert_path = 3;
+  // Path to the client's private key file
+  string client_private_key_path = 4;
+  // Path to the client certificate collection file
+  string client_collection_path = 5;
+
+  // Path to the DER-encoded certificate file used for result signing
+  string result_cs_cert_der_path = 6;
+  // Path to the DER-encoded private key file used for result signing
+  string result_cs_private_key_der_path = 7;
+
+  // Path to the private encryption key file
+  string private_encryption_key_path = 8;
+
+  // Name for the certificate used by the EDP
+  string edp_certificate_name = 9;
+
+  // Prefix path for labeled impression storage
+  string labeled_impression_metadata_blob_uri_prefix = 10;
+
+  // Type URL identifying the event template format
+  string event_template_type_url = 11;
+}
