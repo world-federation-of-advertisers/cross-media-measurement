@@ -31,7 +31,8 @@ message LabeledImpression {
   // Vid associated with impression
   int64 vid = 2;
 
-  // Any message representing the impression converted to an event template message
+  // Any message representing the impression converted to an event template
+  // message
   google.protobuf.Any event_template_map = 3;
 
   // Impression event group reference id
