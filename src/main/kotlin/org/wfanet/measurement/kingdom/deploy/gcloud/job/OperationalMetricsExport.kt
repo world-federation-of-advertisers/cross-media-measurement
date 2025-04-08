@@ -80,6 +80,7 @@ class OperationalMetricsExport(
   private val requisitionsTableId: String,
   private val computationParticipantStagesTableId: String,
   private val streamWriterFactory: StreamWriterFactory = StreamWriterFactoryImpl(),
+  private val batchSize: Int = DEFAULT_BATCH_SIZE,
 ) {
   suspend fun execute() {
     exportMeasurements()
@@ -109,7 +110,7 @@ class OperationalMetricsExport(
 
     var streamMeasurementsRequest = streamMeasurementsRequest {
       measurementView = Measurement.View.DEFAULT
-      limit = BATCH_SIZE
+      limit = batchSize
       filter =
         StreamMeasurementsRequestKt.filter {
           states += Measurement.State.SUCCEEDED
@@ -266,7 +267,7 @@ class OperationalMetricsExport(
                         }
                     }
                 }
-            } while (measurementsQueryResponseSize == BATCH_SIZE)
+            } while (measurementsQueryResponseSize == batchSize)
           }
       }
   }
@@ -292,7 +293,7 @@ class OperationalMetricsExport(
     val latestRequisitionReadFromPreviousJob: FieldValueList? = results.firstOrNull()
 
     var streamRequisitionsRequest = streamRequisitionsRequest {
-      limit = BATCH_SIZE
+      limit = batchSize
       filter =
         StreamRequisitionsRequestKt.filter {
           states += Requisition.State.FULFILLED
@@ -440,7 +441,7 @@ class OperationalMetricsExport(
                         }
                     }
                 }
-            } while (requisitionsQueryResponseSize == BATCH_SIZE)
+            } while (requisitionsQueryResponseSize == batchSize)
           }
       }
   }
@@ -467,7 +468,7 @@ class OperationalMetricsExport(
 
     var streamComputationsRequest = streamMeasurementsRequest {
       measurementView = Measurement.View.COMPUTATION_STATS
-      limit = BATCH_SIZE
+      limit = batchSize
       filter =
         StreamMeasurementsRequestKt.filter {
           states += Measurement.State.SUCCEEDED
@@ -677,14 +678,14 @@ class OperationalMetricsExport(
                         }
                     }
                 }
-            } while (computationsQueryResponseSize == BATCH_SIZE)
+            } while (computationsQueryResponseSize == batchSize)
           }
       }
   }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private const val BATCH_SIZE = 1000
+    private const val DEFAULT_BATCH_SIZE = 1000
 
     private fun getMeasurementType(
       measurementSpecByteString: com.google.protobuf.ByteString,
