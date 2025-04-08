@@ -174,7 +174,7 @@ class EventGroupSyncTest {
     runBlocking {
       val eventGroupSync = EventGroupSync("edp-name", eventGroupsStub, campaigns.asFlow())
       val result = runBlocking { eventGroupSync.sync() }
-      assertThat(result.toList().map { it.eventGroupReferenceId to it.eventGroupResourceName })
+      assertThat(result.toList().map { it.eventGroupReferenceId to it.eventGroupResource })
         .isEqualTo(
           listOf(
             "reference-id-1" to "resource-name-for-reference-id-1",

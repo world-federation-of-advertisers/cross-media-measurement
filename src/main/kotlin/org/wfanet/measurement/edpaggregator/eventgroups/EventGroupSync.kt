@@ -130,7 +130,7 @@ class EventGroupSync(
       emit(
         mappedEventGroup {
           eventGroupReferenceId = syncedEventGroup.eventGroupReferenceId
-          eventGroupResourceName = syncedEventGroup.name
+          eventGroupResource = syncedEventGroup.name
         }
       )
     }

@@ -273,7 +273,7 @@ class EventGroupSyncFunctionTest() {
         .read()
         .map { MappedEventGroup.parseFrom(it) }
         .toList()
-        .map { it.eventGroupReferenceId to it.eventGroupResourceName }
+        .map { it.eventGroupReferenceId to it.eventGroupResource }
     }
     assertThat(mappedData)
       .isEqualTo(
