@@ -23,8 +23,13 @@ from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_summary_pb2
 
 from tools.post_process_origin_report import ReportSummaryProcessor
+from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
+  report_post_processor_result_pb2
+
+ReportPostProcessorErrorCode = report_post_processor_result_pb2.ReportPostProcessorErrorCode
 
 TOLERANCE = 1
+NOISE_CORRECTION_TOLETANCE = 0.1
 
 
 class TestOriginReport(unittest.TestCase):
@@ -346,7 +351,7 @@ class TestOriginReport(unittest.TestCase):
   def test_report_summary_is_corrected_successfully(self):
     report_summary = get_report_summary(
         'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary.json')
-    corrected_measurements_map = ReportSummaryProcessor(
+    noise_correction_result = ReportSummaryProcessor(
         report_summary).process()
 
     primitive_edp_combinations = ['edp1', 'edp2', 'edp1_edp2']
@@ -354,6 +359,14 @@ class TestOriginReport(unittest.TestCase):
 
     num_periods = 2
     num_frequencies = 5
+
+    corrected_measurements_map = noise_correction_result.updated_measurements
+    self.assertEqual(noise_correction_result.status.error_code,
+                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertLess(noise_correction_result.status.primal_equality_residual,
+                    NOISE_CORRECTION_TOLETANCE)
+    self.assertLess(noise_correction_result.status.primal_inequality_residual,
+                    NOISE_CORRECTION_TOLETANCE)
 
     # Verifies that the updated reach values are non-negative.
     for value in corrected_measurements_map.values():

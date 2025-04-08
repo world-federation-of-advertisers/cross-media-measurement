@@ -22,10 +22,17 @@ from report.report import Report
 from report.report import get_covers
 from report.report import is_cover
 
+from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
+  report_post_processor_result_pb2
+
+ReportPostProcessorErrorCode = report_post_processor_result_pb2.ReportPostProcessorErrorCode
+
 EXPECTED_PRECISION = 1
 EDP_ONE = "EDP_ONE"
 EDP_TWO = "EDP_TWO"
 EDP_THREE = "EDP_THREE"
+
+NOISE_CORRECTION_TOLERANCE = 0.1
 
 SAMPLE_REPORT = Report(
     metric_reports={
@@ -1062,7 +1069,7 @@ class TestReport(unittest.TestCase):
     # 2. Reach of the child set is less than or equal to reach of the parent set
     # for all period, e.g. reach[edp1][i] <= reach[edp1 U edp2][i].
     # 3. All reach values are non-negative.
-    corrected = report.get_corrected_report()
+    corrected, report_post_processor_status = report.get_corrected_report()
 
     expected = Report(
         metric_reports={
@@ -1088,6 +1095,12 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
+    self.assertEqual(report_post_processor_status.error_code,
+                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertLess(report_post_processor_status.primal_equality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(report_post_processor_status.primal_inequality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_can_correct_time_series_for_three_edps(self):
@@ -1155,7 +1168,7 @@ class TestReport(unittest.TestCase):
     # 3. Reach of the child set is less than or equal to reach of the parent set
     # for all period, e.g. reach[edp1][i] <= reach[edp1 U edp2][i].
     # 4. All reach values are non-negative.
-    corrected = report.get_corrected_report()
+    corrected, report_post_processor_status = report.get_corrected_report()
 
     expected = Report(
         metric_reports={
@@ -1209,6 +1222,12 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
+    self.assertEqual(report_post_processor_status.error_code,
+                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertLess(report_post_processor_status.primal_equality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(report_post_processor_status.primal_inequality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_correct_report_with_both_time_series_and_whole_campaign_measurements_three_edps(
@@ -1291,7 +1310,7 @@ class TestReport(unittest.TestCase):
     # 4. Last time series reach is equal to whole campaign reach,
     # e.g. cumulative_reach[edp1][#num_periods - 1] = whole_campaign_reach[edp1].
     # 5. All reach values are non-negative.
-    corrected = report.get_corrected_report()
+    corrected, report_post_processor_status = report.get_corrected_report()
 
     expected = Report(
         metric_reports={
@@ -1356,6 +1375,12 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
+    self.assertEqual(report_post_processor_status.error_code,
+                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertLess(report_post_processor_status.primal_equality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(report_post_processor_status.primal_inequality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_correct_report_with_whole_campaign_has_more_edp_combinations(self):
@@ -1415,7 +1440,7 @@ class TestReport(unittest.TestCase):
     # whole campaign reach: the last time series reach is equal to whole
     # campaign reach, e.g. cumulative_reach[edp1][#num_period - 1] =
     # whole_campaign_reach[edp1]. All reach values must be non-negative.
-    corrected = report.get_corrected_report()
+    corrected, report_post_processor_status = report.get_corrected_report()
 
     expected = Report(
         metric_reports={
@@ -1467,6 +1492,12 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
+    self.assertEqual(report_post_processor_status.error_code,
+                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertLess(report_post_processor_status.primal_equality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(report_post_processor_status.primal_inequality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_allows_incorrect_time_series(self):
@@ -1500,7 +1531,7 @@ class TestReport(unittest.TestCase):
     # monotonic increasing, e.g. reach[edp1][i] <= reach[edp1][i+1], except for
     # the one in the exception list, e.g. edp1. All reach values must be
     # non-negative.
-    corrected = report.get_corrected_report()
+    corrected, report_post_processor_status = report.get_corrected_report()
 
     expected = Report(
         metric_reports={
@@ -1527,6 +1558,12 @@ class TestReport(unittest.TestCase):
             frozenset({EDP_ONE})),
     )
 
+    self.assertEqual(report_post_processor_status.error_code,
+                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertLess(report_post_processor_status.primal_equality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(report_post_processor_status.primal_inequality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_can_correct_related_metrics(self):
@@ -1566,7 +1603,7 @@ class TestReport(unittest.TestCase):
     # measurements are less than or equal to the AMI measurements, e.g.
     # mrc_reach[edp1][0] <= ami_reach[edp1][0]. All reach values must be
     # non-negative.
-    corrected = report.get_corrected_report()
+    corrected, report_post_processor_status = report.get_corrected_report()
 
     expected = Report(
         metric_reports={
@@ -1598,6 +1635,12 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
+    self.assertEqual(report_post_processor_status.error_code,
+                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertLess(report_post_processor_status.primal_equality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(report_post_processor_status.primal_inequality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_get_corrected_multiple_metric_report_with_different_edp_combinations(
@@ -1637,7 +1680,7 @@ class TestReport(unittest.TestCase):
     # measurements are less than or equal to the AMI measurements, e.g.
     # mrc_reach[edp1][0] <= ami_reach[edp1][0]. All reach values must be
     # non-negative.
-    corrected = report.get_corrected_report()
+    corrected, report_post_processor_status = report.get_corrected_report()
 
     expected = Report(
         metric_reports={
@@ -1670,6 +1713,12 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
+    self.assertEqual(report_post_processor_status.error_code,
+                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertLess(report_post_processor_status.primal_equality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(report_post_processor_status.primal_inequality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_get_corrected_report_multiple_filter_single_edp(self):
@@ -1740,7 +1789,7 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    corrected = report.get_corrected_report()
+    corrected, report_post_processor_status = report.get_corrected_report()
 
     # The corrected report should be consistent:
     # 1. Within the same metric report:
@@ -1829,6 +1878,12 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
+    self.assertEqual(report_post_processor_status.error_code,
+                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertLess(report_post_processor_status.primal_equality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(report_post_processor_status.primal_inequality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_get_corrected_report_single_metric_multiple_edps(self):
@@ -1876,7 +1931,7 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    corrected = report.get_corrected_report()
+    corrected, report_post_processor_status = report.get_corrected_report()
 
     # The corrected report should be consistent:
     # a) Time series measurements form a non-decreasing sequences.
@@ -1937,6 +1992,12 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
+    self.assertEqual(report_post_processor_status.error_code,
+                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertLess(report_post_processor_status.primal_equality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(report_post_processor_status.primal_inequality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def test_get_corrected_report_when_cumulative_reaches_are_consistent(self):
@@ -2023,7 +2084,7 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    corrected = report.get_corrected_report()
+    corrected, report_post_processor_status = report.get_corrected_report()
 
     # The corrected report should be consistent:
     # a) Time series measurements form a non-decreasing sequences.
@@ -2095,6 +2156,12 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
+    self.assertEqual(report_post_processor_status.error_code,
+                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertLess(report_post_processor_status.primal_equality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
+    self.assertLess(report_post_processor_status.primal_inequality_residual,
+                    NOISE_CORRECTION_TOLERANCE)
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
 
   def _assertMeasurementAlmostEquals(

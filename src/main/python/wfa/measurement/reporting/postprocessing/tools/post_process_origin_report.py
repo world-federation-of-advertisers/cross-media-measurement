@@ -27,7 +27,11 @@ from report.report import Report
 
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_summary_pb2
+from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
+  report_post_processor_result_pb2
 
+ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
+ReportPostProcessorResult = report_post_processor_result_pb2.ReportPostProcessorResult
 
 # This is a demo script that has the following assumptions :
 # 1. Impression results are not corrected.
@@ -78,7 +82,7 @@ class ReportSummaryProcessor:
     self._impression: dict[str, dict[FrozenSet[str], Measurement]] = {}
     self._set_difference_map: dict[str, tuple[str, str]] = {}
 
-  def process(self) -> dict[str, int]:
+  def process(self) -> ReportPostProcessorResult:
     """
     Processes the report summary and returns the adjusted value for each
     measurement.
@@ -101,7 +105,7 @@ class ReportSummaryProcessor:
 
     return self._get_corrected_measurements()
 
-  def _get_corrected_measurements(self):
+  def _get_corrected_measurements(self) -> ReportPostProcessorResult:
     """
     Correct the report and returns the adjusted value for each measurement.
     """
@@ -127,7 +131,7 @@ class ReportSummaryProcessor:
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    corrected_report = report.get_corrected_report()
+    corrected_report, report_post_processor_status = report.get_corrected_report()
     logging.info("Finished correcting the report.")
 
     logging.info(
@@ -160,7 +164,10 @@ class ReportSummaryProcessor:
     for key, value in self._set_difference_map.items():
       metric_name_to_value.update({key: round(
           metric_name_to_value[value[0]] - metric_name_to_value[value[1]])})
-    return metric_name_to_value
+    return ReportPostProcessorResult(
+        updated_measurements=metric_name_to_value,
+        status=report_post_processor_status,
+    )
 
   def _process_primitive_measurements(self):
     """Extract the primitive measurements from the report summary.
@@ -371,13 +378,16 @@ def main(argv):
   logging.info("Reading the report summary from stdin.")
   report_summary.ParseFromString(sys.stdin.buffer.read())
 
-  corrected_measurements_dict = ReportSummaryProcessor(report_summary).process()
+  report_post_processor_result = ReportSummaryProcessor(
+    report_summary).process()
+
+  serialized_data = report_post_processor_result.SerializeToString()
 
   logging.info(
-      "Sending the JSON representation of corrected_measurements_dict to the "
-      "parent program."
+      "Sending serialized ReportPostProcessorResult to the parent program."
   )
-  print(json.dumps(corrected_measurements_dict))
+  sys.stdout.buffer.write(serialized_data)
+  sys.stdout.flush()
 
 
 if __name__ == "__main__":

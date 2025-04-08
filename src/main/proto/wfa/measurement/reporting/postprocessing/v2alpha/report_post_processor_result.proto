@@ -21,7 +21,7 @@ option java_multiple_files = true;
 option java_outer_classname = "ReportPostProcessorResultProto";
 
 // The outcome of the QP solver process after attempting noise correction.
-enum ReportPostProcessingErrorCode {
+enum ReportPostProcessorErrorCode {
   // Default value, indicating status was not explicitly set or is unknown.
   REPORT_POST_PROCESSING_ERROR_CODE_UNSPECIFIED = 0;
 
@@ -52,6 +52,6 @@ message ReportPostProcessorStatus {
 }
 
 message ReportPostProcessorResult {
-  ReportPostProcessorStatus status = 1;
-  map<string, int64> updated_measurements = 2;
+  map<string, int64> updated_measurements = 1;
+  ReportPostProcessorStatus status = 2;
 }

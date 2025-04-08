@@ -189,7 +189,7 @@ class Solver:
 
   def _add_gt_term(self, variables: np.array):
     self.G.append(variables)
-    self.h.append([0])
+    self.h.append(0.0)
 
   def _solve_with_initial_value(self, solver_name: str,
       initial_values: np.array) -> Solution:
@@ -208,14 +208,15 @@ class Solver:
       problem = Problem(self.P, self.q, np.array(self.G), np.array(self.h))
     return problem
 
-  def _solve(self, solver_name: str) -> tuple[Solution, ReportPostProcessorStatus]:
+  def _solve(self, solver_name: str) -> tuple[
+    Solution, ReportPostProcessorStatus]:
     logging.info("Solving the quadratic program.")
     attempt_count = 0
     best_solution = Solution(False)
     smallest_residual = float('inf')
     equality_residual = float('inf')
     inequality_residual = float('inf')
-    error_code: ReportPostProcessorErrorCode =\
+    error_code: ReportPostProcessorErrorCode = \
       ReportPostProcessorErrorCode.SOLUTION_NOT_FOUND
 
     while attempt_count < MAX_ATTEMPTS:
@@ -232,6 +233,7 @@ class Solver:
           smallest_primal_residual = primal_residual
           best_solution = solution
 
+        # If a solution is found, updates the error code and stops.
         if smallest_primal_residual < TOLERANCE:
           if solver_name == HIGHS_SOLVER:
             error_code = ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS
@@ -239,34 +241,31 @@ class Solver:
             error_code = ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_OSQP
           else:
             raise ValueError(f"Unknown solver: {solver_name}")
-          equality_residual = np.max(np.abs(self.A.dot(
-              best_solution.x) - self.b)) if self.A is not None else 0.0
-          inequality_residual = np.max(0.0, np.max(self.G.dot(
-              best_solution.x) - self.h)) if self.G is not None else 0.0,
-          report_post_processor_status = ReportPostProcessorStatus(
-              error_code=error_code,
-              primal_equality_residual=equality_residual,
-              primal_inequality_residual=inequality_residual
-          )
-          return best_solution, report_post_processor_status
+          break
       attempt_count += 1
 
     if best_solution.found:
-      if solver_name == HIGHS_SOLVER:
-        error_code = ReportPostProcessorErrorCode.PARTIAL_SOLUTION_FOUND_WITH_HIGHS
-      elif solver_name == OSQP_SOLVER:
-        error_code = ReportPostProcessorErrorCode.PARTIAL_SOLUTION_FOUND_WITH_OSQP
-      else:
-        raise ValueError(f"Unknown solver: {solver_name}")
-      equality_residual = np.max(np.abs(self.A.dot(
-          best_solution.x) - self.b)) if self.A is not None else 0.0
-      inequality_residual = np.max(0.0, np.max(self.G.dot(
-          best_solution.x) - self.h)) if self.G is not None else 0.0,
+      # Overrides the error code if this is a partial solution.
+      if smallest_primal_residual >= TOLERANCE:
+        if solver_name == HIGHS_SOLVER:
+          error_code = ReportPostProcessorErrorCode.PARTIAL_SOLUTION_FOUND_WITH_HIGHS
+        elif solver_name == OSQP_SOLVER:
+          error_code = ReportPostProcessorErrorCode.PARTIAL_SOLUTION_FOUND_WITH_OSQP
+        else:
+          raise ValueError(f"Unknown solver: {solver_name}")
+
+      # Updates the primal equality and inequality residuals.
+      equality_residual = np.max(np.abs(
+          np.dot(self.A, best_solution.x) - np.array(
+              self.b))) if len(self.A) > 0 else 0.0
+      inequality_residual = max(0.0, np.max(
+          np.dot(self.G, best_solution.x) - np.array(
+              self.h))) if len(self.G) > 0 else 0.0
 
     report_post_processor_status = ReportPostProcessorStatus(
         error_code=error_code,
         primal_equality_residual=equality_residual,
-        primal_inequality_residual=inequality_residual
+        primal_inequality_residual=inequality_residual,
     )
     return best_solution, report_post_processor_status
 
@@ -274,7 +273,7 @@ class Solver:
     logging.info(
         "Solving the quadratic program with the HIGHS solver."
     )
-    solution, status = self._solve(HIGHS_SOLVER)
+    solution, report_post_processor_status = self._solve(HIGHS_SOLVER)
 
     # If the highs solver does not converge, switch to the osqp solver which
     # is more robust. However, OSQP in general is less accurate than HIGHS
@@ -283,21 +282,18 @@ class Solver:
       logging.info(
           "Switching to OSQP solver as HIGHS solver failed to converge."
       )
-      solution, status = self._solve(OSQP_SOLVER)
+      solution, report_post_processor_status = self._solve(OSQP_SOLVER)
 
-    # Raise the exception when both solvers do not converge.
-    if not solution.found:
-      raise SolutionNotFoundError(solution)
-
-    return solution, status
+    return solution, report_post_processor_status
 
   def translate_solution(self, solution: Solution) -> dict[int, float]:
     result: dict[int, float] = {}
-    for var in range(0, self.num_variables):
-      result[self.variable_map[var]] = solution.x[var]
+    if solution.found:
+      for var in range(0, self.num_variables):
+        result[self.variable_map[var]] = solution.x[var]
     return result
 
-  def solve_and_translate(self) -> tuple[dict[int, float], ReportPostProcessorStatus]:
-    solution, status = self.solve()
-    print(status)
-    return self.translate_solution(solution)
+  def solve_and_translate(self) -> tuple[
+    dict[int, float], ReportPostProcessorStatus]:
+    solution, report_post_processor_status = self.solve()
+    return self.translate_solution(solution), report_post_processor_status

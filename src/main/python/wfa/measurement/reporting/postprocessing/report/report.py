@@ -26,6 +26,10 @@ from qpsolvers import Solution
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from noiseninja.solver import Solver
+from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
+  report_post_processor_result_pb2
+
+ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
 
 MIN_STANDARD_VARIATION_RATIO = 0.001
 UNIT_SCALING_FACTOR = 1.0
@@ -393,13 +397,13 @@ class Report:
   def get_metrics(self) -> set[str]:
     return set(self._metric_reports.keys())
 
-  def get_corrected_report(self) -> "Report":
+  def get_corrected_report(self) -> tuple["Report", ReportPostProcessorStatus]:
     """Returns a corrected, consistent report.
     Note all measurements in the corrected report are set to have 0 variance
     """
     spec = self.to_set_measurement_spec()
-    solution = Solver(spec).solve_and_translate()
-    return self.report_from_solution(solution)
+    solution, report_post_processor_status = Solver(spec).solve_and_translate()
+    return self.report_from_solution(solution), report_post_processor_status
 
   def report_from_solution(self, solution: Solution) -> "Report":
     logging.info("Generating the adjusted report from the solution.")

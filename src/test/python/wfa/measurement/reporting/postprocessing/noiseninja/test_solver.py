@@ -18,10 +18,14 @@ from noiseninja.noised_measurements import SetMeasurementsSpec
 from noiseninja.solver import Solver
 from qpsolvers import Solution
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
-  post_processing_result_pb2
+  report_post_processor_result_pb2
 from unittest.mock import MagicMock
 
+ReportPostProcessorErrorCode = report_post_processor_result_pb2.ReportPostProcessorErrorCode
+ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
+
 HIGHS_SOLVER = "highs"
+TOLERANCE = 1e-1
 
 
 class SolverTest(unittest.TestCase):
@@ -43,8 +47,10 @@ class SolverTest(unittest.TestCase):
 
     def side_effect(solver_name):
       if solver_name == HIGHS_SOLVER:
-        return Solution(x=None, found=False, problem=solver._problem()),\
-          post_processing_result_pb2.ReportProcessorStatus.SOLUTION_NOT_FOUND
+        return Solution(x=None, found=False, problem=solver._problem()), \
+          ReportPostProcessorStatus(
+              error_code=ReportPostProcessorErrorCode.SOLUTION_NOT_FOUND
+          )
       else:
         # Call the original function for other solvers.
         return original_solve(solver_name)
@@ -55,16 +61,26 @@ class SolverTest(unittest.TestCase):
     solver._solve = mock_solve
 
     # Verifies that the HIGHS solver returns a non-solution.
-    highs_solution, status = solver._solve(HIGHS_SOLVER)
+    highs_solution, report_post_processor_status = solver._solve(HIGHS_SOLVER)
     self.assertFalse(highs_solution.found)
     self.assertEqual(
-        status,
-        post_processing_result_pb2.ReportProcessorStatus.SOLUTION_NOT_FOUND
+        report_post_processor_status.error_code,
+        ReportPostProcessorErrorCode.SOLUTION_NOT_FOUND
     )
 
     # Due to the fact that HIGHS solver returns a non-solution, the back-up
     # solver (OSQP) will be called.
-    solution = solver.solve_and_translate()
+    solution, report_post_processor_status = solver.solve_and_translate()
+
+    self.assertEqual(
+        report_post_processor_status.error_code,
+        ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_OSQP
+    )
+    self.assertLess(
+        max(report_post_processor_status.primal_equality_residual,
+            report_post_processor_status.primal_inequality_residual),
+        TOLERANCE
+    )
 
     # Verifies that a valid solution is obtained.
     self.assertAlmostEqual(solution[1], 50.000, places=2, msg=solution)
@@ -86,7 +102,18 @@ class SolverTest(unittest.TestCase):
     spec.add_measurement(4, Measurement(51, 1, "measurement_04"))
     spec.add_measurement(5, Measurement(51, 1, "measurement_05"))
 
-    solution = Solver(spec).solve_and_translate()
+    solution, report_post_processor_status = Solver(spec).solve_and_translate()
+
+    self.assertIn(
+        report_post_processor_status.error_code,
+        [ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS,
+         ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_OSQP]
+    )
+    self.assertLess(
+        max(report_post_processor_status.primal_equality_residual,
+            report_post_processor_status.primal_inequality_residual),
+        TOLERANCE
+    )
 
     # Verifies tha all constraints are met.
     self.assertAlmostEqual(solution[1], 48.000, places=3, msg=solution)
@@ -111,7 +138,19 @@ class SolverTest(unittest.TestCase):
     spec.add_measurement(4, Measurement(51, 1, "measurement_04"))
     spec.add_measurement(5, Measurement(51, 1, "measurement_05"))
 
-    solution = Solver(spec).solve_and_translate()
+    solution, report_post_processor_status = Solver(spec).solve_and_translate()
+
+    self.assertIn(
+        report_post_processor_status.error_code,
+        [ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS,
+         ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_OSQP]
+    )
+
+    self.assertLess(
+        max(report_post_processor_status.primal_equality_residual,
+            report_post_processor_status.primal_inequality_residual),
+        TOLERANCE
+    )
 
     # Verifies tha all constraints are met.
     self.assertAlmostEqual(solution[1], 48, msg=solution)
@@ -136,7 +175,19 @@ class SolverTest(unittest.TestCase):
     spec.add_measurement(3, Measurement(-1, 1, "measurement_03"))
     spec.add_measurement(4, Measurement(-1, 1, "measurement_04"))
 
-    solution = Solver(spec).solve_and_translate()
+    solution, report_post_processor_status = Solver(spec).solve_and_translate()
+
+    self.assertIn(
+        report_post_processor_status.error_code,
+        [ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS,
+         ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_OSQP]
+    )
+
+    self.assertLess(
+        max(report_post_processor_status.primal_equality_residual,
+            report_post_processor_status.primal_inequality_residual),
+        TOLERANCE
+    )
 
     # Verifies that the solutions are greater than or equal to 0 due to the
     # lower bound constraints.
@@ -144,7 +195,6 @@ class SolverTest(unittest.TestCase):
     self.assertGreaterEqual(solution[2], 0.0)
     self.assertGreaterEqual(solution[3], 0.0)
     self.assertGreaterEqual(solution[4], 0.0)
-
 
 if __name__ == "__main__":
   unittest.main()
