@@ -101,7 +101,7 @@ jobs:
     - name: Generate archives
       run: >
         bazelisk build
-        //src/main/k8s/dev:secure_computation_control_plane.tar
+        //src/main/k8s/dev:secure_computation.tar
         //src/main/k8s/testing/secretfiles:archive
 
     - name: Make Kustomization dir

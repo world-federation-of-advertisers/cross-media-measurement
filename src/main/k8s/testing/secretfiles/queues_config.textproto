@@ -2,5 +2,5 @@
 # proto-message: wfa.measurement.config.securecomputation.QueuesConfig
 
 queueInfos {
-  queue_resource_id: "test-topid-id"
+  queue_resource_id: "vid-labeler"
 }

@@ -28,25 +28,25 @@ import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.Services
 import picocli.CommandLine
 
-private const val SERVER_NAME = "ControlPlaneApiServer"
+private const val SERVER_NAME = "SecureComputationApiServer"
 
  @CommandLine.Command(name = SERVER_NAME)
 class PublicApiServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
 
   @CommandLine.Option(
-    names = ["--secure-computation-control-plane-internal-api-target"],
+    names = ["--secure-computation-internal-api-target"],
     description = ["gRPC target of the Access internal API server"],
     required = true,
   )
   private lateinit var internalApiTarget: String
 
   @CommandLine.Option(
-    names = ["--secure-computation-control-plane-internal-api-cert-host"],
+    names = ["--secure-computation-internal-api-cert-host"],
     description =
       [
-        "Expected hostname (DNS-ID) in the ControlPlane internal API server's TLS certificate.",
-        "This overrides derivation of the TLS DNS-ID from --control-plane-internal-api-target.",
+        "Expected hostname (DNS-ID) in the Secure Computation internal API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --secure-computation-internal-api-target.",
       ],
     required = false,
   )

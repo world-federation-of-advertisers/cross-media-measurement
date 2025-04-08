@@ -33,7 +33,6 @@ _publicApiAddressName:      "secure-computation-public"
 objectSets: [
 	defaultNetworkPolicies,
 	secureComputation.serviceAccounts,
-	secureComputation.configMaps,
 	secureComputation.deployments,
 	secureComputation.services,
 	secureComputation.networkPolicies,
@@ -51,8 +50,6 @@ secureComputation: #SecureComputation & {
 			_iamServiceAccountName: "secure-computation-internal"
 		}
 	}
-
-	configMaps: "java": #JavaConfigMap
 
     deployments: {
         "secure-computation-internal-api-server": {
