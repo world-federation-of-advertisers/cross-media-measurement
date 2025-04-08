@@ -19,6 +19,8 @@ package org.wfanet.measurement.edpaggregator.eventgroups
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.timestamp
 import com.google.type.interval
+import java.time.Clock
+import java.time.Duration
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.toList
@@ -45,6 +47,7 @@ import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as externalEventGro
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.EventGroupMetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.EventGroupMetadataKt.adMetadata
@@ -157,14 +160,26 @@ class EventGroupSyncTest {
       mediaTypes += listOf("OTHER")
     }
     val testCampaigns = campaigns + newCampaign
-    val eventGroupSync = EventGroupSync("edp-name", eventGroupsStub, testCampaigns.asFlow())
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        testCampaigns.asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+      )
     runBlocking { eventGroupSync.sync().collect() }
     verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
   }
 
   @Test
   fun `sync updatesExistingEventGroups`() {
-    val eventGroupSync = EventGroupSync("edp-name", eventGroupsStub, campaigns.asFlow())
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        campaigns.asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+      )
     runBlocking { eventGroupSync.sync().collect() }
     verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
   }
@@ -172,7 +187,13 @@ class EventGroupSyncTest {
   @Test
   fun sync_returnsMapOfEventGroupReferenceIdsToEventGroups() {
     runBlocking {
-      val eventGroupSync = EventGroupSync("edp-name", eventGroupsStub, campaigns.asFlow())
+      val eventGroupSync =
+        EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          campaigns.asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        )
       val result = runBlocking { eventGroupSync.sync() }
       assertThat(result.toList().map { it.eventGroupReferenceId to it.eventGroupResource })
         .isEqualTo(

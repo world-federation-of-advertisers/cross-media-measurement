@@ -22,6 +22,7 @@ import com.google.cloud.functions.HttpResponse
 import com.google.protobuf.util.JsonFormat
 import java.io.BufferedReader
 import java.io.File
+import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
 import kotlin.io.path.Path
@@ -31,6 +32,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSyncConfig
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
@@ -42,6 +44,12 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * EventGroups with the kingdom and writes a map of the registered resource names to storage.
  */
 class EventGroupSyncFunction() : HttpFunction {
+
+  init {
+    for (envVar in requiredEnvVars) {
+      checkNotNull(System.getenv(envVar))
+    }
+  }
 
   override fun service(request: HttpRequest, response: HttpResponse) {
     logger.fine("Starting EventGroupSyncFunction")
@@ -86,6 +94,13 @@ class EventGroupSyncFunction() : HttpFunction {
         edpName = eventGroupSyncConfig.dataProvider,
         eventGroupsStub = eventGroupsClient,
         eventGroups = eventGroups,
+        throttler =
+          MinimumIntervalThrottler(
+            Clock.systemUTC(),
+            Duration.ofMillis(
+              System.getenv("THROTTLER_MILLIS")?.toLong() ?: THROTTLER_DURATION_MILLIS
+            ),
+          ),
       )
     val mappedData = runBlocking { eventGroupSync.sync() }
     runBlocking {
@@ -116,5 +131,14 @@ class EventGroupSyncFunction() : HttpFunction {
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val KINGDOM_SHUTDOWN_DURATION_SECONDS: Long = 3L
+    private const val THROTTLER_DURATION_MILLIS = 1000L
+    private val requiredEnvVars: List<String> =
+      listOf(
+        "CERT_FILE_PATH",
+        "PRIVATE_KEY_FILE_PATH",
+        "CERT_COLLECTION_FILE_PATH",
+        "KINGDOM_TARGET",
+        "KINGDOM_CERT_HOST",
+      )
   }
 }
