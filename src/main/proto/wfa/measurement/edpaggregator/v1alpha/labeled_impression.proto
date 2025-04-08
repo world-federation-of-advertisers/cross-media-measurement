@@ -28,7 +28,7 @@ option java_outer_classname = "LabeledImpressionProto";
 message LabeledImpression {
   // The time of the impression
   google.protobuf.Timestamp event_time = 1
-  [(google.api.field_behavior) = REQUIRED];
+      [(google.api.field_behavior) = REQUIRED];
 
   // The vid associated with the impression
   int64 vid = 2 [(google.api.field_behavior) = REQUIRED];
@@ -40,4 +40,3 @@ message LabeledImpression {
   // The impression event group reference id to which the Event is associated
   string event_group_reference_id = 4 [(google.api.field_behavior) = REQUIRED];
 }
-
