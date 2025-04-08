@@ -125,3 +125,16 @@ variable "data_watcher_source_object" {
   type        = string
   nullable    = false
 }
+
+variable "data_watcher_cloud_function_service_account_name" {
+  description = "IAM `google_service_account.name`."
+  type        = string
+  nullable    = false
+}
+
+variable "data_watcher_trigger_bucket_name" {
+  description = "The name of the Google Cloud Storage bucket that triggers the Cloud Function. The Cloud Function will be invoked when a specific file is uploaded in this bucket."
+  type        = string
+  nullable    = false
+}
+

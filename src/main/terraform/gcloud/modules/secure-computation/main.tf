@@ -14,7 +14,7 @@
 
 data "google_project" "project" {}
 
-module "control_plane_internal" {
+module "secure_computation_internal" {
   source = "../workload-identity-user"
 
   k8s_service_account_name        = "internal-control-plan-server"
@@ -22,24 +22,24 @@ module "control_plane_internal" {
   iam_service_account_description = "Control Plane internal API server."
 }
 
-resource "google_spanner_database" "control_plane" {
+resource "google_spanner_database" "secure_computation" {
   instance         = var.spanner_instance.name
   name             = var.spanner_database_name
   database_dialect = "GOOGLE_STANDARD_SQL"
 }
 
-resource "google_spanner_database_iam_member" "control_plane_internal" {
-  instance = google_spanner_database.control_plane.instance
-  database = google_spanner_database.control_plane.name
+resource "google_spanner_database_iam_member" "secure_computation_internal" {
+  instance = google_spanner_database.secure_computation.instance
+  database = google_spanner_database.secure_computation.name
   role     = "roles/spanner.databaseUser"
-  member   = module.control_plane_internal.iam_service_account.member
+  member   = module.secure_computation_internal.iam_service_account.member
 
   lifecycle {
-    replace_triggered_by = [google_spanner_database.control_plane.id]
+    replace_triggered_by = [google_spanner_database.secure_computation.id]
   }
 }
 
 resource "google_compute_address" "api_server" {
-  name    = "control-plane-public"
+  name    = "secure-computation-public"
   address = var.api_server_ip_address
 }
