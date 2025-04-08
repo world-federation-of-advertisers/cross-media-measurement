@@ -10,6 +10,7 @@ proto_library(
     srcs = ["labeled_impression.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_protobuf//:any_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],

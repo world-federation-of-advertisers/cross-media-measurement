@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.edpaggregator;
 
+import "google/api/field_behavior.proto";
 import "google/protobuf/any.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -25,16 +26,18 @@ option java_outer_classname = "LabeledImpressionProto";
 
 // Resource representing a labeled impression.
 message LabeledImpression {
-  // Time of impression
-  google.protobuf.Timestamp impression_time = 1;
+  // The time of the impression
+  google.protobuf.Timestamp event_time = 1
+  [(google.api.field_behavior) = REQUIRED];
 
-  // Vid associated with impression
-  int64 vid = 2;
+  // The vid associated with the impression
+  int64 vid = 2 [(google.api.field_behavior) = REQUIRED];
 
-  // Any message representing the impression converted to an event template
-  // message
-  google.protobuf.Any event_template_map = 3;
+  // The Event proto representing this impression. For reference implementation,
+  // see test_event.proto
+  google.protobuf.Any event = 3 [(google.api.field_behavior) = REQUIRED];
 
-  // Impression event group reference id
-  string event_group_reference_id = 4;
+  // The impression event group reference id to which the Event is associated
+  string event_group_reference_id = 4 [(google.api.field_behavior) = REQUIRED];
 }
+
