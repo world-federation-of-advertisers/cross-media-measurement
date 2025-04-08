@@ -121,9 +121,7 @@ interface ReportProcessor {
 
       val exitCode = process.waitFor()
 
-      if (
-        exitCode == 0 && result.status.errorCode != ReportPostProcessorErrorCode.SOLUTION_NOT_FOUND
-      ) {
+      if (exitCode == 0) {
         logger.fine(processError)
       } else {
         throw ReportProcessorFailureException(processError)
@@ -131,10 +129,15 @@ interface ReportProcessor {
 
       logger.info { "Finished processing report.." }
 
-      // Extract the list of updated measurements.
       val correctedMeasurementsMap = mutableMapOf<String, Long>()
-      result.updatedMeasurementsMap.forEach { (key, value) ->
-        correctedMeasurementsMap[key] = value
+
+      // Extracts the list of updated measurements if a solution is found.
+      if (result.status.errorCode != ReportPostProcessorErrorCode.SOLUTION_NOT_FOUND) {
+        result.updatedMeasurementsMap.forEach { (key, value) ->
+          correctedMeasurementsMap[key] = value
+        }
+      } else {
+        logger.info { "No solution found.." }
       }
 
       return correctedMeasurementsMap

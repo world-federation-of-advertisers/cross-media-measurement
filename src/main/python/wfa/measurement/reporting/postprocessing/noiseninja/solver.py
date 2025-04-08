@@ -265,7 +265,7 @@ class Solver:
     # Raise the exception when both solvers do not converge.
     if not solution.found:
       raise SolutionNotFoundError(solution)
-    
+
     report_post_processor_status = ReportPostProcessorStatus(
         error_code=error_code,
         primal_equality_residual=equality_residual,
