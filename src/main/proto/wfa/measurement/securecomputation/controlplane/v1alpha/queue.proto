@@ -36,5 +36,7 @@ message Queue {
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 
   // The type url for params that apps in this queue support
-  string app_params_type_url = 5;
+  // (-- api-linter: core::0140::uri=disabled
+  //     aip.dev/not-precedent: Referring to the protobuf type url. --)
+  string app_params_type_url = 5 [(google.api.field_behavior) = REQUIRED];
 }

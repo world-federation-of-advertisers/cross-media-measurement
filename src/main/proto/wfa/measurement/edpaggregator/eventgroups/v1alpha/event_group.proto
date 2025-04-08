@@ -40,7 +40,7 @@ message EventGroup {
       }
       // Metadata the pertains to a campaign that is entailed by the EventGroup.
       CampaignMetadata campaign_metadata = 1
-      [(google.api.field_behavior) = REQUIRED];
+          [(google.api.field_behavior) = REQUIRED];
     }
 
     // Selector for the specific metadata structure used to describe the events
@@ -70,19 +70,24 @@ message EventGroup {
   // synchronize their metadata with the EventGroupsService. See
   // `EventGroupMetadata` which provides a set of identifiers with better
   // defined semantics.
-  string event_group_reference_id = 1;
+  string event_group_reference_id = 1 [(google.api.field_behavior) = REQUIRED];
 
   // Metadata that describes the events entailed by the EventGroup.
-  EventGroupMetadata event_group_metadata = 2;
+  EventGroupMetadata event_group_metadata = 2
+      [(google.api.field_behavior) = REQUIRED];
 
   // The start and end dates of the campaign. May contain future dates.
-  google.type.Interval data_availability_interval = 3;
+  google.type.Interval data_availability_interval = 3
+      [(google.api.field_behavior) = REQUIRED];
 
-  // Resource name referencing the `MeasurementConsumer` in an external system, provided out-of-band.
+  // Resource name referencing the `MeasurementConsumer` in an external system,
+  // provided out-of-band.
   string measurement_consumer = 4 [
-    (google.api.resource_reference).type = "wfa.halo-cmm.org/MeasurementConsumer"
+    (google.api.resource_reference).type =
+        "wfa.halo-cmm.org/MeasurementConsumer",
+    (google.api.field_behavior) = REQUIRED
   ];
 
   // The MediaTypes of the events entailed by this `EventGroup`
-  repeated string media_types = 5;
+  repeated string media_types = 5 [(google.api.field_behavior) = REQUIRED];
 }
