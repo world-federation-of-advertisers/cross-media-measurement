@@ -171,10 +171,7 @@ class OperationalMetricsFlags {
   lateinit var latestComputationReadTable: String
     private set
 
-  @CommandLine.Option(
-    names = ["--batch-size"],
-    description = ["Number of rows inserted at once."],
-  )
+  @CommandLine.Option(names = ["--batch-size"], description = ["Number of rows inserted at once."])
   var batchSize: Int = 1000
     private set
 }

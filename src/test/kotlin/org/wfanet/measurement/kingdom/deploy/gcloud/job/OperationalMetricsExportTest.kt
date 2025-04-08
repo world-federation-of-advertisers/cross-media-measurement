@@ -700,95 +700,93 @@ class OperationalMetricsExportTest {
     }
 
   @Test
-  fun `job uses specified batch size for measurements`() =
-    runBlocking {
-      val directMeasurement = DIRECT_MEASUREMENT
+  fun `job uses specified batch size for measurements`() = runBlocking {
+    val directMeasurement = DIRECT_MEASUREMENT
 
-      val updateTimeFieldValue: FieldValue =
-        FieldValue.of(
-          FieldValue.Attribute.PRIMITIVE,
-          "${Timestamps.toNanos(directMeasurement.updateTime)}",
-        )
-      val externalMeasurementConsumerIdFieldValue: FieldValue =
-        FieldValue.of(
-          FieldValue.Attribute.PRIMITIVE,
-          "${directMeasurement.externalMeasurementConsumerId}",
-        )
-      val externalMeasurementIdFieldValue: FieldValue =
-        FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${directMeasurement.externalMeasurementId}")
+    val updateTimeFieldValue: FieldValue =
+      FieldValue.of(
+        FieldValue.Attribute.PRIMITIVE,
+        "${Timestamps.toNanos(directMeasurement.updateTime)}",
+      )
+    val externalMeasurementConsumerIdFieldValue: FieldValue =
+      FieldValue.of(
+        FieldValue.Attribute.PRIMITIVE,
+        "${directMeasurement.externalMeasurementConsumerId}",
+      )
+    val externalMeasurementIdFieldValue: FieldValue =
+      FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${directMeasurement.externalMeasurementId}")
 
-      val tableResultMock: TableResult = mock { tableResult ->
-        whenever(tableResult.iterateAll())
-          .thenReturn(
-            listOf(
-              FieldValueList.of(
-                mutableListOf(
-                  updateTimeFieldValue,
-                  externalMeasurementConsumerIdFieldValue,
-                  externalMeasurementIdFieldValue,
-                ),
-                LATEST_MEASUREMENT_FIELD_LIST,
-              )
+    val tableResultMock: TableResult = mock { tableResult ->
+      whenever(tableResult.iterateAll())
+        .thenReturn(
+          listOf(
+            FieldValueList.of(
+              mutableListOf(
+                updateTimeFieldValue,
+                externalMeasurementConsumerIdFieldValue,
+                externalMeasurementIdFieldValue,
+              ),
+              LATEST_MEASUREMENT_FIELD_LIST,
             )
           )
-          .thenReturn(emptyList())
-      }
-
-      whenever(measurementsMock.streamMeasurements(any()))
-        .thenReturn(flowOf(COMPUTATION_MEASUREMENT))
-
-      val bigQueryMock: BigQuery = mock { bigQuery ->
-        whenever(bigQuery.query(any())).thenReturn(tableResultMock)
-      }
-
-      val operationalMetricsExport =
-        OperationalMetricsExport(
-          measurementsClient = measurementsClient,
-          requisitionsClient = requisitionsClient,
-          bigQuery = bigQueryMock,
-          bigQueryWriteClient = bigQueryWriteClientMock,
-          projectId = PROJECT_ID,
-          datasetId = DATASET_ID,
-          latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
-          measurementsTableId = MEASUREMENTS_TABLE_ID,
-          latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
-          requisitionsTableId = REQUISITIONS_TABLE_ID,
-          latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
-          computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
-          streamWriterFactory = streamWriterFactoryTestImpl,
-          batchSize = 100,
         )
-
-      operationalMetricsExport.execute()
-
-      with(argumentCaptor<StreamMeasurementsRequest>()) {
-        verify(measurementsMock, times(2)).streamMeasurements(capture())
-        val streamMeasurementsRequest = allValues.first()
-
-        assertThat(streamMeasurementsRequest)
-          .ignoringRepeatedFieldOrder()
-          .isEqualTo(
-            streamMeasurementsRequest {
-              measurementView = Measurement.View.DEFAULT
-              filter =
-                StreamMeasurementsRequestKt.filter {
-                  states += Measurement.State.SUCCEEDED
-                  states += Measurement.State.FAILED
-                  after =
-                    StreamMeasurementsRequestKt.FilterKt.after {
-                      updateTime = directMeasurement.updateTime
-                      measurement = measurementKey {
-                        externalMeasurementConsumerId =
-                          directMeasurement.externalMeasurementConsumerId
-                        externalMeasurementId = directMeasurement.externalMeasurementId
-                      }
-                    }
-                }
-              limit = 100
-            }
-          )
-      }
+        .thenReturn(emptyList())
     }
+
+    whenever(measurementsMock.streamMeasurements(any())).thenReturn(flowOf(COMPUTATION_MEASUREMENT))
+
+    val bigQueryMock: BigQuery = mock { bigQuery ->
+      whenever(bigQuery.query(any())).thenReturn(tableResultMock)
+    }
+
+    val operationalMetricsExport =
+      OperationalMetricsExport(
+        measurementsClient = measurementsClient,
+        requisitionsClient = requisitionsClient,
+        bigQuery = bigQueryMock,
+        bigQueryWriteClient = bigQueryWriteClientMock,
+        projectId = PROJECT_ID,
+        datasetId = DATASET_ID,
+        latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
+        measurementsTableId = MEASUREMENTS_TABLE_ID,
+        latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
+        requisitionsTableId = REQUISITIONS_TABLE_ID,
+        latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
+        computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
+        streamWriterFactory = streamWriterFactoryTestImpl,
+        batchSize = 100,
+      )
+
+    operationalMetricsExport.execute()
+
+    with(argumentCaptor<StreamMeasurementsRequest>()) {
+      verify(measurementsMock, times(2)).streamMeasurements(capture())
+      val streamMeasurementsRequest = allValues.first()
+
+      assertThat(streamMeasurementsRequest)
+        .ignoringRepeatedFieldOrder()
+        .isEqualTo(
+          streamMeasurementsRequest {
+            measurementView = Measurement.View.DEFAULT
+            filter =
+              StreamMeasurementsRequestKt.filter {
+                states += Measurement.State.SUCCEEDED
+                states += Measurement.State.FAILED
+                after =
+                  StreamMeasurementsRequestKt.FilterKt.after {
+                    updateTime = directMeasurement.updateTime
+                    measurement = measurementKey {
+                      externalMeasurementConsumerId =
+                        directMeasurement.externalMeasurementConsumerId
+                      externalMeasurementId = directMeasurement.externalMeasurementId
+                    }
+                  }
+              }
+            limit = 100
+          }
+        )
+    }
+  }
 
   @Test
   fun `job can process the next batch of requisitions without starting at the beginning`() =
@@ -874,88 +872,84 @@ class OperationalMetricsExportTest {
     }
 
   @Test
-  fun `job uses specified batch size for requisitions`() =
-    runBlocking {
-      val requisition = REQUISITION
+  fun `job uses specified batch size for requisitions`() = runBlocking {
+    val requisition = REQUISITION
 
-      val updateTimeFieldValue: FieldValue =
-        FieldValue.of(
-          FieldValue.Attribute.PRIMITIVE,
-          "${Timestamps.toNanos(requisition.updateTime)}",
-        )
-      val externalDataProviderIdFieldValue: FieldValue =
-        FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${requisition.externalDataProviderId}")
-      val externalRequisitionIdFieldValue: FieldValue =
-        FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${requisition.externalRequisitionId}")
+    val updateTimeFieldValue: FieldValue =
+      FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${Timestamps.toNanos(requisition.updateTime)}")
+    val externalDataProviderIdFieldValue: FieldValue =
+      FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${requisition.externalDataProviderId}")
+    val externalRequisitionIdFieldValue: FieldValue =
+      FieldValue.of(FieldValue.Attribute.PRIMITIVE, "${requisition.externalRequisitionId}")
 
-      val tableResultMock: TableResult = mock { tableResult ->
-        whenever(tableResult.iterateAll())
-          .thenReturn(emptyList())
-          .thenReturn(
-            listOf(
-              FieldValueList.of(
-                mutableListOf(
-                  updateTimeFieldValue,
-                  externalDataProviderIdFieldValue,
-                  externalRequisitionIdFieldValue,
-                ),
-                LATEST_REQUISITION_FIELD_LIST,
-              )
+    val tableResultMock: TableResult = mock { tableResult ->
+      whenever(tableResult.iterateAll())
+        .thenReturn(emptyList())
+        .thenReturn(
+          listOf(
+            FieldValueList.of(
+              mutableListOf(
+                updateTimeFieldValue,
+                externalDataProviderIdFieldValue,
+                externalRequisitionIdFieldValue,
+              ),
+              LATEST_REQUISITION_FIELD_LIST,
             )
           )
-          .thenReturn(emptyList())
-      }
-
-      whenever(requisitionsMock.streamRequisitions(any())).thenReturn(flowOf(REQUISITION_2))
-
-      val bigQueryMock: BigQuery = mock { bigQuery ->
-        whenever(bigQuery.query(any())).thenReturn(tableResultMock)
-      }
-
-      val operationalMetricsExport =
-        OperationalMetricsExport(
-          measurementsClient = measurementsClient,
-          requisitionsClient = requisitionsClient,
-          bigQuery = bigQueryMock,
-          bigQueryWriteClient = bigQueryWriteClientMock,
-          projectId = PROJECT_ID,
-          datasetId = DATASET_ID,
-          latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
-          measurementsTableId = MEASUREMENTS_TABLE_ID,
-          latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
-          requisitionsTableId = REQUISITIONS_TABLE_ID,
-          latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
-          computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
-          streamWriterFactory = streamWriterFactoryTestImpl,
-          batchSize = 100,
         )
-
-      operationalMetricsExport.execute()
-
-      with(argumentCaptor<StreamRequisitionsRequest>()) {
-        verify(requisitionsMock).streamRequisitions(capture())
-        val streamRequisitionsRequest = allValues.first()
-
-        assertThat(streamRequisitionsRequest)
-          .ignoringRepeatedFieldOrder()
-          .isEqualTo(
-            streamRequisitionsRequest {
-              filter =
-                StreamRequisitionsRequestKt.filter {
-                  states += Requisition.State.FULFILLED
-                  states += Requisition.State.REFUSED
-                  after =
-                    StreamRequisitionsRequestKt.FilterKt.after {
-                      updateTime = requisition.updateTime
-                      externalDataProviderId = requisition.externalDataProviderId
-                      externalRequisitionId = requisition.externalRequisitionId
-                    }
-                }
-              limit = 100
-            }
-          )
-      }
+        .thenReturn(emptyList())
     }
+
+    whenever(requisitionsMock.streamRequisitions(any())).thenReturn(flowOf(REQUISITION_2))
+
+    val bigQueryMock: BigQuery = mock { bigQuery ->
+      whenever(bigQuery.query(any())).thenReturn(tableResultMock)
+    }
+
+    val operationalMetricsExport =
+      OperationalMetricsExport(
+        measurementsClient = measurementsClient,
+        requisitionsClient = requisitionsClient,
+        bigQuery = bigQueryMock,
+        bigQueryWriteClient = bigQueryWriteClientMock,
+        projectId = PROJECT_ID,
+        datasetId = DATASET_ID,
+        latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
+        measurementsTableId = MEASUREMENTS_TABLE_ID,
+        latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
+        requisitionsTableId = REQUISITIONS_TABLE_ID,
+        latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
+        computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
+        streamWriterFactory = streamWriterFactoryTestImpl,
+        batchSize = 100,
+      )
+
+    operationalMetricsExport.execute()
+
+    with(argumentCaptor<StreamRequisitionsRequest>()) {
+      verify(requisitionsMock).streamRequisitions(capture())
+      val streamRequisitionsRequest = allValues.first()
+
+      assertThat(streamRequisitionsRequest)
+        .ignoringRepeatedFieldOrder()
+        .isEqualTo(
+          streamRequisitionsRequest {
+            filter =
+              StreamRequisitionsRequestKt.filter {
+                states += Requisition.State.FULFILLED
+                states += Requisition.State.REFUSED
+                after =
+                  StreamRequisitionsRequestKt.FilterKt.after {
+                    updateTime = requisition.updateTime
+                    externalDataProviderId = requisition.externalDataProviderId
+                    externalRequisitionId = requisition.externalRequisitionId
+                  }
+              }
+            limit = 100
+          }
+        )
+    }
+  }
 
   @Test
   fun `job can process the next batch of computations without starting at the beginning`() =
@@ -1042,89 +1036,87 @@ class OperationalMetricsExportTest {
     }
 
   @Test
-  fun `job uses specified batch size for computations`() =
-    runBlocking {
-      val computationMeasurement = COMPUTATION_MEASUREMENT
+  fun `job uses specified batch size for computations`() = runBlocking {
+    val computationMeasurement = COMPUTATION_MEASUREMENT
 
-      val updateTimeFieldValue: FieldValue =
-        FieldValue.of(
-          FieldValue.Attribute.PRIMITIVE,
-          "${Timestamps.toNanos(computationMeasurement.updateTime)}",
-        )
-      val externalMeasurementConsumerIdFieldValue: FieldValue =
-        FieldValue.of(
-          FieldValue.Attribute.PRIMITIVE,
-          "${computationMeasurement.externalComputationId}",
-        )
+    val updateTimeFieldValue: FieldValue =
+      FieldValue.of(
+        FieldValue.Attribute.PRIMITIVE,
+        "${Timestamps.toNanos(computationMeasurement.updateTime)}",
+      )
+    val externalMeasurementConsumerIdFieldValue: FieldValue =
+      FieldValue.of(
+        FieldValue.Attribute.PRIMITIVE,
+        "${computationMeasurement.externalComputationId}",
+      )
 
-      val tableResultMock: TableResult = mock { tableResult ->
-        whenever(tableResult.iterateAll())
-          .thenReturn(emptyList())
-          .thenReturn(emptyList())
-          .thenReturn(
-            listOf(
-              FieldValueList.of(
-                mutableListOf(updateTimeFieldValue, externalMeasurementConsumerIdFieldValue),
-                LATEST_COMPUTATION_FIELD_LIST,
-              )
+    val tableResultMock: TableResult = mock { tableResult ->
+      whenever(tableResult.iterateAll())
+        .thenReturn(emptyList())
+        .thenReturn(emptyList())
+        .thenReturn(
+          listOf(
+            FieldValueList.of(
+              mutableListOf(updateTimeFieldValue, externalMeasurementConsumerIdFieldValue),
+              LATEST_COMPUTATION_FIELD_LIST,
             )
           )
-          .thenReturn(emptyList())
-      }
-
-      whenever(measurementsMock.streamMeasurements(any()))
-        .thenReturn(flowOf(COMPUTATION_MEASUREMENT))
-
-      val bigQueryMock: BigQuery = mock { bigQuery ->
-        whenever(bigQuery.query(any())).thenReturn(tableResultMock)
-      }
-
-      val operationalMetricsExport =
-        OperationalMetricsExport(
-          measurementsClient = measurementsClient,
-          requisitionsClient = requisitionsClient,
-          bigQuery = bigQueryMock,
-          bigQueryWriteClient = bigQueryWriteClientMock,
-          projectId = PROJECT_ID,
-          datasetId = DATASET_ID,
-          latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
-          measurementsTableId = MEASUREMENTS_TABLE_ID,
-          latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
-          requisitionsTableId = REQUISITIONS_TABLE_ID,
-          latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
-          computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
-          streamWriterFactory = streamWriterFactoryTestImpl,
-          batchSize = 100,
         )
-
-      operationalMetricsExport.execute()
-
-      with(argumentCaptor<StreamMeasurementsRequest>()) {
-        verify(measurementsMock, times(2)).streamMeasurements(capture())
-        val streamMeasurementsRequest = allValues.last()
-
-        assertThat(streamMeasurementsRequest)
-          .ignoringRepeatedFieldOrder()
-          .isEqualTo(
-            streamMeasurementsRequest {
-              measurementView = Measurement.View.COMPUTATION_STATS
-              filter =
-                StreamMeasurementsRequestKt.filter {
-                  states += Measurement.State.SUCCEEDED
-                  states += Measurement.State.FAILED
-                  after =
-                    StreamMeasurementsRequestKt.FilterKt.after {
-                      updateTime = computationMeasurement.updateTime
-                      computation = computationKey {
-                        externalComputationId = computationMeasurement.externalComputationId
-                      }
-                    }
-                }
-              limit = 100
-            }
-          )
-      }
+        .thenReturn(emptyList())
     }
+
+    whenever(measurementsMock.streamMeasurements(any())).thenReturn(flowOf(COMPUTATION_MEASUREMENT))
+
+    val bigQueryMock: BigQuery = mock { bigQuery ->
+      whenever(bigQuery.query(any())).thenReturn(tableResultMock)
+    }
+
+    val operationalMetricsExport =
+      OperationalMetricsExport(
+        measurementsClient = measurementsClient,
+        requisitionsClient = requisitionsClient,
+        bigQuery = bigQueryMock,
+        bigQueryWriteClient = bigQueryWriteClientMock,
+        projectId = PROJECT_ID,
+        datasetId = DATASET_ID,
+        latestMeasurementReadTableId = LATEST_MEASUREMENT_READ_TABLE_ID,
+        measurementsTableId = MEASUREMENTS_TABLE_ID,
+        latestRequisitionReadTableId = LATEST_REQUISITION_READ_TABLE_ID,
+        requisitionsTableId = REQUISITIONS_TABLE_ID,
+        latestComputationReadTableId = LATEST_COMPUTATION_READ_TABLE_ID,
+        computationParticipantStagesTableId = COMPUTATION_PARTICIPANT_STAGES_TABLE_ID,
+        streamWriterFactory = streamWriterFactoryTestImpl,
+        batchSize = 100,
+      )
+
+    operationalMetricsExport.execute()
+
+    with(argumentCaptor<StreamMeasurementsRequest>()) {
+      verify(measurementsMock, times(2)).streamMeasurements(capture())
+      val streamMeasurementsRequest = allValues.last()
+
+      assertThat(streamMeasurementsRequest)
+        .ignoringRepeatedFieldOrder()
+        .isEqualTo(
+          streamMeasurementsRequest {
+            measurementView = Measurement.View.COMPUTATION_STATS
+            filter =
+              StreamMeasurementsRequestKt.filter {
+                states += Measurement.State.SUCCEEDED
+                states += Measurement.State.FAILED
+                after =
+                  StreamMeasurementsRequestKt.FilterKt.after {
+                    updateTime = computationMeasurement.updateTime
+                    computation = computationKey {
+                      externalComputationId = computationMeasurement.externalComputationId
+                    }
+                  }
+              }
+            limit = 100
+          }
+        )
+    }
+  }
 
   @Test
   fun `job skips direct measurements when attempting to export stages`() = runBlocking {
