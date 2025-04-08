@@ -693,7 +693,7 @@ class OperationalMetricsExportTest {
                       }
                     }
                 }
-              limit = 3000
+              limit = 1000
             }
           )
       }
@@ -776,7 +776,7 @@ class OperationalMetricsExportTest {
                       externalRequisitionId = requisition.externalRequisitionId
                     }
                 }
-              limit = 3000
+              limit = 1000
             }
           )
       }
@@ -860,7 +860,7 @@ class OperationalMetricsExportTest {
                       }
                     }
                 }
-              limit = 3000
+              limit = 1000
             }
           )
       }
@@ -872,7 +872,7 @@ class OperationalMetricsExportTest {
       .thenReturn(flowOf(DIRECT_MEASUREMENT, COMPUTATION_MEASUREMENT))
       .thenReturn(
         buildList {
-            for (i in 1..3000) {
+            for (i in 1..1000) {
               add(DIRECT_MEASUREMENT)
             }
           }

@@ -684,7 +684,7 @@ class OperationalMetricsExport(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private const val BATCH_SIZE = 3000
+    private const val BATCH_SIZE = 1000
 
     private fun getMeasurementType(
       measurementSpecByteString: com.google.protobuf.ByteString,
