@@ -43,6 +43,7 @@ edp_simulators: {
 				"--population-spec=\(_populationSpec)",
 				"--event-group-spec==\(EventGroupSpec)",
 				"--event-group-metadata==\(EventGroupSpec)",
+				"--target-qps=1.0",
 				if (edp.supportHmss) {"--support-hmss"},
 			]
 			deployment: {
