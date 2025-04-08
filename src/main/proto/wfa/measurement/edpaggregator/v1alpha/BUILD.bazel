@@ -19,3 +19,14 @@ kt_jvm_proto_library(
     name = "labeled_impression_kt_jvm_proto",
     deps = [":labeled_impression_proto"],
 )
+
+proto_library(
+    name = "encrypted_dek_proto",
+    srcs = ["encrypted_dek.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "encrypted_dek_kt_jvm_proto",
+    deps = [":encrypted_dek_proto"],
+)
