@@ -262,6 +262,10 @@ class Solver:
           np.dot(self.G, best_solution.x) - np.array(
               self.h))) if len(self.G) > 0 else 0.0
 
+    # Raise the exception when both solvers do not converge.
+    if not solution.found:
+      raise SolutionNotFoundError(solution)
+    
     report_post_processor_status = ReportPostProcessorStatus(
         error_code=error_code,
         primal_equality_residual=equality_residual,
