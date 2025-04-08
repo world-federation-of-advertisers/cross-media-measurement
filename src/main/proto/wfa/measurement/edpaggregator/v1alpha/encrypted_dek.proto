@@ -20,8 +20,14 @@ option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "EncryptedDEKProto";
 
-message EncryptedDEK {
+// Resource representing an encrypted dek
+message EncryptedDek {
+  // URI for key encryption key used with KMS
   string kek_uri = 1;
+
+  // Encrypted data encryption key
   bytes encrypted_dek = 2;
+
+  // Blob key for encrypted data
   string blob_key = 3;
 }
