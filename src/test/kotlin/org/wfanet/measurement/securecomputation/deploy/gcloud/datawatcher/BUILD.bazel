@@ -1,4 +1,3 @@
-load("@rules_java//java:defs.bzl", "java_binary")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 package(
@@ -6,26 +5,20 @@ package(
     default_visibility = ["//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__"],
 )
 
-java_binary(
-    name = "InvokeDataWatcherFunction",
-    main_class = "com.google.cloud.functions.invoker.runner.Invoker",
-    runtime_deps = [
-        "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",
-        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar",
-    ],
-)
-
 kt_jvm_test(
     name = "InvokeDataWatcherFunctionTest",
     srcs = ["InvokeDataWatcherFunctionTest.kt"],
     data = [
-        ":InvokeDataWatcherFunction",
-        ":config",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing:InvokeDataWatcherFunction",
+    ],
+    resources = [
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing:config",
     ],
     test_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.InvokeDataWatcherFunctionTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:class_loader_resources",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/testing",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:data_watcher",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:data_watcher_function",
@@ -50,9 +43,4 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub/testing:google_pub_sub_emulator_provider",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/queue:queue_subscriber",
     ],
-)
-
-filegroup(
-    name = "config",
-    srcs = ["data_watcher_config.textproto"],
 )

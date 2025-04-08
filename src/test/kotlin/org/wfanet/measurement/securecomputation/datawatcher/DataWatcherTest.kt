@@ -38,11 +38,11 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.config.securecomputation.DataWatcherConfigKt.controlPlaneConfig
-import org.wfanet.measurement.config.securecomputation.DataWatcherConfigKt.webhookConfig
+import org.wfanet.measurement.config.securecomputation.DataWatcherConfigKt.controlPlaneQueueSink
+import org.wfanet.measurement.config.securecomputation.DataWatcherConfigKt.httpEndpointsSink
 import org.wfanet.measurement.config.securecomputation.dataWatcherConfig
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.DataPathDetails
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 
@@ -61,13 +61,13 @@ class DataWatcherTest() {
   fun `sends to control plane sink when path matches`() {
     runBlocking {
       val topicId = "test-topic-id"
-      val appConfig = Int32Value.newBuilder().setValue(5).build()
+      val appParams = Int32Value.newBuilder().setValue(5).build()
 
       val dataWatcherConfig = dataWatcherConfig {
         sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
-        this.controlPlaneConfig = controlPlaneConfig {
+        this.controlPlaneQueueSink = controlPlaneQueueSink {
           queue = topicId
-          this.appConfig = Any.pack(appConfig)
+          this.appParams = Any.pack(appParams)
         }
       }
 
@@ -84,27 +84,27 @@ class DataWatcherTest() {
           .single()
           .workItem
           .workItemParams
-          .unpack<DataPathDetails>()
-      assertThat(workItemParams.dataPath)
+          .unpack<WorkItemParams>()
+      assertThat(workItemParams.dataPathParams.dataPath)
         .isEqualTo("test-schema://test-bucket/path-to-watch/some-data")
-      val workItemAppConfig = workItemParams.config.unpack<Int32Value>()
-      assertThat(workItemAppConfig).isEqualTo(appConfig)
+      val workItemAppConfig = workItemParams.appParams.unpack<Int32Value>()
+      assertThat(workItemAppConfig).isEqualTo(appParams)
     }
   }
 
   @Test
   fun `sends to webhook sink when path matches`() {
     runBlocking {
-      val appConfig =
+      val appParams =
         Struct.newBuilder()
           .putFields("some-key", Value.newBuilder().setStringValue("some-value").build())
           .build()
       val localPort = ServerSocket(0).use { it.localPort }
       val dataWatcherConfig = dataWatcherConfig {
         sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
-        this.webhookConfig = webhookConfig {
+        this.httpEndpointsSink = httpEndpointsSink {
           endpointUri = "http://localhost:$localPort"
-          this.appConfig = appConfig
+          this.appParams = appParams
         }
       }
       val server = TestServer()
@@ -131,9 +131,9 @@ class DataWatcherTest() {
 
       val dataWatcherConfig = dataWatcherConfig {
         sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
-        this.controlPlaneConfig = controlPlaneConfig {
+        this.controlPlaneQueueSink = controlPlaneQueueSink {
           queue = topicId
-          appConfig = Any.pack(Int32Value.newBuilder().setValue(5).build())
+          appParams = Any.pack(Int32Value.newBuilder().setValue(5).build())
         }
       }
 
