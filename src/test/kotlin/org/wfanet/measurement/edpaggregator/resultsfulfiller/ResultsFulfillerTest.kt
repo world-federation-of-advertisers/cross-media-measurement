@@ -1,12 +1,12 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
-import com.google.crypto.tink.aead.AeadConfig
-import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.TinkProtoKeysetFormat
+import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.TypeRegistry
@@ -88,7 +88,8 @@ class ResultsFulfillerTest {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
   }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
   private val requisitionsStub: RequisitionsCoroutineStub by lazy {
     RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
@@ -172,17 +173,17 @@ class ResultsFulfillerTest {
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
     val resultsFulfiller = ResultsFulfiller(
-            PRIVATE_ENCRYPTION_KEY,
-            requisitionsStub,
-            DATA_PROVIDER_CERTIFICATE_KEY,
-            EDP_RESULT_SIGNING_KEY,
-            typeRegistry,
-            REQUISITIONS_FILE_URI,
-            IMPRESSIONS_METADATA_FILE_URI_PREFIX,
-            kmsClient,
-            StorageConfig(rootDirectory = impressionsTmpPath),
-            StorageConfig(rootDirectory = metadataTmpPath),
-            StorageConfig(rootDirectory = requisitionsTmpPath)
+      PRIVATE_ENCRYPTION_KEY,
+      requisitionsStub,
+      DATA_PROVIDER_CERTIFICATE_KEY,
+      EDP_RESULT_SIGNING_KEY,
+      typeRegistry,
+      REQUISITIONS_FILE_URI,
+      IMPRESSIONS_METADATA_FILE_URI_PREFIX,
+      kmsClient,
+      StorageConfig(rootDirectory = impressionsTmpPath),
+      StorageConfig(rootDirectory = metadataTmpPath),
+      StorageConfig(rootDirectory = requisitionsTmpPath)
     )
 
     resultsFulfiller.fulfillRequisitions()
