@@ -81,9 +81,10 @@ class InternalReportingServer : AbstractInternalReportingServer() {
     names = ["--impression-qualification-filter-config-file"],
     description =
       [
-        "Path to file containing a ImpressionQualificationsFilterConfig protobuf message in text format"
+        "Path to file containing a ImpressionQualificationsFilterConfig protobuf message in text format. " +
+          "Required if --basic-reports-enabled is true."
       ],
-    required = true,
+    required = false,
   )
   private var impressionQualificationFilterConfigFile: File? = null
 
