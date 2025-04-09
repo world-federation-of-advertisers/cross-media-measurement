@@ -1,6 +1,8 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
+import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
@@ -39,7 +41,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.events
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.copy
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
@@ -53,7 +54,6 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.OpenEndTimeRange
-import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
@@ -67,7 +67,6 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyAndCapture
-import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
@@ -77,13 +76,11 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signRequisition
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.securecomputation.impressions.copy
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
 class ResultsFulfillerTest {
@@ -98,10 +95,14 @@ class ResultsFulfillerTest {
 
   @Test
   fun `runWork processes requisition successfully`() = runBlocking {
-    val requisitionsStorageClient = InMemoryStorageClient()
+    // Create requisitions storage client
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    Files.createDirectories(requisitionsTmpPath.resolve(REQUISITIONS_BUCKET).toPath())
+    val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, requisitionsTmpPath)
+
     // Add requisitions to storage
     requisitionsStorageClient.writeBlob(
-      REQUISITIONS_PATH,
+      REQUISITIONS_BLOB_KEY,
       REQUISITION.toString().toByteStringUtf8()
     )
 
@@ -131,14 +132,14 @@ class ResultsFulfillerTest {
     val aeadStorageClient =
       impressionsStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
 
-    // steps to write are wrap base storage in kms and wrap kms in mesos, then write
+    // Wrap aead client in mesos client
     val mesosRecordIoStorageClient = MesosRecordIoStorageClient(aeadStorageClient)
 
     val impressions =
       List(130) {
         LABELED_IMPRESSION.copy {
           vid = it.toLong()
-          impressionTime = TIME_RANGE.start.toProtoTime()
+          eventTime = TIME_RANGE.start.toProtoTime()
         }
       }
 
@@ -146,6 +147,7 @@ class ResultsFulfillerTest {
       impressions.forEach { impression -> emit(impression.toByteString()) }
     }
 
+    // Write impressions to storage
     mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
     // Create the impressions metadata store
@@ -155,7 +157,7 @@ class ResultsFulfillerTest {
       SelectedStorageClient(IMPRESSIONS_METADATA_FILE_URI, metadataTmpPath)
 
     val encryptedDek =
-      EncryptedDEK.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
+      EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
     val blobDetails =
       BlobDetails.newBuilder()
         .setBlobUri(IMPRESSIONS_FILE_URI)
@@ -169,21 +171,19 @@ class ResultsFulfillerTest {
 
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
-    val resultsFulfiller =
-      ResultsFulfiller(
-        PRIVATE_ENCRYPTION_KEY,
-        requisitionsStub,
-        DATA_PROVIDER_CERTIFICATE_KEY,
-        EDP_RESULT_SIGNING_KEY,
-        typeRegistry,
-        REQUISITIONS_PATH,
-        IMPRESSIONS_METADATA_FILE_URI_PREFIX,
-        TEST_EVENT.pack().typeUrl,
-        requisitionsStorageClient,
-        kmsClient,
-        StorageConfig(rootDirectory = impressionsTmpPath),
-        StorageConfig(rootDirectory = metadataTmpPath)
-      )
+    val resultsFulfiller = ResultsFulfiller(
+            PRIVATE_ENCRYPTION_KEY,
+            requisitionsStub,
+            DATA_PROVIDER_CERTIFICATE_KEY,
+            EDP_RESULT_SIGNING_KEY,
+            typeRegistry,
+            REQUISITIONS_FILE_URI,
+            IMPRESSIONS_METADATA_FILE_URI_PREFIX,
+            kmsClient,
+            StorageConfig(rootDirectory = impressionsTmpPath),
+            StorageConfig(rootDirectory = metadataTmpPath),
+            StorageConfig(rootDirectory = requisitionsTmpPath)
+    )
 
     resultsFulfiller.fulfillRequisitions()
 
@@ -266,27 +266,17 @@ class ResultsFulfillerTest {
       .asIterable()
   }
 
-  companion object {
+  init {
+    AeadConfig.register()
+    StreamingAeadConfig.register()
+  }
 
+  companion object {
     private val LAST_EVENT_DATE = LocalDate.now()
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
     private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
     private const val REACH_TOLERANCE = 6.0
     private const val FREQUENCY_DISTRIBUTION_TOLERANCE = 1.0
-
-    private val SYNTHETIC_DATA_SPEC =
-      SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL.first().copy {
-        dateSpecs.forEachIndexed { index, dateSpec ->
-          dateSpecs[index] =
-            dateSpec.copy {
-              dateRange =
-                SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
-                  start = FIRST_EVENT_DATE.toProtoDate()
-                  endExclusive = (LAST_EVENT_DATE.plusDays(1)).toProtoDate()
-                }
-            }
-        }
-      }
 
     private val PERSON = person {
       ageGroup = Person.AgeGroup.YEARS_18_TO_34
@@ -298,10 +288,9 @@ class ResultsFulfillerTest {
 
     private val LABELED_IMPRESSION =
       LabeledImpression.newBuilder()
-        .setImpressionTime(Timestamp.getDefaultInstance())
+        .setEventTime(Timestamp.getDefaultInstance())
         .setVid(10L)
-        .putEventTemplateMap(
-          ProtoReflection.getTypeUrl(TestEvent.getDescriptor()),
+        .setEvent(
           TEST_EVENT.pack()
         )
         .build()
@@ -318,11 +307,11 @@ class ResultsFulfillerTest {
           Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
         )
       )
-    private const val MC_ID = "mc"
+    private const val MEASUREMENT_CONSUMER_ID = "mc"
     private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
     private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
     private const val REQUISITION_NAME = "$DATA_PROVIDER_NAME/requisitions/foo"
-    private val MC_SIGNING_KEY = loadSigningKey("${MC_ID}_cs_cert.der", "${MC_ID}_cs_private.der")
+    private val MC_SIGNING_KEY = loadSigningKey("${MEASUREMENT_CONSUMER_ID}_cs_cert.der", "${MEASUREMENT_CONSUMER_ID}_cs_private.der")
     private val DATA_PROVIDER_PUBLIC_KEY: EncryptionPublicKey =
       loadPublicKey(SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_enc_public.tink").toFile())
         .toEncryptionPublicKey()
@@ -415,20 +404,21 @@ class ResultsFulfillerTest {
       )
     }
 
-    private val REQUISTION_STORAGE_PREFIX = "test/test-requisitions"
-    private val REQUISITIONS_PATH = "$REQUISTION_STORAGE_PREFIX/${REQUISITION.name}"
+    private const val REQUISITIONS_BUCKET = "requisitions-bucket"
+    private const val REQUISITIONS_BLOB_KEY = "requisitions"
+    private const val REQUISITIONS_FILE_URI = "file:///$REQUISITIONS_BUCKET/$REQUISITIONS_BLOB_KEY"
 
-    private val IMPRESSIONS_BUCKET = "impression-bucket"
-    private val IMPRESSIONS_BLOB_KEY = "impressions"
-    private val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET/$IMPRESSIONS_BLOB_KEY"
+    private const val IMPRESSIONS_BUCKET = "impression-bucket"
+    private const val IMPRESSIONS_BLOB_KEY = "impressions"
+    private const val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET/$IMPRESSIONS_BLOB_KEY"
 
-    private val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
+    private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
     private val IMPRESSION_METADATA_BLOB_KEY =
       "ds/${TIME_RANGE.start}/event-group-id/$EVENT_GROUP_NAME/metadata"
 
     private val IMPRESSIONS_METADATA_FILE_URI =
       "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
 
-    private val IMPRESSIONS_METADATA_FILE_URI_PREFIX = "file:///$IMPRESSIONS_METADATA_BUCKET"
+    private const val IMPRESSIONS_METADATA_FILE_URI_PREFIX = "file:///$IMPRESSIONS_METADATA_BUCKET"
   }
 }

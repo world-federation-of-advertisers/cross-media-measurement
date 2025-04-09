@@ -54,7 +54,6 @@ import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.sampling.VidSampler
@@ -70,19 +69,18 @@ data class StorageConfig(
 
 
 class ResultsFulfiller(
-       private val privateEncryptionKey: PrivateKeyHandle,
-       private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
-       private val dataProviderCertificateKey: DataProviderCertificateKey,
-       private val dataProviderSigningKeyHandle: SigningKeyHandle,
-       private val typeRegistry: TypeRegistry,
-       private val requisitionsPath: String,
-       private val labeledImpressionMetadataPrefix: String,
-       private val eventTemplateTypeUrl: String,
-       private val requisitionsStorageClient: StorageClient,
-       private val kmsClient: KmsClient,
-       private val impressionsStorageConfig: StorageConfig,
-       private val impressionMetadataStorageConfig: StorageConfig,
-       private val random: Random = Random,
+        private val privateEncryptionKey: PrivateKeyHandle,
+        private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
+        private val dataProviderCertificateKey: DataProviderCertificateKey,
+        private val dataProviderSigningKeyHandle: SigningKeyHandle,
+        private val typeRegistry: TypeRegistry,
+        private val requisitionsBlobUri: String,
+        private val labeledImpressionMetadataPrefix: String,
+        private val kmsClient: KmsClient,
+        private val impressionsStorageConfig: StorageConfig,
+        private val impressionMetadataStorageConfig: StorageConfig,
+        private val requisitionsStorageConfig: StorageConfig,
+        private val random: Random = Random,
  ) {
  suspend fun fulfillRequisitions() {
    val requisitions = getRequisitions(requisitionsPath)
@@ -453,9 +451,11 @@ class ResultsFulfiller(
 
 
  private suspend fun getRequisitions(blobKey: String): List<Requisition> {
-   // Gets path to list of new requisitions in blob storage
-   val requisitionBlob = requisitionsStorageClient.getBlob(blobKey)!!
-   val requisitionData = requisitionBlob.read().reduce { acc, byteString -> acc.concat(byteString) }.toStringUtf8()
+     // Gets path to list of new requisitions in blob storage
+     val storageClientUri = SelectedStorageClient.parseBlobUri(requisitionsBlobUri)
+     val requisitionsStorageClient = createStorageClient(storageClientUri, requisitionsStorageConfig)
+     val requisitionBlob = requisitionsStorageClient.getBlob(storageClientUri.key)!!
+     val requisitionData = requisitionBlob.read().reduce { acc, byteString -> acc.concat(byteString) }.toStringUtf8()
    val requisition = Requisition.getDefaultInstance()
      .newBuilderForType()
      .apply {
@@ -582,17 +582,6 @@ class ResultsFulfiller(
      labeledImpression.impressionTime.toInstant() >= collectionInterval.startTime.toInstant() &&
        labeledImpression.impressionTime.toInstant() < collectionInterval.endTime.toInstant()
 
-
-   // Process event template filter
-   val eventTemplateDescriptor = typeRegistry.getDescriptorForTypeUrl(eventTemplateTypeUrl)
-   val eventMessageData = labeledImpression.eventTemplateMapMap[eventTemplateTypeUrl]
-   val eventMessage = DynamicMessage.parseFrom(eventTemplateDescriptor, eventMessageData?.value)
-   val program = compileProgram(eventGroup.value.filter, eventTemplateDescriptor)
-
-
-   val passesFilter = EventFilters.matches(eventMessage, program)
-
-
    // Check if VID is in sampling bucket
    val isInSamplingInterval = sampler.vidIsInSamplingBucket(
      labeledImpression.vid,
@@ -600,8 +589,17 @@ class ResultsFulfiller(
      vidSamplingIntervalWidth
    )
 
+     // Process event template filter
+     val eventMessageData = labeledImpression.event!!
+     val eventTemplateDescriptor = typeRegistry.getDescriptorForTypeUrl(eventMessageData.typeUrl)
+     val eventMessage = DynamicMessage.parseFrom(eventTemplateDescriptor, eventMessageData.value)
+     val program = compileProgram(eventGroup.value.filter, eventTemplateDescriptor)
 
-   // Return true only if all conditions are met
+     val passesFilter = EventFilters.matches(eventMessage, program)
+
+
+
+     // Return true only if all conditions are met
    return isInCollectionInterval && passesFilter && isInSamplingInterval
  }
 
