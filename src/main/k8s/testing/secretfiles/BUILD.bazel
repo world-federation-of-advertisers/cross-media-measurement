@@ -242,9 +242,9 @@ DATA_WATCHER_SECRET_FILES = [
 ]
 
 filegroup(
-    name = "data_watcher_secret_files",
+    name = "data_watcher_certs",
     srcs = DATA_WATCHER_SECRET_FILES,
-    visibility = ["//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:__subpackages__"],
+    visibility = ["//visibility:public"],
 )
 
 pkg_tar(
