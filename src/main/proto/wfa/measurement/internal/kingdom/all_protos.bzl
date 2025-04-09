@@ -64,6 +64,7 @@ KINGDOM_INTERNAL_ENTITY_PROTOS = [
     "//src/main/proto/wfa/measurement/internal/kingdom:measurement_log_entry_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:duchy_measurement_log_entry_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:state_transition_measurement_log_entry_kt_jvm_proto",
+    "//src/main/proto/wfa/measurement/internal/kingdom:media_type_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_provider_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_shard_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",

@@ -45,18 +45,21 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.deleteEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
@@ -80,8 +83,10 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
+import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.MediaType as InternalMediaType
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
@@ -160,6 +165,17 @@ private val EVENT_GROUP: EventGroup = eventGroup {
   }
   vidModelLines.addAll(VID_MODEL_LINES)
   eventTemplates.addAll(EVENT_TEMPLATES)
+  mediaTypes += MediaType.VIDEO
+  eventGroupMetadata = eventGroupMetadata {
+    adMetadata =
+      EventGroupMetadataKt.adMetadata {
+        campaignMetadata =
+          EventGroupMetadataKt.AdMetadataKt.campaignMetadata {
+            brandName = "Blammo!"
+            campaignName = "Log: Better Than Bad"
+          }
+      }
+  }
   encryptedMetadata = ENCRYPTED_METADATA
   // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this field.
   serializedEncryptedMetadata = ENCRYPTED_METADATA.ciphertext
@@ -179,11 +195,24 @@ private val INTERNAL_EVENT_GROUP: InternalEventGroup = internalEventGroup {
   externalMeasurementConsumerId = MEASUREMENT_CONSUMER_EXTERNAL_ID
   providedEventGroupId = EVENT_GROUP.eventGroupReferenceId
   createTime = CREATE_TIME
+  mediaTypes += InternalMediaType.VIDEO
   details = eventGroupDetails {
     apiVersion = API_VERSION.string
     measurementConsumerPublicKey = EVENT_GROUP.measurementConsumerPublicKey.value
     vidModelLines.addAll(VID_MODEL_LINES)
     eventTemplates.addAll(INTERNAL_EVENT_TEMPLATES)
+    metadata =
+      EventGroupDetailsKt.eventGroupMetadata {
+        adMetadata =
+          EventGroupDetailsKt.EventGroupMetadataKt.adMetadata {
+            campaignMetadata =
+              EventGroupDetailsKt.EventGroupMetadataKt.AdMetadataKt.campaignMetadata {
+                brandName = EVENT_GROUP.eventGroupMetadata.adMetadata.campaignMetadata.brandName
+                campaignName =
+                  EVENT_GROUP.eventGroupMetadata.adMetadata.campaignMetadata.campaignName
+              }
+          }
+      }
     encryptedMetadata = ENCRYPTED_METADATA.ciphertext
   }
   state = InternalEventGroup.State.ACTIVE
