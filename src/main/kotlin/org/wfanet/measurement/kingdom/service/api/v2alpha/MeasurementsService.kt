@@ -94,7 +94,7 @@ import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
-private const val MAX_BATCH_SIZE = 100
+private const val MAX_BATCH_SIZE = 1000
 
 private const val MISSING_RESOURCE_NAME_ERROR = "Resource name is either unspecified or invalid"
 
