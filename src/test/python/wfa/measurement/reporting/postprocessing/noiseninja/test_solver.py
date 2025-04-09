@@ -23,8 +23,8 @@ from noiseninja.solver import Solver
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_post_processor_result_pb2
 
-ReportPostProcessorErrorCode = report_post_processor_result_pb2.ReportPostProcessorErrorCode
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
+StatusCode = ReportPostProcessorStatus.StatusCode
 
 HIGHS_SOLVER = "highs"
 TOLERANCE = 1e-1
@@ -51,7 +51,7 @@ class SolverTest(unittest.TestCase):
       if solver_name == HIGHS_SOLVER:
         return Solution(x=None, found=False, problem=solver._problem()), \
           ReportPostProcessorStatus(
-              error_code=ReportPostProcessorErrorCode.SOLUTION_NOT_FOUND
+              status_code=StatusCode.SOLUTION_NOT_FOUND
           )
       else:
         # Call the original function for other solvers.
@@ -66,8 +66,8 @@ class SolverTest(unittest.TestCase):
     highs_solution, report_post_processor_status = solver._solve(HIGHS_SOLVER)
     self.assertFalse(highs_solution.found)
     self.assertEqual(
-        report_post_processor_status.error_code,
-        ReportPostProcessorErrorCode.SOLUTION_NOT_FOUND
+        report_post_processor_status.status_code,
+        StatusCode.SOLUTION_NOT_FOUND
     )
 
     # Due to the fact that HIGHS solver returns a non-solution, the back-up
@@ -75,8 +75,8 @@ class SolverTest(unittest.TestCase):
     solution, report_post_processor_status = solver.solve_and_translate()
 
     self.assertEqual(
-        report_post_processor_status.error_code,
-        ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_OSQP
+        report_post_processor_status.status_code,
+        StatusCode.SOLUTION_FOUND_WITH_OSQP
     )
     self.assertLess(
         max(report_post_processor_status.primal_equality_residual,
@@ -107,9 +107,9 @@ class SolverTest(unittest.TestCase):
     solution, report_post_processor_status = Solver(spec).solve_and_translate()
 
     self.assertIn(
-        report_post_processor_status.error_code,
-        [ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS,
-         ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_OSQP]
+        report_post_processor_status.status_code,
+        [StatusCode.SOLUTION_FOUND_WITH_HIGHS,
+         StatusCode.SOLUTION_FOUND_WITH_OSQP]
     )
     self.assertLess(
         max(report_post_processor_status.primal_equality_residual,
@@ -143,9 +143,9 @@ class SolverTest(unittest.TestCase):
     solution, report_post_processor_status = Solver(spec).solve_and_translate()
 
     self.assertIn(
-        report_post_processor_status.error_code,
-        [ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS,
-         ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_OSQP]
+        report_post_processor_status.status_code,
+        [StatusCode.SOLUTION_FOUND_WITH_HIGHS,
+         StatusCode.SOLUTION_FOUND_WITH_OSQP]
     )
 
     self.assertLess(
@@ -180,9 +180,9 @@ class SolverTest(unittest.TestCase):
     solution, report_post_processor_status = Solver(spec).solve_and_translate()
 
     self.assertIn(
-        report_post_processor_status.error_code,
-        [ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS,
-         ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_OSQP]
+        report_post_processor_status.status_code,
+        [StatusCode.SOLUTION_FOUND_WITH_HIGHS,
+         StatusCode.SOLUTION_FOUND_WITH_OSQP]
     )
 
     self.assertLess(
@@ -197,6 +197,7 @@ class SolverTest(unittest.TestCase):
     self.assertGreaterEqual(solution[2], 0.0)
     self.assertGreaterEqual(solution[3], 0.0)
     self.assertGreaterEqual(solution[4], 0.0)
+
 
 if __name__ == "__main__":
   unittest.main()

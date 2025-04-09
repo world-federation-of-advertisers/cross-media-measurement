@@ -25,8 +25,8 @@ from noiseninja.noised_measurements import SetMeasurementsSpec
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_post_processor_result_pb2
 
-ReportPostProcessorErrorCode = report_post_processor_result_pb2.ReportPostProcessorErrorCode
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
+StatusCode = ReportPostProcessorStatus.StatusCode
 
 TOLERANCE = 1e-1
 HIGHS_SOLVER = "highs"
@@ -216,8 +216,7 @@ class Solver:
     smallest_residual = float('inf')
     equality_residual = float('inf')
     inequality_residual = float('inf')
-    error_code: ReportPostProcessorErrorCode = \
-      ReportPostProcessorErrorCode.SOLUTION_NOT_FOUND
+    status_code: StatusCode = StatusCode.SOLUTION_NOT_FOUND
 
     while attempt_count < MAX_ATTEMPTS:
       # The solver is not thread-safe in general. Synchronization mechanism is
@@ -236,9 +235,9 @@ class Solver:
         # If a solution is found, updates the error code and stops.
         if smallest_primal_residual < TOLERANCE:
           if solver_name == HIGHS_SOLVER:
-            error_code = ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS
+            status_code = StatusCode.SOLUTION_FOUND_WITH_HIGHS
           elif solver_name == OSQP_SOLVER:
-            error_code = ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_OSQP
+            status_code = StatusCode.SOLUTION_FOUND_WITH_OSQP
           else:
             raise ValueError(f"Unknown solver: {solver_name}")
           break
@@ -248,9 +247,9 @@ class Solver:
       # Overrides the error code if this is a partial solution.
       if smallest_primal_residual >= TOLERANCE:
         if solver_name == HIGHS_SOLVER:
-          error_code = ReportPostProcessorErrorCode.PARTIAL_SOLUTION_FOUND_WITH_HIGHS
+          status_code = StatusCode.PARTIAL_SOLUTION_FOUND_WITH_HIGHS
         elif solver_name == OSQP_SOLVER:
-          error_code = ReportPostProcessorErrorCode.PARTIAL_SOLUTION_FOUND_WITH_OSQP
+          status_code = StatusCode.PARTIAL_SOLUTION_FOUND_WITH_OSQP
         else:
           raise ValueError(f"Unknown solver: {solver_name}")
 
@@ -263,7 +262,7 @@ class Solver:
               self.h))) if len(self.G) > 0 else 0.0
 
     report_post_processor_status = ReportPostProcessorStatus(
-        error_code=error_code,
+        status_code=status_code,
         primal_equality_residual=equality_residual,
         primal_inequality_residual=inequality_residual,
     )

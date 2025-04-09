@@ -20,38 +20,63 @@ option java_package = "org.wfanet.measurement.reporting.postprocessing.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ReportPostProcessorResultProto";
 
-// The outcome of the QP solver process after attempting noise correction.
-enum ReportPostProcessorErrorCode {
-  // Default value, indicating status was not explicitly set or is unknown.
-  REPORT_POST_PROCESSING_ERROR_CODE_UNSPECIFIED = 0;
-
-  // No feasible or optimal solution satisfying constraints was found.
-  SOLUTION_NOT_FOUND = 1;
-
-  // HIGHS solver found a solution meeting the required tolerance (e.g., primal
-  // residual is smaller than the TOLERANCE).
-  SOLUTION_FOUND_WITH_HIGHS = 2;
-
-  // OSQP solver found a solution meeting the required tolerance (after HIGHS
-  // solver failed).
-  SOLUTION_FOUND_WITH_OSQP = 3;
-
-  // HIGHS solver converged to a solution, but it did not meet the required
-  // tolerance (e.g., primal residual >= TOLERANCE).
-  PARTIAL_SOLUTION_FOUND_WITH_HIGHS = 4;
-
-  // OSQP solver converged to a solution, but it did not meet the required
-  // tolerance.
-  PARTIAL_SOLUTION_FOUND_WITH_OSQP = 5;
-}
-
+// Contains details about the outcome of the Quadratic Programming (QP)
+// solver used for report post processing.
 message ReportPostProcessorStatus {
-  ReportPostProcessorErrorCode error_code = 1;
+  // Enum defining the possible outcomes of the QP solver process.
+  enum StatusCode {
+    // Default value, indicating status was not explicitly set or is unknown.
+    REPORT_POST_PROCESSING_ERROR_CODE_UNSPECIFIED = 0;
+
+    // No feasible or optimal solution satisfying constraints was found.
+    SOLUTION_NOT_FOUND = 1;
+
+    // HIGHS solver found a solution meeting the required tolerance (e.g.,
+    // primal residual is smaller than the TOLERANCE).
+    SOLUTION_FOUND_WITH_HIGHS = 2;
+
+    // OSQP solver found a solution meeting the required tolerance (after HIGHS
+    // solver failed).
+    SOLUTION_FOUND_WITH_OSQP = 3;
+
+    // HIGHS solver converged to a solution, but it did not meet the required
+    // tolerance (e.g., primal residual >= TOLERANCE).
+    PARTIAL_SOLUTION_FOUND_WITH_HIGHS = 4;
+
+    // OSQP solver converged to a solution, but it did not meet the required
+    // tolerance.
+    PARTIAL_SOLUTION_FOUND_WITH_OSQP = 5;
+  }
+
+  // The final status code indicating the overall outcome of the solver stage
+  // (success, partial success, or failure), including which solver produced
+  // the result.
+  StatusCode status_code = 1;
+
+  // The primal equality residual associated with equality constraints Ax = b
+  // for the selected solution. This represents the maximum absolute violation
+  // across all equality constraints: max(||Ax - b||_inf).
+  // If no solution is found, the primal equality residual is set to inf.
   double primal_equality_residual = 2;
+
+  // The primal inequality residual associated with inequality constraints
+  // Gx <= h for the selected solution. This represents the maximum violation
+  // across all inequality constraints: max(||max(Gx - h, 0)||_inf).
+  // If no solution is found, the primal inequality residual is set to inf.
   double primal_inequality_residual = 3;
 }
 
+// The result message encapsulating the entire outcome of the post-processing
+// pipeline for a single report.
 message ReportPostProcessorResult {
+  // Stores the corrected value for each measurement, identified by its unique
+  // name. This map is populated if and only if the solver found a solution
+  // (i.e. when the status.status_code is not SOLUTION_NOT_FOUND).
   map<string, int64> updated_measurements = 1;
+
+  // Contains the detailed status and metrics from the QP solver step. The
+  // status indicates if the report post processor found a solution, a partial
+  // solution, or fail to find any. It also provides metrics such as the primal
+  // equality and inequality residuals.
   ReportPostProcessorStatus status = 2;
 }

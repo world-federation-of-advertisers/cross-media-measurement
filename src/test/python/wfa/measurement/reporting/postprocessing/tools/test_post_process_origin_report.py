@@ -26,7 +26,7 @@ from tools.post_process_origin_report import ReportSummaryProcessor
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_post_processor_result_pb2
 
-ReportPostProcessorErrorCode = report_post_processor_result_pb2.ReportPostProcessorErrorCode
+StatusCode = report_post_processor_result_pb2.ReportPostProcessorStatus.StatusCode
 
 TOLERANCE = 1
 NOISE_CORRECTION_TOLETANCE = 0.1
@@ -361,8 +361,8 @@ class TestOriginReport(unittest.TestCase):
     num_frequencies = 5
 
     corrected_measurements_map = noise_correction_result.updated_measurements
-    self.assertEqual(noise_correction_result.status.error_code,
-                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertEqual(noise_correction_result.status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
     self.assertLess(noise_correction_result.status.primal_equality_residual,
                     NOISE_CORRECTION_TOLETANCE)
     self.assertLess(noise_correction_result.status.primal_inequality_residual,

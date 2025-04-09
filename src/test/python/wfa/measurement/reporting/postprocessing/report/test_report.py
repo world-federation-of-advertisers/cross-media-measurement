@@ -25,7 +25,7 @@ from report.report import is_cover
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_post_processor_result_pb2
 
-ReportPostProcessorErrorCode = report_post_processor_result_pb2.ReportPostProcessorErrorCode
+StatusCode = report_post_processor_result_pb2.ReportPostProcessorStatus.StatusCode
 
 EXPECTED_PRECISION = 1
 EDP_ONE = "EDP_ONE"
@@ -1095,8 +1095,8 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.assertEqual(report_post_processor_status.error_code,
-                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertEqual(report_post_processor_status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
     self.assertLess(report_post_processor_status.primal_equality_residual,
                     NOISE_CORRECTION_TOLERANCE)
     self.assertLess(report_post_processor_status.primal_inequality_residual,
@@ -1222,8 +1222,8 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.assertEqual(report_post_processor_status.error_code,
-                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertEqual(report_post_processor_status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
     self.assertLess(report_post_processor_status.primal_equality_residual,
                     NOISE_CORRECTION_TOLERANCE)
     self.assertLess(report_post_processor_status.primal_inequality_residual,
@@ -1375,8 +1375,8 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.assertEqual(report_post_processor_status.error_code,
-                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertEqual(report_post_processor_status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
     self.assertLess(report_post_processor_status.primal_equality_residual,
                     NOISE_CORRECTION_TOLERANCE)
     self.assertLess(report_post_processor_status.primal_inequality_residual,
@@ -1492,8 +1492,8 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.assertEqual(report_post_processor_status.error_code,
-                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertEqual(report_post_processor_status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
     self.assertLess(report_post_processor_status.primal_equality_residual,
                     NOISE_CORRECTION_TOLERANCE)
     self.assertLess(report_post_processor_status.primal_inequality_residual,
@@ -1558,8 +1558,8 @@ class TestReport(unittest.TestCase):
             frozenset({EDP_ONE})),
     )
 
-    self.assertEqual(report_post_processor_status.error_code,
-                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertEqual(report_post_processor_status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
     self.assertLess(report_post_processor_status.primal_equality_residual,
                     NOISE_CORRECTION_TOLERANCE)
     self.assertLess(report_post_processor_status.primal_inequality_residual,
@@ -1635,8 +1635,8 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.assertEqual(report_post_processor_status.error_code,
-                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertEqual(report_post_processor_status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
     self.assertLess(report_post_processor_status.primal_equality_residual,
                     NOISE_CORRECTION_TOLERANCE)
     self.assertLess(report_post_processor_status.primal_inequality_residual,
@@ -1713,8 +1713,8 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.assertEqual(report_post_processor_status.error_code,
-                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertEqual(report_post_processor_status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
     self.assertLess(report_post_processor_status.primal_equality_residual,
                     NOISE_CORRECTION_TOLERANCE)
     self.assertLess(report_post_processor_status.primal_inequality_residual,
@@ -1878,8 +1878,8 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.assertEqual(report_post_processor_status.error_code,
-                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertEqual(report_post_processor_status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
     self.assertLess(report_post_processor_status.primal_equality_residual,
                     NOISE_CORRECTION_TOLERANCE)
     self.assertLess(report_post_processor_status.primal_inequality_residual,
@@ -1992,8 +1992,8 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.assertEqual(report_post_processor_status.error_code,
-                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertEqual(report_post_processor_status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
     self.assertLess(report_post_processor_status.primal_equality_residual,
                     NOISE_CORRECTION_TOLERANCE)
     self.assertLess(report_post_processor_status.primal_inequality_residual,
@@ -2156,8 +2156,8 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    self.assertEqual(report_post_processor_status.error_code,
-                     ReportPostProcessorErrorCode.SOLUTION_FOUND_WITH_HIGHS)
+    self.assertEqual(report_post_processor_status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
     self.assertLess(report_post_processor_status.primal_equality_residual,
                     NOISE_CORRECTION_TOLERANCE)
     self.assertLess(report_post_processor_status.primal_inequality_residual,

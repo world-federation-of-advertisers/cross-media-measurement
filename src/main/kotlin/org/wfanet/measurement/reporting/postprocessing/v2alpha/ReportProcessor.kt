@@ -29,6 +29,8 @@ import org.wfanet.measurement.reporting.v2alpha.copy
 
 class ReportProcessorFailureException(message: String) : RuntimeException(message)
 
+class ReportProcessorSolutionNotFoundException(message: String) : RuntimeException(message)
+
 /** Corrects the inconsistent measurements in a serialized [Report]. */
 interface ReportProcessor {
   /**
@@ -132,12 +134,14 @@ interface ReportProcessor {
       val correctedMeasurementsMap = mutableMapOf<String, Long>()
 
       // Extracts the list of updated measurements if a solution is found.
-      if (result.status.errorCode != ReportPostProcessorErrorCode.SOLUTION_NOT_FOUND) {
+      if (result.status.statusCode != ReportPostProcessorStatus.StatusCode.SOLUTION_NOT_FOUND) {
         result.updatedMeasurementsMap.forEach { (key, value) ->
           correctedMeasurementsMap[key] = value
         }
       } else {
-        logger.info { "No solution found.." }
+        throw ReportProcessorSolutionNotFoundException(
+          "Report Post Processor cannot find a solution."
+        )
       }
 
       return correctedMeasurementsMap
