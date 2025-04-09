@@ -74,8 +74,44 @@ class DataWatcher(
         runBlocking {
           workItemsService.createWorkItem(createWorkItemRequest)
         }
+      } catch (e: Exception) {
+        logger.severe("${config.name}: Unable to process $path for $config: ${e.message}")
       }
     }
+  }
+
+  private suspend fun send_to_control_plane(config: DataWatcherConfig, path: String) {
+
+    val queueConfig = config.controlPlaneQueueSink
+    val workItemId = UUID.randomUUID().toString()
+    val workItemParams =
+      workItemParams {
+          appParams = queueConfig.appParams
+          this.dataPathParams = dataPathParams { this.dataPath = path }
+        }
+        .pack()
+    val request = createWorkItemRequest {
+      this.workItemId = workItemId
+      this.workItem = workItem {
+        queue = queueConfig.queue
+        this.workItemParams = workItemParams
+      }
+    }
+    workItemsStub.createWorkItem(request)
+  }
+
+  private suspend fun send_to_http_endpoint(config: DataWatcherConfig) {
+    val httpEndpointConfig = config.httpEndpointsSink
+    val client = HttpClient.newHttpClient()
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create(httpEndpointConfig.endpointUri))
+        .POST(HttpRequest.BodyPublishers.ofString(httpEndpointConfig.appParams.toJson()))
+        .build()
+    val response = client.send(request, BodyHandlers.ofString())
+    logger.info("${config.name}: Response status: ${response.statusCode()}")
+    logger.info("${config.name}: Response body: ${response.body()}")
+    check(response.statusCode() == 200)
   }
 
   companion object {

@@ -33,7 +33,7 @@ message DataWatcherConfig {
   }
 
   // The path to watch
-  string source_path_regex = 1;
+  string source_path_regex = 2;
 
   message QueueConfig {
     string queue_name = 1;
