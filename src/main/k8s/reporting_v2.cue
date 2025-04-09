@@ -139,7 +139,7 @@ package k8s
 						_debugVerboseGrpcServerLoggingFlag,
 						"--port=8443",
 						"--health-port=8080",
-						"--basic-reports-enabled=true",
+						"--basic-reports-enabled=" + Reporting._basicReportsEnabled,
 						_impressionQualificationFilterConfigFileFlag,
 			] + _postgresConfig.flags + _reportingSpannerConfig.flags + _tlsArgs
 
