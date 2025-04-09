@@ -17,16 +17,17 @@ syntax = "proto3";
 package wfa.measurement.securecomputation.impressions;
 
 import "google/api/field_behavior.proto";
+import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
-option java_outer_classname = "EncryptedDekProto";
+option java_outer_classname = "BlobInfoProto";
 
-// Resource representing an encrypted dek
-message EncryptedDek {
-  // The URI for the key encryption key used with KMS
-  string kek_uri = 1 [(google.api.field_behavior) = REQUIRED];
+// Resource representing the info needed to retrieve a decrypted blob from storage
+message BlobInfo {
+  // The blob URI for encrypted data
+  string blob_uri = 1 [(google.api.field_behavior) = REQUIRED];
 
-  // The encrypted data encryption key
-  bytes encrypted_dek = 2 [(google.api.field_behavior) = REQUIRED];
+  // The encrypted dek used with KMS to decrypt data
+  EncryptedDek encrypted_dek = 2 [(google.api.field_behavior) = REQUIRED];
 }

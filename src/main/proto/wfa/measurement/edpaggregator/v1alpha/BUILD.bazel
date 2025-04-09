@@ -18,3 +18,18 @@ kt_jvm_proto_library(
     name = "encrypted_dek_kt_jvm_proto",
     deps = [":encrypted_dek_proto"],
 )
+
+proto_library(
+    name = "blob_info_proto",
+    srcs = ["blob_info.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        ":encrypted_dek_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "blob_info_kt_jvm_proto",
+    deps = [":blob_info_proto"],
+)
