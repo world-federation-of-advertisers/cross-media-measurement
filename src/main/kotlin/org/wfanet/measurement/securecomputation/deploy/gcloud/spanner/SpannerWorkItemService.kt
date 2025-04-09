@@ -37,7 +37,6 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsG
 import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
-import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItemAttempt
@@ -59,7 +58,7 @@ class SpannerWorkItemsService(
   private val databaseClient: AsyncDatabaseClient,
   private val queueMapping: QueueMapping,
   private val idGenerator: IdGenerator,
-  private val workItemPublisher: WorkItemPublisher
+  private val workItemPublisher: WorkItemPublisher,
 ) : WorkItemsCoroutineImplBase() {
 
   override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
@@ -79,21 +78,28 @@ class SpannerWorkItemsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val queue = try {
-      getQueueByResourceId(request.workItem.queueResourceId)
-    } catch (e: QueueNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-    }
+    val queue =
+      try {
+        getQueueByResourceId(request.workItem.queueResourceId)
+      } catch (e: QueueNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      }
 
-    val transactionRunner = databaseClient.readWriteTransaction(Options.tag("action=createWorkItem"))
+    val transactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=createWorkItem"))
 
     val workItem =
       try {
         transactionRunner.run { txn ->
           val workItemId: Long = idGenerator.generateNewId { id -> txn.workItemIdExists(id) }
 
-          val state =
-            txn.insertWorkItem(workItemId, request.workItem.workItemResourceId, queue.queueId)
+          val state: WorkItem.State =
+            txn.insertWorkItem(
+              workItemId,
+              request.workItem.workItemResourceId,
+              queue.queueId,
+              request.workItem.workItemParams,
+            )
 
           request.workItem.copy { this.state = state }
         }
@@ -107,25 +113,22 @@ class SpannerWorkItemsService(
       }
 
     val commitTimestamp = transactionRunner.getCommitTimestamp().toProto()
-    val result = workItem {
-      queueResourceId = workItem.queueResourceId
-      workItemResourceId = workItem.workItemResourceId
-      state = workItem.state
-      createTime = commitTimestamp
-      updateTime = commitTimestamp
-    }
+    val result =
+      workItem.copy {
+        createTime = commitTimestamp
+        updateTime = commitTimestamp
+      }
 
     try {
-      workItemPublisher.publishMessage(request.workItem.queueResourceId, request.workItem.workItemParams)
+      workItemPublisher.publishMessage(
+        request.workItem.queueResourceId,
+        request.workItem.workItemParams,
+      )
     } catch (e: Exception) {
-      throw Status.INTERNAL
-        .withDescription(e.message)
-        .withCause(e)
-        .asRuntimeException()
+      throw Status.INTERNAL.withCause(e).asRuntimeException()
     }
 
     return result
-
   }
 
   override suspend fun getWorkItem(request: GetWorkItemRequest): WorkItem {
@@ -201,7 +204,7 @@ class SpannerWorkItemsService(
           val workItemResult = txn.getWorkItemByResourceId(queueMapping, request.workItemResourceId)
           val state = txn.failWorkItem(workItemResult.workItemId)
           txn.readWorkItemAttempts(MAX_PAGE_SIZE, request.workItemResourceId).collect {
-            workItemAttempt ->
+              workItemAttempt ->
             txn.failWorkItemAttempt(workItemResult.workItemId, workItemAttempt.workItemAttemptId)
           }
           workItemResult.workItem.copy { this.state = state }

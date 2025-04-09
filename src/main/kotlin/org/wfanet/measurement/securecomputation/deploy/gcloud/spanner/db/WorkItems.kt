@@ -20,6 +20,7 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
+import com.google.protobuf.Any
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.singleOrNullIfEmpty
@@ -66,6 +67,7 @@ fun AsyncDatabaseClient.TransactionContext.insertWorkItem(
   workItemId: Long,
   workItemResourceId: String,
   queueId: Long,
+  workItemParams: Any,
 ): WorkItem.State {
   val state = WorkItem.State.QUEUED
   bufferInsertMutation("WorkItems") {
@@ -73,6 +75,7 @@ fun AsyncDatabaseClient.TransactionContext.insertWorkItem(
     set("WorkItemResourceId").to(workItemResourceId)
     set("QueueId").to(queueId)
     set("State").to(state)
+    set("WorkItemParams").to(workItemParams)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
@@ -95,9 +98,9 @@ suspend fun AsyncDatabaseClient.ReadContext.getWorkItemByResourceId(
   }
   val row: Struct =
     executeQuery(
-        statement(sql) { bind("workItemResourceId").to(workItemResourceId) },
-        Options.tag("action=getWorkItemByResourceId"),
-      )
+      statement(sql) { bind("workItemResourceId").to(workItemResourceId) },
+      Options.tag("action=getWorkItemByResourceId"),
+    )
       .singleOrNullIfEmpty() ?: throw WorkItemNotFoundException(workItemResourceId)
 
   val queueId = row.getLong("QueueId")
@@ -154,6 +157,7 @@ private object WorkItems {
       WorkItemResourceId,
       QueueId,
       State,
+      WorkItemParams,
       CreateTime,
       UpdateTime,
     FROM
@@ -168,6 +172,7 @@ private object WorkItems {
         workItemResourceId = row.getString("WorkItemResourceId")
         queueResourceId = queue.queueResourceId
         state = row.getProtoEnum("State", WorkItem.State::forNumber)
+        workItemParams = row.getProtoMessage("WorkItemParams", Any.getDefaultInstance())
         createTime = row.getTimestamp("CreateTime").toProto()
         updateTime = row.getTimestamp("UpdateTime").toProto()
       },

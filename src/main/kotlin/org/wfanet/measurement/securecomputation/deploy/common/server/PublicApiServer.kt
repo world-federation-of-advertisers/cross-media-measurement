@@ -17,8 +17,8 @@
 package org.wfanet.measurement.securecomputation.deploy.common.server
 
 import io.grpc.BindableService
-import kotlin.properties.Delegates
 import java.time.Duration
+import kotlin.properties.Delegates
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
@@ -36,7 +36,7 @@ class PublicApiServer : Runnable {
 
   @CommandLine.Option(
     names = ["--secure-computation-internal-api-target"],
-    description = ["gRPC target of the Access internal API server"],
+    description = ["gRPC target of the Secure Computation internal API server"],
     required = true,
   )
   private lateinit var internalApiTarget: String

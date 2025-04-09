@@ -51,9 +51,9 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkIt
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
-import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 import org.wfanet.measurement.securecomputation.service.internal.Errors
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 
 @RunWith(JUnit4::class)
 abstract class WorkItemAttemptsServiceTest {
@@ -68,15 +68,16 @@ abstract class WorkItemAttemptsServiceTest {
   protected abstract fun initServices(
     queueMapping: QueueMapping,
     idGenerator: IdGenerator,
-    workItemPublisher: WorkItemPublisher
+    workItemPublisher: WorkItemPublisher,
   ): Services
 
   private fun initServices(idGenerator: IdGenerator = IdGenerator.Default): Services {
-    val fakePublisher = object : WorkItemPublisher {
-      override suspend fun publishMessage(queueName: String, message: Message) {
-        logger.info("message published")
+    val fakePublisher =
+      object : WorkItemPublisher {
+        override suspend fun publishMessage(queueName: String, message: Message) {
+          logger.info("message published")
+        }
       }
-    }
     return initServices(TestConfig.QUEUE_MAPPING, idGenerator, fakePublisher)
   }
 
@@ -108,10 +109,13 @@ abstract class WorkItemAttemptsServiceTest {
     assertThat(workItemAttempt.createTime.toInstant()).isGreaterThan(Instant.now().minusSeconds(10))
     assertThat(workItemAttempt.updateTime).isEqualTo(workItemAttempt.createTime)
 
-    val getResponse = services.service.getWorkItemAttempt(getWorkItemAttemptRequest {
-      workItemResourceId = workItem.workItemResourceId
-      workItemAttemptResourceId = workItemAttempt.workItemAttemptResourceId
-    })
+    val getResponse =
+      services.service.getWorkItemAttempt(
+        getWorkItemAttemptRequest {
+          workItemResourceId = workItem.workItemResourceId
+          workItemAttemptResourceId = workItemAttempt.workItemAttemptResourceId
+        }
+      )
     assertThat(getResponse).isEqualTo(workItemAttempt)
   }
 
@@ -570,13 +574,14 @@ abstract class WorkItemAttemptsServiceTest {
         workItem = workItem {
           workItemResourceId = "work_item_resource_id"
           queueResourceId = "test-topid-id"
-          workItemParams = Any.pack(
-            testWork {
-              userName = "UserName"
-              userAge = "25"
-              userCountry = "US"
-            }
-          )
+          workItemParams =
+            Any.pack(
+              testWork {
+                userName = "UserName"
+                userAge = "25"
+                userCountry = "US"
+              }
+            )
         }
       }
     )
@@ -600,9 +605,7 @@ abstract class WorkItemAttemptsServiceTest {
     }
   }
 
-
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
-
 }

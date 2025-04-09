@@ -5,12 +5,13 @@ load("//src/main/docker:macros.bzl", "java_image")
 kt_jvm_library(
     name = "public_api_server",
     srcs = ["PublicApiServer.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:services",
-        "@wfa_common_jvm//imports/java/picocli",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
-    ],
+    deps =
+        [
+            "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:services",
+            "@wfa_common_jvm//imports/java/picocli",
+            "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+            "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        ],
 )
 
 java_binary(

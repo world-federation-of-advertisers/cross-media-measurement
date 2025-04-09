@@ -1,0 +1,16 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "ImpressionQualificationFiltersServiceTest",
+    srcs = ["ImpressionQualificationFiltersServiceTest.kt"],
+    data = [
+        "//src/main/k8s/testing/secretfiles:impression_qualification_filter_config.textproto",
+    ],
+    test_class = "org.wfanet.measurement.reporting.deploy.v2.common.service.ImpressionQualificationFiltersServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/service:impression_qualification_filters_service",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing/v2:impression_qualification_filters_service_test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)

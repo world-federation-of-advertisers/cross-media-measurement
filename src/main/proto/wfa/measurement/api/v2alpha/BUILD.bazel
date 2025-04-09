@@ -1,8 +1,11 @@
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
 load("@rules_java//java:java_library.bzl", "java_library")
 load("@rules_jvm_external//:defs.bzl", "maven_export")
 load("@wfa_common_jvm//build/maven:defs.bzl", "artifact_version")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_grpc_proto_library", "kt_jvm_proto_library")
+load("//build:defs.bzl", "proto_lib_prefix")
+load("//build/grpc_gateway:defs.bzl", "go_grpc_gateway_proto_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -10,81 +13,94 @@ MAVEN_COORDINATES = "org.wfanet.measurement.api:v2alpha-kotlin:" + artifact_vers
 
 GRPC_MAVEN_COORDINATES = "org.wfanet.measurement.api:v2alpha-grpc-kotlin:" + artifact_version()
 
-LIBS = [
-    "account",
-    "api_key",
-    "certificate",
-    "crypto",
-    "data_provider",
-    "date_interval",
-    "differential_privacy",
-    "direct_computation",
-    "duchy",
-    "event_annotations",
-    "event_group",
-    "event_group_metadata_descriptor",
-    "event_template",
-    "exchange",
-    "exchange_step",
-    "exchange_step_attempt",
-    "exchange_workflow",
-    "measurement",
-    "measurement_consumer",
-    "measurement_spec",
-    "model_line",
-    "model_outage",
-    "model_provider",
-    "model_release",
-    "model_rollout",
-    "model_shard",
-    "model_suite",
-    "multi_party_computation",
-    "population",
-    "population_spec",
-    "protocol_config",
-    "public_key",
-    "random_seed",
-    "recurring_exchange",
-    "requisition",
-    "requisition_spec",
+MESSAGE_LIBS = [
+    ":account_proto",
+    ":api_key_proto",
+    ":certificate_proto",
+    ":crypto_proto",
+    ":data_provider_proto",
+    ":date_interval_proto",
+    ":differential_privacy_proto",
+    ":direct_computation_proto",
+    ":duchy_proto",
+    ":event_annotations_proto",
+    ":event_group_proto",
+    ":event_group_metadata_proto",
+    ":event_group_metadata_descriptor_proto",
+    ":event_template_proto",
+    ":exchange_proto",
+    ":exchange_step_proto",
+    ":exchange_step_attempt_proto",
+    ":exchange_workflow_proto",
+    ":measurement_proto",
+    ":measurement_consumer_proto",
+    ":measurement_spec_proto",
+    ":media_type_proto",
+    ":model_line_proto",
+    ":model_outage_proto",
+    ":model_provider_proto",
+    ":model_release_proto",
+    ":model_rollout_proto",
+    ":model_shard_proto",
+    ":model_suite_proto",
+    ":multi_party_computation_proto",
+    ":population_proto",
+    ":population_spec_proto",
+    ":protocol_config_proto",
+    ":public_key_proto",
+    ":random_seed_proto",
+    ":recurring_exchange_proto",
+    ":requisition_proto",
+    ":requisition_spec_proto",
 ]
 
-SERVICES = [
-    "accounts",
-    "api_keys",
-    "certificates",
-    "data_providers",
-    "event_group_metadata_descriptors",
-    "event_groups",
-    "exchange_step_attempts",
-    "exchange_steps",
-    "exchanges",
-    "measurement_consumers",
-    "measurements",
-    "model_lines",
-    "model_outages",
-    "model_providers",
-    "model_releases",
-    "model_rollouts",
-    "model_shards",
-    "model_suites",
-    "populations",
-    "public_keys",
-    "requisition_fulfillment",
-    "requisitions",
+SERVICE_LIBS = [
+    ":accounts_service_proto",
+    ":api_keys_service_proto",
+    ":certificates_service_proto",
+    ":data_providers_service_proto",
+    ":event_group_metadata_descriptors_service_proto",
+    ":event_groups_service_proto",
+    ":exchange_step_attempts_service_proto",
+    ":exchange_steps_service_proto",
+    ":exchanges_service_proto",
+    ":measurement_consumers_service_proto",
+    ":measurements_service_proto",
+    ":model_lines_service_proto",
+    ":model_outages_service_proto",
+    ":model_providers_service_proto",
+    ":model_releases_service_proto",
+    ":model_rollouts_service_proto",
+    ":model_shards_service_proto",
+    ":model_suites_service_proto",
+    ":populations_service_proto",
+    ":public_keys_service_proto",
+    ":requisition_fulfillment_service_proto",
+    ":requisitions_service_proto",
+]
+
+[
+    alias(
+        name = "{prefix}_proto".format(prefix = prefix),
+        actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:{prefix}_proto".format(prefix = prefix),
+    )
+    for prefix in [
+        proto_lib_prefix(label_str)
+        for label_str in MESSAGE_LIBS + SERVICE_LIBS
+    ]
 ]
 
 proto_library(
     name = "page_token_proto",
     srcs = ["page_token.proto"],
     deps = [
+        ":exchange_step_proto",
+        ":measurement_proto",
+        ":model_line_proto",
+        ":requisition_proto",
         "@com_google_googleapis//google/type:date_proto",
         "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
-        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_proto",
-        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_proto",
-        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_line_proto",
-        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisition_proto",
     ],
 )
 
@@ -96,46 +112,27 @@ kt_jvm_proto_library(
 )
 
 [
-    alias(
-        name = "{name}_proto".format(name = name),
-        actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:{name}_proto".format(name = name),
-    )
-    for name in LIBS
-]
-
-[
     kt_jvm_proto_library(
-        name = "{name}_kt_jvm_proto".format(name = name),
-        deps = [":{name}_proto".format(name = name)],
+        name = "{prefix}_kt_jvm_proto".format(prefix = proto_lib_prefix(label_str)),
+        deps = [label_str],
     )
-    for name in LIBS
-]
-
-[
-    alias(
-        name = "{service}_service_proto".format(service = service),
-        actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:{service}_service_proto".format(service = service),
-    )
-    for service in SERVICES
+    for label_str in MESSAGE_LIBS
 ]
 
 [
     kt_jvm_grpc_proto_library(
-        name = "{service}_service_kt_jvm_grpc_proto".format(service = service),
-        deps = [":{service}_service_proto".format(service = service)],
+        name = "{prefix}_kt_jvm_grpc_proto".format(prefix = proto_lib_prefix(label_str)),
+        deps = [label_str],
     )
-    for service in SERVICES
+    for label_str in SERVICE_LIBS
 ]
 
 java_library(
     name = "api_kt_jvm_proto",
     tags = ["maven_coordinates=" + MAVEN_COORDINATES],
     exports = [
-        ":{name}_kt_jvm_proto".format(name = name)
-        for name in LIBS
-    ] + [
-        ":{service}_service_kt_jvm_proto".format(service = service)
-        for service in SERVICES
+        ":{prefix}_kt_jvm_proto".format(prefix = proto_lib_prefix(label_str))
+        for label_str in MESSAGE_LIBS + SERVICE_LIBS
     ],
 )
 
@@ -154,8 +151,8 @@ java_library(
     name = "api_kt_jvm_grpc_proto",
     tags = ["maven_coordinates=" + GRPC_MAVEN_COORDINATES],
     exports = [":api_key_kt_jvm_proto"] + [
-        ":{service}_service_kt_jvm_grpc_proto".format(service = service)
-        for service in SERVICES
+        ":{prefix}_kt_jvm_grpc_proto".format(prefix = proto_lib_prefix(label_str))
+        for label_str in SERVICE_LIBS
     ],
 )
 
@@ -168,4 +165,30 @@ maven_export(
         "no-remote-cache",
     ],
     visibility = ["//visibility:private"],
+)
+
+GO_IMPORT_PATH = "github.com/world-federation-of-advertisers/cross-media-measurement/cmms/apiv2alpha/cmmspb"
+
+GO_DEPS = [
+    "@org_golang_google_genproto//googleapis/type/date",
+    "@org_golang_google_genproto//googleapis/type/interval",
+    "@org_golang_google_genproto_googleapis_api//annotations",
+]
+
+go_proto_library(
+    name = "cmmspb_go_proto",
+    importpath = GO_IMPORT_PATH,
+    protos = MESSAGE_LIBS,
+    deps = GO_DEPS,
+)
+
+go_grpc_gateway_proto_library(
+    name = "cmmspb_go_grpc_proto",
+    embed = [":cmmspb_go_proto"],
+    importpath = GO_IMPORT_PATH,
+    protos = [
+        ":data_providers_service_proto",
+        ":event_group_metadata_descriptors_service_proto",
+    ],
+    deps = GO_DEPS,
 )

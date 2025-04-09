@@ -101,6 +101,19 @@ jobs:
         id: run-tests
         run: bazel test //...
 
+      - name: Run tests with coverage
+        id: run-coverage
+        run: bazel coverage --experimental_split_coverage_postprocessing --experimental_fetch_all_coverage_outputs --instrumentation_filter=//src/main/python/.*,//src/main/cc/.*,-@.* //src/test/python/... //src/test/cc/...
+
+      - name: Export bazel output path
+        run: echo "BAZEL_OUTPUT_PATH=$(bazel info output_path)" >> $GITHUB_ENV
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: ${{ env.BAZEL_OUTPUT_PATH }}/_coverage/_coverage_report.dat
+
       - name: Create cluster
         id: create-cluster
         run: |
@@ -149,4 +162,4 @@ jobs:
       - name: Upload Bazel testlogs
         continue-on-error: true
         uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@v2
-        if: failure() && (steps.run-tests.outcome == 'failure' || steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'failure')
+        if: failure() && (steps.run-tests.outcome == 'failure' || steps.run-coverage.outcome == 'failure' || steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'failure')

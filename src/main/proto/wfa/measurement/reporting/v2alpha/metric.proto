@@ -25,6 +25,7 @@ import "google/type/interval.proto";
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "MetricProto";
+option go_package = "github.com/world-federation-of-advertisers/cross-media-measurement/reporting/apiv2alpha/reportingpb";
 
 // The specification of a metric that can be selected to be in a `Report`.
 message MetricSpec {
@@ -414,10 +415,12 @@ message Metric {
     STATE_UNSPECIFIED = 0;
     // Computation is running.
     RUNNING = 1;
-    // Completed successfully. Terminal state.
+    // Completed successfully.
     SUCCEEDED = 2;
     // Completed with failure. Terminal state.
     FAILED = 3;
+    // Result invalidated after successful completion. Terminal state.
+    INVALID = 4;
   }
 
   // The Report that this Metric was first created for

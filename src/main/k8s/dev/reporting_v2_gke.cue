@@ -37,7 +37,7 @@ _accessPublicApiAddressName:  "access-public"
 #PublicServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "25m"
-		memory: "256Mi"
+		memory: "288Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -57,7 +57,11 @@ objectSets: [
 reporting: #Reporting & {
 	_secretName:         _reportingSecretName
 	_mcConfigSecretName: _reportingMcConfigSecretName
-	_kingdomApiTarget:   #KingdomApiTarget
+	_imageSuffixes: {
+		"update-reporting-postgres-schema":   "reporting/v2/gcloud-postgres-update-schema"
+		"postgres-internal-reporting-server": "reporting/v2/gcloud-internal-server"
+	}
+	_kingdomApiTarget: #KingdomApiTarget
 
 	_postgresConfig: {
 		iamUserLocal: "reporting-v2-internal"
@@ -96,6 +100,7 @@ reporting: #Reporting & {
 
 	services: {
 		"reporting-v2alpha-public-api-server": _ipAddressName: _publicApiAddressName
+		"reporting-grpc-gateway": _ipAddressName:              _publicApiAddressName
 		"access-public-api-server": _ipAddressName:            _accessPublicApiAddressName
 	}
 }
