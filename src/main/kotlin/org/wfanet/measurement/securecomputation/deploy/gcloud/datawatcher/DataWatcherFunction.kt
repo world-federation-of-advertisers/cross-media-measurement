@@ -56,7 +56,7 @@ class DataWatcherFunction : CloudEventsFunction {
     val workItemsStub = WorkItemsCoroutineStub(publicChannel)
     val config =
       checkNotNull(
-        CLASS_LOADER.getJarResourceFile(System.getenv("DATA_WATCHER_CONFIG_RESOURCE_PATH"))
+        DataWatcherFunction::class.java.classLoader.getJarResourceFile(System.getenv("DATA_WATCHER_CONFIG_RESOURCE_PATH"))
       )
     val dataWatcherConfigs = parseTextProto(config, DataWatcherConfigs.getDefaultInstance())
     val dataWatcher =
@@ -78,13 +78,22 @@ class DataWatcherFunction : CloudEventsFunction {
   }
 
   private fun getClientCerts(): SigningCerts {
+    println("GET CLIENT CERT: ${System.getenv("CERT_FILE_PATH")}")
+    val resourceUrl = DataWatcherFunction::class.java.classLoader.getResource("data_watcher_tls.pem")
+    println("Resource URL for data_watcher_tls.pem: $resourceUrl --")
+    val stream1 = DataWatcherFunction::class.java.classLoader.getResourceAsStream("data_watcher_tls.pem")
+    val stream2 = DataWatcherFunction::class.java.getResourceAsStream("/data_watcher_tls.pem")
+    println("Stream1: $stream1 -")
+    println("Stream2: $stream2 -")
+    val resourceUrl2 = javaClass.getResource("/data_watcher_tls.pem")
+    println("Resource URL from javaClass2: $resourceUrl2 -")
     return SigningCerts.fromPemFiles(
       certificateFile =
-        checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_FILE_PATH"))),
+        checkNotNull(DataWatcherFunction::class.java.classLoader.getJarResourceFile(System.getenv("CERT_FILE_PATH"))),
       privateKeyFile =
-        checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("PRIVATE_KEY_FILE_PATH"))),
+        checkNotNull(DataWatcherFunction::class.java.classLoader.getJarResourceFile(System.getenv("PRIVATE_KEY_FILE_PATH"))),
       trustedCertCollectionFile =
-        checkNotNull(CLASS_LOADER.getJarResourceFile(System.getenv("CERT_COLLECTION_FILE_PATH"))),
+        checkNotNull(DataWatcherFunction::class.java.classLoader.getJarResourceFile(System.getenv("CERT_COLLECTION_FILE_PATH"))),
     )
   }
 

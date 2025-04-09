@@ -1,0 +1,72 @@
+# Copyright 2025 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: "Build and Deploy cloud functions"
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      secure-computation-public-public-api-target:
+        type: string
+        required: true
+
+jobs:
+  build-and-deploy-cloud-functions:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.SECURE_COMPUTATION_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud CLI
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ env.GCLOUD_PROJECT }}
+
+      - name: Build DataWatcherFunction
+        run: >
+          bazel build
+          //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction
+
+      - name: Build Bazel fat JAR
+        run: >
+          bazel build
+          //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar
+
+      - name: Copy fat JAR to temp directory
+        run: |
+          mkdir -p tmp_function
+          cp bazel-bin/src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/DataWatcherFunction_deploy.jar tmp_function/
+
+      - name: Deploy Cloud Function
+        run: >
+          gcloud functions deploy TestDeploy
+          --gen2
+          --runtime=java17
+          --entry-point=org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction
+          --memory=512MB
+          --region=us-central1
+          --trigger-event-filters="type=google.cloud.storage.object.v1.finalized"
+          --trigger-event-filters="bucket=cf_deploy_test"
+          --source=tmp_function
+          --quiet
+          --service-account=${{ vars.SECURE_COMPUTATION_SERVICE_ACCOUNT }}
+          --set-env-vars=CERT_FILE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=src/main/k8s/testing/secretfiles/secure_computation_root.pem,CONTROL_PLANE_TARGET=${{ inputs.secure-computation-public-public-api-target }},CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.dev.halo-cmm.org,DATA_WATCHER_CONFIG_RESOURCE_PATH=org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing/data_watcher_config.textproto

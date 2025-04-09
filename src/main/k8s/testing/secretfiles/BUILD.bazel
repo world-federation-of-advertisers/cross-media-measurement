@@ -235,6 +235,18 @@ filegroup(
     srcs = SECRET_FILES,
 )
 
+DATA_WATCHER_SECRET_FILES = [
+    "data_watcher_tls.key",
+    "data_watcher_tls.pem",
+    "secure_computation_root.pem",
+]
+
+filegroup(
+    name = "data_watcher_certs",
+    srcs = DATA_WATCHER_SECRET_FILES,
+    visibility = ["//visibility:public"],
+)
+
 pkg_tar(
     name = "archive",
     srcs = [":secret_files"],
