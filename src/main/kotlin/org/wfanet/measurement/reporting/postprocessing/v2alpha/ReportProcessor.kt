@@ -29,8 +29,6 @@ import org.wfanet.measurement.reporting.v2alpha.copy
 
 class ReportProcessorFailureException(message: String) : RuntimeException(message)
 
-class ReportProcessorSolutionNotFoundException(message: String) : RuntimeException(message)
-
 /** Corrects the inconsistent measurements in a serialized [Report]. */
 interface ReportProcessor {
   /**
@@ -139,9 +137,7 @@ interface ReportProcessor {
           correctedMeasurementsMap[key] = value
         }
       } else {
-        throw ReportProcessorSolutionNotFoundException(
-          "Report Post Processor cannot find a solution."
-        )
+        logger.info { "No solution found.." }
       }
 
       return correctedMeasurementsMap
