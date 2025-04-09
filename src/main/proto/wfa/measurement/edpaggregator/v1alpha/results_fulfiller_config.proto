@@ -12,47 +12,69 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 syntax = "proto3";
-
 
 package wfa.measurement.securecomputation.resultsfulfiller;
 
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
 
 option java_package = "org.wfanet.measurement.securecomputation.resultsfulfiller";
 option java_multiple_files = true;
 option java_outer_classname = "ResultsFulfillerConfigProto";
 
-
 // Resource representing the config used for the results fulfiller tee app
 message ResultsFulfillerConfig {
-  // gRPC target of Kingdom public API server.
-  string kingdom_public_api_target = 1;
-  // Expected hostname (DNS-ID) in the Kingdom public API server's TLS
-  // certificate.
-  string kingdom_public_api_cert_host = 2;
+  // Resource representing the details needed to connect to the kingdom
+  message ConnectionDetails {
+    // gRPC target of Kingdom public API server.
+    string kingdom_public_api_target = 1
+        [(google.api.field_behavior) = REQUIRED];
 
-  // Path to the client certificate file
-  string client_cert_path = 3;
-  // Path to the client's private key file
-  string client_private_key_path = 4;
-  // Path to the client certificate collection file
-  string client_collection_path = 5;
+    // Expected hostname (DNS-ID) in the Kingdom public API server's TLS
+    // certificate.
+    string kingdom_public_api_cert_host = 2
+        [(google.api.field_behavior) = REQUIRED];
 
-  // Path to the DER-encoded certificate file used for result signing
-  string result_cs_cert_der_path = 6;
-  // Path to the DER-encoded private key file used for result signing
-  string result_cs_private_key_der_path = 7;
+    // Path to the client certificate file
+    string client_cert_blob_uri = 3 [(google.api.field_behavior) = REQUIRED];
 
-  // Path to the private encryption key file
-  string private_encryption_key_path = 8;
+    // Path to the client's private key file
+    string client_private_key_blob_uri = 4
+        [(google.api.field_behavior) = REQUIRED];
 
-  // Name for the certificate used by the EDP
-  string edp_certificate_name = 9;
+    // Path to the client certificate collection file
+    string client_collection_cert_blob_uri = 5
+        [(google.api.field_behavior) = REQUIRED];
+  }
+
+  // Resource representing the details needed to generate certificates
+  message ConsentDetails {
+    // Path to the DER-encoded certificate file used for result signing
+    string result_cs_cert_der_blob_uri = 6
+        [(google.api.field_behavior) = REQUIRED];
+
+    // Path to the DER-encoded private key file used for result signing
+    string result_cs_private_key_der_blob_uri = 7
+        [(google.api.field_behavior) = REQUIRED];
+
+    // Path to the private encryption key file
+    string private_encryption_key_blob_uri = 8
+        [(google.api.field_behavior) = REQUIRED];
+
+    // Name for the certificate used by the EDP
+    string edp_certificate_name = 9 [
+      (google.api.resource_reference).type = "halo.wfanet.org/Certificate",
+      (google.api.field_behavior) = REQUIRED
+    ];
+  }
+
+  ConnectionDetails connection_details = 1
+      [(google.api.field_behavior) = REQUIRED];
+
+  ConsentDetails consent_details = 2 [(google.api.field_behavior) = REQUIRED];
 
   // Prefix path for labeled impression storage
-  string labeled_impression_metadata_blob_uri_prefix = 10;
-
-  // Type URL identifying the event template format
-  string event_template_type_url = 11;
+  string labeled_impressions_metadata_blob_uri_prefix = 3
+      [(google.api.field_behavior) = REQUIRED];
 }
