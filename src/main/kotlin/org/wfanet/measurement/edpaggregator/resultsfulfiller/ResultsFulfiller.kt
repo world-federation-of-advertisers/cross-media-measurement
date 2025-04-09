@@ -79,7 +79,6 @@ class ResultsFulfiller(
        private val labeledImpressionMetadataPrefix: String,
        private val eventTemplateTypeUrl: String,
        private val requisitionsStorageClient: StorageClient,
-       private val impressionsMetadataStorageClient: StorageClient,
        private val kmsClient: KmsClient,
        private val impressionsStorageConfig: StorageConfig,
        private val impressionMetadataStorageConfig: StorageConfig,
@@ -141,16 +140,10 @@ class ResultsFulfiller(
        }
      } else if (protocols.any { it.hasLiquidLegionsV2() }) {
        // TODO
-
-
      } else if  (protocols.any { it.hasReachOnlyLiquidLegionsV2() }) {
        // TODO
-
-
      } else if (protocols.any { it.hasHonestMajorityShareShuffle() }) {
        // TODO
-
-
      } else {
        throw Exception("Protocol not supported")
      }
@@ -321,32 +314,24 @@ class ResultsFulfiller(
        }
      }
      MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
-       // TODO
        MeasurementKt.result {
-
-
+           // TODO
        }
      }
      MeasurementSpec.MeasurementTypeCase.DURATION -> {
-       // TODO
-       MeasurementKt.result {
-
-
-       }
+         MeasurementKt.result {
+             // TODO
+         }
      }
      MeasurementSpec.MeasurementTypeCase.POPULATION -> {
-       // TODO
-       MeasurementKt.result {
-
-
-       }
+         MeasurementKt.result {
+             // TODO
+         }
      }
      MeasurementSpec.MeasurementTypeCase.REACH -> {
-       // TODO
-       MeasurementKt.result {
-
-
-       }
+         MeasurementKt.result {
+             // TODO
+         }
      }
      MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> {
        error("Measurement type not set.")
@@ -480,7 +465,6 @@ class ResultsFulfiller(
      }
      .build() as Requisition
 
-
    return listOf(requisition)
  }
 
@@ -507,8 +491,9 @@ class ResultsFulfiller(
 
    return requisitionSpec.events.eventGroupsList.map { eventGroup ->
      val collectionInterval = eventGroup.value.collectionInterval
-     val encryptedDek = getEncryptedDek(collectionInterval, eventGroup.key)
-     val labeledImpressions = getLabeledImpressions(encryptedDek)
+     val blobDetails = getBlobDetails(collectionInterval, eventGroup.key)
+
+     val labeledImpressions = getLabeledImpressions(blobDetails)
 
 
      labeledImpressions.filter { labeledImpression ->
@@ -534,15 +519,15 @@ class ResultsFulfiller(
   * @throws IllegalStateException if impression data cannot be read or parsed
   */
  private suspend fun getLabeledImpressions(
-   encryptedDek: EncryptedDEK,
+   blobDetails: BlobDetails,
  ): List<LabeledImpression> {
    // Get blob URI from encrypted DEK
-   val impressionsBlobUri = encryptedDek.blobKey
-   val storageClientUri = SelectedStorageClient.parseBlobUri(impressionsBlobUri)
+   val storageClientUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
 
 
 // Create and configure storage client with encryption
-   val encryptedImpressionsClient = createStorageClient(storageClientUri, impressionsStorageConfig)
+     val encryptedDek = blobDetails.encryptedDek
+     val encryptedImpressionsClient = createStorageClient(storageClientUri, impressionsStorageConfig)
    val impressionsAeadStorageClient = encryptedImpressionsClient.withEnvelopeEncryption(
      kmsClient,
      encryptedDek.kekUri,
@@ -621,7 +606,7 @@ class ResultsFulfiller(
  }
 
 
- private suspend fun getEncryptedDek(collectionInterval: Interval, eventGroupId: String): EncryptedDEK {
+ private suspend fun getBlobDetails(collectionInterval: Interval, eventGroupId: String): BlobDetails {
    val ds = collectionInterval.startTime.toInstant().toString()
    val metadataBlobKey = "ds/$ds/event-group-id/$eventGroupId/metadata"
    val metadataBlobUri = "$labeledImpressionMetadataPrefix/$metadataBlobKey"
@@ -630,15 +615,15 @@ class ResultsFulfiller(
 
    val impressionsMetadataStorageClient = createStorageClient(metadataStorageClientUri, impressionMetadataStorageConfig)
    // Get EncryptedDek message from storage using the blobKey made up of the ds and eventGroupId
-   val encryptedDekBlob = impressionsMetadataStorageClient.getBlob(metadataBlobKey)!! // SELECTED STORAGE CLIENT
-   val encryptedDekData =
-     encryptedDekBlob.read().reduce { acc, byteString -> acc.concat(byteString) }.toStringUtf8()
+   val blobDetailsBlob = impressionsMetadataStorageClient.getBlob(metadataBlobKey)!! // SELECTED STORAGE CLIENT
+   val blobDetailsData =
+     blobDetailsBlob.read().reduce { acc, byteString -> acc.concat(byteString) }.toStringUtf8()
 
 
-   return EncryptedDEK.getDefaultInstance()
+   return BlobDetails.getDefaultInstance()
      .newBuilderForType()
-     .apply { TextFormat.Parser.newBuilder().build().merge(encryptedDekData, this) }
-     .build() as EncryptedDEK
+     .apply { TextFormat.Parser.newBuilder().build().merge(blobDetailsData, this) }
+     .build() as BlobDetails
  }
 
 
