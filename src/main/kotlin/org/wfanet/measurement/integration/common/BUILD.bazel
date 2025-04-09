@@ -94,6 +94,26 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "in_process_secure_computation_public_api",
+    srcs = [
+        "InProcessSecureComputationPublicApi.kt",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":configs",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:services",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/publisher:google_work_item_publisher",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:services",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:services",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:work_item_publisher",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_library(
     name = "configs",
     srcs = ["Configs.kt"],
     data = [
