@@ -26,7 +26,7 @@ message ReportPostProcessorStatus {
   // Enum defining the possible outcomes of the QP solver process.
   enum StatusCode {
     // Default value, indicating status was not explicitly set or is unknown.
-    REPORT_POST_PROCESSING_ERROR_CODE_UNSPECIFIED = 0;
+    STATUS_CODE_UNSPECIFIED = 0;
 
     // No feasible or optimal solution satisfying constraints was found.
     SOLUTION_NOT_FOUND = 1;
