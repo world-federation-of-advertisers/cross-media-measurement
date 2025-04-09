@@ -36,8 +36,8 @@ kt_jvm_proto_library(
 )
 
 proto_library(
-    name = "blob_info_proto",
-    srcs = ["blob_info.proto"],
+    name = "blob_details_proto",
+    srcs = ["blob_details.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
         ":encrypted_dek_proto",
@@ -46,6 +46,6 @@ proto_library(
 )
 
 kt_jvm_proto_library(
-    name = "blob_info_kt_jvm_proto",
-    deps = [":blob_info_proto"],
+    name = "blob_details_kt_jvm_proto",
+    deps = [":blob_details_proto"],
 )

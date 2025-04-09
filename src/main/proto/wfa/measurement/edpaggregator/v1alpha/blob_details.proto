@@ -21,10 +21,10 @@ import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
-option java_outer_classname = "BlobInfoProto";
+option java_outer_classname = "BlobDetailsProto";
 
 // Resource representing the info needed to retrieve a decrypted blob from storage
-message BlobInfo {
+message BlobDetails {
   // The blob URI for encrypted data
   string blob_uri = 1 [(google.api.field_behavior) = REQUIRED];
 
