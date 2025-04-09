@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.config.securecomputation;
 
 import "google/protobuf/any.proto";
+import "google/api/field_behavior.proto";
 import "google/protobuf/struct.proto";
 
 option java_package = "org.wfanet.measurement.config.securecomputation";
@@ -26,8 +27,10 @@ option java_outer_classname = "DataWatcherConfigProto";
 // Individual application-specific config that maps a path of data to the
 // application sink and application config.
 message DataWatcherConfig {
+  // Resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
   // The path to watch
-  string source_path_regex = 1;
+  string source_path_regex = 2;
 
   // The config used for control plane apps
   message ControlPlaneQueueSink {
@@ -46,9 +49,9 @@ message DataWatcherConfig {
 
   oneof sink_config {
     // The sink used to send event to the Control Plane.
-    ControlPlaneQueueSink control_plane_queue_sink = 2;
+    ControlPlaneQueueSink control_plane_queue_sink = 3;
     // The sink used to send events to a web hook.
-    HttpEndpointsSink http_endpoints_sink = 3;
+    HttpEndpointsSink http_endpoints_sink = 4;
   }
 }
 
