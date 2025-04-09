@@ -51,19 +51,19 @@ message ResultsFulfillerConfig {
   // Resource representing the details needed to generate certificates
   message ConsentDetails {
     // Path to the DER-encoded certificate file used for result signing
-    string result_cs_cert_der_blob_uri = 6
+    string result_cs_cert_der_blob_uri = 1
         [(google.api.field_behavior) = REQUIRED];
 
     // Path to the DER-encoded private key file used for result signing
-    string result_cs_private_key_der_blob_uri = 7
+    string result_cs_private_key_der_blob_uri = 2
         [(google.api.field_behavior) = REQUIRED];
 
     // Path to the private encryption key file
-    string private_encryption_key_blob_uri = 8
+    string private_encryption_key_blob_uri = 3
         [(google.api.field_behavior) = REQUIRED];
 
     // Name for the certificate used by the EDP
-    string edp_certificate_name = 9 [
+    string edp_certificate_name = 4 [
       (google.api.resource_reference).type = "halo.wfanet.org/Certificate",
       (google.api.field_behavior) = REQUIRED
     ];
