@@ -1,4 +1,21 @@
+/*
+ * Copyright 2025 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
+
 import com.google.common.hash.HashFunction
 import com.google.common.hash.Hashing
 import com.google.crypto.tink.KmsClient
@@ -49,6 +66,7 @@ import org.wfanet.measurement.consent.client.dataprovider.signResult
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
+import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 import org.wfanet.measurement.eventdataprovider.noiser.AbstractNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
@@ -57,6 +75,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.sampling.VidSampler
+import org.wfanet.measurement.storage.BlobUri
 
 data class StorageConfig(
   val rootDirectory: File? = null,
@@ -84,7 +103,6 @@ class ResultsFulfiller(
         try {
           decryptRequisitionSpec(
             requisition.encryptedRequisitionSpec,
-            // TODO: CREATE THIS WITH fulfiller config
             privateEncryptionKey,
           )
         } catch (e: GeneralSecurityException) {
@@ -413,6 +431,23 @@ class ResultsFulfiller(
     }
   }
 
+  /**
+   * Compiles a [Program] that should be fed into [matches] function to indicate if an event should
+   * be filtered or not, based on the filtering [celExpr].
+   *
+   * @param eventMessageDescriptor protobuf descriptor of the event message type. This message type
+   *   should contain fields of types that have been annotated with the
+   *   `wfa.measurement.api.v2alpha.EventTemplateDescriptor` option.
+   * @param celExpr Common Expression Language (CEL) expression defining the predicate to apply to
+   *   event messages
+   * @param operativeFields fields in [celExpr] that will be not be altered after the normalization
+   *   operation. If provided, [celExpr] is normalized to operative negation normal form by bubbling
+   *   down all the negation operations to the leafs by applying De Morgan's laws recursively and by
+   *   setting all the leaf comparison nodes (e.g. x == 47 ) that contain any field other than the
+   *   operative fields to true. If not provided or empty, the normalization operation will not be
+   *   performed.
+   * @throws [EventFilterValidationException] if [celExpr] is not valid.
+   */
   fun compileProgram(
     eventFilter: RequisitionSpec.EventFilter,
     eventMessageDescriptor: Descriptor,
@@ -425,11 +460,25 @@ class ResultsFulfiller(
     return EventFilters.compileProgram(eventMessageDescriptor, eventFilter.expression)
   }
 
+  /**
+   * Retrieves a list of requisitions from the configured blob storage.
+   *
+   * This method performs the following operations:
+   * 1. Parses the requisitions blob URI to create a storage client
+   * 2. Fetches the requisition blob from storage
+   * 3. Reads and concatenates all data from the blob
+   * 4. Parses the UTF-8 encoded string data into a Requisition object using TextFormat
+   *
+   * @return A list containing the single requisition retrieved from blob storage
+   * @throws NullPointerException If the requisition blob cannot be found at the specified URI
+   */
   private suspend fun getRequisitions(): List<Requisition> {
-    // Gets path to list of new requisitions in blob storage
+    // Create storage client based on blob URI
     val storageClientUri = SelectedStorageClient.parseBlobUri(requisitionsBlobUri)
     val requisitionsStorageClient = createStorageClient(storageClientUri, requisitionsStorageConfig)
-    val requisitionBlob = requisitionsStorageClient.getBlob(storageClientUri.key)!!
+    val requisitionBlob = requireNotNull(requisitionsStorageClient.getBlob(storageClientUri.key)) {
+      "No requisitions for blob key '${storageClientUri.key}'"
+    }
     val requisitionData = requisitionBlob.read().reduce { acc, byteString -> acc.concat(byteString) }.toStringUtf8()
     val requisition = Requisition.getDefaultInstance()
       .newBuilderForType()
@@ -443,6 +492,23 @@ class ResultsFulfiller(
     return listOf(requisition)
   }
 
+  /**
+   * Retrieves a filtered list of VIDs (Virtual IDs) that fall within a specified sampling interval.
+   *
+   * This method filters impressions from event groups in the requisition specification based on the provided
+   * VID sampling interval. The interval defines a range between 0 and 1, which is used to determine
+   * which VIDs should be included in the result.
+   *
+   * @param requisitionSpec The specification containing events and event groups to process
+   * @param vidSamplingInterval The interval parameters defining which VIDs to sample:
+   *                            - start: The starting point of the sampling interval (must be between 0 and 1)
+   *                            - width: The width of the sampling interval (must be between 0 and 1)
+   * @return A list of VIDs that fall within the specified sampling interval
+   * @throws IllegalArgumentException If the sampling interval parameters are invalid:
+   *                                  - Width must be greater than 0 and less than or equal to 1
+   *                                  - Start must be between 0 (inclusive) and 1 (exclusive)
+   *                                  - The sum of start and width must not exceed 1
+   */
   private suspend fun getSampledVids(
     requisitionSpec: RequisitionSpec,
     vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
@@ -483,9 +549,7 @@ class ResultsFulfiller(
    * setting up the appropriate encryption, and parsing the raw data into
    * LabeledImpression protocol buffer messages.
    *
-   * @param encryptedDek The encrypted data encryption key information
-   * @param impressionsStorageConfig Storage configuration for impressions
-   * @param kmsClient KMS client for handling encryption
+   * @param blobDetails The [BlobDetails] that contain the blob uri and encrypted dek
    * @return List of parsed LabeledImpression objects
    * @throws IllegalStateException if impression data cannot be read or parsed
    */
@@ -495,7 +559,7 @@ class ResultsFulfiller(
     // Get blob URI from encrypted DEK
     val storageClientUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
 
-// Create and configure storage client with encryption
+    // Create and configure storage client with encryption
     val encryptedDek = blobDetails.encryptedDek
     val encryptedImpressionsClient = createStorageClient(storageClientUri, impressionsStorageConfig)
     val impressionsAeadStorageClient = encryptedImpressionsClient.withEnvelopeEncryption(
@@ -504,21 +568,17 @@ class ResultsFulfiller(
       encryptedDek.encryptedDek
     )
 
-// Access blob storage
+    // Access blob storage
     val impressionsMesosStorage = MesosRecordIoStorageClient(impressionsAeadStorageClient)
     val impressionBlob = impressionsMesosStorage.getBlob(storageClientUri.key)
       ?: throw IllegalStateException("Could not retrieve impression blob from ${storageClientUri.key}")
 
-
     // Parse raw data into LabeledImpression objects
     val readResult = impressionBlob.read()
-
     val impressionRecords = readResult.toList()
-
     return impressionRecords.map { impressionByteString ->
-      val labeledImpression = LabeledImpression.parseFrom(impressionByteString)
+      LabeledImpression.parseFrom(impressionByteString)
         ?: throw IllegalStateException("Failed to parse LabeledImpression from bytes")
-      labeledImpression
     }
   }
 
@@ -528,10 +588,8 @@ class ResultsFulfiller(
    *
    * @param labeledImpression The impression to validate
    * @param collectionInterval Time interval for valid impressions
-   * @param eventTemplateTypeUrl Type URL for the event template
    * @param typeRegistry Registry for protocol buffer types
    * @param eventGroup Event group containing filter criteria
-   * @param sampler VID sampler implementation
    * @param vidSamplingIntervalStart Start of sampling interval
    * @param vidSamplingIntervalWidth Width of sampling interval
    * @return true if the impression meets all validity criteria, false otherwise
@@ -547,6 +605,7 @@ class ResultsFulfiller(
     val isInCollectionInterval =
       labeledImpression.impressionTime.toInstant() >= collectionInterval.startTime.toInstant() &&
         labeledImpression.impressionTime.toInstant() < collectionInterval.endTime.toInstant()
+
     // Check if VID is in sampling bucket
     val isInSamplingInterval = sampler.vidIsInSamplingBucket(
       labeledImpression.vid,
@@ -554,13 +613,15 @@ class ResultsFulfiller(
       vidSamplingIntervalWidth
     )
 
-    // Process event template filter
+    // Create filter program
     val eventMessageData = labeledImpression.event!!
     val eventTemplateDescriptor = typeRegistry.getDescriptorForTypeUrl(eventMessageData.typeUrl)
     val eventMessage = DynamicMessage.parseFrom(eventTemplateDescriptor, eventMessageData.value)
     val program = compileProgram(eventGroup.value.filter, eventTemplateDescriptor)
 
+    // Pass event message through program
     val passesFilter = EventFilters.matches(eventMessage, program)
+
     // Return true only if all conditions are met
     return isInCollectionInterval && passesFilter && isInSamplingInterval
   }
@@ -582,16 +643,16 @@ class ResultsFulfiller(
   /**
    * Creates a storage client for accessing blob data.
    *
-   * This function constructs a [SelectedStorageClient] using the provided blob key
+   * This function constructs a [StorageClient] using the provided blob key
    * and storage configuration. It parses the blob URI and initializes the appropriate
-   * client based on the storage configuration properties.
+   * client based on the storage configuration properties using [SelectedStorageClient].
    *
-   * @param blobKey The URI or path identifying the blob to access
+   * @param blobUri The URI or path identifying the blob to access
    * @param storageConfig Configuration containing settings for storage access,
    *        including root directory and project ID
-   * @return A configured [SelectedStorageClient] instance ready to access the specified blob
+   * @return A configured [StorageClient] instance ready to access the specified blob
    */
-  fun createStorageClient(blobUri: org.wfanet.measurement.storage.BlobUri, storageConfig: StorageConfig): SelectedStorageClient {
+  fun createStorageClient(blobUri: BlobUri, storageConfig: StorageConfig): SelectedStorageClient {
     return SelectedStorageClient(blobUri, storageConfig.rootDirectory, storageConfig.projectId)
   }
   companion object {
