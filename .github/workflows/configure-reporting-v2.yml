@@ -79,7 +79,6 @@ jobs:
     - name: Write ~/.bazelrc
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
-        BASIC_REPORTS_ENABLED: ${{ vars.BASIC_REPORTS_ENABLED }}
         SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
         POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
         GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
