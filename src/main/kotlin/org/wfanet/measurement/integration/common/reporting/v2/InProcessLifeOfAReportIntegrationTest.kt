@@ -150,6 +150,7 @@ import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpe
 import org.wfanet.measurement.reporting.v2alpha.invalidateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.listImpressionQualificationFiltersRequest
+import org.wfanet.measurement.reporting.v2alpha.listImpressionQualificationFiltersResponse
 import org.wfanet.measurement.reporting.v2alpha.listMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
@@ -2284,34 +2285,33 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             }
           )
 
-      assertThat(listImpressionQualificationFiltersResponse.impressionQualificationFiltersList)
-        .hasSize(1)
-      assertThat(listImpressionQualificationFiltersResponse.impressionQualificationFiltersList[0])
+      assertThat(listImpressionQualificationFiltersResponse)
         .isEqualTo(
-          impressionQualificationFilter {
-            name = "impressionQualificationFilters/mrc"
-            displayName = "mrc"
-            filterSpecs += impressionQualificationFilterSpec {
-              mediaType = MediaType.DISPLAY
-              filters += eventFilter {
-                terms += eventTemplateField {
-                  path = "banner_ad.viewable_fraction_1_second"
-                  value = EventTemplateFieldKt.fieldValue { floatValue = 0.5F }
+          listImpressionQualificationFiltersResponse {
+            impressionQualificationFilters += impressionQualificationFilter {
+              name = "impressionQualificationFilters/mrc"
+              displayName = "mrc"
+              filterSpecs += impressionQualificationFilterSpec {
+                mediaType = MediaType.DISPLAY
+                filters += eventFilter {
+                  terms += eventTemplateField {
+                    path = "banner_ad.viewable_fraction_1_second"
+                    value = EventTemplateFieldKt.fieldValue { floatValue = 0.5F }
+                  }
                 }
               }
-            }
-            filterSpecs += impressionQualificationFilterSpec {
-              mediaType = MediaType.VIDEO
-              filters += eventFilter {
-                terms += eventTemplateField {
-                  path = "video.viewable_fraction_1_second"
-                  value = EventTemplateFieldKt.fieldValue { floatValue = 1.0F }
+              filterSpecs += impressionQualificationFilterSpec {
+                mediaType = MediaType.VIDEO
+                filters += eventFilter {
+                  terms += eventTemplateField {
+                    path = "video.viewable_fraction_1_second"
+                    value = EventTemplateFieldKt.fieldValue { floatValue = 1.0F }
+                  }
                 }
               }
             }
           }
         )
-      assertThat(listImpressionQualificationFiltersResponse.nextPageToken).isNull()
     }
 
   private suspend fun listEventGroups(): List<EventGroup> {
