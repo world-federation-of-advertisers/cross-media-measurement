@@ -381,10 +381,10 @@ abstract class WorkItemsServiceTest {
       services.workItemAttemptsService.listWorkItemAttempts(listWorkItemAttemptsRequest)
 
     assertThat(
-      listWorkItemAttemptsResponse.workItemAttemptsList.all {
-        it.state == WorkItemAttempt.State.FAILED
-      }
-    )
+        listWorkItemAttemptsResponse.workItemAttemptsList.all {
+          it.state == WorkItemAttempt.State.FAILED
+        }
+      )
       .isTrue()
   }
 

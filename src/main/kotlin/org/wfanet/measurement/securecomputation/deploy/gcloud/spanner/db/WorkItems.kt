@@ -98,9 +98,9 @@ suspend fun AsyncDatabaseClient.ReadContext.getWorkItemByResourceId(
   }
   val row: Struct =
     executeQuery(
-      statement(sql) { bind("workItemResourceId").to(workItemResourceId) },
-      Options.tag("action=getWorkItemByResourceId"),
-    )
+        statement(sql) { bind("workItemResourceId").to(workItemResourceId) },
+        Options.tag("action=getWorkItemByResourceId"),
+      )
       .singleOrNullIfEmpty() ?: throw WorkItemNotFoundException(workItemResourceId)
 
   val queueId = row.getLong("QueueId")
