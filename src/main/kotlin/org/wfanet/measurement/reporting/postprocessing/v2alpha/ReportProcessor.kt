@@ -112,7 +112,7 @@ interface ReportProcessor {
 
       // Reads the report post processor result.
       val result: ReportPostProcessorResult =
-        ReportPostProcessorResult.parseFrom(process.inputStream.readBytes())
+        ReportPostProcessorResult.parseFrom(process.inputStream)
 
       // Logs from python program, which are written to stderr, are read and re-logged. When
       // encountering an error or a critical log, throws a RuntimeException.
