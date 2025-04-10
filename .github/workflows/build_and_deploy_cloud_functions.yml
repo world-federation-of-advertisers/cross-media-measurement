@@ -21,29 +21,36 @@ on:
         description: "GitHub-managed environment"
         type: string
         required: true
-      secure-computation-public-public-api-target:
+        default: dev
+      secure-computation-public-api-target:
         description: "SecureComputation public api target"
         type: string
         required: true
+        default: 127.0.0.1:443
       data-watcher-trigger-bucket:
         description: "Bucket that triggers DataWatcher function"
         type: string
         required: true
+        default: cf_deploy_test
       data-watcher-service-account:
         description: "ServiceAccount associated to the running function"
         type: string
         required: true
+        default: data-watcher-function-test@halo-cmm-dev.iam.gserviceaccount.com
       trigger-service-account:
         description: "ServiceAccount associated to eventarc"
         type: string
         required: true
+        default: data-watcher-invoker-test@halo-cmm-dev.iam.gserviceaccount.com
+  pull_request:
+    branches: [ main ]
   workflow_call:
     inputs:
       environment:
         description: "GitHub-managed environment"
         type: string
         required: true
-      secure-computation-public-public-api-target:
+      secure-computation-public-api-target:
         description: "SecureComputation public api target"
         type: string
         required: true
@@ -98,6 +105,7 @@ jobs:
           DATA_WATCHER_TRIGGER_BUCKET: ${{ inputs.data-watcher-trigger-bucket }}
           DATA_WATCHER_SERVICE_ACCOUNT: ${{ inputs.data-watcher-service-account }}
           TRIGGER_SERVICE_ACCOUNT: ${{ inputs.trigger-service-account }}
+          SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ inputs.secure-computation-public-api-target }}
         run: >
           gcloud functions deploy TestDeploy
           --gen2
@@ -111,4 +119,4 @@ jobs:
           --quiet
           --run-service-account=$DATA_WATCHER_SERVICE_ACCOUNT
           --trigger-service-account=$TRIGGER-SERVICE-ACCOUNT
-          --set-env-vars=CERT_FILE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=src/main/k8s/testing/secretfiles/secure_computation_root.pem,CONTROL_PLANE_TARGET=${{ inputs.secure-computation-public-public-api-target }},CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.dev.halo-cmm.org,DATA_WATCHER_CONFIG_RESOURCE_PATH=org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing/data_watcher_config.textproto
+          --set-env-vars=CERT_FILE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=src/main/k8s/testing/secretfiles/secure_computation_root.pem,CONTROL_PLANE_TARGET=$SECURE_COMPUTATION_PUBLIC_API_TARGET,CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.dev.halo-cmm.org,DATA_WATCHER_CONFIG_RESOURCE_PATH=org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing/data_watcher_config.textproto
