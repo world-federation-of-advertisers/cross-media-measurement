@@ -50,29 +50,39 @@ on:
         description: "GitHub-managed environment"
         type: string
         required: true
+        default: dev
       secure-computation-public-api-target:
         description: "SecureComputation public api target"
         type: string
         required: true
+        default: 127.0.0.1:443
       data-watcher-trigger-bucket:
         description: "Bucket that triggers DataWatcher function"
         type: string
         required: true
+        default: cf_deploy_test
       data-watcher-service-account:
         description: "ServiceAccount associated to the running function"
         type: string
         required: true
+        default: data-watcher-function-test@halo-cmm-dev.iam.gserviceaccount.com
       trigger-service-account:
         description: "ServiceAccount associated to eventarc"
         type: string
         required: true
+        default: data-watcher-invoker-test@halo-cmm-dev.iam.gserviceaccount.com
 
 jobs:
   build-and-deploy-cloud-functions:
     runs-on: ubuntu-22.04
-    environment: ${{ inputs.environment }}
+#    environment: ${{ inputs.environment }}
+    environment: dev
     steps:
       - uses: actions/checkout@v4
+      - name: Debug environment vars
+        run: |
+          echo "WORKLOAD_IDENTITY_PROVIDER=${{ vars.WORKLOAD_IDENTITY_PROVIDER }}"
+          echo "CLOUD_FUNCTION_SERVICE_ACCOUNT=${{ vars.CLOUD_FUNCTION_SERVICE_ACCOUNT }}"
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
