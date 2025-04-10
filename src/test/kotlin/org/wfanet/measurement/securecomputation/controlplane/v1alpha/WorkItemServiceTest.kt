@@ -85,9 +85,9 @@ class WorkItemServiceTest {
     val response = service.createWorkItem(request)
 
     verifyProtoArgument(
-      internalServiceMock,
-      WorkItemsGrpcKt.WorkItemsCoroutineImplBase::createWorkItem,
-    )
+        internalServiceMock,
+        WorkItemsGrpcKt.WorkItemsCoroutineImplBase::createWorkItem,
+      )
       .isEqualTo(
         internalCreateWorkItemRequest {
           internalWorkItem {
@@ -222,9 +222,9 @@ class WorkItemServiceTest {
     val response = service.getWorkItem(request)
 
     verifyProtoArgument(
-      internalServiceMock,
-      WorkItemsGrpcKt.WorkItemsCoroutineImplBase::getWorkItem,
-    )
+        internalServiceMock,
+        WorkItemsGrpcKt.WorkItemsCoroutineImplBase::getWorkItem,
+      )
       .isEqualTo(
         internalGetWorkItemRequest { workItemResourceId = internalWorkItem.workItemResourceId }
       )
@@ -305,9 +305,9 @@ class WorkItemServiceTest {
       workItemResourceId = internalWorkItem.workItemResourceId
     }
     verifyProtoArgument(
-      internalServiceMock,
-      WorkItemsGrpcKt.WorkItemsCoroutineImplBase::failWorkItem,
-    )
+        internalServiceMock,
+        WorkItemsGrpcKt.WorkItemsCoroutineImplBase::failWorkItem,
+      )
       .isEqualTo(internalRequest)
 
     assertThat(response.state).isEqualTo(WorkItem.State.FAILED)
@@ -390,9 +390,9 @@ class WorkItemServiceTest {
     val response = service.listWorkItems(listWorkItemsRequest { pageSize = 1 })
 
     verifyProtoArgument(
-      internalServiceMock,
-      WorkItemsGrpcKt.WorkItemsCoroutineImplBase::listWorkItems,
-    )
+        internalServiceMock,
+        WorkItemsGrpcKt.WorkItemsCoroutineImplBase::listWorkItems,
+      )
       .isEqualTo(internalListWorkItemsRequest { pageSize = 1 })
     assertThat(response)
       .isEqualTo(
