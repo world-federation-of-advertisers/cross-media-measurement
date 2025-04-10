@@ -113,12 +113,18 @@ jobs:
           cp bazel-bin/src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/DataWatcherFunction_deploy.jar tmp_function/
 
       - name: Deploy Data Watcher
+#        env:
+#          GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
+#          DATA_WATCHER_TRIGGER_BUCKET: ${{ inputs.data-watcher-trigger-bucket }}
+#          DATA_WATCHER_SERVICE_ACCOUNT: ${{ inputs.data-watcher-service-account }}
+#          TRIGGER_SERVICE_ACCOUNT: ${{ inputs.trigger-service-account }}
+#          SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ inputs.secure-computation-public-api-target }}
         env:
           GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
-          DATA_WATCHER_TRIGGER_BUCKET: ${{ inputs.data-watcher-trigger-bucket }}
-          DATA_WATCHER_SERVICE_ACCOUNT: ${{ inputs.data-watcher-service-account }}
-          TRIGGER_SERVICE_ACCOUNT: ${{ inputs.trigger-service-account }}
-          SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ inputs.secure-computation-public-api-target }}
+          DATA_WATCHER_TRIGGER_BUCKET: ${{ inputs.data-watcher-trigger-bucket || 'cf_deploy_test' }}
+          DATA_WATCHER_SERVICE_ACCOUNT: ${{ inputs.data-watcher-service-account || 'data-watcher-function-test@halo-cmm-dev.iam.gserviceaccount.com' }}
+          TRIGGER_SERVICE_ACCOUNT: ${{ inputs.trigger-service-account || 'data-watcher-invoker-test@halo-cmm-dev.iam.gserviceaccount.com' }}
+          SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ inputs.secure-computation-public-api-target || '127.0.0.1:443' }}
         run: >
           gcloud functions deploy TestDeploy
           --gen2
