@@ -44,6 +44,7 @@ import org.wfanet.measurement.internal.kingdom.HmssProtocolConfigConfig
 import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
+import org.wfanet.measurement.gcloud.testing.CloudFunctionProcessDetails
 
 private const val REPO_NAME = "wfa_measurement_system"
 
@@ -199,3 +200,48 @@ val DEFAULT_SERVICE_CONFIG_MAP: Map<String, *>?
     val mapType = object : TypeToken<Map<String, *>>() {}.type
     return Gson().fromJson(serviceConfigJson, mapType)
   }
+
+/** Used to configure DataWatcher **/
+val DATA_WATCHER_CONFIG = CloudFunctionProcessDetails(
+  functionBinaryPath = Paths.get(
+    "wfa_measurement_system",
+    "src",
+    "main",
+    "kotlin",
+    "org",
+    "wfanet",
+    "measurement",
+    "securecomputation",
+    "deploy",
+    "gcloud",
+    "datawatcher",
+    "testing",
+    "InvokeDataWatcherFunction",
+  ),
+  classTarget =
+  "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction",
+  envVars = mapOf(
+    "DATA_WATCHER_CONFIG_RESOURCE_PATH" to
+      Paths.get(
+        "main",
+        "kotlin",
+        "org",
+        "wfanet",
+        "measurement",
+        "securecomputation",
+        "deploy",
+        "gcloud",
+        "datawatcher",
+        "testing",
+        "data_watcher_config.textproto",
+      )
+        .toString(),
+    "CONTROL_PLANE_PROJECT_ID" to "some-project-id",
+    //"CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
+    //"CONTROL_PLANE_CERT_HOST" to "localhost",
+    "CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
+    "CERT_FILE_PATH" to SECRET_FILES_PATH.resolve("edp1_tls.pem").toString(),
+    "PRIVATE_KEY_FILE_PATH" to SECRET_FILES_PATH.resolve("edp1_tls.key").toString(),
+    "CERT_COLLECTION_FILE_PATH" to SECRET_FILES_PATH.resolve("kingdom_root.pem").toString(),
+  ),
+)
