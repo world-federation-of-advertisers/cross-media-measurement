@@ -16,18 +16,54 @@ name: "Build and Deploy cloud functions"
 
 on:
   workflow_dispatch:
-  workflow_call:
     inputs:
       environment:
+        description: "GitHub-managed environment"
         type: string
         required: true
       secure-computation-public-public-api-target:
+        description: "SecureComputation public api target"
+        type: string
+        required: true
+      data-watcher-trigger-bucket:
+        description: "Bucket that triggers DataWatcher function"
+        type: string
+        required: true
+      data-watcher-service-account:
+        description: "ServiceAccount associated to the running function"
+        type: string
+        required: true
+      trigger-service-account:
+        description: "ServiceAccount associated to eventarc"
+        type: string
+        required: true
+  workflow_call:
+    inputs:
+      environment:
+        description: "GitHub-managed environment"
+        type: string
+        required: true
+      secure-computation-public-public-api-target:
+        description: "SecureComputation public api target"
+        type: string
+        required: true
+      data-watcher-trigger-bucket:
+        description: "Bucket that triggers DataWatcher function"
+        type: string
+        required: true
+      data-watcher-service-account:
+        description: "ServiceAccount associated to the running function"
+        type: string
+        required: true
+      trigger-service-account:
+        description: "ServiceAccount associated to eventarc"
         type: string
         required: true
 
 jobs:
   build-and-deploy-cloud-functions:
     runs-on: ubuntu-22.04
+    environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v4
       - name: Authenticate to Google Cloud
@@ -56,17 +92,23 @@ jobs:
           mkdir -p tmp_function
           cp bazel-bin/src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/DataWatcherFunction_deploy.jar tmp_function/
 
-      - name: Deploy Cloud Function
+      - name: Deploy Data Watcher
+        env:
+          GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
+          DATA_WATCHER_TRIGGER_BUCKET: ${{ inputs.data-watcher-trigger-bucket }}
+          DATA_WATCHER_SERVICE_ACCOUNT: ${{ inputs.data-watcher-service-account }}
+          TRIGGER_SERVICE_ACCOUNT: ${{ inputs.trigger-service-account }}
         run: >
           gcloud functions deploy TestDeploy
           --gen2
           --runtime=java17
           --entry-point=org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction
           --memory=512MB
-          --region=us-central1
+          --region=$GCLOUD_REGION
           --trigger-event-filters="type=google.cloud.storage.object.v1.finalized"
-          --trigger-event-filters="bucket=cf_deploy_test"
+          --trigger-event-filters="bucket=$DATA_WATCHER_TRIGGER_BUCKET"
           --source=tmp_function
           --quiet
-          --service-account=${{ vars.SECURE_COMPUTATION_SERVICE_ACCOUNT }}
+          --run-service-account=$DATA_WATCHER_SERVICE_ACCOUNT
+          --trigger-service-account=$TRIGGER-SERVICE-ACCOUNT
           --set-env-vars=CERT_FILE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=src/main/k8s/testing/secretfiles/secure_computation_root.pem,CONTROL_PLANE_TARGET=${{ inputs.secure-computation-public-public-api-target }},CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.dev.halo-cmm.org,DATA_WATCHER_CONFIG_RESOURCE_PATH=org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing/data_watcher_config.textproto
