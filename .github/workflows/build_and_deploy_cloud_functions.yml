@@ -72,6 +72,9 @@ on:
         required: true
         default: data-watcher-invoker-test@halo-cmm-dev.iam.gserviceaccount.com
 
+permissions:
+  id-token: write
+  
 jobs:
   build-and-deploy-cloud-functions:
     runs-on: ubuntu-22.04
