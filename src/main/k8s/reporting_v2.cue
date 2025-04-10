@@ -83,8 +83,9 @@ package k8s
 			"\(name)": config.image
 		}
 	}
-	_secretName:         string
-	_mcConfigSecretName: string
+	_basicReportsEnabled: string
+	_secretName:          string
+	_mcConfigSecretName:  string
 
 	_tlsArgs: [
 		"--tls-cert-file=/var/run/secrets/files/reporting_tls.pem",
