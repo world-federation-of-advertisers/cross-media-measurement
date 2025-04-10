@@ -83,7 +83,7 @@ package k8s
 			"\(name)": config.image
 		}
 	}
-	_basicReportsEnabled: boolean
+	_basicReportsEnabled: string
 	_secretName:          string
 	_mcConfigSecretName:  string
 
