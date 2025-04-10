@@ -38,8 +38,6 @@ on:
         description: "ServiceAccount associated to eventarc"
         type: string
         required: true
-  pull_request:
-    branches: [ main ]
   workflow_call:
     inputs:
       environment:
