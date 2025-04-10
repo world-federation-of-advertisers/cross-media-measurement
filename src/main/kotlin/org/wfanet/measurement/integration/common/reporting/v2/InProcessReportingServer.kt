@@ -20,7 +20,6 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
 import com.google.protobuf.util.Durations
 import io.grpc.Channel
-import io.grpc.ServerInterceptors
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.File
@@ -292,13 +291,11 @@ class InProcessReportingServer(
               .withTrustedPrincipalAuthentication(),
             BasicReportsService(internalBasicReportsClient, authorization)
               .withTrustedPrincipalAuthentication(),
-            ServerInterceptors.interceptForward(
-              ImpressionQualificationFiltersService(
-                  internalImpressionQualificationFiltersClient,
-                  authorization,
-                )
-                .withTrustedPrincipalAuthentication()
-            ),
+            ImpressionQualificationFiltersService(
+                internalImpressionQualificationFiltersClient,
+                authorization,
+              )
+              .withTrustedPrincipalAuthentication(),
           )
           .forEach { addService(it.withVerboseLogging(verboseGrpcLogging)) }
       }
