@@ -77,7 +77,7 @@ jobs:
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.SECURE_COMPUTATION_SERVICE_ACCOUNT }}
+          service_account: ${{ vars.CLOUD_FUNCTION_SERVICE_ACCOUNT }}
 
       - name: Setup gcloud CLI
         uses: google-github-actions/setup-gcloud@v1
