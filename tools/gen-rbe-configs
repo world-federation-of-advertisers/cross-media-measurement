@@ -6,6 +6,8 @@
 readonly bazel_version="$1"
 readonly toolchain_container="$2"
 shift 2
+# The clang.env.json file must contain at least the default values. See https://github.com/bazelbuild/bazel-toolchains/blob/master/pkg/rbeconfigsgen/options.go#L149
+readonly clang_env_json_path="$(bazel info workspace)/tools/clang.env.json"
 
 rbe_configs_gen \
   --exec_os=linux \
@@ -14,5 +16,6 @@ rbe_configs_gen \
   --output_config_path=third_party/rbe_configs \
   --bazel_version="${bazel_version}" \
   --bazel_path=bazel \
+  --cpp_env_json="${clang_env_json_path}" \
   --toolchain_container="${toolchain_container}" \
   "$@"

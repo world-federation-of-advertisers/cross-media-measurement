@@ -43,46 +43,59 @@ class DataWatcher(
 ) {
   suspend fun receivePath(path: String) {
     for (config in dataWatcherConfigs) {
-      val regex = config.sourcePathRegex.toRegex()
-      if (regex.matches(path)) {
-        logger.info("Matched path: $path")
-        when (config.sinkConfigCase) {
-          DataWatcherConfig.SinkConfigCase.CONTROL_PLANE_QUEUE_SINK -> {
-            val queueConfig = config.controlPlaneQueueSink
-            val workItemId = UUID.randomUUID().toString()
-            val workItemParams =
-              workItemParams {
-                  appParams = queueConfig.appParams
-                  this.dataPathParams = dataPathParams { this.dataPath = path }
-                }
-                .pack()
-            val request = createWorkItemRequest {
-              this.workItemId = workItemId
-              this.workItem = workItem {
-                queue = queueConfig.queue
-                this.workItemParams = workItemParams
-              }
+      try {
+        val regex = config.sourcePathRegex.toRegex()
+        if (regex.matches(path)) {
+          logger.info("${config.name}: Matched path: $path")
+          when (config.sinkConfigCase) {
+            DataWatcherConfig.SinkConfigCase.CONTROL_PLANE_QUEUE_SINK -> {
+              send_to_control_plane(config, path)
             }
-            workItemsStub.createWorkItem(request)
+            DataWatcherConfig.SinkConfigCase.HTTP_ENDPOINTS_SINK -> {
+              send_to_http_endpoint(config)
+            }
+            DataWatcherConfig.SinkConfigCase.SINKCONFIG_NOT_SET ->
+              error("${config.name}: Invalid sink config: ${config.sinkConfigCase}")
           }
-          DataWatcherConfig.SinkConfigCase.HTTP_ENDPOINTS_SINK -> {
-            val httpEndpointConfig = config.httpEndpointsSink
-            val client = HttpClient.newHttpClient()
-            val request =
-              HttpRequest.newBuilder()
-                .uri(URI.create(httpEndpointConfig.endpointUri))
-                .POST(HttpRequest.BodyPublishers.ofString(httpEndpointConfig.appParams.toJson()))
-                .build()
-            val response = client.send(request, BodyHandlers.ofString())
-            logger.info("Response status: ${response.statusCode()}")
-            logger.info("Response body: ${response.body()}")
-            check(response.statusCode() == 200)
-          }
-          DataWatcherConfig.SinkConfigCase.SINKCONFIG_NOT_SET ->
-            error("Invalid sink config: ${config.sinkConfigCase}")
         }
+      } catch (e: Exception) {
+        logger.severe("${config.name}: Unable to process $path for $config: ${e.message}")
       }
     }
+  }
+
+  private suspend fun send_to_control_plane(config: DataWatcherConfig, path: String) {
+
+    val queueConfig = config.controlPlaneQueueSink
+    val workItemId = UUID.randomUUID().toString()
+    val workItemParams =
+      workItemParams {
+          appParams = queueConfig.appParams
+          this.dataPathParams = dataPathParams { this.dataPath = path }
+        }
+        .pack()
+    val request = createWorkItemRequest {
+      this.workItemId = workItemId
+      this.workItem = workItem {
+        queue = queueConfig.queue
+        this.workItemParams = workItemParams
+      }
+    }
+    workItemsStub.createWorkItem(request)
+  }
+
+  private suspend fun send_to_http_endpoint(config: DataWatcherConfig) {
+    val httpEndpointConfig = config.httpEndpointsSink
+    val client = HttpClient.newHttpClient()
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create(httpEndpointConfig.endpointUri))
+        .POST(HttpRequest.BodyPublishers.ofString(httpEndpointConfig.appParams.toJson()))
+        .build()
+    val response = client.send(request, BodyHandlers.ofString())
+    logger.info("${config.name}: Response status: ${response.statusCode()}")
+    logger.info("${config.name}: Response body: ${response.body()}")
+    check(response.statusCode() == 200)
   }
 
   companion object {

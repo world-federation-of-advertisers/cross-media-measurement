@@ -24,6 +24,7 @@ proto_library(
     srcs = ["data_watcher_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_protobuf//:any_proto",
         "@com_google_protobuf//:struct_proto",
     ],
