@@ -14,8 +14,8 @@
 
 package k8s
 
-_secureComputationSecretName:     string @tag("secret_name")
-_publicApiAddressName:      "secure-computation-public"
+_secureComputationSecretName: string @tag("secret_name")
+_publicApiAddressName:        "secure-computation-public"
 
 // Name of K8s service account for the ControlPlane internal API server.
 #InternalSecureComputationServerServiceAccount: "internal-secure-computation-server"
@@ -41,12 +41,12 @@ objectSets: [
 
 secureComputation: #SecureComputation & {
 
-    _secretName:         _secureComputationSecretName
-    _verboseGrpcServerLogging: true
+	_secretName:               _secureComputationSecretName
+	_verboseGrpcServerLogging: true
 
-    _spannerConfig: database: "secure-computation"
+	_spannerConfig: database: "secure-computation"
 
-    serviceAccounts: {
+	serviceAccounts: {
 		"\(#InternalSecureComputationServerServiceAccount)": #WorkloadIdentityServiceAccount & {
 			_iamServiceAccountName: "secure-computation-internal"
 		}
@@ -54,17 +54,17 @@ secureComputation: #SecureComputation & {
 
 	configMaps: "java": #JavaConfigMap
 
-    deployments: {
-        "secure-computation-internal-api-server": {
-            spec: template: spec: #ServiceAccountPodSpec & {
-                serviceAccountName: #InternalSecureComputationServerServiceAccount
-            }
-        }
-        "secure-computation-public-api-server": {
-            _container: resources: #PublicServerResourceRequirements
-        }
-    }
-    services: {
-        "secure-computation-public-api-server": _ipAddressName: _publicApiAddressName
-    }
+	deployments: {
+		"secure-computation-internal-api-server": {
+			spec: template: spec: #ServiceAccountPodSpec & {
+				serviceAccountName: #InternalSecureComputationServerServiceAccount
+			}
+		}
+		"secure-computation-public-api-server": {
+			_container: resources: #PublicServerResourceRequirements
+		}
+	}
+	services: {
+		"secure-computation-public-api-server": _ipAddressName: _publicApiAddressName
+	}
 }
