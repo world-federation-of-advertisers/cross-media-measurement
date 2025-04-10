@@ -30,7 +30,7 @@ import picocli.CommandLine
 
 private const val SERVER_NAME = "SecureComputationApiServer"
 
- @CommandLine.Command(name = SERVER_NAME)
+@CommandLine.Command(name = SERVER_NAME)
 class PublicApiServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
 
