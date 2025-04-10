@@ -79,7 +79,6 @@ jobs:
     - name: Write ~/.bazelrc
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
-        BASIC_REPORTS_ENABLED: ${{ vars.BASIC_REPORTS_ENABLED }}
         SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
         POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
         GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
@@ -96,7 +95,7 @@ jobs:
         build --define "postgres_region=$GCLOUD_REGION"
         build --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         build --define reporting_public_api_address_name=reporting-v2alpha
-        build --define "basic_reports_enabled=$BASIC_REPORTS_ENABLED"
+        build --define basic_reports_enabled=true
         EOF
 
     - name: Export BAZEL_BIN
