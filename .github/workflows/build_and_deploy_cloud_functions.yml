@@ -74,7 +74,7 @@ on:
 
 permissions:
   id-token: write
-  
+
 jobs:
   build-and-deploy-cloud-functions:
     runs-on: ubuntu-22.04
@@ -131,5 +131,5 @@ jobs:
           --source=tmp_function
           --quiet
           --run-service-account=$DATA_WATCHER_SERVICE_ACCOUNT
-          --trigger-service-account=$TRIGGER-SERVICE-ACCOUNT
+          --trigger-service-account=$TRIGGER_SERVICE_ACCOUNT
           --set-env-vars=CERT_FILE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=src/main/k8s/testing/secretfiles/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=src/main/k8s/testing/secretfiles/secure_computation_root.pem,CONTROL_PLANE_TARGET=$SECURE_COMPUTATION_PUBLIC_API_TARGET,CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.dev.halo-cmm.org,DATA_WATCHER_CONFIG_RESOURCE_PATH=org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing/data_watcher_config.textproto
