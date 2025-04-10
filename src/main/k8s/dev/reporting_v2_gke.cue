@@ -14,11 +14,11 @@
 
 package k8s
 
-_reportingBasicReportsEnabled:         string @tag("basic_reports_enabled")
-_reportingSecretName:         string @tag("secret_name")
-_reportingMcConfigSecretName: string @tag("mc_config_secret_name")
-_publicApiAddressName:        string @tag("public_api_address_name")
-_accessPublicApiAddressName:  "access-public"
+_reportingBasicReportsEnabled: string @tag("basic_reports_enabled")
+_reportingSecretName:          string @tag("secret_name")
+_reportingMcConfigSecretName:  string @tag("mc_config_secret_name")
+_publicApiAddressName:         string @tag("public_api_address_name")
+_accessPublicApiAddressName:   "access-public"
 
 #KingdomApiTarget: #GrpcTarget & {
 	target: string @tag("kingdom_public_api_target")
