@@ -38,7 +38,30 @@ message EventGroupDetails {
   // The Event Templates that this Event Group conforms to.
   repeated EventTemplate event_templates = 5;
 
-  // Data Provider-specific encrypted Event Group metadata.
+  message EventGroupMetadata {
+    // Metadata specific to ad impressions.
+    message AdMetadata {
+      // Metadata that pertains to a campaign.
+      message CampaignMetadata {
+        // The name of the brand for which the campaign is being run.
+        string brand_name = 1;
+        // The name of the campaign.
+        string campaign_name = 2;
+      }
+      // Metadata the pertains to a campaign that is entailed by the EventGroup.
+      CampaignMetadata campaign_metadata = 1;
+    }
+
+    oneof metadata {
+      AdMetadata ad_metadata = 2;
+    }
+  }
+  // Common [EventGroup][] metadata. This is intended to eventually replace
+  // [encrypted_metadata][].
+  EventGroupMetadata metadata = 9;
+
+  // Data Provider-specific encrypted Event Group metadata. This will eventually
+  // be deprecated in favor of [metadata][].
   bytes encrypted_metadata = 6;
 
   google.type.Interval data_availability_interval = 8;

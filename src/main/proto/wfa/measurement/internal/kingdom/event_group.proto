@@ -18,6 +18,7 @@ package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/kingdom/event_group_details.proto";
+import "wfa/measurement/internal/kingdom/media_type.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -35,6 +36,7 @@ message EventGroup {
   google.protobuf.Timestamp create_time = 6;
   google.protobuf.Timestamp update_time = 7;
 
+  repeated MediaType media_types = 10;
   EventGroupDetails details = 8;
 
   // Possible states of Event Group.
