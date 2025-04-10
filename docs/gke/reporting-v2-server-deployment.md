@@ -102,7 +102,7 @@ values):
 
 If "--basic-reports-enabled=true" is passed in, then "--spanner-instance" is required.
 
-If "--basic-reports-enabled" is set to false or unspecified, then a dummy value can be passed to "--spanner-instance".
+If "--basic-reports-enabled" is set to false or unspecified, then any dummy value can be passed to "--spanner-instance".
 
 ```shell
 bazel build //src/main/k8s/dev:reporting_v2.tar \
