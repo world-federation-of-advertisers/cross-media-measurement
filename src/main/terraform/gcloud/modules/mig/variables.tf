@@ -85,7 +85,7 @@ variable "storage_bucket_name" {
 }
 
 variable "kms_key_id" {
-  description = "The kms key id to grant access to."
+  description = "The kms key id of the key encryption key to grant access to."
   type        = string
   nullable    = false
 }
