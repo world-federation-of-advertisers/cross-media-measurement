@@ -20,10 +20,10 @@ resource "google_service_account" "mig_service_account" {
   display_name = "MIG Service Account"
 }
 
-resource "google_pubsub_topic_iam_member" "mig_pubsub_user" {
-  topic  = var.topic_id
-  role   = "roles/pubsub.subscriber"
-  member = "serviceAccount:${google_service_account.mig_service_account.email}"
+resource "google_pubsub_subscription_iam_member" "mig_subscriber" {
+  subscription  = var.subscription_id
+  role          = "roles/pubsub.subscriber"
+  member        = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
 resource "google_storage_bucket_iam_member" "mig_storage_viewer" {
@@ -59,7 +59,7 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   }
 
   network_interface {
-    network = "default" # TODO(@marcopremier): Add VPC here.
+    network = "default"
   }
 
   metadata = {
