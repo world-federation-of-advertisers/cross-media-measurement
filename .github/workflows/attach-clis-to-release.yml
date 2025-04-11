@@ -17,8 +17,6 @@ name: Attach CLIs to release
 on:
   release:
     types: [published]
-    branches:
-      - main    
 
 jobs:
   attach-clis-to-release:
@@ -32,8 +30,6 @@ jobs:
 
       - name: Set up Bazel
         uses: world-federation-of-advertisers/actions/setup-bazel@v2
-
-      - uses: ./.github/actions/free-disk-space
 
       - name: Write auth.bazelrc
         env:
@@ -49,9 +45,6 @@ jobs:
           common --config=ci
           EOF
 
-      - name: Check lockfile
-        run: bazel mod deps
-
       - name: Build CLI uber jars
         run: >
           bazel build 
@@ -65,9 +58,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
-          gh release upload "${{ github.event.release.tag_name }}" 
+          gh release upload "${{ github.event.release.tag_name }}"
           ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/MeasurementSystem_deploy.jar
           ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/EncryptionPublicKeys_deploy.jar
           ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/EventTemplateValidator_deploy.jar
           ./bazel-bin/src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/tools/Reporting_deploy.jar
           ./bazel-bin/src/main/kotlin/org/wfanet/measurement/access/deploy/tools/Access_deploy.jar
+          --clobber
