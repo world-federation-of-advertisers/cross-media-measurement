@@ -17,24 +17,39 @@
 package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.ByteString
+import io.grpc.Channel
 import java.security.cert.X509Certificate
+import java.util.Timer
+import kotlin.concurrent.fixedRateTimer
 import kotlinx.coroutines.runBlocking
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.gcloud.testing.CloudFunctionProcessDetails
-import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
+import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
+import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.Resources
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.service.internal.Services
+import org.wfanet.measurement.securecomputation.teesdk.testing.FakeFulfillingRequisitionTeeApp
+import org.wfanet.measurement.storage.StorageClient
 
-class InProcessEdpAggregatorComponents(private val internalServicesRule: ProviderRule<Services>) :
-  TestRule {
+class InProcessEdpAggregatorComponents(
+  private val internalServicesRule: ProviderRule<Services>,
+  private val pubSubClient: GooglePubSubClient,
+  private val kingdomChannel: Channel,
+  private val storageClient: StorageClient,
+) : TestRule {
 
   private val internalServices: Services
     get() = internalServicesRule.value
@@ -42,21 +57,37 @@ class InProcessEdpAggregatorComponents(private val internalServicesRule: Provide
   val secureComputationPublicApi =
     InProcessSecureComputationPublicApi(internalServicesProvider = { internalServices })
 
-  private val dataWatcherDetails: CloudFunctionProcessDetails by lazy {
-    val authority = secureComputationPublicApi.publicApiChannel.authority()
-    DATA_WATCHER_CONFIG.copy(
-      envVars =
-        DATA_WATCHER_CONFIG.envVars +
-          mapOf("CONTROL_PLANE_TARGET" to authority, "CONTROL_PLANE_CERT_HOST" to authority.split(":")[0])
+  private val workItemsClient: WorkItemsCoroutineStub by lazy {
+    WorkItemsCoroutineStub(secureComputationPublicApi.publicApiChannel)
+  }
+
+  private val requisitionsClient: RequisitionsCoroutineStub by lazy {
+    RequisitionsCoroutineStub(kingdomChannel)
+  }
+
+  private val dataWatcher: DataWatcher by lazy { DataWatcher(workItemsClient, DATA_WATCHER_CONFIG) }
+
+  private val requisitionFetcher: RequisitionFetcher by lazy {
+    RequisitionFetcher(
+      requisitionsClient,
+      storageClient,
+      "some-data-prover",
+      "some-storage-prefix",
+      10,
     )
   }
 
-  private val dataWatcher: FunctionsFrameworkInvokerProcess by lazy {
-    FunctionsFrameworkInvokerProcess(
-      javaBinaryPath = dataWatcherDetails.functionBinaryPath,
-      classTarget = dataWatcherDetails.classTarget,
+  private val subscriber = Subscriber(PROJECT_ID, pubSubClient)
+
+  private val teeApp =
+    FakeFulfillingRequisitionTeeApp(
+      parser = WorkItem.parser(),
+      subscriptionId = "some-subscription",
+      workItemsClient = workItemsClient,
+      workItemAttemptsClient =
+        WorkItemAttemptsCoroutineStub(secureComputationPublicApi.publicApiChannel),
+      queueSubscriber = subscriber,
     )
-  }
 
   val ruleChain: TestRule by lazy {
     chainRulesSequentially(internalServicesRule, secureComputationPublicApi)
@@ -71,13 +102,22 @@ class InProcessEdpAggregatorComponents(private val internalServicesRule: Provide
     return edpDisplayNameToResourceMap.values.map { it.name }
   }
 
+  lateinit var requisitionFetcherTimer: Timer
+
   fun startDaemons() = runBlocking {
     // Create all resources
     createAllResources()
-    dataWatcher.start(dataWatcherDetails.envVars)
+    requisitionFetcherTimer =
+      fixedRateTimer("timer", false, 0L, 1000L) {
+        runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
+      }
   }
 
-  fun stopDaemons() {}
+  suspend fun stopDaemons() {
+    pubSubClient.deleteTopic(PROJECT_ID, TOPIC_ID)
+    // pubSubClient.deleteSubscription(PROJECT_ID, SUBSCRIPTION_ID)
+    requisitionFetcherTimer.cancel()
+  }
 
   override fun apply(statement: Statement, description: Description): Statement {
     return ruleChain.apply(statement, description)
