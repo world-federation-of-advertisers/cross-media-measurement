@@ -65,8 +65,12 @@ object DataServices {
     impressionQualificationFilterMapping: ImpressionQualificationFilterMapping?,
   ): Services {
     val basicReportsService: BasicReportsGrpcKt.BasicReportsCoroutineImplBase? =
-      if (spannerClient != null) {
-        SpannerBasicReportsService(spannerClient, postgresClient)
+      if (spannerClient != null && impressionQualificationFilterMapping != null) {
+        SpannerBasicReportsService(
+          spannerClient,
+          postgresClient,
+          impressionQualificationFilterMapping,
+        )
       } else null
 
     val impressionQualificationFiltersService:
