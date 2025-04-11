@@ -79,12 +79,6 @@ object DataServices {
         ImpressionQualificationFiltersService(impressionQualificationFilterMapping)
       } else null
 
-    val impressionQualificationFiltersService:
-      ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineImplBase? =
-      if (impressionQualificationFilterMapping != null) {
-        ImpressionQualificationFiltersService(impressionQualificationFilterMapping)
-      } else null
-
     return Services(
       basicReportsService = basicReportsService,
       impressionQualificationFiltersService = impressionQualificationFiltersService,
