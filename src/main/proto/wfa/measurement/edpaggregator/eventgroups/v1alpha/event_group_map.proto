@@ -1,0 +1,36 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.eventgroups.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.eventgroups.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "EventGroupMapProto";
+
+// Allows data providers to learn the EventGroup resource names for their
+// campaigns
+message MappedEventGroup {
+  // A map from event_group_reference_id to the EventGroup resource name.
+  string event_group_reference_id = 1 [(google.api.field_behavior) = REQUIRED];
+  // The name of the [EventGroup] in an external system.
+  string event_group_resource = 2 [
+    (google.api.resource_reference).type = "halo.wfanet.org/EventGroup",
+    (google.api.field_behavior) = REQUIRED
+  ];
+}
