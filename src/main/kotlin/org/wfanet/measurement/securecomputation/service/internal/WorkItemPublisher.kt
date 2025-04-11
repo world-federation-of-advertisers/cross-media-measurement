@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 The Cross-Media Measurement Authors
+ * Copyright 2025 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,10 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.securecomputation.controlplane.v1alpha
+package org.wfanet.measurement.securecomputation.service.internal
 
 import com.google.protobuf.Message
-import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
-import org.wfanet.measurement.gcloud.pubsub.Publisher
 
-class GooglePubSubWorkItemsService(projectId: String, googlePubSubClient: GooglePubSubClient) :
-  WorkItemsService() {
-
-  private val publisher: Publisher<Message> = Publisher(projectId, googlePubSubClient)
-
-  override suspend fun publishMessage(queueName: String, message: Message) {
-    publisher.publishMessage(queueName, message)
-  }
+interface WorkItemPublisher {
+  suspend fun publishMessage(queueName: String, message: Message)
 }

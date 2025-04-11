@@ -24,6 +24,7 @@ import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupDetails
+import org.wfanet.measurement.internal.kingdom.MediaType
 import org.wfanet.measurement.internal.kingdom.eventGroup
 
 class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
@@ -122,6 +123,7 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
     }
     createTime = struct.getTimestamp("CreateTime").toProto()
     updateTime = struct.getTimestamp("UpdateTime").toProto()
+    mediaTypes += struct.getProtoEnumList("MediaTypes", MediaType::forNumber)
     if (!struct.isNull("EventGroupDetails")) {
       details = struct.getProtoMessage("EventGroupDetails", EventGroupDetails.getDefaultInstance())
     }
@@ -142,10 +144,18 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
         EventGroups.EventGroupDetails,
         MeasurementConsumers.ExternalMeasurementConsumerId,
         DataProviders.ExternalDataProviderId,
-        EventGroups.State
-      FROM EventGroups
-      JOIN MeasurementConsumers USING (MeasurementConsumerId)
-      JOIN DataProviders USING (DataProviderId)
+        EventGroups.State,
+        ARRAY(
+          SELECT MediaType
+          FROM EventGroupMediaTypes
+          WHERE
+            EventGroupMediaTypes.DataProviderId = EventGroups.DataProviderId
+            AND EventGroupMediaTypes.EventGroupId = EventGroups.EventGroupId
+        ) AS MediaTypes,
+      FROM
+        EventGroups
+        JOIN DataProviders USING (DataProviderId)
+        JOIN MeasurementConsumers USING (MeasurementConsumerId)
       """
         .trimIndent()
 

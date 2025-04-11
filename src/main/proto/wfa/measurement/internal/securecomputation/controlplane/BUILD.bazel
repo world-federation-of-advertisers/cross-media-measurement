@@ -6,7 +6,9 @@ load(
 )
 load("//build:defs.bzl", "proto_lib_prefix")
 
-package(default_visibility = ["//:__subpackages__"])
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+])
 
 IMPORT_PREFIX = "/src/main/proto"
 
@@ -23,6 +25,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_protobuf//:any_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )

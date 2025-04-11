@@ -13,6 +13,9 @@ free to use whichever you prefer.
 ### What are we creating/deploying?
 
 -   1 Cloud SQL managed PostgreSQL database
+-   2 Cloud Spanner databases
+    -   `access`
+    -   `reporting`
 -   1 GKE cluster
     -   3 Kubernetes secret
         -   `certs-and-configs`
@@ -113,6 +116,12 @@ Extract the generated archive to some directory.
 You can customize this generated object configuration with your own settings
 such as the number of replicas per deployment, the memory and CPU requirements
 of each container, and the JVM options of each container.
+
+## Turning on the MC API Phase 1 services
+
+Pass in "--basic-reports-enabled=true" to the internal server. If this is
+passed in, then "--spanner-project", "--spanner-instance", and 
+'--spanner-database' are all required as well.
 
 ## Customize the K8s secrets
 

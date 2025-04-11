@@ -38,6 +38,14 @@ import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
  */
 class DataWatcherFunction : CloudEventsFunction {
 
+  init {
+    for (envVar in requiredEnvVals) {
+      checkNotNull(System.getenv(envVar)) {
+        "Missing env var: $envVar"
+      }
+    }
+  }
+
   override fun accept(event: CloudEvent) {
     logger.fine("Starting DataWatcherFunction")
     val publicChannel =
@@ -91,7 +99,16 @@ class DataWatcherFunction : CloudEventsFunction {
   companion object {
     private const val scheme = "gs"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
-    private val CLASS_LOADER: ClassLoader = Thread.currentThread().contextClassLoader
+    private const val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
+    private val CLASS_LOADER: ClassLoader = this::class.java.enclosingClass.classLoader
+    private val requiredEnvVals: List<String> =
+      listOf(
+        "CERT_FILE_PATH",
+        "PRIVATE_KEY_FILE_PATH",
+        "CERT_COLLECTION_FILE_PATH",
+        "DATA_WATCHER_CONFIG_RESOURCE_PATH",
+        "CONTROL_PLANE_TARGET",
+        "CONTROL_PLANE_CERT_HOST",
+      )
   }
 }
