@@ -171,6 +171,10 @@ class ReportsService(
             for (metricCalculationSpecReportingMetrics in
               reportingMetricEntry.value.metricCalculationSpecReportingMetricsList) {
               for (reportingMetric in metricCalculationSpecReportingMetrics.reportingMetricsList) {
+                if (reportingMetric.externalMetricId.isEmpty()) {
+                  continue
+                }
+
                 val name =
                   MetricKey(
                       internalReport.cmmsMeasurementConsumerId,
@@ -254,6 +258,10 @@ class ReportsService(
           for (metricCalculationSpecReportingMetrics in
             reportingMetricEntry.value.metricCalculationSpecReportingMetricsList) {
             for (reportingMetric in metricCalculationSpecReportingMetrics.reportingMetricsList) {
+              if (reportingMetric.externalMetricId.isEmpty()) {
+                continue
+              }
+
               val name =
                 MetricKey(
                     internalReport.cmmsMeasurementConsumerId,
@@ -506,11 +514,19 @@ class ReportsService(
       }
 
       val metrics: List<Metric> =
-        internalReport.externalMetricIds.map { externalMetricId ->
-          externalIdToMetricMap.getValue(externalMetricId)
+        buildList {
+          for (externalMetricId in internalReport.externalMetricIds) {
+            if (externalIdToMetricMap.containsKey(externalMetricId)) {
+              add(externalIdToMetricMap.getValue(externalMetricId))
+            } else {
+              state = Report.State.FAILED
+            }
+          }
         }
 
-      state = inferReportState(metrics)
+      if (state != Report.State.FAILED) {
+        state = inferReportState(metrics)
+      }
       createTime = internalReport.createTime
 
       if (state == Report.State.SUCCEEDED || state == Report.State.FAILED) {
@@ -567,18 +583,17 @@ class ReportsService(
         ReportKt.metricCalculationResult {
           this.metricCalculationSpec =
             MetricCalculationSpecKey(
-                metricCalculationSpec.cmmsMeasurementConsumerId,
-                metricCalculationSpec.externalMetricCalculationSpecId,
-              )
+              metricCalculationSpec.cmmsMeasurementConsumerId,
+              metricCalculationSpec.externalMetricCalculationSpecId,
+            )
               .toName()
           displayName = metricCalculationSpec.details.displayName
           reportingSet = reportingSetName
-          resultAttributes +=
-            metricCalculationSpecReportingMetrics.reportingMetricsList.map { reportingMetric ->
+          for (reportingMetric in metricCalculationSpecReportingMetrics.reportingMetricsList) {
+            if (externalIdToMetricMap.containsKey(reportingMetric.externalMetricId)) {
               val metric =
-                externalIdToMetricMap[reportingMetric.externalMetricId]
-                  ?: error("Got a metric not associated with the report.")
-              ReportKt.MetricCalculationResultKt.resultAttribute {
+                externalIdToMetricMap.getValue(reportingMetric.externalMetricId)
+              resultAttributes += ReportKt.MetricCalculationResultKt.resultAttribute {
                 this.metric = metric.name
                 groupingPredicates += reportingMetric.details.groupingPredicatesList
                 filter = metricCalculationSpec.details.filter
@@ -590,6 +605,7 @@ class ReportsService(
                 }
               }
             }
+          }
         }
       }
     }
