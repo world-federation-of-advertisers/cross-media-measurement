@@ -100,6 +100,10 @@ generated using Bazel rules from files written in [CUE](https://cuelang.org/).
 To generate the `dev` Kustomization, run the following (substituting your own
 values):
 
+If "--basic-reports-enabled=true" is passed in, then "--spanner-instance" is required.
+
+If "--basic-reports-enabled" is set to false or unspecified, then any dummy value can be passed to "--spanner-instance".
+
 ```shell
 bazel build //src/main/k8s/dev:reporting_v2.tar \
   --define reporting_public_api_address_name=reporting-v2alpha \
@@ -108,7 +112,8 @@ bazel build //src/main/k8s/dev:reporting_v2.tar \
   --define postgres_region=us-central1 \
   --define kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
   --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-reporting-demo --define image_tag=build-0001
+  --define image_repo_prefix=halo-reporting-demo --define image_tag=build-0001 \
+  --define basic_reports_enabled=true --define spanner_instance=instance
 ```
 
 Extract the generated archive to some directory.
@@ -116,12 +121,6 @@ Extract the generated archive to some directory.
 You can customize this generated object configuration with your own settings
 such as the number of replicas per deployment, the memory and CPU requirements
 of each container, and the JVM options of each container.
-
-## Turning on the MC API Phase 1 services
-
-Pass in "--basic-reports-enabled=true" to the internal server. If this is
-passed in, then "--spanner-project", "--spanner-instance", and 
-'--spanner-database' are all required as well.
 
 ## Customize the K8s secrets
 
@@ -244,6 +243,9 @@ configuration uses one named `config-files`.
 *   `known_event_group_metadata_type_set.pb`
     *   Protobuf `FileDescriptorSet` containing known `EventGroup` metadata
         types.
+*   `impression_qualification_filter_config.textproto`
+    * [`ImpressionQualificationFilterConfig`](../../src/main/proto/wfa/measurement/config/reporting/impression_qualification_filter_config.proto)
+    * This is unused if `--basic-reports-enabled` is false
 
 Place these files into the `src/main/k8s/dev/reporting_v2_config_files/` path
 within the Kustomization directory.
