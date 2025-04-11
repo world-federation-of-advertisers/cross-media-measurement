@@ -1462,7 +1462,7 @@ class EventGroupMetadataDescriptorsCommand : Runnable {
 @CommandLine.Command(
   name = "metrics",
   sortOptions = false,
-  subcommands = [CommandLine.HelpCommand::class, InvalidateMetric::class],
+  subcommands = [CommandLine.HelpCommand::class],
 )
 class MetricsCommand : Runnable {
   @CommandLine.ParentCommand lateinit var parent: Reporting
@@ -1470,18 +1470,14 @@ class MetricsCommand : Runnable {
   val metricStub: MetricsCoroutineStub by lazy { MetricsCoroutineStub(parent.channel) }
 
   override fun run() {}
-}
 
-@CommandLine.Command(name = "invalidate", description = ["Invalidate metric"])
-class InvalidateMetric : Runnable {
-  @CommandLine.ParentCommand private lateinit var parent: MetricsCommand
-
-  @CommandLine.Parameters(description = ["The name of the metric to invalidate"])
-  private lateinit var metricName: String
-
-  override fun run() {
+  @CommandLine.Command(name = "invalidate", description = ["Invalidate metric"])
+  fun invalidateMetric(
+    @CommandLine.Parameters(description = ["The name of the metric to invalidate"])
+    metricName: String
+  ) {
     val request = invalidateMetricRequest { name = metricName }
-    val response = runBlocking { parent.metricStub.invalidateMetric(request) }
+    val response = runBlocking { metricStub.invalidateMetric(request) }
     println(response)
   }
 }
