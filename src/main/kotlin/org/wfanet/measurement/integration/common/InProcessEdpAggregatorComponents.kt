@@ -21,16 +21,20 @@ import io.grpc.Channel
 import java.security.cert.X509Certificate
 import java.util.Timer
 import kotlin.concurrent.fixedRateTimer
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
-import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroup as ExternalEventGroup
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -43,6 +47,11 @@ import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.service.internal.Services
 import org.wfanet.measurement.securecomputation.teesdk.testing.FakeFulfillingRequisitionTeeApp
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import java.time.Clock
+import kotlinx.coroutines.flow.emptyFlow
+import java.time.Duration
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 
 class InProcessEdpAggregatorComponents(
   private val internalServicesRule: ProviderRule<Services>,
@@ -65,6 +74,10 @@ class InProcessEdpAggregatorComponents(
     RequisitionsCoroutineStub(kingdomChannel)
   }
 
+  private val eventGroupsClient: EventGroupsCoroutineStub by lazy {
+    EventGroupsCoroutineStub(kingdomChannel)
+  }
+
   private val dataWatcher: DataWatcher by lazy { DataWatcher(workItemsClient, DATA_WATCHER_CONFIG) }
 
   private val requisitionFetcher: RequisitionFetcher by lazy {
@@ -74,6 +87,18 @@ class InProcessEdpAggregatorComponents(
       "some-data-prover",
       "some-storage-prefix",
       10,
+    )
+  }
+
+  private val eventGroupSync: EventGroupSync by lazy {
+    EventGroupSync(
+      "some-edp-name",
+      eventGroupsClient,
+      emptyFlow<EventGroup>(),
+      MinimumIntervalThrottler(
+        Clock.systemUTC(),
+        Duration.ofMillis(1000L),
+      ),
     )
   }
 
@@ -94,7 +119,7 @@ class InProcessEdpAggregatorComponents(
   }
 
   private lateinit var edpDisplayNameToResourceMap: Map<String, Resources.Resource>
-  lateinit var eventGroups: List<EventGroup>
+  lateinit var externalEventGroups: List<ExternalEventGroup>
 
   private suspend fun createAllResources() {}
 
