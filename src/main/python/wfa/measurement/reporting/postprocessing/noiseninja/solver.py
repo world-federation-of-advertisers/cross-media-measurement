@@ -22,7 +22,13 @@ from qpsolvers import Solution
 from qpsolvers import solve_problem
 
 from noiseninja.noised_measurements import SetMeasurementsSpec
+from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
+  report_post_processor_result_pb2
 
+ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
+StatusCode = ReportPostProcessorStatus.StatusCode
+
+TOLERANCE = 1e-1
 HIGHS_SOLVER = "highs"
 OSQP_SOLVER = "osqp"
 MAX_ATTEMPTS = 10
@@ -165,7 +171,6 @@ class Solver:
     variables[set_variable] = 1
     self._add_gt_term(variables)
 
-
   def _add_parent_gt_child_term(self, parent: int, child: int):
     variables = np.zeros(self.num_variables)
     variables.put(parent, -1)
@@ -184,7 +189,7 @@ class Solver:
 
   def _add_gt_term(self, variables: np.array):
     self.G.append(variables)
-    self.h.append([0])
+    self.h.append(0.0)
 
   def _solve_with_initial_value(self, solver_name: str,
       initial_values: np.array) -> Solution:
@@ -200,13 +205,19 @@ class Solver:
           self.P, self.q, np.array(self.G), np.array(self.h),
           np.array(self.A), np.array(self.b))
     else:
-      problem = Problem(
-          self.P, self.q, np.array(self.G), np.array(self.h))
+      problem = Problem(self.P, self.q, np.array(self.G), np.array(self.h))
     return problem
 
-  def _solve(self, solver_name: str) -> Solution:
+  def _solve(self, solver_name: str) -> tuple[
+    Solution, ReportPostProcessorStatus]:
     logging.info("Solving the quadratic program.")
     attempt_count = 0
+    best_solution = Solution(False)
+    smallest_residual = float('inf')
+    equality_residual = float('inf')
+    inequality_residual = float('inf')
+    status_code: StatusCode = StatusCode.SOLUTION_NOT_FOUND
+
     while attempt_count < MAX_ATTEMPTS:
       # The solver is not thread-safe in general. Synchronization mechanism is
       # needed when it is called concurrently (e.g. in a report processing
@@ -216,16 +227,52 @@ class Solver:
       SEMAPHORE.release()
 
       if solution.found:
-        break
-      else:
-        attempt_count += 1
-    return solution
+        primal_residual = solution.primal_residual()
+        if primal_residual < smallest_residual:
+          smallest_primal_residual = primal_residual
+          best_solution = solution
 
-  def solve(self) -> Solution:
+        # If a solution is found, updates the error code and stops.
+        if smallest_primal_residual < TOLERANCE:
+          if solver_name == HIGHS_SOLVER:
+            status_code = StatusCode.SOLUTION_FOUND_WITH_HIGHS
+          elif solver_name == OSQP_SOLVER:
+            status_code = StatusCode.SOLUTION_FOUND_WITH_OSQP
+          else:
+            raise ValueError(f"Unknown solver: {solver_name}")
+          break
+      attempt_count += 1
+
+    if best_solution.found:
+      # Overrides the error code if this is a partial solution.
+      if smallest_primal_residual >= TOLERANCE:
+        if solver_name == HIGHS_SOLVER:
+          status_code = StatusCode.PARTIAL_SOLUTION_FOUND_WITH_HIGHS
+        elif solver_name == OSQP_SOLVER:
+          status_code = StatusCode.PARTIAL_SOLUTION_FOUND_WITH_OSQP
+        else:
+          raise ValueError(f"Unknown solver: {solver_name}")
+
+      # Updates the primal equality and inequality residuals.
+      equality_residual = np.max(np.abs(
+          np.dot(self.A, best_solution.x) - np.array(
+              self.b))) if len(self.A) > 0 else 0.0
+      inequality_residual = max(0.0, np.max(
+          np.dot(self.G, best_solution.x) - np.array(
+              self.h))) if len(self.G) > 0 else 0.0
+
+    report_post_processor_status = ReportPostProcessorStatus(
+        status_code=status_code,
+        primal_equality_residual=equality_residual,
+        primal_inequality_residual=inequality_residual,
+    )
+    return best_solution, report_post_processor_status
+
+  def solve(self) -> tuple[Solution, ReportPostProcessorStatus]:
     logging.info(
         "Solving the quadratic program with the HIGHS solver."
     )
-    solution = self._solve(HIGHS_SOLVER)
+    solution, report_post_processor_status = self._solve(HIGHS_SOLVER)
 
     # If the highs solver does not converge, switch to the osqp solver which
     # is more robust. However, OSQP in general is less accurate than HIGHS
@@ -234,20 +281,18 @@ class Solver:
       logging.info(
           "Switching to OSQP solver as HIGHS solver failed to converge."
       )
-      solution = self._solve(OSQP_SOLVER)
+      solution, report_post_processor_status = self._solve(OSQP_SOLVER)
 
-    # Raise the exception when both solvers do not converge.
-    if not solution.found:
-      raise SolutionNotFoundError(solution)
-
-    return solution
+    return solution, report_post_processor_status
 
   def translate_solution(self, solution: Solution) -> dict[int, float]:
     result: dict[int, float] = {}
-    for var in range(0, self.num_variables):
-      result[self.variable_map[var]] = solution.x[var]
+    if solution.found:
+      for var in range(0, self.num_variables):
+        result[self.variable_map[var]] = solution.x[var]
     return result
 
-  def solve_and_translate(self) -> dict[int, float]:
-    solution = self.solve()
-    return self.translate_solution(solution)
+  def solve_and_translate(self) -> tuple[
+    dict[int, float], ReportPostProcessorStatus]:
+    solution, report_post_processor_status = self.solve()
+    return self.translate_solution(solution), report_post_processor_status
