@@ -24,12 +24,20 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.eventFilter
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.eventTemplateField
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.impressionQualificationFilter
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec
+import org.wfanet.measurement.config.reporting.impressionQualificationFilterConfig
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
+import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.service.internal.testing.v2.BasicReportsServiceTest
 
 @RunWith(JUnit4::class)
@@ -43,7 +51,11 @@ class SpannerBasicReportsServiceTest : BasicReportsServiceTest<SpannerBasicRepor
     val spannerDatabaseClient = spannerDatabase.databaseClient
     val postgresDatabaseClient = postgresDatabaseProvider.createDatabase()
     return Services(
-      SpannerBasicReportsService(spannerDatabaseClient, postgresDatabaseClient),
+      SpannerBasicReportsService(
+        spannerDatabaseClient,
+        postgresDatabaseClient,
+        IMPRESSION_QUALIFICATION_FILTER_MAPPING,
+      ),
       PostgresMeasurementConsumersService(idGenerator, postgresDatabaseClient),
       PostgresReportingSetsService(idGenerator, postgresDatabaseClient),
     )
@@ -51,6 +63,7 @@ class SpannerBasicReportsServiceTest : BasicReportsServiceTest<SpannerBasicRepor
 
   companion object {
     @JvmStatic val spannerEmulator = SpannerEmulatorRule()
+
     @JvmStatic
     val postgresDatabaseProvider =
       PostgresDatabaseProviderRule(PostgresSchemata.REPORTING_CHANGELOG_PATH)
@@ -58,5 +71,45 @@ class SpannerBasicReportsServiceTest : BasicReportsServiceTest<SpannerBasicRepor
     @get:ClassRule
     @JvmStatic
     val ruleChain: TestRule = chainRulesSequentially(spannerEmulator, postgresDatabaseProvider)
+
+    private val AMI_IQF = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "ami"
+      impressionQualificationFilterId = 1
+      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
+      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
+      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
+    }
+
+    private val MRC_IQF = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "mrc"
+      impressionQualificationFilterId = 2
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.DISPLAY
+        filters += eventFilter {
+          terms += eventTemplateField {
+            path = "banner_ad.viewable_fraction_1_second"
+            value = fieldValue { floatValue = 0.5F }
+          }
+        }
+      }
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.VIDEO
+        filters += eventFilter {
+          terms += eventTemplateField {
+            path = "video.viewable_fraction_1_second"
+            value = fieldValue { floatValue = 1.0F }
+          }
+        }
+      }
+      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
+    }
+
+    private val IMPRESSION_QUALIFICATION_FILTER_CONFIG = impressionQualificationFilterConfig {
+      impressionQualificationFilters += AMI_IQF
+      impressionQualificationFilters += MRC_IQF
+    }
+
+    private val IMPRESSION_QUALIFICATION_FILTER_MAPPING =
+      ImpressionQualificationFilterMapping(IMPRESSION_QUALIFICATION_FILTER_CONFIG)
   }
 }

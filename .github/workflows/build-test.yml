@@ -82,6 +82,7 @@ jobs:
           build --define edp6_name=dataProviders/foo6
           build --define edp6_cert_name=dataProviders/foo6/certificates/bar6
           build --define google_cloud_project=example-project
+          build --define basic_reports_enabled=true
           EOF
 
       # Reduce chance of disconnection from the Build Event Service.

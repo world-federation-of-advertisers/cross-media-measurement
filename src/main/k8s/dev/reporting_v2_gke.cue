@@ -14,10 +14,11 @@
 
 package k8s
 
-_reportingSecretName:         string @tag("secret_name")
-_reportingMcConfigSecretName: string @tag("mc_config_secret_name")
-_publicApiAddressName:        string @tag("public_api_address_name")
-_accessPublicApiAddressName:  "access-public"
+_reportingBasicReportsEnabled: string @tag("basic_reports_enabled")
+_reportingSecretName:          string @tag("secret_name")
+_reportingMcConfigSecretName:  string @tag("mc_config_secret_name")
+_publicApiAddressName:         string @tag("public_api_address_name")
+_accessPublicApiAddressName:   "access-public"
 
 #KingdomApiTarget: #GrpcTarget & {
 	target: string @tag("kingdom_public_api_target")
@@ -55,8 +56,9 @@ objectSets: [
 ]
 
 reporting: #Reporting & {
-	_secretName:         _reportingSecretName
-	_mcConfigSecretName: _reportingMcConfigSecretName
+	_basicReportsEnabled: _reportingBasicReportsEnabled
+	_secretName:          _reportingSecretName
+	_mcConfigSecretName:  _reportingMcConfigSecretName
 	_imageSuffixes: {
 		"update-reporting-postgres-schema":   "reporting/v2/gcloud-postgres-update-schema"
 		"postgres-internal-reporting-server": "reporting/v2/gcloud-internal-server"

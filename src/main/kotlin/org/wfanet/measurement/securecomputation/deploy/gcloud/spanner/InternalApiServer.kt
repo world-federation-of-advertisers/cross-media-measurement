@@ -68,6 +68,6 @@ class InternalApiServer : Runnable {
   }
 
   companion object {
-    const val SERVER_NAME = "ControlPlaneInternalApiServer"
+    const val SERVER_NAME = "SecureComputationInternalApiServer"
   }
 }

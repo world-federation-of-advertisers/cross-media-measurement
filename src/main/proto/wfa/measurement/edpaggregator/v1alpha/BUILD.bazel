@@ -1,0 +1,51 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
+
+package(default_visibility = ["//visibility:public"])
+
+_IMPORT_PREFIX = "/src/main/proto"
+
+proto_library(
+    name = "labeled_impression_proto",
+    srcs = ["labeled_impression.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_protobuf//:any_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "labeled_impression_kt_jvm_proto",
+    deps = [":labeled_impression_proto"],
+)
+
+proto_library(
+    name = "encrypted_dek_proto",
+    srcs = ["encrypted_dek.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "encrypted_dek_kt_jvm_proto",
+    deps = [":encrypted_dek_proto"],
+)
+
+proto_library(
+    name = "blob_details_proto",
+    srcs = ["blob_details.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        ":encrypted_dek_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "blob_details_kt_jvm_proto",
+    deps = [":blob_details_proto"],
+)
