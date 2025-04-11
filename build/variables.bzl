@@ -112,6 +112,7 @@ DUCHY_K8S_SETTINGS = struct(
 # Settings for Reporting Kubernetes deployments.
 REPORTING_K8S_SETTINGS = struct(
     public_api_address_name = "$(reporting_public_api_address_name)",
+    basic_reports_enabled = "$(basic_reports_enabled)",
 )
 
 # Settings for simulator Kubernetes deployments.
