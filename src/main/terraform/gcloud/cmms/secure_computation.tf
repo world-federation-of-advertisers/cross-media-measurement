@@ -63,6 +63,10 @@ module "secure_computation" {
   requisition_fulfiller_subscription_name   = "requisition-fulfiller-subscription"
   ack_deadline_seconds                      = 600
 
+  key_ring_name                             = "secure-computation-test-key-ring"
+  key_ring_location                         = local.key_ring_location
+  kms_key_name                              = "secure-computation-test-kek"
+
   mig_names                                 = mig_configs
 }
 

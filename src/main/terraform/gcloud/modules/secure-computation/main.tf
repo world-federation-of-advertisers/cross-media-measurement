@@ -73,6 +73,21 @@ module "data_watcher_function_service_accounts" {
   trigger_bucket_name                       = module.secure_computation_bucket.storage_bucket.name
 }
 
+resource "google_kms_key_ring" "secure_computation_key_ring" {
+  name     = var.key_ring_name
+  location = var.key_ring_location
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "google_kms_crypto_key" "secure_computation_kek" {
+  name     = var.kms_key_name
+  key_ring = google_kms_key_ring.secure_computation_key_ring.id
+  purpose  = "ENCRYPT_DECRYPT"
+}
+
 module "requisition_fulfiller_mig" {
   for_each = var.mig_names
   source   = "../mig"
@@ -87,6 +102,6 @@ module "requisition_fulfiller_mig" {
   max_replicas                  = each.value.max_replicas
   app_args                      = each.value.app_args
   machine_type                  = each.value.machine_type
-  kms_key_id                    = each.value.kms_key_id
+  kms_key_id                    = google_kms_crypto_key.secure_computation_kek.id
   storage_bucket_name           = module.secure_computation_bucket.storage_bucket.name
 }
