@@ -128,6 +128,7 @@ class InProcessEdpAggregatorComponents(
   }
 
   lateinit var requisitionFetcherTimer: Timer
+  lateinit var eventGroupSyncTimer: Timer
 
   fun startDaemons() = runBlocking {
     // Create all resources
@@ -136,12 +137,17 @@ class InProcessEdpAggregatorComponents(
       fixedRateTimer("timer", false, 0L, 1000L) {
         runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
       }
+    eventGroupSyncTimer =
+      fixedRateTimer("timer", false, 0L, 1000L) {
+        runBlocking { eventGroupSync.sync() }
+      }
   }
 
   suspend fun stopDaemons() {
     pubSubClient.deleteTopic(PROJECT_ID, TOPIC_ID)
     // pubSubClient.deleteSubscription(PROJECT_ID, SUBSCRIPTION_ID)
     requisitionFetcherTimer.cancel()
+    eventGroupSyncTimer.cancel()
   }
 
   override fun apply(statement: Statement, description: Description): Statement {
