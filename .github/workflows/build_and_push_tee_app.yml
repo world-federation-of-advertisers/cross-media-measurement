@@ -31,15 +31,21 @@ jobs:
       GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
       GAR_PROJECT_ID: ${{ vars.GCLOUD_PROJECT }}
       AR_REPO_NAME: ${{ vars.TEE_APP_ARTIFACTS_REPO }}
-      CONTAINER_REGISTRY: ${{ vars.GCLOUD_REGION }}-docker.pkg.dev
     steps:
       - uses: actions/checkout@v4
 
+      - uses: ./.github/actions/free-disk-space
+
+      - name: Set CONTAINER_REGISTRY
+        run: echo "CONTAINER_REGISTRY=${GCLOUD_REGION}-docker.pkg.dev" >> $GITHUB_ENV
+
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v1
         with:
-          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+          credentials_json: ${{ secrets.GCP_GAR_PUSHER_SA_KEY }}
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v1
 
       - name: Write auth.bazelrc
         env:
@@ -55,15 +61,17 @@ jobs:
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
-          build --define container_registry=$CONTAINER_REGISTRY
-          build --define image_repo_prefix=$GAR_PROJECT_ID/$AR_REPO_NAME
+          build --define container_registry=${{ env.CONTAINER_REGISTRY }}
+          build --define image_repo_prefix=${{ env.GAR_PROJECT_ID }}/${{ env.GAR_REPO_NAME }}
           build --define image_tag=$IMAGE_TAG
           EOF
 
       - name: Build images
         run: |
-          bazelisk build //src/main/docker:push_tee_app_gke_images
+          bazelisk build //src/main/docker:push_all_gke_images
+          bazelisk build push_tee_app_gke_images
 
       - name: Push images
         run: |
-          bazelisk run //src/main/docker:push_tee_app_gke_images
+          bazelisk run //src/main/docker:push_all_gke_images
+          bazelisk run push_tee_app_gke_images
