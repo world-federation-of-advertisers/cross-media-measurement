@@ -192,7 +192,6 @@ package k8s
 						volume: secret: secretName: Reporting._mcConfigSecretName
 						volumeMount: mountPath: "/var/run/secrets/files/config/mc/"
 					}
-
 					"config-files": #ConfigMapMount
 				}
 				_dependencies: _ | *["postgres-internal-reporting-server", "access-public-api-server"]

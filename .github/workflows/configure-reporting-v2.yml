@@ -90,7 +90,6 @@ jobs:
         common --config=ghcr
         build --define "image_tag=$IMAGE_TAG"
         build --define "google_cloud_project=$GCLOUD_PROJECT"
-        build --define "basic_reports_enabled=$BASIC_REPORTS_ENABLED"
         build --define "spanner_instance=$SPANNER_INSTANCE"
         build --define "postgres_instance=$POSTGRES_INSTANCE"
         build --define "postgres_region=$GCLOUD_REGION"
