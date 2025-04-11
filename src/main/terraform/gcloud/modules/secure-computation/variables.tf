@@ -147,3 +147,21 @@ variable "mig_names" {
     kms_key_id                  = string
   }))
 }
+
+variable "key_ring_name" {
+  description = "Name of the KMS key ring."
+  type        = string
+  nullable    = false
+}
+
+variable "key_ring_location" {
+  description = "Location of the KMS key ring."
+  type        = string
+  nullable    = false
+}
+
+variable "kms_key_name" {
+  description = "Name of the KMS KEK."
+  type        = string
+  nullable    = false
+}
