@@ -275,6 +275,7 @@ SERVICE_LIBS = [
     ":impression_qualification_filters_service_proto",
     ":metric_calculation_specs_service_proto",
     ":metrics_service_proto",
+    ":model_lines_service_proto",
     ":report_schedule_iterations_service_proto",
     ":report_schedules_service_proto",
     ":reporting_sets_service_proto",
@@ -350,6 +351,20 @@ proto_library(
         "@com_google_googleapis//google/api:client_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+proto_library(
+    name = "model_lines_service_proto",
+    srcs = ["model_lines_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_line_proto",
+        "@com_google_googleapis//google/api:annotations_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:field_info_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:interval_proto",
     ],
 )
 

@@ -181,3 +181,12 @@ permissions {
     protected_resource_types: "reporting.halo-cmm.org/Root"
   }
 }
+
+# modelLines
+permissions {
+  key: "reporting.modelLines.list"
+  value {
+    protected_resource_types: "halo.wfanet.org/ModelProvider"
+    protected_resource_types: "halo.wfanet.org/ModelSuite"
+  }
+}

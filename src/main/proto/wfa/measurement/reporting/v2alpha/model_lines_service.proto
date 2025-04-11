@@ -1,0 +1,60 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/annotations.proto";
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/type/interval.proto";
+import "wfa/measurement/api/v2alpha/model_line.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "BasicReportsServiceProto";
+option go_package = "github.com/world-federation-of-advertisers/cross-media-measurement/reporting/apiv2alpha/reportingpb";
+
+// Service for managing `ModelLine` resources.
+service ModelLines {
+  // Lists `ModelLine`s that are valid given an `Interval` representing the time
+  // range and a set of `EventGroup`s. Ordered by `type` from `PROD` to
+  // `HOLDBACK` to `DEV`, `active_start_time` descending, `active_end_time`
+  // descending.
+  rpc ListValidModelLines(ListValidModelLinesRequest)
+    returns (ListValidModelLinesResponse) {}
+}
+
+// Request message for `ListValidModelLines` method
+message ListValidModelLinesRequest {
+  // Only `ModelLine`s with this interval contained between `active_start_time`
+  // and `active_end_time` are considered.
+  google.type.Interval time_interval = 1
+    [(google.api.field_behavior) = REQUIRED];
+
+  // `time_interval` must be covered by all the `data_availability_interval`s of
+  // the event groups and all the `data_availability_interval`s of their parent
+  // data providers for any `ModelLine` to be considered.
+  repeated string event_groups = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "reporting.halo-cmm.org/EventGroup" }
+  ];
+}
+
+// Response message for `ListValidModelLines` method.
+message ListValidModelLinesResponse {
+  // The valid `ModelLine`s that met the criteria
+  repeated wfa.measurement.api.v2alpha.ModelLine model_lines = 1 [(google.api.field_behavior) = OPTIONAL];
+}
