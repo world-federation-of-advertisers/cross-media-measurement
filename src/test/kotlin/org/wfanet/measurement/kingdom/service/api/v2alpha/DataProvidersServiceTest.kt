@@ -23,6 +23,8 @@ import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.security.cert.X509Certificate
+import java.time.LocalDate
+import java.time.ZoneOffset
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -63,6 +65,7 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
+import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as InternalDataProvidersService
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersClient
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
@@ -71,6 +74,7 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest as internalGetDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.modelLineKey
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest as internalReplaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderCapabilitiesRequest as internalReplaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest as internalReplaceDataProviderRequiredDuchiesRequest
@@ -707,6 +711,20 @@ class DataProvidersServiceTest {
 
     private val INTERNAL_DATA_PROVIDER: InternalDataProvider = internalDataProvider {
       externalDataProviderId = DATA_PROVIDER_ID
+      dataAvailabilityIntervals +=
+        InternalDataProviderKt.dataAvailabilityMapEntry {
+          key = modelLineKey {
+            externalModelProviderId = 1234L
+            externalModelSuiteId = 2345L
+            externalModelLineId = 3456L
+          }
+          value = interval {
+            startTime =
+              LocalDate.of(2025, 1, 10).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+            endTime =
+              LocalDate.of(2025, 4, 10).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          }
+        }
       details = dataProviderDetails {
         apiVersion = API_VERSION.string
         publicKey = SIGNED_PUBLIC_KEY.message.value
@@ -734,8 +752,17 @@ class DataProvidersServiceTest {
       certificateDer = SERVER_CERTIFICATE_DER
       publicKey = SIGNED_PUBLIC_KEY
       requiredDuchies += DUCHY_NAMES
+      dataAvailabilityIntervals +=
+        DataProviderKt.dataAvailabilityMapEntry {
+          key = "modelProviders/AAAAAAAABNI/modelSuites/AAAAAAAACSk/modelLines/AAAAAAAADYA"
+          value = INTERNAL_DATA_PROVIDER.dataAvailabilityIntervalsList.first().value
+        }
       dataAvailabilityInterval = INTERNAL_DATA_PROVIDER.details.dataAvailabilityInterval
       capabilities = DataProvider.Capabilities.getDefaultInstance()
     }
   }
 }
+
+// private fun ReadableInstant.toProtoTime(): Timestamp {
+//  return toInstant().toProtoTime()
+// }

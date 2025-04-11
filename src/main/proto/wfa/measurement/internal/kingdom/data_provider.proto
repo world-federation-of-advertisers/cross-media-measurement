@@ -16,8 +16,10 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/type/interval.proto";
 import "wfa/measurement/internal/kingdom/certificate.proto";
 import "wfa/measurement/internal/kingdom/data_provider_details.proto";
+import "wfa/measurement/internal/kingdom/model_line_key.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -35,4 +37,11 @@ message DataProvider {
   // The list of duchies that must be included in all computations involving the
   // DataProvider
   repeated string required_external_duchy_ids = 4;
+
+  message DataAvailabilityMapEntry {
+    ModelLineKey key = 1;
+    google.type.Interval value = 2;
+  }
+  // Map of [ModelLineKey][] to data availability interval.
+  repeated DataAvailabilityMapEntry data_availability_intervals = 5;
 }

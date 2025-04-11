@@ -108,9 +108,7 @@ class CreateModelLine(private val modelLine: ModelLine, private val clock: Clock
               ExternalId(modelLine.externalModelProviderId),
               ExternalId(modelLine.externalModelSuiteId),
               ExternalId(modelLine.externalHoldbackModelLineId),
-            ) {
-              "HoldbackModelLine not found."
-            }
+            )
 
         if (modelLine.type != ModelLine.Type.PROD) {
           throw ModelLineTypeIllegalException(
