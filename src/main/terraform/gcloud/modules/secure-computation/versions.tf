@@ -1,4 +1,4 @@
-# Copyright 2024 The Cross-Media Measurement Authors
+# Copyright 2025 The Cross-Media Measurement Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-output "pubsub_topic" {
-  value       = google_pubsub_topic.topic
-  description = "Topic created Pub/Sub topic"
-}
-
-output "pubsub_subscription" {
-  value       = google_pubsub_subscription.subscription.name
-  description = "Name of the created Pub/Sub subscription"
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = ">= 6.12.0"
+    }
+  }
 }
