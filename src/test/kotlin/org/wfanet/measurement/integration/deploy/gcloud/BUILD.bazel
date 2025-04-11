@@ -200,3 +200,26 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs/testing",
     ],
 )
+
+kt_jvm_library(
+    name = "gcloud_edp_aggregator_life_of_a_measurement_integration_test",
+    srcs = ["GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_edp_aggregator_life_of_a_measurement_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest",
+    size = "large",
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest",
+    runtime_deps = [":gcloud_edp_aggregator_life_of_a_measurement_integration_test"],
+)

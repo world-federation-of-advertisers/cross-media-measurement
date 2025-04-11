@@ -60,6 +60,12 @@ import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGene
 import org.wfanet.measurement.securecomputation.service.internal.Services
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
+import org.wfanet.measurement.integration.deploy.gcloud.GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest
+import org.wfanet.measurement.integration.deploy.gcloud.SecureComputationServicesProviderRule
+import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
+import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 
 /**
  * Test that everything is wired up properly.
@@ -67,22 +73,35 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGr
  * This is abstract so that different implementations of dependencies can all run the same tests
  * easily.
  */
-abstract class InProcessLifeOfAMeasurementIntegrationTest(
-  secureComputationDataServicesRule: ProviderRule<Services>,
+abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   kingdomDataServicesRule: ProviderRule<DataServices>,
   duchyDependenciesRule:
   ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
+  secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
 ) {
 
   @get:Rule
   val inProcessCmmsComponents =
     InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule)
 
+
   @get:Rule
   val inProcessEdpAggregatorComponents =
     InProcessEdpAggregatorComponents(
-      secureComputationDataServicesRule,
+      internalServicesRule = SecureComputationServicesProviderRule(
+        workItemPublisher = workItemPublisher,
+        queueMapping = QueueMapping(QUEUE_CONFIG),
+        emulatorDatabaseAdmin = secureComputationDatabaseAdmin,),
+      kingdomChannel = inProcessCmmsComponents.kingdom.publicApiChannel,
+      storageClient = storageClient,
+      pubSubClient = pubSubClient,
     )
+
+  private
+
+  private val workItemPublisher by lazy {
+    GoogleWorkItemPublisher(PROJECT_ID, googlePubSubClient)
+  }
 
   private lateinit var mcSimulator: MeasurementConsumerSimulator
 
