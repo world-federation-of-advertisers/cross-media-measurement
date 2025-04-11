@@ -28,6 +28,20 @@ resource "google_spanner_database" "secure_computation" {
   database_dialect = "GOOGLE_STANDARD_SQL"
 }
 
+module "requisition_fulfiller_queue" {
+    source = "../pubsub"
+
+    topic_name              = var.requisition_fulfiller_topic_name
+    subscription_name       = var.requisition_fulfiller_subscription_name
+    ack_deadline_seconds    = var.ack_deadline_seconds
+}
+
+resource "google_pubsub_topic_iam_member" "publisher" {
+  topic  = requisition_fulfiller_queue.pubsub_topic.id
+  role   = "roles/pubsub.publisher"
+  member = local.iam_service_account.member
+}
+
 resource "google_spanner_database_iam_member" "secure_computation_internal" {
   instance = google_spanner_database.secure_computation.instance
   database = google_spanner_database.secure_computation.name
@@ -41,16 +55,38 @@ resource "google_spanner_database_iam_member" "secure_computation_internal" {
 
 resource "google_compute_address" "api_server" {
   name    = "secure-computation-public"
-  address = var.api_server_ip_address
+  address = var.secure_computation_api_server_ip_address
 }
 
-module "data_watcher" {
-    source = "../modules/gcs-bucket-cloud-function"
+module "secure_computation_bucket" {
+  source   = "../storage-bucket"
 
-  cloud_function_source_object          = var.data_watcher_source_object
-  cloud_function_source_bucket          = var.cloud_function_source_bucket
-  cloud_function_name                   = var.data_watcher_cloud_function_name
-  entry_point                           = var.data_watcher_entry_point
-  trigger_bucket_name                   = var.data_watcher_trigger_bucket_name
-  cloud_function_service_account_name   = var.data_watcher_cloud_function_service_account_name
+  name     = var.secure_computation_bucket_name
+  location = var.secure_computation_bucket_location
+}
+
+module "data_watcher_function_service_accounts" {
+  source    = "../gcs-bucket-cloud-function"
+
+  cloud_function_service_account_name       = var.data_watcher_service_account_name
+  cloud_function_trigger_service_account    = var.data_watcher_trigger_service_account_name
+  trigger_bucket_name                       = module.secure_computation_bucket.storage_bucket.name
+}
+
+module "requisition_fulfiller_mig" {
+  for_each = var.mig_names
+  source   = "../mig"
+
+  instance_template_name        = each.value.instance_template_name
+  base_instance_name            = each.value.base_instance_name
+  managed_instance_group_name   = each.value.managed_instance_group_name
+  subscription_id               = each.value.subscription_id
+  mig_service_account_name      = each.value.mig_service_account_name
+  single_instance_assignment    = each.value.single_instance_assignment
+  min_replicas                  = each.value.min_replicas
+  max_replicas                  = each.value.max_replicas
+  app_args                      = each.value.app_args
+  machine_type                  = each.value.machine_type
+  kms_key_id                    = each.value.kms_key_id
+  storage_bucket_name           = module.secure_computation_bucket.storage_bucket.name
 }
