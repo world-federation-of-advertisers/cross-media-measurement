@@ -15,6 +15,7 @@
 variable "instance_template_name" {
   description = "The name of the instance template."
   type        = string
+  default     = null
 }
 
 variable "base_instance_name" {
@@ -42,8 +43,8 @@ variable "app_args" {
 }
 
 variable "subscription_id" {
-  description = "The subscription used to determine the amount of undelivered messages."
-  type        = number
+  description = "The ID of the Pub/Sub subscription to which the service account will be granted access."
+  type        = string
   nullable    = false
 }
 
@@ -71,8 +72,8 @@ variable "machine_type" {
   nullable    = false
 }
 
-variable "topic_id" {
-  description = "The pubsub topic id to grant access to."
+variable "subscription_id" {
+  description = "The pubsub subscription id to grant access to."
   type        = string
   nullable    = false
 }
@@ -88,3 +89,11 @@ variable "kms_key_id" {
   type        = string
   nullable    = false
 }
+
+variable "docker_image" {
+  description = "The docker image to be deployed."
+  type        = string
+  nullable    = false
+}
+
+
