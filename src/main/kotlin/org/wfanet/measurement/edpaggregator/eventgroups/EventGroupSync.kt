@@ -21,6 +21,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.EventGroup as ExternalEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as externalCampaignMetadata
@@ -31,6 +32,7 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as externalEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as externalEventGroupMetadata
+import kotlinx.coroutines.flow.forEach
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -55,6 +57,9 @@ class EventGroupSync(
 ) {
 
   suspend fun sync(): Flow<MappedEventGroup> = flow {
+    println("--------------------------")
+    println(edpName)
+    eventGroups.collect { print(it) }
     val syncedEventGroups: Map<String, ExternalEventGroup> =
       fetchEventGroups().toList().associateBy { it.eventGroupReferenceId }
     eventGroups.collect { eventGroup: EventGroup ->
@@ -70,6 +75,13 @@ class EventGroupSync(
         } else {
           createKingdomEventGroup(edpName, eventGroup)
         }
+      println("*******MAPPED***********************\n")
+      print(mappedEventGroup {
+        eventGroupReferenceId = syncedEventGroup.eventGroupReferenceId
+        eventGroupResource = syncedEventGroup.name
+      })
+      println("0000000000000000000")
+
       emit(
         mappedEventGroup {
           eventGroupReferenceId = syncedEventGroup.eventGroupReferenceId

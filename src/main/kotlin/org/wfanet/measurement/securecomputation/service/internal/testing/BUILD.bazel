@@ -28,6 +28,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:errors",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:queue_mapping",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:work_item_publisher",
         "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_item_attempts_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_items_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
@@ -36,6 +37,7 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/proto/wfa/measurement/queue/testing:test_work_kt_jvm_proto",
     ],
 )
 
@@ -46,8 +48,10 @@ kt_jvm_library(
         ":test_config",
         "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/publisher:google_work_item_publisher",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:errors",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:queue_mapping",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:work_item_publisher",
         "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_item_attempts_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_items_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
@@ -56,5 +60,8 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub/testing:google_pub_sub_emulator_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub/testing:google_pub_sub_emulator_provider",
+        "@wfa_common_jvm//src/main/proto/wfa/measurement/queue/testing:test_work_kt_jvm_proto",
     ],
 )

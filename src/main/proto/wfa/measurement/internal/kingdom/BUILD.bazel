@@ -37,6 +37,7 @@ LIBS = [
     "measurement_log_entry",
     "measurement_failure",
     "measurement",
+    "media_type",
     "model_line",
     "model_outage",
     "model_provider",
@@ -294,6 +295,12 @@ proto_library(
 )
 
 proto_library(
+    name = "media_type_proto",
+    srcs = ["media_type.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+proto_library(
     name = "event_group_details_proto",
     srcs = ["event_group_details.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -309,6 +316,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":event_group_details_proto",
+        ":media_type_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )

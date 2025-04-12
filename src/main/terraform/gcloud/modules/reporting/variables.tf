@@ -43,6 +43,13 @@ variable "spanner_instance" {
   nullable = false
 }
 
+variable "reporting_spanner_database_name" {
+  description = "Name of the Spanner database for Reporting."
+  type        = string
+  default     = "reporting"
+  nullable    = false
+}
+
 variable "access_spanner_database_name" {
   description = "Name of the Spanner database for Access."
   type        = string

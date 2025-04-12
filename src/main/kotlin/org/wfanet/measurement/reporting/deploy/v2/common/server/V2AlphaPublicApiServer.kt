@@ -62,6 +62,7 @@ import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
@@ -79,6 +80,7 @@ import org.wfanet.measurement.reporting.deploy.v2.common.ReportingApiServerFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.V2AlphaFlags
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
+import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
@@ -319,7 +321,10 @@ private object V2AlphaPublicApiServer {
             SecureRandom().asKotlinRandom(),
           )
           .withInterceptor(principalAuthInterceptor),
+        BasicReportsService(InternalBasicReportsCoroutineStub(channel), authorization)
+          .withInterceptor(principalAuthInterceptor),
       )
+
     CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
     inProcessChannel.shutdown()
     inProcessServer.shutdown()

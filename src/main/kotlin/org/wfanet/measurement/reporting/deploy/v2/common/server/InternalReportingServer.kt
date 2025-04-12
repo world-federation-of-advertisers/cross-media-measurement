@@ -17,32 +17,36 @@
 package org.wfanet.measurement.reporting.deploy.v2.common.server
 
 import io.grpc.BindableService
+import java.time.Clock
 import kotlin.reflect.full.declaredMemberProperties
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.runInterruptible
+import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.db.postgres.PostgresFlags
+import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineImplBase
+import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.reporting.deploy.v2.common.SpannerFlags
+import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
+import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
+import org.wfanet.measurement.reporting.deploy.v2.common.usingSpanner
 import picocli.CommandLine
+import picocli.CommandLine.MissingParameterException
 
-abstract class InternalReportingServer : Runnable {
-  data class Services(
-    val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
-    val measurementsService: MeasurementsCoroutineImplBase,
-    val metricsService: MetricsCoroutineImplBase,
-    val reportingSetsService: ReportingSetsCoroutineImplBase,
-    val reportsService: ReportsCoroutineImplBase,
-    val reportSchedulesService: ReportSchedulesCoroutineImplBase,
-    val reportScheduleIterationsService: ReportScheduleIterationsCoroutineImplBase,
-    val metricCalculationSpecsService: MetricCalculationSpecsCoroutineImplBase,
-  )
+abstract class AbstractInternalReportingServer : Runnable {
+  @CommandLine.Spec lateinit var spec: CommandLine.Model.CommandSpec
 
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
+
+  @CommandLine.Option(
+    names = ["--basic-reports-enabled"],
+    description =
+      [
+        "Whether the BasicReports service is enabled. This includes services it exclusively depends on."
+      ],
+    required = false,
+  )
+  var basicReportsEnabled: Boolean = false
 
   protected suspend fun run(services: Services) {
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services.toList())
@@ -52,7 +56,50 @@ abstract class InternalReportingServer : Runnable {
 
   companion object {
     fun Services.toList(): List<BindableService> {
-      return Services::class.declaredMemberProperties.map { it.get(this) as BindableService }
+      return Services::class.declaredMemberProperties.mapNotNull {
+        it.get(this) as BindableService?
+      }
     }
   }
 }
+
+@CommandLine.Command(
+  name = "InternalReportingServer",
+  description = ["Start the internal Reporting data-layer services in a single blocking server."],
+  mixinStandardHelpOptions = true,
+  showDefaultValues = true,
+)
+class InternalReportingServer : AbstractInternalReportingServer() {
+  @CommandLine.Mixin private lateinit var postgresFlags: PostgresFlags
+  @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
+
+  override fun run() = runBlocking {
+    val clock = Clock.systemUTC()
+    val idGenerator = RandomIdGenerator(clock)
+
+    val postgresClient = PostgresDatabaseClient.fromFlags(postgresFlags)
+
+    if (basicReportsEnabled) {
+      if (
+        spannerFlags.projectName.isEmpty() ||
+          spannerFlags.instanceName.isEmpty() ||
+          spannerFlags.databaseName.isEmpty()
+      ) {
+        throw MissingParameterException(
+          spec.commandLine(),
+          spec.args(),
+          "--spanner-project, --spanner-instance, and --spanner-database are all required if --basic-reports-enabled is set to true",
+        )
+      }
+
+      spannerFlags.usingSpanner { spanner ->
+        val spannerClient = spanner.databaseClient
+        run(DataServices.create(idGenerator, postgresClient, spannerClient))
+      }
+    } else {
+      run(DataServices.create(idGenerator, postgresClient, null))
+    }
+  }
+}
+
+fun main(args: Array<String>) = commandLineMain(InternalReportingServer(), args)

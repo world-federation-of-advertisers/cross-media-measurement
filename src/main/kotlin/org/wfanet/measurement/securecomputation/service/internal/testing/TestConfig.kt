@@ -22,7 +22,5 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 
 object TestConfig {
   val QUEUE_MAPPING =
-    QueueMapping(
-      queuesConfig { queueInfos.add(queueInfo { queueResourceId = "queues/test_queue" }) }
-    )
+    QueueMapping(queuesConfig { queueInfos.add(queueInfo { queueResourceId = "test-topid-id" }) })
 }

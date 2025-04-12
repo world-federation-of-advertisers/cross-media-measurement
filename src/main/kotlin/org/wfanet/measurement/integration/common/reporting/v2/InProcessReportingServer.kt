@@ -63,6 +63,7 @@ import org.wfanet.measurement.config.reporting.metricSpecConfig
 import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.InProcessAccess
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
+import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
@@ -71,10 +72,11 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.Reportin
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
-import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer
-import org.wfanet.measurement.reporting.deploy.v2.common.server.InternalReportingServer.Companion.toList
+import org.wfanet.measurement.reporting.deploy.v2.common.server.AbstractInternalReportingServer.Companion.toList
+import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
+import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
@@ -88,7 +90,7 @@ import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineSt
 
 /** TestRule that starts and stops all Reporting Server gRPC services. */
 class InProcessReportingServer(
-  private val internalReportingServerServices: InternalReportingServer.Services,
+  private val internalReportingServerServices: Services,
   private val accessServicesFactory: AccessServicesFactory,
   kingdomPublicApiChannel: Channel,
   private val encryptionKeyPairConfig: EncryptionKeyPairConfig,
@@ -128,6 +130,8 @@ class InProcessReportingServer(
     InternalReportingSetsCoroutineStub(internalApiChannel)
   }
   private val internalReportsClient by lazy { InternalReportsCoroutineStub(internalApiChannel) }
+
+  val internalBasicReportsClient by lazy { InternalBasicReportsCoroutineStub(internalApiChannel) }
 
   private val internalReportingServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
@@ -278,6 +282,8 @@ class InProcessReportingServer(
                 authorization,
                 SecureRandom().asKotlinRandom(),
               )
+              .withTrustedPrincipalAuthentication(),
+            BasicReportsService(internalBasicReportsClient, authorization)
               .withTrustedPrincipalAuthentication(),
           )
           .forEach { addService(it.withVerboseLogging(verboseGrpcLogging)) }

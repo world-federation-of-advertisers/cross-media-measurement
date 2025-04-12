@@ -15,6 +15,7 @@
 package org.wfanet.measurement.securecomputation.teesdk
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Any
 import com.google.protobuf.Parser
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.cancelAndJoin
@@ -23,34 +24,62 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
 import org.junit.ClassRule
+import org.junit.Rule
 import org.junit.Test
+import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.stub
 import org.wfa.measurement.queue.testing.TestWork
+import org.wfa.measurement.queue.testing.testWork
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.queue.QueueSubscriber
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAttempt
 
 class BaseTeeApplicationImpl(
   subscriptionId: String,
   queueSubscriber: QueueSubscriber,
-  parser: Parser<TestWork>,
+  parser: Parser<WorkItem>,
+  workItemsClient: WorkItemsCoroutineStub,
+  workItemAttemptsClient: WorkItemAttemptsCoroutineStub,
 ) :
-  BaseTeeApplication<TestWork>(
+  BaseTeeApplication(
     subscriptionId = subscriptionId,
     queueSubscriber = queueSubscriber,
     parser = parser,
+    workItemsStub = workItemsClient,
+    workItemAttemptsStub = workItemAttemptsClient,
   ) {
   val messageProcessed = CompletableDeferred<TestWork>()
 
-  override suspend fun runWork(message: TestWork) {
-    messageProcessed.complete(message)
+  override suspend fun runWork(message: Any) {
+    val testWork = message.unpack(TestWork::class.java)
+    messageProcessed.complete(testWork)
   }
 }
 
 class BaseTeeApplicationTest {
 
   private lateinit var emulatorClient: GooglePubSubEmulatorClient
+
+  private val workItemsServiceMock = mockService<WorkItemsCoroutineImplBase>()
+  private val workItemAttemptsServiceMock = mockService<WorkItemAttemptsCoroutineImplBase>()
+
+  @get:Rule
+  val grpcTestServer = GrpcTestServerRule {
+    addService(workItemsServiceMock)
+    addService(workItemAttemptsServiceMock)
+  }
 
   @Before
   fun setupPubSubResources() {
@@ -76,19 +105,39 @@ class BaseTeeApplicationTest {
   @Test
   fun `test processing protobuf message`() = runBlocking {
     val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
-    val publisher = Publisher<TestWork>(PROJECT_ID, emulatorClient)
+    val publisher = Publisher<WorkItem>(PROJECT_ID, emulatorClient)
+    val workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel)
+    val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel)
+
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    val testWorkItem = workItem { name = "workItems/workItem" }
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    workItemAttemptsServiceMock.stub {
+      onBlocking { completeWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    workItemAttemptsServiceMock.stub {
+      onBlocking { failWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    workItemsServiceMock.stub { onBlocking { failWorkItem(any()) } doReturn testWorkItem }
+
     val app =
       BaseTeeApplicationImpl(
         subscriptionId = SUBSCRIPTION_ID,
         queueSubscriber = pubSubClient,
-        parser = TestWork.parser(),
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
       )
     val job = launch { app.run() }
 
-    val message = "UserName1"
-    val testWork = createTestWork(message)
+    val testWork = createTestWork()
+    val workItem = createWorkItem(testWork)
 
-    publisher.publishMessage(TOPIC_ID, testWork)
+    publisher.publishMessage(TOPIC_ID, workItem)
 
     val processedMessage = app.messageProcessed.await()
     assertThat(processedMessage).isEqualTo(testWork)
@@ -96,8 +145,21 @@ class BaseTeeApplicationTest {
     job.cancelAndJoin()
   }
 
-  private fun createTestWork(message: String): TestWork {
-    return TestWork.newBuilder().setUserName(message).setUserAge("25").setUserCountry("US").build()
+  private fun createTestWork(): TestWork {
+    return testWork {
+      userName = "UserName"
+      userAge = "25"
+      userCountry = "US"
+    }
+  }
+
+  private fun createWorkItem(testWork: TestWork): WorkItem {
+
+    val packedWorkItemParams = Any.pack(testWork)
+    return workItem {
+      name = "workItems/workItem"
+      workItemParams = packedWorkItemParams
+    }
   }
 
   companion object {

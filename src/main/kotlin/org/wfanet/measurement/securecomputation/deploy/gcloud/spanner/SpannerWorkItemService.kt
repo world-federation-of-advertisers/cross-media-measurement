@@ -52,11 +52,13 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundFo
 import org.wfanet.measurement.securecomputation.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 
 class SpannerWorkItemsService(
   private val databaseClient: AsyncDatabaseClient,
   private val queueMapping: QueueMapping,
   private val idGenerator: IdGenerator,
+  private val workItemPublisher: WorkItemPublisher,
 ) : WorkItemsCoroutineImplBase() {
 
   override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
@@ -68,6 +70,11 @@ class SpannerWorkItemsService(
 
     if (request.workItem.workItemResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("work_item_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (!request.workItem.hasWorkItemParams()) {
+      throw RequiredFieldNotSetException("work_item_params")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
@@ -86,8 +93,13 @@ class SpannerWorkItemsService(
         transactionRunner.run { txn ->
           val workItemId: Long = idGenerator.generateNewId { id -> txn.workItemIdExists(id) }
 
-          val state =
-            txn.insertWorkItem(workItemId, request.workItem.workItemResourceId, queue.queueId)
+          val state: WorkItem.State =
+            txn.insertWorkItem(
+              workItemId,
+              request.workItem.workItemResourceId,
+              queue.queueId,
+              request.workItem.workItemParams,
+            )
 
           request.workItem.copy { this.state = state }
         }
@@ -106,6 +118,15 @@ class SpannerWorkItemsService(
         createTime = commitTimestamp
         updateTime = commitTimestamp
       }
+
+    try {
+      workItemPublisher.publishMessage(
+        request.workItem.queueResourceId,
+        request.workItem.workItemParams,
+      )
+    } catch (e: Exception) {
+      throw Status.INTERNAL.withCause(e).asRuntimeException()
+    }
 
     return result
   }

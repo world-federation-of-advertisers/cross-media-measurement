@@ -269,6 +269,11 @@ REPORTING_V2_COMMON_IMAGES = [
         repository = _PREFIX + "/reporting/v2/report-scheduling",
     ),
     struct(
+        name = "reporting_spanner_update_schema_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:update_schema_image",
+        repository = _PREFIX + "/reporting/v2/spanner-update-schema",
+    ),
+    struct(
         name = "reporting_grpc_gateway_image",
         repository = _PREFIX + "/reporting/grpc-gateway",
         image = "//src/main/go/reporting:grpc_gateway_image",
@@ -278,35 +283,58 @@ REPORTING_V2_COMMON_IMAGES = [
 REPORTING_V2_LOCAL_IMAGES = [
     struct(
         name = "internal_reporting_v2_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/server:postgres_internal_reporting_server_image",
-        repository = _PREFIX + "/reporting/v2/local-postgres-internal",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:internal_reporting_server_image",
+        repository = _PREFIX + "/reporting/v2/internal-server",
     ),
     struct(
         name = "reporting_v2_postgres_update_schema_image",
         image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/tools:update_schema_image",
-        repository = _PREFIX + "/reporting/v2/local-postgres-update-schema",
+        repository = _PREFIX + "/reporting/v2/postgres-update-schema",
     ),
 ]
 
 REPORTING_V2_GKE_IMAGES = [
     struct(
         name = "gcloud_reporting_v2_internal_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/postgres/server:gcloud_postgres_internal_reporting_server_image",
-        repository = _PREFIX + "/reporting/v2/postgres-internal-server",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/server:gcloud_internal_reporting_server_image",
+        repository = _PREFIX + "/reporting/v2/gcloud-internal-server",
     ),
     struct(
         name = "gcloud_reporting_v2_postgres_update_schema_image",
         image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/postgres/tools:update_schema_image",
-        repository = _PREFIX + "/reporting/v2/postgres-update-schema",
+        repository = _PREFIX + "/reporting/v2/gcloud-postgres-update-schema",
     ),
 ]
 
-ALL_GKE_IMAGES = COMMON_IMAGES + GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_GKE_IMAGES
+SECURE_COMPUTATION_COMMON_IMAGES = [
+    struct(
+        name = "secure_computation_public_api_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/common/server:public_api_server_image",
+        repository = _PREFIX + "/secure-computation/public-api",
+    ),
+]
+
+SECURE_COMPUTATION_GKE_IMAGES = [
+    struct(
+        name = "gcloud_secure_computation_internal_api_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:internal_api_server_image",
+        repository = _PREFIX + "/secure-computation/internal-server",
+    ),
+    struct(
+        name = "gcloud_secure_computation_update_schema_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/tools:update_schema_image",
+        repository = _PREFIX + "/secure-computation/update-schema",
+    ),
+]
+
+ALL_GKE_IMAGES = COMMON_IMAGES + GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_GKE_IMAGES + SECURE_COMPUTATION_COMMON_IMAGES + SECURE_COMPUTATION_GKE_IMAGES
 
 ALL_LOCAL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_LOCAL_IMAGES
 
-ALL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_LOCAL_IMAGES + REPORTING_V2_GKE_IMAGES + EKS_IMAGES
+ALL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + GKE_IMAGES + REPORTING_V2_COMMON_IMAGES + REPORTING_V2_LOCAL_IMAGES + REPORTING_V2_GKE_IMAGES + EKS_IMAGES + SECURE_COMPUTATION_COMMON_IMAGES + SECURE_COMPUTATION_GKE_IMAGES
 
 ALL_REPORTING_GKE_IMAGES = REPORTING_V2_COMMON_IMAGES + REPORTING_V2_GKE_IMAGES
+
+ALL_SECURE_COMPUTATION_GKE_IMAGES = SECURE_COMPUTATION_COMMON_IMAGES + SECURE_COMPUTATION_GKE_IMAGES
 
 ALL_EKS_IMAGES = COMMON_IMAGES + EKS_IMAGES

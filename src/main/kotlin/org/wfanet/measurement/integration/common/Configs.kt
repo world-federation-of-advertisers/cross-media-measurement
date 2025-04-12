@@ -44,6 +44,9 @@ import org.wfanet.measurement.internal.kingdom.HmssProtocolConfigConfig
 import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
+import org.wfanet.measurement.gcloud.testing.CloudFunctionProcessDetails
+import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.config.securecomputation.QueuesConfig
 
 private const val REPO_NAME = "wfa_measurement_system"
 
@@ -198,4 +201,25 @@ val DEFAULT_SERVICE_CONFIG_MAP: Map<String, *>?
     val serviceConfigJson = defaultServiceConfig.toJson()
     val mapType = object : TypeToken<Map<String, *>>() {}.type
     return Gson().fromJson(serviceConfigJson, mapType)
+  }
+
+/** Used to configure DataWatcher **/
+val DATA_WATCHER_CONFIG: List<DataWatcherConfig>
+  get() {
+    val configPath = Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+    val configFile =
+      getRuntimePath(configPath.resolve("data_watcher_config.textproto"))!!.toFile()
+    return listOf(parseTextProto(configFile, DataWatcherConfig.getDefaultInstance()))
+  }
+
+/** Used to configure Secure Computation Control Plane */
+const val PROJECT_ID = "some-project-id"
+const val SUBSCRIPTION_ID = "some-subscription-id"
+const val TOPIC_ID = "some-topic-id"
+val QUEUES_CONFIG: QueuesConfig
+  get() {
+    val configPath = Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+    val configFile =
+      getRuntimePath(configPath.resolve("queues_config.textproto"))!!.toFile()
+    return parseTextProto(configFile, QueuesConfig.getDefaultInstance())
   }

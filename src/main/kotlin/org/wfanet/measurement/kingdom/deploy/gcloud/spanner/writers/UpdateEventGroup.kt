@@ -14,11 +14,21 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.KeySet
+import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toSet
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.to
 import org.wfanet.measurement.internal.kingdom.EventGroup
+import org.wfanet.measurement.internal.kingdom.MediaType
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
@@ -58,12 +68,9 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
         ExternalId(eventGroup.externalMeasurementConsumerId),
       )
     }
-    val providedEventGroupId =
-      if (eventGroup.providedEventGroupId.isNotBlank()) {
-        eventGroup.providedEventGroupId
-      } else null
+    val providedEventGroupId: String? = eventGroup.providedEventGroupId.ifBlank { null }
 
-    transactionContext.bufferUpdateMutation("EventGroups") {
+    transactionContext.bufferUpdateMutation(Table.EVENT_GROUPS) {
       set("DataProviderId" to internalEventGroupResult.internalDataProviderId.value)
       set("EventGroupId" to internalEventGroupResult.internalEventGroupId.value)
       set("ProvidedEventGroupId" to providedEventGroupId)
@@ -71,10 +78,56 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
       set("EventGroupDetails").to(eventGroup.details)
     }
 
+    transactionContext.syncMediaTypes(
+      internalEventGroupResult.internalDataProviderId,
+      internalEventGroupResult.internalEventGroupId,
+      eventGroup.mediaTypesList.toSet(),
+    )
+
     return eventGroup
+  }
+
+  private suspend fun AsyncDatabaseClient.TransactionContext.syncMediaTypes(
+    dataProviderId: InternalId,
+    eventGroupId: InternalId,
+    replacementMediaTypes: Set<MediaType>,
+  ) {
+    val existingMediaTypes: Set<MediaType> =
+      read(
+          Table.EVENT_GROUP_MEDIA_TYPES,
+          KeySet.prefixRange(Key.of(dataProviderId.value, eventGroupId.value)),
+          listOf("MediaType"),
+        )
+        .map { row -> row.getProtoEnum<MediaType>("MediaType", MediaType::forNumber) }
+        .toSet()
+
+    if (replacementMediaTypes == existingMediaTypes) {
+      return // Optimization.
+    }
+
+    for (mediaType in replacementMediaTypes subtract existingMediaTypes) {
+      bufferInsertMutation(Table.EVENT_GROUP_MEDIA_TYPES) {
+        set("DataProviderId").to(dataProviderId)
+        set("EventGroupId").to(eventGroupId)
+        set("MediaType").to(mediaType)
+      }
+    }
+    for (mediaType in existingMediaTypes subtract replacementMediaTypes) {
+      buffer(
+        Mutation.delete(
+          Table.EVENT_GROUP_MEDIA_TYPES,
+          Key.of(dataProviderId.value, eventGroupId.value, mediaType),
+        )
+      )
+    }
   }
 
   override fun ResultScope<EventGroup>.buildResult(): EventGroup {
     return eventGroup.toBuilder().apply { updateTime = commitTimestamp.toProto() }.build()
+  }
+
+  private object Table {
+    const val EVENT_GROUPS = "EventGroups"
+    const val EVENT_GROUP_MEDIA_TYPES = "EventGroupMediaTypes"
   }
 }
